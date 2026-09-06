@@ -1,0 +1,82 @@
+# The VNX JSON Schema
+
+`vnx-0.1.schema.json`, draft 2020-12. It is an agent affordance in its own
+right: it lets a tool validate a document with no Viatrail code at all.
+
+**A green schema is not a valid document.** That sentence is the reason this
+file exists. Several of the format's load-bearing rules are not about shape, and
+a schema can only check shape.
+
+## What it checks
+
+- The document is an object with a `vnx` version string.
+- Every collection is an array of the right kind of object, and the required
+  fields of each are present: a waypoint has an `at`, an area a `polygon`, a
+  track its `segments`, a route its `arcs`, a network arc its `from` / `to` /
+  `pips`, a link its `arc` / `from` / `to`.
+- A position is an array of at least two numbers, longitude in ±180 and latitude
+  in ±90, `null` permitted from index 2, extra trailing channels ignored.
+- A ring holds at least four positions and holds **positions**, so a
+  GeoJSON-shaped polygon with nested rings is caught here.
+- A timestamp is UTC with a `Z` suffix, and nothing else.
+- Every `data` record carries an `@type`.
+
+## What it cannot check
+
+Each of these passes the schema and is wrong. `internal/vnxschema`'s
+`TestSchemaCannotCatchTheseAndSaysSo` asserts they still pass, so if the schema
+ever grows the reach to catch one, that test goes red and this list gets
+corrected rather than quietly going stale.
+
+| Rule | Why a schema cannot reach it |
+|---|---|
+| **lon/lat transposition** | Both orderings are numbers in range. The point lands 8000 km away and every check stays green. |
+| **A link naming an arc absent from the document** | A cross-reference. JSON Schema has no way to say "this string must be a key of that map". |
+| **A ring that does not close** | The last position must repeat the first — a relationship between two values. |
+| **An inline endpoint that is not on its arc** | Arithmetic over two values, not a shape. |
+| **Container-scoped ids** | A route's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
+| **A shared turnaround handle** | Two links in one chain may share a handle, and a reader must compare inline positions BY VALUE. Nothing structural distinguishes it. |
+| **A version above the reader's** | Reader-relative. The schema has no idea what any reader implements. |
+| **A duplicate object key** | Resolved last-wins by the parser before the schema runs (spec §6.4). |
+| **`NaN` / `Infinity`** | Not JSON. No validator ever sees the document. |
+| **Canonical form** | About bytes, not structure. |
+| **Everything about `.vnz`** | An archive is not a JSON document. |
+
+## What it deliberately permits
+
+**Unknown keys.** `additionalProperties` is left open everywhere on purpose:
+spec §6.2 makes an unknown key on a core object a reader *diagnostic* that keeps
+the item, so a schema refusing them would disagree with every conforming reader.
+The same goes for `data` record bodies, which are opaque by design — constraining
+them would break exactly the extensibility the bag exists for — and for the
+`rulesets` block, which a 0.1 reader preserves verbatim and interprets not at all
+(§3.7).
+
+## Where the schema and the reader disagree
+
+The corpus records a `schema` verdict per case, so the disagreements are visible
+rather than assumed. Two kinds exist and both are correct:
+
+- `reject/version-too-new.vnx` is **schema-valid and reader-refused**. Only a
+  reader knows what it implements.
+- Most must-diagnose files are **schema-valid and diagnosed** — an unknown key,
+  a dangling link, a chain that does not join. `diagnose/polygon-second-ring.vnx`
+  and `diagnose/timestamp-with-offset.vnx` are the two the schema does catch.
+
+## Running it
+
+```sh
+cd go && go test ./internal/vnxschema/
+```
+
+⚠ That test lives in `internal/vnxschema`, **not** in `pkg/vnx`, because a JSON
+Schema validator is a third-party dependency and `pkg/vnx` imports the standard
+library and nothing else — it is the reference implementation, and that is the
+one property everyone reimplementing this format relies on.
+
+The reason used to be sharper than the enforcement. The stdlib guard skipped
+`_test.go` files, so putting this test in `pkg/vnx` would have compiled and
+passed while quietly making the library undeliverable; keeping it out was a
+decision somebody had to remember to make. **Since 2026-09-06 the guards read
+test files too**, so the same mistake now goes red in the package that made it.
+The rule has not changed; it just no longer depends on being remembered.

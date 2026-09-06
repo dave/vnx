@@ -1,0 +1,6 @@
+{
+  "kind": "accept",
+  "note": "A .vnz whose document is not called doc.vnx, so the fallback applies: the first .vnx entry in archive order. This fallback is deliberate and Dave ruled it 2026-08-31 - a third-party writer not using the conventional name is an EXPECTED absence, which is where the house rule puts a fallback rather than an error. Note what is NOT copied from importer/kmz.go:27-36, whose comment says `prefer doc.kml in the root` while its code tests filepath.Base and matches at any depth, last match winning.",
+  "counts": {"waypoints": 1},
+  "attachments": []
+}

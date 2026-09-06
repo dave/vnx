@@ -1,0 +1,13 @@
+{
+  "kind": "accept",
+  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, a ruleset, and data records on eight different hosts.",
+  "schema": "valid",
+  "counts": {
+    "folders": 2,
+    "networks": 1,
+    "routes": 1,
+    "tracks": 1,
+    "waypoints": 1,
+    "areas": 1
+  }
+}

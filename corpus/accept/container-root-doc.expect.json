@@ -1,0 +1,6 @@
+{
+  "kind": "accept",
+  "note": "A .vnz container with doc.vnx at the archive root and one attachment beside it (spec 7). Deflate, UTF-8 filename flag set.",
+  "counts": {"waypoints": 1},
+  "attachments": ["attachments/photo.txt"]
+}

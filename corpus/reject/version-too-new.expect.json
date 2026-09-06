@@ -1,0 +1,6 @@
+{
+  "kind": "reject",
+  "note": "A version above the reader's (spec 2.1). Through 0.x the MAJOR and MINOR numbers are the breaking axes, so a reader refuses rather than half-reading - and the refusal must NAME the version needed, or the user is told only that something is wrong. This file's expected message is checked for that. PATCH is the other rule and has its own case, accept/version-newer-patch.vnx: a newer patch is accepted, because a patch bump is additive by definition.",
+  "schema": "valid",
+  "refusal": "a newer reader is needed"
+}

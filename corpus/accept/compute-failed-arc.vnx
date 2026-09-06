@@ -1,0 +1,26 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "routes": [
+    {
+      "name": "One leg the engine could not route",
+      "arcs": [
+        {
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "engine"
+            },
+            {
+              "@type": "app.viatrail.compute-failed"
+            }
+          ],
+          "pips": [
+            [-3.6488, 57.0977, 604],
+            [-3.6402, 57.0931, null]
+          ]
+        }
+      ]
+    }
+  ]
+}

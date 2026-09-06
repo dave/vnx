@@ -1,0 +1,9 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Nowhere",
+      "at": [NaN, 57.118]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "accept",
+  "note": "A track with no pip times at all (spec 8). Moving time is UNKNOWN, and unknown is not zero - a reader that reports 0 has answered a question it cannot answer, and the answer is indistinguishable from a track where nobody moved. `moving_time_ms: null` here means unknown, and a reader must be able to say so.",
+  "schema": "valid",
+  "counts": {
+    "tracks": 1
+  },
+  "tracks": [
+    {
+      "name": "Imported from a format that carried no clock",
+      "moving_time_ms": null
+    }
+  ]
+}

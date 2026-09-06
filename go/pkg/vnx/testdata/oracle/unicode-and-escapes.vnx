@@ -1,0 +1,39 @@
+{
+  "generator": "unicode",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Grüße aus München 🏔️",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "日本語のトレイル",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "مسار الجبل الأحمر",
+      "notes": "עברית",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "\u003cscript\u003ealert(\"x\") \u0026 'y'\u003c/script\u003e",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "quote \" backslash \\ slash / tab \t newline \n",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "control \u0001 and ",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "combining é and ligature ﬁ",
+      "at": [1.5, 2.5]
+    },
+    {
+      "name": "\u2028 line separator \u2029",
+      "at": [1.5, 2.5]
+    }
+  ]
+}

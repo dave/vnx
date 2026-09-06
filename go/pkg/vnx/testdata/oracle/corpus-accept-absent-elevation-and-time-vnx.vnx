@@ -1,0 +1,23 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "tracks": [
+    {
+      "name": "Heights but no clock",
+      "segments": [
+        {
+          "pips": [
+            [-3.6712, 57.118, 341],
+            [-3.6699, 57.1158, 352.4]
+          ]
+        }
+      ]
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "No height known",
+      "at": [-3.6712, 57.118]
+    }
+  ]
+}

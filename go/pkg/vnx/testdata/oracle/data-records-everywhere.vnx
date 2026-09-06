@@ -1,0 +1,153 @@
+{
+  "generator": "data-records",
+  "vnx": "0.1.0",
+  "areas": [
+    {
+      "name": "a",
+      "data": [
+        {
+          "@type": "t/area",
+          "value": true
+        }
+      ],
+      "polygon": [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 0]
+      ]
+    }
+  ],
+  "folders": [
+    {
+      "id": "f",
+      "name": "carrier",
+      "data": [
+        {
+          "@type": "t/folder",
+          "value": 1
+        }
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "n",
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "data": [
+            {
+              "@type": "t/network-arc",
+              "value": "arc"
+            }
+          ],
+          "pips": [
+            [1, 2],
+            [3, 4]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "c",
+          "data": [
+            {
+              "@type": "t/chain",
+              "value": "chain"
+            }
+          ],
+          "links": [
+            {
+              "arc": "arc-1",
+              "from": "node-1",
+              "to": "node-2"
+            }
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "t/network",
+          "value": "net"
+        }
+      ],
+      "nodes": {
+        "node-1": [1, 2],
+        "node-2": [3, 4]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "name": "r",
+      "arcs": [
+        {
+          "data": [
+            {
+              "@type": "t/arc",
+              "value": 2
+            }
+          ],
+          "pips": [
+            [1, 2],
+            [3, 4]
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "t/route",
+          "value": [1, 2]
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "t",
+      "data": [
+        {
+          "@type": "t/track",
+          "value": null
+        }
+      ],
+      "segments": [
+        {
+          "pips": [
+            [1, 2],
+            [3, 4]
+          ]
+        }
+      ]
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "w",
+      "at": [1, 2],
+      "data": [
+        {
+          "@type": "t/waypoint",
+          "value": "x"
+        },
+        {
+          "@type": "t/bodyless"
+        },
+        {
+          "@extra": "a sigil that is not @type",
+          "@type": "app.viatrail.test/nested",
+          "value": {
+            "deep": [
+              1,
+              {
+                "deeper": null
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

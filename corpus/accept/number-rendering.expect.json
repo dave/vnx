@@ -1,0 +1,7 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "Every number whose rendering differs between the target languages, in one file. Measured 2026-09-01: Python and Swift both emit 340.0 / 1e-06 / 1e-07 where the reference emits 340 / 0.000001 / 1e-7; Go emits -0 where ECMAScript emits 0; Apple's JSONSerialization renders -3.67 as -3.6699999999999999. NONE of those is caught by any other corpus file, because no other file contains an exponent-boundary number - so a Python or Swift implementation could pass the whole accept corpus while writing bytes nobody else writes. The canonical check on this file is what closes that. The values live in an opaque data record because that is the only place arbitrary numbers legitimately appear.",
+  "counts": {"waypoints": 1},
+  "positions": [{"waypoint": "Every number that renders differently", "lon": -3.6712345678901234, "lat": 57.118}]
+}

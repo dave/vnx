@@ -1,0 +1,60 @@
+{
+  "generator": "folders",
+  "vnx": "0.1.0",
+  "folders": [
+    {
+      "id": "f1",
+      "name": "level 1"
+    },
+    {
+      "id": "f2",
+      "name": "level 2",
+      "parent": "f1"
+    },
+    {
+      "id": "f3",
+      "name": "level 3",
+      "parent": "f2"
+    },
+    {
+      "id": "f4",
+      "name": "level 4",
+      "parent": "f3"
+    },
+    {
+      "id": "f5",
+      "name": "level 5",
+      "parent": "f4"
+    },
+    {
+      "id": "f6",
+      "name": "level 6",
+      "parent": "f5"
+    },
+    {
+      "hidden": true,
+      "id": "hidden",
+      "name": "hidden one",
+      "parent": "f6"
+    },
+    {
+      "id": "noted",
+      "name": "Grüße 🏔️",
+      "notes": "notes on a folder",
+      "parent": "f1"
+    },
+    {
+      "id": "carrier",
+      "name": "مسار الجبل",
+      "data": [
+        {
+          "@type": "app.viatrail.test/colour",
+          "value": "#ff8800"
+        }
+      ]
+    },
+    {
+      "id": "bare"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "accept",
+  "note": "A coordinate that only survives at full binary64 precision (spec 8). The expected values here are JSON numbers in this same file, so a reader that compares them compares doubles, not text - which is the right test, since -3.6712345678901234 and -3.6712345678901235 are the SAME double (0xc00d5eb03aa8431e) and canonical form emits the shorter spelling. THIS IS A READER-PRESERVATION CASE, NOT A WRITER EXAMPLE (spec 4.5, ruled 2026-09-03): no conforming writer emits these values any more, because a writer rounds coordinates to 6 places and elevations to 1 at the boundary. The file exists to prove a reader - and canonicalise(), which is bytes in and bytes out - does not lose precision it was HANDED. Encoding this document through a writer gives -3.671235, and that is correct.",
+  "schema": "valid",
+  "counts": {
+    "waypoints": 1
+  },
+  "positions": [
+    {
+      "waypoint": "Full precision",
+      "lon": -3.6712345678901235,
+      "lat": 57.11812345678901
+    }
+  ]
+}

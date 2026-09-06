@@ -1,0 +1,11 @@
+{
+  "kind": "accept",
+  "note": "Unknown data types on hosts that have no idea what they mean, including the SAME type on a waypoint and on an area, two records of one type on one host (which spec 5 leaves to the reader), and a deeply nested opaque body. An unknown type is inert on any host: no diagnostic, no error. The canonical round-trip this runner performs is what proves the bodies survive read-modify-write at value level rather than being flattened or dropped.",
+  "schema": "valid",
+  "counts": {
+    "folders": 1,
+    "waypoints": 1,
+    "areas": 1,
+    "networks": 1
+  }
+}

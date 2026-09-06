@@ -1,0 +1,34 @@
+{
+  "generator": "rulesets",
+  "vnx": "0.1.0",
+  "rulesets": [
+    {
+      "flag": true,
+      "id": "r1",
+      "name": "شرط",
+      "none": null,
+      "empty": {},
+      "list": [],
+      "nums": [1, 2.5, null, -3],
+      "then": {
+        "color": "#123456",
+        "width": 2.5
+      },
+      "when": [
+        {
+          "field": "surface",
+          "operator": "is",
+          "value": "paved"
+        }
+      ]
+    },
+    {
+      "id": "r2"
+    },
+    "a bare string in the block",
+    42,
+    null,
+    true,
+    []
+  ]
+}

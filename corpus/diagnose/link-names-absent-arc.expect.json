@@ -1,0 +1,14 @@
+{
+  "kind": "diagnose",
+  "note": "A link naming an arc that is not in the document (spec 6.2). The link's whole meaning is the arc it traverses, so there is no geometry to keep and the link is dropped - but the chain, and the link that is fine, survive. Note there is exactly ONE diagnostic: dropping the second link must not then also report the chain as broken, or one defect becomes two and the reader cannot tell how much is actually wrong.",
+  "schema": "valid",
+  "counts": {
+    "networks": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/networks/0/chains/0/links/1",
+      "message": "not in this network"
+    }
+  ]
+}

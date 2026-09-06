@@ -1,0 +1,14 @@
+{
+  "kind": "diagnose",
+  "note": "A record-level timestamp with a non-Z offset (spec 4.3). Spec 8 originally listed this under must-REJECT; that contradicted 6.2, whose refusal list is exactly two entries - a non-finite number and a version too new - and whose rule for an unusable VALUE is drop-and-diagnose. Refusing here would throw away every pip of a track over a badly spelled date, which is wildly disproportionate. The spec was corrected 2026-09-01; the geometry and the pip times, which are integers and unaffected, all survive.",
+  "schema": "invalid",
+  "counts": {
+    "tracks": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/tracks/0/started",
+      "message": "must be UTC with a Z suffix"
+    }
+  ]
+}

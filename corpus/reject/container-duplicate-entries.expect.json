@@ -1,0 +1,5 @@
+{
+  "kind": "reject",
+  "note": "A .vnz with two entries called doc.vnx (spec 7). Go and Python resolve duplicates differently, so one archive would yield different documents in different languages. Refused rather than arbitrated - picking a winner here is exactly the silent disagreement between implementations the corpus exists to prevent.",
+  "refusal": "duplicate entry"
+}

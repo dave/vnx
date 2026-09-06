@@ -1,0 +1,10 @@
+{
+  "vnx": "9.9.9",
+  "profile": "full",
+  "waypoints": [
+    {
+      "name": "From the future",
+      "at": [-3.6712, 57.118]
+    }
+  ]
+}

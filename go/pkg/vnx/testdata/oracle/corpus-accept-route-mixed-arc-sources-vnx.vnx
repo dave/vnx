@@ -1,0 +1,39 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "routes": [
+    {
+      "name": "Half drawn, half routed",
+      "arcs": [
+        {
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "user-drawn"
+            }
+          ],
+          "pips": [
+            [-3.728, 57.0782, 1296],
+            [-3.719, 57.074, 1221.5],
+            [-3.7101, 57.0699, 1150]
+          ]
+        },
+        {
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "engine",
+              "config": {
+                "cross-country-weight": 0.4
+              }
+            }
+          ],
+          "pips": [
+            [-3.7101, 57.0699, 1150],
+            [-3.702, 57.0655, 1044]
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "accept",
+  "note": "A compute-failed arc (spec 8). The failure is carried as a data record on the arc, not as a missing arc or a null geometry: the straight-line fallback the engine left behind is real geometry the user can see, and the record is what says it is provisional. A reader that drops the record silently promotes a failure to a route.",
+  "schema": "valid",
+  "counts": {
+    "routes": 1
+  }
+}

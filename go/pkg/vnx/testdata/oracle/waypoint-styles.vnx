@@ -1,0 +1,51 @@
+{
+  "generator": "waypoint-styles",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "every style field",
+      "at": [-3.6712, 57.118],
+      "style": {
+        "color": "#ff0000",
+        "icon": "summit",
+        "icon-size": 35,
+        "importance": 5,
+        "label-position": "above",
+        "label-visible": true,
+        "pin-shape": "teardrop"
+      }
+    },
+    {
+      "name": "label hidden",
+      "at": [-3.6712, 57.118],
+      "style": {
+        "label-visible": false
+      }
+    },
+    {
+      "name": "icon size only",
+      "at": [-3.6712, 57.118],
+      "style": {
+        "icon-size": 16
+      }
+    },
+    {
+      "name": "importance only",
+      "at": [-3.6712, 57.118],
+      "style": {
+        "importance": 1
+      }
+    },
+    {
+      "name": "no style at all",
+      "at": [-3.6712, 57.118]
+    },
+    {
+      "folder": "somewhere",
+      "hidden": true,
+      "name": "hidden waypoint",
+      "notes": "note",
+      "at": [-3.6712, 57.118]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "generator": "degenerate-arrays",
+  "vnx": "0.1.0",
+  "networks": [
+    {
+      "name": "chains without links",
+      "chains": [
+        {
+          "name": "empty chain",
+          "links": []
+        }
+      ],
+      "nodes": {
+        "node-1": [1, 2]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "name": "no arcs",
+      "arcs": []
+    },
+    {
+      "name": "one arc one pip",
+      "arcs": [
+        {
+          "pips": [
+            [1, 2]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "one arc no pips",
+      "arcs": [
+        {
+          "pips": []
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "no segments",
+      "segments": []
+    },
+    {
+      "name": "one empty segment",
+      "segments": [
+        {
+          "pips": []
+        }
+      ]
+    },
+    {
+      "name": "one segment one pip",
+      "segments": [
+        {
+          "pips": [
+            [1, 2]
+          ]
+        }
+      ]
+    }
+  ]
+}

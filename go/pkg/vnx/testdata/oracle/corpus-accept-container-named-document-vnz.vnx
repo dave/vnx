@@ -1,0 +1,10 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "In a container",
+      "at": [-3.675, 57.1201]
+    }
+  ]
+}

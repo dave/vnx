@@ -1,0 +1,10 @@
+{
+  "kind": "diagnose",
+  "note": "Two `n1` entries in one `nodes` map (spec 6.4). This file expects NO diagnostic, which is the point: last-wins is what every mainstream JSON parser does, the first node is gone before any VNX code runs, and a standard parser gives a reader no way to know it happened. The arc's pips here start at the SECOND n1, so the document is internally consistent and nothing downstream looks wrong either.",
+  "schema": "valid",
+  "counts": {
+    "networks": 1
+  },
+  "diagnostics": [],
+  "cannot_detect": "A duplicate object key is resolved by the JSON parser before the format's own rules see the document. Detecting it needs a parser that reports duplicates - which none of the five target languages offers by default - so this is documented rather than papered over. If a reader ever DOES detect it, this file goes red and the limitation gets revisited rather than quietly outliving its cause."
+}

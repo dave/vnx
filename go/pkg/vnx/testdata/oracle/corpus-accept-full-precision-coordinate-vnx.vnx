@@ -1,0 +1,10 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Full precision",
+      "at": [-3.671235, 57.118123]
+    }
+  ]
+}

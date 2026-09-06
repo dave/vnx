@@ -1,0 +1,42 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "networks": [
+    {
+      "name": "Out and back",
+      "arcs": {
+        "spur": {
+          "from": "trailhead",
+          "to": "col",
+          "pips": [
+            [-3.68, 57.12],
+            [-3.67, 57.11],
+            [-3.66, 57.1]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "Up to the viewpoint and back",
+          "notes": "The turnaround is mid-arc, so it is a handle rather than a node. Both links name the SAME handle, byte-identical; a reader comparing endpoints by identity rather than by value sees a break here that is not there.",
+          "links": [
+            {
+              "arc": "spur",
+              "from": "trailhead",
+              "to": [-3.67, 57.11]
+            },
+            {
+              "arc": "spur",
+              "to": "trailhead",
+              "from": [-3.67, 57.11]
+            }
+          ]
+        }
+      ],
+      "nodes": {
+        "col": [-3.66, 57.1],
+        "trailhead": [-3.68, 57.12]
+      }
+    }
+  ]
+}

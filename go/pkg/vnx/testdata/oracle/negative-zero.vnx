@@ -1,0 +1,39 @@
+{
+  "generator": "negative-zero",
+  "vnx": "0.1.0",
+  "areas": [
+    {
+      "name": "ring through the origin",
+      "polygon": [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 0]
+      ],
+      "style": {
+        "fill-opacity": 0,
+        "stroke-width": 0
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "threshold": 0,
+      "range": [0, 0]
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "signed zero position",
+      "at": [0, 0]
+    },
+    {
+      "name": "signed zero elevation",
+      "at": [0, 1, 0]
+    },
+    {
+      "name": "signed zero with time",
+      "at": [1, 0, 0, 0]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Everywhere",
+      "at": [-3.6712, Infinity]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "vnx": "0.1.0",
+  "profile": "full",
+  "networks": [
+    {
+      "name": "One good link and one dangling one",
+      "nodes": {
+        "n1": [-3.68, 57.12],
+        "n2": [-3.66, 57.1]
+      },
+      "arcs": {
+        "a1": {
+          "from": "n1",
+          "to": "n2",
+          "pips": [
+            [-3.68, 57.12],
+            [-3.67, 57.11],
+            [-3.66, 57.1]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "Half a walk",
+          "links": [
+            {"arc": "a1", "from": "n1", "to": "n2"},
+            {"arc": "ghost", "from": "n2", "to": "n1"}
+          ]
+        }
+      ]
+    }
+  ]
+}

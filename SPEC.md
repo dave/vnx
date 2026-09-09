@@ -1174,9 +1174,15 @@ Three sidecar fields do work that is not evident from their names:
 - `moving_time_ms` set to `null` means unknown, which is not zero
   (Section 3.5).
 
-`message` and `refusal` are matched as substrings. The exact wording of a
-diagnostic or a refusal is an implementation's own business; naming the cause is
-not.
+A diagnostic is matched on its `path` and its `code` (Section 6.3). Its English
+is advisory and MUST NOT be compared.
+
+A refusal is still matched as a substring of its message, which is the one place
+this corpus compares English across implementations. The exact wording of a
+refusal is an implementation's own business and naming its cause is not, so the
+substring is a weak proxy for the second: a reader refusing for the right reason
+in different words fails. Refusals want codes for the reason diagnostics have
+them.
 
 Every file in `accept/` is stored in canonical form (Section 4.5). A runner MUST
 decode it, RE-RENDER the decoded document, and require the original bytes back.

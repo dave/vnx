@@ -9,8 +9,18 @@ implementation.
 ./gradlew test
 ```
 
-That runs the whole conformance corpus — all four tiers — plus this library's own
-guards. It is a standalone Gradle build and is not wired into any application.
+That runs the whole conformance corpus — all four tiers — plus the
+number-conformance table and this library's own guards. It is a standalone
+Gradle build and is not wired into any application.
+
+The number table (`../number-conformance/`) is a fifth tier in everything but
+its location. It exists because the corpus can reach neither of the two rules
+that decide these bytes: a rendering tie is a value rather than a shape, and a
+rounding tie happens only when a WRITER emits a model, while all four tiers
+re-render an existing document. **The corpus's reach ends at the writer
+boundary** — an implementation can round every coordinate the wrong way and pass
+every tier green. Reverting this library's rounding tie rule reddens those two
+columns and nothing else in the suite, which is that claim as a measurement.
 
 ## No dependencies
 
@@ -44,7 +54,9 @@ A refusal arrives as `VnxRefusal`, separately from the diagnostics, so a caller
 can tell a document that was refused from one that was read with elements
 dropped (`SPEC.md` section 6.3). Every refusal carries a `RefusalCause` and
 every diagnostic a `DiagnosticCause` beside its English text, so nothing has to
-match on prose.
+match on prose. `Diagnostic.code` is the format's reason code, which the corpus
+sidecars started carrying on 2026-09-09; the runner pairs on it, and still
+accepts a sidecar that has not migrated.
 
 `Vnx.render` and `Vnx.write` are two different operations and the difference
 matters: section 8.1 requires a RE-RENDER for the accept tier, because a writer

@@ -15,10 +15,16 @@ import kotlin.test.assertNull
 class DiagnosticMatcherTest {
 
     private fun expect(vararg pairs: Pair<String, String>) =
-        pairs.map { Sidecar.ExpectedDiagnostic(it.first, it.second) }
+        pairs.map { Sidecar.ExpectedDiagnostic(it.first, null, it.second) }
 
     private fun report(vararg pairs: Pair<String, String>) =
         pairs.map { Diagnostic(it.first, it.second, DiagnosticCause.UNKNOWN_KEY) }
+
+    private fun expectCode(vararg pairs: Pair<String, String>) =
+        pairs.map { Sidecar.ExpectedDiagnostic(it.first, it.second, null) }
+
+    private fun reportCause(vararg pairs: Pair<String, DiagnosticCause>) =
+        pairs.map { Diagnostic(it.first, "whatever this reader happens to say", it.second) }
 
     @Test
     fun `a correct pairing passes, in either emission order`() {
@@ -75,6 +81,38 @@ class DiagnosticMatcherTest {
                 report("/a" to "unknown key `nmae`, skipped"),
             ),
             "exact wording is a reader's own business",
+        )
+    }
+
+    @Test
+    fun `a reason code pairs regardless of what the reader says in English`() {
+        // The whole point of the migration: a conforming reader may word its
+        // diagnostic any way it likes, and must still pair.
+        assertNull(
+            DiagnosticMatcher.mismatch(
+                expectCode("/waypoints/0/nmae" to "unknown-key"),
+                reportCause("/waypoints/0/nmae" to DiagnosticCause.UNKNOWN_KEY),
+            ),
+        )
+        // And a reader reporting the WRONG cause at the right path must not pair,
+        // which is the property English substrings were bad at.
+        assertNotNull(
+            DiagnosticMatcher.mismatch(
+                expectCode("/waypoints/0/nmae" to "unknown-key"),
+                reportCause("/waypoints/0/nmae" to DiagnosticCause.WRONG_TYPE),
+            ),
+        )
+    }
+
+    @Test
+    fun `a cause with no reason code can never satisfy a coded expectation`() {
+        // A reader whose cause has no code yet must fail loudly rather than pair
+        // on a null equal to a null.
+        assertNotNull(
+            DiagnosticMatcher.mismatch(
+                expectCode("/a" to "unknown-key"),
+                reportCause("/a" to DiagnosticCause.FOLDER_ABSENT),
+            ),
         )
     }
 

@@ -17,6 +17,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
         val KNOWN_FIELDS = setOf(
             "kind", "note", "schema", "counts", "positions", "tracks",
             "attachments", "refusal", "diagnostics", "cannot_detect",
+            // Reason-code migration, 2026-09-09. `message_advisory` is read by
+            // nothing on purpose: naming it advisory is what stops a runner
+            // quietly going on matching English.
+            "code", "message_advisory",
         )
 
         /** The seven top-level collections `counts` may name (SPEC.md section 3.1). */
@@ -94,8 +98,21 @@ class Sidecar(val file: File, private val root: JsonObject) {
         return v.elements.map { (it as JsonString).value }
     }
 
-    class ExpectedDiagnostic(val path: String, val message: String) {
-        override fun toString() = "$path: ~\"$message\""
+    /**
+     * An expected diagnostic.
+     *
+     * Sidecars carry a reason [code] since 2026-09-09, with the English kept
+     * beside it as `message_advisory` — advisory in name, so nothing pairs on
+     * it. A sidecar that still uses the pre-migration `message` field pairs on
+     * that substring instead; a sidecar carrying neither is a sidecar this
+     * runner cannot check, and is an error rather than a skip.
+     */
+    class ExpectedDiagnostic(val path: String, val code: String?, val substring: String?) {
+        init {
+            require(code != null || substring != null) { "an expected diagnostic must carry `code` or `message`" }
+        }
+
+        override fun toString() = "$path: " + (code?.let { "[$it]" } ?: "~\"$substring\"")
     }
 
     /** Null where the sidecar states no expectation at all, which is different from expecting none. */
@@ -103,7 +120,14 @@ class Sidecar(val file: File, private val root: JsonObject) {
         val v = root["diagnostics"] as? JsonArray ?: return null
         return v.elements.map { element ->
             val o = element as? JsonObject ?: error("${file.name}: a `diagnostics` entry must be an object")
-            ExpectedDiagnostic((o["path"] as JsonString).value, (o["message"] as JsonString).value)
+            val path = (o["path"] as JsonString).value
+            val code = (o["code"] as? JsonString)?.value
+            val substring = (o["message"] as? JsonString)?.value
+            check(code != null || substring != null) {
+                "${file.name}: the diagnostic at $path carries neither `code` nor `message`, " +
+                    "so nothing about it can be checked"
+            }
+            ExpectedDiagnostic(path, code, substring)
         }
     }
 }

@@ -15,57 +15,74 @@ package app.viatrail.vnx
  * `MessageWordingTest` asserts every non-null entry really is a substring of the
  * message this library emits for that cause, so the table cannot rot.
  */
-enum class DiagnosticCause(val corpusSubstring: String?) {
+enum class DiagnosticCause(
+    /**
+     * The reason code the corpus uses for this cause, where it has one.
+     *
+     * These arrived in the sidecars on 2026-09-09 as `code`, alongside the
+     * English under the honest new name `message_advisory`. The runner now pairs
+     * on the code and ignores the advisory text, which is what makes a
+     * diagnostic's exact wording a reader's own business in fact and not only in
+     * principle.
+     */
+    val corpusCode: String?,
+    /**
+     * The substring the corpus expected in this cause's message BEFORE reason
+     * codes landed, kept so a sidecar that has not yet migrated still pairs, and
+     * so `WordingTest` can keep asserting the English actually names the cause.
+     */
+    val corpusSubstring: String?,
+) {
     /** An unrecognised key on an object this format defines. (6.2) */
-    UNKNOWN_KEY("unknown key"),
+    UNKNOWN_KEY("unknown-key", "unknown key"),
 
     /** A REQUIRED key is absent, so the object cannot exist. (3.10, 6.2) */
-    MISSING_REQUIRED_KEY(null),
+    MISSING_REQUIRED_KEY(null, null),
 
     /** A value of the wrong JSON type. (6.2) */
-    WRONG_TYPE(null),
+    WRONG_TYPE(null, null),
 
     /** A value outside a range or enumeration this format states. (6.2) */
-    OUT_OF_RANGE(null),
+    OUT_OF_RANGE(null, null),
 
     /** A position that will not parse. (4.1, 6.2) */
-    POSITION_MALFORMED(null),
+    POSITION_MALFORMED(null, null),
 
     /** A record-level timestamp carrying an offset other than `Z`. (4.3, 6.2) */
-    TIMESTAMP_NOT_UTC("must be UTC with a Z suffix"),
+    TIMESTAMP_NOT_UTC("timestamp-not-utc", "must be UTC with a Z suffix"),
 
     /** A `polygon` carrying a second or nested ring. (3.7, 6.2) */
-    POLYGON_NESTED_RINGS("nested rings"),
+    POLYGON_NESTED_RINGS("polygon-nested-rings", "nested rings"),
 
     /** A `polygon` that does not close, or holds fewer than four positions. (3.7, 6.2) */
-    POLYGON_NOT_A_CLOSED_RING(null),
+    POLYGON_NOT_A_CLOSED_RING(null, null),
 
     /** A link naming an arc that is absent from its network. (6.2) */
-    LINK_ARC_ABSENT("not in this network"),
+    LINK_ARC_ABSENT("link-arc-absent", "not in this network"),
 
     /** A link endpoint naming a node that is absent from its network. */
-    LINK_NODE_ABSENT(null),
+    LINK_NODE_ABSENT(null, null),
 
     /** An arc naming a node that is not in its network. (3.3.2, 6.2) */
-    ARC_NODE_ABSENT(null),
+    ARC_NODE_ABSENT(null, null),
 
     /** An inline endpoint that does not project onto its arc within 50 m. (3.3.3) */
-    INLINE_ENDPOINT_BEYOND_TOLERANCE("beyond the 50 m tolerance"),
+    INLINE_ENDPOINT_BEYOND_TOLERANCE("endpoint-off-arc", "beyond the 50 m tolerance"),
 
     /** An inline endpoint on an arc with no vertices, which has no distance. (3.3.3) */
-    INLINE_ENDPOINT_ON_EMPTY_ARC(null),
+    INLINE_ENDPOINT_ON_EMPTY_ARC(null, null),
 
     /** Consecutive links in a chain that do not meet. (6.2) */
-    CHAIN_NOT_CONNECTED("not one connected walk"),
+    CHAIN_NOT_CONNECTED("chain-discontinuity", "not one connected walk"),
 
     /** A `folder` naming a folder that is not present in the document. (6.2) */
-    FOLDER_ABSENT(null),
+    FOLDER_ABSENT(null, null),
 
     /** A data record with no `@type`, or one that is not a string. (5, 6.2) */
-    DATA_RECORD_TYPE_MISSING(null),
+    DATA_RECORD_TYPE_MISSING(null, null),
 
     /** An attachment compressed by a method other than stored or deflate. (7) */
-    ATTACHMENT_COMPRESSION_UNSUPPORTED(null),
+    ATTACHMENT_COMPRESSION_UNSUPPORTED(null, null),
     ;
 }
 
@@ -84,7 +101,13 @@ data class Diagnostic(
     /** The stable machine cause behind the English text. */
     val cause: DiagnosticCause,
 ) {
-    override fun toString() = "$path: $message"
+    /**
+     * The format's reason code for this diagnostic, where the corpus defines
+     * one. A caller matching on this never has to read the English.
+     */
+    val code: String? get() = cause.corpusCode
+
+    override fun toString() = "$path: [${code ?: cause.name}] $message"
 }
 
 /**

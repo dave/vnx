@@ -66,8 +66,7 @@ internal class Encoder(private val rounding: Boolean) {
         return JsonArray(channels.map { if (it == null) JsonNull else JsonNumber(it) })
     }
 
-    private fun round(value: Double, places: Int): Double =
-        BigDecimal(value).setScale(places, RoundingMode.HALF_UP).toDouble()
+    private fun round(value: Double, places: Int): Double = Rounding.toPlaces(value, places)
 
     private fun positions(list: List<Position>) = JsonArray(list.map(::position))
 
@@ -193,4 +192,27 @@ internal class Encoder(private val rounding: Boolean) {
         rounding && !value -> null
         else -> value
     }
+}
+
+/**
+ * The emit-boundary rounding of SPEC.md section 4.5.4: longitude and latitude to
+ * 6 decimal places, elevation to 1, over the exact binary value of the double.
+ * Time is an integer count of milliseconds and is not rounded.
+ *
+ * A separate object because it is a separate code path from number RENDERING and
+ * needs its own guard. Both need the same tie rule and only rendering is reached
+ * by the conformance corpus: every corpus tier re-renders an existing document,
+ * and rounding happens only when a writer emits a model, so no fixture can
+ * exercise this at all. `NumberConformanceTest` is what covers it.
+ *
+ * Ties round to EVEN. Measured 2026-09-09: Go's `strconv.FormatFloat` and
+ * Python's `%.1f` both write 340.25 to one place as `340.2`, where JavaScript's
+ * `toFixed` gives `340.3`. `RoundingMode.HALF_UP` agrees with `toFixed` and is
+ * wrong here. The tie is not a corner case in these channels — at 1 place every
+ * odd quarter is one, so every quarter-metre elevation, and at 6 places every
+ * odd multiple of 1/128.
+ */
+internal object Rounding {
+    fun toPlaces(value: Double, places: Int): Double =
+        BigDecimal(value).setScale(places, RoundingMode.HALF_EVEN).toDouble()
 }

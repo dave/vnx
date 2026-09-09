@@ -125,8 +125,15 @@ class WordingTest {
             for (file in File(corpus, tier).listFiles()!!.filter { it.name.endsWith(".expect.json") }) {
                 val sidecar = Sidecar.read(file)
                 sidecar.refusal?.let { if (it !in claimed) unclaimed.add("${file.name}: refusal \"$it\"") }
-                sidecar.diagnostics()?.forEach {
-                    if (it.message !in claimed) unclaimed.add("${file.name}: diagnostic \"${it.message}\"")
+                sidecar.diagnostics()?.forEach { expected ->
+                    val code = expected.code
+                    if (code != null) {
+                        if (DiagnosticCause.entries.none { it.corpusCode == code }) {
+                            unclaimed.add("${file.name}: reason code \"$code\" maps to no cause")
+                        }
+                    } else if (expected.substring !in claimed) {
+                        unclaimed.add("${file.name}: diagnostic \"${expected.substring}\"")
+                    }
                 }
             }
         }

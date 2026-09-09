@@ -794,7 +794,7 @@ two" a guarantee of arity rather than of the reader; and a tolerance pair whose
 arc spanned too little latitude to separate the distance models it existed to
 separate.
 
-**### 6.3 Red-proof everything, and check the proof reached its target
+### 6.3 Red-proof everything, and check the proof reached its target
 
 A passing corpus is not evidence that the corpus discriminates. Break one thing,
 run the check that should notice, watch it go red, restore.
@@ -831,6 +831,40 @@ Three of JavaScript's 25 mutations assert that a defect is *not* caught, which
 records a gap in the corpus rather than assuming one. Swift injected 34. Freezing a
 gap pays off directly: such an assertion goes red the moment a fixture closes the
 gap, which is how its author finds out.
+
+The mutations that come back green are the ones worth the exercise. Of 34
+injected into one implementation, 26 went red as designed and taught their author
+nothing not already believed. Four came back green, and three of those paid for
+the whole run. *(Reported by the Swift implementation.)*
+
+They come back green for three reasons that are indistinguishable from the
+console and call for three different actions.
+
+**The mutation was bad.** It assigned a field overwritten three lines later, or it
+deleted an assertion rather than injecting a defect, and removing a check cannot
+make a suite fail. Fix the mutation.
+
+**The mutation was fine and the guard was not there.** A ZIP64 test stayed green
+with the extra-field parser deleted, because the fixture generator masked sizes in
+the *local* header while the reader takes them from the central directory: the
+fixture contained the construct and did not test it. A rounding oracle of 3,308
+rows reached neither the 64-shift arm of its 128-bit arithmetic nor the subnormal
+exponent, so deleting either left the suite green. Regenerating it to reach every
+arm immediately found a real defect: rounding was one double wrong above about
+9e14, because an identity branch tested a power of two where the true boundary is
+a power of ten, so past it the rounded integer exceeded 2^53. The green proof did
+not merely reveal a weak test; it forced a better instrument, which then caught a
+bug. Fix the test.
+
+**The branch is unreachable.** Two mutations of the version rule for 1.0 and later
+came back green and were *provably* no-ops, because a 0.1 reader can never take
+that branch. That is neither a weak guard nor a bad mutation. Record it, in the
+code, so the next person does not run the same mutation, see green, and conclude
+the guard is weak.
+
+An unreachable branch and an untested one look identical forever unless somebody
+writes down which was proved. So: when a red proof comes back green, you have
+learned nothing until you have said which of the three it is.
 
 ### 6.4 Red-proof the instrument, not only the code
 

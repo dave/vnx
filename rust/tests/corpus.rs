@@ -154,69 +154,225 @@ fn diagnose_tier() {
         check_positions(&sidecar, &document, case);
         check_tracks(&sidecar, &document, case);
 
-        let expected = sidecar
-            .get("diagnostics")
-            .and_then(Json::as_array)
-            .unwrap_or_else(|| {
-                panic!("{}: the sidecar carries no `diagnostics` list", case.name)
-            });
+        let expected = read_expected_diagnostics(&sidecar)
+            .unwrap_or_else(|why| panic!("{}: {why}", case.name));
+        if let Err(why) = pair_diagnostics(&expected, &diagnostics) {
+            panic!("{}: {why}", case.name);
+        }
+    });
+}
 
-        // Compared as a SET (SPEC 6.3 makes emission order insignificant), but
-        // with distinct pairing: each expectation must claim its own reported
-        // diagnostic.
-        let mut unclaimed: Vec<usize> = (0..diagnostics.len()).collect();
-        for want in expected {
-            let path = want.get("path").and_then(Json::as_str).unwrap_or_else(|| {
-                panic!("{}: an expected diagnostic has no `path`", case.name)
-            });
-            // SPEC 6.3: the code is what the case compares, and the English
-            // MUST NOT be compared. `message_advisory` is read only so a
-            // failure can say what the case was about.
-            let code = want.get("code").and_then(Json::as_str).unwrap_or_else(|| {
-                panic!(
-                    "{}: an expected diagnostic has no `code`. SPEC 6.3 requires one \
-                     on any diagnostic a corpus case pins.",
-                    case.name
-                )
-            });
-            let advisory = want
+/// One expected diagnostic, as a sidecar states it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Expected {
+    path: String,
+    /// SPEC 6.3: the stable token, and the ONLY thing compared.
+    code: String,
+    /// Read so a failure can say what the case was about. Never compared.
+    advisory: String,
+}
+
+/// Read a sidecar's `diagnostics` list, refusing the two shapes that would let
+/// a matcher silently check less than the case pins.
+///
+/// Both refusals are live history rather than caution. When `67e1721` moved the
+/// corpus from pinning English to pinning `code`, a matcher written against a
+/// `message` field found nothing, fell through, and compared paths alone —
+/// green on every case while checking half of what each pins. A matcher that
+/// checks less always passes.
+fn read_expected_diagnostics(sidecar: &Json) -> Result<Vec<Expected>, String> {
+    let list = sidecar
+        .get("diagnostics")
+        .and_then(Json::as_array)
+        .ok_or("the sidecar carries no `diagnostics` list")?;
+    let mut out = Vec::with_capacity(list.len());
+    for want in list {
+        if want.get("message").is_some() {
+            return Err("an expected diagnostic carries a `message` field. SPEC 6.3 \
+                        forbids comparing English, and the field is called \
+                        `message_advisory` for exactly that reason."
+                .to_string());
+        }
+        let path = want
+            .get("path")
+            .and_then(Json::as_str)
+            .ok_or("an expected diagnostic has no `path`")?;
+        let code = want.get("code").and_then(Json::as_str).ok_or(
+            "an expected diagnostic has no `code`. SPEC 6.3 requires one on any \
+             diagnostic a corpus case pins, and a path-only match would pass a \
+             reader that reported the wrong thing in the right place.",
+        )?;
+        out.push(Expected {
+            path: path.to_string(),
+            code: code.to_string(),
+            advisory: want
                 .get("message_advisory")
                 .and_then(Json::as_str)
-                .unwrap_or("");
-            assert!(
-                want.get("message").is_none(),
-                "{}: the sidecar carries a `message` field. SPEC 6.3 forbids comparing \
-                 English, and the field is called `message_advisory` for that reason.",
-                case.name
-            );
-            let found = unclaimed
-                .iter()
-                .position(|&i| diagnostics[i].path == path && diagnostics[i].code() == code);
-            match found {
-                Some(slot) => {
-                    unclaimed.remove(slot);
-                }
-                None => panic!(
-                    "{}: expected a diagnostic at {path:?} with code {code:?} \
-                     ({advisory}).\nReported: {}",
-                    case.name,
-                    render_diagnostics(&diagnostics)
-                ),
+                .unwrap_or("")
+                .to_string(),
+        });
+    }
+    Ok(out)
+}
+
+/// Pair each expectation with one DISTINCT reported diagnostic, on `path` and
+/// `code` (SPEC 6.3), in any order (SPEC 6.3 makes emission order
+/// insignificant).
+///
+/// Distinct pairing matters: letting one reported diagnostic satisfy two
+/// expectations would pass a reader that found half the defects.
+fn pair_diagnostics(expected: &[Expected], reported: &[vnx::Diagnostic]) -> Result<(), String> {
+    let mut unclaimed: Vec<usize> = (0..reported.len()).collect();
+    for want in expected {
+        let found = unclaimed
+            .iter()
+            .position(|&i| reported[i].path == want.path && reported[i].code() == want.code);
+        match found {
+            Some(slot) => {
+                unclaimed.remove(slot);
+            }
+            None => {
+                return Err(format!(
+                    "expected a diagnostic at {:?} with code {:?} ({}).\nReported: {}",
+                    want.path,
+                    want.code,
+                    want.advisory,
+                    render_diagnostics(reported)
+                ))
             }
         }
-        assert!(
-            unclaimed.is_empty(),
-            "{}: reported {} diagnostic(s) the corpus does not expect: {}",
-            case.name,
-            unclaimed.len(),
-            render_diagnostics(
-                &unclaimed
-                    .iter()
-                    .map(|&i| diagnostics[i].clone())
-                    .collect::<Vec<_>>()
-            )
-        );
-    });
+    }
+    if !unclaimed.is_empty() {
+        let extra: Vec<vnx::Diagnostic> =
+            unclaimed.iter().map(|&i| reported[i].clone()).collect();
+        return Err(format!(
+            "reported {} diagnostic(s) the corpus does not expect: {}",
+            extra.len(),
+            render_diagnostics(&extra)
+        ));
+    }
+    Ok(())
+}
+
+/// A self-test of the matcher, because the CORPUS CANNOT TEST IT.
+///
+/// Measured 2026-09-09 with `tools/redproof.py`: weakening `pair_diagnostics`
+/// to compare `path` alone leaves the whole diagnose tier GREEN. Every diagnose
+/// fixture carries at most one diagnostic and its path identifies it, so no
+/// case can separate a matcher that compares the code from one that ignores it.
+/// These assertions are the only thing that does.
+#[test]
+fn the_diagnostic_matcher_has_been_seen_to_fail() {
+    use vnx::{Cause, Diagnostic};
+
+    let expect = |path: &str, code: &str| Expected {
+        path: path.to_string(),
+        code: code.to_string(),
+        advisory: String::new(),
+    };
+    let unknown_key = Diagnostic::new("/waypoints/0/nmae", Cause::UnknownKey);
+    let not_utc = Diagnostic::new("/waypoints/0/nmae", Cause::TimestampNotUtc);
+
+    // The pairing it must accept.
+    assert!(pair_diagnostics(
+        &[expect("/waypoints/0/nmae", "unknown-key")],
+        std::slice::from_ref(&unknown_key)
+    )
+    .is_ok());
+
+    // Right path, WRONG code. This is the hole an English substring could not
+    // see and a path-only match cannot see either.
+    assert!(pair_diagnostics(
+        &[expect("/waypoints/0/nmae", "unknown-key")],
+        &[not_utc]
+    )
+    .is_err());
+
+    // Right code, wrong path.
+    assert!(pair_diagnostics(
+        &[expect("/waypoints/0/name", "unknown-key")],
+        std::slice::from_ref(&unknown_key)
+    )
+    .is_err());
+
+    // A reported diagnostic nobody expected.
+    assert!(pair_diagnostics(&[], std::slice::from_ref(&unknown_key)).is_err());
+
+    // An expected diagnostic nobody reported.
+    assert!(pair_diagnostics(&[expect("/waypoints/0/nmae", "unknown-key")], &[]).is_err());
+
+    // Distinct pairing: two expectations may not share one reported diagnostic.
+    assert!(pair_diagnostics(
+        &[
+            expect("/waypoints/0/nmae", "unknown-key"),
+            expect("/waypoints/0/nmae", "unknown-key"),
+        ],
+        std::slice::from_ref(&unknown_key)
+    )
+    .is_err());
+    assert!(pair_diagnostics(
+        &[
+            expect("/waypoints/0/nmae", "unknown-key"),
+            expect("/waypoints/0/nmae", "unknown-key"),
+        ],
+        &[unknown_key.clone(), unknown_key.clone()]
+    )
+    .is_ok());
+
+    // Order is not significant (SPEC 6.3).
+    let a = Diagnostic::new("/a", Cause::UnknownKey);
+    let b = Diagnostic::new("/b", Cause::ChainNotConnected);
+    assert!(pair_diagnostics(
+        &[expect("/b", "chain-discontinuity"), expect("/a", "unknown-key")],
+        &[a, b]
+    )
+    .is_ok());
+}
+
+/// A self-test of the sidecar reader, for the same reason: no fixture in the
+/// corpus carries either malformed shape, so nothing else can prove these
+/// refusals exist.
+#[test]
+fn a_sidecar_that_pins_less_than_it_looks_is_refused() {
+    let parse_sidecar = |text: &str| parse(text.as_bytes()).expect("parses");
+
+    // The shape the corpus uses today.
+    let good = parse_sidecar(
+        r#"{"diagnostics":[{"path":"/a","code":"unknown-key","message_advisory":"x"}]}"#,
+    );
+    assert_eq!(
+        read_expected_diagnostics(&good).expect("accepted"),
+        vec![Expected {
+            path: "/a".into(),
+            code: "unknown-key".into(),
+            advisory: "x".into()
+        }]
+    );
+
+    // A bare `message` is the pre-`67e1721` shape. It must fail rather than be
+    // ignored, because ignoring it degrades to a path-only match.
+    let stale = parse_sidecar(r#"{"diagnostics":[{"path":"/a","message":"unknown key"}]}"#);
+    assert!(read_expected_diagnostics(&stale).is_err());
+
+    // A `code` alongside a `message` is still refused: the `message` is the
+    // signal that the sidecar was written against the old contract.
+    let mixed =
+        parse_sidecar(r#"{"diagnostics":[{"path":"/a","code":"unknown-key","message":"x"}]}"#);
+    assert!(read_expected_diagnostics(&mixed).is_err());
+
+    // No `code` at all must fail, not degrade.
+    let codeless = parse_sidecar(r#"{"diagnostics":[{"path":"/a","message_advisory":"x"}]}"#);
+    assert!(read_expected_diagnostics(&codeless).is_err());
+
+    // No `diagnostics` key at all must fail: a diagnose case that pins nothing
+    // is a case that passes for any reader.
+    assert!(read_expected_diagnostics(&parse_sidecar(r#"{"kind":"diagnose"}"#)).is_err());
+
+    // An empty list is legitimate — `diagnose/duplicate-object-key` uses it.
+    assert_eq!(
+        read_expected_diagnostics(&parse_sidecar(r#"{"diagnostics":[]}"#)).expect("accepted"),
+        vec![]
+    );
 }
 
 /// SPEC 8: a `format/` case is a pair rather than a sidecar — `X.in.vnx` and

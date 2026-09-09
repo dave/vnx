@@ -39,6 +39,8 @@ archive is deflated, so a reader without it cannot open a container at all.
 | `zip`, `zip::inflate` | a read-only ZIP walker and an inflater |
 | `vnz` | the container of SPEC 7 |
 | `tests/corpus.rs` | the conformance runner, all four tiers |
+| `tests/numbers.rs` | the number-conformance table, the fifth tier |
+| `tests/zip64.rs` | a hand-built ZIP64 container, because the corpus has none |
 
 ## Three operations, not one
 
@@ -123,16 +125,52 @@ wire commitments.
   (`corpus/schema/README.md`).
 - **No DEFLATE compressor.** `vnz::write` stores its entries, which SPEC 7
   permits, and writes no ZIP64 records, which SPEC 7 also permits.
-- **ZIP64 reading is implemented and untested.** SPEC 7 requires a reader to
-  accept ZIP64 and the corpus has no ZIP64 fixture, so that path has unit tests
-  for its arithmetic and no fixture behind it.
+- **No ZIP64 writing.** Reading it is required and is now tested by a
+  hand-built fixture (see below); writing it is optional and not done.
 - **No streaming.** A document is parsed into memory. There is a nesting depth
   limit of 256 (SPEC 9 asks a reader to bound what one document may consume) and
   no limit on item count.
 
-## The corpus runner has been seen to fail
+## Three things the corpus cannot reach, and what covers them here
 
-`tools/redproof.py` breaks the reader sixteen ways and requires the runner to go
-red each time. All sixteen were caught, measured 2026-09-09; the script's own
-docstring carries the table. Without that, "the corpus passes" is a claim about
-a runner nobody has watched fail.
+The corpus decides conformance, and it has three holes that are properties of
+the corpus rather than of any implementation. Each is covered by a test in this
+crate instead.
+
+**Number ties, rendering and rounding.** `tests/numbers.rs` runs
+`number-conformance/numbers.tsv` — 5,315 doubles as IEEE 754 hex with Go's
+answers for the canonical spelling and for the spelling after rounding to 6 and
+to 1 places. A rendering tie is a value rather than a shape, so no fixture holds
+one usefully; and rounding happens only when a WRITER emits a model, while all
+four corpus tiers re-render an existing document. An implementation can round
+every coordinate in the format the wrong way and pass every corpus tier green.
+160 of the table's rows also separate the two readings of SPEC 4.5.4's rounding
+rule, and all 160 side with rounding against the double.
+
+**ZIP64.** SPEC 7 requires a reader to accept it and all four `.vnz` fixtures
+are plain archives, so a reader can omit the extra-field parser entirely and
+pass. `tests/zip64.rs` assembles an archive byte by byte that masks both sizes
+and the local-header offset in the CENTRAL DIRECTORY, and saturates every field
+the end record can, so the locator has to be followed. A fixture built with
+Python's `force_zip64` masks the local header only and would leave the parser
+untested.
+
+**A diagnostic's `code`.** Every `diagnose/` fixture carries at most one
+diagnostic and its path identifies it, so no case can separate a matcher that
+compares the code from one that ignores it — measured: weakening the matcher to
+compare `path` alone leaves the whole tier green. `tests/corpus.rs` therefore
+self-tests its own matcher: right path with the wrong code must fail, a sidecar
+with no `code` must fail, and a sidecar carrying the pre-`67e1721` `message`
+field must fail rather than be silently ignored.
+
+## Every runner has been seen to fail
+
+`tools/redproof.py` breaks the reader twenty-two ways and requires a runner to go
+red each time. All twenty-two were caught, measured 2026-09-09; the script's own
+docstring carries the table. Without that, "the corpus passes" is a claim about a
+runner nobody has watched fail.
+
+One caution the script records in a comment: its first notes-discarding mutation
+came back green because it patched only the first call site and no accept fixture
+has a folder with `notes`. **A mutation that misses its target is
+indistinguishable from a runner that found nothing wrong.**

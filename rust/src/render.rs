@@ -291,6 +291,13 @@ fn position(p: &Position, mode: Mode) -> Json {
 /// The formatted text is NEVER the emitted bytes — `{:.1}` of 340.0 is `340.0`
 /// and of −0.04 is `-0.0`, both wrong for this format. Only the canonical
 /// renderer decides bytes; this returns a value.
+/// The rounding SPEC 4.5.4 applies at the writer boundary, exposed so the
+/// number-conformance table (`tests/numbers.rs`) can compare it directly. It is
+/// otherwise internal: a caller rounds by calling [`write`].
+pub fn round_for_test(value: f64, places: usize) -> f64 {
+    round_to(value, places)
+}
+
 fn round_to(value: f64, places: usize) -> f64 {
     format!("{value:.places$}")
         .parse()

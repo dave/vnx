@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Red-proof the corpus runner (`cargo test --test corpus`).
+"""Red-proof the conformance runners (corpus, numbers, zip64).
 
 Break the reader, one defect at a time, and require the runner to go RED. A
 tier that stays green under a mutation is a tier that was not testing what its
@@ -30,12 +30,19 @@ Measured 2026-09-09, all sixteen caught:
     sort keys plain lexicographically    accept, format
     round coordinates while decoding     accept, format
     keep only a nested polygon's ring    diagnose
+    resolve a rendering tie away         numbers (render, round6, round1)
+    scale before rounding                numbers (round1, round6)
+    round half away from zero            numbers (round1, round6)
+    compare a diagnostic's path only     the runner's own self-test
+    ignore a stale `message` sidecar     the runner's own self-test
+    skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
+    ignore the ZIP64 end record          zip64
 """
 import io, os, shutil, subprocess, sys, tempfile
 
 ROOT = "/Users/dave/src/vnx/rust"
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/json/number.rs",
-         "src/render.rs", "src/canonical.rs"]
+         "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "tests/corpus.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
@@ -100,6 +107,40 @@ MUTATIONS = [
      "                Json::Number(n) => channels.push(Some(*n)),",
      "                Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
 
+    # The number-conformance table is the only instrument that reaches these
+    # three: SPEC 4.5.3's rendering tie and SPEC 4.5.4's rounding tie decide
+    # bytes, and no corpus tier ever asks a library to write.
+    ("scale before rounding, as the obvious spelling does", "src/render.rs",
+     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
+     "    let s = 10f64.powi(places as i32); (value * s).round_ties_even() / s"),
+
+    ("round half away from zero at the writer boundary", "src/render.rs",
+     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
+     "    let s = 10f64.powi(places as i32); (value * s).round() / s"),
+
+    # This one is caught by the runner's own SELF-TEST, not by any corpus
+    # fixture: every diagnose fixture carries at most one diagnostic and its
+    # path identifies it, so no case can separate a matcher that compares the
+    # code from one that ignores it.
+    ("compare a diagnostic's path and ignore its code", "tests/corpus.rs",
+     ".position(|&i| reported[i].path == want.path && reported[i].code() == want.code);",
+     ".position(|&i| reported[i].path == want.path);"),
+
+    # Same shape: the sidecar-shape refusals have no fixture behind them.
+    ("ignore a sidecar's stale `message` field", "tests/corpus.rs",
+     '        if want.get("message").is_some() {',
+     '        if false && want.get("message").is_some() {'),
+
+    # SPEC 7 requires a reader to accept ZIP64 and the corpus has no ZIP64
+    # fixture, so `tests/zip64.rs` is the only thing that reaches these two.
+    ("skip the ZIP64 extra-field parser", "src/zip/mod.rs",
+     "        if id == 0x0001 {",
+     "        if false && id == 0x0001 {"),
+
+    ("ignore the ZIP64 end of central directory record", "src/zip/mod.rs",
+     "        if count == 0xffff || cd_offset == 0xffff_ffff || cd_size == 0xffff_ffff {",
+     "        if false {"),
+
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
      "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i))).collect());"),
@@ -120,14 +161,24 @@ def restore(tmp):
 
 
 def run_corpus():
-    out = subprocess.run(["cargo", "test", "--test", "corpus"], cwd=ROOT,
-                         capture_output=True, text=True)
+    # `--no-fail-fast`, or cargo stops after the first failing test BINARY and
+    # a mutation that reddens both tiers is reported as reddening only one.
+    out = subprocess.run(["cargo", "test", "--no-fail-fast", "--test", "corpus",
+                          "--test", "numbers", "--test", "zip64"],
+                         cwd=ROOT, capture_output=True, text=True)
     text = out.stdout + out.stderr
     if "test result: ok." in text and "FAILED" not in text:
         return "GREEN", text
     if "test result: FAILED" in text:
-        failed = sorted({l.split()[-1] for l in text.splitlines()
-                         if l.startswith("    ") and l.strip() and "tier" in l})
+        # The names cargo lists under `failures:`, which are indented four
+        # spaces and carry no other whitespace. Taking them by shape rather than
+        # by a keyword, because a filter written from the failures you EXPECT
+        # cannot show the one you did not.
+        failed = sorted({l.strip() for l in text.splitlines()
+                         if l.startswith("    ") and l.strip()
+                         and " " not in l.strip() and "::" not in l.strip()
+                         and l.strip().replace("_", "").isalnum()
+                         and l.strip() not in ("null", "true", "false")})
         return "red", ", ".join(failed) or "?"
     return "DID NOT BUILD", text[-400:]
 

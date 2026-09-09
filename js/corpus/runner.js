@@ -46,6 +46,7 @@ export function runCorpus(CORPUS, api) {
     }
   }
   cases.push(...runFormatCases(path.join(CORPUS, 'format'), api));
+  cases.push(...runWriteCases(path.join(CORPUS, 'write'), api));
   return cases;
 }
 
@@ -218,11 +219,15 @@ function runFormatCases(dir, api) {
     // SPEC.md 8.1: a runner MUST assert that the input is not already
     // canonical. Without it a formatter that echoed its input would pass.
     c.check(input !== want, 'the input is already canonical, so this case cannot fail');
-    const got = rerender(decodeText(input).document);
-    c.check(got === want, firstDifference(want, got));
-    // The canonical file must be a fixed point of the formatter.
-    const again = rerender(decodeText(want).document);
-    c.check(again === want, `re-rendering the canonical file changed it: ${firstDifference(want, again)}`);
+    try {
+      const got = rerender(decodeText(input).document);
+      c.check(got === want, firstDifference(want, got));
+      // The canonical file must be a fixed point of the formatter.
+      const again = rerender(decodeText(want).document);
+      c.check(again === want, `re-rendering the canonical file changed it: ${firstDifference(want, again)}`);
+    } catch (err) {
+      c.failures.push(`threw rather than formatting: ${err && err.message}`);
+    }
     cases.push(c);
   }
   // Every .vnx in format/ belongs to a pair.
@@ -231,6 +236,75 @@ function runFormatCases(dir, api) {
     if (file.endsWith('.in.vnx') || file.endsWith('.canonical.vnx')) continue;
     const c = new Case(`format/${file}`);
     c.failures.push('not part of an .in.vnx / .canonical.vnx pair');
+    cases.push(c);
+  }
+  return cases;
+}
+
+/**
+ * The WRITE tier (SPEC.md 4.5.4): decode the input, call the WRITER, and require
+ * the expected bytes. This is the only tier that applies the emit-boundary
+ * rules, because every other tier re-renders.
+ */
+function runWriteCases(dir, api) {
+  const { decodeText, write } = api;
+  const cases = [];
+  if (!fs.existsSync(dir)) return cases;
+  if (typeof write !== 'function') {
+    const c = new Case('write/');
+    c.failures.push('the implementation exposes no WRITE path; SPEC.md 4.5.4 requires both');
+    return [c];
+  }
+  const seen = new Set();
+  for (const file of fs.readdirSync(dir).sort()) {
+    if (!file.endsWith('.in.vnx')) continue;
+    const base = file.slice(0, -'.in.vnx'.length);
+    seen.add(`${base}.in.vnx`);
+    seen.add(`${base}.written.vnx`);
+    const c = new Case(`write/${base}`);
+    const writtenPath = path.join(dir, `${base}.written.vnx`);
+    const sidecarPath = path.join(dir, `${base}.expect.json`);
+    if (!fs.existsSync(writtenPath)) {
+      c.failures.push(`no ${base}.written.vnx beside the input`);
+      cases.push(c);
+      continue;
+    }
+    if (!fs.existsSync(sidecarPath)) {
+      c.failures.push(`no ${base}.expect.json: a file with no sidecar is a failure, not a skip`);
+      cases.push(c);
+      continue;
+    }
+    const expect = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+    c.check(expect.kind === 'write', `sidecar kind is ${JSON.stringify(expect.kind)}, directory is write`);
+    c.check(typeof expect.note === 'string' && expect.note.length > 0, 'sidecar carries no note');
+
+    const input = fs.readFileSync(path.join(dir, file), 'utf8');
+    const want = fs.readFileSync(writtenPath, 'utf8');
+    // Without this a writer that echoed its input would pass every case here.
+    c.check(input !== want, 'the input is already the written form, so this case cannot fail');
+
+    // A refusal fails THIS case. Letting it propagate would take down every
+    // other case in the run, which is a runner that reports one defect as a
+    // total collapse.
+    try {
+      const decoded = decodeText(input);
+      c.check(decoded.diagnostics.length === 0,
+        `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
+      const got = write(decoded.document);
+      c.check(got === want, firstDifference(want, got));
+      // Rounding and shortening are both idempotent, so the written form must be
+      // a fixed point. A case that fails this is a defect in the fixture.
+      const again = write(decodeText(want).document);
+      c.check(again === want, `writing the written form changed it: ${firstDifference(want, again)}`);
+    } catch (err) {
+      c.failures.push(`threw rather than writing: ${err && err.message}`);
+    }
+    cases.push(c);
+  }
+  for (const file of fs.readdirSync(dir)) {
+    if (!file.endsWith('.vnx') || seen.has(file)) continue;
+    const c = new Case(`write/${file}`);
+    c.failures.push('not part of an .in.vnx / .written.vnx pair');
     cases.push(c);
   }
   return cases;

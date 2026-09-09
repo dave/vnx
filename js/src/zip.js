@@ -168,6 +168,22 @@ function readU64(buf, off) {
 
 /**
  * Write a plain (non-ZIP64) archive with the UTF-8 filename flag set.
+ *
+ * Every entry is STORED. Ruled 2026-09-09, and the reason is that DEFLATE HAS NO
+ * CANONICAL OUTPUT: measured by the Kotlin seat, Go's `compress/flate` and zlib
+ * emit different bytes for one input and no zlib level reproduces the other's,
+ * so a deflated archive is byte-reproducible only by the language that wrote it.
+ * Fixing the timestamps is necessary and not sufficient.
+ *
+ * The asymmetry is the same one canonical form has for a document: required of
+ * what you write, never of what you read. `readEntryData` still inflates.
+ *
+ * Version-needed is 10 rather than 20 because 2.0 is the minimum for DEFLATE and
+ * a stored-only archive does not need it. Sizes and the CRC go in the LOCAL
+ * header and bit 3 is not set: a writer that knows the sizes has no reason to
+ * defer them, and the 16-byte data descriptor per entry is a byte difference
+ * carrying no information.
+ *
  * @param {Array<{name: string, data: Buffer, method?: number}>} files
  * @returns {Buffer}
  */
@@ -177,13 +193,13 @@ export function writeArchive(files) {
   let offset = 0;
   for (const f of files) {
     const name = Buffer.from(f.name, 'utf8');
-    const method = f.method ?? METHOD_DEFLATE;
+    const method = f.method ?? METHOD_STORE;
     const body = method === METHOD_STORE ? f.data : zlib.deflateRawSync(f.data, { level: 9 });
     const crc = crc32(f.data);
 
     const local = Buffer.alloc(30);
     local.writeUInt32LE(SIG_LOCAL, 0);
-    local.writeUInt16LE(20, 4); // version needed
+    local.writeUInt16LE(method === METHOD_STORE ? 10 : 20, 4); // version needed
     local.writeUInt16LE(0x0800, 6); // UTF-8 filename flag
     local.writeUInt16LE(method, 8);
     local.writeUInt16LE(0, 10); // mod time
@@ -197,8 +213,8 @@ export function writeArchive(files) {
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(SIG_CENTRAL, 0);
-    central.writeUInt16LE(20, 4);
-    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(method === METHOD_STORE ? 10 : 20, 4); // version made by
+    central.writeUInt16LE(method === METHOD_STORE ? 10 : 20, 6); // version needed
     central.writeUInt16LE(0x0800, 8);
     central.writeUInt16LE(method, 10);
     central.writeUInt16LE(0, 12);

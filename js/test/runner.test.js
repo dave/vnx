@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { Case, matchDiagnostics } from '../corpus/runner.js';
 import { decodeText } from '../src/decode.js';
 import { decodeContainer } from '../src/vnz.js';
-import { rerender } from '../src/index.js';
+import { rerender, write } from '../src/index.js';
 import { runCorpus } from '../corpus/runner.js';
 import { DIAGNOSTIC_CODES, PINNED_CODES, REFUSAL_SUBSTRINGS } from '../src/errors.js';
 
@@ -159,6 +159,6 @@ test('every refusal substring the corpus expects is in the refusal table', () =>
 });
 
 test('the whole corpus passes', () => {
-  const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender });
+  const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender, write });
   assert.deepEqual(cases.filter((c) => c.failures.length > 0).map((c) => [c.name, c.failures]), []);
 });

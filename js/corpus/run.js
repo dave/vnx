@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { decodeText } from '../src/decode.js';
 import { decodeContainer } from '../src/vnz.js';
-import { rerender } from '../src/index.js';
+import { rerender, write } from '../src/index.js';
 import { runCorpus } from './runner.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +14,7 @@ const CORPUS = process.argv[2]
   ? path.resolve(process.argv[2])
   : path.resolve(HERE, '..', '..', 'corpus');
 
-const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender });
+const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender, write });
 
 let failed = 0;
 for (const c of cases) {

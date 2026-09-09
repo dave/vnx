@@ -36,21 +36,19 @@ same way — `rerenderContainer` and `writeContainer` — so repackaging a conta
 unchanged cannot silently round it. `encodeContainer` takes document text the
 caller has already produced, so the choice is the caller's.
 
-`SPEC.md` 4.5.4 does not say which way a rounding TIE goes, and the languages
-disagree: `340.25` to one place is `340.2` in Go and Python and `340.3` from
-JavaScript's `toFixed`. `src/round.js` rounds half to even, matching the
-reference implementation, and decides the tie on the double's exact value in
-BigInt. **No corpus tier reaches the writer**, so nothing there can catch a
-disagreement: `test/round.test.js` carries the guard for `SPEC.md` 4.5.4's tie
-rule, red-proofed against a mutated copy of `src/round.js`, and
-`test/redproof.test.js` records that the corpus stays green under the flip.
-`SPEC.md` 4.5.3's rendering TIE is a different matter: it is free here (V8 rounds
-to even) but it IS reachable by a re-render, because a re-render always
-re-spells, so `format/number-tie` catches it and a red-proof shows that it would
-still catch a hand-written renderer in this seat. Two more rules live beyond the
-corpus's reach for the same reason and are guarded locally: a negative zero the
-writer CREATED by rounding (`format/` only ever supplies one as an input
-literal), and shortening a position.
+The `write/` corpus tier exercises the first path and is the only tier that does;
+see `corpus/write/README.md`.
+
+A rounding TIE rounds to even (`SPEC.md` 4.5.4): `340.25` to one place is `340.2`,
+where JavaScript's `toFixed` gives `340.3`. `src/round.js` decides the tie on the
+double's exact value in BigInt, because the obvious round-trip check finds
+phantoms. `write/emit-boundary` now catches a wrong tie direction; the local
+guard in `test/round.test.js` predates that tier and stays, red-proofed against a
+mutated copy of `src/round.js`.
+`SPEC.md` 4.5.3's rendering TIE is free here (V8 rounds to even) but IS reachable
+by a re-render, because a re-render always re-spells, so `format/number-tie`
+catches it and a red-proof shows it would still catch a hand-written renderer in
+this seat.
 
 The corpus's accept tier is `rerender(decode(file)) === file`. A writer rounds,
 so writing what you read is legitimately not what you read.

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 
 import { decodeContainer, encodeContainer } from '../src/vnz.js';
-import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE } from '../src/zip.js';
+import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
 import { VnxRefusal } from '../src/errors.js';
 
 const DOC = '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [-3.6712, 57.118]\n    }\n  ]\n}\n';
@@ -258,4 +258,31 @@ test('a legal `a..b/` name is still accepted after the backslash rule', () => {
 test('the writer refuses to pack a name it would refuse to read', () => {
   assert.throws(() => encodeContainer(DOC, [['weird\\name.jpg', Buffer.from('x')]]),
     /backslash/);
+});
+
+test('the writer STORES every entry, and the reader still inflates', () => {
+  // Ruled 2026-09-09: deflate has no canonical output, so a deflated archive is
+  // byte-reproducible only by the language that wrote it. Required of what you
+  // write, never of what you read — the four committed .vnz fixtures are all
+  // deflate and are what tests the reader side.
+  const buf = encodeContainer(DOC, [['attachments/photo.txt', Buffer.from('not a photo\n')]]);
+  for (const e of readEntries(buf)) {
+    assert.equal(e.method, METHOD_STORE, e.name);
+    assert.equal(e.flags, 0x0800, `${e.name}: UTF-8 flag only, no data descriptor`);
+  }
+  // and it still round-trips
+  assert.equal(decodeContainer(buf).attachments.get('attachments/photo.txt').toString(), 'not a photo\n');
+});
+
+test('a writer does not defer sizes it already knows', () => {
+  // Bit 3 (the data descriptor) moves the CRC and both sizes out of the local
+  // header. A writer that knows them has no reason to defer them, and the extra
+  // 16 bytes per entry are a byte difference carrying no information. A reader
+  // must still accept it: the committed fixtures set 0x808.
+  const buf = encodeContainer(DOC);
+  const flags = buf.readUInt16LE(6);
+  assert.equal(flags & 0x08, 0, 'bit 3 must not be set');
+  assert.notEqual(buf.readUInt32LE(14), 0, 'CRC is in the local header');
+  assert.notEqual(buf.readUInt32LE(18), 0, 'compressed size is in the local header');
+  assert.notEqual(buf.readUInt32LE(22), 0, 'uncompressed size is in the local header');
 });

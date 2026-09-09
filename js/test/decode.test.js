@@ -270,6 +270,43 @@ test('moving time sums per segment, and is unknown rather than zero', () => {
   assert.equal(document.tracks[1].movingTimeMs(), null);
 });
 
+test('a partially timed track is unknown as a whole, not a partial sum', () => {
+  // SPEC.md 3.5, ruled 2026-09-09: the rule that makes zero wrong for an
+  // all-untimed track makes a partial sum wrong here. No corpus track is
+  // partially timed, so nothing in the corpus can see this.
+  const { document } = decodeText(doc({
+    tracks: [{
+      name: 'half',
+      segments: [
+        { pips: [[1, 2, 0, 1000], [1, 2, 0, 4000]] },
+        { pips: [[1, 2], [3, 4]] },
+      ],
+    }],
+  }));
+  assert.equal(document.tracks[0].movingTimeMs(), null);
+});
+
+test('an untimed segment makes the track unknown wherever it sits', () => {
+  const order = (segments) => decodeText(doc({
+    tracks: [{ name: 't', segments }],
+  })).document.tracks[0].movingTimeMs();
+  const timed = { pips: [[1, 2, 0, 1000], [1, 2, 0, 4000]] };
+  const untimed = { pips: [[1, 2], [3, 4]] };
+  assert.equal(order([untimed, timed]), null, 'untimed first');
+  assert.equal(order([timed, untimed]), null, 'untimed last');
+  assert.equal(order([timed, untimed, timed]), null, 'untimed in the middle');
+  assert.equal(order([timed, timed]), 6000, 'all timed');
+});
+
+test('an EMPTY segment does not make a track unknown', () => {
+  // A segment with no pips has no span to measure, so it is not an unmeasured
+  // span: it contributes nothing and the rest of the track is still known.
+  const { document } = decodeText(doc({
+    tracks: [{ name: 't', segments: [{ pips: [] }, { pips: [[1, 2, 0, 1000], [1, 2, 0, 4000]] }] }],
+  }));
+  assert.equal(document.tracks[0].movingTimeMs(), 3000);
+});
+
 test('a track with no segments has an unknown moving time', () => {
   const { document } = decodeText(doc({ tracks: [{ segments: [] }] }));
   assert.equal(document.tracks[0].movingTimeMs(), null);

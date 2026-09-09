@@ -64,6 +64,7 @@ async function runMutated(edits) {
     decodeText: api.decodeText,
     decodeContainer: api.decodeContainer,
     rerender: api.rerender,
+    write: api.write,
   });
 }
 
@@ -155,13 +156,25 @@ test('a reader that discards rulesets is caught by the accept tier', async () =>
 });
 
 test('answering 0 for an unknown moving time is caught', async () => {
-  const cases = await runMutated([{
-    file: 'model.js',
-    from: '    return known ? total : null;',
-    to: '    return total;',
-  }]);
+  // Two edits, one defect: "sum whatever segments you can, and report the sum".
+  // Both are needed because either guard alone still returns unknown — the
+  // in-loop return catches a partial track and the `measured === 0` guard
+  // catches an entirely untimed one.
+  const cases = await runMutated([
+    {
+      file: 'model.js',
+      from: "      if (typeof first !== 'number' || typeof last !== 'number') return null;",
+      to: "      if (typeof first !== 'number' || typeof last !== 'number') continue;",
+    },
+    {
+      file: 'model.js',
+      from: '    return measured === 0 ? null : total;',
+      to: '    return total;',
+    },
+  ]);
   assert.deepEqual(failing(cases), [
     'accept/absent-elevation-and-time.vnx',
+    'accept/track-partly-timed.vnx',
     'accept/track-without-times.vnx',
   ]);
 });
@@ -214,7 +227,11 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
     from: '  const [, majorText, minorText] = VERSION.exec(declared);',
     to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
   }]);
-  assert.deepEqual(failing(cases), ['accept/version-newer-patch.vnx']);
+  // write/emit-boundary declares 0.1.99 too, so the same defect reddens both.
+  assert.deepEqual(failing(cases), [
+    'accept/version-newer-patch.vnx',
+    'write/emit-boundary',
+  ]);
 });
 
 test('coercing a two-component version is caught by the reject tier', async () => {
@@ -367,11 +384,11 @@ test('using Web Mercator for the projection IS caught', async () => {
   assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
 });
 
-test('nothing in the corpus exercises the WRITE path', async () => {
-  // SPEC.md 8.1 requires that a runner not use its writer, and this is the
-  // proof that this one does not: breaking rounding and shortening outright
-  // leaves every tier green. It is also the reason the tie-direction question
-  // in src/round.js cannot be settled by running the corpus.
+test('the WRITE path is exercised by the write tier and by nothing else', async () => {
+  // Until write/ existed this asserted GREEN, and it was right to: every tier
+  // re-rendered, so breaking rounding and shortening outright changed nothing.
+  // That was never a property of the format, only of which tiers had been
+  // built. Inverted when write/emit-boundary landed.
   const cases = await runMutated([
     {
       file: 'emit.js',
@@ -384,21 +401,71 @@ test('nothing in the corpus exercises the WRITE path', async () => {
       to: '  n = 2;',
     },
   ]);
-  assert.deepEqual(failing(cases), [],
-    'the corpus now reaches the writer; assert the failures instead');
+  // Exactly one case, which is the point: the writer is reached, and no
+  // re-rendering tier is disturbed by breaking it.
+  assert.deepEqual(failing(cases), ['write/emit-boundary']);
 });
 
-test('rounding half away from zero instead of half to even is NOT caught', async () => {
-  // Measured 2026-09-09: Go and Python both give 340.2 for 340.25 to one
-  // place, JavaScript `toFixed` gives 340.3. Two conforming writers therefore
-  // emit different bytes for one model, and no corpus tier can see it.
+test('shortening a position is caught by the write tier', async () => {
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  while (n > 2 && out[n - 1] === null) n--;',
+    to: '  // no shortening',
+  }]);
+  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+});
+
+test('shortening past an interior null is caught by the write tier', async () => {
+  // Dropping an interior null would move the time into the elevation channel.
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  while (n > 2 && out[n - 1] === null) n--;',
+    to: '  return out.filter((channel) => channel !== null);',
+  }]);
+  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+});
+
+test('a negative zero the writer CREATED is caught by the write tier', async () => {
+  // format/ can only ever supply -0.0 as an input LITERAL, so it tests a
+  // renderer collapsing one it was handed. This is the one the writer makes.
+  const cases = await runMutated([{
+    file: 'number.js',
+    from: "  if (n === 0) return '0'; // collapses -0 as well as 0",
+    to: "  if (n === 0) return Object.is(n, -0) ? '-0' : '0';",
+  }, {
+    file: 'round.js',
+    from: '  return Number(decimalText(q, places, negative));',
+    to: '  return negative ? -Number(decimalText(q, places, false)) : Number(decimalText(q, places, false));',
+  }]);
+  assert.deepEqual(failing(cases), ['format/messy-spellings', 'write/emit-boundary']);
+});
+
+test('rounding an unknown channel is caught by the write tier', async () => {
+  // Ruled 2026-09-09: rounding is only definable where the units are known, so
+  // a channel this version does not name is written back unchanged.
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  if (out.length > 2) out[2] = round(out[2], ELEVATION_PLACES);',
+    to: '  for (let i = 2; i < out.length; i++) out[i] = round(out[i], ELEVATION_PLACES);',
+  }]);
+  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+});
+
+test('rounding half away from zero instead of half to even is caught by the write tier', async () => {
+  requireFixture(
+    'write/emit-boundary.expect.json',
+    (d) => d.kind === 'write',
+    'it needs the write tier, whose fixture carries the 340.25 tie',
+  );
+  // Measured 2026-09-09: Go and Python give 340.2 for 340.25 to one place,
+  // JavaScript `toFixed` gives 340.3. This asserted GREEN until write/ existed,
+  // because every tier re-rendered and a re-render never rounds.
   const cases = await runMutated([{
     file: 'round.js',
     from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',
     to: '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
   }]);
-  assert.deepEqual(failing(cases), [],
-    'the corpus now covers the rounding tie; assert the failure instead');
+  assert.deepEqual(failing(cases), ['write/emit-boundary']);
 });
 
 test('comparing node keys instead of their positions is NOT caught', async () => {
@@ -494,4 +561,22 @@ test('accepting a backslash in an entry name is NOT caught', async () => {
   }]);
   assert.deepEqual(failing(cases), [],
     'the corpus now carries a backslash entry name; assert the failure instead');
+});
+
+test('summing only the timed segments of a partial track is caught', async () => {
+  requireFixture(
+    'accept/track-partly-timed.expect.json',
+    (d) => d.tracks?.some((t) => t.moving_time_ms === null),
+    'it needs a track with one timed segment and one untimed, expecting unknown',
+  );
+  // Was NOT caught until accept/track-partly-timed.vnx landed on 2026-09-09:
+  // every track in the corpus was fully timed or fully untimed, so a partial sum
+  // and an all-or-nothing unknown agreed on all of them. Three implementations
+  // summed, including the reference one, with every tier green.
+  const cases = await runMutated([{
+    file: 'model.js',
+    from: '      if (typeof first !== \'number\' || typeof last !== \'number\') return null;',
+    to: '      if (typeof first !== \'number\' || typeof last !== \'number\') continue;',
+  }]);
+  assert.deepEqual(failing(cases), ['accept/track-partly-timed.vnx']);
 });

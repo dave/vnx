@@ -177,25 +177,33 @@ export class Track {
    *
    * The sum over segments of the difference between the last and the first pip
    * time in that segment — deliberately NOT the wall-clock span, which pauses
-   * lengthen. Unknown is not zero: a track carrying no pip times is
-   * indistinguishable from a track on which nobody moved, and the reader must
-   * be able to say which it is holding.
+   * lengthen.
+   *
+   * Unknown is not zero, and unknown is ALL-OR-NOTHING. A track any segment of
+   * which cannot be measured is unknown as a whole: summing only the segments
+   * that carry times reports a number for a span the reader cannot measure,
+   * which is the shape SPEC.md 3.5 forbids when it rules out zero for a track
+   * with no times at all. The rule that makes zero wrong there makes a partial
+   * sum wrong here — it is a fallback that hides missing data behind a
+   * plausible number, and a user comparing two tracks gets a wrong answer with
+   * nothing to say so. Ruled 2026-09-09.
    *
    * @returns {number|null}
    */
   movingTimeMs() {
+    const segments = this.segments ?? [];
     let total = 0;
-    let known = false;
-    for (const segment of this.segments ?? []) {
+    let measured = 0;
+    for (const segment of segments) {
       const pips = segment.pips ?? [];
       if (pips.length === 0) continue;
       const first = pips[0].time;
       const last = pips[pips.length - 1].time;
-      if (typeof first !== 'number' || typeof last !== 'number') continue;
-      known = true;
+      if (typeof first !== 'number' || typeof last !== 'number') return null;
+      measured++;
       total += last - first;
     }
-    return known ? total : null;
+    return measured === 0 ? null : total;
   }
 }
 

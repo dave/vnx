@@ -26,6 +26,7 @@ checks the two things a script can decide:
 Widening a check here publishes the problem instead of solving it.
 """
 
+import json
 import pathlib
 import subprocess
 import re
@@ -46,6 +47,9 @@ PUBLISHED = [
 
 # (pattern, what to do about it). The message has to stand alone: whoever trips
 # one of these will not have this script's reasoning in front of them.
+# Named, because the sidecar scan excludes this one deliberately; see below.
+SPEC_NUMBER = re.compile(r"\bspec \d")
+
 LEAKAGE = [
     (
         re.compile(r"\bvision §"),
@@ -53,7 +57,7 @@ LEAKAGE = [
         "State the ruling here, or drop the citation.",
     ),
     (
-        re.compile(r"\bspec \d"),
+        SPEC_NUMBER,
         "a reference to an internal spec by number. A reader outside Viatrail "
         "has no roadmap to resolve it against.",
     ),
@@ -169,6 +173,36 @@ REGISTER = [
     (re.compile(r"⚠"), "a warning sigil used as emphasis. A specification uses 'Note:' or nothing."),
     (re.compile(r"\byou\b|\byour\b", re.IGNORECASE), "second person. A specification addresses a reader or a writer, not 'you'."),
 ]
+
+
+def check_sidecar_notes(problems: list[str]) -> None:
+    """The corpus ships with the format, so a `note` is published prose.
+
+    ⚠ THESE ARE NOT IN PUBLISHED AND WERE SCANNED BY NOTHING. A sidecar note is
+    read by every implementer running the corpus and by anyone reading the files
+    to understand a case, which is more readers than some sections of the spec
+    get. The leakage and history rules apply to them for the same reason.
+    """
+    for sidecar in sorted((ROOT / "corpus").rglob("*.expect.json")):
+        try:
+            note = json.loads(sidecar.read_text(encoding="utf-8")).get("note", "")
+        except json.JSONDecodeError as err:
+            problems.append(f"{sidecar.relative_to(ROOT)}: not valid JSON: {err}")
+            continue
+        # ⚠ THE SPEC-NUMBER PATTERN IS EXCLUDED HERE, and measuring before
+        # shipping this scanner is why. In the published Markdown a bare
+        # "spec 4" is a reference to an internal roadmap, which is what that
+        # pattern was written for. In a sidecar note it is the established
+        # shorthand for a SECTION of this specification -- "spec 4.1", "spec 8"
+        # -- and 19 of the 21 hits on first run were that. A check that flags
+        # nineteen correct references to flag two real ones is a check people
+        # route around, which is worse than no check.
+        for pattern, why in [r for r in LEAKAGE if r[0] is not SPEC_NUMBER] + HISTORY:
+            if match := pattern.search(note):
+                problems.append(
+                    f"{sidecar.relative_to(ROOT)}: {match.group(0)!r} - {why}\n"
+                    f"    in the case's `note`, which ships with the corpus"
+                )
 
 
 def check_published(problems: list[str]) -> None:
@@ -288,6 +322,7 @@ def check_ruling_backlog(problems: list[str]) -> None:
 def main() -> None:
     problems: list[str] = []
     check_ruling_backlog(problems)
+    check_sidecar_notes(problems)
     check_published(problems)
     check_register(problems)
     check_rationale(problems)

@@ -149,7 +149,11 @@ Absence means "not known". It MUST NOT be read as a default value, with two
 exceptions stated where they arise: `label-visible`, where absence means Auto
 (Section 3.6), and `hidden`, where absence means visible (Section 3.8).
 
-All seven collections are OPTIONAL and default to empty.
+All seven collections are OPTIONAL. An absent collection and an empty one carry
+the same content, and a reader MUST treat them alike when reading. They are
+different DOCUMENTS, though, so a reader MUST record which it was given and a
+formatter MUST reproduce it (Section 8.1). Whether a collection was present is
+model state, in the same way a position's arity is (Section 4.1).
 
 `created` and `generator` are informational. `created` is a timestamp
 (Section 4.3).
@@ -399,7 +403,8 @@ Auto to hidden with nothing to report.
 ```
 
 `polygon` is one closed ring: an array of at least four positions whose first
-and last positions are equal. Holes and multiple rings are not expressible in
+and last positions are equal. Equal means equal in LONGITUDE AND LATITUDE; no
+other channel takes part, for the same reason as Section 3.3.3's endpoints. Holes and multiple rings are not expressible in
 this format.
 
 A reader that encounters a nested or additional ring MUST report a diagnostic
@@ -471,9 +476,16 @@ unrecognised-key rule inside either:
 - A data record, apart from its `@type` (Section 5.1).
 - Everything under `rulesets` (Section 3.9).
 
-A style object is opaque for the same reason. This format defines the style keys
-its own examples use, and a reader MUST carry any other key in a style object
-through a read-modify-write without reporting it. Style vocabulary grows faster
+A style object is opaque for the same reason. A reader MUST carry every key in a
+style object through a read-modify-write, and MUST NOT report an unrecognised
+one.
+
+Opaque means unrecognised keys are not reported. It does not exempt a value from
+a range this document states normatively: `importance` is an integer from 1 to 5
+(Section 3.6), and a reader MUST apply that range wherever `importance` appears,
+including in a style object this format does not otherwise document. A
+non-integer `importance` is out of range. Every other style value is carried
+untouched, because no other style key has a stated range. Style vocabulary grows faster
 than structural vocabulary, so a fixed style key set would make every
 implementation report a diagnostic for a valid document each time one
 implementation added a style key, until all of them caught up. That cost is
@@ -501,10 +513,16 @@ The following rules apply:
   expressible.
 - Trailing channels MAY be omitted. A reader MUST ignore channels beyond those
   it knows, so that a future channel is additive.
-- Arity 2 through 4 are legal. Arity 2 is used for inline chain endpoints
-  (Section 3.3.3) and for area rings (Section 3.7). Arity 4 is legal on an arc,
-  but Viatrail writes no arc pip carrying a time, and a reader should not
-  expect one.
+- Arity 2 through 4 carry the channels this version defines. Arity 2 is used
+  for inline chain endpoints (Section 3.3.3) and for area rings (Section 3.7).
+  Arity 4 is legal on an arc, but Viatrail writes no arc pip carrying a time,
+  and a reader should not expect one.
+- A position MAY carry more channels than this version defines. A reader MUST
+  ignore their meaning and MUST preserve their values through a
+  read-modify-write, and MUST NOT report a diagnostic for them. Ignoring a
+  channel is not discarding it: a channel a reader dropped could not survive a
+  re-render (Section 8.1), which is what would make a future channel a flag day
+  rather than an addition.
 - Positions of differing arity MAY appear within one `pips` array, and a reader
   MUST read each position independently of its neighbours. This follows from
   trailing omission: one pip may carry an elevation and the next may not, which
@@ -644,6 +662,12 @@ Numbers are rendered with ECMAScript `Number::toString` semantics, which is what
 `JSON.stringify` emits. `340.0` renders as `340`, `0.000001` renders as
 `0.000001`, and `1e-7` renders as `1e-7`.
 
+A tie is resolved by rounding to even. ECMAScript's `Number::toString`
+deliberately declines to fix the last digit of a tie, so the anchor is what the
+implementations do: `1497898211722073.25` renders `1497898211722073.2`, not
+`…073.3`. About one double in 4,200 is a tie, concentrated between 1e13 and
+1e15 — which is where `time_ms` lives.
+
 Negative zero MUST be rendered as `0`. `-0` and `0` are the same value, and two
 writers disagreeing about the sign is a byte incompatibility carrying no
 information. Go's `encoding/json` renders it as `-0` and must be corrected.
@@ -667,6 +691,11 @@ itself.
 A writer rounds at the serialisation boundary: longitude and latitude to 6
 decimal places, elevation to 1. Time is an integer count of milliseconds and is
 not rounded.
+
+A tie rounds to even. An elevation of `340.25` becomes `340.2`, not `340.3`.
+These are exact doubles and a quarter-metre grid produces them, so the case is
+ordinary rather than contrived. No re-render can detect a disagreement here,
+because rounding happens only when a writer emits a model.
 
 Note: 6 decimal places of latitude is about 11 cm, and a consumer GPS receiver
 is accurate to 3 to 5 m, so digits below the sixth place are the arithmetic's
@@ -695,6 +724,10 @@ UTF-8, no byte order mark, two-space indent, and a newline at end of file.
 A string escapes only what [RFC 8259] requires: `"`, `\` and the control
 characters below U+0020. Every other character is written raw, including
 non-ASCII characters, `<`, `>`, `&`, U+2028 and U+2029.
+
+A control character with a short escape is written with it — `\b`, `\f`,
+`\n`, `\r`, `\t`. Every other control character is written `\u00xx` with
+LOWERCASE hexadecimal digits.
 
 Note: Go's `encoding/json` escapes those last five by default and must be
 configured not to. No character above U+007F may be written as a `\u` escape.
@@ -929,16 +962,29 @@ not previously reach:
 | an inline link endpoint that does not project onto its arc within tolerance (3.3.3) | drop the link |
 | a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
 | an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
+| a link naming a node that is not in its network (3.3.3) | keep the link; exclude that end from the continuity comparison |
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
 
 A chain's links MUST form one connected walk: the point at which link *k* ends
-MUST be the point at which link *k+1* begins. A node key and an inline position
-meet when the position of the named node and the inline position are equal by
-value, and two node keys meet when the keys are equal. A reader MUST compare a
-node key by its resolved position rather than refusing to compare it, or a walk
-that is continuous is reported as broken. The diagnostic addresses the second
-link of the pair.
+MUST be the point at which link *k+1* begins.
+
+Two endpoints meet when their LONGITUDE AND LATITUDE ARE EQUAL. No other
+channel takes part in the comparison. A node may carry an elevation and an
+inline endpoint never does (elevation is resolved from the polyline), so a
+comparison over all channels reports every junction between a node and an
+inline endpoint as broken.
+
+A node key is resolved to its position before comparing. Two distinct node keys
+at the same position therefore meet: comparing the keys alone would report a
+continuous walk as broken, which is the failure this rule exists to prevent.
+Key equality is a valid fast path.
+
+A link that was dropped under Section 6.2 takes no part in the comparison on
+either side: the links either side of it are not thereby adjacent, and a reader
+MUST NOT report a break across the gap. One defect must not become two.
+
+The diagnostic addresses the second link of the pair.
 
 A `folder` naming a folder that is not present in the document is not an
 unusable value. The reader MUST treat the key as absent, so the item sits at the

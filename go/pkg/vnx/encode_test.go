@@ -161,3 +161,40 @@ func TestTimestampsKeepTheirMilliseconds(t *testing.T) {
 		})
 	}
 }
+
+// TestInNetworkItemsCarryNoFolder pins the one thing that stops the encoder
+// emitting a document spec §3.10 forbids.
+//
+// ⚠ waypointTree AND areaTree ARE SHARED between top-level and in-network use,
+// so nothing about the model distinguishes the two cases — a network's point is
+// the same struct as a waypoint, Folder field and all. Before this, only the
+// caller's discipline kept `folder` off an in-network item, and the caller is
+// in another package. A network already contains its points and areas, so a
+// folder there would place an item that is not placed.
+func TestInNetworkItemsCarryNoFolder(t *testing.T) {
+	doc := &Document{
+		Version: "0.1.0",
+		// The same Folder value on both, so the test cannot pass by the
+		// in-network one simply being empty.
+		Waypoints: []Waypoint{{Name: "top", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
+		Areas:     []Area{{Name: "top area", Folder: "f", Polygon: ring()}},
+		Networks: []Network{{
+			Name:   "n",
+			Points: []Waypoint{{Name: "inside", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
+			Areas:  []Area{{Name: "inside area", Folder: "f", Polygon: ring()}},
+		}},
+	}
+	got, err := Encode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := bytes.Count(got, []byte(`"folder": "f"`)); n != 2 {
+		t.Errorf("got %d `folder` keys, want 2 — the top-level waypoint and the top-level area only:\n%s", n, got)
+	}
+}
+
+func ring() []Position {
+	return []Position{
+		{Lon: -3, Lat: 57}, {Lon: -2.9, Lat: 57}, {Lon: -2.9, Lat: 57.1}, {Lon: -3, Lat: 57},
+	}
+}

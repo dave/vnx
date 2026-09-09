@@ -178,7 +178,7 @@ type documentCollection struct {
 var documentCollections = []documentCollection{
 	{"Areas", "areas", func(d *Document) int { return len(d.Areas) },
 		func(e emitter, b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Areas), func(i int) (map[string]any, error) { return e.areaTree(d.Areas[i]) })
+			return streamItems(b, depth, len(d.Areas), func(i int) (map[string]any, error) { return e.areaTree(d.Areas[i], false) })
 		}},
 	{"Folders", "folders", func(d *Document) int { return len(d.Folders) },
 		func(e emitter, b *StickyWriter, d *Document, depth int) error {
@@ -208,7 +208,7 @@ var documentCollections = []documentCollection{
 		}},
 	{"Waypoints", "waypoints", func(d *Document) int { return len(d.Waypoints) },
 		func(e emitter, b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Waypoints), func(i int) (map[string]any, error) { return e.waypointTree(d.Waypoints[i]) })
+			return streamItems(b, depth, len(d.Waypoints), func(i int) (map[string]any, error) { return e.waypointTree(d.Waypoints[i], false) })
 		}},
 }
 
@@ -324,7 +324,7 @@ func networkContainers(e emitter, n Network) []containerEmitter {
 	return []containerEmitter{
 		{"arcs", len(n.Arcs), func(b *StickyWriter, d int) error { return streamArcs(e, b, n.Arcs, d) }},
 		{"areas", len(n.Areas), func(b *StickyWriter, d int) error {
-			return streamItems(b, d, len(n.Areas), func(i int) (map[string]any, error) { return e.areaTree(n.Areas[i]) })
+			return streamItems(b, d, len(n.Areas), func(i int) (map[string]any, error) { return e.areaTree(n.Areas[i], true) })
 		}},
 		{"chains", len(n.Chains), func(b *StickyWriter, d int) error {
 			return streamItems(b, d, len(n.Chains), func(i int) (map[string]any, error) { return e.chainTree(n.Chains[i]) })
@@ -338,7 +338,7 @@ func networkContainers(e emitter, n Network) []containerEmitter {
 		}},
 		{"nodes", len(n.Nodes), func(b *StickyWriter, d int) error { return streamNodes(e, b, n.Nodes, d) }},
 		{"points", len(n.Points), func(b *StickyWriter, d int) error {
-			return streamItems(b, d, len(n.Points), func(i int) (map[string]any, error) { return e.waypointTree(n.Points[i]) })
+			return streamItems(b, d, len(n.Points), func(i int) (map[string]any, error) { return e.waypointTree(n.Points[i], true) })
 		}},
 	}
 }

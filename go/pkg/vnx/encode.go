@@ -76,11 +76,19 @@ func Encode(doc *Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (e emitter) waypointTree(w Waypoint) (map[string]any, error) {
+// waypointTree writes a top-level waypoint or a network's point. They are one
+// shape (spec §3.6) apart from `folder`, which §3.10 does not allow on an
+// in-network point: a network already contains its points, so a folder there
+// would place an item that is not placed. `inNetwork` is what keeps that from
+// depending on the caller's discipline — the two uses share this function, so
+// nothing else could.
+func (e emitter) waypointTree(w Waypoint, inNetwork bool) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", w.Name)
 	putString(o, "notes", w.Notes)
-	putString(o, "folder", w.Folder)
+	if !inNetwork {
+		putString(o, "folder", w.Folder)
+	}
 	putBool(o, "hidden", w.Hidden)
 	at, err := e.positionTree(w.At)
 	if err != nil {
@@ -96,11 +104,16 @@ func (e emitter) waypointTree(w Waypoint) (map[string]any, error) {
 	return o, nil
 }
 
-func (e emitter) areaTree(a Area) (map[string]any, error) {
+// areaTree writes a top-level area or a network's area. `folder` is not allowed
+// on an in-network area for the same reason as an in-network point; see
+// waypointTree.
+func (e emitter) areaTree(a Area, inNetwork bool) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", a.Name)
 	putString(o, "notes", a.Notes)
-	putString(o, "folder", a.Folder)
+	if !inNetwork {
+		putString(o, "folder", a.Folder)
+	}
 	putBool(o, "hidden", a.Hidden)
 	ring, err := e.positionsTree(a.Polygon)
 	if err != nil {

@@ -595,10 +595,13 @@ fn run_tier(tier: &str, check: impl Fn(&Case) + std::panic::RefUnwindSafe) {
     let mut cases = 0;
     let mut failures: Vec<String> = Vec::new();
 
-    // Silence the per-panic backtrace noise; the messages are collected and
-    // reported together below.
-    let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    // NOTE: the panic hook is deliberately left alone. Suppressing it to tidy
+    // the output was a defect: `set_hook` is GLOBAL and cargo runs tests in
+    // parallel, so one tier silencing the hook while it worked swallowed the
+    // failure messages of every other tier running at the same time — and a
+    // tier that reports FAILED with no message is worse than a noisy one.
+    // `catch_unwind` returns the payload, so nothing is needed here to collect
+    // the messages.
 
     for entry in read_dir_sorted(&dir) {
         let path = entry.path();
@@ -616,8 +619,6 @@ fn run_tier(tier: &str, check: impl Fn(&Case) + std::panic::RefUnwindSafe) {
             failures.push(describe_panic(&case.name, panic.as_ref()));
         }
     }
-
-    std::panic::set_hook(previous);
 
     assert!(cases > 0, "the {tier} tier found no cases");
     assert!(

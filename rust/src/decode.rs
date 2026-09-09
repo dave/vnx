@@ -48,6 +48,16 @@ struct Decoder {
     diagnostics: Vec<Diagnostic>,
 }
 
+/// Where a position sits, which decides how a value of the wrong JSON type is
+/// reported (SPEC 6.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Slot {
+    /// A required key, such as a waypoint's `at`. The item goes.
+    RequiredKey,
+    /// An element of an array, such as a pip. The element goes.
+    Element,
+}
+
 // ---------------------------------------------------------------------------
 // Recognised keys (SPEC 3.10). Section 6.2's unrecognised-key rule cannot be
 // implemented without this table, which is why the specification carries it.
@@ -130,7 +140,7 @@ impl Decoder {
             other => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeOptional {
                         expected: "a string",
                         found: other.type_name(),
                     },
@@ -147,7 +157,7 @@ impl Decoder {
             other => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeOptional {
                         expected: "a boolean",
                         found: other.type_name(),
                     },
@@ -169,7 +179,7 @@ impl Decoder {
             other => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeOptional {
                         expected: "an array",
                         found: other.type_name(),
                     },
@@ -191,7 +201,7 @@ impl Decoder {
             other => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeOptional {
                         expected: "an object",
                         found: other.type_name(),
                     },
@@ -218,7 +228,7 @@ impl Decoder {
             Some(other) => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeRequired {
                         expected: "an array",
                         found: other.type_name(),
                     },
@@ -243,7 +253,7 @@ impl Decoder {
             Some(other) => {
                 self.report(
                     &path.key(key),
-                    Cause::WrongType {
+                    Cause::WrongTypeRequired {
                         expected: "a string",
                         found: other.type_name(),
                     },
@@ -261,13 +271,34 @@ impl Decoder {
     /// know, so that a future channel is additive and a re-render reproduces
     /// the spelling the document carried.
     fn position(&mut self, value: &Json, path: &Path) -> Option<Position> {
+        self.position_in(value, path, Slot::Element)
+    }
+
+    /// A position in a REQUIRED key, where a value that is not an array at all
+    /// is a wrong JSON TYPE rather than a position that will not parse. SPEC
+    /// 6.2 gives those two clauses separately, and the corpus pins the
+    /// distinction at `/waypoints/1/at`.
+    fn required_position(&mut self, value: &Json, path: &Path) -> Option<Position> {
+        self.position_in(value, path, Slot::RequiredKey)
+    }
+
+    fn position_in(&mut self, value: &Json, path: &Path, slot: Slot) -> Option<Position> {
         let Json::Array(items) = value else {
-            self.report(
-                path,
-                Cause::BadPosition {
-                    detail: format!("expected an array but found {}", value.type_name()),
-                },
-            );
+            match slot {
+                Slot::RequiredKey => self.report(
+                    path,
+                    Cause::WrongTypeRequired {
+                        expected: "a position array",
+                        found: value.type_name(),
+                    },
+                ),
+                Slot::Element => self.report(
+                    path,
+                    Cause::BadPosition {
+                        detail: format!("expected an array but found {}", value.type_name()),
+                    },
+                ),
+            }
             return None;
         };
         if items.len() < 2 {
@@ -349,7 +380,7 @@ impl Decoder {
             let Json::Object(members) = item else {
                 self.report(
                     &item_path,
-                    Cause::WrongType {
+                    Cause::WrongTypeRequired {
                         expected: "an object",
                         found: item.type_name(),
                     },
@@ -537,7 +568,7 @@ impl Decoder {
                 members
                     .iter()
                     .filter_map(|(key, value)| {
-                        let position = self.position(value, &nodes_path.key(key))?;
+                        let position = self.required_position(value, &nodes_path.key(key))?;
                         Some((key.clone(), position))
                     })
                     .collect(),
@@ -731,7 +762,7 @@ impl Decoder {
             Some(other) => {
                 self.report(
                     &field_path,
-                    Cause::WrongType {
+                    Cause::WrongTypeRequired {
                         expected: "a node key or an inline position",
                         found: other.type_name(),
                     },
@@ -830,7 +861,7 @@ impl Decoder {
                 self.report(path, Cause::MissingRequiredKey { key: "at" });
                 return None;
             }
-            Some(value) => self.position(value, &path.key("at"))?,
+            Some(value) => self.required_position(value, &path.key("at"))?,
         };
         Some(Waypoint {
             name: self.opt_string(entries, "name", path),
@@ -902,7 +933,7 @@ impl Decoder {
             other => {
                 self.report(
                     path,
-                    Cause::WrongType {
+                    Cause::WrongTypeRequired {
                         expected: "an object",
                         found: other.type_name(),
                     },

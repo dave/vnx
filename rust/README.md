@@ -170,17 +170,26 @@ field must fail rather than be silently ignored.
 
 ## Every runner has been seen to fail
 
-`tools/redproof.py` breaks the reader twenty-four ways and requires each to reach
-the verdict it should. Measured 2026-09-09; the script's own docstring carries the
+`tools/redproof.py` breaks the reader twenty-six ways and requires each to reach
+the verdict it should. Measured 2026-09-10; the script's own docstring carries the
 table.
 
-One entry is expected to SURVIVE, and fails the script if it ever goes red:
-reaching inward to a segment's first and last TIMED pip rather than its end pips.
-`accept/track-partly-timed.vnx` exists to separate those two readings and its own
-note says so, but its untimed segment carries no times at all, so both readings
-return unknown. That is a hole in the fixture rather than in this crate, and it is
-reported. Recording it as an expected-green mutation means the note cannot outlive
-the limitation. Without that, "the corpus passes" is a claim about a
+A mutation may carry an expected verdict of GREEN, meaning it documents a hole in
+the CORPUS rather than in this crate, and it fails the script if it ever goes red.
+None does today — and the one that did is why the mechanism is worth having.
+Reaching inward to a segment's first and last TIMED pip survived on 2026-09-09,
+because `accept/track-partly-timed.vnx` carried no times at all in its untimed
+segment and both readings returned unknown. It was reported, the fixture gained a
+timed middle pip, and the entry went red the next time the script ran — so the
+promotion was noticed rather than remembered.
+
+**Two naive rounding routes, not one.** `Math.round(x*10)/10` is half-UP and
+`f64::round(x*10)/10` is half-AWAY-from-zero; they agree on every positive tie and
+disagree on every negative one, so a suite catching one and not the other has a gap
+that reads as closed. Both are separate mutations. A third, scaling before
+rounding, is a different operation rather than a tie direction and is caught by
+`corpus/numbers/` alone — the `write/` tier's own values cannot see it, which is
+the same "looks complete" gap one level over. Without that, "the corpus passes" is a claim about a
 runner nobody has watched fail.
 
 Two cautions the script records in comments, both paid for here:

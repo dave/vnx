@@ -507,12 +507,25 @@ mod tests {
         assert_eq!(half_down(340.25), round_to(340.25, 1));
     }
 
-    /// `Math.round(x * 10) / 10` is exactly half-up, and it is the trick every
-    /// language's idiom offers first. Rust's `f64::round` is half-AWAY-from-
-    /// zero, which differs from half-up only on negatives.
+    /// "The naive route" is TWO functions and they are not the same one.
     ///
-    /// Both are wrong, and neither is wrong on every tie — which is the reason
-    /// a single tie value cannot catch them.
+    /// | | positive ties | negative ties |
+    /// |---|---|---|
+    /// | `Math.round(x*10)/10` — half-UP, toward +infinity (JS, Java) | wrong on 340.25 | wrong on -340.75 |
+    /// | `f64::round(x*10)/10` — half-AWAY-from-zero (Rust, C) | wrong on 340.25 | wrong on -340.25 |
+    ///
+    /// They agree on every positive tie and disagree on every negative one, so
+    /// a suite that catches one and not the other has a gap that looks closed:
+    /// "the naive route is caught" reads as done. Both are in
+    /// `tools/redproof.py` as separate mutations.
+    ///
+    /// Python's `round(x*10)/10` is a third answer again — half-even on the
+    /// SCALED float, which is the scale-then-round operation rather than a tie
+    /// direction, and it is caught by different values entirely.
+    ///
+    /// Naming the function rather than saying "the naive route" is the same
+    /// rule as citing the radius behind a distance: a number that does not say
+    /// which artefact AND which constant it was measured under outlives both.
     #[test]
     fn the_two_idioms_are_each_wrong_on_only_some_ties() {
         let half_up = |v: f64| ((v * 10.0) + 0.5).floor() / 10.0;

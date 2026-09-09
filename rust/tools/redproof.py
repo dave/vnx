@@ -38,18 +38,21 @@ Measured 2026-09-09, all sixteen caught:
     skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
     ignore the ZIP64 end record          zip64
     take the segment-start cosine        accept AND diagnose, in opposite directions
-    round half UP                        write, numbers (caught by 340.25, NOT by 340.75)
+    round half UP                        numbers (JS/Java; caught by 340.25, NOT by 340.75)
+    round half away from zero            numbers (Rust/C; differs from half-up on NEGATIVE ties)
+    conflate the two wrong-type codes    diagnose
 
-One entry is expected to SURVIVE, and fails the script if it ever goes red:
-reaching inward to a segment's first and last TIMED pip. That is a hole in
-`accept/track-partly-timed.vnx` rather than in this crate — reported 2026-09-09.
+A mutation may carry "expect-green", meaning it documents a hole in the CORPUS
+rather than in this crate and fails the script if it ever goes red. None does
+today: the one that did — reaching inward to a segment's first and last TIMED
+pip — was promoted on 2026-09-10 when `8979621` fixed the fixture behind it.
 """
 import io, os, shutil, subprocess, sys, tempfile
 
 ROOT = "/Users/dave/src/vnx/rust"
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/json/number.rs",
          "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "src/geo.rs",
-         "tests/corpus.rs"]
+         "src/diag.rs", "tests/corpus.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
@@ -121,13 +124,18 @@ MUTATIONS = [
      "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
      "    let s = 10f64.powi(places as i32); (value * s).round_ties_even() / s"),
 
-    # `Math.round(x * 10) / 10` — the idiom every language offers first, and
-    # exactly half-up. It agrees with half-to-even on 340.75, so a fixture
-    # carrying only that value would pass it.
+    # `Math.round(x * 10) / 10` — half-UP, toward positive infinity, which is
+    # what JavaScript and Java give you. It agrees with half-to-even on 340.75,
+    # so a fixture carrying only that value would pass it.
+    #
+    # NOT the same wrong function as the one below: half-up and half-away-from-
+    # zero agree on every positive tie and disagree on every negative one, so a
+    # suite catching one and not the other has a gap that reads as closed.
     ("round half UP at the writer boundary", "src/render.rs",
      "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
      "    let s = 10f64.powi(places as i32); ((value * s) + 0.5).floor() / s"),
 
+    # Rust's own `f64::round`, and C's `round()`. The other naive route.
     ("round half away from zero at the writer boundary", "src/render.rs",
      "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
      "    let s = 10f64.powi(places as i32); (value * s).round() / s"),
@@ -164,27 +172,29 @@ MUTATIONS = [
      "    let cos_lat = point.lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };",
      "    let cos_lat = pips[0].lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };"),
 
-    # EXPECTED TO SURVIVE. `accept/track-partly-timed.vnx` exists to separate
-    # "read a segment's END pips" from "read its first and last TIMED pip", and
-    # its own note says so — but its untimed segment carries no times at all, so
-    # both readings return unknown and neither goes red. Reported 2026-09-09.
+    # `accept/track-partly-timed.vnx` separates "read a segment's END pips" from
+    # "read its first and last TIMED pip". This was an expected-SURVIVOR from
+    # 2026-09-09 to 2026-09-10, because the fixture's untimed segment carried no
+    # times at all and both readings returned unknown. `8979621` gave it an
+    # untimed first pip, a TIMED middle and an untimed last, and this mutation
+    # went red — which is how the promotion was noticed rather than remembered.
     #
-    # This mutation is deliberately NARROW: it changes only WHICH pips are read
-    # and keeps the rule that a segment with no timed pip makes the whole track
-    # unknown. A first attempt also skipped wholly-untimed segments, which is a
-    # second defect, and it went red — for the skipping, not for the reaching
+    # Deliberately NARROW: it changes only WHICH pips are read and keeps the
+    # rule that a segment with no timed pip makes the whole track unknown. A
+    # first attempt also skipped wholly-untimed segments, which is a second
+    # defect, and it went red for the skipping rather than for the reaching
     # inward. A mutation broader than the rule proves the corpus catches
     # something, not that it catches this.
-    #
-    # If this line ever turns red, the fixture has been fixed and this entry
-    # should become an ordinary mutation rather than quietly outliving its cause.
     ("reach inward to a segment's first and last TIMED pip", "src/model.rs",
      "            total += last.time_ms()? - first.time_ms()?;",
      "            let timed: Vec<f64> = segment.pips.iter().filter_map(|p| p.time_ms()).collect();\n"
      "            if timed.is_empty() { return None; }\n"
      "            total += timed[timed.len() - 1] - timed[0];\n"
-     "            let _ = (first, last);",
-     "expect-green"),
+     "            let _ = (first, last);"),
+
+    ("conflate the optional and required wrong-type codes", "src/diag.rs",
+     '            Cause::WrongTypeRequired { .. } => "wrong-type-required",',
+     '            Cause::WrongTypeRequired { .. } => "wrong-type-optional",'),
 
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",

@@ -12,9 +12,25 @@ pub enum Cause {
     /// SPEC 6.2: an unrecognised key on an object this format defines. The key
     /// is skipped and the item is kept.
     UnknownKey,
-    /// SPEC 6.2: a value of the wrong JSON type. An optional key is dropped;
-    /// a required key takes the item with it.
-    WrongType {
+    /// SPEC 6.2: a value of the wrong JSON type in an OPTIONAL key. The field
+    /// is dropped and the item is kept.
+    WrongTypeOptional {
+        expected: &'static str,
+        found: &'static str,
+    },
+    /// SPEC 6.2: a value of the wrong JSON type in a REQUIRED key. The ITEM is
+    /// dropped, because dropping the field would leave a waypoint that is
+    /// nowhere, a link that traverses nothing, or an arc with no geometry.
+    ///
+    /// Separate from [`Cause::WrongTypeOptional`] because the remedies differ
+    /// in whether the rest of the item survives, and a consumer told only that
+    /// a type was wrong would have to re-derive required-ness from SPEC 3.10's
+    /// table to find out which happened. That lookup is what a code exists to
+    /// save.
+    ///
+    /// Not the same fact as [`Cause::MissingRequiredKey`], which takes the same
+    /// remedy: absent and present-but-wrong-typed are different documents.
+    WrongTypeRequired {
         expected: &'static str,
         found: &'static str,
     },
@@ -78,7 +94,8 @@ impl Cause {
             Cause::TimestampNotUtc => "timestamp-not-utc",
             Cause::InlineEndpointBeyondTolerance { .. } => "endpoint-off-arc",
             // Not pinned anywhere; this crate's own tokens.
-            Cause::WrongType { .. } => "wrong-type",
+            Cause::WrongTypeOptional { .. } => "wrong-type-optional",
+            Cause::WrongTypeRequired { .. } => "wrong-type-required",
             Cause::MissingRequiredKey { .. } => "missing-required-key",
             Cause::BadPosition { .. } => "bad-position",
             Cause::LinkNodeAbsent { .. } => "link-node-absent",
@@ -97,9 +114,16 @@ impl std::fmt::Display for Cause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Cause::UnknownKey => write!(f, "unknown key, skipped"),
-            Cause::WrongType { expected, found } => {
-                write!(f, "expected {expected} but found {found}")
-            }
+            Cause::WrongTypeOptional { expected, found } => write!(
+                f,
+                "expected {expected} but found {found}; the field is dropped and \
+                 the item is kept"
+            ),
+            Cause::WrongTypeRequired { expected, found } => write!(
+                f,
+                "expected {expected} but found {found}; the item is dropped, \
+                 because it cannot exist without this key"
+            ),
             Cause::MissingRequiredKey { key } => {
                 write!(f, "the required key `{key}` is absent, so the item is dropped")
             }
@@ -270,6 +294,20 @@ mod tests {
         let cases: Vec<(Cause, &str)> = vec![
             (Cause::UnknownKey, "unknown-key"),
             (
+                Cause::WrongTypeOptional {
+                    expected: "a boolean",
+                    found: "a string",
+                },
+                "wrong-type-optional",
+            ),
+            (
+                Cause::WrongTypeRequired {
+                    expected: "a position array",
+                    found: "a string",
+                },
+                "wrong-type-required",
+            ),
+            (
                 Cause::LinkArcAbsent {
                     arc: "ghost".into(),
                 },
@@ -294,7 +332,8 @@ mod tests {
     fn no_two_causes_share_a_code() {
         let all = [
             Cause::UnknownKey,
-            Cause::WrongType { expected: "a", found: "b" },
+            Cause::WrongTypeOptional { expected: "a", found: "b" },
+            Cause::WrongTypeRequired { expected: "a", found: "b" },
             Cause::MissingRequiredKey { key: "at" },
             Cause::BadPosition { detail: String::new() },
             Cause::LinkArcAbsent { arc: String::new() },

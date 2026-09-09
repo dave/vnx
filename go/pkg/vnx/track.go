@@ -42,7 +42,7 @@ type Track struct {
 	Hidden   bool
 	Started  *time.Time
 	Ended    *time.Time
-	Style    ChainStyle
+	Style    Style
 	Segments []Segment
 	Data     []Record
 }
@@ -136,7 +136,7 @@ func decodeTracks(arr []any, path string, diags []Diagnostic) ([]Track, []Diagno
 		tr.Hidden, diags = boolField(obj, "hidden", at, diags)
 		tr.Started, diags = timeField(obj, "started", at, diags)
 		tr.Ended, diags = timeField(obj, "ended", at, diags)
-		tr.Style, diags = decodeChainStyle(obj, at, diags)
+		tr.Style, diags = decodeStyle(obj, at, diags)
 		tr.Segments, diags = decodeSegments(obj["segments"], at+"/segments", diags)
 		tr.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, trackKeys, diags)
@@ -222,30 +222,4 @@ func timeField(obj map[string]any, key, path string, diags []Diagnostic) (*time.
 			Code: CodeTimestampNotUTC, Message: err.Error() + " — ignored"})
 	}
 	return &t, diags
-}
-
-// ChainStyle is the appearance of anything drawn as a line — a chain, a route,
-// or a track.
-type ChainStyle struct {
-	Color     string
-	Opacity   *float64
-	Width     *float64
-	LineStyle string
-}
-
-var chainStyleKeys = map[string]bool{"color": true, "opacity": true, "width": true, "line-style": true}
-
-func decodeChainStyle(obj map[string]any, path string, diags []Diagnostic) (ChainStyle, []Diagnostic) {
-	var s ChainStyle
-	st, ok := obj["style"].(map[string]any)
-	if !ok {
-		return s, diags
-	}
-	at := path + "/style"
-	s.Color, diags = stringField(st, "color", diags)
-	s.LineStyle, diags = stringField(st, "line-style", diags)
-	s.Opacity, diags = floatField(st, "opacity", at, diags)
-	s.Width, diags = floatField(st, "width", at, diags)
-	diags = reportUnknownKeys(st, at, chainStyleKeys, diags)
-	return s, diags
 }

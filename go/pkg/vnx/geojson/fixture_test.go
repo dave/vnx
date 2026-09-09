@@ -31,7 +31,7 @@ func fixture() *vnx.Document {
 		},
 		Waypoints: []vnx.Waypoint{
 			{Name: "Corrour Bothy", Notes: "Shelter", Folder: "f-cg",
-				Style: vnx.PointStyle{Color: "#E04535", Icon: "mountain-hut", PinShape: "teardrop"},
+				Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "pin-shape": "teardrop"},
 				Data:  []vnx.Record{tagRecord("bothy"), tagRecord("shelter")},
 				At:    pos(-3.7003, 56.9932, ptr(733.0))},
 			// No elevation: the position must be TWO elements.
@@ -45,7 +45,7 @@ func fixture() *vnx.Document {
 			// so the golden pins the REVERSED order and a writer that stopped
 			// normalising would show up here as well as in TestWinding.
 			{Name: "Deer Reserve", Notes: "No dogs", Folder: "f-hi", Hidden: true,
-				Style: vnx.AreaStyle{FillColor: "#1E9C45", StrokeColor: "#123456"},
+				Style: vnx.Style{"fill-color": "#1E9C45", "stroke-color": "#123456"},
 				Data:  []vnx.Record{tagRecord("wildlife")},
 				Polygon: []vnx.Position{
 					pos(-3.80, 57.00, nil), pos(-3.80, 57.10, nil),
@@ -72,7 +72,7 @@ func fixture() *vnx.Document {
 		Routes: []vnx.Route{
 			// Two arcs meeting at one position: the join must not double it.
 			{Name: "Planned line",
-				Style: vnx.ChainStyle{Color: "#3A6FB0", LineStyle: "dashed"},
+				Style: vnx.Style{"color": "#3A6FB0", "line-style": "dashed"},
 				Data: []vnx.Record{{Type: "app.viatrail.routing",
 					Body: map[string]any{"profile": "walking"}}},
 				Arcs: []vnx.Arc{

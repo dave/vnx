@@ -65,7 +65,7 @@ func TestAStyleWidthIsNotRounded(t *testing.T) {
 	w := 2.3456789012
 	d := &vnx.Document{Routes: []vnx.Route{{
 		Name:  "r",
-		Style: vnx.ChainStyle{Width: &w},
+		Style: vnx.Style{"width": w},
 		Arcs:  []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}}},
 	}}}
 	var b bytes.Buffer

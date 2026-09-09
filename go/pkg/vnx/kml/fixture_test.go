@@ -44,7 +44,7 @@ func fixture() *vnx.Document {
 			{
 				Folder: "f-day1", Name: "Corrour Bothy", Notes: "locked in winter",
 				At:    posEle(-3.6512, 57.0421, 720),
-				Style: vnx.PointStyle{Color: "#E04535", Icon: "hut", PinShape: "pin", Importance: ptr(4)},
+				Style: vnx.Style{"color": "#E04535", "icon": "hut", "pin-shape": "pin", "importance": 4},
 			},
 			{
 				// The ampersand proves the escaping, and the missing elevation
@@ -57,14 +57,11 @@ func fixture() *vnx.Document {
 			Polygon: []vnx.Position{
 				pos(-3.66, 57.07), pos(-3.64, 57.07), pos(-3.64, 57.08), pos(-3.66, 57.07),
 			},
-			Style: vnx.AreaStyle{
-				FillColor: "#1E9C45", FillOpacity: ptr(0.5),
-				StrokeColor: "#123456", StrokeWidth: ptr(2.0),
-			},
+			Style: vnx.Style{"fill-color": "#1E9C45", "fill-opacity": 0.5, "stroke-color": "#123456", "stroke-width": 2.0},
 		}},
 		Tracks: []vnx.Track{{
 			Folder: "f-day1", Name: "Walk In", Notes: "stopped for lunch",
-			Style: vnx.ChainStyle{Color: "#E08A1A", Width: ptr(3.0)},
+			Style: vnx.Style{"color": "#E08A1A", "width": 3.0},
 			Segments: []vnx.Segment{
 				// Pip times are carried in the Document and are a ❌ cell in KML:
 				// they must not appear anywhere in the output.
@@ -73,7 +70,7 @@ func fixture() *vnx.Document {
 			},
 		}},
 		Routes: []vnx.Route{{
-			Name: "Ridge Line", Style: vnx.ChainStyle{Color: "#3A6FB0", Opacity: ptr(0.75)},
+			Name: "Ridge Line", Style: vnx.Style{"color": "#3A6FB0", "opacity": 0.75},
 			// Two arcs meeting at a shared endpoint: the boundary between them
 			// is what KML loses.
 			Arcs: []vnx.Arc{
@@ -97,7 +94,7 @@ func fixture() *vnx.Document {
 			Chains: []vnx.Chain{
 				{
 					Name: "Full Traverse", Notes: "north to south",
-					Style: vnx.ChainStyle{Color: "#7B4FA8", Width: ptr(4.0)},
+					Style: vnx.Style{"color": "#7B4FA8", "width": 4.0},
 					Links: []vnx.Link{
 						{Arc: "a-north", From: vnx.Endpoint{Node: "n1"}, To: vnx.Endpoint{Node: "n2"}},
 						{Arc: "a-south", From: vnx.Endpoint{Node: "n2"}, To: vnx.Endpoint{Node: "n3"}},
@@ -116,14 +113,14 @@ func fixture() *vnx.Document {
 			},
 			Points: []vnx.Waypoint{{
 				Name: "Pools of Dee", Notes: "in-network", At: posEle(-3.675, 57.05, 830),
-				Style: vnx.PointStyle{Color: "#2E86AB"},
+				Style: vnx.Style{"color": "#2E86AB"},
 			}},
 			Areas: []vnx.Area{{
 				Name: "Boulder Field", Hidden: true,
 				Polygon: []vnx.Position{
 					pos(-3.685, 57.03), pos(-3.675, 57.03), pos(-3.675, 57.04), pos(-3.685, 57.03),
 				},
-				Style: vnx.AreaStyle{FillColor: "#888888"},
+				Style: vnx.Style{"fill-color": "#888888"},
 			}},
 		}},
 		Rulesets: []any{map[string]any{"id": "r1", "name": "Munros"}},

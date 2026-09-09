@@ -66,7 +66,7 @@ func TestColorIsNotJustAlphaPrependedToTheHex(t *testing.T) {
 func TestUnusableColourOmitsTheStyleRatherThanDefaultingIt(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{{
 		Name:  "Ridge",
-		Style: vnx.ChainStyle{Color: "not-a-colour"},
+		Style: vnx.Style{"color": "not-a-colour"},
 		Arcs:  []vnx.Arc{{Pips: []vnx.Position{pos(-3, 57), pos(-3.1, 57.1)}}},
 	}}})
 	if strings.Contains(out, "<Style>") {

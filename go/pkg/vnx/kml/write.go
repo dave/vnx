@@ -198,7 +198,8 @@ func (x *writer) waypoint(p vnx.Waypoint) {
 	x.open("Placemark", "")
 	x.feature(p.Name, p.Notes, p.Hidden)
 	// A point carries no opacity in the model, so the alpha byte is opaque.
-	if c, ok := Color(p.Style.Color, nil); ok {
+	pointColour, _ := p.Style.String("color")
+	if c, ok := Color(pointColour, nil); ok {
 		x.open("Style", "")
 		x.open("IconStyle", "")
 		x.leaf("color", c)
@@ -251,10 +252,22 @@ func (x *writer) polygon(ring []vnx.Position) {
 // usable. ⚠ THE TWO ARE INDEPENDENT: an area with a fill colour and no stroke
 // colour gets a PolyStyle and no LineStyle, rather than one default-coloured
 // outline invented to keep the pair symmetrical.
-func (x *writer) areaStyle(s vnx.AreaStyle) {
-	fill, hasFill := Color(s.FillColor, s.FillOpacity)
-	// The model carries no stroke opacity, so a stroke is opaque.
-	stroke, hasStroke := Color(s.StrokeColor, nil)
+//
+// ⚠ IT READS A STYLE BY KEY RATHER THAN BY FIELD, because a style is opaque
+// (spec §3.10). A key that is absent, or present with the wrong type, reads as
+// absent here — this is a lossy conversion asking whether it has something it
+// can use, not a reader diagnosing a document.
+func (x *writer) areaStyle(s vnx.Style) {
+	fillColor, _ := s.String("fill-color")
+	fillOpacity, hasFillOpacity := s.Float("fill-opacity")
+	var fo *float64
+	if hasFillOpacity {
+		fo = &fillOpacity
+	}
+	fill, hasFill := Color(fillColor, fo)
+	// The format carries no stroke opacity, so a stroke is opaque.
+	strokeColor, _ := s.String("stroke-color")
+	stroke, hasStroke := Color(strokeColor, nil)
 	if !hasFill && !hasStroke {
 		return
 	}
@@ -262,8 +275,8 @@ func (x *writer) areaStyle(s vnx.AreaStyle) {
 	if hasStroke {
 		x.open("LineStyle", "")
 		x.leaf("color", stroke)
-		if s.StrokeWidth != nil {
-			x.leaf("width", num(*s.StrokeWidth))
+		if w, ok := s.Float("stroke-width"); ok {
+			x.leaf("width", num(w))
 		}
 		x.close("LineStyle")
 	}
@@ -278,9 +291,16 @@ func (x *writer) areaStyle(s vnx.AreaStyle) {
 // chainStyle writes the <Style> for anything drawn as a line — a track, a
 // route, a chain. Width without a usable colour still gets a LineStyle: a width
 // is not a colour and carrying it invents nothing.
-func (x *writer) chainStyle(s vnx.ChainStyle) {
-	c, ok := Color(s.Color, s.Opacity)
-	if !ok && s.Width == nil {
+func (x *writer) chainStyle(s vnx.Style) {
+	colour, _ := s.String("color")
+	opacity, hasOpacity := s.Float("opacity")
+	var op *float64
+	if hasOpacity {
+		op = &opacity
+	}
+	c, ok := Color(colour, op)
+	width, hasWidth := s.Float("width")
+	if !ok && !hasWidth {
 		return
 	}
 	x.open("Style", "")
@@ -288,8 +308,8 @@ func (x *writer) chainStyle(s vnx.ChainStyle) {
 	if ok {
 		x.leaf("color", c)
 	}
-	if s.Width != nil {
-		x.leaf("width", num(*s.Width))
+	if hasWidth {
+		x.leaf("width", num(width))
 	}
 	x.close("LineStyle")
 	x.close("Style")

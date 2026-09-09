@@ -43,7 +43,7 @@ type Chain struct {
 	Name   string
 	Notes  string
 	Hidden bool
-	Style  ChainStyle
+	Style  Style
 	Links  []Link
 	Data   []Record
 }
@@ -247,7 +247,7 @@ func decodeChains(v any, path string, nodes map[string]Position, arcs map[string
 		c.Name, diags = stringField(obj, "name", diags)
 		c.Notes, diags = stringField(obj, "notes", diags)
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
-		c.Style, diags = decodeChainStyle(obj, at, diags)
+		c.Style, diags = decodeStyle(obj, at, diags)
 		c.Data, diags = dataField(obj, at, diags)
 		c.Links, diags = decodeLinks(obj["links"], at+"/links", nodes, arcs, diags)
 		diags = reportUnknownKeys(obj, at, chainKeys, diags)

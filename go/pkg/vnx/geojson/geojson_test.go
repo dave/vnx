@@ -132,9 +132,9 @@ func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 		Networks: []vnx.Network{{
 			Name: "Cairngorms", Folder: "f",
 			Points: []vnx.Waypoint{{Name: "Summit cairn", Notes: "big pile", Hidden: true,
-				Style: vnx.PointStyle{Color: "#E04535"}, At: pos(1, 2, nil)}},
+				Style: vnx.Style{"color": "#E04535"}, At: pos(1, 2, nil)}},
 			Areas: []vnx.Area{{Name: "Deer reserve", Notes: "no dogs", Hidden: true,
-				Style: vnx.AreaStyle{FillColor: "#1E9C45"}, Polygon: square()}},
+				Style: vnx.Style{"fill-color": "#1E9C45"}, Polygon: square()}},
 		}},
 	})
 	for _, want := range []string{

@@ -43,7 +43,7 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 		{"drops every style", func(d *Document) {
 			for i := range d.Networks {
 				for j := range d.Networks[i].Chains {
-					d.Networks[i].Chains[j].Style = ChainStyle{}
+					d.Networks[i].Chains[j].Style = Style{}
 				}
 			}
 		}},

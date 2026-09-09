@@ -95,8 +95,8 @@ func (e emitter) waypointTree(w Waypoint, inNetwork bool) (map[string]any, error
 		return nil, err
 	}
 	o["at"] = at
-	if s := pointStyleTree(w.Style); len(s) > 0 {
-		o["style"] = s
+	if w.Style != nil {
+		o["style"] = map[string]any(w.Style)
 	}
 	if err := putData(o, w.Data); err != nil {
 		return nil, err
@@ -120,8 +120,8 @@ func (e emitter) areaTree(a Area, inNetwork bool) (map[string]any, error) {
 		return nil, err
 	}
 	o["polygon"] = ring
-	if s := areaStyleTree(a.Style); len(s) > 0 {
-		o["style"] = s
+	if a.Style != nil {
+		o["style"] = map[string]any(a.Style)
 	}
 	if err := putData(o, a.Data); err != nil {
 		return nil, err
@@ -150,8 +150,8 @@ func (e emitter) trackTree(t Track) (map[string]any, error) {
 		segs = append(segs, map[string]any{"pips": pips})
 	}
 	o["segments"] = segs
-	if s := chainStyleTree(t.Style); len(s) > 0 {
-		o["style"] = s
+	if t.Style != nil {
+		o["style"] = map[string]any(t.Style)
 	}
 	if err := putData(o, t.Data); err != nil {
 		return nil, err
@@ -192,8 +192,8 @@ func (e emitter) routeTree(r Route) (map[string]any, error) {
 		arcs = append(arcs, ao)
 	}
 	o["arcs"] = arcs
-	if s := chainStyleTree(r.Style); len(s) > 0 {
-		o["style"] = s
+	if r.Style != nil {
+		o["style"] = map[string]any(r.Style)
 	}
 	if err := putData(o, r.Data); err != nil {
 		return nil, err
@@ -227,8 +227,8 @@ func (e emitter) chainTree(c Chain) (map[string]any, error) {
 		links = append(links, lo)
 	}
 	co["links"] = links
-	if s := chainStyleTree(c.Style); len(s) > 0 {
-		co["style"] = s
+	if c.Style != nil {
+		co["style"] = map[string]any(c.Style)
 	}
 	if err := putData(co, c.Data); err != nil {
 		return nil, err
@@ -334,52 +334,6 @@ func (e emitter) positionsTree(ps []Position) ([]any, error) {
 		out = append(out, t)
 	}
 	return out, nil
-}
-
-func pointStyleTree(s PointStyle) map[string]any {
-	o := map[string]any{}
-	putString(o, "color", s.Color)
-	putString(o, "icon", s.Icon)
-	putString(o, "pin-shape", s.PinShape)
-	putString(o, "label-position", s.LabelPosition)
-	if s.IconSize != nil {
-		o["icon-size"] = *s.IconSize
-	}
-	if s.Importance != nil {
-		o["importance"] = *s.Importance
-	}
-	// Tristate: nil means "the renderer decides", which is spelled by the key
-	// being absent. Writing false for nil would turn auto into always-hidden.
-	if s.LabelVisible != nil {
-		o["label-visible"] = *s.LabelVisible
-	}
-	return o
-}
-
-func areaStyleTree(s AreaStyle) map[string]any {
-	o := map[string]any{}
-	putString(o, "fill-color", s.FillColor)
-	putString(o, "stroke-color", s.StrokeColor)
-	if s.FillOpacity != nil {
-		o["fill-opacity"] = *s.FillOpacity
-	}
-	if s.StrokeWidth != nil {
-		o["stroke-width"] = *s.StrokeWidth
-	}
-	return o
-}
-
-func chainStyleTree(s ChainStyle) map[string]any {
-	o := map[string]any{}
-	putString(o, "color", s.Color)
-	putString(o, "line-style", s.LineStyle)
-	if s.Opacity != nil {
-		o["opacity"] = *s.Opacity
-	}
-	if s.Width != nil {
-		o["width"] = *s.Width
-	}
-	return o
 }
 
 // putData writes the `data` bag, carrying each record's body VERBATIM. The

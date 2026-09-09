@@ -109,15 +109,11 @@ func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
 		Waypoints: []vnx.Waypoint{{
 			Name: "W", At: pos(1, 2),
-			Style: vnx.PointStyle{
-				Color: "#E04535", Icon: "mountain-hut", IconSize: ptr(27),
-				PinShape: "teardrop", LabelPosition: "below",
-				LabelVisible: ptr(true), Importance: ptr(5),
-			},
+			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
 		Routes: []vnx.Route{{
 			Name:  "R",
-			Style: vnx.ChainStyle{Color: "#3A6FB0", Width: ptr(4.0), LineStyle: "dashed"},
+			Style: vnx.Style{"color": "#3A6FB0", "width": 4.0, "line-style": "dashed"},
 			Arcs:  []vnx.Arc{{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}}},
 		}},
 	})

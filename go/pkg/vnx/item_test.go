@@ -20,20 +20,18 @@ func TestWaypointCarriesEveryStyleField(t *testing.T) {
 	if w.Name != "Car park" || w.Folder != "cairngorms" || w.At.Lon != -3.6750 {
 		t.Fatalf("got %+v", w)
 	}
+	// A style is OPAQUE (spec §3.10), so this reads it by key. Every value is
+	// carried through as it arrived: a string stays a string, a JSON number
+	// stays a float64, and nothing is coerced into a field of a fixed shape.
 	s := w.Style
-	if s.Color != "#444444" || s.Icon != "parking" || s.PinShape != "teardrop" || s.LabelPosition != "right" {
-		t.Fatalf("string style fields wrong: %+v", s)
-	}
-	// icon-size is POINTS and importance is 1..5 — both integers in the model,
-	// not the words an earlier draft of the example used.
-	if s.IconSize == nil || *s.IconSize != 16 {
-		t.Fatalf("icon-size = %v, want 16", s.IconSize)
-	}
-	if s.Importance == nil || *s.Importance != 2 {
-		t.Fatalf("importance = %v, want 2", s.Importance)
-	}
-	if s.LabelVisible == nil || *s.LabelVisible != true {
-		t.Fatalf("label-visible = %v, want true", s.LabelVisible)
+	for key, want := range map[string]any{
+		"color": "#444444", "icon": "parking", "pin-shape": "teardrop",
+		"label-position": "right", "icon-size": 16.0, "importance": 2.0,
+		"label-visible": true,
+	} {
+		if got := s[key]; got != want {
+			t.Errorf("style[%q] = %#v, want %#v", key, got, want)
+		}
 	}
 }
 
@@ -46,8 +44,8 @@ func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lv := doc.Waypoints[0].Style.LabelVisible; lv != nil {
-		t.Fatalf("absent label-visible must stay nil (Auto), got %v", *lv)
+	if lv, present := doc.Waypoints[0].Style["label-visible"]; present {
+		t.Fatalf("absent label-visible must stay ABSENT, which is Auto; got %v", lv)
 	}
 }
 

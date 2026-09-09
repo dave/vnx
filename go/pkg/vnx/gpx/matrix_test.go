@@ -37,20 +37,16 @@ func TestMatrixStylesAreNotCarried(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
 		Waypoints: []vnx.Waypoint{{
 			Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2},
-			Style: vnx.PointStyle{
-				Color: "#E04535", Icon: "mountain-hut", IconSize: iptr(27),
-				PinShape: "teardrop", LabelPosition: "below",
-				LabelVisible: bptr(true), Importance: iptr(5),
-			},
+			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
 		Routes: []vnx.Route{{
 			Name:  "Ridge",
-			Style: vnx.ChainStyle{Color: "#3A6FB0", Width: fptr(4), Opacity: fptr(0.75), LineStyle: "dashed"},
+			Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"},
 			Arcs:  []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}}},
 		}},
 		Tracks: []vnx.Track{{
 			Name:     "Walk",
-			Style:    vnx.ChainStyle{Color: "#E08A1A", Width: fptr(3)},
+			Style:    vnx.Style{"color": "#E08A1A", "width": 3},
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
 	})

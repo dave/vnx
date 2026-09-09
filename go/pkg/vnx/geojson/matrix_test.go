@@ -160,10 +160,10 @@ func TestCellStyleAndHiddenAreDroppedWithoutDiagnostics(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
 		Waypoints: []vnx.Waypoint{{
 			Name: "Pinned", Notes: "note", Hidden: true, At: pos(1, 2, nil),
-			Style: vnx.PointStyle{Color: "#ff0000", Icon: "peak", PinShape: "round", LabelVisible: &hidden},
+			Style: vnx.Style{"color": "#ff0000", "icon": "peak", "pin-shape": "round", "label-visible": hidden},
 		}},
 		Areas: []vnx.Area{{Name: "Painted", Hidden: true, Polygon: square(),
-			Style: vnx.AreaStyle{FillColor: "#00ff00", StrokeColor: "#0000ff"}}},
+			Style: vnx.Style{"fill-color": "#00ff00", "stroke-color": "#0000ff"}}},
 	})
 	// CARRIED: the styled, hidden items themselves. A hidden item is EXPORTED
 	// — GeoJSON has no visibility, so the STATE is lost and the item is not —

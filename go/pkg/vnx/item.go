@@ -2,33 +2,6 @@ package vnx
 
 import "fmt"
 
-// PointStyle is a point's appearance. Seven fields, matching the model's
-// PointStyle one for one — an earlier draft of the example carried three and
-// spelled two of them as words.
-//
-// ⚠ LabelVisible is a TRISTATE and its absence is meaningful. Internally it is
-// *int: nil means Auto (the renderer decides from importance and zoom), 1 is
-// forced visible, 0 forced hidden. A reader that reads absence as false
-// silently flattens Auto to hidden — a silent default, and exactly the failure
-// this format's rules exist to prevent.
-type PointStyle struct {
-	Color         string
-	Icon          string
-	IconSize      *int // points; the model's domain is 16 / 21 / 27 / 35 / 46
-	PinShape      string
-	LabelPosition string
-	LabelVisible  *bool // nil = Auto
-	Importance    *int  // 1..5
-}
-
-// AreaStyle is an area's fill and stroke.
-type AreaStyle struct {
-	FillColor   string
-	FillOpacity *float64
-	StrokeColor string
-	StrokeWidth *float64
-}
-
 // Waypoint is a top-level point; Point is the in-network one. They share a
 // shape, so they share a type.
 type Waypoint struct {
@@ -37,7 +10,7 @@ type Waypoint struct {
 	Notes  string
 	Hidden bool
 	At     Position
-	Style  PointStyle
+	Style  Style
 	Data   []Record
 }
 
@@ -50,15 +23,13 @@ type Area struct {
 	Notes   string
 	Hidden  bool
 	Polygon []Position
-	Style   AreaStyle
+	Style   Style
 	Data    []Record
 }
 
 var (
-	waypointKeys   = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "at": true, "style": true, "data": true}
-	areaKeys       = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "polygon": true, "style": true, "data": true}
-	pointStyleKeys = map[string]bool{"color": true, "icon": true, "icon-size": true, "pin-shape": true, "label-position": true, "label-visible": true, "importance": true}
-	areaStyleKeys  = map[string]bool{"fill-color": true, "fill-opacity": true, "stroke-color": true, "stroke-width": true}
+	waypointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "at": true, "style": true, "data": true}
+	areaKeys     = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "polygon": true, "style": true, "data": true}
 )
 
 func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []Diagnostic) {
@@ -99,7 +70,7 @@ func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []
 		w.Name, diags = stringField(obj, "name", diags)
 		w.Notes, diags = stringField(obj, "notes", diags)
 		w.Hidden, diags = boolField(obj, "hidden", at, diags)
-		w.Style, diags = decodePointStyle(obj, at, diags)
+		w.Style, diags = decodeStyle(obj, at, diags)
 		w.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, waypointKeys, diags)
 		out = append(out, w)
@@ -128,7 +99,7 @@ func decodeAreas(arr []any, path string, diags []Diagnostic) ([]Area, []Diagnost
 		a.Name, diags = stringField(obj, "name", diags)
 		a.Notes, diags = stringField(obj, "notes", diags)
 		a.Hidden, diags = boolField(obj, "hidden", at, diags)
-		a.Style, diags = decodeAreaStyle(obj, at, diags)
+		a.Style, diags = decodeStyle(obj, at, diags)
 		a.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, areaKeys, diags)
 		out = append(out, a)
@@ -178,46 +149,6 @@ func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Dia
 			Message: "polygon is not closed: the last position must repeat the first — area dropped"})
 	}
 	return ring, true, diags
-}
-
-func decodePointStyle(obj map[string]any, path string, diags []Diagnostic) (PointStyle, []Diagnostic) {
-	var s PointStyle
-	st, ok := obj["style"].(map[string]any)
-	if !ok {
-		return s, diags
-	}
-	at := path + "/style"
-	s.Color, diags = stringField(st, "color", diags)
-	s.Icon, diags = stringField(st, "icon", diags)
-	s.PinShape, diags = stringField(st, "pin-shape", diags)
-	s.LabelPosition, diags = stringField(st, "label-position", diags)
-	s.IconSize, diags = intField(st, "icon-size", at, diags)
-	s.Importance, diags = intField(st, "importance", at, diags)
-	if v, present := st["label-visible"]; present {
-		if b, isBool := v.(bool); isBool {
-			s.LabelVisible = &b
-		} else {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/label-visible",
-				Message: fmt.Sprintf("expected a boolean, found %s — left as Auto", jsonKind(v))})
-		}
-	}
-	diags = reportUnknownKeys(st, at, pointStyleKeys, diags)
-	return s, diags
-}
-
-func decodeAreaStyle(obj map[string]any, path string, diags []Diagnostic) (AreaStyle, []Diagnostic) {
-	var s AreaStyle
-	st, ok := obj["style"].(map[string]any)
-	if !ok {
-		return s, diags
-	}
-	at := path + "/style"
-	s.FillColor, diags = stringField(st, "fill-color", diags)
-	s.StrokeColor, diags = stringField(st, "stroke-color", diags)
-	s.FillOpacity, diags = floatField(st, "fill-opacity", at, diags)
-	s.StrokeWidth, diags = floatField(st, "stroke-width", at, diags)
-	diags = reportUnknownKeys(st, at, areaStyleKeys, diags)
-	return s, diags
 }
 
 func intField(obj map[string]any, key, path string, diags []Diagnostic) (*int, []Diagnostic) {

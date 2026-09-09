@@ -57,7 +57,7 @@ type Route struct {
 	Name   string
 	Notes  string
 	Hidden bool
-	Style  ChainStyle
+	Style  Style
 	Arcs   []Arc
 	Data   []Record
 }
@@ -82,7 +82,7 @@ func decodeRoutes(arr []any, path string, diags []Diagnostic) ([]Route, []Diagno
 		r.Name, diags = stringField(obj, "name", diags)
 		r.Notes, diags = stringField(obj, "notes", diags)
 		r.Hidden, diags = boolField(obj, "hidden", at, diags)
-		r.Style, diags = decodeChainStyle(obj, at, diags)
+		r.Style, diags = decodeStyle(obj, at, diags)
 		r.Arcs, diags = decodeArcList(obj["arcs"], at+"/arcs", diags)
 		r.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, routeKeys, diags)

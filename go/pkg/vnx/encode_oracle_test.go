@@ -244,17 +244,19 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 				signedZero = true
 			}
 		})
-		eachPointStyle(d, func(s PointStyle) {
-			if s.IconSize != nil {
+		eachPointStyle(d, func(s Style) {
+			if _, ok := s["icon-size"]; ok {
 				iconSize = true
 			}
-			if s.Importance != nil {
+			_, hasSize := s["icon-size"]
+			_, hasImportance := s["importance"]
+			if hasImportance {
 				importance = true
 			}
-			if s.IconSize != nil && s.Importance != nil {
+			if hasSize && hasImportance {
 				bothIntStyle = true
 			}
-			if s.LabelVisible != nil {
+			if _, ok := s["label-visible"]; ok {
 				labelVisible = true
 			}
 		})
@@ -507,18 +509,10 @@ func oracleWaypointStyles() *Document {
 			// ⚠ icon-size AND importance together, both *int (item.go:17,21),
 			// written natively into the tree at encode.go:404,407. This is the
 			// case the earlier type-coverage probe missed entirely.
-			{Name: "every style field", At: at, Style: PointStyle{
-				Color:         "#ff0000",
-				Icon:          "summit",
-				IconSize:      ip(35),
-				PinShape:      "teardrop",
-				LabelPosition: "above",
-				LabelVisible:  bp(true),
-				Importance:    ip(5),
-			}},
-			{Name: "label hidden", At: at, Style: PointStyle{LabelVisible: bp(false)}},
-			{Name: "icon size only", At: at, Style: PointStyle{IconSize: ip(16)}},
-			{Name: "importance only", At: at, Style: PointStyle{Importance: ip(1)}},
+			{Name: "every style field", At: at, Style: Style{"color": "#ff0000", "icon": "summit", "icon-size": 35, "pin-shape": "teardrop", "label-position": "above", "label-visible": true, "importance": 5}},
+			{Name: "label hidden", At: at, Style: Style{"label-visible": false}},
+			{Name: "icon size only", At: at, Style: Style{"icon-size": 16}},
+			{Name: "importance only", At: at, Style: Style{"importance": 1}},
 			// Absent LabelVisible is Auto, and Auto is spelled by the key being
 			// gone (item.go:9-13). A rewrite that wrote false here would flatten
 			// Auto to always-hidden.
@@ -564,7 +558,7 @@ func oracleNegativeZero() *Document {
 				{Lon: 1, Lat: 1},
 				{Lon: nz, Lat: nz},
 			},
-			Style: AreaStyle{FillOpacity: &nz, StrokeWidth: &nz},
+			Style: Style{"fill-opacity": nz, "stroke-width": nz},
 		}},
 		// Verbatim blocks recurse through the same writer, so the rule must
 		// hold inside them too.
@@ -599,7 +593,7 @@ func oracleExtremeNumbers() *Document {
 	w := 1e21
 	d.Routes = []Route{{
 		Name:  "extreme style",
-		Style: ChainStyle{Opacity: &op, Width: &w},
+		Style: Style{"opacity": op, "width": w},
 		Arcs:  []Arc{{Pips: []Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}}},
 	}}
 	return d
@@ -776,7 +770,7 @@ func oracleNetwork() Network {
 	n.Chains = []Chain{
 		{
 			Name:  "node to node",
-			Style: ChainStyle{Color: "#00aa00", LineStyle: "dashed", Opacity: f(0.5), Width: f(3)},
+			Style: Style{"color": "#00aa00", "line-style": "dashed", "opacity": float64(0.5), "width": float64(3)},
 			Links: []Link{
 				{Arc: "arc-1", From: Endpoint{Node: "node-1"}, To: Endpoint{Node: "node-2"}},
 				{Arc: "arc-2", From: Endpoint{Node: "node-2"}, To: Endpoint{Node: "node-3"}},
@@ -794,11 +788,11 @@ func oracleNetwork() Network {
 		},
 	}
 	n.Points = []Waypoint{
-		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}, Style: PointStyle{IconSize: ip(21), Importance: ip(3)}},
+		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}, Style: Style{"icon-size": 21, "importance": 3}},
 	}
 	n.Areas = []Area{
 		{Name: "in-network area", Polygon: []Position{{Lon: -3.6, Lat: 57.6}, {Lon: -3.5, Lat: 57.6}, {Lon: -3.5, Lat: 57.5}, {Lon: -3.6, Lat: 57.6}},
-			Style: AreaStyle{FillColor: "#abcdef", FillOpacity: f(0.25), StrokeColor: "#000000", StrokeWidth: f(1.5)}},
+			Style: Style{"fill-color": "#abcdef", "fill-opacity": float64(0.25), "stroke-color": "#000000", "stroke-width": float64(1.5)}},
 	}
 	n.Data = []Record{{Type: "app.viatrail.test/net", Body: map[string]any{"value": "n"}}}
 	return n
@@ -816,11 +810,10 @@ func oracleAreas() *Document {
 	return &Document{
 		Generator: "areas",
 		Areas: []Area{
-			{Name: "full style", Polygon: ring, Style: AreaStyle{
-				FillColor: "#112233", FillOpacity: f(0.4), StrokeColor: "#445566", StrokeWidth: f(2)}},
+			{Name: "full style", Polygon: ring, Style: Style{"fill-color": "#112233", "fill-opacity": float64(0.4), "stroke-color": "#445566", "stroke-width": float64(2)}},
 			{Name: "no style", Polygon: ring},
-			{Name: "fill only", Polygon: ring, Style: AreaStyle{FillColor: "#778899"}},
-			{Name: "opacity only", Polygon: ring, Style: AreaStyle{FillOpacity: f(1)}},
+			{Name: "fill only", Polygon: ring, Style: Style{"fill-color": "#778899"}},
+			{Name: "opacity only", Polygon: ring, Style: Style{"fill-opacity": float64(1)}},
 			// An area ring whose positions carry elevation and time: the
 			// position writer does not care which collection it is in.
 			{Name: "timed ring", Notes: "ملاحظات", Hidden: true, Folder: "f", Polygon: timed},
@@ -923,7 +916,7 @@ func eachPosition(d *Document, fn func(Position)) {
 	}
 }
 
-func eachPointStyle(d *Document, fn func(PointStyle)) {
+func eachPointStyle(d *Document, fn func(Style)) {
 	for _, w := range d.Waypoints {
 		fn(w.Style)
 	}

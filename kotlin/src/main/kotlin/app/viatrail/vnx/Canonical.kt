@@ -18,25 +18,7 @@ internal object Canonical {
         return sb.toString()
     }
 
-    /**
-     * Lexicographic by Unicode code point, per SPEC.md section 4.5.1.
-     *
-     * Kotlin's `String.compareTo` orders by UTF-16 code unit, which disagrees
-     * with code point order above U+FFFF — and a data record body may carry any
-     * key at all (section 5.1). Comparing UTF-8 bytes gives code point order
-     * exactly, so that is what this does.
-     */
-    private val byCodePoint = Comparator<String> { a, b ->
-        val x = a.toByteArray(Charsets.UTF_8)
-        val y = b.toByteArray(Charsets.UTF_8)
-        var i = 0
-        while (i < x.size && i < y.size) {
-            val d = (x[i].toInt() and 0xff) - (y[i].toInt() and 0xff)
-            if (d != 0) return@Comparator d
-            i++
-        }
-        x.size - y.size
-    }
+    private val byCodePoint = CodePointOrder.comparator
 
     private fun isContainer(v: JsonValue) = v is JsonObject || v is JsonArray
 

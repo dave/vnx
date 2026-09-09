@@ -146,7 +146,14 @@ object Vnx {
         entries.add(Zip.ToWrite(ROOT_DOCUMENT, documentText.toByteArray(Charsets.UTF_8)))
         val seen = HashMap<String, String>()
         seen[foldAscii(ROOT_DOCUMENT)] = ROOT_DOCUMENT
-        for ((name, body) in attachments) {
+        // Section 7.1: the root document first, then attachments SORTED by entry
+        // name under section 4.5.1's comparator — not in the order the caller
+        // supplied them, because caller order is not a property of the content.
+        // Two exporters using this one library, one iterating a hash map and one a
+        // sorted list, would otherwise emit different archives for the same
+        // document while satisfying every other field in that table.
+        val sorted = attachments.entries.sortedWith(compareBy(CodePointOrder.comparator) { it.key })
+        for ((name, body) in sorted) {
             checkPath(name)
             if (name.isEmpty() || name.endsWith("/")) {
                 refuse(

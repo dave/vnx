@@ -23,6 +23,47 @@ class ContainerWriteTest {
     private fun documentOf(json: String) = Vnx.readDocument(json).document
 
     @Test
+    fun `attachments are sorted by entry name, by code point and not by UTF-16 code unit`() {
+        // Section 7.1. Caller order is not a property of the content, so two
+        // exporters using this one library — one iterating a hash map, one a
+        // sorted list — must not emit different archives for the same document.
+        //
+        // The astral pair is the case that separates the two comparators, and it
+        // is the case where an implementer is most certain their sort is right:
+        // section 4.5.1 states the rule for object KEYS, and a cross-reference is
+        // easy to satisfy with a default sort and a clear conscience. Kotlin's
+        // `String.compareTo` is the wrong one — U+1F600 is a surrogate pair
+        // beginning at U+D800, which sorts BELOW U+FFFD by code unit and ABOVE it
+        // by code point.
+        val emoji = "\uD83D\uDE00.txt"
+        val replacement = "\uFFFD.txt"
+        assertTrue(emoji < replacement, "by UTF-16 code unit the emoji sorts first, which is the trap")
+
+        val bytes = Vnx.renderContainer(
+            documentOf("""{"vnx":"0.1.0"}"""),
+            // Supplied deliberately OUT of sorted order. Two names already in
+            // order would be decoration: they separate no implementations.
+            linkedMapOf(
+                "zzz/last.txt" to "z".toByteArray(),
+                emoji to "e".toByteArray(),
+                replacement to "r".toByteArray(),
+                "aaa/first.txt" to "a".toByteArray(),
+            ),
+        )
+        assertEquals(
+            listOf("aaa/first.txt", "zzz/last.txt", replacement, emoji),
+            Vnx.readContainer(bytes).attachments,
+        )
+        assertEquals("doc.vnx", rawEntries(bytes).first().name, "the root document goes first")
+        // And the order in the local headers must match the central directory,
+        // which is a separate fact from either being right.
+        assertEquals(
+            rawEntries(bytes).map { it.name },
+            listOf("doc.vnx", "aaa/first.txt", "zzz/last.txt", replacement, emoji),
+        )
+    }
+
+    @Test
     fun `a container round-trips through this library's own reader`() {
         val document = documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
         val bytes = Vnx.renderContainer(document, linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()))
@@ -128,7 +169,8 @@ class ContainerWriteTest {
             documentOf("""{"vnx":"0.1.0"}"""),
             linkedMapOf("empty.bin" to ByteArray(0), "big.bin" to big),
         )
-        assertEquals(listOf("empty.bin", "big.bin"), Vnx.readContainer(bytes).attachments)
+        // Sorted, not supplied order — section 7.1.
+        assertEquals(listOf("big.bin", "empty.bin"), Vnx.readContainer(bytes).attachments)
         ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->
             var checked = 0
             while (true) {

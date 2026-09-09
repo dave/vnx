@@ -31,8 +31,17 @@ CRC and both sizes into its local headers, and the very test written to pin its
 known gaps could not see it, because that test read the output back through a
 ZIP reader and asserted on fields the central directory had right.
 
-**So it asserts local and central agree.** No library-based reader can make that
-assertion, which is why nobody had it.
+**So it asserts local and central agree** — on field values AND on entry
+sequence, which can disagree independently. No library-based reader can make
+either assertion, which is why nobody had them.
+
+**And it checks entry ORDER**, which section 7.1 fixes: the root document first,
+then attachments sorted by entry name under section 4.5.1's code-point
+comparator. Caller order is not a property of the content, so two conforming
+exporters — one iterating a hash map, one a sorted list — would otherwise emit
+different archives while satisfying every other field in the table. Measured
+2026-09-10: three of the six implementations emitted caller order, and this tool
+certified all three as clean before it looked at sequence.
 
 **Always-STORED is what makes any of this possible.** Under deflate there is no
 canonical output — Go's compress/flate and zlib emit different bytes for the
@@ -191,6 +200,72 @@ def check_local_matches_central(archives, faults):
                     )
 
 
+def utf16_order(name):
+    """A sort key giving UTF-16 code unit order, which is NOT code point order."""
+    return name.encode("utf-16-be", "surrogatepass")
+
+
+def root_document(entries):
+    """Section 7's resolution: `doc.vnx` at the root, else the first `.vnx`."""
+    for entry in entries:
+        if entry["name"].lower() == "doc.vnx":
+            return entry
+    for entry in entries:
+        if entry["name"].lower().endswith(".vnx"):
+            return entry
+    return None
+
+
+def check_order_consistency(archives, faults):
+    """The two header lists against each other. Malformed under any reading."""
+    for path, (entries, _) in archives.items():
+        names = [e["name"] for e in entries]
+        by_local = [e["name"] for e in sorted(entries, key=lambda e: e["central"]["local_offset"])]
+        if by_local != names:
+            faults.append(
+                f"{path}: the local headers and the central directory disagree about entry order\n"
+                f"         central directory: {names}\n"
+                f"         local headers:     {by_local}"
+            )
+
+
+def check_spec_order(archives, faults):
+    """Section 7.1's entry order. A writer rule, so it belongs under --spec."""
+    for path, (entries, _) in archives.items():
+        names = [e["name"] for e in entries]
+        if not names:
+            continue
+        root = root_document(entries)
+        if root is None:
+            faults.append(f"{path}: no entry with a .vnx extension, so there is no root document")
+            continue
+        if names[0] != root["name"]:
+            faults.append(
+                f"{path}: the root document {root['name']!r} is at index "
+                f"{names.index(root['name'])}, and section 7.1 puts it first — which is what makes "
+                f"section 7's first-.vnx fallback agree with the preferred name"
+            )
+
+        attachments = [n for n in names if n != root["name"]]
+        wanted = sorted(attachments)
+        if attachments != wanted:
+            note = ""
+            if attachments == sorted(attachments, key=utf16_order):
+                note = (
+                    "\n         These are in UTF-16 CODE UNIT order. Section 4.5.1's comparator is by "
+                    "CODE POINT, and the two disagree above U+FFFF: an astral character is a surrogate "
+                    "pair beginning at U+D800, which sorts below a BMP character in U+E000..U+FFFF by "
+                    "code unit and above it by code point. A default string sort is the code-unit one in "
+                    "several languages, so this is the case where an implementer is most certain their "
+                    "sort is right."
+                )
+            faults.append(
+                f"{path}: attachments are not sorted by entry name\n"
+                f"         emitted: {attachments}\n"
+                f"         sorted:  {wanted}{note}"
+            )
+
+
 def check_spec(archives, faults):
     for path, (entries, _) in archives.items():
         for entry in entries:
@@ -294,8 +369,10 @@ def main():
 
     faults = []
     check_local_matches_central(archives, faults)
+    check_order_consistency(archives, faults)
     if args.spec:
         check_spec(archives, faults)
+        check_spec_order(archives, faults)
     if len(archives) > 1:
         compare(archives, faults)
 

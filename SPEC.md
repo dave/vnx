@@ -139,12 +139,6 @@ A VNX document is a JSON object.
 Every key is OPTIONAL except the ones its object requires, which Section 3.10
 lists. A reader MUST accept the absence of every other key.
 
-Note: an earlier revision of this document said that `vnx` was the only required
-key anywhere. That was contradicted one section away by Section 8.2, which
-lists "the fields required per object" among what the JSON Schema checks, and by
-the schema itself, which requires thirteen fields across eleven object types.
-Section 3.10 is the authority.
-
 Absence means "not known". It MUST NOT be read as a default value, with two
 exceptions stated where they arise: `label-visible`, where absence means Auto
 (Section 3.6), and `hidden`, where absence means visible (Section 3.8).

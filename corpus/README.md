@@ -204,10 +204,10 @@ A meridian makes the projected segment vertical in every model, so the distance
 is exactly the longitude offset times whatever scale the model uses — no model
 can argue about the arithmetic, only about the scale, which is the thing under
 test. Thirteen degrees is what makes a wrong scale flip a VERDICT rather than
-move a number: an earlier version of this pair used three degrees, where a
-segment-start-cosine model reads the accept case at 48.8 m against a 50 m
-tolerance. The number moved by 8.5% and the verdict did not, so the pair
-discriminated against nothing. A corpus case is a verdict.
+move a number. At three degrees, a segment-start-cosine model reads the accept
+case at 48.8 m against a 50 m tolerance: the number moves by 8.5% and the
+verdict does not, so the pair discriminates against nothing. A corpus case is a
+verdict.
 
 The two arcs run in OPPOSITE directions, and that is the least obvious property
 here. The accept case catches a model that over-reads and refuses a legal

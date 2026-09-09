@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 
 import { decodeText } from '../src/decode.js';
 import { rerender, write, canonicalise } from '../src/index.js';
+import { decodeContainer, encodeContainer, rerenderContainer, writeContainer } from '../src/vnz.js';
+import { writeArchive } from '../src/zip.js';
 
 const doc = (extra) => JSON.stringify({ vnx: '0.1.0', ...extra });
 
@@ -65,4 +67,39 @@ test('rounding happens in the emit path, never in the model', () => {
   const { document } = decodeText(doc({ waypoints: [{ at: [-3.6712345678901235, 57.118] }] }));
   write(document);
   assert.equal(document.waypoints[0].at.lon, -3.6712345678901235);
+});
+
+test('a writer creates no negative zero from a value that had none', () => {
+  // SPEC.md 4.5.4: rounding -0.04 to one place, or -4e-8 to six, produces a
+  // zero with the sign bit set in most languages. Neither value carries a
+  // negative zero into the writer; both could carry one out of it.
+  const { document } = decodeText(doc({
+    waypoints: [{ at: [-0.00000004, -0.00000004, -0.04] }],
+  }));
+  assert.match(write(document), /"at": \[0, 0, 0\]/);
+  assert.equal(write(document).includes('-0'), false);
+});
+
+test('a container has the same two emit paths as a document', () => {
+  // SPEC.md 4.5.4: repackaging a container unchanged must not silently round
+  // it, so the container path splits the same way.
+  const text = doc({ waypoints: [{ at: [-3.6712345678901235, 57.118, null] }] });
+  const packed = encodeContainer(text, [['a/photo.txt', Buffer.from('x')]]);
+  const container = decodeContainer(packed);
+
+  const again = decodeContainer(rerenderContainer(container));
+  assert.equal(again.document.waypoints[0].at.lon, -3.6712345678901235);
+  assert.equal(again.document.waypoints[0].at.arity, 3);
+  assert.deepEqual([...again.attachments.keys()], ['a/photo.txt']);
+
+  const written = decodeContainer(writeContainer(container));
+  assert.equal(written.document.waypoints[0].at.lon, -3.671235);
+  assert.equal(written.document.waypoints[0].at.arity, 2);
+  assert.deepEqual([...written.attachments.keys()], ['a/photo.txt']);
+});
+
+test('repackaging keeps the document entry name it was read under', () => {
+  const packed = writeArchive([{ name: 'some-export.vnx', data: Buffer.from(doc({ waypoints: [] })) }]);
+  const container = decodeContainer(packed);
+  assert.equal(decodeContainer(rerenderContainer(container)).documentEntry, 'some-export.vnx');
 });

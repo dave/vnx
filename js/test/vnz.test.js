@@ -111,7 +111,7 @@ test('an unreadable ATTACHMENT is dropped with a diagnostic; the document surviv
   const c = decodeContainer(buf);
   assert.equal(c.document.waypoints.length, 1);
   assert.deepEqual([...c.attachments.keys()], []);
-  assert.equal(c.diagnostics[0].cause, 'attachment-compression');
+  assert.equal(c.diagnostics[0].code, 'attachment-compression');
 });
 
 test('a corrupt entry fails its CRC rather than yielding wrong bytes', () => {

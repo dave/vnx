@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { roundToPlaces } from '../src/round.js';
+import { renderNumber } from '../src/number.js';
 
 test('an exact tie rounds to even, matching Go and Python', () => {
   // 340.25 and 340.75 are exact doubles, so these are real ties and not an
@@ -109,4 +110,32 @@ test('RED PROOF: dropping the tie branch entirely truncates a tie', async () => 
   const mutated = await loadMutated(HALF_TO_EVEN, '  // no tie handling at all');
   assert.equal(mutated.roundToPlaces(340.75, 1), 340.7);
   assert.equal(roundToPlaces(340.75, 1), 340.8);
+});
+
+test('the smallest real six-place tie rounds to even', () => {
+  // 0.0078125 is 1/128 and is exact, so this is a genuine six-place tie.
+  assert.equal(roundToPlaces(0.0078125, 6), 0.007812);   // 2 is even: down
+  assert.equal(roundToPlaces(-0.0078125, 6), -0.007812);
+  assert.equal(roundToPlaces(0.0234375, 6), 0.023438);   // 3/128; 8 is even: up
+});
+
+test('0.0000005 is not a six-place tie, and is not even close to being one', () => {
+  // The obvious six-place tie test exercises a NON-tie: 0.0000005 is not a
+  // binary64 value, and the nearest double is 4.99999999999999977e-7, BELOW the
+  // midpoint. It rounds DOWN under every rule, and a suite that used it would
+  // pass whichever way the tie branch was written. Frozen so nobody mistakes it
+  // for the tie case.
+  assert.notEqual((0.0000005).toPrecision(21), '5.00000000000000000000e-7');
+  assert.equal(roundToPlaces(0.0000005, 6), 0);
+  assert.equal(roundToPlaces(0.0000005, 6), roundToPlaces(0.0000004, 6));
+});
+
+test('rounding creates no negative zero on the wire', () => {
+  // SPEC.md 4.5.4: rounding CREATES negative zeros that were never in the
+  // model. A writer collapsing negative zero only across the values it was
+  // HANDED would emit `-0` for one it produced itself. Guarded twice: once in
+  // the arithmetic here, once by the renderer.
+  assert.ok(!Object.is(roundToPlaces(-0.04, 1), -0));
+  assert.ok(!Object.is(roundToPlaces(-0.00000004, 6), -0));
+  assert.equal(renderNumber(roundToPlaces(-0.04, 1)), '0');
 });

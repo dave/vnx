@@ -131,7 +131,7 @@ test('a pip that will not parse is dropped and the rest of the list survives', (
 test('an unrecognised key is diagnosed, skipped, and the item kept', () => {
   const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], nmae: 'x' }] }));
   assert.equal(document.waypoints.length, 1);
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.cause]), [['/waypoints/0/nmae', 'unknown-key']]);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [['/waypoints/0/nmae', 'unknown-key']]);
 });
 
 test('a JSON Pointer token escapes ~ and /', () => {
@@ -143,7 +143,7 @@ test('a wrong-typed OPTIONAL key drops the field and keeps the item', () => {
   const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], name: 7 }] }));
   assert.equal(document.waypoints.length, 1);
   assert.equal(document.waypoints[0].name, undefined);
-  assert.equal(diagnostics[0].cause, 'wrong-type-optional');
+  assert.equal(diagnostics[0].code, 'wrong-type-optional');
 });
 
 test('a wrong-typed REQUIRED key drops the item', () => {
@@ -157,7 +157,7 @@ test('a data record with no @type is dropped; the item survives', () => {
     waypoints: [{ at: [1, 2], data: [{ value: 1 }, { '@type': 'com.example.x' }] }],
   }));
   assert.equal(document.waypoints[0].data.length, 1);
-  assert.equal(diagnostics[0].cause, 'record-type-missing');
+  assert.equal(diagnostics[0].code, 'record-type-missing');
 });
 
 test('a record body is never inspected, whatever its type says', () => {
@@ -175,7 +175,7 @@ test('an importance outside 1 to 5 is dropped and the item kept', () => {
   const { document, diagnostics } = decodeText(doc({
     waypoints: [{ at: [1, 2], style: { importance: 9, color: '#fff' } }],
   }));
-  assert.equal(diagnostics[0].cause, 'importance-out-of-range');
+  assert.equal(diagnostics[0].code, 'importance-out-of-range');
   assert.deepEqual(document.waypoints[0].style, { color: '#fff' });
 });
 
@@ -191,7 +191,7 @@ test('a folder naming an absent folder puts the item at the top level', () => {
   const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], folder: 'ghost' }] }));
   assert.equal(document.waypoints.length, 1);
   assert.equal(document.waypoints[0].folder, undefined);
-  assert.equal(diagnostics[0].cause, 'folder-absent');
+  assert.equal(diagnostics[0].code, 'folder-absent');
 });
 
 test('a folder with no id is dropped and its contents survive at the top level', () => {
@@ -201,7 +201,7 @@ test('a folder with no id is dropped and its contents survive at the top level',
   }));
   assert.equal(document.folders.length, 0);
   assert.equal(document.waypoints.length, 1);
-  assert.deepEqual(diagnostics.map((d) => d.cause).sort(), ['folder-absent', 'missing-required-key']);
+  assert.deepEqual(diagnostics.map((d) => d.code).sort(), ['folder-absent', 'missing-required-key']);
 });
 
 test('a ring that does not close drops the item', () => {
@@ -209,7 +209,7 @@ test('a ring that does not close drops the item', () => {
     areas: [{ polygon: [[1, 2], [3, 4], [5, 6], [7, 8]] }],
   }));
   assert.equal(document.areas.length, 0);
-  assert.equal(diagnostics[0].cause, 'polygon-not-closed');
+  assert.equal(diagnostics[0].code, 'polygon-not-closed');
 });
 
 test('a ring of fewer than four positions drops the item', () => {
@@ -217,7 +217,7 @@ test('a ring of fewer than four positions drops the item', () => {
     areas: [{ polygon: [[1, 2], [3, 4], [1, 2]] }],
   }));
   assert.equal(document.areas.length, 0);
-  assert.equal(diagnostics[0].cause, 'polygon-too-short');
+  assert.equal(diagnostics[0].code, 'polygon-too-short');
 });
 
 test('an arc naming an absent node keeps the arc', () => {
@@ -225,7 +225,7 @@ test('an arc naming an absent node keeps the arc', () => {
     networks: [{ nodes: { a: [1, 2] }, arcs: { x: { from: 'a', to: 'ghost', pips: [[1, 2], [3, 4]] } } }],
   }));
   assert.equal(document.networks[0].arcs.size, 1);
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.cause]),
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
     [['/networks/0/arcs/x/to', 'arc-node-absent']]);
 });
 
@@ -238,7 +238,7 @@ test('a link on an arc with no vertices is dropped rather than measured', () => 
     }],
   }));
   assert.equal(document.networks[0].chains[0].links.length, 0);
-  assert.ok(diagnostics.some((d) => d.cause === 'inline-endpoint-empty-arc'));
+  assert.ok(diagnostics.some((d) => d.code === 'inline-endpoint-empty-arc'));
 });
 
 test('a record-level timestamp with an offset drops the field and keeps the item', () => {
@@ -247,7 +247,7 @@ test('a record-level timestamp with an offset drops the field and keeps the item
   }));
   assert.equal(document.tracks.length, 1);
   assert.equal(document.tracks[0].started, undefined);
-  assert.equal(diagnostics[0].cause, 'timestamp-not-utc');
+  assert.equal(diagnostics[0].code, 'timestamp-not-utc');
 });
 
 test('fractional seconds are accepted on a record-level timestamp', () => {
@@ -320,8 +320,8 @@ test('two node keys at different positions do not meet', () => {
     { a: [1, 2], b: [3, 4], c: [5, 6] },
     [{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }],
   ));
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.cause]),
-    [['/networks/0/chains/0/links/1', 'chain-not-connected']]);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
+    [['/networks/0/chains/0/links/1', 'chain-discontinuity']]);
 });
 
 test('a node meets an inline endpoint on lon and lat, whatever its elevation', () => {
@@ -340,5 +340,5 @@ test('a link naming an absent node keeps the link and takes that end out of the 
     [{ from: 'a', to: 'ghost' }, { from: 'b', to: 'a' }],
   ));
   assert.equal(document.networks[0].chains[0].links.length, 2);
-  assert.deepEqual(diagnostics.map((d) => d.cause), ['link-node-absent']);
+  assert.deepEqual(diagnostics.map((d) => d.code), ['link-node-absent']);
 });

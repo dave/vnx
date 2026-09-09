@@ -228,19 +228,17 @@ test('keeping the outer ring of a nested polygon is caught', async () => {
   assert.deepEqual(failing(cases), ['diagnose/polygon-second-ring.vnx']);
 });
 
-test('comparing links that were not adjacent in the document is NOT caught', async () => {
+test('comparing links that were not adjacent in the document is caught', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
     from: '    if (b.index !== a.index + 1) continue;',
-    to: '    if (false) continue;',
+    to: '    if (b.index === -1) continue;',
   }]);
-  // diagnose/link-names-absent-arc.expect.json says one defect must not become
-  // two, but its dangling link is the LAST one, so no reader could report a
-  // break past it, and its two endpoints (`n2` to `n2`) meet in any case. A
-  // dropped MIDDLE link, whose neighbours are then falsely reported disjoint,
-  // is untested. Recorded here rather than assumed.
-  assert.deepEqual(failing(cases), [],
-    'the corpus now covers a dropped middle link; assert the failure instead');
+  // Was NOT caught until 2026-09-09: the fixture had two links and its dangling
+  // one was the LAST, so no reader could report a break past it and the
+  // expectation was guaranteed by arity. It now has three links with the middle
+  // one dropped and survivors that do not meet, so the guard is real.
+  assert.deepEqual(failing(cases), ['diagnose/link-names-absent-arc.vnx']);
 });
 
 test('refusing a timestamp with an offset, rather than diagnosing it, is caught', async () => {

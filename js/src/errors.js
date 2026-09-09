@@ -1,9 +1,14 @@
 // Errors and diagnostics.
 //
-// Every refusal and every diagnostic carries a stable machine-readable `cause`
-// alongside its English `message`. The conformance corpus matches English
-// substrings today (SPEC.md 8.1); when it grows reason codes, the mapping in
-// `CAUSE_SUBSTRINGS` below is the whole of the migration.
+// A diagnostic carries a `code` — a short stable token naming which diagnostic
+// it is (SPEC.md 6.3) — alongside its English `message`. The code is what a
+// conformance case compares; the English MUST NOT be compared, because a corpus
+// that matched substrings of prose across implementations would be pinning
+// translations of a rule rather than the rule.
+//
+// A refusal still carries only English, matched as a substring. That is a known
+// defect and typed errors are their own piece of work; `REFUSAL_SUBSTRINGS`
+// below is the migration map, kept honest by a test.
 
 /** A document (or container) the reader refuses. SPEC.md 6.2 and 7. */
 export class VnxRefusal extends Error {
@@ -25,29 +30,84 @@ export class VnxRefusal extends Error {
 export class Diagnostic {
   /**
    * @param {string} path JSON Pointer (RFC 6901)
-   * @param {string} message short English description
-   * @param {string} cause stable cause code
+   * @param {string} message short description in English, advisory only
+   * @param {string} code stable token naming which diagnostic this is
    */
-  constructor(path, message, cause) {
+  constructor(path, message, code) {
     this.path = path;
     this.message = message;
-    this.cause = cause;
+    this.code = code;
   }
   toJSON() {
-    return { path: this.path, message: this.message };
+    return { path: this.path, code: this.code, message: this.message };
   }
 }
 
-// The substring the corpus currently expects for each cause. Refusal causes are
-// checked against a case's `refusal`; diagnostic causes against a `message`.
-// This table exists so that a corpus migration to reason codes is mechanical:
-// nothing else in this library depends on the English wording.
-export const CAUSE_SUBSTRINGS = {
-  // refusals
+/**
+ * Every diagnostic code this library emits.
+ *
+ * SPEC.md 6.3 lets a reader leave `code` absent on any diagnostic no corpus
+ * case pins. This library emits one for all of them: an absent code is only
+ * ever less useful to a caller, and the register below is what stops a typo in
+ * a call site inventing a code nobody declared.
+ */
+export const DIAGNOSTIC_CODES = Object.freeze([
+  // pinned by the corpus (see PINNED_CODES)
+  'chain-discontinuity',
+  'endpoint-off-arc',
+  'link-arc-absent',
+  'polygon-nested-rings',
+  'timestamp-not-utc',
+  'unknown-key',
+  // not pinned: this library's own tokens, and not wire commitments
+  'arc-node-absent',
+  'attachment-compression',
+  'attachment-unreadable',
+  'folder-absent',
+  'importance-out-of-range',
+  'inline-endpoint-empty-arc',
+  'item-unusable',
+  'link-node-absent',
+  'missing-required-key',
+  'parent-folder-absent',
+  'polygon-not-closed',
+  'polygon-too-short',
+  'position-unusable',
+  'record-type-missing',
+  'record-unusable',
+  'wrong-type-optional',
+  'wrong-type-required',
+]);
+
+/**
+ * The codes the conformance corpus pins today.
+ *
+ * The set grows whenever a diagnose case is added. `test/runner.test.js`
+ * compares it against the corpus in BOTH directions, so it cannot drift: a case
+ * pinning a code absent from here fails, and a code here that no case pins fails
+ * too.
+ */
+export const PINNED_CODES = Object.freeze([
+  'chain-discontinuity',
+  'endpoint-off-arc',
+  'link-arc-absent',
+  'polygon-nested-rings',
+  'timestamp-not-utc',
+  'unknown-key',
+]);
+
+/**
+ * The substring the corpus expects for each refusal cause. Refusals are still
+ * compared as English; this is the whole of the migration when they gain codes.
+ *
+ * `non-finite-number` has no corpus case. The corpus expects `malformed JSON`
+ * for a `NaN` or `Infinity` LITERAL, which is what a strict parser says before
+ * any format rule runs. A literal that merely overflows the double range —
+ * `1e999` — is well-formed JSON and reaches SPEC.md 4.2, which is a different
+ * cause and says so.
+ */
+export const REFUSAL_SUBSTRINGS = Object.freeze({
   'malformed-json': 'malformed JSON',
-  // A `NaN` or `Infinity` LITERAL is not JSON and is refused as malformed. A
-  // literal that overflows the double range (`1e400`) parses and arrives as
-  // Infinity; SPEC.md 4.2 refuses it separately and the corpus has no case.
   'non-finite-number': 'is not finite',
   'not-a-vnx-document': 'not a VNX document',
   'version-shape': 'MAJOR.MINOR.PATCH',
@@ -57,11 +117,4 @@ export const CAUSE_SUBSTRINGS = {
   'zip-malformed': 'malformed archive',
   'zip-no-document': 'no VNX document',
   'zip-root-compression': 'compression method',
-  // diagnostics
-  'unknown-key': 'unknown key',
-  'link-arc-absent': 'not in this network',
-  'chain-not-connected': 'not one connected walk',
-  'polygon-nested-rings': 'nested rings',
-  'inline-endpoint-off-arc': 'beyond the 50 m tolerance',
-  'timestamp-not-utc': 'must be UTC with a Z suffix',
-};
+});

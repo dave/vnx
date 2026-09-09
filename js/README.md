@@ -9,7 +9,10 @@ rather than imported: the format restricts compression to store and deflate, and
 `node:zlib` supplies deflate.
 
 ```js
-import { decodeText, rerender, write, canonicalise, decodeContainer } from '@viatrail/vnx';
+import {
+  decodeText, rerender, write, canonicalise,
+  decodeContainer, rerenderContainer, writeContainer,
+} from '@viatrail/vnx';
 
 const { document, diagnostics, positions } = decodeText(text);
 for (const d of diagnostics) console.log(d.path, d.message);
@@ -28,6 +31,11 @@ canonicalise(text).text; // decode, then re-render
 | `rerender(doc)` | no | no | canonical form, the accept tier |
 | `write(doc)` | lon/lat to 6 places, elevation to 1 | yes | exporting a model |
 
+A conforming library offers both (`SPEC.md` 4.5.4). The container path splits the
+same way — `rerenderContainer` and `writeContainer` — so repackaging a container
+unchanged cannot silently round it. `encodeContainer` takes document text the
+caller has already produced, so the choice is the caller's.
+
 `SPEC.md` 4.5.4 does not say which way a rounding TIE goes, and the languages
 disagree: `340.25` to one place is `340.2` in Go and Python and `340.3` from
 JavaScript's `toFixed`. `src/round.js` rounds half to even, matching the
@@ -37,7 +45,10 @@ disagreement: `test/round.test.js` carries the guard for `SPEC.md` 4.5.4's tie
 rule, red-proofed against a mutated copy of `src/round.js`, and
 `test/redproof.test.js` records that the corpus stays green under the flip.
 `SPEC.md` 4.5.3's rendering tie is free here — V8 rounds to even — and is
-guarded in `test/canonical.test.js` all the same.
+guarded in `test/canonical.test.js` all the same. Two more rules live beyond the
+corpus's reach for the same reason and are guarded locally: a negative zero the
+writer CREATED by rounding (`format/` only ever supplies one as an input
+literal), and shortening a position.
 
 The corpus's accept tier is `rerender(decode(file)) === file`. A writer rounds,
 so writing what you read is legitimately not what you read.
@@ -59,9 +70,15 @@ are worth knowing before you use the model:
 - **A refusal is not a diagnostic.** A refused document throws `VnxRefusal`;
   everything else returns a document alongside its diagnostics.
 
-Every `VnxRefusal` and every `Diagnostic` carries a stable `cause` code beside
-its English text. `CAUSE_SUBSTRINGS` in `src/errors.js` maps each cause to the
-substring the corpus expects today, so a move to reason codes is mechanical.
+Every `Diagnostic` carries a `code` — a short stable token (`SPEC.md` 6.3) —
+beside its English `message`, which is advisory and is never compared. The corpus
+pins six codes today; `PINNED_CODES` and `DIAGNOSTIC_CODES` in `src/errors.js`
+are checked against the corpus in both directions, so neither register can drift
+as diagnose cases are added.
+
+A `VnxRefusal` still carries only English, matched as a substring — a known
+defect. `REFUSAL_SUBSTRINGS` is the migration map for when refusals gain codes,
+and a test keeps it honest against `reject/`.
 
 ## Running the corpus
 

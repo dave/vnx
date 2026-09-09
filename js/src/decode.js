@@ -40,8 +40,8 @@ class Ctx {
     /** @type {WeakMap<object, string>} model item -> wire pointer */
     this.paths = new WeakMap();
   }
-  diag(path, message, cause) {
-    this.diagnostics.push(new Diagnostic(path, message, cause));
+  diag(path, message, code) {
+    this.diagnostics.push(new Diagnostic(path, message, code));
   }
   position(path, position) {
     this.positions.set(path, position);
@@ -671,7 +671,7 @@ function resolveChain(chain, nodes, arcs, ctx) {
       if (distance > PROJECTION_TOLERANCE_M) {
         ctx.diag(`${path}/${which}`,
           `the inline endpoint does not project onto arc ${JSON.stringify(link.arc)} beyond the 50 m tolerance`,
-          'inline-endpoint-off-arc');
+          'endpoint-off-arc');
         drop = true;
         break;
       }
@@ -691,7 +691,7 @@ function resolveChain(chain, nodes, arcs, ctx) {
     if (endpointsMeet(a.link.to, b.link.from, nodes)) continue;
     ctx.diag(ctx.paths.get(b.link),
       'this link does not begin where the previous one ends, so the chain is not one connected walk',
-      'chain-not-connected');
+      'chain-discontinuity');
   }
 
   chain.links = kept.map((k) => k.link);

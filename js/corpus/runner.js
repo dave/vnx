@@ -106,9 +106,21 @@ function runSidecarCase(kind, dir, file, api) {
  * Diagnostics are compared as a SET (SPEC.md 6.3), by a perfect matching: each
  * expected diagnostic pairs with one DISTINCT reported diagnostic, so a runner
  * cannot let one reported diagnostic satisfy two expectations.
+ *
+ * The comparison is `path` + `code`. The English is NOT compared and is not
+ * read: the sidecar names that field `message_advisory` precisely so that a
+ * runner reaching for `message` finds nothing rather than finding a claim.
  */
 export function matchDiagnostics(c, reported, expected) {
-  const fits = (r, e) => r.path === e.path && r.message.includes(e.message);
+  for (const e of expected) {
+    if (typeof e.code !== 'string' || e.code === '') {
+      c.failures.push(`expected diagnostic at ${JSON.stringify(e.path)} carries no code; SPEC.md 6.3 requires one on a pinned diagnostic`);
+    }
+    if (Object.prototype.hasOwnProperty.call(e, 'message')) {
+      c.failures.push(`expected diagnostic at ${JSON.stringify(e.path)} carries a "message" field; the English is "message_advisory" and is not compared`);
+    }
+  }
+  const fits = (r, e) => r.path === e.path && r.code === e.code;
   const pairedTo = new Array(reported.length).fill(-1);
   const augment = (ei, seen) => {
     for (let ri = 0; ri < reported.length; ri++) {
@@ -126,11 +138,11 @@ export function matchDiagnostics(c, reported, expected) {
     if (!augment(ei, new Set())) unmatched.push(expected[ei]);
   }
   for (const e of unmatched) {
-    c.failures.push(`no diagnostic matched {path: ${JSON.stringify(e.path)}, message contains ${JSON.stringify(e.message)}}`);
+    c.failures.push(`no diagnostic matched {path: ${JSON.stringify(e.path)}, code: ${JSON.stringify(e.code)}}`);
   }
   reported.forEach((r, ri) => {
     if (pairedTo[ri] === -1) {
-      c.failures.push(`unexpected diagnostic {path: ${JSON.stringify(r.path)}, message: ${JSON.stringify(r.message)}}`);
+      c.failures.push(`unexpected diagnostic {path: ${JSON.stringify(r.path)}, code: ${JSON.stringify(r.code)}, message: ${JSON.stringify(r.message)}}`);
     }
   });
 }

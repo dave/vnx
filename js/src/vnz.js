@@ -8,6 +8,7 @@
 import { VnxRefusal } from './errors.js';
 import { Diagnostic } from './errors.js';
 import { decodeText } from './decode.js';
+import { rerender, write } from './emitpaths.js';
 import { readEntries, readEntryData, writeArchive, ZipError, METHOD_DEFLATE, METHOD_STORE } from './zip.js';
 
 const SUPPORTED = new Set([METHOD_STORE, METHOD_DEFLATE]);
@@ -122,7 +123,46 @@ function pathFault(name) {
 }
 
 /**
- * Build a container. The document goes in as `doc.vnx`.
+ * RE-RENDER a decoded container: the document is reproduced as it was handed to
+ * the reader, and the attachments and the document's entry name are carried
+ * through unchanged.
+ *
+ * The container emit path splits the same way the document one does (SPEC.md
+ * 4.5.4), so repackaging a container cannot silently round it.
+ *
+ * @param {Container} container from decodeContainer
+ * @returns {Buffer}
+ */
+export function rerenderContainer(container) {
+  return packContainer(container, rerender(container.document));
+}
+
+/**
+ * WRITE a decoded container: the document goes through the writer, so its
+ * coordinates are rounded and its positions shortened.
+ *
+ * @param {Container} container
+ * @returns {Buffer}
+ */
+export function writeContainer(container) {
+  return packContainer(container, write(container.document));
+}
+
+function packContainer(container, documentText) {
+  const entry = container.documentEntry ?? 'doc.vnx';
+  const files = [{ name: entry, data: Buffer.from(documentText, 'utf8') }];
+  for (const [name, data] of container.attachments ?? []) {
+    if (name === entry) continue;
+    files.push({ name, data });
+  }
+  return writeArchive(files);
+}
+
+/**
+ * Build a container from document TEXT the caller has already produced, so the
+ * caller has chosen which emit path it wanted. The document goes in as
+ * `doc.vnx`.
+ *
  * @param {string} documentText canonical or written VNX text
  * @param {Iterable<[string, Buffer]>} [attachments]
  * @returns {Buffer}

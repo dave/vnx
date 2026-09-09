@@ -1,0 +1,15 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "A number whose shortest spelling is a tie",
+      "at": [-3.6712, 57.118],
+      "data": [
+        {
+          "@type": "app.example.tie",
+          "value": 1497898211722073.2
+        }
+      ]
+    }
+  ]
+}

@@ -91,8 +91,15 @@ func TestRoundingNeverInventsAnElevation(t *testing.T) {
 // repeated coordinate, which is what a zero-length step looks like and is
 // correct: the document holds two points.
 func TestTheArcBoundaryDedupStillComparesFullValues(t *testing.T) {
-	a := vnx.Position{Lon: -3.6712345, Lat: 57.1181234}
-	b2 := vnx.Position{Lon: -3.67123452, Lat: 57.1181234} // same to six places, not equal
+	// ⚠ THESE COORDINATES MUST STILL COLLIDE AT SIX PLACES, and checking that
+	// is part of running this test. They were -3.6712345 and -3.67123452 until
+	// 2026-09-09, when rounding moved to half-to-even (§4.5.4) and the first
+	// began rounding DOWN to -3.671234 while the second stayed at -3.671235.
+	// The pair stopped colliding, so the test stopped setting up its own
+	// scenario and passed for the wrong reason — it was asserting that a dedup
+	// had not merged two points it could no longer have merged.
+	a := vnx.Position{Lon: -3.6712341, Lat: 57.1181234}
+	b2 := vnx.Position{Lon: -3.67123412, Lat: 57.1181234} // same to six places, not equal
 	d := &vnx.Document{Routes: []vnx.Route{{Name: "r", Arcs: []vnx.Arc{
 		{Pips: []vnx.Position{{Lon: -3.67, Lat: 57.11}, a}},
 		{Pips: []vnx.Position{b2, {Lon: -3.68, Lat: 57.12}}},
@@ -101,7 +108,14 @@ func TestTheArcBoundaryDedupStillComparesFullValues(t *testing.T) {
 	if _, err := Write(&buf, d); err != nil {
 		t.Fatal(err)
 	}
-	if n := strings.Count(buf.String(), `lon="-3.671235"`); n != 2 {
+	// The premise first: if these two stop rounding to one value, the rest of
+	// this test proves nothing.
+	if vnx.RoundCoordinate(a.Lon) != vnx.RoundCoordinate(b2.Lon) {
+		t.Fatalf("the two coordinates no longer collide at six places (%v and %v); "+
+			"this test cannot see the property it guards until they do",
+			vnx.RoundCoordinate(a.Lon), vnx.RoundCoordinate(b2.Lon))
+	}
+	if n := strings.Count(buf.String(), `lon="-3.671234"`); n != 2 {
 		t.Fatalf("the shared coordinate appears %d times, want 2 — the dedup compared ROUNDED values "+
 			"and merged two distinct readings:\n%s", n, buf.String())
 	}

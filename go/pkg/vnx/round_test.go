@@ -238,3 +238,39 @@ func TestEveryVNXPositionChannelIsRounded(t *testing.T) {
 		t.Fatalf("the rounded coordinate appears %d times, want one per channel:\n%s", n, b)
 	}
 }
+
+// TestRoundingTiesGoToEven is the per-implementation test spec §4.5.4 requires,
+// and it exists because NO CORPUS TIER CAN REACH THIS RULE.
+//
+// ⚠ EVERY TIER RE-RENDERS. accept decodes and re-renders; format canonicalises
+// an input; neither ever asks a library to WRITE — to turn a model into a
+// document with the emit-boundary rules applied. Rounding happens only there.
+// So a fixture cannot catch a writer that rounds a tie away from zero, and each
+// implementation carries its own test instead.
+//
+// 340.25 and −340.25 are exact doubles, and a quarter-metre elevation grid
+// produces them routinely, so this is an ordinary case rather than a contrived
+// one.
+func TestRoundingTiesGoToEven(t *testing.T) {
+	for _, c := range []struct {
+		in   float64
+		want float64
+		note string
+	}{
+		{340.25, 340.2, "round half to EVEN, not away from zero"},
+		{340.35, 340.4, "the even neighbour is upward here"},
+		{-340.25, -340.2, "and the sign does not change the rule"},
+		{-340.35, -340.4, ""},
+	} {
+		if got := RoundElevation(c.in); got != c.want {
+			t.Errorf("RoundElevation(%v) = %v, want %v %s", c.in, got, c.want, c.note)
+		}
+	}
+	// A tie that rounding CREATES a negative zero from, which is the case the
+	// corpus cannot see either: format/ carries -0.0 as an input literal, so it
+	// only ever tests a renderer collapsing a negative zero it was GIVEN.
+	if got := RoundElevation(-0.04); math.Signbit(got) {
+		t.Errorf("RoundElevation(-0.04) = %v with the sign bit set; §4.5.4 applies the "+
+			"negative-zero rule AFTER rounding, because rounding is what creates this one", got)
+	}
+}

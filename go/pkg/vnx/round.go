@@ -101,7 +101,14 @@ func roundTo(v float64, scale float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) || math.Abs(v) >= roundScale {
 		return v
 	}
-	r := math.Round(v*scale) / scale
+	// ⚠ RoundToEven, NOT Round. math.Round is half-away-from-zero, so it gave
+	// 340.3 for 340.25 where spec §4.5.4 requires 340.2. Ties are not exotic:
+	// 340.25 is an exact double and a quarter-metre elevation grid produces
+	// them routinely. And no corpus tier can catch this — every tier
+	// re-renders, and rounding happens only when a WRITER emits a model — so
+	// TestRoundingTiesGoToEven is the only thing standing between this line and
+	// two libraries disagreeing in silence.
+	r := math.RoundToEven(v*scale) / scale
 	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
 	// math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one place
 	// yields a zero with its sign bit set — as does -4e-08 to six places. Spec

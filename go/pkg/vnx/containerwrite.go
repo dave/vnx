@@ -49,13 +49,37 @@ func WriteContainer(w io.Writer, name string, produce func(io.Writer) error) err
 		return fmt.Errorf("%w: root document %q is not at the archive root", ErrContainer, name)
 	}
 	zw := zip.NewWriter(w)
-	// ⚠ CreateHeader RATHER THAN Create, AND Modified IS LEFT AT ITS ZERO
-	// VALUE ON PURPOSE. Create would do the same thing today, but a zip entry
-	// carries a modification time, and stamping "now" into it would make two
-	// exports of the same library differ byte for byte — which is the property
-	// encode_determinism_test.go exists to hold for the document inside. A
-	// zero Modified writes the MS-DOS epoch, which is a constant.
-	entry, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
+	// ⚠ CreateHeader RATHER THAN Create, AND EVERY FIELD HERE IS FIXED BY SPEC
+	// §7.1, WHICH REQUIRES TWO CONFORMING WRITERS TO PRODUCE THE SAME BYTES.
+	//
+	// Method: Store, not Deflate. DEFLATE HAS NO CANONICAL OUTPUT — for one
+	// corpus document Go's compress/flate emits 116 bytes where zlib emits 108,
+	// and no zlib level reproduces the other. Java and Python agree because both
+	// are zlib; Go is clean-room and agrees with neither. A deflated archive is
+	// byte-reproducible only by the language that wrote it.
+	//
+	// ⚠ THIS WRITER DOES NOT YET MEET §7.1 IN FULL, and the gap is pinned by
+	// TestContainerFieldsArchiveZipOverrides rather than left to be discovered.
+	// archive/zip overwrites the version fields and, if Modified is SET to the
+	// MS-DOS epoch, adds a nine-byte extended-timestamp extra field that §7.1
+	// forbids — so the obvious repair of the date breaks a different rule. A
+	// zero Modified writes MS-DOS date 0x0000, which decodes to 1979-11-30 and
+	// is not the epoch either. Meeting §7.1 needs a zip writer of our own, the
+	// same conclusion §4.5.5 reached about encoding/json.
+	//
+	// CreatorVersion and ReaderVersion are 10, that is 1.0, because a
+	// stored-only archive requires 1.0 and the field states a requirement rather
+	// than a habit. ExternalAttrs and CreatorVersion's system byte stay zero:
+	// they encode the WRITING MACHINE rather than the content, and left alone
+	// they make one library on two platforms emit two different archives for one
+	// document.
+	entry, err := zw.CreateHeader(&zip.FileHeader{
+		Name:           name,
+		Method:         zip.Store,
+		CreatorVersion: 10,
+		ReaderVersion:  10,
+		ExternalAttrs:  0,
+	})
 	if err != nil {
 		return fmt.Errorf("%w: creating %q in the archive: %s", ErrContainer, name, err)
 	}

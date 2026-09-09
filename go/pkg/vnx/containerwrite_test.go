@@ -177,3 +177,85 @@ func TestAProducerRefusalComesBackUnwrapped(t *testing.T) {
 		t.Fatalf("WriteContainer returned %v; the producer's own error must survive errors.Is", err)
 	}
 }
+
+// TestContainerHeaderFieldsAreFixed pins spec §7.1: two conforming writers
+// produce the same bytes for one document, so every header field is fixed.
+//
+// ⚠ THE FIELDS THAT ENCODE THE MACHINE ARE THE ONES THAT BITE. A deterministic
+// writer on one machine can still be non-deterministic across a fleet: create
+// system is 3 on macOS and Linux and 0 on Windows, and external attributes
+// carry whatever file mode the writing library stamps in. Neither is visible
+// from inside one machine, because writing the same archive twice in a row is
+// perfectly reproducible either way.
+func TestContainerHeaderFieldsAreFixed(t *testing.T) {
+	var b bytes.Buffer
+	doc := &vnx.Document{Version: "0.1.0", Waypoints: []vnx.Waypoint{{Name: "w", At: vnx.Position{Lon: -3, Lat: 57}}}}
+	if err := vnx.EncodeContainerTo(&b, doc); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(b.Bytes()), int64(b.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zr.File) != 1 {
+		t.Fatalf("want one entry, got %d", len(zr.File))
+	}
+	f := zr.File[0].FileHeader
+	// Stored, because deflate has no canonical output across languages.
+	if f.Method != zip.Store {
+		t.Errorf("method = %d, want %d (stored)", f.Method, zip.Store)
+	}
+	if f.ExternalAttrs != 0 {
+		t.Errorf("external attributes = %#x, want 0 — this carries the writing "+
+			"library's file mode and is a property of the machine, not the document", f.ExternalAttrs)
+	}
+	// A constant rather than the moment the writer ran, which is the property
+	// that matters most and the one this writer does hold.
+	if got := f.Modified.UTC(); got.Year() > 1980 {
+		t.Errorf("modified = %v, which is a real time rather than a fixed one", got)
+	}
+	if len(f.Extra) != 0 {
+		t.Errorf("extra field is %d bytes, want none", len(f.Extra))
+	}
+	if f.Comment != "" {
+		t.Errorf("comment = %q, want empty", f.Comment)
+	}
+}
+
+// TestContainerFieldsArchiveZipOverrides pins the part of spec §7.1 this writer
+// DOES NOT MEET, so the gap is a fact under test rather than a discovery waiting
+// for the second implementation to compare bytes with us.
+//
+// ⚠ THIS TEST ASSERTS THE WRONG VALUES ON PURPOSE. When someone makes the writer
+// conform, it goes red and they must delete it — which is the notification. A
+// gap recorded only in a comment is a gap nobody is told about.
+//
+// archive/zip overwrites CreatorVersion and ReaderVersion with 20, where §7.1
+// fixes 10: a stored-only archive requires 1.0, and the field states a
+// requirement rather than a habit. And the date is MS-DOS 0x0000, decoding to
+// 1979-11-30, where §7.1 fixes 0x0021 — 1980-01-01. Setting Modified to the
+// epoch does not fix it: archive/zip then adds a nine-byte extended-timestamp
+// extra field, which §7.1 forbids, so the obvious repair breaks a different
+// rule. Meeting §7.1 needs a zip writer of our own, which is the same conclusion
+// §4.5.5 reached about encoding/json for strings.
+func TestContainerFieldsArchiveZipOverrides(t *testing.T) {
+	var b bytes.Buffer
+	doc := &vnx.Document{Version: "0.1.0", Waypoints: []vnx.Waypoint{{Name: "w", At: vnx.Position{Lon: -3, Lat: 57}}}}
+	if err := vnx.EncodeContainerTo(&b, doc); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(b.Bytes()), int64(b.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := zr.File[0].FileHeader
+	if f.CreatorVersion != 20 || f.ReaderVersion != 20 {
+		t.Errorf("versions are now %d/%d rather than 20/20; if they are 10/10 this "+
+			"writer has become conforming and this test should be deleted",
+			f.CreatorVersion, f.ReaderVersion)
+	}
+	if got := f.Modified.UTC().Format("2006-01-02"); got != "1979-11-30" {
+		t.Errorf("date is now %s rather than 1979-11-30; if it is 1980-01-01 this "+
+			"writer has become conforming and this test should be deleted", got)
+	}
+}

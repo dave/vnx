@@ -702,8 +702,20 @@ Numbers are rendered with ECMAScript `Number::toString` semantics, which is what
 A tie is resolved by rounding to even. ECMAScript's `Number::toString`
 deliberately declines to fix the last digit of a tie, so the anchor is what the
 implementations do: `1497898211722073.25` renders `1497898211722073.2`, not
-`…073.3`. About one double in 4,200 is a tie, concentrated between 1e13 and
-1e15 — which is where `time_ms` lives.
+`…073.3`.
+
+Note: a rendering tie is rare and does not arise in a coordinate. It needs 16 or
+17 significant digits, so it lives between roughly 1e10 and 1e16. Measured over
+a million values drawn from each of longitude, latitude, elevation and epoch
+milliseconds, none produced one: coordinates and elevations are too small, and
+`time_ms` is an integer count. Ties do occur over uniformly drawn binary64 bit
+patterns, at about one in 4,200.
+
+Where this rule bites is an arbitrary number inside a data record body, which
+this format permits anywhere and does not constrain. That is a different hazard
+from the rounding tie of Section 4.5.4, which is ordinary rather than rare and
+reaches every coordinate and every elevation in a document. The two are not the
+same size, and the smaller one is not the one an implementer would guess.
 
 Negative zero MUST be rendered as `0`. `-0` and `0` are the same value, and two
 writers disagreeing about the sign is a byte incompatibility carrying no
@@ -1152,22 +1164,85 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
   different documents in different languages — and that applies to `doc.vnx`
   beside `DOC.VNX` exactly as it applies to an exact repeat, which is why the
   comparison matches the root-document rule above.
-- Compression MUST be stored or deflate. Other methods are not available in
-  every target language. An entry compressed by another method is unreadable,
+- A reader MUST accept stored and deflate. A writer emits stored only; see
+  Section 7.1. Other methods are not available in every target language. An entry compressed by another method is unreadable,
   and the remedy depends on which entry it is: if it is the root document, the
   reader MUST refuse the archive, because there is no document to return; if it
   is an attachment, the reader MUST drop that attachment, MUST record a
   diagnostic, and MUST return the document. Refusing a whole library because one
   photograph used an unusual method would be disproportionate.
 - The UTF-8 filename flag is set.
-- A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE].
-  A writer MAY write a plain archive without them. The asymmetry is deliberate:
-  a small export stays readable by the widest range of tools, and a large one is
-  still readable by every conforming implementation.
+- A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE]. A
+  writer does not write them (Section 7.1). The asymmetry is deliberate: an
+  export stays readable by the widest range of tools, and an archive from
+  elsewhere is still readable by every conforming implementation.
 
 Note: an implementation matching the root document on the base name alone
 matches at any depth and lets the last match win rather than the first. The
 match is on the full entry name.
+
+### 7.1 What a writer emits
+
+A container written by a conforming writer is byte-identical to one written by
+any other conforming writer for the same document and attachments. Every field
+below is fixed, in both the local and the central header where a field appears
+in both.
+
+| Field | Value |
+|---|---|
+| compression method | 0, stored |
+| general purpose flags | `0x0800`, the UTF-8 name flag, and nothing else |
+| version made by, version needed | 10, that is 1.0 |
+| modification time, date | `0x0000`, `0x0021`: 1980-01-01 00:00:00 |
+| create system | 0 |
+| extra field, comment | length 0 |
+| disk numbers | 0 |
+| internal attributes, external attributes | 0 |
+| entry order | the root document first, then attachments in the order the caller gave them |
+| ZIP64 records | not written |
+| archive comment | none |
+
+A writer MUST emit stored for every entry, and MUST NOT deflate. A reader still
+accepts deflate, and a reader MUST still read ZIP64. Both asymmetries are
+deliberate and are the shape this format uses elsewhere: canonical form
+constrains what a library writes and never what it will read.
+
+Version 10 rather than 20 because a stored-only archive requires 1.0, and that
+field states a requirement rather than a habit.
+
+The root document first because the fallback rule above takes the first `.vnx`
+entry in archive order. Putting the document first makes the fallback and the
+preferred-name rule agree, so a reader that implements the fallback subtly wrong
+still lands on the right entry.
+
+Three of those fields are worth their own sentence, because each one alone looks
+like tidiness and none of them is.
+
+Stored, because DEFLATE HAS NO CANONICAL OUTPUT. For the document inside one
+corpus archive, Go's `compress/flate` emits 116 bytes and zlib emits 108, and no
+zlib level from 0 to 9 reproduces the other. Java and Python agree with each
+other because both are zlib; Go is a clean-room implementation and agrees with
+neither. A deflated archive is therefore byte-reproducible only by the language
+that wrote it, whatever a writer pins in its headers.
+
+A fixed timestamp, because a real modification time records when a writer ran.
+
+Create system and external attributes pinned to zero, because THEY ENCODE THE
+WRITING MACHINE RATHER THAN THE CONTENT. Create system is 3 on macOS and Linux
+and 0 on Windows, so one library on two platforms emitted two different archives
+for one document; external attributes carried a file mode the writing library
+stamped in.
+
+That last pair is the mechanism to take away: the stored rule and the fixed
+timestamp were each necessary and neither was sufficient, and the remaining
+difference was invisible from inside one machine, because writing the same
+archive twice in a row was perfectly reproducible. Only a cross-language
+comparison exposed it. A writer that is deterministic on one machine can still
+be non-deterministic across a fleet.
+
+The rule delivers what it claims: a script written from this table alone,
+sharing no code with any existing implementation, produced byte-identical output
+for a document plus two attachments including a non-ASCII entry name.
 
 ## 8. Conformance corpus
 

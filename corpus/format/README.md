@@ -36,6 +36,25 @@ renderer about values already spelled correctly — the same blindness that hid 
 negative-zero defect. Only an input written in the WRONG spelling asks the
 question.
 
+## `escaping`, and the one character at the boundary
+
+Section 4.5.5 escapes `"`, `\` and the control characters BELOW U+0020, and
+writes everything else raw. So U+007F DELETE is written raw, and it is the one
+character an implementer escapes by reflex — it is a control character in every
+other sense, and a writer that escapes it emits non-canonical bytes for a
+thoroughly reasonable reason.
+
+`escaping.in.vnx` spells it `\u007F` and `escaping.canonical.vnx` carries the
+raw byte. That is not a typo in either file: the rule's boundary is at U+0020 and
+DEL is above it.
+
+Red-proofed 2026-09-10 by escaping U+007F in the reference writer. Two things go
+red, and the difference between them is the reason this belongs here: this pair,
+and one of the reference implementation's own frozen expectations, which already
+carried the character. **So Go was defended and the corpus was not** — the other
+five libraries had nothing asking them this question, which is the gap a
+per-implementation test cannot close and a corpus case can.
+
 ## `empty-containers`
 
 Section 4.5.5 writes an empty array `[]` and an empty object `{}`, each on one

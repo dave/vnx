@@ -3,7 +3,7 @@
   "waypoints": [
     {
       "name": "<script> tags & ampersands",
-      "notes": "separators   and  , controls \b \f \n \t \r and \u001f, accented é, mountain 🏔",
+      "notes": "separators   and  , controls \b \f \n \t \r and \u001f, DEL  which the rule leaves raw, accented é, mountain 🏔",
       "at": [-3.6712, 57.118]
     }
   ]

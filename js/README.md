@@ -86,7 +86,21 @@ and a test keeps it honest against `reject/`.
 node corpus/run.js              # ../corpus
 node corpus/run.js /path/to/corpus
 npm test                        # unit tests, including the red-proofs
+VNX_CORPUS=/path/to/corpus npm test
 ```
+
+`corpus/` is a shared tree and is routinely mid-edit, so measure against a
+`git archive HEAD corpus` extract as a second, separately labelled run:
+
+```sh
+mkdir -p /tmp/vnx-head && git -C .. archive HEAD corpus | tar -x -C /tmp/vnx-head
+node corpus/run.js /tmp/vnx-head/corpus
+VNX_CORPUS=/tmp/vnx-head/corpus npm test
+```
+
+A red-proof that depends on a particular fixture SHAPE asserts that shape first,
+so running against an older corpus fails by naming the reason rather than by a
+bare inequality.
 
 `corpus/run.js` reports `n/m cases passed` on its last line and sets an exit
 code. A file with no sidecar is a failure, not a skip.

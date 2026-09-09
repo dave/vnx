@@ -22,7 +22,21 @@ import { runCorpus } from '../corpus/runner.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, '..', 'src');
-const CORPUS = path.resolve(HERE, '..', '..', 'corpus');
+// Overridable so the same red-proofs can be run against a `git archive HEAD`
+// extract as a second, separately labelled measurement: `corpus/` is a shared
+// tree and is routinely mid-edit.
+const CORPUS = process.env.VNX_CORPUS
+  ? path.resolve(process.env.VNX_CORPUS)
+  : path.resolve(HERE, '..', '..', 'corpus');
+
+/**
+ * Assert a fixture is the shape a red-proof depends on, so that running against
+ * an older corpus fails by naming the reason instead of by a bare inequality.
+ */
+function requireFixture(relative, predicate, why) {
+  const raw = JSON.parse(fs.readFileSync(path.join(CORPUS, relative), 'utf8'));
+  assert.ok(predicate(raw), `${relative} in ${CORPUS} is not the fixture this red-proof needs: ${why}`);
+}
 
 let counter = 0;
 
@@ -229,6 +243,11 @@ test('keeping the outer ring of a nested polygon is caught', async () => {
 });
 
 test('comparing links that were not adjacent in the document is caught', async () => {
+  requireFixture(
+    'diagnose/link-names-absent-arc.vnx',
+    (d) => d.networks[0].chains[0].links.length >= 3,
+    'it needs three links with the middle one dangling; with two the expectation is guaranteed by arity',
+  );
   const cases = await runMutated([{
     file: 'decode.js',
     from: '    if (b.index !== a.index + 1) continue;',

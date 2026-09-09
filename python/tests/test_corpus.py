@@ -293,6 +293,66 @@ class DiagnoseTier(_CorpusCase):
                 self._check_tracks(expect, result.document, path.name)
 
 
+class WriteTier(unittest.TestCase):
+    """Decode an input and call the WRITE path (SPEC 4.5.4).
+
+    The only tier that reaches the writer boundary. The other four re-render, and
+    a re-render neither rounds nor re-spells, so rounding, the shortest-spelling
+    rule, both tie directions and a negative zero the writer created are all
+    invisible to them.
+
+    A library exposing no write path fails here by name rather than by a
+    confusing byte diff.
+    """
+
+    def _pairs(self) -> list[tuple[pathlib.Path, pathlib.Path]]:
+        directory = CORPUS / "write"
+        if not directory.is_dir():
+            return []
+        pairs = []
+        for source in sorted(directory.glob("*.in.vnx")):
+            stem = source.name[: -len(".in.vnx")]
+            pairs.append((source, directory / f"{stem}.written.vnx"))
+        return pairs
+
+    def test_every_input_has_its_written_bytes_and_sidecar(self) -> None:
+        pairs = self._pairs()
+        self.assertTrue(pairs, "write/ holds no cases")
+        for source, written in pairs:
+            stem = source.name[: -len(".in.vnx")]
+            self.assertTrue(written.is_file(), f"{source.name} has no written form")
+            sidecar = CORPUS / "write" / f"{stem}.expect.json"
+            self.assertTrue(sidecar.is_file(), f"{source.name} has no sidecar")
+            self.assertEqual(json.loads(sidecar.read_text()).get("kind"), "write")
+
+    def test_the_writer_emits_the_written_bytes(self) -> None:
+        for source, written in self._pairs():
+            with self.subTest(case=source.name):
+                # `subTest` already contains a refusal to this case, so the
+                # other cases still report; measured, not assumed. Catching it
+                # is for the MESSAGE: "was refused: ..." names the cause, where
+                # an uncaught VNXRefusal names only its own text and leaves the
+                # reader to work out which tier raised it.
+                try:
+                    document = vnx.read_bytes(source.read_bytes()).document
+                    got = vnx.encode_bytes(document)
+                except vnx.VNXRefusal as refusal:
+                    self.fail(f"{source.name} was refused: {refusal}")
+                self.assertEqual(got, written.read_bytes())
+
+    def test_the_input_is_not_already_the_written_form(self) -> None:
+        """Otherwise a library that echoed its input would pass."""
+        for source, written in self._pairs():
+            with self.subTest(case=source.name):
+                self.assertNotEqual(source.read_bytes(), written.read_bytes())
+
+    def test_the_written_form_is_a_fixed_point(self) -> None:
+        for _, written in self._pairs():
+            with self.subTest(case=written.name):
+                document = vnx.read_bytes(written.read_bytes()).document
+                self.assertEqual(vnx.encode_bytes(document), written.read_bytes())
+
+
 class FormatTier(unittest.TestCase):
     """Non-canonical input, and exactly the bytes a formatter MUST emit for it.
 

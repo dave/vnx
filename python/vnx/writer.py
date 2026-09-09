@@ -83,6 +83,19 @@ def round_position(position: Position) -> Position:
     return Position(tuple(channels))
 
 
+def _unhidden(item: object) -> None:
+    """SPEC 3.8: a writer emits `hidden` only when it is true.
+
+    A document that carries `"hidden": false` round-trips through the FORMATTER
+    unchanged, because a formatter reproduces what the document said. A writer
+    emitting a model omits it, because absence already means visible and the
+    explicit false carries nothing. The two paths differ here exactly as they
+    differ over rounding.
+    """
+    if getattr(item, "hidden", None) is False:
+        setattr(item, "hidden", None)
+
+
 def _positions(items: Union[list[Position], None]) -> Union[list[Position], None]:
     if items is None:
         return None
@@ -102,8 +115,14 @@ def rounded_document(document: Document) -> Document:
     Everything that is not a position -- data records, styles, rulesets -- is
     shared rather than copied, because nothing here mutates it.
     """
+    folders = None
+    if document.folders is not None:
+        folders = [replace(folder) for folder in document.folders]
+        for folder in folders:
+            _unhidden(folder)
     return replace(
         document,
+        folders=folders,
         networks=_networks(document.networks),
         routes=_routes(document.routes),
         tracks=_tracks(document.tracks),
@@ -130,24 +149,25 @@ def _networks(items: Union[list[Network], None]) -> Union[list[Network], None]:
                 for key, arc in network.arcs.items()
             }
         )
-        out.append(
-            replace(
+        rebuilt = replace(
                 network,
                 nodes=nodes,
                 arcs=arcs,
                 chains=_chains(network.chains),
                 points=_waypoints(network.points),
                 areas=_areas(network.areas),
-            )
         )
+        _unhidden(rebuilt)
+        out.append(rebuilt)
     return out
 
 
 def _chains(items: Union[list[Chain], None]) -> Union[list[Chain], None]:
     if items is None:
         return None
-    return [
-        replace(
+    out = []
+    for chain in items:
+        rebuilt = replace(
             chain,
             links=None
             if chain.links is None
@@ -156,29 +176,33 @@ def _chains(items: Union[list[Chain], None]) -> Union[list[Chain], None]:
                 for link in chain.links
             ],
         )
-        for chain in items
-    ]
+        _unhidden(rebuilt)
+        out.append(rebuilt)
+    return out
 
 
 def _routes(items: Union[list[Route], None]) -> Union[list[Route], None]:
     if items is None:
         return None
-    return [
-        replace(
+    out = []
+    for route in items:
+        rebuilt = replace(
             route,
             arcs=None
             if route.arcs is None
             else [replace(arc, pips=_positions(arc.pips)) for arc in route.arcs],
         )
-        for route in items
-    ]
+        _unhidden(rebuilt)
+        out.append(rebuilt)
+    return out
 
 
 def _tracks(items: Union[list[Track], None]) -> Union[list[Track], None]:
     if items is None:
         return None
-    return [
-        replace(
+    out = []
+    for track in items:
+        rebuilt = replace(
             track,
             segments=None
             if track.segments is None
@@ -187,20 +211,28 @@ def _tracks(items: Union[list[Track], None]) -> Union[list[Track], None]:
                 for segment in track.segments
             ],
         )
-        for track in items
-    ]
+        _unhidden(rebuilt)
+        out.append(rebuilt)
+    return out
 
 
 def _waypoints(items: Union[list[Waypoint], None]) -> Union[list[Waypoint], None]:
     if items is None:
         return None
-    return [
-        replace(point, at=None if point.at is None else round_position(point.at))
-        for point in items
-    ]
+    out = []
+    for point in items:
+        rebuilt = replace(point, at=None if point.at is None else round_position(point.at))
+        _unhidden(rebuilt)
+        out.append(rebuilt)
+    return out
 
 
 def _areas(items: Union[list[Area], None]) -> Union[list[Area], None]:
     if items is None:
         return None
-    return [replace(area, polygon=_positions(area.polygon)) for area in items]
+    out = []
+    for area in items:
+        rebuilt = replace(area, polygon=_positions(area.polygon))
+        _unhidden(rebuilt)
+        out.append(rebuilt)
+    return out

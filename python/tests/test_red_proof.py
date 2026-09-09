@@ -187,6 +187,45 @@ class RedProof(unittest.TestCase):
                 "renderer taking a tie away from zero",
             )
 
+    # -- the number-conformance table ------------------------------------
+
+    def test_the_numbers_table_catches_a_half_up_rounder(self) -> None:
+        """The table is an instrument, so it needs its own red proof.
+
+        Zero disagreements across 5,315 rows means nothing unless a wrong rule
+        puts disagreements back.
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+
+        def half_up(value: float, places: int = 0) -> float:
+            return float(
+                Decimal(value).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)
+            )
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.writer, "round", half_up, create=True),
+            "NumbersTier.test_every_row_renders_and_rounds_as_the_table_says",
+            "writer rounding ties half up",
+        )
+
+    def test_the_numbers_table_catches_an_away_from_zero_renderer(self) -> None:
+        from decimal import Decimal
+
+        def away(value: float) -> str:
+            pair = test_numbers.TiesRoundToEven._tie(float(value))
+            if pair is None:
+                return numbers.render_number(value)
+            return max(pair, key=lambda spelling: abs(Decimal(spelling)))
+
+        # The tier imports `render_number` from `vnx.numbers` inside the test,
+        # so one patch reaches it. Patching `vnx.canonical` as well would leave
+        # the second patch active during assertGoesRed's come-back-green run.
+        self.assertGoesRed(
+            mock.patch.object(numbers, "render_number", away),
+            "NumbersTier.test_every_row_renders_and_rounds_as_the_table_says",
+            "renderer taking a tie away from zero",
+        )
+
     # -- the writer emit path -------------------------------------------
 
     def test_rounding_away_from_zero_is_caught(self) -> None:

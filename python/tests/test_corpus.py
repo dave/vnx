@@ -405,3 +405,88 @@ class FormatTier(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NumbersTier(unittest.TestCase):
+    """`corpus/numbers/numbers.tsv`: what every implementation must emit for a
+    given double (SPEC 4.5.3 and 4.5.4).
+
+    A tier in standing and not in shape. A case in the four document tiers is a
+    document; a row here is a value, and its three answer columns are the
+    expectation, so there is no sidecar.
+
+    It reaches the rounding of 4.5.4 for the same reason `write/` does, and it
+    reaches it per value rather than per document, which is what makes it the
+    instrument for a rule that only fails on particular doubles.
+    """
+
+    TABLE = CORPUS / "numbers" / "numbers.tsv"
+
+    def rows(self) -> list[tuple[str, str, str, str, str]]:
+        if not self.TABLE.is_file():
+            return []
+        out = []
+        for line in self.TABLE.read_text().splitlines():
+            if not line or line.startswith("#"):
+                continue
+            bits, kind, render, round6, round1 = line.split("\t")
+            out.append((bits, kind, render, round6, round1))
+        return out
+
+    def test_the_table_is_present_and_substantial(self) -> None:
+        rows = self.rows()
+        self.assertTrue(rows, f"no table at {self.TABLE}")
+        self.assertGreater(len(rows), 1000, "a short table pins little")
+
+    def test_every_row_renders_and_rounds_as_the_table_says(self) -> None:
+        import struct
+
+        from vnx.model import Position
+        from vnx.numbers import render_number
+        from vnx.writer import round_position
+
+        failures: list[str] = []
+        for bits, kind, render, round6, round1 in self.rows():
+            value = struct.unpack(">d", bytes.fromhex(bits))[0]
+            got_render = render_number(value)
+            # Rounding is defined at the emit boundary, so it is exercised
+            # through the writer rather than through a private helper: a test
+            # calling something the writer does not call proves nothing about
+            # what this library emits.
+            lonlat = round_position(Position((value, 0.0)))
+            elevation = round_position(Position((0.0, 0.0, value)))
+            got6 = render_number(lonlat.lon)
+            ele = elevation.ele
+            got1 = "0" if ele is None else render_number(ele)
+            for label, got, want in (
+                ("render", got_render, render),
+                ("round6", got6, round6),
+                ("round1", got1, round1),
+            ):
+                if got != want:
+                    failures.append(f"{bits} ({kind}) {label}: got {got}, want {want}")
+        self.assertEqual(failures[:10], [], f"{len(failures)} of {len(self.rows())} rows differ")
+
+    def test_the_table_reaches_the_rounding_tie(self) -> None:
+        """The table is only worth running if reverting a rule reddens it.
+
+        A conformance table nobody has seen fail is a green light with no bulb
+        in it, so this asserts the rows exist that would catch a writer rounding
+        ties away from zero.
+        """
+        import struct
+
+        ties = [
+            row for row in self.rows()
+            if self._is_one_place_tie(struct.unpack(">d", bytes.fromhex(row[0]))[0])
+        ]
+        self.assertTrue(ties, "no row in the table can separate the tie rules")
+
+    @staticmethod
+    def _is_one_place_tie(value: float) -> bool:
+        from decimal import Decimal
+
+        exact = Decimal(value)
+        scaled = exact * 10
+        return scaled == scaled.to_integral_value() + Decimal("0.5") or \
+            scaled == scaled.to_integral_value() - Decimal("0.5")

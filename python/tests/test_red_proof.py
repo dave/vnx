@@ -74,6 +74,56 @@ class RedProof(unittest.TestCase):
             "decoder that returns an empty document",
         )
 
+    def test_an_invented_ruleset_is_caught(self) -> None:
+        """`counts` completeness, ruled 2026-09-09.
+
+        The defect this closes: a decoder that invents items in a collection no
+        sidecar names.  Inventing a ruleset in every document that has none was
+        invisible until `counts` had to name every collection its document
+        carries -- `rulesets` was the one collection no accept sidecar pinned,
+        and it is the collection whose contents nothing else inspects.
+        """
+        original = decode._Reader.document
+
+        def inventive(self: Any, value: Any) -> Any:
+            got = original(self, value)
+            if not got.rulesets:
+                got.rulesets = [{"invented": True}]
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "document", inventive),
+            "AcceptTier.test_accept",
+            "decoder that invents a ruleset",
+        )
+
+    def test_the_old_counts_rule_could_not_see_that(self) -> None:
+        """The finding, frozen, so the weaker rule is not reintroduced.
+
+        Under "an omitted collection is unchecked" the same defect is invisible.
+        If this ever goes red, the weaker rule has come back.
+        """
+        original = decode._Reader.document
+
+        def inventive(self: Any, value: Any) -> Any:
+            got = original(self, value)
+            if not got.rulesets:
+                got.rulesets = [{"invented": True}]
+            return got
+
+        def named_keys_only(
+            self: Any, expect: Any, document: Any, name: str
+        ) -> None:
+            counts = document.counts()
+            for collection, want in (expect.get("counts") or {}).items():
+                self.assertEqual(counts[collection], want)
+
+        with mock.patch.object(decode._Reader, "document", inventive), \
+                mock.patch.object(
+                    test_corpus._CorpusCase, "_check_counts", named_keys_only
+                ):
+            self.assertTrue(_run("AcceptTier.test_accept").wasSuccessful())
+
     def test_moving_time_reported_as_zero_is_caught(self) -> None:
         """`moving_time_ms: null` means unknown, which is not zero."""
         self.assertGoesRed(

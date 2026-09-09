@@ -71,11 +71,15 @@ class CorpusStructure(unittest.TestCase):
     # that is in neither set fails the test below rather than being ignored:
     # an unasserted expectation is how a fixture quietly becomes the format.
     UNCHECKED = {
-        # SPEC 8.2 publishes the JSON Schema under go/pkg/vnx/schema/.  This
-        # implementation was written without reading go/, so it cannot run the
-        # schema and cannot honour the verdict.  Nothing here is weaker for it
-        # -- a schema verdict is about the schema, not about a reader -- but it
-        # is an expectation this runner does not check.
+        # The JSON Schema moved to corpus/schema/ on 2026-09-09 so that every
+        # implementation could reach it.  This runner still does not compare
+        # the verdict, and the reason changed rather than went away: validating
+        # draft 2020-12 needs a JSON Schema validator, and no target language
+        # ships one in its standard library.  Checking it here would cost this
+        # library its only real adoption property.  A schema verdict is about
+        # the schema rather than about a reader, so nothing else here is weaker
+        # for it -- but it is an expectation this runner does not compare, and
+        # saying so is the whole point of this set.
         "schema",
         # A prose record of a limitation (SPEC 6.4), paired with an empty
         # `diagnostics` list which IS checked.
@@ -108,13 +112,27 @@ class _CorpusCase(unittest.TestCase):
         return vnx.read_file(path)
 
     def _check_counts(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
-        # A sidecar names the collections it pins.  A collection it does not
-        # name is unchecked: accept/example-network.expect.json omits
-        # `rulesets` for a document that carries one.
+        """SPEC 8.1's `counts`, under the completeness rule ruled 2026-09-09.
+
+        A sidecar must name every collection its document carries, `rulesets`
+        included.  Before that, an omitted collection meant "unchecked", so a
+        decoder could invent or drop items in a collection no sidecar named and
+        stay green.  Enforcing it is the point: a rule most files satisfy by
+        accident is one the next file breaks silently.
+        """
         counts = document.counts()
-        for collection, want in (expect.get("counts") or {}).items():
+        pinned = expect.get("counts") or {}
+        for collection, want in pinned.items():
             self.assertIn(collection, counts, f"{name}: unknown collection {collection!r}")
             self.assertEqual(counts[collection], want, f"{name}: {collection} count")
+        for collection, got in counts.items():
+            if got:
+                self.assertIn(
+                    collection,
+                    pinned,
+                    f"{name}: the document carries {got} {collection} and the "
+                    "sidecar does not name that collection",
+                )
 
     def _check_positions(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
         for pinned in expect.get("positions") or []:

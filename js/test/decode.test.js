@@ -379,3 +379,26 @@ test('a link naming an absent node keeps the link and takes that end out of the 
   assert.equal(document.networks[0].chains[0].links.length, 2);
   assert.deepEqual(diagnostics.map((d) => d.code), ['link-node-absent']);
 });
+
+test('moving time reads the FIRST and LAST pip, not the first and last TIMED pip', () => {
+  // SPEC.md 3.5 is derivable only when every segment carries a time on its
+  // first and last pip. A segment whose interior pips are timed and whose ends
+  // are not is UNMEASURABLE, not a shorter span: the walk began before the
+  // first timestamp and ended after the last, by an unknown amount. A reader
+  // that reaches inward for the first timed pip reports a number narrower than
+  // the truth, with nothing to say so.
+  const mk = (pips) => decodeText(doc({ tracks: [{ name: 't', segments: [{ pips }] }] }))
+    .document.tracks[0].movingTimeMs();
+  assert.equal(mk([[1, 2], [1, 2, 0, 3000], [1, 2, 0, 5000], [3, 4]]), null);
+  assert.equal(mk([[1, 2, 0, 1000], [1, 2, 0, null]]), null, 'an explicit null time is untimed');
+  assert.equal(mk([[1, 2, 0, 1000], [1, 2, 0, 3000], [1, 2, 0, 4000]]), 3000);
+});
+
+test('an untimed INTERIOR pip does not make a segment unmeasurable', () => {
+  // Only the ends are read, so a gap in the middle is spanned rather than
+  // fatal. This is the boundary of the rule above and is easy to over-apply.
+  const { document } = decodeText(doc({
+    tracks: [{ name: 't', segments: [{ pips: [[1, 2, 0, 1000], [1, 2], [1, 2, 0, 4000]] }] }],
+  }));
+  assert.equal(document.tracks[0].movingTimeMs(), 3000);
+});

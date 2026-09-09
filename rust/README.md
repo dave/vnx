@@ -149,8 +149,12 @@ to 1 places. A rendering tie is a value rather than a shape, so no fixture holds
 one usefully; and rounding happens only when a WRITER emits a model, while all
 four corpus tiers re-render an existing document. An implementation can round
 every coordinate in the format the wrong way and pass every corpus tier green.
-160 of the table's rows also separate the two readings of SPEC 4.5.4's rounding
-rule, and all 160 side with rounding against the double.
+The table also separates the two readings of SPEC 4.5.4's rounding rule, and
+every differing row sides with rounding against the double. `cargo run --example
+provenance` prints the counts and their breakdown by row kind rather than this
+README quoting them — the table grew by fourteen rows between two runs of that
+example while it was being written, so an embedded figure was stale within
+minutes of being correct.
 
 **ZIP64.** SPEC 7 requires a reader to accept it and all four `.vnz` fixtures
 are plain archives, so a reader can omit the extra-field parser entirely and

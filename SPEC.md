@@ -897,10 +897,17 @@ A reader is tolerant of damage and silent about nothing.
   waypoint that is nowhere, a link that traverses nothing, or an arc with no
   geometry. Section 5.1's rule for a record with an unusable `@type` is the same
   rule — the record goes, not the key.
-- A value that is outside a range or an enumeration this document states — an
-  `importance` outside 1 to 5, a `size` that is not `hamlet`, `village` or
-  `town` — is an unusable value in an optional key, so the reader MUST drop the
-  field and MUST keep the item.
+- A value outside a range this document states normatively — an `importance`
+  outside 1 to 5 (Section 3.6) — is an unusable value in an optional key, so the
+  reader MUST drop the field and MUST keep the item.
+
+  A reader checks a value only where this document states a normative range or
+  enumeration for it. The field lists in Section 5.2 are a vocabulary, not a
+  validation rule: a record body is opaque apart from `@type` (Section 5.1), and
+  a reader MUST NOT check the type, range or enumeration of a field inside one.
+  Checking them would break the mechanism by which a record of an unrecognised
+  type survives a read-modify-write, and would make every implementation
+  diagnose a valid document each time the vocabulary grew.
 - A refusal. A plain document is refused for exactly four causes, and a reader
   MUST NOT refuse one for any other:
 

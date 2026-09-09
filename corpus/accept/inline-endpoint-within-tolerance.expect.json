@@ -1,6 +1,6 @@
 {
   "kind": "accept",
-  "note": "An inline chain endpoint 45 m from its arc, under the distance model SPEC 3.3.3 states. Until this file the corpus exercised the 50 m tolerance at no distance at all: the worked example's inline endpoint sits at about 20 m, where four plausible distance models spread from 19.8 m to 36.5 m and all four pass, so nothing could tell them apart. The arc runs NORTH-SOUTH over three degrees on purpose. That is what makes the cosine REFERENCE decide: a model taking the cosine of each segment's start latitude reads this endpoint 8.5% further away than one taking the cosine of the query point's latitude, which SPEC 3.3.3 requires. An east-west arc hides that difference completely, which is why the obvious fixture shape would have been useless.",
+  "note": "An inline chain endpoint 45.000 m from its arc under the model SPEC 3.3.3 states, which a conforming reader must accept. THIS CASE CATCHES A MODEL THAT OVER-READS: a reader taking the cosine of each segment's START latitude reads this endpoint at 67.409 m and wrongly refuses a legal document; flat degrees-times-111320 reads 117.723 m and Web Mercator 117.591 m, and both wrongly refuse it too. THE THIRTEEN DEGREES OF LATITUDE ARE DELIBERATE AND ARE NOT A TRAIL. The effect being pinned is a percentage error, so a realistic arc hides it: an earlier version of this case used three degrees, where the segment-start model reads 48.842 m against a 50 m tolerance - the number moved and the verdict did not, and a corpus case is a verdict, so it discriminated against nothing. THE ARC IS A MERIDIAN so the projected segment is vertical in every model and the distance is exactly the longitude offset times whatever scale the model uses; no model can disagree about the arithmetic, only about the scale, which is the thing under test. See diagnose/inline-endpoint-beyond-tolerance.vnx, whose arc runs the other way for a reason.",
   "schema": "valid",
   "counts": {
     "networks": 1
@@ -8,8 +8,8 @@
   "positions": [
     {
       "at": "/networks/0/chains/0/links/0/to",
-      "lon": -2.99919305,
-      "lat": 59.9
+      "lon": -2.998942483187279,
+      "lat": 67.5
     }
   ]
 }

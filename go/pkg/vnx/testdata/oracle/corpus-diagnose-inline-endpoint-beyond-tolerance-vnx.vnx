@@ -1,27 +1,28 @@
 {
+  "profile": "full",
   "vnx": "0.1.0",
   "networks": [
     {
-      "name": "An inline endpoint 55 m off its arc",
+      "name": "Meridian arc, descending",
       "arcs": {
-        "long": {
-          "from": "n1",
-          "to": "n2",
+        "down": {
+          "from": "north",
+          "to": "south",
           "pips": [
-            [-3, 57],
-            [-3, 60]
+            [-3, 68],
+            [-3, 55]
           ]
         }
       },
       "chains": [
         {
-          "name": "Its endpoint is not on the arc",
+          "name": "Beyond tolerance",
           "links": []
         }
       ],
       "nodes": {
-        "n1": [-3, 57],
-        "n2": [-3, 60]
+        "north": [-3, 68],
+        "south": [-3, 55]
       }
     }
   ]

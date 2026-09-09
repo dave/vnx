@@ -185,12 +185,28 @@ could not distinguish four plausible distance models from each other: the worked
 example's inline endpoint sits about 20 m from its arc, where those four models
 read 19.81 m, 20.34 m, 25.52 m and 36.47 m and all four pass.
 
-Both arcs run NORTH-SOUTH over three degrees, and that shape is the point.
-`SPEC.md` section 3.3.3 takes the cosine of the QUERY POINT's latitude and holds
-it constant for every vertex. A model that instead takes the cosine of each
-segment's start latitude reads these endpoints 8.5% further away. On an
-east-west arc the two agree to within 0.06%, so the obvious fixture shape would
-have discriminated nothing.
+Both arcs are meridians spanning thirteen degrees of latitude, and every part of
+that is deliberate.
+
+A meridian makes the projected segment vertical in every model, so the distance
+is exactly the longitude offset times whatever scale the model uses — no model
+can argue about the arithmetic, only about the scale, which is the thing under
+test. Thirteen degrees is what makes a wrong scale flip a VERDICT rather than
+move a number: an earlier version of this pair used three degrees, where a
+segment-start-cosine model reads the accept case at 48.8 m against a 50 m
+tolerance. The number moved by 8.5% and the verdict did not, so the pair
+discriminated against nothing. A corpus case is a verdict.
+
+The two arcs run in OPPOSITE directions, and that is the least obvious property
+here. The accept case catches a model that over-reads and refuses a legal
+document. A refusal case cannot catch that — over-reading also refuses — so the
+diagnose case's arc descends, putting the segment start at high latitude and the
+query at low, where a segment-start-cosine model under-reads and ACCEPTS a
+document the format refuses. That is the more dangerous direction, and nothing
+else in the corpus covers it.
+
+Do not make the two files consistent with each other. The inconsistency is the
+instrument.
 
 ## What the corpus cannot check
 

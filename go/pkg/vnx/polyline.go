@@ -58,13 +58,28 @@ func project(pips []Position, p Position) cut {
 // returns how far along it lands (0..1) and how far away it is, in metres.
 // Over the length of one arc segment the flat-earth error is far below
 // anything this decides, so a geodesic projection would buy nothing.
+//
+// ⚠ THE MODEL IS SPEC §3.3.3's, EXACTLY, AND IT IS NOT A FREE CHOICE.
+// Equirectangular about the LATITUDE OF THE QUERY POINT — p, not a — held
+// constant for every vertex, with the IUGG mean radius. The cosine reference is
+// the part that matters: taking it from each segment's start instead reads an
+// endpoint on a long north-south arc 8.5% further away, and five
+// implementations have to agree to the metre. This function used to do exactly
+// that, with a metresPerDegLat of 111132.0 against the 111194.9 this radius
+// implies — a fifth undocumented model that nobody chose.
+//
+// ⚠ IT IS SHARED WITH THE CUT GEOMETRY THE WRITERS EMIT, deliberately: the
+// tolerance check and the cut must measure the same geometry, or Viatrail can
+// emit a cut its own reader rejects. So the model cannot be changed here for
+// the check alone.
 func nearestOnSegment(p, a, b Position) (t, metres float64) {
-	const metresPerDegLat = 111132.0
-	cosLat := math.Cos(a.Lat * math.Pi / 180)
-	px := (p.Lon - a.Lon) * metresPerDegLat * cosLat
-	py := (p.Lat - a.Lat) * metresPerDegLat
-	bx := (b.Lon - a.Lon) * metresPerDegLat * cosLat
-	by := (b.Lat - a.Lat) * metresPerDegLat
+	const earthRadiusMetres = 6371008.8
+	rad := math.Pi / 180
+	cosLat := math.Cos(p.Lat * rad)
+	px := (p.Lon - a.Lon) * rad * earthRadiusMetres * cosLat
+	py := (p.Lat - a.Lat) * rad * earthRadiusMetres
+	bx := (b.Lon - a.Lon) * rad * earthRadiusMetres * cosLat
+	by := (b.Lat - a.Lat) * rad * earthRadiusMetres
 	lenSq := bx*bx + by*by
 	if lenSq == 0 {
 		return 0, math.Hypot(px, py)

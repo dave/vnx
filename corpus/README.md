@@ -12,17 +12,25 @@ work retroactively, which is why it exists before the second library does.
 accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
 diagnose/  must be read, reporting exactly the listed diagnostics
-format/    messy input, plus exactly the bytes a formatter must emit for it
+format/    a messy document, plus the bytes a formatter must emit for it
+write/     a document with a model to write, plus the bytes a writer must emit
 numbers/   what every implementation must emit for a given double
 schema/    the JSON Schema, and what it can and cannot check
 tools/     the generator for the .vnz archives
 ```
 
-The first four are directories of documents and share the sidecar described
-below. `numbers/` is a table rather than a directory, because the properties it
-pins are per-value rather than per-document; it has its own README and no
-sidecars. It is a tier all the same, and it is the only one that reaches past
-the boundary where a writer turns a model into a document.
+Six tiers, and the last two of the six are not directories of documents.
+
+The first four hold documents and share the sidecar described below. `write/` is
+a pair like `format/` — `X.in.vnx` and `X.written.vnx` — but its operation is
+decode-then-WRITE rather than decode-then-re-render, so it is the only document
+tier that applies the emit-boundary rules of section 4.5.4. `numbers/` is a
+table rather than a directory, because the properties it pins are per-value; it
+has its own README and no sidecars.
+
+This list, the one in the repository root README, and section 8 of `SPEC.md`
+have to agree with the tree and with each other. They have disagreed before,
+three ways at once, and nothing checks them.
 
 The schema lives here rather than beside the Go implementation because every
 case carries a `schema` verdict in its sidecar. A sidecar field that only one
@@ -142,6 +150,18 @@ A matcher that checks less always passes. Every rule in this section exists
 because a runner degraded quietly to a weaker comparison and stayed green, and
 four implementations hit the same one on the same day.
 
+**A `tracks` expectation resolves by NAME, never by index**, and so does every
+other expectation that names the thing it is about. The reason is not style. A
+sidecar that has drifted from its fixture — naming a track the document no
+longer contains — is caught by a name lookup and sailed straight past by an
+index lookup, which finds *a* track at position 0 and compares against the wrong
+one. That has already happened here. An expectation naming something the
+document does not contain is a failure of the case, not an expectation to skip.
+
+`positions` resolves by its `at` pointer and `counts` by collection key, which
+are the same rule: every expectation addresses its subject by something the
+document says, so that a fixture and its sidecar cannot drift apart silently.
+
 When the sidecars moved from pinning English to pinning `code`, every runner
 written against a `message` field stopped comparing anything but paths. None of
 them went red. A runner that looks for a field, does not find it, and compares
@@ -163,6 +183,21 @@ more. So:
 the first failure looked only at the top level of each sidecar, so a `code`
 inside `diagnostics` was invisible to it — the guard shared the defect it was
 guarding against. Sweep the structure, not its first level.
+
+**And the corpus cannot tell an author whether they did any of this.** A green
+`diagnose/` tier is not evidence that a runner compares codes. Weakening a
+matcher to compare `path` alone leaves the whole tier green, because every case
+here carries diagnostics whose paths already identify them, and a CORRECT reader
+satisfies a path-only matcher and a code-comparing matcher alike. No fixture can
+close that, because a fixture can only ever state a correct expectation; the
+disagreement between the two matchers appears only against a reader that is
+wrong, and the corpus contains no such reader.
+
+So the self-test is the author's, and it is not optional: **break the library
+deliberately and confirm the case you expect goes red, and that it is the only
+one.** Change one reported `code` and require the run to fail. Four
+implementations fixed the `message`/`code` failure above by hand, and the corpus
+could not have told any of them whether they had succeeded.
 
 Two more, from the same family:
 
@@ -241,8 +276,7 @@ does not, which is the point of it.
 
 The `.vnz` files are committed as binaries, because an implementation in another
 language cannot be asked to build a Go program before it can run the corpus.
-`tools/makevnz` is committed beside them so the bytes stay reproducible and
-reviewable:
+`tools/makevnz` is committed beside them so the bytes stay reviewable:
 
 ```sh
 cd corpus && go run ./tools/makevnz
@@ -251,6 +285,27 @@ cd corpus && go run ./tools/makevnz
 It writes its output relative to the working directory, so that directory has to
 be `corpus/`. The `go.mod` beside this file exists only so the go tool will run
 it at all; see the comment in it.
+
+**Reviewable, not reproducible in any language.** The four deflated archives can
+be reproduced only by Go. Deflate has no canonical output: for the document in
+`accept/container-root-doc.vnz`, Go's `compress/flate` emits 116 bytes and zlib
+emits 108, and no zlib level from 0 to 9 reproduces the committed bytes. Java
+and Python agree with each other because both are zlib; Go is a clean-room
+implementation and agrees with neither. That is the measurement behind section
+7.1's rule that a writer emits stored — a deterministic container is not
+achievable with deflate at all, whatever a writer pins in its headers.
+
+An archive built by hand, like `accept/container-zip64.vnz`, is stored and is
+therefore reproducible anywhere.
+
+**Those four archives do not satisfy section 7.1, and that is correct.** They
+are deflated, they set the data-descriptor bit, and they carry a version-needed
+of 20 — none of which a conforming writer emits. Section 7.1 constrains what a
+library WRITES; these files are input, and section 7 requires a reader to accept
+deflate and to accept bit 3. They are the only cases that test those two rules.
+Regenerating them to match the writer table would delete the corpus's only
+deflate coverage and its only data-descriptor coverage, and every implementation
+would still pass. The writer table is the `write/` tier's business, not theirs.
 
 ## Why `format/` exists separately
 

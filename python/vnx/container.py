@@ -45,11 +45,20 @@ def _check_path(name: str) -> None:
         raise VNXRefusal(f"{name!r} escapes the archive: an absolute path")
     if _DRIVE_LETTER.match(name):
         raise VNXRefusal(f"{name!r} escapes the archive: a drive letter")
-    # SPEC 7 says "a path containing `..`".  A path segment equal to `..` is
-    # what walks out of the destination directory; a name such as `a..b` does
-    # not, and is not refused here.  See the report -- the wording is literal
-    # and this reading is not.
-    if ".." in name.split("/"):
+    # SPEC 7: `..` is a path SEGMENT, not a substring, and names
+    # `a..b/photo.jpg` as a legal entry that escapes nothing.
+    #
+    # A backslash is separated out because SPEC 7 requires a path to be
+    # forward-slash separated without saying what a reader does with one that is
+    # not.  A Windows-authored archive can carry `..\x`, which the ZIP appnote
+    # permits and which is a real escape on a Windows extractor, so `\` counts
+    # as a separator for THIS check only.  A name that merely contains a
+    # backslash, such as `weird\name.jpg`, is legal on a POSIX filesystem and is
+    # not refused: the rule is about separators rather than about the character.
+    #
+    # Refusing `..\x` is this implementation's reading. The JavaScript seat
+    # reached the same one independently; nothing in SPEC 7 states the remedy.
+    if ".." in re.split(r"[/\\]", name):
         raise VNXRefusal(f"{name!r} escapes the archive: a `..` path segment")
 
 
@@ -62,14 +71,24 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
 
     names = [info.filename for info in archive.infolist()]
 
-    # SPEC 7: duplicate entry names MUST be refused.  Language runtimes resolve
-    # them differently, so one archive would otherwise yield different documents
-    # in different languages.
-    seen: set[str] = set()
+    # SPEC 7: duplicate entry names MUST be refused, compared CASE-INSENSITIVELY.
+    # Language runtimes resolve a repeated name differently, so one archive would
+    # otherwise yield different documents in different languages -- and a
+    # case-insensitive filesystem makes `doc.vnx` and `DOC.VNX` a repeat even
+    # where the archive spells them apart.
+    seen: dict[str, str] = {}
     for name in names:
-        if name in seen:
-            raise VNXRefusal(f"duplicate entry {name!r} in the container")
-        seen.add(name)
+        folded = name.lower()
+        if folded in seen:
+            first = seen[folded]
+            detail = (
+                f"duplicate entry {name!r} in the container"
+                if first == name
+                else f"duplicate entry {name!r} in the container, "
+                f"differing from {first!r} only by case"
+            )
+            raise VNXRefusal(detail)
+        seen[folded] = name
 
     for name in names:
         _check_path(name)

@@ -849,3 +849,81 @@ class EscapingTable(unittest.TestCase):
         from vnx.canonical import render_string
 
         self.assertEqual(render_string("a/b"), '"a/b"')
+
+
+class ContainerPathRules(unittest.TestCase):
+    """SPEC 7's path and duplicate rules, at the edges no archive reaches.
+
+    The corpus carries one `..` archive and one exact-duplicate archive. Every
+    case below is outside both.
+    """
+
+    DOC = b'{"vnx": "0.1.0"}'
+
+    def build(self, names: list[str]) -> bytes:
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("doc.vnx", self.DOC)
+            for name in names:
+                archive.writestr(name, b"x")
+        return buffer.getvalue()
+
+    def refuses(self, name: str) -> str:
+        with self.assertRaises(vnx.VNXRefusal, msg=f"{name!r} was accepted") as caught:
+            vnx.read_container_bytes(self.build([name]))
+        return str(caught.exception)
+
+    def test_a_dot_dot_segment_is_refused(self) -> None:
+        self.assertIn("escapes the archive", self.refuses("../x"))
+
+    def test_a_backslash_separated_dot_dot_is_refused(self) -> None:
+        """A Windows-authored archive can carry `..\\x`, which the ZIP appnote
+        permits and which is a real escape on a Windows extractor. SPEC 7 states
+        no remedy; the JavaScript seat reached the same reading independently."""
+        self.assertIn("escapes the archive", self.refuses("..\\x"))
+        self.assertIn("escapes the archive", self.refuses("a\\..\\b"))
+
+    def test_a_backslash_in_a_name_is_not_itself_refused(self) -> None:
+        """`weird\\name.jpg` is a legal POSIX filename and escapes nothing. The
+        rule is about separators, not about the character."""
+        result = vnx.read_container_bytes(self.build(["weird\\name.jpg"]))
+        self.assertEqual(result.attachments, ["weird\\name.jpg"])
+
+    def test_a_dot_dot_substring_is_legal(self) -> None:
+        """SPEC 7 names `a..b/photo.jpg` legal: `..` is a segment, not a
+        substring. A reader that searched for the substring would refuse a
+        document the format declares valid, and no archive in the corpus would
+        catch it."""
+        result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
+        self.assertEqual(result.attachments, ["a..b/photo.jpg"])
+
+    def test_names_differing_only_by_case_are_duplicates(self) -> None:
+        """SPEC 7 compares duplicate names case-insensitively. A
+        case-insensitive filesystem makes these one file, so an archive carrying
+        both would extract to different documents on different platforms."""
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("doc.vnx", self.DOC)
+            archive.writestr("DOC.VNX", self.DOC)
+        with self.assertRaises(vnx.VNXRefusal) as caught:
+            vnx.read_container_bytes(buffer.getvalue())
+        message = str(caught.exception)
+        self.assertIn("duplicate entry", message)
+        self.assertIn("only by case", message)
+
+    def test_an_exact_duplicate_does_not_claim_a_case_difference(self) -> None:
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("a.txt", b"x")
+            archive.writestr("a.txt", b"y")
+            archive.writestr("doc.vnx", self.DOC)
+        with self.assertRaises(vnx.VNXRefusal) as caught:
+            vnx.read_container_bytes(buffer.getvalue())
+        self.assertIn("duplicate entry", str(caught.exception))
+        self.assertNotIn("only by case", str(caught.exception))

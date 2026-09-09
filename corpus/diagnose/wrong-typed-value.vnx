@@ -1,0 +1,14 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Kept, minus one field",
+      "at": [-3.6712, 57.118],
+      "hidden": "yes"
+    },
+    {
+      "name": "Dropped, because a waypoint is its position",
+      "at": "beside the burn"
+    }
+  ]
+}

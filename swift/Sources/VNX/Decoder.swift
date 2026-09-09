@@ -11,9 +11,16 @@ import Foundation
 final class DocumentDecoder {
     private(set) var diagnostics: [Diagnostic] = []
 
-    /// This reader's own supported version. SPEC 2.2 makes the MAJOR and MINOR
-    /// comparison reader-relative.
-    private let readerVersion = SemanticVersion(VNX.version)!
+    /// The version this reader implements. SPEC 2.2's comparison is
+    /// reader-relative, so it is a stored property rather than a constant —
+    /// which is also the only way the 1.0-and-later branch of the rule can be
+    /// exercised at all while the format is at 0.1. `VersionRuleTests` reads
+    /// documents as a hypothetical 1.x reader for exactly that reason.
+    let readerVersion: SemanticVersion
+
+    init(readerVersion: SemanticVersion = SemanticVersion(VNX.version)!) {
+        self.readerVersion = readerVersion
+    }
 
     // MARK: - Entry point
 
@@ -98,6 +105,12 @@ final class DocumentDecoder {
         // versions are additive and only a MAJOR increment refuses. The PATCH
         // component never refuses at any version, which is why it appears in
         // neither branch.
+        // Read from the DOCUMENT, per the rule above. Control only reaches
+        // here when the two majors are numerically equal, so swapping this for
+        // `readerVersion.major` is a provable no-op and a red proof of it comes
+        // back green — which is a fact about the mutation, not a weak guard. The
+        // rule is exercised where it is observable: `VersionRuleTests` reads as
+        // a 1.x reader, where the two branches genuinely differ.
         let documentIsPreOne = SemanticVersion.compare(version.major, "0") == 0
         if documentIsPreOne && minorOrder > 0 {
             throw Refusal(.versionTooNew,

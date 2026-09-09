@@ -30,7 +30,10 @@ enum Corpus {
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         return names.sorted()
             .filter { $0.hasSuffix(".vnx") || $0.hasSuffix(".vnz") }
-            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx") }
+            // `format/` and `write/` are pair tiers: their halves are named
+            // `X.in.vnx` with `X.canonical.vnx` or `X.written.vnx`, and neither
+            // half is a case on its own.
+            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx") && !$0.hasSuffix(".written.vnx") }
             .map { directory.appendingPathComponent($0) }
     }
 

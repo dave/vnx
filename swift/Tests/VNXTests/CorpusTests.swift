@@ -194,13 +194,76 @@ final class CorpusTests: XCTestCase {
         XCTAssertGreaterThan(checked, 0, "no case is marked `not-json` any more; this check has stopped checking anything")
     }
 
+    // MARK: - write/
+
+    /// SPEC 4.5.4's WRITE path, which until this tier landed was beyond the
+    /// corpus entirely: every other tier RE-RENDERS, and a re-render applies
+    /// neither rounding nor shortening.
+    ///
+    /// The tier's README is worth quoting, because it corrects something this
+    /// library's own comments asserted: "That was stated for months as a
+    /// permanent property — 'rounding is unreachable because no tier rounds' —
+    /// and it was not a fact about the format. It was a fact about which tiers
+    /// had been built. An unreachability claim is a claim about the current
+    /// state of someone's ingenuity, not about the format."
+    func testWriteTier() throws {
+        let directory = Corpus.root.appendingPathComponent("write")
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        let inputs = names.filter { $0.hasSuffix(".in.vnx") }
+        XCTAssertGreaterThan(inputs.count, 0, "the write tier is empty")
+
+        for input in inputs {
+            let stem = String(input.dropLast(".in.vnx".count))
+            let inputURL = directory.appendingPathComponent(input)
+            let writtenURL = directory.appendingPathComponent("\(stem).written.vnx")
+            let sidecarURL = directory.appendingPathComponent("\(stem).expect.json")
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: writtenURL.path),
+                          "\(stem): a write case is a pair; the written half is missing")
+            guard FileManager.default.fileExists(atPath: sidecarURL.path) else {
+                XCTFail("\(stem): a case with no sidecar is a failure, not a skip")
+                continue
+            }
+            let sidecar = try Corpus.Sidecar(sidecarURL)
+            XCTAssertEqual(sidecar.kind, "write", "\(stem): sidecar `kind` does not match its directory")
+
+            let inputBytes = try Data(contentsOf: inputURL)
+            let expected = try Data(contentsOf: writtenURL)
+
+            // Without this a writer that echoed its input would pass every case.
+            XCTAssertNotEqual(inputBytes, expected,
+                              "\(stem): the input is already the written form, so this case cannot fail for a writer that echoes")
+
+            let produced = VNX.write(try VNX.read(inputBytes).document)
+            XCTAssertEqual(String(decoding: produced, as: UTF8.self),
+                           String(decoding: expected, as: UTF8.self),
+                           "\(stem): written output")
+
+            // Rounding and shortening are both idempotent, so the written form
+            // is a fixed point. A case that fails this is a defect in the
+            // fixture rather than in the writer.
+            XCTAssertEqual(VNX.write(try VNX.read(expected).document), expected,
+                           "\(stem): the written form is not a fixed point")
+        }
+    }
+
+    /// A written document is still a document, so it must read back cleanly.
+    func testWriteTierOutputIsReadableWithNoDiagnostics() throws {
+        let directory = Corpus.root.appendingPathComponent("write")
+        for name in try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        where name.hasSuffix(".written.vnx") {
+            let result = try VNX.read(try Data(contentsOf: directory.appendingPathComponent(name)))
+            XCTAssertEqual(result.diagnostics.map(\.message), [], name)
+        }
+    }
+
     // MARK: - Sidecar presence
 
     /// SPEC 8.1 and the corpus README: "A file with no sidecar is a failure,
     /// not a skip: the file everyone assumes is covered is otherwise exactly
     /// the one that is not."
     func testEveryCaseHasASidecar() throws {
-        for tier in ["accept", "reject", "diagnose"] {
+        for tier in ["accept", "reject", "diagnose", "write"] {
             for url in try Corpus.cases(in: tier) {
                 let sidecar = url.deletingPathExtension().appendingPathExtension("expect.json")
                 XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path),

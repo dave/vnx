@@ -19,8 +19,18 @@ import Foundation
 /// `roundTo` used `math.Round`, which is half-away-from-zero, so two of five
 /// implementations shipped a defect here.
 ///
-/// No corpus tier can see any of this: rounding happens only when a WRITER
-/// emits a model, and every tier re-renders.
+/// This was unreachable by the corpus until `corpus/write/` landed on
+/// 2026-09-09, and the comment here said so as though it were a property of the
+/// format. It was not. It was a property of which tiers had been built: every
+/// tier RE-RENDERED, so nothing ever asked a library to write. The write tier
+/// now decodes a document, calls WRITE, and byte-compares, and it carries
+/// `340.25` precisely because that value separates half-to-even from
+/// half-away-from-zero.
+///
+/// The general lesson, from the tier's own README: an unreachability claim is a
+/// claim about the current state of someone's ingenuity, not about the format.
+/// `RoundingTests` and `corpus/numbers/` remain the finer instruments — one
+/// fixture cannot cover 4,082 values — but they are no longer the only ones.
 enum Rounding {
 
     /// Rounds to `places` decimal places, ties to even, exactly.

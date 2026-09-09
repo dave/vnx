@@ -50,6 +50,31 @@ final class LibraryTests: XCTestCase {
         }
     }
 
+    /// SPEC 2.2, as corrected 2026-09-09: "The rules a reader applies are
+    /// selected by the DOCUMENT's MAJOR component, not by the reader's."
+    ///
+    /// This reader implements 0.x, so every document it accepts is a 0.x
+    /// document and the observable behaviour is unchanged — which is exactly why
+    /// the rule has to be written down rather than inferred from a passing
+    /// suite. The refusal message is what separates the two cases: a document in
+    /// another major series is refused for being another series, not for having
+    /// a higher minor.
+    func testTheDocumentsMajorSelectsTheRules() throws {
+        for other in ["1.0.0", "2.5.9", "9.9.9"] {
+            XCTAssertThrowsError(try read("{\"vnx\":\"" + other + "\"}"), other) {
+                let refusal = $0 as! Refusal
+                XCTAssertEqual(refusal.cause, .versionTooNew, other)
+                XCTAssertTrue(refusal.message.contains("MUST NOT read another one under its own rules"),
+                              "the refusal names the series rule, not the minor rule: " + refusal.message)
+            }
+        }
+        XCTAssertThrowsError(try read("{\"vnx\":\"0.2.0\"}")) {
+            XCTAssertTrue(($0 as! Refusal).message.contains("breaking axis"))
+        }
+        XCTAssertNoThrow(try read("{\"vnx\":\"0.0.9\"}"))
+        XCTAssertNoThrow(try read("{\"vnx\":\"0.1.99\"}"))
+    }
+
     func testTopLevelMustBeAnObjectCarryingVNX() {
         XCTAssertThrowsError(try read("[]")) { XCTAssertEqual(($0 as? Refusal)?.cause, .notAVNXDocument) }
         XCTAssertThrowsError(try read("\"0.1.0\"")) { XCTAssertEqual(($0 as? Refusal)?.cause, .notAVNXDocument) }
@@ -367,6 +392,23 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(d, 0.001 * .pi / 180 * Projection.earthRadiusMetres * cos(57 * .pi / 180), accuracy: 1e-6)
     }
 
+    /// SPEC 3.3.3: "A position exactly 50 metres from its arc is within
+    /// tolerance and is accepted."
+    ///
+    /// The spec adds that no conformance case can pin this and none should be
+    /// attempted, because a distance at exactly the threshold is not reachable
+    /// by a fixture — the computed value depends on the model and no two models
+    /// land on 50.000. So the comparison is a named predicate, and this is the
+    /// only place it is checked. `<` in place of `<=` refuses a legal document
+    /// and nothing in any corpus would say so.
+    func testTheToleranceBoundaryIsInclusive() {
+        XCTAssertTrue(Projection.isWithinTolerance(50.0))
+        XCTAssertTrue(Projection.isWithinTolerance(50.0.nextDown))
+        XCTAssertTrue(Projection.isWithinTolerance(0))
+        XCTAssertFalse(Projection.isWithinTolerance(50.0.nextUp))
+        XCTAssertFalse(Projection.isWithinTolerance(50.000001))
+    }
+
     /// The two corpus tolerance cases, checked as numbers rather than as
     /// verdicts, so a model that is wrong by a hair shows the hair.
     func testProjectionReadsTheCorpusTolerancePairExactly() {
@@ -376,6 +418,34 @@ final class LibraryTests: XCTestCase {
         let descending = [Position(lon: -3, lat: 68), Position(lon: -3, lat: 55)]
         XCTAssertEqual(Projection.distance(from: Position(lon: -2.999115464096596, lat: 56),
                                            toPolyline: descending)!, 55.0, accuracy: 0.001)
+    }
+
+    /// SPEC 3.5, as corrected 2026-09-09: moving time is derivable only when
+    /// EVERY segment carries a time on its first and its last pip. Otherwise a
+    /// reader reports unknown, and MUST NOT report a sum over the segments that
+    /// do carry times.
+    ///
+    /// "A partial sum is worse than zero rather than better: it is
+    /// indistinguishable from a complete one, so no consumer can tell which it
+    /// was given, where zero is at least recognisable as suspicious."
+    func testMovingTimeRefusesToReportAPartialSum() throws {
+        let mixed = try read(minimal("""
+        "tracks":[{"name":"Half timed","segments":[
+          {"pips":[[0,0,null,1000],[1,1,null,4000]]},
+          {"pips":[[2,2],[3,3]]}]}]
+        """))
+        XCTAssertNil(mixed.document.tracks?[0].movingTimeMilliseconds,
+                     "3000 would be a partial sum, indistinguishable from a complete one")
+
+        let empty = try read(minimal("\"tracks\":[{\"name\":\"Nothing\",\"segments\":[]}]"))
+        XCTAssertNil(empty.document.tracks?[0].movingTimeMilliseconds)
+
+        let whole = try read(minimal("""
+        "tracks":[{"name":"Timed","segments":[
+          {"pips":[[0,0,null,1000],[1,1,null,4000]]},
+          {"pips":[[2,2,null,9000],[3,3,null,10000]]}]}]
+        """))
+        XCTAssertEqual(whole.document.tracks?[0].movingTimeMilliseconds, 4000)
     }
 
     /// SPEC 6.2: "A reader MUST compare a node key by its resolved position
@@ -429,6 +499,21 @@ final class LibraryTests: XCTestCase {
     }
 
     // MARK: - Timestamps (SPEC 4.3)
+
+    /// SPEC 4.3, as corrected 2026-09-09: a record-level timestamp is checked
+    /// for SHAPE only, and a reader MUST NOT refuse or diagnose one on calendar
+    /// grounds. `2026-13-45T99:99:99Z` matches the grammar and is accepted.
+    ///
+    /// The reason is convergence rather than leniency: a reader built on a date
+    /// library gets the calendar check for free and one parsing the grammar
+    /// directly does not, so silence here would make the two disagree.
+    func testTimestampsAreCheckedForShapeOnlyAndNeverForCalendar() throws {
+        for impossible in ["2026-13-45T99:99:99Z", "0000-00-00T00:00:00Z", "9999-99-99T99:99:99.000Z"] {
+            let result = try read(minimal("\"created\":\"" + impossible + "\""))
+            XCTAssertEqual(result.diagnostics, [], impossible)
+            XCTAssertEqual(result.document.created, impossible, impossible)
+        }
+    }
 
     func testTimestampShapes() throws {
         for good in ["2026-05-12T07:03:11Z", "2026-05-12T07:03:11.5Z", "2026-05-12T07:03:11.123456789Z"] {

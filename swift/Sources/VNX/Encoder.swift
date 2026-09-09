@@ -45,7 +45,7 @@ enum DocumentEncoder {
         put(&o, "parent", f.parent)
         put(&o, "name", f.name)
         put(&o, "notes", f.notes)
-        putHidden(&o, f.hidden)
+        putHidden(&o, f.hidden, mode)
         putData(&o, f.data)
         return .object(o)
     }
@@ -55,7 +55,7 @@ enum DocumentEncoder {
         put(&o, "name", w.name)
         put(&o, "notes", w.notes)
         if allowsFolder { put(&o, "folder", w.folder) }
-        putHidden(&o, w.hidden)
+        putHidden(&o, w.hidden, mode)
         putStyle(&o, w.style)
         putData(&o, w.data)
         return .object(o)
@@ -66,7 +66,7 @@ enum DocumentEncoder {
         put(&o, "name", a.name)
         put(&o, "notes", a.notes)
         if allowsFolder { put(&o, "folder", a.folder) }
-        putHidden(&o, a.hidden)
+        putHidden(&o, a.hidden, mode)
         putStyle(&o, a.style)
         putData(&o, a.data)
         return .object(o)
@@ -77,7 +77,7 @@ enum DocumentEncoder {
         put(&o, "name", n.name)
         put(&o, "notes", n.notes)
         put(&o, "folder", n.folder)
-        putHidden(&o, n.hidden)
+        putHidden(&o, n.hidden, mode)
         if let nodes = n.nodes {
             o["nodes"] = .object(nodes.mapValues { position($0, mode) })
         }
@@ -105,7 +105,7 @@ enum DocumentEncoder {
         var o: [String: JSONValue] = ["links": .array(c.links.map { link($0, mode) })]
         put(&o, "name", c.name)
         put(&o, "notes", c.notes)
-        putHidden(&o, c.hidden)
+        putHidden(&o, c.hidden, mode)
         putStyle(&o, c.style)
         putData(&o, c.data)
         return .object(o)
@@ -131,7 +131,7 @@ enum DocumentEncoder {
         put(&o, "name", r.name)
         put(&o, "notes", r.notes)
         put(&o, "folder", r.folder)
-        putHidden(&o, r.hidden)
+        putHidden(&o, r.hidden, mode)
         putStyle(&o, r.style)
         putData(&o, r.data)
         return .object(o)
@@ -150,7 +150,7 @@ enum DocumentEncoder {
         put(&o, "name", t.name)
         put(&o, "notes", t.notes)
         put(&o, "folder", t.folder)
-        putHidden(&o, t.hidden)
+        putHidden(&o, t.hidden, mode)
         putStyle(&o, t.style)
         put(&o, "started", t.started)
         put(&o, "ended", t.ended)
@@ -220,12 +220,21 @@ enum DocumentEncoder {
         if let value { o[key] = .string(value) }
     }
 
-    /// SPEC 3.8: absence means visible, and a writer emits `hidden` only when
-    /// its value is `true`. A document read with `"hidden": false` in it keeps
-    /// that spelling through a re-render, because the model holds what the
-    /// document said.
-    private static func putHidden(_ o: inout [String: JSONValue], _ hidden: Bool?) {
-        if let hidden { o["hidden"] = .bool(hidden) }
+    /// SPEC 3.8, and one of the few places the two emit paths genuinely differ.
+    ///
+    /// "Absence means visible. A writer MUST emit the key only when its value is
+    /// `true`, and a document SHOULD NOT contain `"hidden": false`." So a WRITE
+    /// drops a false — but a RE-RENDER must reproduce the document it was handed
+    /// (SPEC 8.1), and a document carrying `"hidden": false` is a document that
+    /// carries it. The model therefore keeps what it read and the mode decides
+    /// what is emitted.
+    ///
+    /// Caught by `corpus/write/emit-boundary`, which is the first tier ever to
+    /// ask this library to write.
+    private static func putHidden(_ o: inout [String: JSONValue], _ hidden: Bool?, _ mode: EmitMode) {
+        guard let hidden else { return }
+        if mode == .write && !hidden { return }
+        o["hidden"] = .bool(hidden)
     }
 
     private static func putStyle(_ o: inout [String: JSONValue], _ style: OpaqueObject?) {

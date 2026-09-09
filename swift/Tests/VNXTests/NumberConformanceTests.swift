@@ -6,11 +6,10 @@ import XCTest
 /// canonical spelling, the spelling after rounding to 6 places, and the spelling
 /// after rounding to 1 place.
 ///
-/// This is a fifth conformance tier in everything but its location. It exists
-/// because SPEC 4.5.4's rounding cannot be reached by the corpus even in
-/// principle — rounding happens only when a WRITER emits a model, and all four
-/// tiers re-render — and because a rendering tie, though reachable by
-/// `format/number-tie`, is reachable there exactly once.
+/// A conformance tier in everything but its name. `corpus/write/` now reaches
+/// SPEC 4.5.4 as a rule; this table reaches it as a population — 5,315 values
+/// against one fixture's two elevation ties — and the same for SPEC 4.5.3, which
+/// `format/number-tie` reaches exactly once.
 ///
 /// Its answers come from Go's `strconv`, which SPEC 4.5.3 names as the
 /// reference. Checking against it is not this library marking its own homework,

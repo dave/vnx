@@ -2,10 +2,15 @@ import Foundation
 import XCTest
 @testable import VNX
 
-/// SPEC 4.5.4's rounding is the one rule in this format that NO corpus tier can
-/// reach. Rounding happens only when a writer emits a model, and the accept,
-/// diagnose and format tiers all re-render a document they were handed. These
-/// tests are the whole guard.
+/// SPEC 4.5.4's rounding, in depth.
+///
+/// These tests were written when this rule was beyond the corpus altogether, and
+/// their header claimed that was permanent. `corpus/write/` disproved it within
+/// the day: a tier that decodes and then WRITES reaches the emit boundary, and
+/// `CorpusTests.testWriteTier` runs it. What is left to this file is depth — one
+/// fixture carries two elevation ties, `RoundingOracle` carries 4,082 triples
+/// and reaches every branch of the 128-bit arithmetic — which is a different job
+/// from conformance, not a substitute for it.
 final class RoundingTests: XCTestCase {
 
     /// Against an exact oracle computed with rational arithmetic.

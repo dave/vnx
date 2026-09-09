@@ -33,7 +33,9 @@ read is legitimately not what you read.
   verdict and asserts the one direction a reader can check without a validator:
   a case marked `not-json` must be refused.
 - **No deflate compressor.** It inflates, because SPEC 7 requires reading
-  deflate; it writes stored, which SPEC 7 permits.
+  deflate; it writes stored, which SPEC 7.1 now REQUIRES — deflate has no
+  canonical output, so a deflated archive is byte-reproducible only by the
+  language that wrote it.
 - **No duplicate-object-key detection.** SPEC 6.4 documents this as a limitation
   of the format. `corpus/diagnose/duplicate-object-key.vnx` expects no
   diagnostic, and if a reader ever gains the ability to see one, that file goes
@@ -65,23 +67,43 @@ first has a corpus wording.
 | `Decoder.swift` | SPEC 6.2 in full: what is refused, what is dropped, what is reported |
 | `Encoder.swift` | the model back to JSON, in either emit mode |
 | `Projection.swift` | SPEC 3.3.3's equirectangular map and the 50 m tolerance |
-| `Inflate.swift`, `Zip.swift`, `Container.swift` | RFC 1951 inflate, ZIP with ZIP64, and SPEC 7 |
+| `Inflate.swift`, `Zip.swift`, `Container.swift` | RFC 1951 inflate, ZIP with ZIP64, and SPEC 7 and 7.1 |
 | `Rounding.swift` | SPEC 4.5.4 rounding, from the exact decimal expansion, ties to even |
+| `Version.swift` | `MAJOR.MINOR.PATCH`, compared as numbers of any length |
 | `Cause.swift` | reason codes, and the tables tying them to the corpus |
 
 ## Tests
 
-`Tests/VNXTests/CorpusTests.swift` runs all four corpus tiers.
+`Tests/VNXTests/CorpusTests.swift` runs all five corpus tiers, including
+`write/`, which is the only one that exercises the emit boundary.
 `LibraryTests.swift` covers what the corpus does not reach — ZIP64 central
 directories, the root-document rule at depth, version spellings, model-first
 round trips. `NumberRenderingTests.swift` pins twenty doubles that are exact
 ties at their shortest decimal length; `format/number-tie` reaches that rule
 too, since it carries one spelling in and the other out.
 
-`RoundingTests.swift` is the guard for the one rule no corpus tier can reach.
-SPEC 4.5.4's rounding runs only when a WRITER emits a model, and every tier
-re-renders. It is checked against `RoundingOracle`, 3,308 triples computed with
-rational arithmetic, because the obvious implementation is wrong in a way that
-looks right: scaling by a power of ten MANUFACTURES ties that the exact decimal
-expansion does not have (`0.15` is `0.1`, not `0.2`) and destroys ties it does
-(`0.45` is `0.5`, not `0.4`).
+`NumberConformanceTests.swift` runs the shared number-conformance table —
+5,315 doubles as IEEE 754 hex with their canonical spelling and their spelling
+after rounding to 6 and to 1 places, generated from Go. It is a fifth
+conformance tier in everything but its location.
+
+`ContainerBytesTests.swift` checks the `.vnz` writer against an independent one
+written from SPEC 7.1's table alone, in another language, sharing no code with
+this library — 537 bytes for a document plus two attachments, one with a
+non-ASCII entry name. `ZipHeaderTests.swift` checks the same writer against the
+archive two seats agreed by measurement; the two catch different things, one
+implementation drifting versus both drifting together.
+
+`VersionRuleTests.swift` reads documents as a hypothetical 1.x reader, because
+SPEC 2.2's rule that minor versions are additive from 1.0 onward is otherwise
+unreachable from a library that implements 0.1 — and an unreachable branch is
+where a mutation goes green and gets mistaken for a tested one.
+
+`RoundingTests.swift` covers SPEC 4.5.4 in depth, against `RoundingOracle` —
+4,082 triples computed with rational arithmetic — because the obvious
+implementation is wrong in a way that looks right: scaling by a power of ten
+MANUFACTURES ties the exact decimal expansion does not have (`0.15` is `0.1`,
+not `0.2`) and destroys ties it does (`0.45` is `0.5`, not `0.4`). It was
+written when that rule was beyond the corpus, and said so as though that were
+permanent; `corpus/write/` reached it the same day. An unreachability claim is
+a claim about the current state of someone's ingenuity, not about the format.

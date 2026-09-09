@@ -2,15 +2,18 @@ import Foundation
 import XCTest
 @testable import VNX
 
-/// The ZIP header fields SPEC 7 does not constrain.
+/// The ZIP header fields, against the archive two seats agreed by measurement.
 ///
-/// SPEC 4.5 requires byte-identical output from every conforming writer, but it
-/// says that of canonical JSON. SPEC 7 says nothing about version-needed, the
-/// MS-DOS timestamp, extra fields or the attribute and disk fields, and the
-/// corpus has no writer tier for `.vnz` at all — both container cases are
-/// accept-tier reads. So nothing in the corpus can hold two languages to the
-/// same archive bytes, and this file is the stand-in until SPEC 7 either pins
-/// the fields or states that `.vnz` byte-identity is not promised.
+/// This file was written as a stand-in while SPEC 7 said nothing about
+/// version-needed, the MS-DOS timestamp, extra fields or the attribute and disk
+/// fields — so nothing in the corpus could hold two languages to the same
+/// archive bytes and the agreement rested on a message between two seats. That
+/// came back: SPEC 7.1 now fixes every field, and `ContainerBytesTests` checks
+/// this writer against an independent one built from that table alone.
+///
+/// This file keeps its own job. The two instruments catch different things: a
+/// measured agreement between implementations catches one of them drifting, and
+/// the published table catches both of them drifting together.
 ///
 /// The values here were agreed with the Kotlin seat on 2026-09-09 by measuring
 /// both writers against one input. They are not arbitrary tie-breaks: each is

@@ -108,6 +108,23 @@ category fails to discriminate.
 the writer boundary. Ties there go to even as well — and **this is a separate
 defect from §1.3 in a separate part of your code.**
 
+| value → 1 place | Go | Python | JavaScript `toFixed` |
+|---|---|---|---|
+| `340.25` | `340.2` | `340.2` | `340.3` |
+| `-340.25` | `-340.2` | `-340.2` | `-340.3` |
+| `340.75` | `340.8` | `340.8` | `340.8` |
+
+*(JavaScript seat, measured on Go 1.x, CPython 3 and Node 22.19.)* ECMAScript's
+`toFixed` is specified to pick "the larger n" on a tie, which is half away from
+zero for a positive value and toward zero for a negative one — so it disagrees
+with half-to-even in one direction and agrees in the other, which is worse than
+disagreeing consistently.
+
+**A tie at one decimal place needs a fractional part of exactly `.x5`, and of the
+ten candidates only `.25` and `.75` are dyadic** — but those two are ordinary
+elevations, because a quarter-metre grid produces them. Reachable in real data,
+not contrived. *(JavaScript seat.)*
+
 Kotlin fixed its renderer and shipped the rounding bug anyway: `BigDecimal.HALF_UP`
 at the emit boundary agrees with JavaScript's `toFixed` and disagrees with Go
 and Python, which write `340.25` to one place as `340.2`. *(Kotlin seat: "finding
@@ -134,8 +151,19 @@ real one is **2^-7 = 0.0078125**, sitting exactly between `0.007812` and
 `0.007813`. At one place, `340.25` works because its fractional part is a
 quarter. *(Python seat.)*
 
-JavaScript found the same class from another angle: looking for a trailing `5`
-in `toFixed(places + 1)` calls `0.15` a tie, and it is not one. **Decide the tie
+JavaScript found the same class from another angle, and its explanation is the
+one to keep. Looking for a trailing `5` in `toFixed(places + 1)` and checking
+that the string parses back to the same double calls `0.15` a tie. It is not one:
+`0.15` as a double is `0.1499999999999999944…`, strictly *below* the midpoint, an
+ordinary round-down that every language rounds to `0.1`.
+
+**The round-trip check does not ask "is this value exactly that decimal". It asks
+"is this value the nearest double to that decimal", and many decimals share one
+nearest double.** That single sentence explains every phantom in this section.
+*(JavaScript seat.)*
+
+The JavaScript suite keeps `0.0000005` beside the real ties as a **named
+non-tie**, so nobody later mistakes it for the tie case. **Decide the tie
 on the double's exact value**, in `BigInt`, `BigDecimal`, `Fraction` or whatever
 your language calls exact arithmetic. *(JavaScript seat.)*
 
@@ -177,6 +205,33 @@ that decides what a number looks like: it collapses negative zero, strips the
 trailing zero, and applies the placement rule of §1.2. A formatting primitive
 does none of that and cannot be told to.
 
+### 1.10 Being the language a rule is defined *by* settles less than it looks
+
+§4.5.3 anchors number text to ECMAScript `Number::toString`, which makes
+`String(n)` in a JavaScript runtime the reference implementation of that rule.
+That looks like the one seat which cannot get numbers wrong. It is not, and the
+reasons generalise to any rule defined by reference to some other system.
+
+**It does not settle a rendering tie.** The ECMAScript prose deliberately
+declines to fix the last digit when two shortest spellings are equally close and
+permits either. So `Number::toString` is not by itself a byte-exact
+specification, which is why §4.5.3 had to state the tie direction separately.
+
+**It does not settle the rounding tie**, which is a different operation at a
+different boundary — §1.5. Being anchored to ECMAScript for *rendering* is
+exactly what makes numbers feel like the settled part.
+
+**And what it does settle, it settles invisibly.** `String(-0)` is already `"0"`,
+`String(1e21)` is `1e+21` with the plus sign, `String(1e-7)` is `1e-7`, and
+`String(n)` equals `JSON.stringify(n)` for every finite double. So negative zero
+costs a JavaScript implementation nothing — and `1e+21`, which appears in the
+corpus but is stated nowhere in §4.5.3's prose or table, arrives correct without
+anyone deciding it.
+
+**That is the real hazard of being the reference language: the things that are
+right by accident are the things you are least likely to notice the
+specification never said.** *(JavaScript seat.)*
+
 ---
 
 ## 2. Key order and strings
@@ -187,18 +242,38 @@ does none of that and cannot be told to.
 name, so the same key can sort into either group in different objects. No stock
 encoder does this — see §1.1.
 
-### 2.2 "Lexicographic" over what
+### 2.2 "Lexicographic" means by code point, and three languages disagree
 
-§4.5.1 says lexicographic and the format's own keys are all ASCII, so code
-points, UTF-8 bytes and UTF-16 code units agree for everything the format
-defines.
+§4.5.1 now says so explicitly and names the hazard. Every key the format itself
+defines is ASCII, where code point, UTF-8 byte and UTF-16 code unit order all
+agree — **so a serialiser that only ever sees format keys is correct forever and
+gives you no signal.** A data record body may carry any key (§5.1), and that is
+the reachable path.
 
-**They do not agree above U+FFFF**, and a data record body may carry any key at
-all (§5.1.2). JavaScript's `Array.prototype.sort()` with no comparator orders by
-UTF-16 code unit; Python's `sorted()` orders by code point. If your language
-sorts strings by UTF-16 code unit, a record key in an astral plane will sort
-differently from everyone else's. *(Python seat, from the specification; no
-implementation has yet reported hitting it.)*
+Above U+FFFF the orders disagree, because an astral character is stored as a
+surrogate pair beginning in U+D800..U+DBFF. **By code unit an astral character
+sorts below everything in U+E000..U+FFFF; by code point it sorts above all of
+it.** *(JavaScript seat.)*
+
+Where your default lands:
+
+| Language | Default string comparison | Needs a comparator |
+|---|---|---|
+| Go `sort.Strings` | code point | no |
+| Python `sorted()` | code point | no |
+| JavaScript `Array.prototype.sort()` | UTF-16 code unit | yes |
+| Java / Kotlin `String.compareTo` | UTF-16 (`char`) | yes |
+| Swift `<` on `String` | Unicode canonical equivalence — a third order again | yes |
+
+*(JavaScript seat, who measured its own and names the others.)*
+
+The comparator is about nine lines: iterate both strings with a code-point
+iterator rather than by index, and compare the code points.
+
+**Test it in both directions on the same pair** — that the default gets it wrong
+*and* that the comparator gets it right. A test asserting only the comparator's
+answer keeps passing if someone deletes the comparator and the default happens
+to agree, which on ASCII it always does. *(JavaScript seat.)*
 
 ### 2.3 String escaping
 
@@ -306,8 +381,17 @@ refused (§4.2). **Several standard libraries accept them by default** — Pytho
 `json` module does, silently — so this is a flag you have to turn off rather than
 a behaviour you inherit.
 
-A separate case: a literal like `1e999` *is* well-formed JSON whose value is not
-finite in binary64. Check after parsing, not only during.
+A separate case: a literal like `1e999` or `1e400` *is* well-formed JSON whose
+value is not finite in binary64 — it parses to `Infinity` rather than failing.
+Check after parsing, not only during; a `JSON.parse` reviver or an equivalent
+hook is enough. *(JavaScript seat.)*
+
+Note that the two kinds of failure are refused for different reasons and in
+different words. A `NaN` literal is not JSON at all, so a strict parser rejects
+the text before any format rule runs, while a permissive parser reaches §4.2 and
+refuses for the right reason in different words. The corpus's expectation of the
+substring `malformed JSON` there reflects one implementation's route to the
+refusal rather than the rule.
 
 ### 4.2 Duplicate object keys
 
@@ -383,9 +467,15 @@ because a writer rounds. So no tier can reach anything that only happens when a
 model is emitted from scratch: the rounding of §4.5.4, the shortest-spelling rule
 of §4.1, a negative zero that rounding created, and the tie direction of §1.5.
 
-Kotlin measured that boundary rather than asserting it: **reverting the rounding
-tie rule reddens two columns of its number table and nothing else in a 91-test
-suite.**
+Two seats measured that boundary rather than asserting it, from opposite
+directions. **Kotlin: reverting the rounding tie rule reddens two columns of its
+number table and nothing else in a 91-test suite. JavaScript: breaking rounding
+outright — the rounding function returning 0 — and breaking the shortest-spelling
+rule at the same time leaves every corpus tier green.**
+
+The JavaScript suite keeps that mutation permanently, asserting **green**. It is
+a test whose job is to fail the day a fixture reaches the writer, at which point
+the boundary has moved and this section is out of date. *(JavaScript seat.)*
 
 A rendering tie is unreachable for a second, stronger reason: it is a *value*,
 not a shape. Nobody hand-writes a double whose shortest decimal sits exactly
@@ -404,12 +494,26 @@ A fixture that *contains* a construct is not a test *of* it. What a case can
 discriminate is decided by the data in the case, not by the construct it
 contains or the note it carries.
 
-- **JavaScript's node-key comparison.** §6.2 resolves a node key to its position
-  before comparing chain continuity; the library compared the keys, which reports
-  a continuous walk as broken. The corpus could not see the difference:
-  `diagnose/chain-does-not-join.vnx` has keys **and** positions that differ, so a
-  key-only comparator returns the same verdict. When the rule changed, nothing
-  went red. *(JavaScript seat.)*
+- **JavaScript's node-key comparison, and the order of events is the lesson.** It
+  implemented an earlier §6.2 literally — two node keys meet when the keys are
+  equal — so two distinct keys at one position did not meet and a continuous walk
+  was reported as broken. §6.2 was then rewritten to resolve a key to its
+  position first, demoting key equality to a fast path. **The library had shipped
+  the opposite reading, and on re-running the corpus after the rule changed: 31
+  of 31, green.** Nothing went red, and its own tests could not help either,
+  having been written to match its reading.
+
+  The fixture that exists specifically for continuity,
+  `diagnose/chain-does-not-join.vnx`, varies the node keys **and** the positions
+  together, so a key comparator and a position comparator return the same verdict
+  on it. It looks like coverage — it is in `diagnose/`, it is named for
+  continuity, its note explains it — and it cannot attribute its verdict to
+  either reading. **Any fixture that changes two variables together tests
+  neither.** *(JavaScript seat.)*
+
+  The fix was as invisible as the defect: still 31 of 31 afterwards. The mutation
+  is now a red-proof asserting the corpus stays **green**, so it fails the day a
+  case arrives that can tell the two readings apart, and the real guard is local.
 - **Kotlin's tie table.** Sixty rows labelled as rendering ties, mined by an
   undiscriminating detector; every one stayed green when the tie rule was
   reverted. The decoration was measurable: 60 rows, zero discrimination.
@@ -437,6 +541,22 @@ guard for it — which is the useful part, because the guards compose:
   expectation the table never mentions *(Swift, JavaScript)*;
 - sweep the fields *inside* a nested expectation, not only the top level of a
   sidecar *(Python)*.
+
+**The detection recipe**, which is cheap and worth running over every fixture you
+rely on: write down what the note claims the case tests, then write down which
+values the case actually varies. **Where it varies more than one, ask which
+readings it can still separate.** Any fixture that changes two variables together
+tests neither.
+
+That recipe found three real gaps in one afternoon, two of which were closed
+within hours: the continuity fixture above; `link-names-absent-arc.vnx`, whose
+two links made "one defect must not become two" a guarantee of arity rather than
+of the reader; and a tolerance pair at three degrees of latitude, where the
+segment-start-cosine model reads 48.87 m and 59.73 m against a true 45 and 55 and
+therefore returns the **same verdict on both files** — a pair that existed to
+discriminate the cosine reference and discriminated nothing. *(JavaScript seat;
+the tolerance measurement was made independently by the Python seat, which
+reached 48.842 m and 59.696 m by a different route.)*
 
 ### 6.3 Red-proof everything, and check the proof reached its target
 
@@ -512,15 +632,18 @@ lexicographic (§1.1, §2.1).
 **Swift** — `JSONSerialization` renders `-3.67` as `-3.6699999999999999` and must
 not be used. `JSONEncoder` gives `1e-06` and `1e-07`, and both stock encoders
 separate a key from its value with `" : "` (§1.1, §1.2). `.rounded()` is not
-half-to-even (§1.5). `Double.description` is (§1.3).
+half-to-even (§1.5). `Double.description` is (§1.3). `<` on `String` orders by
+Unicode canonical equivalence, which agrees with neither code point nor code unit
+(§2.2).
 
 **Kotlin** — shortest-repr ties away from zero (§1.3). `BigDecimal.HALF_UP` at
-the rounding boundary (§1.5).
+the rounding boundary (§1.5). `String.compareTo` orders by UTF-16 `char` (§2.2).
 
-**JavaScript** — `toFixed` rounds ties away from zero (§1.5). `JSON.stringify`
-uses insertion order for keys (§1.1). `Array.prototype.sort` with no comparator
-orders by UTF-16 code unit (§2.2). Number rendering is otherwise correct, apart
-from having no negative-zero problem to fix.
+**JavaScript** — `toFixed` rounds ties away from zero for a positive value and
+toward zero for a negative one (§1.5). `JSON.stringify` uses insertion order for
+keys (§1.1). `Array.prototype.sort` with no comparator orders by UTF-16 code unit
+(§2.2). `1e400` parses to `Infinity` rather than failing (§4.1). Number rendering
+is otherwise free, which is its own hazard (§1.10).
 
 **Rust** — not yet reported. This section will be filled in from that
 implementation's own account.

@@ -52,7 +52,15 @@ func main() {
 		{name: "doc.vnx", body: doc, method: zip.Deflate},
 		{name: "doc.vnx", body: `{"vnx":"0.1.0"}`, method: zip.Deflate},
 	})
+	// The root document is deliberately NOT the first entry. At offset 0 a
+	// reader that loses the local-header offset altogether and defaults to
+	// zero still finds it, so the masked offset would be untested on the one
+	// entry that matters. A lost value that happens to be correct is not a
+	// test. This archive is input rather than writer output, so §7.1's
+	// root-document-first rule does not apply to it, and §7 selects the root
+	// by name at any position.
 	writeZip64("accept/container-zip64.vnz", []entry{
+		{name: "attachments/first.txt", body: "written before the document, so its offset is not zero\n", method: zip.Store},
 		{name: "doc.vnx", body: doc, method: zip.Store},
 		{name: "attachments/photo.txt", body: "not really a photo\n", method: zip.Store},
 	})

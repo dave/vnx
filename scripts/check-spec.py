@@ -39,6 +39,7 @@ PUBLISHED = [
     "README.md",
     "corpus/README.md",
     "corpus/format/README.md",
+    "corpus/numbers/README.md",
     "corpus/schema/README.md",
 ]
 
@@ -106,8 +107,16 @@ HISTORY = [
             # Not part of a longer token, and not part of a decimal number --
             # `1.4978982117220732e15` would otherwise match from after the dot,
             # because `e` is a hex digit.
+            #
+            # A FULL STOP MAY FOLLOW, and that is the whole point of the second
+            # alternative: a hash is normally cited at the end of a sentence
+            # ("deleted in 5dcf6ee."), and a blanket ban on a trailing `.` let
+            # exactly that spelling through while catching the rarer mid-clause
+            # one. A dot is only disqualifying when a digit or letter follows
+            # it, which is what makes it part of a number rather than a
+            # sentence.
             r"(?<![0-9a-zA-Z.])"
-            r"(?=[0-9a-f]{7,40}(?![0-9a-zA-Z.]))"
+            r"(?=[0-9a-f]{7,40}(?![0-9a-zA-Z]|\.[0-9a-zA-Z]))"
             # A letter other than `e`, so scientific notation is not a hash.
             r"(?=[0-9a-f]*[abcdf])"
             r"(?=[0-9a-f]*[0-9])"
@@ -167,8 +176,25 @@ def check_published(problems: list[str]) -> None:
         if not path.exists():
             problems.append(f"{name}: missing")
             continue
+        fenced = False
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for pattern, why in LEAKAGE + HISTORY:
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            # HISTORY is a rule about PROSE. A fenced block is data -- a sample
+            # of a file's own bytes, a command, a table of values -- and it says
+            # nothing about how this document came to be. The exclusion is not a
+            # convenience: a binary64 bit pattern is 16 hexadecimal digits, so
+            # every row of corpus/numbers/numbers.tsv reads as a commit hash to
+            # the pattern below, and the alternative to this line is either
+            # weakening the hash rule for every document or forbidding the one
+            # spelling in which that table can be quoted at all.
+            #
+            # LEAKAGE still applies inside a fence, because a home-directory
+            # path or a knowledge-base reference leaks just as far in a command
+            # as in a sentence.
+            checks = LEAKAGE if fenced else LEAKAGE + HISTORY
+            for pattern, why in checks:
                 if match := pattern.search(line):
                     problems.append(f"{name}:{number}: {match.group(0)!r} - {why}\n    {line.strip()}")
             for match in LINK.finditer(line):

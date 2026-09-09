@@ -1,36 +1,49 @@
 # The number-conformance table
 
 `numbers.tsv` fixes what every VNX implementation must emit for a given double.
-It is a fifth conformance tier in everything but its location, and it is here
-rather than in `corpus/` only because `spec-rewrite` has not yet folded it in.
-**Destination: `corpus/numbers/`.** Nothing about it depends on that path except
-the one line in each implementation's runner that points at it.
+It is a conformance tier like the four beside it, and the only one that reaches
+past the writer boundary.
+
+It differs from those four in shape rather than in standing. A case there is a
+document; a row here is a value, and there is no sidecar, because the three
+answer columns are the expectation. That is why it is a table and not a
+directory of files: the properties it pins are per-value, and a document that
+carried five thousand of them would be a document nobody could read.
 
 ## Why it exists
 
-**Rounding ties (4.5.4)** cannot be reached by the corpus, even in principle.
-Rounding happens only when a **writer** emits a model, and all four corpus tiers
-RE-RENDER an existing document — which section 8.1 requires *precisely because a
-writer rounds*. **The corpus's reach ends at the writer boundary.** An
-implementation can round every coordinate in the format the wrong way and pass
-every tier green. Measured in the Kotlin suite: reverting the rounding tie rule
-reddens two tests, both of them this table, out of a hundred and one.
+A tier is defined by the operation it performs, and the four document tiers
+perform two: decode, and decode-then-re-render. Neither rounds. Section 4.5.4's
+rounding is applied only where a writer turns a model into a document, and
+section 8.1 forbids a runner from using its writer for the accept check
+precisely because a writer rounds. So an implementation can round every
+coordinate and every elevation in the format the wrong way and take all four
+tiers green. Measured in the Kotlin suite: reverting the rounding tie rule
+reddens two tests out of ninety-one, and both of them are this table.
 
-**Rendering ties (4.5.3) CAN be reached, and this file's first version said they
-could not.** The argument was that a tie is a value rather than a shape, so no
-fixture could carry one. `format/number-tie` then did exactly that: its input
-spells the value one way and its expected output spells it the other, so a
-re-render has to decide the tie. The corrected rule is more useful than the one
-it replaced — **a value-level property is reachable by a re-render whenever the
-two readings produce different TEXT for the same value.** Rounding is not,
-because a re-render never rounds; the tie is, because a re-render always
-re-spells.
+A re-render does re-spell, though, so section 4.5.3's rendering tie is reachable
+by `format/number-tie`, whose input spells the value one way and whose expected
+output spells it the other. The rule worth carrying:
 
-What is left to this table beyond the rounding tie: the shortest-spelling rule
-across the whole double range, the exponent boundaries of 4.5.3, and a negative
-zero that a writer CREATES by rounding towards it, which no fixture can hand it.
+> A value-level property is reachable by a re-render whenever the two readings
+> produce different text for the same value.
 
-Both are live disagreements between real implementations, measured 2026-09-09:
+What this table holds that no document tier reaches: the rounding tie, the
+shortest-spelling rule across the whole double range, the exponent boundaries of
+4.5.3, and a negative zero a writer CREATES by rounding towards it, which no
+fixture can hand it because no fixture can contain it.
+
+Say "no tier reaches this" carefully, and date it. Two such claims about this
+table have been retired by somebody building the tier that reached them — the
+rendering tie by `format/number-tie`, and part of the writer boundary by a tier
+that performs decode-then-write. Both claims were true of the corpus as it stood
+and neither was a property of the format. **An unreachability claim is a claim
+about the current state of someone's ingenuity.** The practical consequence is
+in the last section of this file: a test whose conclusion is an absence asserts
+nothing once the absence ends, and nothing goes red to say so.
+
+Both ties are live disagreements between real implementations, measured
+2026-09-09:
 
 | | value | Go | JavaScript | Python |
 |---|---|---|---|---|
@@ -43,8 +56,8 @@ ECMAScript clause that declines to decide ("the least significant digit of s is
 not necessarily uniquely determined by these criteria"). Nothing anywhere went
 red. **Ties round to even, in both columns.**
 
-**How often, exactly**, because the population matters more than the rate and
-the first version of this paragraph did not say which population. Measured
+How often, and over which population — the rate alone decides nothing, because
+the two populations disagree by more than three orders of magnitude. Measured
 2026-09-09 over three million samples each:
 
 | population | rendering ties |
@@ -62,8 +75,33 @@ where `format/number-tie` correctly put it.
 
 Rounding ties are the opposite: rare in no sense at all, because they are
 structured rather than accidental. At 1 decimal place the exact halfway values
-are the odd quarters, so **any quarter-metre elevation**; at 6 places they are
-the odd multiples of 1/128.
+are the odd quarters, so any quarter-metre elevation; at 6 places they are the
+odd multiples of 1/128, because 5e-7 is not dyadic and `j/128` is therefore the
+only family whose exact expansion ends in a 5 at the seventh place.
+
+The `round6` and `round1` columns also separate the two ways of rounding to a
+decimal place, which is a wider disagreement than the tie and the reason section
+4.5.4 states the result rather than a procedure. Scaling by a power of ten,
+rounding, and dividing back is itself a rounding step, and it moves values onto
+an exact half that were never on one. Measured against the nearest one-place
+value of the double each literal denotes:
+
+| value | nearest 1 dp | scale, round to even, unscale |
+|---|---|---|
+| `0.15` | `0.1` | `0.2` |
+| `0.05` | `0.1` | `0` |
+| `1.05` | `1.1` | `1` |
+| `0.45` | `0.5` | `0.4` |
+| `1.85` | `1.9` | `1.8` |
+| `0.95` | `0.9` | `1.0` |
+| `340.25` | `340.2` | `340.2` |
+
+Six of those seven disagree, and only the last is a genuine tie — `0.15` is
+below its own halfway point, not on it, because the double nearest `0.15` is
+`0.1499999999999999944…`. These are the shape of an ordinary elevation, so an
+implementation taking the scaling route differs from a conforming one on
+everyday data rather than on corner cases. The same hazard applies at six places
+to every coordinate.
 
 ## The format
 
@@ -108,8 +146,9 @@ tie category does not actually differ from rounding away from zero — an
 undiscriminating table is the failure that would not announce itself.
 
 The committed table is 5,315 rows, sized to be read and diffed. The `-sample`
-flag is what settled the rendering rule: 460,007 doubles, zero disagreements
-once the tie rule was corrected, and 78 disagreements when it was put back.
+flag is what settles a rendering question at a scale the committed table cannot:
+over 460,007 doubles, a library rounding rendering ties to even agrees with this
+table everywhere, and one rounding them away from zero disagrees on 78 of them.
 
 ## Red-proofing your runner
 
@@ -118,3 +157,33 @@ tie rule from half-to-even to half-away-from-zero and confirm the table goes
 red — in **both** the render column and the two round columns, because they are
 different code paths and only one of them has an excuse for being right by
 accident.
+
+Then do the same for the rounding route, which the tie mutation does not reach.
+Replace the rounding with scale-round-unscale and confirm the `round6` and
+`round1` columns go red. A library can have the tie right and the route wrong,
+and the seven values in the table above are what separates them.
+
+Two ways a red proof over this table lies, both of which have happened here.
+
+**Mining the table for ties by asking whether a second equally short spelling
+round-trips** labels far more rows than are ties, because wherever the decimal
+step at the shortest-round-trip length is finer than the double spacing there
+are several spellings and only one of them is nearest. Those are phantoms, not
+ties. Sixty rows were labelled `render-tie` on that proxy and every one stayed
+green when the tie rule was reverted. Decide a tie in exact arithmetic — the
+value is a tie when its exact binary expansion is an exact midpoint between two
+representable answers — never by round-tripping a candidate.
+
+**A proof whose conclusion is an absence stops asserting anything the moment the
+absence ends.** "No tier catches this" is a green-asserting test: it passes
+because something is missing, so it goes on passing after the thing arrives, and
+nothing anywhere goes red. Several proofs about this table went stale the day
+`format/number-tie` landed. If a test here concludes that a property is
+unreachable, re-run it whenever the corpus grows, and prefer a proof that names
+what it expects to be red over one that expects everything to be green.
+
+The repair for both is the same and it is the general one: **make the premise
+checked.** A proof that a mutation reddens exactly one case should freeze why
+that case and no other — otherwise a single red is indistinguishable from the
+right red, and a proof that cannot tell you why it went red is measuring less
+than it looks.

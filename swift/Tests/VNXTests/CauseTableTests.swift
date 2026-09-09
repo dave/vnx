@@ -42,10 +42,12 @@ final class CauseTableTests: XCTestCase {
                 for (i, r) in reported.enumerated() where !used[i] {
                     guard r.path == e.path, Corpus.satisfies(r, e) else { continue }
                     used[i] = true
-                    // The advisory substring is what the older corpus matched
-                    // on, and it is what this library's table records. Recorded
-                    // from whichever field the sidecar carries.
-                    if let substring = e.message ?? e.advisory { observed.append((r.cause, substring)) }
+                    // `message_advisory` is what the older corpus matched on,
+                    // and it is what this library's table records. Nothing
+                    // ASSERTS it — SPEC 6.3 forbids comparing a diagnostic's
+                    // English — but keeping the mapping honest is what stops
+                    // the table drifting away from the wording it describes.
+                    if let substring = e.advisory { observed.append((r.cause, substring)) }
                     found = true
                     break
                 }

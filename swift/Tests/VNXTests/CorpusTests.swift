@@ -10,7 +10,7 @@ final class CorpusTests: XCTestCase {
         let cases = try Corpus.cases(in: "accept")
         XCTAssertGreaterThan(cases.count, 0, "the accept tier is empty; the runner is not finding the corpus")
         for url in cases {
-            try runAcceptCase(url)
+            runCase(url.lastPathComponent) { try self.runAcceptCase(url) }
         }
     }
 
@@ -70,26 +70,30 @@ final class CorpusTests: XCTestCase {
         let cases = try Corpus.cases(in: "reject")
         XCTAssertGreaterThan(cases.count, 0)
         for url in cases {
-            let name = url.lastPathComponent
-            let sidecar = try loadSidecar(for: url)
-            XCTAssertEqual(sidecar.kind, "reject", "\(name): sidecar `kind` does not match its directory")
-            guard let expected = sidecar.refusal else {
-                XCTFail("\(name): a reject sidecar must name the expected refusal")
-                continue
+            runCase(url.lastPathComponent) { try self.runRejectCase(url) }
+        }
+    }
+
+    private func runRejectCase(_ url: URL) throws {
+        let name = url.lastPathComponent
+        let sidecar = try loadSidecar(for: url)
+        XCTAssertEqual(sidecar.kind, "reject", "\(name): sidecar `kind` does not match its directory")
+        guard let expected = sidecar.refusal else {
+            XCTFail("\(name): a reject sidecar must name the expected refusal")
+            return
+        }
+        let bytes = try Data(contentsOf: url)
+        do {
+            if url.pathExtension == "vnz" {
+                _ = try VNX.readContainer(bytes)
+            } else {
+                _ = try VNX.read(bytes)
             }
-            let bytes = try Data(contentsOf: url)
-            do {
-                if url.pathExtension == "vnz" {
-                    _ = try VNX.readContainer(bytes)
-                } else {
-                    _ = try VNX.read(bytes)
-                }
-                XCTFail("\(name): expected a refusal naming \"\(expected)\", but the document was read")
-            } catch let refusal as Refusal {
-                XCTAssertTrue(refusal.message.contains(expected),
-                              "\(name): the refusal must name its cause. Expected the substring \"\(expected)\", got \"\(refusal.message)\"")
-                Corpus.observed.record(refusal.cause, matching: expected)
-            }
+            XCTFail("\(name): expected a refusal naming \"\(expected)\", but the document was read")
+        } catch let refusal as Refusal {
+            XCTAssertTrue(refusal.message.contains(expected),
+                          "\(name): the refusal must name its cause. Expected the substring \"\(expected)\", got \"\(refusal.message)\"")
+            Corpus.observed.record(refusal.cause, matching: expected)
         }
     }
 
@@ -99,19 +103,23 @@ final class CorpusTests: XCTestCase {
         let cases = try Corpus.cases(in: "diagnose")
         XCTAssertGreaterThan(cases.count, 0)
         for url in cases {
-            let name = url.lastPathComponent
-            let sidecar = try loadSidecar(for: url)
-            XCTAssertEqual(sidecar.kind, "diagnose", "\(name): sidecar `kind` does not match its directory")
-            guard let expected = sidecar.diagnostics else {
-                XCTFail("\(name): a diagnose sidecar must list its expected diagnostics, even when the list is empty")
-                continue
-            }
-            let result = try VNX.read(try Data(contentsOf: url))
-            try assertCounts(sidecar, result.document, name)
-            try assertPositions(sidecar, result.document, name)
-            try assertTracks(sidecar, result.document, name)
-            assertDiagnosticsMatchAsSet(expected: expected, reported: result.diagnostics, name: name)
+            runCase(url.lastPathComponent) { try self.runDiagnoseCase(url) }
         }
+    }
+
+    private func runDiagnoseCase(_ url: URL) throws {
+        let name = url.lastPathComponent
+        let sidecar = try loadSidecar(for: url)
+        XCTAssertEqual(sidecar.kind, "diagnose", "\(name): sidecar `kind` does not match its directory")
+        guard let expected = sidecar.diagnostics else {
+            XCTFail("\(name): a diagnose sidecar must list its expected diagnostics, even when the list is empty")
+            return
+        }
+        let result = try VNX.read(try Data(contentsOf: url))
+        try assertCounts(sidecar, result.document, name)
+        try assertPositions(sidecar, result.document, name)
+        try assertTracks(sidecar, result.document, name)
+        assertDiagnosticsMatchAsSet(expected: expected, reported: result.diagnostics, name: name)
     }
 
     /// SPEC 6.3 makes emission order insignificant, so the comparison is a set
@@ -132,7 +140,7 @@ final class CorpusTests: XCTestCase {
                 break
             }
             XCTAssertTrue(matched,
-                          "\(name): no unused diagnostic matched \(e.path) (code \(e.code ?? "-"), message \(e.message ?? "-")). Reported: \(reported.map { "\($0.path) — \($0.code) — \($0.message)" })")
+                          "\(name): no unused diagnostic matched \(e.path) (code \(e.code ?? "-"), advisory \(e.advisory ?? "-")). Reported: \(reported.map { "\($0.path) — \($0.code) — \($0.message)" })")
         }
     }
 
@@ -144,6 +152,12 @@ final class CorpusTests: XCTestCase {
         let inputs = names.filter { $0.hasSuffix(".in.vnx") }
         XCTAssertGreaterThan(inputs.count, 0, "the format tier is empty")
         for input in inputs {
+            runCase(input) { try self.runFormatCase(directory, input) }
+        }
+    }
+
+    private func runFormatCase(_ directory: URL, _ input: String) throws {
+        do {
             let stem = String(input.dropLast(".in.vnx".count))
             let inputURL = directory.appendingPathComponent(input)
             let canonicalURL = directory.appendingPathComponent("\(stem).canonical.vnx")
@@ -213,6 +227,12 @@ final class CorpusTests: XCTestCase {
         XCTAssertGreaterThan(inputs.count, 0, "the write tier is empty")
 
         for input in inputs {
+            runCase(input) { try self.runWriteCase(directory, input) }
+        }
+    }
+
+    private func runWriteCase(_ directory: URL, _ input: String) throws {
+        do {
             let stem = String(input.dropLast(".in.vnx".count))
             let inputURL = directory.appendingPathComponent(input)
             let writtenURL = directory.appendingPathComponent("\(stem).written.vnx")
@@ -222,7 +242,7 @@ final class CorpusTests: XCTestCase {
                           "\(stem): a write case is a pair; the written half is missing")
             guard FileManager.default.fileExists(atPath: sidecarURL.path) else {
                 XCTFail("\(stem): a case with no sidecar is a failure, not a skip")
-                continue
+                return
             }
             let sidecar = try Corpus.Sidecar(sidecarURL)
             XCTAssertEqual(sidecar.kind, "write", "\(stem): sidecar `kind` does not match its directory")

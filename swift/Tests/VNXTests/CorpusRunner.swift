@@ -50,17 +50,21 @@ enum Corpus {
         let tracks: [(name: String, movingTimeMilliseconds: Double?)]
         let attachments: [String]?
         let refusal: String?
-        /// A sidecar's expected diagnostics. `code` is the vocabulary the
-        /// corpus adopted on 2026-09-09; `message` is the older English
-        /// substring, and some sidecars still carry only that. A case is
-        /// matched on whichever it gives, and `message_advisory` is recorded
-        /// but is, by its name, not a requirement.
+        /// A sidecar's expected diagnostics, matched on `code` and nothing
+        /// else (SPEC 6.3: "The English MUST NOT be compared").
+        ///
+        /// A sidecar naming no `code` is a hard error, not a case that falls
+        /// back to its English — see the guard below. Measured 2026-09-09:
+        /// every diagnostic-bearing sidecar carries `code` and none carries
+        /// `message`, so the older English form is gone rather than tolerated.
+        /// `message_advisory` is read only so a failure can quote what the case
+        /// was about; by its name it is not a requirement, and nothing compares
+        /// it.
         let diagnostics: [ExpectedDiagnostic]?
 
         struct ExpectedDiagnostic {
             let path: String
             let code: String?
-            let message: String?
             let advisory: String?
         }
 
@@ -100,14 +104,16 @@ enum Corpus {
                         throw SidecarError("a diagnostic in \(url.lastPathComponent) has no `path`")
                     }
                     let code = e["code"]?.stringValue
-                    let message = e["message"]?.stringValue
                     let advisory = e["message_advisory"]?.stringValue
+                    if e["message"] != nil {
+                        throw SidecarError("the diagnostic at \(path) in \(url.lastPathComponent) carries a `message`; SPEC 6.3 forbids comparing a diagnostic's English, and the corpus names its human-readable field `message_advisory` precisely so a field called `message` cannot read as a claim about what is compared")
+                    }
                     // SPEC 6.3: a diagnostic a corpus case pins MUST carry a
                     // `code`, and the code is what the case compares.
                     guard code != nil else {
                         throw SidecarError("the diagnostic at \(path) in \(url.lastPathComponent) names no `code`; SPEC 6.3 requires one and forbids comparing the English, so there is nothing here a runner may assert")
                     }
-                    return ExpectedDiagnostic(path: path, code: code, message: message, advisory: advisory)
+                    return ExpectedDiagnostic(path: path, code: code, advisory: advisory)
                 }
             } else {
                 self.diagnostics = nil
@@ -153,6 +159,31 @@ enum Corpus {
     }
 
     static let observed = ObservedCauses()
+}
+
+extension XCTestCase {
+    /// Runs one corpus case, turning any error that escapes it into a failure
+    /// that NAMES the case, and letting the run continue.
+    ///
+    /// Without this, a `try` inside a `for` loop in a `throws` test method takes
+    /// the whole loop with it. Every case after the first failure is never run,
+    /// and the report is one error where the truth might be one defect or might
+    /// be all of them — the two are indistinguishable from the output.
+    ///
+    /// The hole is invisible until the day it matters, because it only opens
+    /// when something throws in a tier where nothing is expected to. The
+    /// JavaScript seat hit it: a refusal raised inside a `format/` case took 34
+    /// passing cases down with it, and the hole had been there since its first
+    /// commit. This runner had the same hole in four tiers.
+    func runCase(_ name: String, _ body: () throws -> Void) {
+        do {
+            try body()
+        } catch let refusal as Refusal {
+            XCTFail("\(name): the reader REFUSED a document this tier requires it to read — \(refusal.cause.code): \(refusal.message)")
+        } catch {
+            XCTFail("\(name): \(error)")
+        }
+    }
 }
 
 // MARK: - Resolving a sidecar `at` pointer against the decoded MODEL

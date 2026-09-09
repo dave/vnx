@@ -468,6 +468,14 @@ def main():
         print(f"FAULT  {fault}")
     if faults:
         print(f"\n{len(faults)} fault(s).")
+        if args.spec:
+            print(
+                "\nNote: --spec judges WRITER OUTPUT against section 7.1. An archive that is INPUT\n"
+                "is not defective for failing it. Section 7 has a reader accept deflate, the\n"
+                "data-descriptor bit, ZIP64 and a root document at any position, and the corpus's\n"
+                "container fixtures are input that exists to exercise exactly those. Without\n"
+                "--spec this tool checks only what is malformed under any reading."
+            )
         return 1
     print(f"{len(archives)} archive(s) agree" if len(archives) > 1 else "no faults")
     return 0

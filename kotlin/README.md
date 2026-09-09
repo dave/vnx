@@ -9,18 +9,9 @@ implementation.
 ./gradlew test
 ```
 
-That runs the whole conformance corpus — all four tiers — plus the
-number-conformance table and this library's own guards. It is a standalone
-Gradle build and is not wired into any application.
-
-The number table (`../number-conformance/`) is a fifth tier in everything but
-its location. It exists because the corpus can reach neither of the two rules
-that decide these bytes: a rendering tie is a value rather than a shape, and a
-rounding tie happens only when a WRITER emits a model, while all four tiers
-re-render an existing document. **The corpus's reach ends at the writer
-boundary** — an implementation can round every coordinate the wrong way and pass
-every tier green. Reverting this library's rounding tie rule reddens those two
-columns and nothing else in the suite, which is that claim as a measurement.
+That runs the whole conformance corpus — accept, reject, diagnose, format,
+write and numbers — plus this library's own guards. It is a standalone Gradle
+build and is not wired into any application.
 
 ## No dependencies
 
@@ -72,6 +63,10 @@ still matched as substrings until typed errors land.
 
 - **No GPX, KML or GeoJSON.** Those are conversion tools, not part of the format,
   and no library is expected to implement them.
+- **No fixture for the empty-segment rule.** `SPEC.md` 3.5 says an empty segment
+  contributes zero rather than making a track's moving time unknown, and no
+  corpus case carries one — the rule is defended here by a local test only. It is
+  offered rather than assumed: say the word and it is a two-line accept fixture.
 - **No JSON Schema validation.** Each corpus case carries a `schema` verdict; the
   runner checks the field's shape and does not act on it, because a draft 2020-12
   validator is a third-party dependency. The reference implementation keeps its

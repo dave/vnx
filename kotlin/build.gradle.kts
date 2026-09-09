@@ -27,10 +27,8 @@ tasks.test {
     // build rather than inside it. Passing its location explicitly means the
     // runner never has to guess a working directory.
     systemProperty("vnx.corpus", layout.projectDirectory.dir("../corpus").asFile.absolutePath)
-    // The number-conformance table (SPEC 4.5.3 and 4.5.4). It sits outside
-    // corpus/ only until spec-rewrite folds it in; when it moves to
-    // corpus/numbers/, this one line is the whole change.
-    systemProperty("vnx.numbers", layout.projectDirectory.file("../number-conformance/numbers.tsv").asFile.absolutePath)
+    // The number-conformance table (SPEC 4.5.3 and 4.5.4), now a corpus tier.
+    systemProperty("vnx.numbers", layout.projectDirectory.file("../corpus/numbers/numbers.tsv").asFile.absolutePath)
     testLogging {
         events("passed", "failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

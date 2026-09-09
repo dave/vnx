@@ -10,33 +10,27 @@ import kotlin.test.fail
  * The number-conformance table: what every implementation must emit for a given
  * double, generated from the reference SPEC.md section 4.5.3 names.
  *
- * This is a fifth conformance tier, for the rules the corpus does not reach.
+ * The number-conformance table, now `corpus/numbers/`.
  *
- * The ROUNDING tie is the one it cannot reach even in principle. Rounding
- * happens only when a WRITER emits a model, and all four corpus tiers RE-RENDER
- * an existing document — which section 8.1 requires precisely because a writer
- * rounds. The corpus's reach ends at the writer boundary, and an implementation
- * can round every coordinate in the format the wrong way and pass every tier
- * green. Measured: reverting the rounding tie rule reddens the two round columns
- * here and nothing else in this suite.
+ * It gives BREADTH that fixtures cannot: five thousand doubles across the whole
+ * binary64 range, each with its canonical spelling and its spelling rounded to
+ * six places and to one, generated from the reference SPEC.md section 4.5.3
+ * names. A handful of hand-written cases can pin a rule; only a table can say
+ * the rule holds everywhere.
  *
- * The RENDERING tie is NOT out of reach, and I argued that it was. My reasoning
- * was that a tie is a value rather than a shape, so no fixture could carry one —
- * and the spec seat then hand-wrote `format/number-tie`, whose input spells the
- * value one way and whose expected output spells it the other. Falsified, and
- * the rule that replaced mine is better because it says why: a value-level
- * property is reachable by a re-render whenever the two readings produce
- * different TEXT for the same value. Rounding is not, because a re-render never
- * rounds; the tie is, because a re-render always re-spells.
+ * I built it arguing that the corpus could reach neither tie rule, and I was
+ * wrong about both, in the same way, twice. `format/number-tie` reaches the
+ * rendering tie by spelling one value two ways; the `write/` tier reaches the
+ * rounding tie by calling the writer, which no tier used to do. The rule worth
+ * keeping is the corpus's own:
  *
- * `the formatter tier reaches the rendering tie` below is what keeps that
- * correction honest. An argument whose conclusion is an ABSENCE goes stale in
- * silence when the thing it claims is absent from grows, so it is asserted as a
- * presence instead.
+ *   An unreachability claim is a claim about the current state of someone's
+ *   ingenuity, not about the format.
  *
- * What is left to this table beyond the rounding tie: the shortest-spelling rule
- * across the whole double range, the exponent boundaries, and a negative zero
- * that a writer CREATES by rounding towards it, which no fixture can hand it.
+ * So nothing here asserts what the corpus cannot do. The two tests that used to
+ * are now presence assertions — `the formatter tier reaches the rendering tie`
+ * and `CorpusTest.write` — which go red if those cases are ever removed, rather
+ * than going quietly stale.
  */
 class NumberConformanceTest {
 

@@ -11,22 +11,14 @@
 // as the reference alongside JavaScript. Generating them from anything else
 // would be an implementation marking its own homework.
 //
-// # Why this is not a corpus fixture
+// # Why a table and not more fixtures
 //
-// ROUNDING ties are unreachable by the corpus: rounding happens only when a
-// WRITER emits a model, and all four corpus tiers RE-RENDER an existing
-// document, which SPEC 8.1 requires precisely because a writer rounds. The
-// corpus's reach ends at the writer boundary. A conforming implementation can
-// round every coordinate the wrong way and pass every tier.
-//
-// RENDERING ties ARE reachable, and an earlier version of this comment said they
-// were not. The argument was that a tie is a value rather than a shape, so no
-// fixture could carry one; format/number-tie then carried one, spelling the value
-// one way in its input and the other in its expected output. A value-level
-// property is reachable by a re-render whenever the two readings produce
-// different TEXT for the same value. What is left to this table beyond the
-// rounding tie is the shortest-spelling rule over the whole double range, the
-// exponent boundaries, and a negative zero a writer creates by rounding.
+// A fixture pins a rule at one value. format/number-tie does that for the
+// rendering tie and write/emit-boundary does it for the rounding tie. This table
+// says the rules hold across the whole binary64 range: every exponent boundary
+// of SPEC 4.5.3, both tie families, and a negative zero a writer creates by
+// rounding towards it. A fixture says what the answer is; a table says the
+// answer is not a coincidence.
 //
 // Measured 2026-09-09, both rules are live disagreements between real
 // implementations:
@@ -236,12 +228,12 @@ func roundHalfAwayFromZero(v float64, places int) string {
 // the shortest round-tripping decimal computed with ties-to-even differs from
 // the one computed with ties-away-from-zero.
 //
-// This is defined AS the thing under test rather than approximated by it. An
-// earlier version asked the weaker question "does a second, equally short
-// spelling also round-trip", which is true whenever the double's rounding
-// interval spans two candidates and not only at an exact tie. It mined 60 rows
-// that looked like ties, and reverting the tie rule left every one of them
-// green. A category that cannot fail is not a category.
+// The test is defined AS the thing under test, not approximated by it. The
+// tempting proxy — "does a second, equally short spelling also round-trip" — is
+// true whenever the double's rounding interval spans two candidates, which is
+// far commoner than an exact tie. A category mined that way discriminates
+// nothing while looking exactly as though it does, and assertDiscriminates below
+// is what refuses to let one be written.
 func isRenderTie(v float64) bool {
 	even, ok1 := shortest(v, false)
 	away, ok2 := shortest(v, true)

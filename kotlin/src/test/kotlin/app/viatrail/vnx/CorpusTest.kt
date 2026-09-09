@@ -69,6 +69,7 @@ class CorpusTest {
         // number-tie. A count rather than "not empty", because a tier losing a
         // case is exactly the shrinkage that passes quietly.
         assertTrue(formatPairs().size >= 3, "the format tier has shrunk to ${formatPairs().size} cases")
+        assertTrue(writePairs().isNotEmpty(), "the write tier is empty")
     }
 
     // ---------------------------------------------------------------- accept
@@ -199,6 +200,61 @@ class CorpusTest {
             checkCounts(case, sidecar, result)
             checkPositions(case, sidecar, result)
             checkTracks(case, sidecar, result)
+        }
+    }
+
+    // ----------------------------------------------------------------- write
+
+    private fun writePairs(): List<Pair<File, File>> {
+        val dir = File(corpus, "write")
+        assertTrue(dir.isDirectory, "the corpus tier write is missing at ${dir.absolutePath}")
+        return dir.listFiles()!!
+            .filter { it.name.endsWith(".in.vnx") }
+            .sortedBy { it.name }
+            .map { input ->
+                val written = File(dir, input.name.removeSuffix(".in.vnx") + ".written.vnx")
+                assertTrue(written.isFile, "${input.name} has no ${written.name}")
+                val sidecar = File(dir, input.name.removeSuffix(".in.vnx") + ".expect.json")
+                assertTrue(sidecar.isFile, "${input.name} has no sidecar: that is a failure, not a skip")
+                assertEquals("write", Sidecar.read(sidecar).kind, "${sidecar.name}: `kind` must match the directory")
+                input to written
+            }
+    }
+
+    /**
+     * The emit boundary (SPEC.md section 4.5.4).
+     *
+     * This tier is the only one that calls WRITE. Every other tier re-renders,
+     * and a re-render applies neither rounding nor shortening — so until this
+     * directory existed, the whole of 4.5.4 was reachable only by an
+     * implementation's own tests.
+     */
+    @Test
+    fun write() {
+        for ((input, written) in writePairs()) {
+            val expected = written.readText()
+            // Without this a writer that echoed its input would pass every case.
+            assertTrue(
+                input.readText() != expected,
+                "${input.name} is already in written form, so it cannot fail for a writer that echoes its input",
+            )
+            val document = try {
+                Vnx.readDocument(input.readText())
+            } catch (e: VnxRefusal) {
+                fail("${input.name} must be read before it can be written, and was refused: $e")
+            }
+            assertEquals(
+                emptyList(), document.diagnostics,
+                "${input.name}: a writer case's input must read cleanly",
+            )
+            val actual = Vnx.write(document.document)
+            assertEquals(expected, actual, "${input.name}: the writer's bytes.\n${diff(expected, actual)}")
+            // Rounding and shortening are both idempotent, so the written form is
+            // a fixed point. A case that fails this is a defect in the fixture.
+            assertEquals(
+                expected, Vnx.write(Vnx.readDocument(expected).document),
+                "${written.name} is not a fixed point of the writer",
+            )
         }
     }
 

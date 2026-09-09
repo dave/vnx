@@ -172,25 +172,38 @@ data class Track(
     val data: List<DataRecord>? = null,
 ) {
     /**
-     * Moving time in milliseconds, or null when the track carries no pip times
-     * and the question cannot be answered (SPEC.md section 3.5).
+     * Moving time in milliseconds, or null where it is not derivable
+     * (SPEC.md section 3.5).
      *
      * The sum over segments of the difference between the last and first pip
-     * times in that segment. Deliberately not the wall-clock span between
-     * `started` and `ended`, which pauses lengthen — and never 0 for a track
-     * with no times, which is indistinguishable from a track on which nobody
-     * moved.
+     * times IN THAT SEGMENT. Deliberately not the wall-clock span between
+     * `started` and `ended`, which pauses lengthen.
+     *
+     * Three rules that each look like a detail and are not:
+     *
+     * It is derivable only when EVERY segment carries a time on its first and
+     * its last pip. A partial sum is worse than zero rather than better: it is
+     * indistinguishable from a complete one, so no consumer can tell which it was
+     * given, where zero is at least recognisable as suspicious.
+     *
+     * The times are read from the ENDS of the segment, not from the first and
+     * last pip that happen to carry one. A segment whose interior is timed and
+     * whose ends are not has no measurable span.
+     *
+     * An EMPTY segment contributes zero and does not make the track unknown: it
+     * has no span to measure, so it is not an unmeasured span. A track with no
+     * segments AT ALL is unknown, for the same reason a partial sum is.
      */
     fun movingTimeMs(): Long? {
+        if (segments.isEmpty()) return null
         var total = 0L
-        var answered = false
         for (segment in segments) {
-            val first = segment.pips.firstOrNull { it.timeMs != null } ?: continue
-            val last = segment.pips.lastOrNull { it.timeMs != null } ?: continue
-            total += (last.timeMs!! - first.timeMs!!).toLong()
-            answered = true
+            if (segment.pips.isEmpty()) continue
+            val first = segment.pips.first().timeMs ?: return null
+            val last = segment.pips.last().timeMs ?: return null
+            total += (last - first).toLong()
         }
-        return if (answered) total else null
+        return total
     }
 }
 

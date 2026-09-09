@@ -200,10 +200,8 @@ internal class Encoder(private val rounding: Boolean) {
  * Time is an integer count of milliseconds and is not rounded.
  *
  * A separate object because it is a separate code path from number RENDERING and
- * needs its own guard. Both need the same tie rule and only rendering is reached
- * by the conformance corpus: every corpus tier re-renders an existing document,
- * and rounding happens only when a writer emits a model, so no fixture can
- * exercise this at all. `NumberConformanceTest` is what covers it.
+ * needs its own guard: the two need the same tie rule and share no code, so
+ * getting one right says nothing about the other.
  *
  * Ties round to EVEN. Measured 2026-09-09: Go's `strconv.FormatFloat` and
  * Python's `%.1f` both write 340.25 to one place as `340.2`, where JavaScript's
@@ -211,6 +209,11 @@ internal class Encoder(private val rounding: Boolean) {
  * wrong here. The tie is not a corner case in these channels — at 1 place every
  * odd quarter is one, so every quarter-metre elevation, and at 6 places every
  * odd multiple of 1/128.
+ *
+ * `Math.round` is the other trap and the worse one: in Java and JavaScript alike
+ * it rounds a tie towards POSITIVE INFINITY, so `Math.round(x * 10) / 10` agrees
+ * with the correct rule on every negative tie and disagrees on every positive
+ * one. A guard written over positive values only passes half the failures.
  */
 internal object Rounding {
     fun toPlaces(value: Double, places: Int): Double =

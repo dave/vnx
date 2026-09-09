@@ -327,11 +327,50 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `a track with no segments at all also reports unknown`() {
-        // An invention, reported: the spec derives moving time as a sum over
-        // segments, and an empty sum is 0 — but 0 here would again be a claim
-        // that nobody moved, which is the answer section 3.5 forbids.
+    fun `a track with no segments at all reports unknown`() {
+        // Section 3.5, now stated: a track with no segments at all is unknown, for
+        // the same reason a partial sum is.
         assertNull(read("""{"vnx":"0.1.0","tracks":[{"segments":[]}]}""").document.tracks!![0].movingTimeMs())
+    }
+
+    @Test
+    fun `a partly timed track is unknown, not the sum of the segments that are timed`() {
+        // A partial sum is worse than zero rather than better: it is
+        // indistinguishable from a complete one, so no consumer can tell which it
+        // was given, where zero is at least recognisable as suspicious. I summed,
+        // and so did three other implementations including the reference one, and
+        // every tier stayed green until accept/track-partly-timed.vnx existed.
+        val r = read(
+            """{"vnx":"0.1.0","tracks":[{"segments":[
+               {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
+               {"pips":[[-3,57.2,342],[-3,57.3,343]]}]}]}""",
+        )
+        assertNull(r.document.tracks!![0].movingTimeMs())
+    }
+
+    @Test
+    fun `the times are read from the ENDS of a segment, not from its timed pips`() {
+        // A segment whose interior is timed and whose ends are not has no
+        // measurable span. Taking the first and last pip that HAPPEN to carry a
+        // time invents one.
+        val r = read(
+            """{"vnx":"0.1.0","tracks":[{"segments":[
+               {"pips":[[-3,57,340],[-3,57.1,341,1000],[-3,57.2,342,61000],[-3,57.3,343]]}]}]}""",
+        )
+        assertNull(r.document.tracks!![0].movingTimeMs())
+    }
+
+    @Test
+    fun `an empty segment contributes zero and does not make a track unknown`() {
+        // It has no span to measure, so it is not an unmeasured span. Section 3.5
+        // says so explicitly, because the rule reads either way without it and two
+        // implementations differed with nothing to catch them.
+        val r = read(
+            """{"vnx":"0.1.0","tracks":[{"segments":[
+               {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
+               {"pips":[]}]}]}""",
+        )
+        assertEquals(60000L, r.document.tracks!![0].movingTimeMs())
     }
 
     // ------------------------------------------------------------ namespace

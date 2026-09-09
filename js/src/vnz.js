@@ -8,6 +8,7 @@
 import { VnxRefusal } from './errors.js';
 import { Diagnostic } from './errors.js';
 import { decodeText } from './decode.js';
+import { compareCodePoints } from './codepoint.js';
 import { rerender, write } from './emitpaths.js';
 import { readEntries, readEntryData, writeArchive, ZipError, METHOD_DEFLATE, METHOD_STORE } from './zip.js';
 
@@ -160,12 +161,30 @@ export function writeContainer(container) {
 
 function packContainer(container, documentText) {
   const entry = container.documentEntry ?? 'doc.vnx';
-  const files = [{ name: entry, data: Buffer.from(documentText, 'utf8') }];
+  const attachments = [];
   for (const [name, data] of container.attachments ?? []) {
     if (name === entry) continue;
-    files.push({ name, data });
+    attachments.push({ name, data });
   }
-  return writeArchive(files);
+  return writeArchive([{ name: entry, data: Buffer.from(documentText, 'utf8') }, ...sortEntries(attachments)]);
+}
+
+/**
+ * SPEC.md 7.1: the root document first, then attachments sorted by entry name
+ * by Unicode CODE POINT.
+ *
+ * Caller order is not a property of the content — two exporters over one
+ * library, one iterating a hash map and one a sorted list, would otherwise emit
+ * different archives while satisfying every other field in the table.
+ *
+ * The comparator is required and is not decoration. `Array.prototype.sort()`
+ * orders by UTF-16 code unit, which disagrees with code point above U+FFFF, and
+ * an attachment name may carry any character. This is the same divergence
+ * SPEC.md 4.5.1 calls out for object keys, in a place the spec does not repeat
+ * the warning.
+ */
+function sortEntries(files) {
+  return [...files].sort((a, b) => compareCodePoints(a.name, b.name));
 }
 
 /**
@@ -178,8 +197,8 @@ function packContainer(container, documentText) {
  * @returns {Buffer}
  */
 export function encodeContainer(documentText, attachments = []) {
-  const files = [{ name: 'doc.vnx', data: Buffer.from(documentText, 'utf8') }];
   const used = new Set(['doc.vnx']);
+  const files = [];
   for (const [name, data] of attachments) {
     const fault = pathFault(name);
     if (fault !== null) throw new VnxRefusal('zip-path-escapes', `attachment ${JSON.stringify(name)} escapes the archive: ${fault}`);
@@ -188,5 +207,8 @@ export function encodeContainer(documentText, attachments = []) {
     used.add(key);
     files.push({ name, data });
   }
-  return writeArchive(files);
+  return writeArchive([
+    { name: 'doc.vnx', data: Buffer.from(documentText, 'utf8') },
+    ...sortEntries(files),
+  ]);
 }

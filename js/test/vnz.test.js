@@ -13,7 +13,7 @@ const CORPUS = process.env.VNX_CORPUS
   ? path.resolve(process.env.VNX_CORPUS)
   : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'corpus');
 
-import { decodeContainer, encodeContainer } from '../src/vnz.js';
+import { decodeContainer, encodeContainer, rerenderContainer, writeContainer } from '../src/vnz.js';
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
 import { VnxRefusal } from '../src/errors.js';
 
@@ -526,4 +526,47 @@ test('the cross-seat checker is able to fail, on a fixture that violates SPEC.md
   assert.equal(done.status, 1, 'the checker must report faults for this archive');
   assert.match(done.stdout, /local crc=.* but central crc=/,
     'and must name the local-versus-central class specifically');
+});
+
+test('attachments are sorted by entry name, and the caller order is not preserved', () => {
+  // SPEC.md 7.1: the root document first, then attachments sorted by entry
+  // name. Caller order is not a property of the content, so two exporters over
+  // one library would otherwise emit different archives while satisfying every
+  // other field in the table.
+  //
+  // Supplied out of order ON PURPOSE. Two names already in sorted order would
+  // be decoration: the case only discriminates when the supplied order and the
+  // sorted order differ.
+  const buf = encodeContainer(DOC, [
+    ['z/last.txt', Buffer.from('z')],
+    ['a/first.txt', Buffer.from('a')],
+  ]);
+  assert.deepEqual(readEntries(buf).map((e) => e.name),
+    ['doc.vnx', 'a/first.txt', 'z/last.txt']);
+});
+
+test('the sort is by CODE POINT, which the default comparator is not', () => {
+  // The same divergence SPEC.md 4.5.1 names for object keys, in a place the
+  // spec does not repeat the warning. U+1F600 is above U+FFFD by code point and
+  // below it by UTF-16 code unit, because its first unit is a high surrogate.
+  const names = ['\u{1F600}.txt', '�.txt'];
+  const buf = encodeContainer(DOC, names.map((n) => [n, Buffer.from('x')]));
+  const emitted = readEntries(buf).slice(1).map((e) => e.name);
+  assert.deepEqual(emitted, ['�.txt', '\u{1F600}.txt']);
+  // ... and the default sort would have produced the other order, so this
+  // assertion discriminates rather than agreeing with both.
+  assert.deepEqual([...names].sort(), ['\u{1F600}.txt', '�.txt']);
+});
+
+test('repackaging a container sorts too, so a read-modify-write cannot reorder', () => {
+  const messy = writeArchive([
+    { name: 'doc.vnx', data: Buffer.from(DOC) },
+    { name: 'z/last.txt', data: Buffer.from('z') },
+    { name: 'a/first.txt', data: Buffer.from('a') },
+  ]);
+  const container = decodeContainer(messy);
+  for (const packed of [rerenderContainer(container), writeContainer(container)]) {
+    assert.deepEqual(readEntries(packed).map((e) => e.name),
+      ['doc.vnx', 'a/first.txt', 'z/last.txt']);
+  }
 });

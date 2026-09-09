@@ -25,9 +25,16 @@ pub const TOLERANCE_M: f64 = 50.0;
 /// Taking the cosine of each segment's own start latitude instead is the
 /// mistake the corpus's two tolerance fixtures exist to catch. Against the
 /// pair at HEAD — meridian arcs spanning thirteen degrees, running in opposite
-/// directions — that model reads 67.4 m where this one reads 45, and 36.8 m
-/// where this one reads 55. It therefore refuses a legal document in the first
-/// file and accepts an illegal one in the second.
+/// directions — that model reads 67.447 m where this one reads 45.000, and
+/// 36.845 m where this one reads 55.000. It therefore refuses a legal document
+/// in the first file and accepts an illegal one in the second.
+///
+/// Those four figures assume the mean radius SPEC 3.3.3 names, 6371008.8 m. A
+/// number that does not say which artefact and which constant it was measured
+/// under outlives both: the sidecars quote 67.409 and 36.824, computed with an
+/// earlier 111132.0 m per degree, which also puts the fixtures' own headline
+/// distances at 44.974 and 54.969 rather than at 45 and 55. The difference is
+/// 0.057% and moves no verdict.
 ///
 /// Those numbers are not restated in any test here. `tools/redproof.py`
 /// mutates this function to the wrong cosine and requires the LIVE corpus to

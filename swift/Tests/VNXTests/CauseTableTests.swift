@@ -42,12 +42,16 @@ final class CauseTableTests: XCTestCase {
                 for (i, r) in reported.enumerated() where !used[i] {
                     guard r.path == e.path, Corpus.satisfies(r, e) else { continue }
                     used[i] = true
-                    // `message_advisory` is what the older corpus matched on,
-                    // and it is what this library's table records. Nothing
-                    // ASSERTS it — SPEC 6.3 forbids comparing a diagnostic's
-                    // English — but keeping the mapping honest is what stops
-                    // the table drifting away from the wording it describes.
-                    if let substring = e.advisory { observed.append((r.cause, substring)) }
+                    // Deliberately NOT recorded, and this is a change: the
+                    // advisory used to be mapped here "to keep the table
+                    // honest". That put a diagnostic's English back into the
+                    // English table one layer down, and made this library assert
+                    // that its own prose matched another implementation's — the
+                    // exact coupling SPEC 6.3 removed when it renamed the field
+                    // `message_advisory` and said the English MUST NOT be
+                    // compared. Diagnostics are covered by
+                    // `testCorpusCodeTableMatchesTheSidecars`; the English table
+                    // is for refusals, which have no code yet.
                     found = true
                     break
                 }
@@ -57,8 +61,8 @@ final class CauseTableTests: XCTestCase {
         return observed
     }
 
-    /// Forward: every cause the corpus exercises maps, in the table, to exactly
-    /// the substring that corpus expectation used.
+    /// Forward: every REFUSAL cause the corpus exercises maps, in the table, to
+    /// exactly the substring that corpus expectation used.
     func testEveryObservedCauseMapsToTheSubstringTheCorpusUsed() throws {
         for (cause, substring) in try observe() {
             XCTAssertEqual(Cause.corpusSubstring[cause], substring,
@@ -83,7 +87,7 @@ final class CauseTableTests: XCTestCase {
     /// table promises. Asserted on live output rather than on a template, so a
     /// message rewritten in the decoder cannot drift away from the table
     /// without this going red.
-    func testTabledSubstringsAppearInLiveMessages() throws {
+    func testTabledSubstringsAppearInLiveRefusals() throws {
         var seen: [Cause: [String]] = [:]
         for tier in ["reject", "diagnose", "accept"] {
             for url in try Corpus.cases(in: tier) {
@@ -156,7 +160,7 @@ final class CauseTableTests: XCTestCase {
             "nonFiniteNumber", "containerMalformed", "containerPathEscapes",
             "containerDuplicateEntry", "containerNoDocument",
             "containerRootCompressionUnsupported",
-            "unknownKey", "requiredValueUnusable", "optionalValueUnusable",
+            "unknownKey", "wrongTypeRequired", "requiredKeyMissing", "wrongTypeOptional",
             "positionUnusable", "importanceOutOfRange", "timestampNotUTC",
             "dataRecordTypeUnusable", "polygonNestedRings", "polygonUnclosed",
             "linkArcNotInNetwork", "linkNodeNotInNetwork", "arcNodeNotInNetwork",

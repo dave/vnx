@@ -72,7 +72,7 @@ final class DocumentDecoder {
             if let array = raw.arrayValue {
                 document.rulesets = array
             } else {
-                diagnose(.optionalValueUnusable, at: "/rulesets",
+                diagnose(.wrongTypeOptional, at: "/rulesets",
                          "`rulesets` is \(raw.typeName); expected an array")
             }
         }
@@ -155,10 +155,10 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a waypoint") else { return nil }
         report(unknownKeysIn: o, against: shape, at: path)
         guard let atValue = o["at"] else {
-            diagnose(.requiredValueUnusable, at: path, "a waypoint with no `at` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "a waypoint with no `at` cannot exist and was dropped")
             return nil
         }
-        guard let at = position(atValue, at: pointer(path, "at")) else { return nil }
+        guard let at = position(atValue, at: pointer(path, "at"), cause: .wrongTypeRequired) else { return nil }
         var w = Waypoint(at: at)
         w.name = optionalString(o, "name", at: path)
         w.notes = optionalString(o, "notes", at: path)
@@ -190,11 +190,11 @@ final class DocumentDecoder {
     private func ring(_ o: [String: JSONValue], at path: String) -> [Position]? {
         let polygonPath = pointer(path, "polygon")
         guard let raw = o["polygon"] else {
-            diagnose(.requiredValueUnusable, at: path, "an area with no `polygon` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "an area with no `polygon` cannot exist and was dropped")
             return nil
         }
         guard let elements = raw.arrayValue else {
-            diagnose(.requiredValueUnusable, at: polygonPath, "`polygon` is \(raw.typeName); expected an array of positions, so the item was dropped")
+            diagnose(.wrongTypeRequired, at: polygonPath, "`polygon` is \(raw.typeName); expected an array of positions, so the item was dropped")
             return nil
         }
         let hasNestedRing = elements.contains { element in
@@ -223,11 +223,11 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a route") else { return nil }
         report(unknownKeysIn: o, against: Keys.route, at: path)
         guard let rawArcs = o["arcs"] else {
-            diagnose(.requiredValueUnusable, at: path, "a route with no `arcs` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "a route with no `arcs` cannot exist and was dropped")
             return nil
         }
         guard let arcValues = rawArcs.arrayValue else {
-            diagnose(.requiredValueUnusable, at: pointer(path, "arcs"),
+            diagnose(.wrongTypeRequired, at: pointer(path, "arcs"),
                      "`arcs` is \(rawArcs.typeName); expected an array, so the item was dropped")
             return nil
         }
@@ -253,11 +253,11 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a track") else { return nil }
         report(unknownKeysIn: o, against: Keys.track, at: path)
         guard let rawSegments = o["segments"] else {
-            diagnose(.requiredValueUnusable, at: path, "a track with no `segments` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "a track with no `segments` cannot exist and was dropped")
             return nil
         }
         guard let segmentValues = rawSegments.arrayValue else {
-            diagnose(.requiredValueUnusable, at: pointer(path, "segments"),
+            diagnose(.wrongTypeRequired, at: pointer(path, "segments"),
                      "`segments` is \(rawSegments.typeName); expected an array, so the item was dropped")
             return nil
         }
@@ -311,7 +311,7 @@ final class DocumentDecoder {
     private func decodeNodes(_ o: [String: JSONValue], at path: String) -> [String: Position]? {
         guard let raw = o["nodes"] else { return nil }
         guard let dict = raw.objectValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, "nodes"),
+            diagnose(.wrongTypeOptional, at: pointer(path, "nodes"),
                      "`nodes` is \(raw.typeName); expected an object keyed by node identifier")
             return nil
         }
@@ -325,7 +325,7 @@ final class DocumentDecoder {
     private func decodeArcs(_ o: [String: JSONValue], at path: String, nodes: [String: Position]) -> [String: NetworkArc]? {
         guard let raw = o["arcs"] else { return nil }
         guard let dict = raw.objectValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, "arcs"),
+            diagnose(.wrongTypeOptional, at: pointer(path, "arcs"),
                      "`arcs` is \(raw.typeName); expected an object keyed by arc identifier")
             return nil
         }
@@ -353,11 +353,11 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a chain") else { return nil }
         report(unknownKeysIn: o, against: Keys.chain, at: path)
         guard let rawLinks = o["links"] else {
-            diagnose(.requiredValueUnusable, at: path, "a chain with no `links` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "a chain with no `links` cannot exist and was dropped")
             return nil
         }
         guard let linkValues = rawLinks.arrayValue else {
-            diagnose(.requiredValueUnusable, at: pointer(path, "links"),
+            diagnose(.wrongTypeRequired, at: pointer(path, "links"),
                      "`links` is \(rawLinks.typeName); expected an array, so the item was dropped")
             return nil
         }
@@ -402,7 +402,7 @@ final class DocumentDecoder {
     private func endpoint(_ o: [String: JSONValue], _ key: String, at path: String, arcName: String, arc: NetworkArc, nodes: [String: Position]) -> LinkEndpoint? {
         let fieldPath = pointer(path, key)
         guard let raw = o[key] else {
-            diagnose(.requiredValueUnusable, at: path, "a link with no `\(key)` cannot exist and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "a link with no `\(key)` cannot exist and was dropped")
             return nil
         }
         if let name = raw.stringValue {
@@ -416,11 +416,11 @@ final class DocumentDecoder {
             return .node(name)
         }
         guard case .array = raw else {
-            diagnose(.requiredValueUnusable, at: fieldPath,
+            diagnose(.wrongTypeRequired, at: fieldPath,
                      "`\(key)` is \(raw.typeName); expected a node key or an inline position, so the link was dropped")
             return nil
         }
-        guard let p = position(raw, at: fieldPath) else { return nil }
+        guard let p = position(raw, at: fieldPath, cause: .wrongTypeRequired) else { return nil }
         // SPEC 3.3.3: an inline position MUST lie on the named arc.
         guard let distance = Projection.distance(from: p, toPolyline: arc.pips) else {
             diagnose(.inlineEndpointOnEmptyArc, at: fieldPath,
@@ -548,7 +548,7 @@ final class DocumentDecoder {
 
     private func object(_ value: JSONValue, at path: String, what: String) -> [String: JSONValue]? {
         guard let o = value.objectValue else {
-            diagnose(.requiredValueUnusable, at: path, "expected \(what) but found \(value.typeName); the item was dropped")
+            diagnose(.wrongTypeRequired, at: path, "expected \(what) but found \(value.typeName); the item was dropped")
             return nil
         }
         return o
@@ -557,7 +557,7 @@ final class DocumentDecoder {
     private func optionalString(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
         guard let raw = o[key] else { return nil }
         guard let s = raw.stringValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, key),
+            diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a string, so the field was dropped and the item kept")
             return nil
         }
@@ -566,11 +566,11 @@ final class DocumentDecoder {
 
     private func requiredString(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
         guard let raw = o[key] else {
-            diagnose(.requiredValueUnusable, at: path, "no `\(key)`; the item cannot exist without it and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "no `\(key)`; the item cannot exist without it and was dropped")
             return nil
         }
         guard let s = raw.stringValue else {
-            diagnose(.requiredValueUnusable, at: pointer(path, key),
+            diagnose(.wrongTypeRequired, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a string, so the item was dropped")
             return nil
         }
@@ -580,7 +580,7 @@ final class DocumentDecoder {
     private func optionalBool(_ o: [String: JSONValue], _ key: String, at path: String) -> Bool? {
         guard let raw = o[key] else { return nil }
         guard let b = raw.boolValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, key),
+            diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a boolean, so the field was dropped and the item kept")
             return nil
         }
@@ -591,7 +591,7 @@ final class DocumentDecoder {
                                   decode: (JSONValue, String) -> T?) -> [T]? {
         guard let raw = o[key] else { return nil }
         guard let array = raw.arrayValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, key),
+            diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected an array, so the field was dropped and the item kept")
             return nil
         }
@@ -609,7 +609,7 @@ final class DocumentDecoder {
     private func optionalTimestamp(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
         guard let raw = o[key] else { return nil }
         guard let text = raw.stringValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, key),
+            diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a timestamp string, so the field was dropped and the item kept")
             return nil
         }
@@ -656,7 +656,7 @@ final class DocumentDecoder {
     private func style(_ o: [String: JSONValue], at path: String) -> OpaqueObject? {
         guard let raw = o["style"] else { return nil }
         guard var s = raw.objectValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, "style"),
+            diagnose(.wrongTypeOptional, at: pointer(path, "style"),
                      "`style` is \(raw.typeName); expected an object, so the field was dropped and the item kept")
             return nil
         }
@@ -679,7 +679,7 @@ final class DocumentDecoder {
     private func dataRecords(_ o: [String: JSONValue], at path: String) -> [DataRecord]? {
         guard let raw = o["data"] else { return nil }
         guard let array = raw.arrayValue else {
-            diagnose(.optionalValueUnusable, at: pointer(path, "data"),
+            diagnose(.wrongTypeOptional, at: pointer(path, "data"),
                      "`data` is \(raw.typeName); expected an array of records, so the field was dropped and the item kept")
             return nil
         }
@@ -705,11 +705,11 @@ final class DocumentDecoder {
     private func pips(_ o: [String: JSONValue], at path: String) -> [Position]? {
         let pipsPath = pointer(path, "pips")
         guard let raw = o["pips"] else {
-            diagnose(.requiredValueUnusable, at: path, "no `pips`; the item cannot exist without geometry and was dropped")
+            diagnose(.requiredKeyMissing, at: path, "no `pips`; the item cannot exist without geometry and was dropped")
             return nil
         }
         guard let array = raw.arrayValue else {
-            diagnose(.requiredValueUnusable, at: pipsPath,
+            diagnose(.wrongTypeRequired, at: pipsPath,
                      "`pips` is \(raw.typeName); expected an array of positions, so the item was dropped")
             return nil
         }
@@ -723,14 +723,24 @@ final class DocumentDecoder {
     /// SPEC 4.1. Longitude first, then latitude — the single most likely
     /// transposition bug in this format, and one that parses cleanly in either
     /// order.
-    private func position(_ value: JSONValue, at path: String) -> Position? {
+    /// `cause` is what gets dropped, not what is wrong.
+    ///
+    /// The same malformed position is a different fact depending on where it
+    /// sits: under a waypoint's REQUIRED `at` the item goes, so it is
+    /// `wrongTypeRequired`; as one pip of a `pips` array only the pip goes, so it
+    /// is `positionUnusable` and the arc survives. SPEC 6.2 gives the remedies
+    /// and the corpus pins the first two codes; a reader that reported one code
+    /// for all of them would make a consumer re-derive which happened.
+    private func position(_ value: JSONValue, at path: String,
+                          cause: Cause = .positionUnusable) -> Position? {
         guard let channels = value.arrayValue else {
-            diagnose(.positionUnusable, at: path,
-                     "a position is \(value.typeName); expected an array [lon, lat, ele, time_ms]")
+            diagnose(cause, at: path,
+                     "a position is \(value.typeName); expected a position array [lon, lat, ele, time_ms]" +
+                     (cause == .wrongTypeRequired ? " — item dropped" : ""))
             return nil
         }
         guard channels.count >= 2 else {
-            diagnose(.positionUnusable, at: path,
+            diagnose(cause, at: path,
                      "a position carries \(channels.count) channel(s); it MUST carry at least lon and lat")
             return nil
         }

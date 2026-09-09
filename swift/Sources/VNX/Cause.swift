@@ -51,11 +51,26 @@ public enum Cause: String, Sendable, CaseIterable {
 
     /// An unrecognised key on an object this format defines (SPEC 3.10).
     case unknownKey
-    /// A value of the wrong JSON type, or otherwise unusable, under a REQUIRED
-    /// key. The item goes, because it cannot exist without the key.
-    case requiredValueUnusable
-    /// The same under an OPTIONAL key. The field goes and the item stays.
-    case optionalValueUnusable
+    /// A value of the wrong JSON type under a REQUIRED key. The ITEM goes,
+    /// because it cannot exist without the key.
+    ///
+    /// Separate from `requiredKeyMissing`, and the corpus note for
+    /// `diagnose/wrong-typed-value` says why: "a missing required key and a
+    /// wrong-typed required key take the same remedy but are not the same fact".
+    /// A reader that reports one code for both makes a consumer guess which
+    /// happened.
+    case wrongTypeRequired
+    /// A REQUIRED key is absent. Same remedy, different fact.
+    case requiredKeyMissing
+    /// A value of the wrong JSON type under an OPTIONAL key. The FIELD goes and
+    /// the item stays.
+    ///
+    /// The distinction from `wrongTypeRequired` is the whole point of there
+    /// being two codes: "`a field is gone` and `the item is gone` differ in
+    /// whether the rest of the item survives, and a consumer told only that a
+    /// type was wrong has to re-derive required-ness from section 3.10's table
+    /// to find out which happened, which is the lookup a code exists to save."
+    case wrongTypeOptional
     /// A position that will not parse.
     case positionUnusable
     /// `importance` outside 1 to 5 (SPEC 3.6), the one normative range this
@@ -106,6 +121,8 @@ public enum Cause: String, Sendable, CaseIterable {
     /// `message` alone. The runner reads whichever shape a sidecar carries.
     public static let corpusCode: [Cause: String] = [
         .unknownKey: "unknown-key",
+        .wrongTypeOptional: "wrong-type-optional",
+        .wrongTypeRequired: "wrong-type-required",
         .linkArcNotInNetwork: "link-arc-absent",
         .chainNotConnected: "chain-discontinuity",
         .polygonNestedRings: "polygon-nested-rings",
@@ -127,8 +144,7 @@ public enum Cause: String, Sendable, CaseIterable {
         .containerDuplicateEntry: "container-duplicate-entry",
         .containerNoDocument: "container-no-document",
         .containerRootCompressionUnsupported: "container-root-compression-unsupported",
-        .requiredValueUnusable: "required-value-unusable",
-        .optionalValueUnusable: "optional-value-unusable",
+        .requiredKeyMissing: "missing-required-key",
         .positionUnusable: "position-unusable",
         .importanceOutOfRange: "importance-out-of-range",
         .dataRecordTypeUnusable: "data-record-type-unusable",
@@ -140,8 +156,21 @@ public enum Cause: String, Sendable, CaseIterable {
         .attachmentCompressionUnsupported: "attachment-compression-unsupported",
     ]
 
-    /// The English substring the corpus expects (`refusal`) or advises
-    /// (`message_advisory`) for this cause today.
+    /// The English substring the corpus expects for this cause today, for
+    /// REFUSALS ONLY.
+    ///
+    /// Diagnostics used to be here too, matched on `message`. They are not any
+    /// more, and the removal is the point rather than a tidy-up: SPEC 6.3 gives a
+    /// pinned diagnostic a `code`, makes the code what a case compares, and says
+    /// the English MUST NOT be compared — which is why the corpus field is now
+    /// named `message_advisory`. Keeping those six entries would have rebuilt the
+    /// coupling the spec had just removed, one layer down, and would have made
+    /// this library assert that its own diagnostic prose matches another
+    /// implementation's. `Cause.corpusCode` covers diagnostics.
+    ///
+    /// A refusal has no code in the format yet, so this is the surface where the
+    /// corpus still compares English across implementations — its README calls
+    /// that a known defect, and typed refusal codes are the fix.
     ///
     /// Only the causes the corpus actually exercises appear here. A cause with
     /// no entry is one no corpus case reaches, and `CauseTableTests` proves
@@ -162,12 +191,6 @@ public enum Cause: String, Sendable, CaseIterable {
         .versionTooNew: "a newer reader is needed",
         .containerPathEscapes: "escapes the archive",
         .containerDuplicateEntry: "duplicate entry",
-        .unknownKey: "unknown key",
-        .linkArcNotInNetwork: "not in this network",
-        .chainNotConnected: "not one connected walk",
-        .polygonNestedRings: "nested rings",
-        .timestampNotUTC: "must be UTC with a Z suffix",
-        .inlineEndpointBeyondTolerance: "beyond the 50 m tolerance",
     ]
 }
 

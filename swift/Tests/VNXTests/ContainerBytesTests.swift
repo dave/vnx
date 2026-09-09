@@ -152,6 +152,70 @@ final class ContainerBytesTests: XCTestCase {
         XCTAssertEqual(u32(central), 0x0605_4B50, "the central directory ends where the EOCD begins")
     }
 
+    /// SPEC 7.1: attachments are SORTED BY ENTRY NAME, compared by Unicode code
+    /// point as in SPEC 4.5.1 — not emitted in the order the caller supplied.
+    ///
+    /// The archive above cannot witness this rule, and that is worth saying
+    /// rather than leaving to be discovered: its two attachment names happen to
+    /// be in sorted order already, so caller order and sorted order are the same
+    /// bytes. It certifies nine fields of 7.1's table and is silent on the
+    /// tenth. The four-implementation byte-identity result that prompted two of
+    /// my header fixes had the same hole for a stronger reason — its input
+    /// carried exactly ONE attachment, and with one attachment every ordering
+    /// rule agrees.
+    ///
+    /// So the question to ask of a byte-identity result is not whether the bytes
+    /// matched. It is WHICH FIELDS THE INPUT COULD VARY.
+    ///
+    /// This input varies the tenth: four attachments passed deliberately out of
+    /// order. Expected bytes from the same independent Python writer built from
+    /// 7.1's table.
+    private static let unsortedExpected = "UEsDBAoAAAgAAAAAIQB6uwngigAAAIoAAAAHAAAAZG9jLnZueHsKICAicHJvZmlsZSI6ICJmdWxsIiwKICAidm54IjogIjAuMS4wIiwKICAid2F5cG9pbnRzIjogWwogICAgewogICAgICAibmFtZSI6ICJJbiBhIGNvbnRhaW5lciIsCiAgICAgICJhdCI6IFstMy42NzUsIDU3LjEyMDFdCiAgICB9CiAgXQp9ClBLAwQKAAAIAAAAACEAB6Hq3QIAAAACAAAADwAAAGFhYS9lYXJsaWVyLnR4dGEKUEsDBAoAAAgAAAAAIQCdatx0AgAAAAIAAAALAAAAenotbGFzdC50eHR6ClBLAwQKAAAIAAAAACEA+Q4LTgMAAAADAAAACAAAAMOGYWUudHh0YWUKUEsDBAoAAAgAAAAAIQA1YL4VCQAAAAkAAAAPAAAA4oSrYW5nc3Ryb20udHh0YW5nc3Ryb20KUEsBAgoACgAACAAAAAAhAHq7CeCKAAAAigAAAAcAAAAAAAAAAAAAAAAAAAAAAGRvYy52bnhQSwECCgAKAAAIAAAAACEAB6Hq3QIAAAACAAAADwAAAAAAAAAAAAAAAACvAAAAYWFhL2VhcmxpZXIudHh0UEsBAgoACgAACAAAAAAhAJ1q3HQCAAAAAgAAAAsAAAAAAAAAAAAAAAAA3gAAAHp6LWxhc3QudHh0UEsBAgoACgAACAAAAAAhAPkOC04DAAAAAwAAAAgAAAAAAAAAAAAAAAAACQEAAMOGYWUudHh0UEsBAgoACgAACAAAAAAhADVgvhUJAAAACQAAAA8AAAAAAAAAAAAAAAAAMgEAAOKEq2FuZ3N0cm9tLnR4dFBLBQYAAAAABQAFAB4BAABoAQAAAAA="
+
+    private func unsortedArchive() -> Data {
+        var document = Document()
+        document.profile = "full"
+        document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201),
+                                       name: "In a container", notes: nil, folder: nil,
+                                       hidden: nil, style: nil, data: nil)]
+        return VNX.writeContainer(document: document, attachments: [
+            Attachment(path: "zz-last.txt", bytes: Data("z\n".utf8)),
+            Attachment(path: "\u{212B}angstrom.txt", bytes: Data("angstrom\n".utf8)),
+            Attachment(path: "aaa/earlier.txt", bytes: Data("a\n".utf8)),
+            Attachment(path: "\u{00C6}ae.txt", bytes: Data("ae\n".utf8)),
+        ])
+    }
+
+    func testAttachmentsAreSortedByEntryName() throws {
+        let names = try Zip.entries(in: [UInt8](unsortedArchive())).map(\.name)
+        XCTAssertEqual(names, ["doc.vnx", "aaa/earlier.txt", "zz-last.txt",
+                               "\u{00C6}ae.txt", "\u{212B}angstrom.txt"],
+                       "the root document first, then attachments sorted by code point")
+        XCTAssertEqual(unsortedArchive(), Data(base64Encoded: Self.unsortedExpected)!,
+                       "and byte-identical to a writer built from SPEC 7.1's table")
+    }
+
+    /// That the sort uses SPEC 4.5.1's comparator and not Swift's `<`.
+    ///
+    /// Measured: Swift's `<` places `U+212B` BELOW `U+00C6`, because ANGSTROM
+    /// SIGN canonically decomposes to `U+00C5`; code point places it far above.
+    /// The two orders differ on exactly this input, which is what makes the
+    /// comparator choice load-bearing rather than a matter of taste. Same trap
+    /// as canonical key ordering one file over, and the third time a Swift
+    /// default has turned out to be a third order in this library.
+    func testTheSortIsByCodePointNotSwiftsCollation() throws {
+        let names = ["zz-last.txt", "\u{212B}angstrom.txt", "aaa/earlier.txt", "\u{00C6}ae.txt"]
+        XCTAssertNotEqual(names.sorted(), names.sorted(by: CanonicalWriter.codePointLess),
+                          "if these agreed, this test would be proving nothing")
+        XCTAssertTrue("\u{212B}" < "\u{00C6}", "Swift normalises")
+        XCTAssertFalse(CanonicalWriter.codePointLess("\u{212B}", "\u{00C6}"), "code point does not")
+
+        let emitted = try Zip.entries(in: [UInt8](unsortedArchive())).map(\.name)
+        XCTAssertEqual(Array(emitted.dropFirst()), names.sorted(by: CanonicalWriter.codePointLess))
+        XCTAssertNotEqual(Array(emitted.dropFirst()), names.sorted(),
+                          "Swift's own order would have produced a different archive")
+    }
+
     /// A writer that stamped the clock could not be byte-compared with anything,
     /// including its own previous run.
     func testTheArchiveDoesNotDependOnWhenItWasWritten() {

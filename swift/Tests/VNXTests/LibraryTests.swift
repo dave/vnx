@@ -335,7 +335,7 @@ final class LibraryTests: XCTestCase {
         """))
         XCTAssertEqual(result.document.folders, [])
         XCTAssertEqual(result.document.waypoints?.count, 1)
-        XCTAssertEqual(Set(result.diagnostics.map(\.cause)), [.requiredValueUnusable, .folderNotPresent])
+        XCTAssertEqual(Set(result.diagnostics.map(\.cause)), [.requiredKeyMissing, .folderNotPresent])
     }
 
     // MARK: - Networks (SPEC 3.3, 6.2)

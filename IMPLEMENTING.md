@@ -924,17 +924,32 @@ notice that no tier does it for archive structure.
 ### 6.6 A relayed fact is not a measurement
 
 Several implementations coordinating through one person means most facts reach
-most seats second-hand, and a confident relay is indistinguishable from a
-measured one by the time it arrives. Two instances in a single day, both from the
-seat best placed to be believed. A claim about which control characters Go escapes
-was passed on as measured and was not; measuring it properly gave a different
-answer. And a ruling was relayed to a seat by another seat rather than issued
-directly, where the relaying seat was the author of the thing being adopted,
-which is the one case where its interest and the message coincide.
+most seats second-hand, and a confident relay is indistinguishable from a measured
+one by the time it arrives. Four instances in a single day, all from seats well
+placed to be believed, and each in a different costume: a claim about which
+control characters Go escapes, passed on as measured and wrong; a design
+assumption that a rule was permanently beyond the corpus's reach; a commit
+attributed to the wrong seat; and a count of a document's own prose that was sound
+when taken and stale by the time it was quoted.
 
-Mark provenance on every fact you did not measure yourself, and name the seat
-that did. Where you have only a relay, say so; a reader can then go and measure
-it, which is the difference between a document and a rumour.
+The condition that lets such a fact travel is worth stating on its own, because it
+is not carelessness and cannot be fixed by care. **A wrong fact travels
+unchallenged when the conclusion it supports is right anyway.** One seat reasoned
+about a standard library's escaping rather than running it, reached the correct
+ruling by a wrong route, and nobody had reason to check: the answer would have been
+the same either way, so the evidence was never load-bearing enough to test.
+
+Mark provenance on every fact you did not measure yourself, and name the seat that
+did. Where you have only a relay, say so; a reader can then go and measure it,
+which is the difference between a document and a rumour.
+
+The other half is what to do when a relayed fact reaches you as an instruction.
+Three rulings in one day were corrected by whoever implemented them rather than by
+anyone reading them, and all three came back from the seat that had to make the
+thing work. So: **a ruling is a hypothesis until somebody implements it**, and the
+implementer is the reviewer whose disagreement is worth most. Not because they are
+more careful, but because they are the only party who finds out what the ruling
+actually requires.
 
 ### 6.7 Two runs against a shared tree answer different questions
 

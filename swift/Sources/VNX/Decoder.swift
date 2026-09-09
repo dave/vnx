@@ -77,15 +77,31 @@ final class DocumentDecoder {
     private func refuseIfNewer(_ version: SemanticVersion) throws {
         let majorOrder = SemanticVersion.compare(version.major, readerVersion.major)
         let minorOrder = SemanticVersion.compare(version.minor, readerVersion.minor)
-        // SPEC 2.2. Through 0.x the MINOR number is a breaking axis, so both
-        // components refuse. From 1.0 onward minor versions are additive and
-        // only a MAJOR increment refuses. The PATCH component never refuses at
-        // any version, which is why it is absent from both branches.
-        let readerIsPreOne = SemanticVersion.compare(readerVersion.major, "0") == 0
-        let tooNew = majorOrder > 0 || (readerIsPreOne && majorOrder == 0 && minorOrder > 0)
-        if tooNew {
+
+        // SPEC 2.2: the rules a reader applies are selected by the DOCUMENT's
+        // MAJOR component, not by the reader's. They describe the compatibility
+        // guarantees the document's author was working under, and a newer reader
+        // cannot grant itself later rules over an older document.
+        //
+        // So a reader that does not implement the document's major series
+        // refuses it outright, rather than reading it under the rules of a
+        // series it does implement — reading a 0.x document under 1.x's
+        // ignore-what-you-do-not-recognise rule is a guess about guarantees the
+        // document never carried.
+        if majorOrder != 0 {
             throw Refusal(.versionTooNew,
-                          "this document is version \(version.display) and a newer reader is needed; this reader supports \(readerVersion.major).\(readerVersion.minor).x")
+                          "this document is version \(version.display) and a newer reader is needed; this reader implements the \(readerVersion.major).x series and MUST NOT read another one under its own rules")
+        }
+
+        // Within the document's own major series. Through 0.x the MINOR number
+        // is a breaking axis, so a higher minor refuses; from 1.0 onward minor
+        // versions are additive and only a MAJOR increment refuses. The PATCH
+        // component never refuses at any version, which is why it appears in
+        // neither branch.
+        let documentIsPreOne = SemanticVersion.compare(version.major, "0") == 0
+        if documentIsPreOne && minorOrder > 0 {
+            throw Refusal(.versionTooNew,
+                          "this document is version \(version.display) and a newer reader is needed; through 0.x the minor number is a breaking axis and this reader supports \(readerVersion.major).\(readerVersion.minor).x")
         }
     }
 
@@ -398,7 +414,7 @@ final class DocumentDecoder {
                      "the arc \"\(arcName)\" has no vertices, so an inline endpoint on it has no distance to measure; the link was dropped")
             return nil
         }
-        if distance > Projection.toleranceMetres {
+        if !Projection.isWithinTolerance(distance) {
             diagnose(.inlineEndpointBeyondTolerance, at: fieldPath,
                      "the inline endpoint is \(rounded(distance)) m from the arc \"\(arcName)\", beyond the 50 m tolerance; the link was dropped")
             return nil
@@ -592,6 +608,15 @@ final class DocumentDecoder {
         return text
     }
 
+    /// SPEC 4.3, checked for SHAPE ONLY.
+    ///
+    /// `2026-13-45T99:99:99Z` matches the grammar and is accepted. A reader MUST
+    /// NOT refuse or diagnose a record-level timestamp on calendar grounds, by
+    /// the same rule of SPEC 6.2 that leaves `icon-size` unchecked: a reader
+    /// checks a value only where this document states a normative range or
+    /// enumeration. Silence would diverge here rather than converge, because a
+    /// reader built on a date library gets the calendar check for free and one
+    /// parsing the grammar directly does not.
     private func isUTCTimestamp(_ s: String) -> Bool {
         // YYYY-MM-DDTHH:MM:SS(.fraction)?Z, checked without NSRegularExpression
         // so the shape is visible rather than encoded in a pattern.

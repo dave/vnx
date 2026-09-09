@@ -140,21 +140,38 @@ final class LibraryTests: XCTestCase {
 
     /// SPEC 4.5.1: lexicographic means BY UNICODE CODE POINT, and the note
     /// warns that an implementation whose default comparison is by UTF-16 code
-    /// unit must supply its own comparator. Swift's `String <` is neither: it
-    /// compares normalised grapheme clusters.
-    func testKeyOrderIsByCodePointNotUTF16NorSwiftDefault() {
-        // U+FFFD sorts BELOW U+10000 by code point and ABOVE it by UTF-16 code
-        // unit, because a supplementary scalar begins with a surrogate at
-        // U+D800. This is the disagreement SPEC 4.5.1 names.
-        let high = "\u{10000}", replacement = "\u{FFFD}"
-        XCTAssertTrue(CanonicalWriter.codePointLess(replacement, high))
-        XCTAssertTrue(Array(high.utf16)[0] < Array(replacement.utf16)[0],
-                      "UTF-16 order disagrees, which is the trap")
+    /// unit must supply its own comparator.
+    ///
+    /// **Swift is not that implementation, and an earlier version of this test
+    /// proved nothing.** It used an astral pair — U+1F600 against U+FFFD — on
+    /// the assumption that Swift sorted by UTF-16 code unit and would therefore
+    /// put the surrogate first. Measured: `"\u{1F600}" < "\u{FFFD}"` is false in
+    /// Swift, which agrees with code point. A comparator broken for the hazard
+    /// SPEC 4.5.1 names would have passed that test. Corrected 2026-09-09 after
+    /// the JavaScript seat measured it.
+    ///
+    /// Swift IS still a third order, and this is the input that shows it:
+    /// U+212B ANGSTROM SIGN canonically decomposes to U+00C5, so Swift's
+    /// normalising comparison places it below U+00C6 while code point places it
+    /// far above. That is why the comparator has to exist.
+    func testKeyOrderIsByCodePointAndSwiftsDefaultIsAThirdOrder() {
+        let angstrom = "\u{212B}", ae = "\u{00C6}"
+        XCTAssertTrue(angstrom < ae, "Swift normalises: U+212B decomposes to U+00C5, which is below U+00C6")
+        XCTAssertFalse(CanonicalWriter.codePointLess(angstrom, ae), "by code point, 0x212B is far above 0x00C6")
 
         let rendered = String(decoding: CanonicalWriter.render(
-            .object([high: .number(1), replacement: .number(2)])), as: UTF8.self)
-        XCTAssertLessThan(rendered.range(of: replacement)!.lowerBound,
-                          rendered.range(of: high)!.lowerBound)
+            .object([angstrom: .number(1), ae: .number(2)])), as: UTF8.self)
+        XCTAssertLessThan(rendered.range(of: ae)!.lowerBound,
+                          rendered.range(of: angstrom)!.lowerBound,
+                          "the canonical writer must not inherit Swift's collation")
+
+        // The astral case, kept as a measurement rather than as the discriminator
+        // it was mistaken for: Swift and code point agree here.
+        let emoji = "\u{1F600}", replacement = "\u{FFFD}"
+        XCTAssertFalse(emoji < replacement)
+        XCTAssertFalse(CanonicalWriter.codePointLess(emoji, replacement))
+        XCTAssertTrue(Array(emoji.utf16)[0] < Array(replacement.utf16)[0],
+                      "UTF-16 order is the one that would disagree, and Swift does not use it")
     }
 
     /// SPEC 4.5.1: classification is by the VALUE present in this object, not
@@ -501,6 +518,16 @@ final class LibraryTests: XCTestCase {
         XCTAssertNotNil(Container.unsafePath("C:/windows"))
         XCTAssertNotNil(Container.unsafePath("a\\b"))
         XCTAssertNil(Container.unsafePath("..b/photo.jpg"))
+
+        // Ruled 2026-09-09: a backslash is refused UNCONDITIONALLY and BEFORE
+        // the `..` segment hunt, so the question the JavaScript seat found —
+        // whether `\` counts as a separator while hunting for a `..` segment —
+        // never has to be answered. A reader splitting on both refuses `..\x`
+        // and one splitting on `/` only accepts it, and neither fails any tier.
+        // On a Windows-authored archive that difference is a real escape.
+        XCTAssertNotNil(Container.unsafePath("..\\x"))
+        XCTAssertNotNil(Container.unsafePath("a\\..\\b"))
+        XCTAssertNotNil(Container.unsafePath("\\etc\\passwd"))
     }
 
     /// SPEC 7: "A reader MUST read an archive that uses the ZIP64 extensions."

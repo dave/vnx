@@ -99,8 +99,10 @@ enum Corpus {
                     let code = e["code"]?.stringValue
                     let message = e["message"]?.stringValue
                     let advisory = e["message_advisory"]?.stringValue
-                    guard code != nil || message != nil else {
-                        throw SidecarError("the diagnostic at \(path) in \(url.lastPathComponent) names neither a `code` nor a `message`, so nothing about it can be asserted")
+                    // SPEC 6.3: a diagnostic a corpus case pins MUST carry a
+                    // `code`, and the code is what the case compares.
+                    guard code != nil else {
+                        throw SidecarError("the diagnostic at \(path) in \(url.lastPathComponent) names no `code`; SPEC 6.3 requires one and forbids comparing the English, so there is nothing here a runner may assert")
                     }
                     return ExpectedDiagnostic(path: path, code: code, message: message, advisory: advisory)
                 }
@@ -117,14 +119,16 @@ enum Corpus {
 
     /// Whether a reported diagnostic satisfies a sidecar's expectation.
     ///
-    /// `code` when the sidecar names one, because that is the normative
-    /// vocabulary; the English substring when it does not, because some
-    /// sidecars still carry only that. Never `message_advisory`, whose name
-    /// says it is not a requirement.
+    /// On the `code` and nothing else. SPEC 6.3 requires a pinned diagnostic to
+    /// carry one and says the English MUST NOT be compared; SPEC 8.1 was
+    /// corrected on 2026-09-09 to stop contradicting it one section away.
+    ///
+    /// There is deliberately no English fallback here. An expectation with no
+    /// `code` is not something to match loosely — it is a sidecar that pins
+    /// nothing a runner may compare, and `Sidecar` refuses it outright.
     static func satisfies(_ reported: Diagnostic, _ expected: Sidecar.ExpectedDiagnostic) -> Bool {
-        if let code = expected.code { return reported.code == code }
-        if let message = expected.message { return reported.message.contains(message) }
-        return false
+        guard let code = expected.code else { return false }
+        return reported.code == code
     }
 
     /// Every cause the corpus was observed to produce, recorded so that

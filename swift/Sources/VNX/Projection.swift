@@ -21,6 +21,19 @@ enum Projection {
     /// under a metre.
     static let toleranceMetres = 50.0
 
+    /// SPEC 3.3.3: "A position exactly 50 metres from its arc is within
+    /// tolerance and is accepted."
+    ///
+    /// No conformance case can pin this boundary and none should be attempted —
+    /// a distance at exactly the threshold is not reachable by a fixture,
+    /// because the computed value depends on the model and no two models land
+    /// on 50.000. The prose is the permanent statement of the rule, and
+    /// `LibraryTests.testTheToleranceBoundaryIsInclusive` is the only place it
+    /// can be checked.
+    static func isWithinTolerance(_ distanceMetres: Double) -> Bool {
+        distanceMetres <= toleranceMetres
+    }
+
     /// The least distance in metres from `point` to the polyline, or nil where
     /// the polyline has no vertices — which has no distance, and which SPEC
     /// 3.3.3 says a reader must diagnose rather than invent a number for.

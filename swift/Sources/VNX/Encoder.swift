@@ -206,20 +206,12 @@ enum DocumentEncoder {
         return channels
     }
 
-    /// SPEC 4.5.4: a tie rounds to EVEN. An elevation of `340.25` becomes
-    /// `340.2`, not `340.3` — these are exact doubles and a quarter-metre grid
-    /// produces them. Swift's bare `.rounded()` is `.toNearestOrAwayFromZero`
-    /// and gets every one of them wrong.
-    ///
-    /// No re-render can detect a disagreement here, because rounding happens
-    /// only when a writer emits a model, and every corpus tier re-renders. This
-    /// rule has no fixture anywhere and is guarded only by a unit test.
+    /// SPEC 4.5.4, delegated to `Rounding`, which computes it from the value's
+    /// exact decimal expansion rather than by scaling and dividing. The
+    /// difference is not a corner: `0.15` at one place is `0.1` exactly and
+    /// `0.2` scaled.
     private static func round(_ x: Double, places: Int) -> Double {
-        let scale = pow(10.0, Double(places))
-        let r = (x * scale).rounded(.toNearestOrEven) / scale
-        // -0 is the same value as 0 and renders as `0`; normalising here keeps
-        // a model comparison from distinguishing them either.
-        return r == 0 ? 0 : r
+        Rounding.toDecimalPlaces(x, places)
     }
 
     // MARK: - Field helpers

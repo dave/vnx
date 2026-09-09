@@ -16,9 +16,19 @@ import Foundation
 /// round-half-to-even tie break. Nothing about that is guaranteed by Swift's
 /// documentation, so it is measured rather than assumed: see
 /// `NumberRenderingTests.testShortestDigitsBreakTiesToEven`, which pins twenty
-/// doubles that are exact ties at their shortest length. Both spellings of such
-/// a tie parse back to the same double, so no round-trip check anywhere can
-/// catch a disagreement — only a byte comparison against a pinned expectation.
+/// doubles that are exact ties at their shortest length.
+///
+/// This tie IS reachable by a corpus case, and `format/number-tie` is that case:
+/// it carries one spelling as input and the other as expected output, so it
+/// cannot pass for a formatter that echoes its input. No VALUE-level check can
+/// see it — both spellings parse to the same double — which is why the accept
+/// tier, which re-renders bytes that are already canonical, is blind to it.
+///
+/// The distinction generalises, and it is worth keeping straight: a value-level
+/// property is reachable by a re-render whenever the two readings produce
+/// different TEXT for the same value, because a re-render always re-spells. The
+/// rounding of SPEC 4.5.4 is NOT reachable that way, because a re-render never
+/// rounds — see `Rounding`, whose only guard is a unit test.
 func ecmaScriptNumber(_ x: Double) -> String {
     precondition(x.isFinite, "SPEC 4.2 forbids non-finite numbers on the wire")
     // SPEC 4.5.3: negative zero renders as `0`. Two writers disagreeing about

@@ -66,14 +66,22 @@ first has a corpus wording.
 | `Encoder.swift` | the model back to JSON, in either emit mode |
 | `Projection.swift` | SPEC 3.3.3's equirectangular map and the 50 m tolerance |
 | `Inflate.swift`, `Zip.swift`, `Container.swift` | RFC 1951 inflate, ZIP with ZIP64, and SPEC 7 |
+| `Rounding.swift` | SPEC 4.5.4 rounding, from the exact decimal expansion, ties to even |
 | `Cause.swift` | reason codes, and the tables tying them to the corpus |
 
 ## Tests
 
 `Tests/VNXTests/CorpusTests.swift` runs all four corpus tiers.
 `LibraryTests.swift` covers what the corpus does not reach — ZIP64 central
-directories, the root-document rule at depth, rounding ties, version spellings,
-model-first round trips. `NumberRenderingTests.swift` pins twenty doubles that
-are exact ties at their shortest decimal length; both spellings of each parse
-back to the same double, so nothing but a pinned expectation can catch a
-disagreement there.
+directories, the root-document rule at depth, version spellings, model-first
+round trips. `NumberRenderingTests.swift` pins twenty doubles that are exact
+ties at their shortest decimal length; `format/number-tie` reaches that rule
+too, since it carries one spelling in and the other out.
+
+`RoundingTests.swift` is the guard for the one rule no corpus tier can reach.
+SPEC 4.5.4's rounding runs only when a WRITER emits a model, and every tier
+re-renders. It is checked against `RoundingOracle`, 3,308 triples computed with
+rational arithmetic, because the obvious implementation is wrong in a way that
+looks right: scaling by a power of ten MANUFACTURES ties that the exact decimal
+expansion does not have (`0.15` is `0.1`, not `0.2`) and destroys ties it does
+(`0.45` is `0.5`, not `0.4`).

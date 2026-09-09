@@ -108,8 +108,17 @@ enum Container {
     /// SEGMENT is refused. `..` is a segment, not a substring: `a..b/photo.jpg`
     /// is a legal name and escapes nothing.
     static func unsafePath(_ name: String) -> String? {
-        if name.hasPrefix("/") { return "is an absolute path" }
+        // The backslash refusal comes FIRST, unconditionally, and that ordering
+        // is the point rather than a tidiness. SPEC 7 says a `..` SEGMENT is
+        // refused and that `..` is a segment rather than a substring, but never
+        // says whether `\` counts as a separator while hunting for one — so a
+        // reader splitting on both refuses `..\x` and a reader splitting on `/`
+        // alone accepts it, and NEITHER fails any corpus tier. On a
+        // Windows-authored archive that is a live escape. Refusing the
+        // backslash before the hunt means the subtle question never arises.
+        // Deliberately stricter than the ZIP appnote; ruled 2026-09-09.
         if name.contains("\\") { return "is not forward-slash separated" }
+        if name.hasPrefix("/") { return "is an absolute path" }
         let scalars = Array(name.unicodeScalars)
         if scalars.count >= 2, scalars[1] == ":",
            (scalars[0].properties.isAlphabetic && scalars[0].value < 128) {

@@ -21,6 +21,29 @@ enum Zip {
     static let methodStored: UInt16 = 0
     static let methodDeflate: UInt16 = 8
 
+    // The three header fields SPEC 7 does not constrain, and which therefore
+    // decide whether two languages' `.vnz` files are byte-identical. SPEC 4.5
+    // requires byte-identical output from every conforming writer, but says it
+    // of canonical JSON; SPEC 7 says nothing about the ZIP envelope. Reported
+    // as a gap. Until it is ruled, these carry the values that are correct
+    // against [APPNOTE] rather than the values a language's defaults produce,
+    // and the Kotlin seat writes the same three.
+
+    /// 1.0 — the minimum version for a stored entry. 2.0 (20) is the floor for
+    /// DEFLATE, so a stored-only archive that stamps 20 overstates what a
+    /// reader needs. Verified against the Kotlin seat 2026-09-09.
+    static let versionNeededStored: UInt16 = 10
+
+    /// 1980-01-01 00:00:00, the zero of the MS-DOS timestamp. `0x0000` in the
+    /// date half is NOT that zero: it decodes as day 0 of month 0, which is not
+    /// a date, and some tools reject it. The 16 bits are year-1980 (7) | month
+    /// (4) | day (5), so 1980-01-01 is 0x0021.
+    ///
+    /// A fixed timestamp rather than the clock: a writer whose output depends
+    /// on when it ran cannot be byte-compared with anything, including itself.
+    static let dosTime: UInt16 = 0x0000
+    static let dosDate: UInt16 = 0x0021
+
     // MARK: - Reading
 
     static func entries(in data: [UInt8]) throws -> [Entry] {
@@ -157,10 +180,10 @@ enum Zip {
             let crc = CRC32.checksum(body)
             let offset = out.count
             out += [0x50, 0x4B, 0x03, 0x04]
-            out += le16(20)              // version needed
+            out += le16(versionNeededStored)
             out += le16(0x0800)          // UTF-8 filename flag, per SPEC 7
             out += le16(methodStored)
-            out += le16(0) + le16(0)     // MS-DOS time and date
+            out += le16(dosTime) + le16(dosDate)
             out += le32(crc)
             out += le32(UInt32(body.count))
             out += le32(UInt32(body.count))
@@ -170,10 +193,10 @@ enum Zip {
             out += body
 
             central += [0x50, 0x4B, 0x01, 0x02]
-            central += le16(20) + le16(20)
+            central += le16(versionNeededStored) + le16(versionNeededStored)
             central += le16(0x0800)
             central += le16(methodStored)
-            central += le16(0) + le16(0)
+            central += le16(dosTime) + le16(dosDate)
             central += le32(crc)
             central += le32(UInt32(body.count))
             central += le32(UInt32(body.count))

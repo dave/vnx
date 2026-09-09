@@ -56,10 +56,15 @@ final class NumberRenderingTests: XCTestCase {
     /// digit.
     ///
     /// This is the trap SPEC 4.5.3 cannot state, because ECMAScript's own prose
-    /// does not decide ties: both spellings parse back to the same double, so a
-    /// round-trip check agrees with either, no fixture in the corpus contains
-    /// one, and two implementations can disagree here for years with nothing
-    /// going red anywhere. The only instrument is a pinned expectation.
+    /// does not decide ties: both spellings parse back to the same double, so no
+    /// value-level check agrees or disagrees, and two implementations can differ
+    /// here with nothing going red.
+    ///
+    /// It is NOT unreachable by the corpus, and an earlier version of this
+    /// comment said it was. `format/number-tie` carries one spelling in and the
+    /// other out, and two seats have measured that a renderer taking ties away
+    /// from zero reddens the formatter tier. This test remains the sharper
+    /// instrument — twenty ties against one — but it is not the only one.
     func testShortestDigitsBreakTiesToEven() {
         let cases: [(UInt64, String)] = [
             (0x405A91BB80000000, "106.27706909179688"),
@@ -98,6 +103,26 @@ final class NumberRenderingTests: XCTestCase {
     /// which is where `time_ms` lives.
     func testTheSpecsWorkedTie() {
         XCTAssertEqual(ecmaScriptNumber(1497898211722073.25), "1497898211722073.2")
+    }
+
+    /// Why `format/number-tie` can see a tie at all, stated as a property of
+    /// the fixture rather than as a belief about it: its two files carry
+    /// DIFFERENT TEXT for the SAME double. That is what makes the case
+    /// impossible to pass by echoing, and impossible to pass by any check that
+    /// compares values.
+    func testTheFormatTiersTieCaseIsTwoSpellingsOfOneDouble() throws {
+        let directory = Corpus.root.appendingPathComponent("format")
+        let input = try Data(contentsOf: directory.appendingPathComponent("number-tie.in.vnx"))
+        let expected = try Data(contentsOf: directory.appendingPathComponent("number-tie.canonical.vnx"))
+        XCTAssertNotEqual(input, expected, "the two files must differ in text")
+
+        func tieValue(_ data: Data) throws -> Double {
+            let record = try VNX.read(data).document.waypoints![0].data![0]
+            return record.body["value"]!.numberValue!
+        }
+        XCTAssertEqual(try tieValue(input).bitPattern, try tieValue(expected).bitPattern,
+                       "and agree in value, or the case would be testing something else")
+        XCTAssertEqual(ecmaScriptNumber(try tieValue(input)), "1497898211722073.2")
     }
 
     /// Whatever this function emits must parse back to the double it was given,

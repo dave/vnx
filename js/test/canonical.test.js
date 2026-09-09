@@ -102,3 +102,15 @@ test('output ends in exactly one newline', () => {
   assert.ok(out.endsWith('}\n'));
   assert.ok(!out.endsWith('\n\n'));
 });
+
+test('a rendering tie renders to even (SPEC.md 4.5.3)', () => {
+  // Number::toString declines to fix the last digit of a tie, so the rule is
+  // anchored on what the implementations do. V8 rounds to even here, and this
+  // guard exists because a hand-written renderer is exactly where that stops
+  // being free: Kotlin shipped away-from-zero and emitted `...073.3`.
+  assert.equal(renderNumber(1497898211722073.25), '1497898211722073.2');
+  assert.notEqual(renderNumber(1497898211722073.25), '1497898211722073.3');
+  // Both spellings parse to the same double, which is why nothing goes red on
+  // its own: the disagreement is in bytes, not in values.
+  assert.equal(Number('1497898211722073.2'), Number('1497898211722073.3'));
+});

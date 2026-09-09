@@ -58,3 +58,55 @@ test('rounding to 6 places then again is stable', () => {
     assert.equal(roundToPlaces(once, 6), once, String(v));
   }
 });
+
+// --- red-proof ---------------------------------------------------------------
+//
+// SPEC.md 4.5.4 requires this rule and no corpus tier can reach it: rounding
+// happens only when a WRITER emits a model, and every tier re-renders
+// (corpus/format/README.md). The guard above is therefore the only thing
+// defending it in this library, so it has to have been seen to fail.
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const ROUND_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'round.js');
+
+/** Load a copy of round.js with one line replaced. */
+async function loadMutated(from, to) {
+  const source = fs.readFileSync(ROUND_SRC, 'utf8');
+  assert.ok(source.includes(from),
+    `mutation target not found: ${JSON.stringify(from)} — the red-proof would prove nothing`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vnx-round-'));
+  const file = path.join(dir, 'round.js');
+  fs.writeFileSync(file, source.replace(from, to));
+  return import(pathToFileURL(file).href);
+}
+
+const HALF_TO_EVEN =
+  '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even';
+
+test('RED PROOF: flipping the tie to away-from-zero breaks the tie guard', async () => {
+  const mutated = await loadMutated(
+    HALF_TO_EVEN,
+    '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
+  );
+  // The values the guard above pins, under the wrong rule.
+  assert.equal(mutated.roundToPlaces(340.25, 1), 340.3);
+  assert.equal(mutated.roundToPlaces(-340.25, 1), -340.3);
+  // ... and the shipped rule still says otherwise, so the assertions
+  // discriminate rather than being true of both.
+  assert.equal(roundToPlaces(340.25, 1), 340.2);
+  assert.equal(roundToPlaces(-340.25, 1), -340.2);
+  // A non-tie must be unaffected, or the mutation would be proving something
+  // broader than the tie direction.
+  assert.equal(mutated.roundToPlaces(0.15, 1), roundToPlaces(0.15, 1));
+  assert.equal(mutated.roundToPlaces(340.26, 1), roundToPlaces(340.26, 1));
+});
+
+test('RED PROOF: dropping the tie branch entirely truncates a tie', async () => {
+  const mutated = await loadMutated(HALF_TO_EVEN, '  // no tie handling at all');
+  assert.equal(mutated.roundToPlaces(340.75, 1), 340.7);
+  assert.equal(roundToPlaces(340.75, 1), 340.8);
+});

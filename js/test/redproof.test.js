@@ -383,3 +383,17 @@ test('rounding half away from zero instead of half to even is NOT caught', async
   assert.deepEqual(failing(cases), [],
     'the corpus now covers the rounding tie; assert the failure instead');
 });
+
+test('comparing node keys instead of their positions is NOT caught', async () => {
+  // SPEC.md 6.2 resolves a node key to its position before comparing, so two
+  // DISTINCT keys at one position meet. diagnose/chain-does-not-join.vnx has
+  // keys AND positions that differ, so a key-only comparator gives the same
+  // verdict on it and passes. test/decode.test.js carries the local guard.
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: "  if (a.kind === 'node' && b.kind === 'node' && a.node === b.node) return true;",
+    to: "  if (a.kind === 'node' && b.kind === 'node') return a.node === b.node;",
+  }]);
+  assert.deepEqual(failing(cases), [],
+    'the corpus now covers two distinct node keys at one position; assert the failure instead');
+});

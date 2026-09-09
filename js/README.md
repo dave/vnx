@@ -32,8 +32,12 @@ canonicalise(text).text; // decode, then re-render
 disagree: `340.25` to one place is `340.2` in Go and Python and `340.3` from
 JavaScript's `toFixed`. `src/round.js` rounds half to even, matching the
 reference implementation, and decides the tie on the double's exact value in
-BigInt. No corpus tier reaches the writer, so nothing here can catch a
-disagreement; `test/redproof.test.js` records that.
+BigInt. **No corpus tier reaches the writer**, so nothing there can catch a
+disagreement: `test/round.test.js` carries the guard for `SPEC.md` 4.5.4's tie
+rule, red-proofed against a mutated copy of `src/round.js`, and
+`test/redproof.test.js` records that the corpus stays green under the flip.
+`SPEC.md` 4.5.3's rendering tie is free here — V8 rounds to even — and is
+guarded in `test/canonical.test.js` all the same.
 
 The corpus's accept tier is `rerender(decode(file)) === file`. A writer rounds,
 so writing what you read is legitimately not what you read.
@@ -89,7 +93,5 @@ corpus rather than assuming there is none.
   before any VNX rule runs (`SPEC.md` 6.4).
 - **No resource bounds.** `SPEC.md` 9 says a reader of untrusted documents
   SHOULD bound what one document may consume. This one does not.
-- **No rounding-mode ruling.** See above; the choice is one branch in
-  `src/round.js`.
 - **ZIP64 is read, not written.** The writer emits a plain archive, which
   `SPEC.md` 7 permits.

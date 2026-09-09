@@ -293,3 +293,52 @@ test('an empty collection is distinct from an absent one', () => {
   assert.deepEqual(document.waypoints, []);
   assert.equal(rerender(document), '{\n  "vnx": "0.1.0",\n  "waypoints": []\n}\n');
 });
+
+// --- continuity: SPEC.md 6.2 -----------------------------------------------
+
+const chainDoc = (nodes, links) => doc({
+  networks: [{
+    nodes,
+    arcs: { a: { from: Object.keys(nodes)[0], to: Object.keys(nodes)[0], pips: Object.values(nodes) } },
+    chains: [{ links: links.map((l) => ({ arc: 'a', ...l })) }],
+  }],
+});
+
+test('two DISTINCT node keys at the same position meet', () => {
+  // A node key is resolved to its position before comparing. Comparing the
+  // keys alone would report this continuous walk as broken, which is the
+  // failure the rule exists to prevent. Nothing in the corpus covers it.
+  const { diagnostics } = decodeText(chainDoc(
+    { a: [1, 2], b: [3, 4], c: [3, 4] },
+    [{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }],
+  ));
+  assert.deepEqual(diagnostics, []);
+});
+
+test('two node keys at different positions do not meet', () => {
+  const { diagnostics } = decodeText(chainDoc(
+    { a: [1, 2], b: [3, 4], c: [5, 6] },
+    [{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }],
+  ));
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.cause]),
+    [['/networks/0/chains/0/links/1', 'chain-not-connected']]);
+});
+
+test('a node meets an inline endpoint on lon and lat, whatever its elevation', () => {
+  // A node carries an elevation and an inline endpoint never does, so a
+  // comparison over all channels would report every such junction as broken.
+  const { diagnostics } = decodeText(chainDoc(
+    { a: [1, 2, 900], b: [3, 4, 950] },
+    [{ from: 'a', to: [3, 4] }, { from: 'b', to: 'a' }],
+  ));
+  assert.deepEqual(diagnostics, []);
+});
+
+test('a link naming an absent node keeps the link and takes that end out of the comparison', () => {
+  const { document, diagnostics } = decodeText(chainDoc(
+    { a: [1, 2], b: [3, 4] },
+    [{ from: 'a', to: 'ghost' }, { from: 'b', to: 'a' }],
+  ));
+  assert.equal(document.networks[0].chains[0].links.length, 2);
+  assert.deepEqual(diagnostics.map((d) => d.cause), ['link-node-absent']);
+});

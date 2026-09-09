@@ -698,17 +698,19 @@ function resolveChain(chain, nodes, arcs, ctx) {
 }
 
 /**
- * SPEC.md 6.2: two node keys meet when the keys are equal; a node key and an
- * inline position meet when the node's position and the inline position are
- * equal by value.
+ * SPEC.md 6.2: two endpoints meet when their LONGITUDE AND LATITUDE are equal.
+ * No other channel takes part. A node may carry an elevation and an inline
+ * endpoint never does — elevation is resolved from the polyline (SPEC.md 3.3.3)
+ * — so a comparison over all channels reports every junction between a node and
+ * an inline endpoint as broken.
  *
- * "Equal by value" is compared over lon and lat. A node position carries an
- * elevation and an inline endpoint never does (SPEC.md 3.3.3: elevation is
- * taken from the polyline and is never stored on the endpoint), so comparing
- * whole channel arrays would report every node-to-inline junction as broken.
+ * A node key is resolved to its position BEFORE comparing, so two distinct node
+ * keys at the same position meet. Comparing the keys alone would report a
+ * continuous walk as broken, which is the failure this rule exists to prevent.
+ * Key equality is a valid fast path and nothing more.
  */
 function endpointsMeet(a, b, nodes) {
-  if (a.kind === 'node' && b.kind === 'node') return a.node === b.node;
+  if (a.kind === 'node' && b.kind === 'node' && a.node === b.node) return true;
   const pa = a.kind === 'node' ? nodes.get(a.node) : a.position;
   const pb = b.kind === 'node' ? nodes.get(b.node) : b.position;
   if (pa === undefined || pb === undefined) return false;

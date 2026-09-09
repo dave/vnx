@@ -102,6 +102,17 @@ func roundTo(v float64, scale float64) float64 {
 		return v
 	}
 	r := math.Round(v*scale) / scale
+	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
+	// math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one place
+	// yields a zero with its sign bit set — as does -4e-08 to six places. Spec
+	// §4.5.4 requires the negative-zero rule to be applied AFTER rounding for
+	// exactly this reason: a writer that collapsed -0 only across the values it
+	// was HANDED would emit `-0` for a value it produced itself.
+	//
+	// `r == 0` is true for both zeros in Go, so this one comparison catches it.
+	// The renderer collapses negative zero as well (canonical.go), so a value
+	// reaching the wire is guarded twice; this is the guard on the arithmetic
+	// and that one is the guard on the spelling.
 	if r == 0 {
 		return 0
 	}

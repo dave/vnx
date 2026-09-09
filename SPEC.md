@@ -717,6 +717,25 @@ binary64 precision, and canonicalising a document re-renders the bytes another
 program wrote. Canonical form constrains key order and number spelling, not
 precision.
 
+A conforming library therefore offers TWO emit paths, named distinctly:
+
+| Path | Applies the emit-boundary rules? |
+|---|---|
+| WRITE — turn a model into a document | yes: round to 6 and 1 places, emit the shortest spelling of a position |
+| RE-RENDER — turn a decoded document back into that document | no: reproduce the arity and the precision it carried |
+
+A library with only one of them cannot satisfy this specification. With only a
+writer it cannot pass the accept tier (Section 8.1), because writing what it
+read is not what it read. With only a formatter the rounding rules above are
+unreachable by construction, so nothing in the library can ever apply them.
+
+A writer applies the negative-zero rule of Section 4.5.3 AFTER rounding, not
+before. Rounding can CREATE a negative zero that was never in the model:
+rounding −0.04 to one place, or −0.00000004 to six, gives a zero with its sign
+bit set in most languages. A writer that collapsed negative zero only across the
+values it was handed would emit `-0`. Round first, then render, and let the
+renderer decide the final bytes.
+
 #### 4.5.5 Encoding
 
 UTF-8, no byte order mark, two-space indent, and a newline at end of file.

@@ -107,24 +107,38 @@ implementation taking the scaling route differs from a conforming one on
 everyday data rather than on corner cases. The same hazard applies at six places
 to every coordinate.
 
-The `scaling-route` category carries those values, and it exists because the
-table did not reach them. Measured 2026-09-10 over the table as it stood: 161
-rows separated the two routes, and **every one of them was above 1e9** — while
-the argument above is about quarter-metre elevations and six-place coordinates.
-An implementation whose scaling route was guarded at large magnitudes, which is
-a plausible thing to write, passed the whole table and still emitted `0.2` for
-an elevation of `0.15`. The instrument caught the defect only where nobody meets
-it. Fourteen rows now sit below 1e9, eight elevation-shaped and six valid
-longitudes and latitudes; there is no round number of degrees that separates the
-routes, so the coordinates were found by search.
+**The two disagreements need disjoint data, and that is the durable fact about
+this table.** At one decimal place, not one row of the `round1-tie` category is
+among the rows that separate the two routes. At six places, not one row of
+`round6-tie` is. The tie categories are constructed to separate a tie's
+DIRECTION, and they do not separate the choice of OPERATION at all — ordinary
+values do that. So a library can have the tie rule right and the route wrong,
+pass every deliberately-constructed tie row, and be wrong about every coordinate
+it writes.
 
-Note that the exact count of rows catching a scaling route is **not a
-well-defined number**, which is why the figure above carries the qualifier
-rather than standing alone. It depends on which scaling variant is written —
-whether it short-circuits above some magnitude, and whether it rounds the
-product with a library call or by hand. Below 1e15, where no magnitude guard
-applies, two independently written variants agree exactly on 161. Above it they
-do not agree with each other.
+`0.15` is the example to put in front of anyone who thinks this is a corner
+case: exact answer `0.1`, scaled route `0.2`, and it is not a tie in either
+direction.
+
+The `scaling-route` category exists because the table did not reach that at the
+magnitudes the format carries. Measured over the table before the category
+landed: every row separating the two routes was above 1e9, while the argument
+above is about quarter-metre elevations and six-place coordinates. An
+implementation whose scaling route was guarded at large magnitudes — a plausible
+thing to write — passed the whole table and still emitted `0.2` for `0.15`. The
+instrument caught the defect only where nobody meets it. Fourteen rows now sit
+below 1e9, eight elevation-shaped and six valid longitudes and latitudes, found
+by search because no round number of degrees separates the routes.
+
+**Do not quote a row count for this from memory, and do not write one into a
+document.** The table grew by fourteen rows between two runs of the script that
+counts them, so a figure correct when written was stale within minutes. Compute
+it. Two independently written counters agree exactly, at HEAD, on 168 rows at
+one place and 206 at six — and the six-place figure is the one that describes
+the damage, because six places is longitude and latitude and therefore every
+coordinate rather than every elevation. Three rows at one place and 33 at six
+overflow to infinity when scaled and are counted beside those figures rather
+than inside them, because a non-finite product has no spelling to compare.
 
 ## The format
 

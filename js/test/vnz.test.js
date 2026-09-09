@@ -3,6 +3,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const CORPUS = process.env.VNX_CORPUS
+  ? path.resolve(process.env.VNX_CORPUS)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'corpus');
 
 import { decodeContainer, encodeContainer } from '../src/vnz.js';
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
@@ -419,4 +426,54 @@ test('RAW: the walker refuses an archive it cannot walk, so the guard above is r
   const buf = Buffer.from(ARCHIVE());
   buf.writeUInt16LE(0x0808, 6);
   assert.throws(() => localHeaders(buf), /cannot be walked forward-only/);
+});
+
+test('the committed .vnz fixtures do NOT satisfy SPEC.md 7.1, and this test is the signal when they are regenerated', () => {
+  // This library's raw-byte guards above run only against its OWN writer's
+  // output, so they say nothing about the corpus archives — and the reader
+  // accepts these because SPEC.md 7 requires accepting bit 3 and takes sizes
+  // from the central directory. The whole suite is therefore green on archives
+  // that are a worked example of breaking the rule it enforces elsewhere, and
+  // could not say so.
+  //
+  // Measured 2026-09-10. All four are Go-generated and predate the always-STORED
+  // and no-data-descriptor rulings.
+  //
+  // WHEN THE ARCHIVES ARE REGENERATED THIS GOES RED. That is the point: a silent
+  // regeneration is the failure mode, because nothing else here would notice.
+  // Invert it then — assert conformance rather than the current state — and
+  // delete this comment.
+  const fixtures = [
+    'accept/container-root-doc.vnz',
+    'accept/container-named-document.vnz',
+    'reject/container-duplicate-entries.vnz',
+    'reject/container-escapes.vnz',
+  ];
+  const observed = [];
+  for (const name of fixtures) {
+    const buf = fs.readFileSync(path.join(CORPUS, name));
+    observed.push({
+      fixture: name,
+      versionNeeded: buf.readUInt16LE(4),
+      flags: buf.readUInt16LE(6),
+      method: buf.readUInt16LE(8),
+      localCrc: buf.readUInt32LE(14),
+      localCompressedSize: buf.readUInt32LE(18),
+      forwardWalkable: (buf.readUInt16LE(6) & 0x08) === 0,
+    });
+  }
+  for (const o of observed) {
+    assert.equal(o.flags, 0x0808, `${o.fixture}: bit 3 set and the UTF-8 flag set`);
+    assert.equal(o.method, 8, `${o.fixture}: deflate, where 7.1 requires stored`);
+    assert.equal(o.versionNeeded, 20, `${o.fixture}: 2.0, needed only for deflate`);
+    assert.equal(o.localCrc, 0, `${o.fixture}: CRC deferred to a data descriptor`);
+    assert.equal(o.localCompressedSize, 0, `${o.fixture}: size deferred`);
+    assert.equal(o.forwardWalkable, false, `${o.fixture}: cannot be walked forward-only`);
+  }
+  // And they must stay READABLE whatever their headers say: SPEC.md 7's
+  // asymmetry is required of a writer and never of a reader.
+  for (const name of fixtures.slice(0, 2)) {
+    const c = decodeContainer(fs.readFileSync(path.join(CORPUS, name)));
+    assert.ok(c.document.vnx, `${name}: still reads`);
+  }
 });

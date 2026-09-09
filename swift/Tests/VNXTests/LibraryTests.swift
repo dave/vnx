@@ -636,6 +636,47 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(viaCentralDirectory.documentName, "doc.vnx")
         XCTAssertEqual(viaCentralDirectory.document.waypoints?.count, 1)
         XCTAssertEqual(viaCentralDirectory.attachments, [])
+
+        // Third fixture, and the reason for it belongs to the Rust seat: a lost
+        // offset that happens to be zero is not a test. The first two put the
+        // root document's local header at offset 0, so a reader that ignored
+        // the ZIP64 offset field entirely — reading the masked 0xFFFFFFFF as
+        // nothing and starting at the beginning — would still find it. This one
+        // carries a 192-byte prefix and a filler entry ahead of the document, so
+        // the offset has to be read from the extra field to land anywhere near
+        // it.
+        let padded = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.zip64PaddedCentralDirectory))
+        XCTAssertEqual(padded.documentName, "doc.vnx")
+        XCTAssertEqual(padded.document.waypoints?.count, 1)
+        XCTAssertEqual(padded.attachments.map(\.path), ["filler.txt"])
+    }
+
+    /// SPEC 7: a reader MUST accept general purpose bit 3, where the local
+    /// header carries zeros for the CRC and both sizes, a data descriptor
+    /// follows the payload, and only the central directory has the truth.
+    ///
+    /// A writer MUST NOT set it — for a STORED entry the payload can itself
+    /// contain `PK\u{5C}u{03}\u{5C}u{04}`, so a data descriptor makes forward-only
+    /// parsing genuinely ambiguous — and this reader never does. But it reads
+    /// one, because it takes its sizes from the central directory, which is the
+    /// authority in that case.
+    func testAReaderAcceptsADataDescriptor() throws {
+        let bytes = [UInt8](ZipFixtures.bytes(ZipFixtures.dataDescriptorBit3))
+        // The local header really is empty of the three fields.
+        func u32(_ i: Int) -> UInt32 {
+            UInt32(bytes[i]) | UInt32(bytes[i+1]) << 8 | UInt32(bytes[i+2]) << 16 | UInt32(bytes[i+3]) << 24
+        }
+        XCTAssertEqual(UInt16(bytes[6]) | UInt16(bytes[7]) << 8, 0x0808, "bit 3 is set")
+        XCTAssertEqual(u32(14), 0, "local CRC is zero")
+        XCTAssertEqual(u32(18), 0, "local compressed size is zero")
+        XCTAssertEqual(u32(22), 0, "local uncompressed size is zero")
+
+        let result = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.dataDescriptorBit3))
+        XCTAssertEqual(result.documentName, "doc.vnx")
+        XCTAssertEqual(result.document.waypoints?.count, 1)
+        XCTAssertEqual(result.diagnostics, [])
+        XCTAssertEqual(result.attachments.map(\.path), ["attachments/note.txt"])
+        XCTAssertEqual(result.attachments[0].bytes, Data("hello\n".utf8))
     }
 
     /// The corpus's four archives hold 138-byte entries, which deflate as one

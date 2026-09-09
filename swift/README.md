@@ -87,6 +87,13 @@ too, since it carries one spelling in and the other out.
 after rounding to 6 and to 1 places, generated from Go. It is a fifth
 conformance tier in everything but its location.
 
+`ContainerBytesTests.swift` also asserts that the local header and the central
+directory agree field by field, parsed from raw bytes and never through
+`Zip.entries`. That instrument choice is the point: every ZIP library resolves
+an entry from the central directory on purpose, so a library can never be the
+instrument for a local-header rule — it reports agreement whatever the local
+header says.
+
 `ContainerBytesTests.swift` checks the `.vnz` writer against an independent one
 written from SPEC 7.1's table alone, in another language, sharing no code with
 this library — 537 bytes for a document plus two attachments, one with a

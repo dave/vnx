@@ -82,6 +82,76 @@ final class ContainerBytesTests: XCTestCase {
         XCTAssertNil(bytes.firstRange(of: [0x50, 0x4B, 0x07, 0x06]), "no ZIP64 locator")
     }
 
+    /// That the local header and the central directory AGREE, field by field,
+    /// both parsed from raw bytes.
+    ///
+    /// This is the assertion nobody had, and the reason is the instrument: every
+    /// ZIP library in every language resolves an entry from the CENTRAL
+    /// DIRECTORY, on purpose, because that is where the authority lives. So a
+    /// library can never be the instrument for a local-header rule — it will
+    /// report the two agree whatever the local header says. Another seat
+    /// measured Go's writer as setting bit 3 and omitting the UTF-8 flag, four
+    /// non-conforming fields rather than the two that were known, and Go's own
+    /// gap test could not see any of it because `archive/zip` builds its header
+    /// struct from the central directory.
+    ///
+    /// Nothing below goes through `Zip.entries`.
+    func testLocalAndCentralHeadersAgreeFieldByField() {
+        let bytes = [UInt8](archive())
+        func u16(_ i: Int) -> UInt16 { UInt16(bytes[i]) | UInt16(bytes[i + 1]) << 8 }
+        func u32(_ i: Int) -> UInt32 {
+            UInt32(bytes[i]) | UInt32(bytes[i+1]) << 8 | UInt32(bytes[i+2]) << 16 | UInt32(bytes[i+3]) << 24
+        }
+
+        var central = Int(u32(bytes.count - 6))
+        let count = Int(u16(bytes.count - 12))
+        XCTAssertEqual(count, 3)
+
+        for index in 0..<count {
+            XCTAssertEqual(u32(central), 0x0201_4B50, "central header \(index)")
+            let nameLength = Int(u16(central + 28))
+            let extraLength = Int(u16(central + 30))
+            let commentLength = Int(u16(central + 32))
+            let local = Int(u32(central + 42))
+            let name = String(decoding: bytes[(central + 46)..<(central + 46 + nameLength)], as: UTF8.self)
+
+            XCTAssertEqual(u32(local), 0x0403_4B50, "\(name): local header signature")
+            let localNameLength = Int(u16(local + 26))
+            let localName = String(decoding: bytes[(local + 30)..<(local + 30 + localNameLength)], as: UTF8.self)
+            XCTAssertEqual(localName, name, "entry name")
+
+            // The fields that appear in both records must carry the same value.
+            for (label, localOffset, centralOffset, width) in [
+                ("version needed", local + 4, central + 6, 2),
+                ("general purpose flags", local + 6, central + 8, 2),
+                ("compression method", local + 8, central + 10, 2),
+                ("modification time", local + 10, central + 12, 2),
+                ("modification date", local + 12, central + 14, 2),
+                ("crc", local + 14, central + 16, 4),
+                ("compressed size", local + 18, central + 20, 4),
+                ("uncompressed size", local + 22, central + 24, 4),
+                ("name length", local + 26, central + 28, 2),
+                ("extra field length", local + 28, central + 30, 2),
+            ] {
+                let l = width == 2 ? UInt32(u16(localOffset)) : u32(localOffset)
+                let c = width == 2 ? UInt32(u16(centralOffset)) : u32(centralOffset)
+                XCTAssertEqual(l, c, "\(name): \(label) differs between the local header and the central directory")
+            }
+
+            // And the rules that are about the local header specifically.
+            let flags = u16(local + 6)
+            XCTAssertEqual(flags & 0x0008, 0,
+                           "\(name): bit 3 must NOT be set — for a STORED entry the payload can contain `PK\u{5C}u{03}\u{5C}u{04}`, so a data descriptor makes forward-only parsing ambiguous")
+            XCTAssertEqual(flags & 0x0800, 0x0800, "\(name): the UTF-8 name flag must be set")
+            XCTAssertEqual(flags, 0x0800, "\(name): the UTF-8 flag, and nothing else")
+            XCTAssertNotEqual(u32(local + 14), 0, "\(name): the CRC must be written in the local header, not deferred")
+            XCTAssertGreaterThan(u32(local + 22), 0, "\(name): the uncompressed size must be written in the local header")
+
+            central += 46 + nameLength + extraLength + commentLength
+        }
+        XCTAssertEqual(u32(central), 0x0605_4B50, "the central directory ends where the EOCD begins")
+    }
+
     /// A writer that stamped the clock could not be byte-compared with anything,
     /// including its own previous run.
     func testTheArchiveDoesNotDependOnWhenItWasWritten() {

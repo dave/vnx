@@ -1,0 +1,118 @@
+# THIS FILE IS BUILT TO BE THROWN AWAY. DELETE IT WHEN IT IS EMPTY.
+#
+# It is a work list, not a document. It records rulings that have been made and
+# have not yet reached SPEC.md, and `check-ruling-backlog.py` fails while any
+# entry is outstanding. When the last entry goes, delete this file and the
+# script beside it — a permanent ledger of what the specification used to be
+# missing is drafting history, and this repository does not keep drafting
+# history.
+#
+# WHY IT EXISTS. A ruling and the specification text are separate artefacts with
+# a lag between them, so a library can be correct against one and wrong against
+# the other, and neither is obviously the authority at the moment somebody looks.
+# Two seats lost a ruling that way on 2026-09-09: one implemented a reading, the
+# ruling landed elsewhere, and the spec still read as it had — so checking the
+# spec confirmed the wrong answer. The backlog is not a discipline problem once
+# a check can fail on it.
+#
+# ADDING AN ENTRY. `section` is the SPEC.md heading number the text must land
+# in. `requires` is a phrase that must appear inside that section once the
+# ruling is written down — pick a phrase that could only appear if the rule
+# were actually stated, not a word the section already uses for another reason.
+# The check tells you when a phrase is already present, so a badly chosen one
+# fails loudly rather than passing vacuously.
+#
+# REMOVING AN ENTRY. Delete it when the text lands. Do not weaken `requires` to
+# make the check pass; that publishes the problem instead of solving it.
+#
+# The check scopes a phrase to the named section and NOT its subsections, so if
+# a ruling legitimately belongs in a subsection, change `section` — that is the
+# entry being corrected, not the check being weakened.
+#
+# `./scripts/check-ruling-backlog.py --self-test` proves the check can fail and
+# can pass, including that a phrase living only in a subsection still fails.
+
+[[ruling]]
+id = "backslash-in-entry-name"
+ruled = "2026-09-09"
+section = "7"
+requires = "backslash"
+statement = """
+A member name containing a backslash anywhere MUST be refused. The check stands
+alone and applies before the `..` segment rule, so `..\\x` is refused for the
+simple reason and whether a backslash separates path segments never arises. This
+is deliberately stricter than APPNOTE, which permits the character.
+"""
+
+[[ruling]]
+id = "second-vnx-is-an-attachment"
+ruled = "2026-09-09"
+section = "7"
+requires = "every other entry"
+statement = """
+The root document is selected by the two rules above it, and every other entry
+is an attachment whatever its name ends in. The alternative needs a special case
+keyed on a file extension, and a reader that sniffs extensions to decide what is
+payload diverges silently from one that does not.
+"""
+
+[[ruling]]
+id = "tolerance-boundary-is-inclusive"
+ruled = "2026-09-09"
+section = "3.3.3"
+requires = "at or within"
+statement = """
+A distance equal to the tolerance is WITHIN it: 50.000 m exactly is accepted.
+No conformance case can pin this, because the computed distance depends on the
+model and no two models land on 50.000 exactly, so this prose is permanently the
+only statement of the rule — as it is for the escaping table in 4.5.5.
+"""
+
+[[ruling]]
+id = "unknown-channel-is-not-rounded"
+ruled = "2026-09-09"
+section = "4.5.4"
+requires = "units are known"
+statement = """
+A channel beyond the four this version names is written back unchanged.
+Rounding is only definable where the units are known: six places is a statement
+about degrees and one place a statement about metres, so a channel of unknown
+units cannot be rounded without guessing. This is the reason time is not
+rounded, applied to a channel this version does not define. It belongs in 4.5.4
+rather than 4.1, because 4.1's preservation language covers the re-render path
+and says nothing about the write path.
+"""
+
+[[ruling]]
+id = "rulesets-is-an-array"
+ruled = "2026-09-09"
+section = "3.9"
+requires = "an array"
+statement = """
+`rulesets` is an array. Its contents stay opaque, but the value itself has a
+shape, and a value of the wrong JSON type is handled under 6.2 like any other.
+"""
+
+[[ruling]]
+id = "folder-parent-absent"
+ruled = "2026-09-09"
+section = "6.2"
+requires = "`parent`"
+statement = """
+A folder's `parent` naming a folder that is not present takes the same remedy as
+an item's `folder`: the reader treats the key as absent, so the folder sits at
+the root, and records a diagnostic.
+"""
+
+[[ruling]]
+id = "write-tier"
+ruled = "2026-09-09"
+section = "8"
+requires = "`write/`"
+statement = """
+The corpus has a fifth kind of case. `write/` holds a document and exactly the
+bytes a conforming WRITER emits for it, and is the only tier that applies the
+emit-boundary rules of 4.5.4 — every other tier re-renders. A runner MUST assert
+that the input is not already the written form, and that the written form is a
+fixed point of the writer.
+"""

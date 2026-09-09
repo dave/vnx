@@ -1,5 +1,7 @@
 package app.viatrail.vnx
 
+import java.util.zip.CRC32
+import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 /**
@@ -227,5 +229,124 @@ internal object Zip {
         var v = 0L
         for (k in 7 downTo 0) v = (v shl 8) or (b[i + k].toLong() and 0xff)
         return v
+    }
+
+    // ------------------------------------------------------------- writing
+
+    /** One entry to write, in the order it will appear in the archive. */
+    class ToWrite(val name: String, val body: ByteArray)
+
+    /**
+     * Writes a ZIP archive: local headers, then the central directory, then the
+     * end-of-central-directory record.
+     *
+     * Deterministic. Every entry gets the same fixed timestamp, so the same
+     * document and attachments produce the same bytes every time. SPEC.md does
+     * not require that of a container the way section 4.5 requires it of a
+     * document, but a format whose entire purpose is that two libraries emit
+     * identical files should not lose the property at the container boundary
+     * over a clock reading. Raised with Dave rather than assumed.
+     *
+     * Deflate, with the UTF-8 filename flag set, and no ZIP64: section 7 requires
+     * a reader to understand ZIP64 and explicitly allows a writer to omit it, so
+     * a small export stays readable by the widest range of tools.
+     */
+    fun write(entries: List<ToWrite>): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val directory = java.io.ByteArrayOutputStream()
+        var count = 0
+
+        for (entry in entries) {
+            val name = entry.name.toByteArray(Charsets.UTF_8)
+            val crc = CRC32().apply { update(entry.body) }.value
+            val deflated = deflate(entry.body)
+            // Stored where deflating did not help, which is ordinary for small or
+            // already-compressed attachments and is what every ZIP writer does.
+            val stored = deflated.size >= entry.body.size
+            val payload = if (stored) entry.body else deflated
+            val method = if (stored) METHOD_STORED else METHOD_DEFLATE
+            val localOffset = out.size()
+
+            out.writeLE32(LOCAL_SIGNATURE)
+            out.writeLE16(20) // version needed: 2.0, deflate
+            out.writeLE16(0x800) // the UTF-8 filename flag of section 7
+            out.writeLE16(method)
+            out.writeLE16(FIXED_TIME)
+            out.writeLE16(FIXED_DATE)
+            out.writeLE32(crc.toInt())
+            out.writeLE32(payload.size)
+            out.writeLE32(entry.body.size)
+            out.writeLE16(name.size)
+            out.writeLE16(0) // no extra field
+            out.write(name)
+            out.write(payload)
+
+            directory.writeLE32(CENTRAL_SIGNATURE)
+            directory.writeLE16(20) // version made by
+            directory.writeLE16(20) // version needed
+            directory.writeLE16(0x800)
+            directory.writeLE16(method)
+            directory.writeLE16(FIXED_TIME)
+            directory.writeLE16(FIXED_DATE)
+            directory.writeLE32(crc.toInt())
+            directory.writeLE32(payload.size)
+            directory.writeLE32(entry.body.size)
+            directory.writeLE16(name.size)
+            directory.writeLE16(0) // extra
+            directory.writeLE16(0) // comment
+            directory.writeLE16(0) // disk number
+            directory.writeLE16(0) // internal attributes
+            directory.writeLE32(0) // external attributes
+            directory.writeLE32(localOffset)
+            directory.write(name)
+            count++
+        }
+
+        val directoryOffset = out.size()
+        val directoryBytes = directory.toByteArray()
+        out.write(directoryBytes)
+        out.writeLE32(EOCD_SIGNATURE)
+        out.writeLE16(0) // this disk
+        out.writeLE16(0) // disk with the central directory
+        out.writeLE16(count)
+        out.writeLE16(count)
+        out.writeLE32(directoryBytes.size)
+        out.writeLE32(directoryOffset)
+        out.writeLE16(0) // no archive comment
+        return out.toByteArray()
+    }
+
+    /** MS-DOS 1980-01-01 00:00:00, so the bytes do not depend on when they were written. */
+    private const val FIXED_TIME = 0
+    private const val FIXED_DATE = 0x21
+
+    private fun deflate(body: ByteArray): ByteArray {
+        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
+        try {
+            deflater.setInput(body)
+            deflater.finish()
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (!deflater.finished()) {
+                val n = deflater.deflate(buffer)
+                if (n == 0 && deflater.needsInput()) break
+                out.write(buffer, 0, n)
+            }
+            return out.toByteArray()
+        } finally {
+            deflater.end()
+        }
+    }
+
+    private fun java.io.ByteArrayOutputStream.writeLE16(v: Int) {
+        write(v and 0xff)
+        write((v ushr 8) and 0xff)
+    }
+
+    private fun java.io.ByteArrayOutputStream.writeLE32(v: Int) {
+        write(v and 0xff)
+        write((v ushr 8) and 0xff)
+        write((v ushr 16) and 0xff)
+        write((v ushr 24) and 0xff)
     }
 }

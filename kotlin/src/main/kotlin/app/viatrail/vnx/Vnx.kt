@@ -118,6 +118,56 @@ object Vnx {
     fun write(document: VnxDocument): String = Canonical.render(Encoder(rounding = true).encode(document))
 
     /**
+     * RE-RENDERS a document and its attachments as a `.vnz` container: the same
+     * operation as [render], at the container boundary.
+     *
+     * The split matters here more than anywhere. Repackaging a container —
+     * adding a photograph, renaming a folder — must not silently round every
+     * coordinate in the document it is carrying, and a single container emit
+     * path would do exactly that with nothing to show for it.
+     *
+     * The document is written as `doc.vnx`, the conventional name section 7 tells
+     * a reader to prefer. Attachment paths are checked with the same rules a
+     * reader applies, because a writer that can emit an archive its own reader
+     * refuses is a writer with a hole in it.
+     */
+    fun renderContainer(document: VnxDocument, attachments: Map<String, ByteArray> = emptyMap()): ByteArray =
+        container(render(document), attachments)
+
+    /**
+     * WRITES a document and its attachments as a `.vnz` container: coordinates
+     * rounded and positions shortened, as [write] does.
+     */
+    fun writeContainer(document: VnxDocument, attachments: Map<String, ByteArray> = emptyMap()): ByteArray =
+        container(write(document), attachments)
+
+    private fun container(documentText: String, attachments: Map<String, ByteArray>): ByteArray {
+        val entries = ArrayList<Zip.ToWrite>()
+        entries.add(Zip.ToWrite(ROOT_DOCUMENT, documentText.toByteArray(Charsets.UTF_8)))
+        val seen = HashMap<String, String>()
+        seen[foldAscii(ROOT_DOCUMENT)] = ROOT_DOCUMENT
+        for ((name, body) in attachments) {
+            checkPath(name)
+            if (name.isEmpty() || name.endsWith("/")) {
+                refuse(
+                    RefusalCause.CONTAINER_PATH_ESCAPES,
+                    "the entry \"$name\" is not an attachment: an attachment name is a file path",
+                )
+            }
+            val previous = seen.put(foldAscii(name), name)
+            if (previous != null) {
+                refuse(
+                    RefusalCause.CONTAINER_DUPLICATE_ENTRY,
+                    "the container would carry a duplicate entry name: \"$previous\" and \"$name\" " +
+                        "match when compared case-insensitively",
+                )
+            }
+            entries.add(Zip.ToWrite(name, body))
+        }
+        return Zip.write(entries)
+    }
+
+    /**
      * Canonicalises a document's bytes: decode, then re-render. This is the
      * `fmt` operation, and it never rounds — canonicalising re-renders the bytes
      * another program wrote, and canonical form constrains key order and number
@@ -136,8 +186,10 @@ object Vnx {
      * match at any depth, and letting the last match win rather than the first is
      * the other half of the same mistake.
      */
+    private const val ROOT_DOCUMENT = "doc.vnx"
+
     private fun rootDocument(entries: List<Zip.Entry>): Zip.Entry {
-        entries.firstOrNull { it.name.equals("doc.vnx", ignoreCase = true) }?.let { return it }
+        entries.firstOrNull { it.name.equals(ROOT_DOCUMENT, ignoreCase = true) }?.let { return it }
         entries.firstOrNull { it.name.endsWith(".vnx", ignoreCase = true) }?.let { return it }
         refuse(
             RefusalCause.CONTAINER_NO_DOCUMENT,

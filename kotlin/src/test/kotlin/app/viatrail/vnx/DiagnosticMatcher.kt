@@ -27,16 +27,13 @@ object DiagnosticMatcher {
                 "  expected: ${expected.joinToString("; ")}\n" +
                 "  reported: ${reported.joinToString("; ")}"
         }
-        // `path` is matched exactly. The cause is matched by REASON CODE where
-        // the sidecar carries one, and only by English substring where it does
-        // not — which is the pre-migration shape and is on its way out. Matching
-        // a code rather than prose is what makes "exact wording is a reader's own
-        // business" true in fact rather than only in principle.
-        fun satisfies(e: Sidecar.ExpectedDiagnostic, r: Diagnostic): Boolean {
-            if (r.path != e.path) return false
-            e.code?.let { return r.code == it }
-            return r.message.contains(e.substring!!)
-        }
+        // `path` exactly, and the cause by REASON CODE. Nothing here reads
+        // English: that is what makes "the exact wording of a diagnostic is an
+        // implementation's own business" true in fact rather than only in
+        // principle. A reader whose cause has no code cannot satisfy a coded
+        // expectation, because null equalling null would pass everything.
+        fun satisfies(e: Sidecar.ExpectedDiagnostic, r: Diagnostic): Boolean =
+            r.path == e.path && r.code != null && r.code == e.code
 
         val taken = BooleanArray(reported.size)
         if (!assign(expected, reported, 0, taken, ::satisfies)) {

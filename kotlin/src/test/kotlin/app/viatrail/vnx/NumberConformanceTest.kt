@@ -108,6 +108,34 @@ class NumberConformanceTest {
     }
 
     @Test
+    fun `the two traps that make a tie test lie, both directions`() {
+        // From the Python seat, 2026-09-09, and both are traps about DECIMAL
+        // INTUITION rather than about rounding.
+        //
+        // First: `0.0000005` is not a binary64 value. The nearest double is
+        // 4.99999999999999977...e-7, which is BELOW the halfway point, so it
+        // rounds down at six places under every rule and the obvious six-place
+        // tie test asserts nothing at all. The smallest real six-place tie is
+        // 1/128, because 5e-7 is not a dyadic rational and j/128 is the only
+        // family whose exact expansion ends in a 5 at the seventh place.
+        assertEquals("0", EcmaNumber.render(Rounding.toPlaces(0.0000005, 6)))
+        assertTrue(!isExactHalfway(0.0000005, 6), "0.0000005 is not a tie, which is the trap")
+        assertTrue(isExactHalfway(0.0078125, 6), "1/128 is the smallest real six-place tie")
+        assertEquals("0.007812", EcmaNumber.render(Rounding.toPlaces(0.0078125, 6)))
+
+        // Second, and the more dangerous direction: `3.05` correctly rounds DOWN
+        // to 3, because the literal is 3.04999999999999982. A test written from
+        // decimal intuition expects 3.1 and calls a correct writer broken.
+        assertTrue(!isExactHalfway(3.05, 1), "3.05 is not a tie either")
+        assertEquals("3", EcmaNumber.render(Rounding.toPlaces(3.05, 1)))
+        // Its neighbour in intuition, which IS above the halfway point.
+        assertEquals("2.7", EcmaNumber.render(Rounding.toPlaces(2.675, 1)))
+        // And the real one-place tie, where the rule finally shows.
+        assertTrue(isExactHalfway(340.25, 1))
+        assertEquals("340.2", EcmaNumber.render(Rounding.toPlaces(340.25, 1)))
+    }
+
+    @Test
     fun `a rounded negative value that collapses to zero renders as zero`() {
         // The only way a writer meets negative zero is by rounding towards it,
         // which is a path no fixture takes — the corpus's format tier can only

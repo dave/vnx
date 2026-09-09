@@ -17,8 +17,9 @@ class Sidecar(val file: File, private val root: JsonObject) {
         val KNOWN_FIELDS = setOf(
             "kind", "note", "schema", "counts", "positions", "tracks",
             "attachments", "refusal", "diagnostics", "cannot_detect",
-            // Reason-code migration, 2026-09-09. `message_advisory` is read by
-            // nothing on purpose: naming it advisory is what stops a runner
+            // Reason codes, 2026-09-09. `message_advisory` is read by nothing on
+            // purpose: a field named `message` that nothing compares reads as a
+            // claim and is not one, and naming it advisory is what stops a runner
             // quietly going on matching English.
             "code", "message_advisory",
         )
@@ -99,20 +100,15 @@ class Sidecar(val file: File, private val root: JsonObject) {
     }
 
     /**
-     * An expected diagnostic.
+     * An expected diagnostic: a `path` and a reason [code], and nothing else.
      *
-     * Sidecars carry a reason [code] since 2026-09-09, with the English kept
-     * beside it as `message_advisory` — advisory in name, so nothing pairs on
-     * it. A sidecar that still uses the pre-migration `message` field pairs on
-     * that substring instead; a sidecar carrying neither is a sidecar this
-     * runner cannot check, and is an error rather than a skip.
+     * The English beside it in the sidecar is `message_advisory` and is not read
+     * here. SPEC.md section 6.3 makes a code a wire commitment and a message a
+     * reader's own business, so comparing the message would re-impose on every
+     * implementation the wording of whichever one wrote the fixture.
      */
-    class ExpectedDiagnostic(val path: String, val code: String?, val substring: String?) {
-        init {
-            require(code != null || substring != null) { "an expected diagnostic must carry `code` or `message`" }
-        }
-
-        override fun toString() = "$path: " + (code?.let { "[$it]" } ?: "~\"$substring\"")
+    class ExpectedDiagnostic(val path: String, val code: String) {
+        override fun toString() = "$path: [$code]"
     }
 
     /** Null where the sidecar states no expectation at all, which is different from expecting none. */
@@ -122,12 +118,15 @@ class Sidecar(val file: File, private val root: JsonObject) {
             val o = element as? JsonObject ?: error("${file.name}: a `diagnostics` entry must be an object")
             val path = (o["path"] as JsonString).value
             val code = (o["code"] as? JsonString)?.value
-            val substring = (o["message"] as? JsonString)?.value
-            check(code != null || substring != null) {
-                "${file.name}: the diagnostic at $path carries neither `code` nor `message`, " +
-                    "so nothing about it can be checked"
+            // Section 6.3: a diagnostic a corpus case pins MUST carry a code. A
+            // sidecar without one is a case nothing can check, and that is a
+            // failure rather than a skip.
+            check(code != null) { "${file.name}: the diagnostic at $path carries no `code`" }
+            check(o["message"] == null) {
+                "${file.name}: the diagnostic at $path still carries `message`; the English field is " +
+                    "`message_advisory` and is not compared"
             }
-            ExpectedDiagnostic(path, code, substring)
+            ExpectedDiagnostic(path, code)
         }
     }
 }

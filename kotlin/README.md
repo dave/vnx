@@ -43,24 +43,30 @@ form is searched for directly over the exact value of the double.
 ```kotlin
 val result = Vnx.read(File("trip.vnx"))
 result.document.tracks?.forEach { println("${it.name}: ${it.movingTimeMs()} ms") }
-result.diagnostics.forEach { println("${it.path}: ${it.message}") }   // never ignore these
+result.diagnostics.forEach { println("${it.path}: ${it.code} ${it.message}") }   // never ignore these
 
 Vnx.render(result.document)   // the bytes this document had: no rounding, arity kept
 Vnx.write(result.document)    // a writer's bytes: coordinates rounded, positions shortened
 Vnx.canonicalise(text)        // decode and re-render — the `fmt` operation
+
+Vnx.readContainer(bytes)                          // a .vnz and its attachments
+Vnx.renderContainer(document, attachments)        // repackage without rounding
+Vnx.writeContainer(document, attachments)         // a writer's container
 ```
+
+**`render` and `write` are two operations, not one**, and the split runs all the
+way to the container. Section 8.1 requires a RE-RENDER for the accept tier
+because a writer rounds; and repackaging an archive — adding a photograph,
+renaming a folder — must not silently round every coordinate in the document it
+is carrying.
 
 A refusal arrives as `VnxRefusal`, separately from the diagnostics, so a caller
 can tell a document that was refused from one that was read with elements
 dropped (`SPEC.md` section 6.3). Every refusal carries a `RefusalCause` and
-every diagnostic a `DiagnosticCause` beside its English text, so nothing has to
-match on prose. `Diagnostic.code` is the format's reason code, which the corpus
-sidecars started carrying on 2026-09-09; the runner pairs on it, and still
-accepts a sidecar that has not migrated.
-
-`Vnx.render` and `Vnx.write` are two different operations and the difference
-matters: section 8.1 requires a RE-RENDER for the accept tier, because a writer
-rounds and writing what you read is legitimately not what you read.
+every diagnostic a `DiagnosticCause`, so nothing has to match on prose.
+`Diagnostic.code` is the format's reason code and is what the corpus pins;
+`Diagnostic.message` is advisory English that nothing compares. Refusals are
+still matched as substrings until typed errors land.
 
 ## What it does not do
 

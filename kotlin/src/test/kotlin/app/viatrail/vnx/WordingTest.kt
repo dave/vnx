@@ -41,7 +41,7 @@ class WordingTest {
         }
 
     @Test
-    fun `each diagnostic cause emits the substring its table entry claims`() {
+    fun `each diagnostic cause emits the code and the advisory wording its table claims`() {
         val provoked = mapOf(
             DiagnosticCause.UNKNOWN_KEY to causeOf(
                 """{"vnx":"0.1.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
@@ -74,12 +74,19 @@ class WordingTest {
             ),
         )
         for (cause in DiagnosticCause.entries) {
-            val substring = cause.corpusSubstring ?: continue
-            val diagnostic = provoked[cause] ?: fail("$cause claims a corpus substring but nothing provokes it here")
-            assertTrue(
-                diagnostic.message.contains(substring),
-                "$cause claims \"$substring\" but says: ${diagnostic.message}",
-            )
+            val code = cause.corpusCode ?: continue
+            val diagnostic = provoked[cause] ?: fail("$cause claims the code \"$code\" but nothing provokes it here")
+            // The commitment.
+            assertEquals(code, diagnostic.code, "$cause reported the wrong reason code")
+            // The quality bar. Nothing compares this; a message that does not name
+            // its cause is still a bad message.
+            val substring = cause.corpusSubstring
+            if (substring != null) {
+                assertTrue(
+                    diagnostic.message.contains(substring),
+                    "$cause claims the advisory wording \"$substring\" but says: ${diagnostic.message}",
+                )
+            }
         }
     }
 
@@ -112,35 +119,34 @@ class WordingTest {
     }
 
     @Test
-    fun `every substring the corpus expects has a table entry`() {
-        // The direction that catches the table going stale: a corpus case whose
-        // expected wording no cause claims is a message this library happens to
-        // get right by accident.
-        val claimed = (
-            DiagnosticCause.entries.mapNotNull { it.corpusSubstring } +
-                RefusalCause.entries.mapNotNull { it.corpusSubstring }
-            ).toSet()
+    fun `every code the corpus pins has a table entry, and every entry is reachable`() {
+        // Both directions. The first catches a code the corpus added that this
+        // library cannot emit; the second catches a code this library claims that
+        // the corpus has retired, which would otherwise sit here looking checked.
+        val claimed = RefusalCause.entries.mapNotNull { it.corpusSubstring }.toSet()
+        val corpusCodes = HashSet<String>()
         val unclaimed = ArrayList<String>()
         for (tier in listOf("accept", "reject", "diagnose")) {
             for (file in File(corpus, tier).listFiles()!!.filter { it.name.endsWith(".expect.json") }) {
                 val sidecar = Sidecar.read(file)
                 sidecar.refusal?.let { if (it !in claimed) unclaimed.add("${file.name}: refusal \"$it\"") }
                 sidecar.diagnostics()?.forEach { expected ->
-                    val code = expected.code
-                    if (code != null) {
-                        if (DiagnosticCause.entries.none { it.corpusCode == code }) {
-                            unclaimed.add("${file.name}: reason code \"$code\" maps to no cause")
-                        }
-                    } else if (expected.substring !in claimed) {
-                        unclaimed.add("${file.name}: diagnostic \"${expected.substring}\"")
+                    corpusCodes.add(expected.code)
+                    if (DiagnosticCause.entries.none { it.corpusCode == expected.code }) {
+                        unclaimed.add("${file.name}: reason code \"${expected.code}\" maps to no cause")
                     }
                 }
             }
         }
         assertTrue(
             unclaimed.isEmpty(),
-            "the corpus expects wording that no cause in the migration table claims:\n" +
-                unclaimed.joinToString("\n"),
+            "the corpus pins expectations no cause claims:\n" + unclaimed.joinToString("\n"),
         )
+        val orphaned = DiagnosticCause.entries.mapNotNull { it.corpusCode }.filter { it !in corpusCodes }
+        assertTrue(
+            orphaned.isEmpty(),
+            "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
+        )
+        assertEquals(6, corpusCodes.size, "the corpus pinned six codes on 2026-09-09; it now pins ${corpusCodes.size}")
     }
 }

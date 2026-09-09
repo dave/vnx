@@ -1,0 +1,10 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "\u003cscript\u003e tags \u0026 ampersands",
+      "notes": "separators \u2028 and \u2029, controls \u0008 \u000C \u000A \u0009 \u000D and \u001F, accented \u00e9, mountain \ud83c\udfd4",
+      "at": [-3.6712, 57.118]
+    }
+  ]
+}

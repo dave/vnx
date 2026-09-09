@@ -16,7 +16,7 @@
       "at": [1.5, 2.5]
     },
     {
-      "name": "\u003cscript\u003ealert(\"x\") \u0026 'y'\u003c/script\u003e",
+      "name": "<script>alert(\"x\") & 'y'</script>",
       "at": [1.5, 2.5]
     },
     {
@@ -32,7 +32,7 @@
       "at": [1.5, 2.5]
     },
     {
-      "name": "\u2028 line separator \u2029",
+      "name": "  line separator  ",
       "at": [1.5, 2.5]
     }
   ]

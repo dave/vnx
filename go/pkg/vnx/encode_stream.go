@@ -1,7 +1,6 @@
 package vnx
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -145,14 +144,7 @@ func putString2(o map[string]any, key, v string) {
 // writeKey emits a quoted key and its separator. Keys go through json.Marshal
 // like any other string so that escaping is one implementation, not two.
 func writeKey(b *StickyWriter, k string) {
-	key, err := json.Marshal(k)
-	if err != nil {
-		// A Go string cannot fail to marshal; if that ever changes, the error
-		// must reach the caller rather than a silently unquoted key.
-		b.err = err
-		return
-	}
-	b.WriteBytes(key)
+	b.WriteString(canonicalString(k))
 	b.WriteString(": ")
 }
 

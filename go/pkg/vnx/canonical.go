@@ -79,11 +79,7 @@ func writeCanonical(w io.Writer, v any, depth int) error {
 			b.WriteString("false")
 		}
 	case string:
-		s, err := json.Marshal(t)
-		if err != nil {
-			return err
-		}
-		b.WriteBytes(s)
+		b.WriteString(canonicalString(t))
 	case json.Number:
 		return writeNumber(b, t)
 	case float64:
@@ -159,11 +155,7 @@ func writeObject(w io.Writer, obj map[string]any, depth int) error {
 			b.WriteString(",\n")
 		}
 		b.WriteString(indent(inner))
-		key, err := json.Marshal(k)
-		if err != nil {
-			return err
-		}
-		b.WriteBytes(key)
+		b.WriteString(canonicalString(k))
 		b.WriteString(": ")
 		if err := writeCanonical(b, obj[k], inner); err != nil {
 			return err

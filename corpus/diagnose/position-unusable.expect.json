@@ -1,27 +1,38 @@
 {
   "kind": "diagnose",
-  "note": "A position that will not parse, in the two containers whose remedies differ. Section 6.2 drops the offending element, and what the offending element IS depends on the container: a pip is one element of an array, so dropping it leaves a shorter polyline that is still a polyline; a ring vertex is not, because section 3.7 makes a polygon ONE closed ring of at least four positions, so removing a vertex leaves a three-vertex non-ring and moves the outline of an area that survives looking plausible. So the pip goes and the area goes, and both are the same rule applied to containers that differ. Both are needed in one document: a library that drops the element every time and a library that drops the item every time each pass a document carrying only one of the two. The second area exists to prove the drop is scoped rather than total. The boundary against wrong-type-required is at IS IT AN ARRAY AT ALL - `at: \"beside the burn\"` is a wrong type in a required key, while `[null, 57.1]` is an array that will not parse as a position - and that line is a reading of section 6.2's two clauses rather than a quotation of them, stated here because a case pinning this path pins the boundary as a side effect. The `positions` entry is doing more work than it looks: it resolves /tracks/0/segments/0/pips/1 to the coordinates of what was the THIRD pip, so it fails a reader that kept the bad pip, one that replaced it with nulls, and one that dropped the whole segment - none of which `counts` alone could separate.",
+  "note": "A position that will not parse, in the three containers that hold geometry, testing the rule that the CONTAINER goes rather than the position. Section 6.2: a position inside `pips` that will not parse drops the arc that holds it, not the pip, because geometry is continuous and structure is not - a missing vertex leaves a shorter, plausible, wrong line with nothing to indicate it, while a missing link leaves a gap the continuity rule of 3.3.3 can see and report. `moving_time_ms` is the load-bearing expectation and the only thing that separates the two readings. Under the rule only the second segment contributes, 1778571344000 minus 1778571280000, so 64000. A reader that dropped the offending PIP instead would keep segment 0 with two pips and answer 264000. The two numbers are far apart on purpose. `counts` cannot do this job - `tracks` is 1 either way - and neither can the diagnostics, because an element-dropping reader emits the same code at the same pointer. Without `moving_time_ms` this file pins nothing at all about the pip rule. The second discriminator is the cascade: `link-arc-absent` at /networks/0/chains/0/links/0 is what proves the ARC left the network, since no sidecar field counts a network's arcs. Under element-dropping `broken` survives, link 0 resolves, and that diagnostic does not appear - so the two readings differ by one diagnostic as well as by the moving time. Two independent discriminators for one rule is worth the extra host. No continuity break is expected, deliberately: a dropped link takes no part on either side, so links 0 and 2 are not thereby adjacent, and a reader reporting a break here has turned one defect into two. Three DIFFERENT malformations - a null in a required channel, a string latitude, one channel too few - so a reader handling only one shape fails on the others rather than passing the file whole. Two readings are flagged as readings rather than quotations. Section 6.2's table names the ARC; a track's segment and a polygon's ring are covered here by analogy, as the containers that hold the geometry, and the table does not yet spell either out. And the boundary against `wrong-type-required` is at IS IT AN ARRAY AT ALL - a type question against a value question, section 6.2's two clauses - which this file does not exercise from the other side; `wrong-typed-value.vnx` carries that half, and the two notes say so to keep the pair legible as a pair.",
   "schema": "invalid",
   "counts": {
-    "tracks": 1,
-    "areas": 1
+    "areas": 1,
+    "networks": 1,
+    "tracks": 1
   },
-  "positions": [
-    { "at": "/tracks/0/segments/0/pips/1", "lon": -3.6681, "lat": 57.1139 }
-  ],
   "tracks": [
-    { "name": "One unusable pip in the middle of a segment", "moving_time_ms": null }
+    {
+      "name": "One segment goes whole, and moving time is what proves it",
+      "moving_time_ms": 64000
+    }
   ],
   "diagnostics": [
     {
+      "path": "/networks/0/arcs/broken/pips/1",
+      "code": "position-unusable",
+      "message_advisory": "channel 0 is null, expected a number — the arc is dropped"
+    },
+    {
+      "path": "/networks/0/chains/0/links/0",
+      "code": "link-arc-absent",
+      "message_advisory": "the arc `broken` is not in this network"
+    },
+    {
       "path": "/tracks/0/segments/0/pips/1",
       "code": "position-unusable",
-      "message_advisory": "longitude is null, expected a number — pip dropped"
+      "message_advisory": "channel 1 is a string, expected a number — the segment is dropped"
     },
     {
       "path": "/areas/0/polygon/1",
       "code": "position-unusable",
-      "message_advisory": "longitude is null, expected a number — area dropped"
+      "message_advisory": "found 1 channel, needs at least 2 — the item is dropped"
     }
   ]
 }

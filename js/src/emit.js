@@ -12,6 +12,8 @@
 // rely on, and rounding ahead of them changes the geometry rather than its
 // spelling.
 
+import { roundToPlaces } from './round.js';
+
 export const RERENDER = 'rerender';
 export const WRITE = 'write';
 
@@ -20,10 +22,9 @@ const ELEVATION_PLACES = 1;
 
 function round(v, places) {
   if (v === null) return null;
-  // `toFixed` rounds the decimal expansion of the exact double, which is what
-  // "6 decimal places" names; `Math.round(v * 1e6) / 1e6` does not, because the
-  // scaling is itself inexact.
-  return Number(v.toFixed(places));
+  // See round.js: the tie direction is not stated by SPEC.md 4.5.4 and the
+  // target languages disagree about it.
+  return roundToPlaces(v, places);
 }
 
 function emitPosition(position, mode) {

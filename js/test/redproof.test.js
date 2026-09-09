@@ -349,3 +349,37 @@ test('using Web Mercator for the projection IS caught', async () => {
   const red = failing(cases);
   assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
 });
+
+test('nothing in the corpus exercises the WRITE path', async () => {
+  // SPEC.md 8.1 requires that a runner not use its writer, and this is the
+  // proof that this one does not: breaking rounding and shortening outright
+  // leaves every tier green. It is also the reason the tie-direction question
+  // in src/round.js cannot be settled by running the corpus.
+  const cases = await runMutated([
+    {
+      file: 'emit.js',
+      from: '  return roundToPlaces(v, places);',
+      to: '  return 0;',
+    },
+    {
+      file: 'emit.js',
+      from: '  while (n > 2 && out[n - 1] === null) n--;',
+      to: '  n = 2;',
+    },
+  ]);
+  assert.deepEqual(failing(cases), [],
+    'the corpus now reaches the writer; assert the failures instead');
+});
+
+test('rounding half away from zero instead of half to even is NOT caught', async () => {
+  // Measured 2026-09-09: Go and Python both give 340.2 for 340.25 to one
+  // place, JavaScript `toFixed` gives 340.3. Two conforming writers therefore
+  // emit different bytes for one model, and no corpus tier can see it.
+  const cases = await runMutated([{
+    file: 'round.js',
+    from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',
+    to: '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
+  }]);
+  assert.deepEqual(failing(cases), [],
+    'the corpus now covers the rounding tie; assert the failure instead');
+});

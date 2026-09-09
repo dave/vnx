@@ -12,6 +12,7 @@ export { emitDocument, RERENDER, WRITE } from './emit.js';
 export { compareCodePoints } from './codepoint.js';
 export { renderNumber } from './number.js';
 export { distanceToPolylineM, PROJECTION_TOLERANCE_M, EARTH_RADIUS_M } from './geo.js';
+export { roundToPlaces } from './round.js';
 export { decodeContainer, encodeContainer } from './vnz.js';
 
 import { decodeText } from './decode.js';

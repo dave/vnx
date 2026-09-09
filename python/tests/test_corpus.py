@@ -86,6 +86,34 @@ class CorpusStructure(unittest.TestCase):
         "cannot_detect",
     }
 
+    def test_no_unchecked_entry_has_outlived_its_field(self) -> None:
+        """An entry in UNCHECKED must name a field some sidecar still carries.
+
+        The set exists to make an uncompared expectation visible.  A stale entry
+        does the opposite: it makes the mechanism look more thorough than it is,
+        and it is invisible because nothing goes red when the field goes away.
+        Same shape as the finding this whole set was built for.
+
+        `schema` is due to leave the sidecars -- ruled 2026-09-09, since moving
+        the JSON Schema into corpus/ made it reachable but not checkable, and a
+        field most runners can only record as unchecked reads as an assertion
+        and is not one.  When that lands, THIS TEST GOES RED, and the fix is to
+        delete `schema` from UNCHECKED above.  That is the intended behaviour,
+        not a break: it is how the follow-up announces itself rather than
+        waiting to be remembered.
+        """
+        used: set[str] = set()
+        for kind in ("accept", "reject", "diagnose"):
+            for sidecar in sorted((CORPUS / kind).glob("*.expect.json")):
+                used |= set(json.loads(sidecar.read_text()))
+        for field in sorted(self.UNCHECKED):
+            self.assertIn(
+                field,
+                used,
+                f"UNCHECKED names {field!r} and no sidecar carries it any more; "
+                "delete the entry",
+            )
+
     def test_the_runner_knows_every_sidecar_field(self) -> None:
         for kind in ("accept", "reject", "diagnose"):
             for sidecar in sorted((CORPUS / kind).glob("*.expect.json")):

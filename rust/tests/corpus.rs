@@ -16,6 +16,8 @@
 //! * `positions` is resolved against the DECODED MODEL, never against the raw
 //!   JSON. Resolving it against the file compares the file to itself and
 //!   cannot see a decoder that swapped longitude and latitude.
+//! * A failing case does not take the rest of its tier with it. One defect
+//!   reported as a total collapse tells you nothing about how much is wrong.
 //! * Diagnostics are matched on `path` and `code`, as a SET with distinct
 //!   pairing: one reported diagnostic may not satisfy two expectations, or a
 //!   reader that found half the defects would pass. The sidecar's
@@ -418,6 +420,84 @@ fn format_tier() {
     assert!(cases > 0, "the format tier found no cases");
 }
 
+/// SPEC 4.5.4's WRITE path, which is the one no other tier reaches.
+///
+/// A case is a pair — `X.in.vnx` and `X.written.vnx` — plus a sidecar. The
+/// operation is decode-then-write, which is language-neutral in exactly the way
+/// `format/`'s decode-then-re-render is: the input is a document rather than a
+/// model, so no language-specific way to express a model is needed.
+///
+/// A library with no write path fails this tier by name rather than by a
+/// confusing byte diff.
+#[test]
+fn write_tier() {
+    let dir = corpus_root().join("write");
+    let mut cases = 0;
+    for entry in read_dir_sorted(&dir) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(stem) = name.strip_suffix(".in.vnx") else {
+            continue;
+        };
+        cases += 1;
+        let input = std::fs::read(entry.path()).expect("the input reads");
+        let expected = std::fs::read(dir.join(format!("{stem}.written.vnx")))
+            .unwrap_or_else(|_| panic!("write/{stem}.in.vnx has no {stem}.written.vnx beside it"));
+
+        // A case with no sidecar is a failure, not a skip, as everywhere else.
+        let sidecar_bytes = std::fs::read(dir.join(format!("{stem}.expect.json")))
+            .unwrap_or_else(|_| panic!("write/{stem} has no sidecar"));
+        let sidecar = parse(&sidecar_bytes).expect("the sidecar parses");
+        assert_eq!(
+            sidecar.get("kind").and_then(Json::as_str),
+            Some("write"),
+            "write/{stem}: the sidecar's `kind` must match its directory"
+        );
+        assert!(
+            sidecar
+                .get("note")
+                .and_then(Json::as_str)
+                .is_some_and(|n| !n.is_empty()),
+            "write/{stem}: the sidecar carries no `note`"
+        );
+
+        // Without this, a writer that echoed its input would pass every case.
+        assert_ne!(
+            input, expected,
+            "write/{stem}.in.vnx is already the written form, so this case \
+             cannot fail for a writer that echoes its input"
+        );
+
+        let reading = decode(&input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
+        assert!(
+            reading.diagnostics.is_empty(),
+            "write/{stem}.in.vnx reported {}",
+            render_diagnostics(&reading.diagnostics)
+        );
+        let written = vnx::write(&reading.document);
+        assert_eq!(
+            written.as_bytes(),
+            expected.as_slice(),
+            "write/{stem}: writing the decoded input does not give the expected bytes.\n\
+             --- expected ---\n{}\n--- got ---\n{written}",
+            String::from_utf8_lossy(&expected)
+        );
+
+        // The written form is a fixed point: rounding and shortening are both
+        // idempotent, so a case that fails this is a defect in the fixture.
+        let again = vnx::write(
+            &decode(&expected)
+                .unwrap_or_else(|e| panic!("write/{stem}.written.vnx: {e}"))
+                .document,
+        );
+        assert_eq!(
+            again.as_bytes(),
+            expected.as_slice(),
+            "write/{stem}: the written form is not a fixed point"
+        );
+    }
+    assert!(cases > 0, "the write tier found no cases");
+}
+
 /// A corpus case with no sidecar is a failure, not a skip. The three sidecar
 /// tiers assert this per file; this test asserts that no stray document sits
 /// anywhere in the corpus outside a tier the runner walks.
@@ -442,7 +522,10 @@ fn every_corpus_document_is_reached_by_a_tier() {
                 .and_then(|p| p.file_name())
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            if !matches!(tier.as_str(), "accept" | "reject" | "diagnose" | "format") {
+            if !matches!(
+                tier.as_str(),
+                "accept" | "reject" | "diagnose" | "format" | "write"
+            ) {
                 unreached.push(path.display().to_string());
             }
         }
@@ -498,9 +581,25 @@ impl Case {
     }
 }
 
-fn run_tier(tier: &str, mut check: impl FnMut(&Case)) {
+/// Run every case in a tier, and report EVERY failure rather than the first.
+///
+/// A case that panics must not take the rest of the tier with it. One defect
+/// reported as a total collapse tells you nothing about how much is actually
+/// wrong, and it is the same shape as a red-proof that under-reports which
+/// guards caught a defect — in both, a single event hides the state of
+/// everything else. The JavaScript seat found a refusal inside its `format/`
+/// tier taking 34 passing cases down with it; in Rust the equivalent is a
+/// panicking assertion inside a loop, so each case runs inside `catch_unwind`.
+fn run_tier(tier: &str, check: impl Fn(&Case) + std::panic::RefUnwindSafe) {
     let dir = corpus_root().join(tier);
     let mut cases = 0;
+    let mut failures: Vec<String> = Vec::new();
+
+    // Silence the per-panic backtrace noise; the messages are collected and
+    // reported together below.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
     for entry in read_dir_sorted(&dir) {
         let path = entry.path();
         let name = path.file_name().expect("a file has a name").to_string_lossy();
@@ -513,9 +612,35 @@ fn run_tier(tier: &str, mut check: impl FnMut(&Case)) {
             bytes: std::fs::read(&path).expect("a corpus file reads"),
             path: path.clone(),
         };
-        check(&case);
+        if let Err(panic) = std::panic::catch_unwind(|| check(&case)) {
+            failures.push(describe_panic(&case.name, panic.as_ref()));
+        }
     }
+
+    std::panic::set_hook(previous);
+
     assert!(cases > 0, "the {tier} tier found no cases");
+    assert!(
+        failures.is_empty(),
+        "{} of {cases} {tier} case(s) failed:\n\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
+
+fn describe_panic(case: &str, panic: &(dyn std::any::Any + Send)) -> String {
+    let message = panic
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| panic.downcast_ref::<&str>().copied())
+        .unwrap_or("(a panic carrying no message)");
+    // The case name is already the first thing every assertion writes, so it
+    // is not repeated when it is there.
+    if message.starts_with(case) {
+        message.to_string()
+    } else {
+        format!("{case}: {message}")
+    }
 }
 
 fn read_dir_sorted(dir: &Path) -> Vec<std::fs::DirEntry> {

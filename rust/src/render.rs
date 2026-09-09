@@ -68,7 +68,7 @@ fn folder(f: &Folder, mode: Mode) -> Json {
     o.str("parent", f.parent.as_deref());
     o.str("name", f.name.as_deref());
     o.str("notes", f.notes.as_deref());
-    o.bool("hidden", f.hidden);
+    o.hidden(f.hidden, mode);
     o.records(&f.data, mode);
     o.done()
 }
@@ -78,7 +78,7 @@ fn network(n: &Network, mode: Mode) -> Json {
     o.str("name", n.name.as_deref());
     o.str("notes", n.notes.as_deref());
     o.str("folder", n.folder.as_deref());
-    o.bool("hidden", n.hidden);
+    o.hidden(n.hidden, mode);
     if let Some(nodes) = &n.nodes {
         o.raw(
             "nodes",
@@ -120,7 +120,7 @@ fn chain(c: &Chain, mode: Mode) -> Json {
     let mut o = Obj::new();
     o.str("name", c.name.as_deref());
     o.str("notes", c.notes.as_deref());
-    o.bool("hidden", c.hidden);
+    o.hidden(c.hidden, mode);
     o.opaque("style", c.style.as_ref());
     o.raw(
         "links",
@@ -150,7 +150,7 @@ fn route(r: &Route, mode: Mode) -> Json {
     o.str("name", r.name.as_deref());
     o.str("notes", r.notes.as_deref());
     o.str("folder", r.folder.as_deref());
-    o.bool("hidden", r.hidden);
+    o.hidden(r.hidden, mode);
     o.opaque("style", r.style.as_ref());
     o.raw(
         "arcs",
@@ -172,7 +172,7 @@ fn track(t: &Track, mode: Mode) -> Json {
     o.str("name", t.name.as_deref());
     o.str("notes", t.notes.as_deref());
     o.str("folder", t.folder.as_deref());
-    o.bool("hidden", t.hidden);
+    o.hidden(t.hidden, mode);
     o.str("started", t.started.as_deref());
     o.str("ended", t.ended.as_deref());
     o.opaque("style", t.style.as_ref());
@@ -198,7 +198,7 @@ fn waypoint(w: &Waypoint, mode: Mode) -> Json {
     o.str("name", w.name.as_deref());
     o.str("notes", w.notes.as_deref());
     o.str("folder", w.folder.as_deref());
-    o.bool("hidden", w.hidden);
+    o.hidden(w.hidden, mode);
     o.opaque("style", w.style.as_ref());
     o.raw("at", position(&w.at, mode));
     o.records(&w.data, mode);
@@ -210,7 +210,7 @@ fn area(a: &Area, mode: Mode) -> Json {
     o.str("name", a.name.as_deref());
     o.str("notes", a.notes.as_deref());
     o.str("folder", a.folder.as_deref());
-    o.bool("hidden", a.hidden);
+    o.hidden(a.hidden, mode);
     o.opaque("style", a.style.as_ref());
     o.raw("polygon", pips(&a.polygon, mode));
     o.records(&a.data, mode);
@@ -323,12 +323,17 @@ impl Obj {
         }
     }
 
-    /// SPEC 3.8: `hidden` is emitted only when it is `true`, and a document
-    /// SHOULD NOT carry `"hidden": false`. A model that read `false` keeps it,
-    /// so a re-render reproduces the document it was handed.
-    fn bool(&mut self, key: &str, value: Option<bool>) {
-        if let Some(v) = value {
-            self.raw(key, Json::Bool(v));
+    /// SPEC 3.8: a WRITER emits `hidden` only when it is `true`, and a
+    /// document SHOULD NOT carry `"hidden": false`.
+    ///
+    /// A RE-RENDER keeps whatever the document carried, `false` included, or it
+    /// would not reproduce the document it was handed. So this is one of the
+    /// two places the two emit paths differ — the other is a position.
+    fn hidden(&mut self, value: Option<bool>, mode: Mode) {
+        match (value, mode) {
+            (Some(false), Mode::Write) => {}
+            (Some(v), _) => self.raw("hidden", Json::Bool(v)),
+            (None, _) => {}
         }
     }
 

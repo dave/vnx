@@ -38,8 +38,8 @@ archive is deflated, so a reader without it cannot open a container at all.
 | `geo` | the 50 m projection tolerance of SPEC 3.3.3 |
 | `zip`, `zip::inflate` | a read-only ZIP walker and an inflater |
 | `vnz` | the container of SPEC 7 |
-| `tests/corpus.rs` | the conformance runner, all four tiers |
-| `tests/numbers.rs` | the number-conformance table, the fifth tier |
+| `tests/corpus.rs` | the conformance runner, all five tiers |
+| `tests/numbers.rs` | the number-conformance table |
 | `tests/zip64.rs` | a hand-built ZIP64 container, because the corpus has none |
 
 ## Three operations, not one
@@ -51,9 +51,14 @@ write      model  -> bytes, rounded and shortened           SPEC 4.5.4, 4.1
 ```
 
 `re_render` and `write` are different operations, and a library with only one of
-them cannot conform (SPEC 4.5.4). The accept tier requires `re_render`: a writer
-rounds coordinates and shortens positions, so writing what you read is
-legitimately not what you read.
+them cannot conform (SPEC 4.5.4). The `accept/` and `format/` tiers require
+`re_render`; the `write/` tier requires `write`. Writing what you read is
+legitimately not what you read, because a writer rounds.
+
+They differ in exactly three places, all at the emit boundary: a position's
+coordinates are rounded to 6 and 1 decimal places, a position's trailing
+absences are dropped, and `"hidden": false` is not written. `vnz` splits the
+same way, so repackaging a container cannot silently round it.
 
 ## Where Rust fights the format
 
@@ -138,7 +143,7 @@ the corpus rather than of any implementation. Each is covered by a test in this
 crate instead.
 
 **Number ties, rendering and rounding.** `tests/numbers.rs` runs
-`number-conformance/numbers.tsv` — 5,315 doubles as IEEE 754 hex with Go's
+`corpus/numbers/numbers.tsv` — 5,315 doubles as IEEE 754 hex with Go's
 answers for the canonical spelling and for the spelling after rounding to 6 and
 to 1 places. A rendering tie is a value rather than a shape, so no fixture holds
 one usefully; and rounding happens only when a WRITER emits a model, while all
@@ -165,12 +170,33 @@ field must fail rather than be silently ignored.
 
 ## Every runner has been seen to fail
 
-`tools/redproof.py` breaks the reader twenty-two ways and requires a runner to go
-red each time. All twenty-two were caught, measured 2026-09-09; the script's own
-docstring carries the table. Without that, "the corpus passes" is a claim about a
+`tools/redproof.py` breaks the reader twenty-four ways and requires each to reach
+the verdict it should. Measured 2026-09-09; the script's own docstring carries the
+table.
+
+One entry is expected to SURVIVE, and fails the script if it ever goes red:
+reaching inward to a segment's first and last TIMED pip rather than its end pips.
+`accept/track-partly-timed.vnx` exists to separate those two readings and its own
+note says so, but its untimed segment carries no times at all, so both readings
+return unknown. That is a hole in the fixture rather than in this crate, and it is
+reported. Recording it as an expected-green mutation means the note cannot outlive
+the limitation. Without that, "the corpus passes" is a claim about a
 runner nobody has watched fail.
 
-One caution the script records in a comment: its first notes-discarding mutation
-came back green because it patched only the first call site and no accept fixture
-has a folder with `notes`. **A mutation that misses its target is
-indistinguishable from a runner that found nothing wrong.**
+Two cautions the script records in comments, both paid for here:
+
+**A mutation that misses its target is indistinguishable from a runner that found
+nothing wrong.** The first notes-discarding mutation came back green because it
+patched only the first call site, and no accept fixture has a folder with `notes`.
+
+**A mutation broader than the rule proves the corpus catches something, not that
+it catches this.** The first attempt at the expected-green entry above also
+skipped wholly-untimed segments — a second defect — and went red for the skipping
+rather than for the reaching inward. Narrowing it to change only which pips are
+read is what turned an argument into a measurement.
+
+And one about the tests themselves: two earlier tests in `geo.rs` were named for
+corpus fixtures and hard-coded a superseded pair of coordinates, so they would
+have passed with both corpus files deleted, and one of them asserted — green — a
+statement that was false of the corpus it named. They are gone. The claim they
+made is now a `redproof.py` mutation that reads whatever is committed today.

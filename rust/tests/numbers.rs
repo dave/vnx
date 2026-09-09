@@ -1,4 +1,4 @@
-//! The number-conformance table (`number-conformance/numbers.tsv`).
+//! The number-conformance table (`corpus/numbers/numbers.tsv`).
 //!
 //! A fifth conformance tier in everything but its location. It exists because
 //! two rules in `SPEC.md` decide bytes and the corpus can reach neither:
@@ -14,12 +14,29 @@ use std::path::{Path, PathBuf};
 
 use vnx::json::number;
 
+/// The table moved from `number-conformance/` to `corpus/numbers/` on
+/// 2026-09-09. Both are tried, and finding NEITHER is a loud failure naming
+/// both rather than a skip: a number-table test that skips when the file moves
+/// is a green light with no bulb in it, and a move is exactly the event that
+/// would switch it off.
 fn table_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .expect("the crate sits inside the repository")
-        .join("number-conformance")
-        .join("numbers.tsv")
+        .expect("the crate sits inside the repository");
+    let current = repo.join("corpus").join("numbers").join("numbers.tsv");
+    let former = repo.join("number-conformance").join("numbers.tsv");
+    for candidate in [&current, &former] {
+        if candidate.is_file() {
+            return candidate.clone();
+        }
+    }
+    panic!(
+        "the number-conformance table is at neither {} nor {}. It is the only \
+         instrument that reaches SPEC 4.5.3's rendering tie and SPEC 4.5.4's \
+         rounding, so this is a failure rather than a skip.",
+        current.display(),
+        former.display()
+    )
 }
 
 struct Row {

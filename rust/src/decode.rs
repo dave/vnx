@@ -1026,6 +1026,13 @@ fn parse_version(text: &str) -> Result<Version, Refusal> {
 
 /// SPEC 4.3: `YYYY-MM-DDTHH:MM:SS` with OPTIONAL fractional seconds and a
 /// literal `Z`. An offset other than `Z` is not permitted.
+///
+/// SHAPE ONLY. `2026-13-45T99:99:99Z` is accepted, and a reader MUST NOT
+/// refuse it on calendar grounds. Ruled 2026-09-09 by consistency rather than
+/// on the merits: SPEC 6.2 has a reader check a value only where this document
+/// states a normative range or enumeration, which is the same rule that leaves
+/// `icon-size` unchecked. A reader validating calendars would refuse documents
+/// every other library accepts.
 fn is_utc_timestamp(text: &str) -> bool {
     let Some(body) = text.strip_suffix('Z') else {
         return false;
@@ -1046,18 +1053,6 @@ fn is_utc_timestamp(text: &str) -> bool {
         && digits(14..16)
         && bytes[16] == b':'
         && digits(17..19))
-    {
-        return false;
-    }
-    let number = |range: std::ops::Range<usize>| {
-        body[range].parse::<u32>().expect("checked to be digits")
-    };
-    if !(1..=12).contains(&number(5..7))
-        || !(1..=31).contains(&number(8..10))
-        || number(11..13) > 23
-        || number(14..16) > 59
-        // A leap second is 60.
-        || number(17..19) > 60
     {
         return false;
     }
@@ -1180,14 +1175,29 @@ mod tests {
         }
         for bad in [
             "2026-05-12T08:03:11+01:00",
+            "2026-05-12T08:03:11-00:00",
+            "2026-05-12T08:03:11z",
             "2026-05-12T08:03:11",
             "2026-05-12",
-            "2026-13-12T08:03:11Z",
-            "2026-05-12T24:03:11Z",
             "2026-05-12T08:03:11.Z",
+            "2026-05-12 08:03:11Z",
             "not a date",
         ] {
             assert!(!is_utc_timestamp(bad), "{bad}");
+        }
+    }
+
+    /// SPEC 4.3 is checked for SHAPE ONLY (ruled 2026-09-09). A calendar that
+    /// cannot exist is still a well-shaped timestamp, and refusing it would
+    /// refuse documents every other library accepts.
+    #[test]
+    fn a_timestamp_is_not_checked_against_a_calendar() {
+        for impossible in [
+            "2026-13-45T99:99:99Z",
+            "2026-00-00T00:00:00Z",
+            "0000-99-99T99:99:99.999999Z",
+        ] {
+            assert!(is_utc_timestamp(impossible), "{impossible}");
         }
     }
 

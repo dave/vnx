@@ -292,12 +292,24 @@ fn crc32(bytes: &[u8]) -> u32 {
 /// Build an archive whose entries are all STORED, with the UTF-8 filename
 /// flag set (SPEC 7).
 ///
-/// No ZIP64 records are written. SPEC 7 makes that asymmetry deliberate: a
-/// reader MUST accept ZIP64, a writer MAY leave it out, so a small export
-/// stays readable by the widest range of tools.
+/// STORED for every entry, always. Deflate has no canonical output — Go's
+/// `compress/flate` and zlib disagree on the corpus's own archives, and no
+/// zlib level reproduces the committed bytes — so a deflated archive is
+/// byte-reproducible only by the language that wrote it. A reader must still
+/// accept deflate; a writer never emits it. That asymmetry is why this crate
+/// carries an inflater and no deflater.
+///
+/// No ZIP64 records are written either. SPEC 7 makes that asymmetry deliberate
+/// too: a reader MUST accept ZIP64, a writer MAY leave it out, so a small
+/// export stays readable by the widest range of tools.
 pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
     /// Bit 11: the name and comment are UTF-8.
     const UTF8_FLAG: u16 = 1 << 11;
+    /// A fixed timestamp, so container output is byte-deterministic: MS-DOS
+    /// 1980-01-01 00:00:00, which is what `makevnz` writes. The DOS date packs
+    /// as (year - 1980) << 9 | month << 5 | day.
+    const DOS_TIME: u16 = 0;
+    const DOS_DATE: u16 = (1 << 5) | 1;
 
     let mut out: Vec<u8> = Vec::new();
     let mut directory: Vec<u8> = Vec::new();
@@ -312,8 +324,8 @@ pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
         out.extend_from_slice(&20u16.to_le_bytes()); // version needed
         out.extend_from_slice(&UTF8_FLAG.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes()); // method: stored
-        out.extend_from_slice(&0u16.to_le_bytes()); // time
-        out.extend_from_slice(&0u16.to_le_bytes()); // date
+        out.extend_from_slice(&DOS_TIME.to_le_bytes());
+        out.extend_from_slice(&DOS_DATE.to_le_bytes());
         out.extend_from_slice(&crc.to_le_bytes());
         out.extend_from_slice(&size.to_le_bytes());
         out.extend_from_slice(&size.to_le_bytes());
@@ -327,8 +339,8 @@ pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
         directory.extend_from_slice(&20u16.to_le_bytes()); // version needed
         directory.extend_from_slice(&UTF8_FLAG.to_le_bytes());
         directory.extend_from_slice(&0u16.to_le_bytes()); // method: stored
-        directory.extend_from_slice(&0u16.to_le_bytes()); // time
-        directory.extend_from_slice(&0u16.to_le_bytes()); // date
+        directory.extend_from_slice(&DOS_TIME.to_le_bytes());
+        directory.extend_from_slice(&DOS_DATE.to_le_bytes());
         directory.extend_from_slice(&crc.to_le_bytes());
         directory.extend_from_slice(&size.to_le_bytes());
         directory.extend_from_slice(&size.to_le_bytes());
@@ -365,6 +377,29 @@ mod tests {
         // The check value APPNOTE and RFC 1952 both quote.
         assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
         assert_eq!(crc32(b""), 0);
+    }
+
+    /// Container output must be byte-deterministic (ruled 2026-09-09), so the
+    /// same input gives the same archive and every entry carries the fixed
+    /// 1980-01-01 timestamp `makevnz` writes.
+    #[test]
+    fn container_output_is_byte_deterministic() {
+        let files = vec![
+            crate::vnz::Attachment {
+                path: "doc.vnx".into(),
+                bytes: b"{}\n".to_vec(),
+            },
+            crate::vnz::Attachment {
+                path: "attachments/photo.txt".into(),
+                bytes: b"not really a photo\n".to_vec(),
+            },
+        ];
+        assert_eq!(write_stored(&files), write_stored(&files));
+
+        // 1980-01-01 00:00:00 in the local header of the first entry.
+        let bytes = write_stored(&files);
+        assert_eq!(&bytes[10..12], &0u16.to_le_bytes(), "time");
+        assert_eq!(&bytes[12..14], &0x0021u16.to_le_bytes(), "date");
     }
 
     #[test]

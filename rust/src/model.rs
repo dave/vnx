@@ -291,26 +291,32 @@ impl Track {
     /// pip time in that segment. Deliberately not the wall-clock span between
     /// `started` and `ended`, which a pause lengthens.
     ///
-    /// A segment whose first or last pip carries no time contributes nothing.
-    /// When no segment contributes, the answer is unknown — not zero, which is
-    /// indistinguishable from a track on which nobody moved. SPEC 3.5 states
-    /// the all-or-nothing case ("where the pips of a track carry no times")
-    /// and is silent on a partly timed track; skipping the untimed segments is
-    /// this crate's reading and is reported as such.
+    /// A track that is only PARTLY timed is unknown for the whole track, not
+    /// the sum of the segments that are timed. Ruled 2026-09-09, against this
+    /// crate's first reading and against the JavaScript seat's, which were the
+    /// same reading and were both wrong.
+    ///
+    /// The reasoning is the one that makes zero wrong for an untimed track: a
+    /// partial sum reports a number for a span it cannot measure, and a user
+    /// comparing two tracks gets a wrong answer with nothing to say anything
+    /// is missing. Unknown is honest. No corpus tier could see the divergence,
+    /// because every corpus track is fully timed or fully untimed.
     pub fn moving_time_ms(&self) -> Option<f64> {
         let mut total = 0.0;
-        let mut any = false;
+        let mut measured = 0;
         for segment in &self.segments {
+            // An EMPTY segment has no span to measure, so it neither
+            // contributes nor makes the track unknown.
             let (Some(first), Some(last)) = (segment.pips.first(), segment.pips.last()) else {
                 continue;
             };
-            let (Some(start), Some(end)) = (first.time_ms(), last.time_ms()) else {
-                continue;
-            };
-            total += end - start;
-            any = true;
+            // Any segment that does have a span must have a time at both ends.
+            // Not "its first and last TIMED pip" — a span measured between two
+            // pips that are not the segment's ends is a different span.
+            total += last.time_ms()? - first.time_ms()?;
+            measured += 1;
         }
-        any.then_some(total)
+        (measured > 0).then_some(total)
     }
 }
 
@@ -410,5 +416,104 @@ mod tests {
             ..Track::default()
         };
         assert_eq!(untimed.moving_time_ms(), None, "unknown is not zero");
+    }
+
+    /// SPEC 3.5, ruled 2026-09-09: a PARTLY timed track is unknown for the
+    /// whole track. Summing only its timed segments reports a number for a
+    /// span that cannot be measured, which is the shape SPEC 3.5 forbids for
+    /// the all-untimed case.
+    ///
+    /// No corpus case reaches this — every corpus track is fully timed or
+    /// fully untimed — so this test is the only thing holding the rule.
+    #[test]
+    fn a_partly_timed_track_is_unknown_for_the_whole_track() {
+        let timed = Segment {
+            pips: vec![
+                Position::new(vec![Some(-3.0), Some(57.0), None, Some(0.0)]),
+                Position::new(vec![Some(-3.0), Some(57.1), None, Some(103_000.0)]),
+            ],
+        };
+        let untimed = Segment {
+            pips: vec![Position::lon_lat(-3.0, 57.2), Position::lon_lat(-3.0, 57.3)],
+        };
+        let track = Track {
+            segments: vec![timed.clone(), untimed],
+            ..Track::default()
+        };
+        assert_eq!(
+            track.moving_time_ms(),
+            None,
+            "a partial sum answers a question the document cannot answer"
+        );
+        // And the fully timed prefix on its own is still known, so this is not
+        // a guard that has stopped measuring anything.
+        assert_eq!(
+            Track {
+                segments: vec![timed],
+                ..Track::default()
+            }
+            .moving_time_ms(),
+            Some(103_000.0)
+        );
+    }
+
+    /// A track with no segments has nothing to measure either. Zero would be
+    /// the same wrong answer in a smaller costume.
+    #[test]
+    fn a_track_with_no_segments_is_unknown() {
+        assert_eq!(Track::default().moving_time_ms(), None);
+    }
+
+    /// An EMPTY segment has no span, so it neither contributes nor makes the
+    /// track unknown. The distinction matters: "every segment must be timed"
+    /// and "every segment that HAS a span must be timed" differ exactly here.
+    #[test]
+    fn an_empty_segment_neither_contributes_nor_makes_a_track_unknown() {
+        let timed = Segment {
+            pips: vec![
+                Position::new(vec![Some(-3.0), Some(57.0), None, Some(0.0)]),
+                Position::new(vec![Some(-3.0), Some(57.1), None, Some(103_000.0)]),
+            ],
+        };
+        let track = Track {
+            segments: vec![Segment { pips: vec![] }, timed, Segment { pips: vec![] }],
+            ..Track::default()
+        };
+        assert_eq!(track.moving_time_ms(), Some(103_000.0));
+
+        // But a track of nothing BUT empty segments has measured nothing.
+        assert_eq!(
+            Track {
+                segments: vec![Segment { pips: vec![] }],
+                ..Track::default()
+            }
+            .moving_time_ms(),
+            None
+        );
+    }
+
+    /// A one-pip segment is a span of zero, not an absence. Its single pip is
+    /// both the first and the last, so it needs a time.
+    #[test]
+    fn a_one_pip_segment_is_a_span_of_zero() {
+        let at = |t: Option<f64>| Segment {
+            pips: vec![Position::new(vec![Some(-3.0), Some(57.0), None, t])],
+        };
+        assert_eq!(
+            Track {
+                segments: vec![at(Some(5.0))],
+                ..Track::default()
+            }
+            .moving_time_ms(),
+            Some(0.0)
+        );
+        assert_eq!(
+            Track {
+                segments: vec![at(None)],
+                ..Track::default()
+            }
+            .moving_time_ms(),
+            None
+        );
     }
 }

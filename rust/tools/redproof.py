@@ -37,12 +37,18 @@ Measured 2026-09-09, all sixteen caught:
     ignore a stale `message` sidecar     the runner's own self-test
     skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
     ignore the ZIP64 end record          zip64
+    take the segment-start cosine        accept AND diagnose, in opposite directions
+
+One entry is expected to SURVIVE, and fails the script if it ever goes red:
+reaching inward to a segment's first and last TIMED pip. That is a hole in
+`accept/track-partly-timed.vnx` rather than in this crate — reported 2026-09-09.
 """
 import io, os, shutil, subprocess, sys, tempfile
 
 ROOT = "/Users/dave/src/vnx/rust"
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/json/number.rs",
-         "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "tests/corpus.rs"]
+         "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "src/geo.rs",
+         "tests/corpus.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
@@ -72,8 +78,8 @@ MUTATIONS = [
      "            notes: None,", "all"),
 
     ("answer 0 for an unknown moving time", "src/model.rs",
-     "        any.then_some(total)",
-     "        let _ = any; Some(total)"),
+     "            total += last.time_ms()? - first.time_ms()?;",
+     "            total += last.time_ms().unwrap_or(0.0) - first.time_ms().unwrap_or(0.0);"),
 
     ("skip the chain continuity check", "src/decode.rs",
      "        self.check_continuity(&slots, &links_path, network);",
@@ -141,6 +147,37 @@ MUTATIONS = [
      "        if count == 0xffff || cd_offset == 0xffff_ffff || cd_size == 0xffff_ffff {",
      "        if false {"),
 
+    # The tolerance pair, measured against the LIVE corpus rather than against
+    # a copy of its coordinates. An earlier version of this crate hard-coded the
+    # superseded three-degree fixture in a unit test named for the corpus files
+    # and asserted, green, a statement that was false of the corpus it named.
+    # This mutation reads whatever is committed today.
+    ("take the cosine of the segment's start latitude", "src/geo.rs",
+     "    let cos_lat = point.lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };",
+     "    let cos_lat = pips[0].lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };"),
+
+    # EXPECTED TO SURVIVE. `accept/track-partly-timed.vnx` exists to separate
+    # "read a segment's END pips" from "read its first and last TIMED pip", and
+    # its own note says so — but its untimed segment carries no times at all, so
+    # both readings return unknown and neither goes red. Reported 2026-09-09.
+    #
+    # This mutation is deliberately NARROW: it changes only WHICH pips are read
+    # and keeps the rule that a segment with no timed pip makes the whole track
+    # unknown. A first attempt also skipped wholly-untimed segments, which is a
+    # second defect, and it went red — for the skipping, not for the reaching
+    # inward. A mutation broader than the rule proves the corpus catches
+    # something, not that it catches this.
+    #
+    # If this line ever turns red, the fixture has been fixed and this entry
+    # should become an ordinary mutation rather than quietly outliving its cause.
+    ("reach inward to a segment's first and last TIMED pip", "src/model.rs",
+     "            total += last.time_ms()? - first.time_ms()?;",
+     "            let timed: Vec<f64> = segment.pips.iter().filter_map(|p| p.time_ms()).collect();\n"
+     "            if timed.is_empty() { return None; }\n"
+     "            total += timed[timed.len() - 1] - timed[0];\n"
+     "            let _ = (first, last);",
+     "expect-green"),
+
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
      "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i))).collect());"),
@@ -178,7 +215,10 @@ def run_corpus():
                          if l.startswith("    ") and l.strip()
                          and " " not in l.strip() and "::" not in l.strip()
                          and l.strip().replace("_", "").isalnum()
-                         and l.strip() not in ("null", "true", "false")})
+                         # A test name, not a stray token from an assertion
+                         # diff: lower-case, and carrying an underscore.
+                         and "_" in l.strip()
+                         and l.strip()[0].islower()})
         return "red", ", ".join(failed) or "?"
     return "DID NOT BUILD", text[-400:]
 
@@ -192,7 +232,11 @@ def main():
     print("baseline: GREEN\n")
     survivors = []
     for name, rel, old, new, *rest in MUTATIONS:
-        count = -1 if rest and rest[0] == "all" else 1
+        count = -1 if "all" in rest else 1
+        # A mutation may be expected to SURVIVE, documenting a hole in the
+        # corpus rather than a hole in this crate. It fails the script when it
+        # goes red, so the note cannot outlive the limitation it records.
+        want_green = "expect-green" in rest
         path = os.path.join(ROOT, rel)
         s = io.open(path, encoding="utf-8").read()
         if old not in s:
@@ -203,19 +247,29 @@ def main():
             s.replace(old, new) if count == -1 else s.replace(old, new, 1))
         verdict, detail = run_corpus()
         restore(backup)
-        mark = "red  " if verdict == "red" else verdict
-        print(f"  {mark:14} {name}" + (f"   ({detail})" if verdict == "red" else ""))
-        if verdict != "red":
-            survivors.append(f"{name} -> {verdict}")
+        wanted = "GREEN" if want_green else "red"
+        ok = verdict == wanted
+        mark = ("red  " if verdict == "red" else verdict) + ("" if ok else "  !!")
+        note = f"   ({detail})" if verdict == "red" else ""
+        if want_green and ok:
+            note = "   (survives: a corpus blind spot, reported)"
+        print(f"  {mark:14} {name}{note}")
+        if not ok:
+            if want_green:
+                survivors.append(
+                    f"{name} -> went red, so the corpus can now see it; "
+                    "turn this into an ordinary mutation")
+            else:
+                survivors.append(f"{name} -> {verdict}")
             if verdict == "DID NOT BUILD":
                 print("      " + detail.replace("\n", "\n      ")[:600])
     print()
     if survivors:
-        print("SURVIVED (the runner did not notice):")
+        print("UNEXPECTED VERDICTS:")
         for s in survivors:
             print("  -", s)
         return 1
-    print("every mutation was caught.")
+    print("every mutation reached the verdict it should.")
     return 0
 
 

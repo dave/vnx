@@ -95,19 +95,33 @@ fn attachment_pointer(name: &str) -> String {
 /// path, a drive letter, or a `..` SEGMENT is refused. `..` is a segment, not
 /// a substring: `a..b/photo.jpg` is a legal name and escapes nothing.
 ///
-/// A backslash-separated name is refused too. SPEC 7's refusal sentence names
-/// three faults and not this one, but it also states the requirement, and a
-/// backslash is how the same escape is spelled on the platform that has drive
-/// letters. This crate's reading, reported as such.
+/// A backslash anywhere in a name is refused UNCONDITIONALLY, and that check
+/// fires BEFORE the `..` segment hunt. Ruled 2026-09-09, deliberately stricter
+/// than the ZIP appnote.
+///
+/// The ordering is the point rather than a detail. SPEC 7 says a `..` SEGMENT
+/// is refused and that `..` is a segment rather than a substring, but it never
+/// said whether `\` counts as a separator while hunting for that segment — so
+/// `a\..\b` has two defensible readings. Refusing the backslash first means
+/// that question never has to be answered.
 fn check_paths(entries: &[Entry]) -> Result<(), Refusal> {
     for entry in entries {
         let name = &entry.name;
-        let escapes = name.starts_with('/')
-            || name.contains('\\')
-            || has_drive_letter(name)
-            || name.split('/').any(|segment| segment == "..");
-        if escapes {
-            return Err(Refusal::ContainerPathEscapes { name: name.clone() });
+        let refuse = || {
+            Err(Refusal::ContainerPathEscapes {
+                name: name.clone(),
+            })
+        };
+        if name.contains('\\') {
+            return refuse();
+        }
+        if name.starts_with('/') || has_drive_letter(name) {
+            return refuse();
+        }
+        // Only now, with no backslash left in the name, is a `/` split the
+        // whole story.
+        if name.split('/').any(|segment| segment == "..") {
+            return refuse();
         }
     }
     Ok(())
@@ -224,6 +238,11 @@ mod tests {
         assert!(check_paths(&[entry("/etc/passwd")]).is_err());
         assert!(check_paths(&[entry("C:/windows/system32")]).is_err());
         assert!(check_paths(&[entry("a\\b")]).is_err());
+        // The backslash check fires FIRST, so a name where `\` would have to
+        // be read as a separator to find a `..` segment is refused without
+        // that question arising.
+        assert!(check_paths(&[entry("a\\..\\b")]).is_err());
+        assert!(check_paths(&[entry("photos\\summit.jpg")]).is_err());
         // `..` is a SEGMENT, not a substring.
         assert!(check_paths(&[entry("a..b/photo.jpg")]).is_ok());
         assert!(check_paths(&[entry("attachments/photo.txt")]).is_ok());
@@ -253,6 +272,27 @@ mod tests {
         assert_eq!(choose_document(&entries).expect("chosen").name, "first.vnx");
 
         assert!(choose_document(&[entry("photo.jpg")]).is_err());
+    }
+
+    /// SPEC 7 selects the root by its two rules and every OTHER entry is an
+    /// attachment, whatever its name ends in. No extension-sniffing.
+    #[test]
+    fn a_second_vnx_in_an_archive_is_an_attachment() {
+        let document = b"{\n  \"vnx\": \"0.1.0\"\n}\n";
+        let bytes = write(
+            document,
+            &[Attachment {
+                path: "an-earlier-export.vnx".into(),
+                bytes: b"not read as a document\n".to_vec(),
+            }],
+        )
+        .expect("written");
+        let container = read(&bytes).expect("read back");
+        assert_eq!(container.document_entry, "doc.vnx");
+        assert_eq!(container.attachments.len(), 1);
+        assert_eq!(container.attachments[0].path, "an-earlier-export.vnx");
+        // Its bytes are not even JSON, and that is not an error.
+        assert_eq!(container.reading.diagnostics, vec![]);
     }
 
     #[test]

@@ -22,10 +22,19 @@ pub const TOLERANCE_M: f64 = 50.0;
 /// map affine, so a straight polyline segment stays straight and the plane
 /// geometry is exact.
 ///
-/// Taking the cosine of each segment's own start latitude instead reads the
-/// corpus's north-south fixtures 8.5% further away; on an east-west arc the
-/// two agree to within 0.06%, which is why the corpus fixtures run
-/// north-south.
+/// Taking the cosine of each segment's own start latitude instead is the
+/// mistake the corpus's two tolerance fixtures exist to catch. Against the
+/// pair at HEAD — meridian arcs spanning thirteen degrees, running in opposite
+/// directions — that model reads 67.4 m where this one reads 45, and 36.8 m
+/// where this one reads 55. It therefore refuses a legal document in the first
+/// file and accepts an illegal one in the second.
+///
+/// Those numbers are not restated in any test here. `tools/redproof.py`
+/// mutates this function to the wrong cosine and requires the LIVE corpus to
+/// go red on exactly those two cases, so the claim is measured against the
+/// fixtures rather than against a copy of their coordinates. An earlier
+/// version of this file hard-coded a superseded three-degree pair and asserted,
+/// green, a statement that was false of the corpus it named.
 ///
 /// `None` when the polyline has no vertices: SPEC 3.3.3 requires a reader to
 /// record a diagnostic and drop the link rather than invent a number.
@@ -87,77 +96,34 @@ mod tests {
         Position::lon_lat(lon, lat)
     }
 
-    /// The two corpus fixtures, which are the only cases that exercise the
-    /// tolerance at any distance. Both arcs run north-south over three
-    /// degrees so that the cosine REFERENCE decides the answer.
+    /// SPEC 3.3.3's tolerance INCLUDES its boundary: "within that tolerance"
+    /// accepts exactly 50.000 m. Ruled 2026-09-09.
+    ///
+    /// No fixture can ever pin this. A distance at exactly the threshold is
+    /// not reachable by a corpus case, because the computed value depends on
+    /// the model and no two models land on 50.000 exactly. The prose is the
+    /// only statement of it, permanently, so this unit test is the only guard.
     #[test]
-    fn the_corpus_fixtures_land_where_their_names_say() {
-        let arc = [p(-3.0, 57.0), p(-3.0, 60.0)];
+    fn exactly_the_tolerance_is_within_it() {
+        // Constructed, not measured: a query point due east of a meridian arc
+        // at the latitude the projection uses, so the distance is the x term
+        // alone and can be solved for exactly 50 m.
+        let lat = 60.0_f64;
+        let metres_per_degree = EARTH_RADIUS_M * std::f64::consts::PI / 180.0 * lat.to_radians().cos();
+        let arc = [p(-3.0, 55.0), p(-3.0, 65.0)];
 
-        let within = distance_to_polyline(&p(-2.99919305, 59.9), &arc).expect("a distance");
+        let at = |m: f64| p(-3.0 + m / metres_per_degree, lat);
+        let just_inside = distance_to_polyline(&at(49.9), &arc).expect("a distance");
+        let on_it = distance_to_polyline(&at(50.0), &arc).expect("a distance");
+        let just_outside = distance_to_polyline(&at(50.1), &arc).expect("a distance");
+
+        assert!((on_it - 50.0).abs() < 1e-6, "the constructed point is {on_it} m out");
+        assert!(just_inside <= TOLERANCE_M);
         assert!(
-            (within - 45.0).abs() < 0.5,
-            "accept/inline-endpoint-within-tolerance is {within} m, not about 45 m"
+            on_it <= TOLERANCE_M,
+            "exactly the tolerance must be accepted, and {on_it} was refused"
         );
-        assert!(within <= TOLERANCE_M);
-
-        let beyond = distance_to_polyline(&p(-2.999013728, 59.9), &arc).expect("a distance");
-        assert!(
-            (beyond - 55.0).abs() < 0.5,
-            "diagnose/inline-endpoint-beyond-tolerance is {beyond} m, not about 55 m"
-        );
-        assert!(beyond > TOLERANCE_M);
-    }
-
-    /// The wrong cosine reference, measured.
-    ///
-    /// SPEC 3.3.3 takes the cosine of the QUERY POINT's latitude and holds it
-    /// constant. A model that instead takes each segment's start latitude
-    /// reads the corpus's two north-south fixtures 8.6% further away — and
-    /// this test records that the corpus pair does NOT, in fact, discriminate
-    /// between the two models, because neither fixture crosses the 50 m
-    /// threshold when it is inflated by 8.6%:
-    ///
-    /// ```text
-    ///                  SPEC 3.3.3   segment-start cosine   verdict changes?
-    ///   accept, 45 m      45.0 m           48.9 m                 no
-    ///   diagnose, 55 m    55.0 m           59.7 m                 no
-    /// ```
-    ///
-    /// A fixture that DID discriminate would sit between 50/1.086 = 46.1 m and
-    /// 50 m — 48 m, say — where the correct model accepts and the wrong one
-    /// diagnoses. Reported to the corpus's owner; this test is the measurement
-    /// rather than a guard, and it goes red if either number moves.
-    #[test]
-    fn the_wrong_cosine_reference_does_not_change_either_corpus_verdict() {
-        let arc = [p(-3.0, 57.0), p(-3.0, 60.0)];
-
-        // The wrong model, written out: the cosine of the segment's START.
-        let wrong = |query: &Position| {
-            let cos = 57.0_f64.to_radians().cos();
-            let x = |lon: f64| lon.to_radians() * EARTH_RADIUS_M * cos;
-            (x(query.lon()) - x(-3.0)).abs()
-        };
-
-        for (name, query, correct_m) in [
-            ("accept/inline-endpoint-within-tolerance", p(-2.99919305, 59.9), 45.0),
-            ("diagnose/inline-endpoint-beyond-tolerance", p(-2.999013728, 59.9), 55.0),
-        ] {
-            let correct = distance_to_polyline(&query, &arc).expect("a distance");
-            let inflated = wrong(&query);
-            assert!((correct - correct_m).abs() < 0.5, "{name}: {correct} m");
-            assert!(
-                (inflated / correct - 1.086).abs() < 0.005,
-                "{name}: the wrong model inflates by {}",
-                inflated / correct
-            );
-            assert_eq!(
-                correct > TOLERANCE_M,
-                inflated > TOLERANCE_M,
-                "{name}: the two models DO disagree here — the corpus gap this \
-                 test records has been closed, so revisit the report"
-            );
-        }
+        assert!(just_outside > TOLERANCE_M);
     }
 
     #[test]

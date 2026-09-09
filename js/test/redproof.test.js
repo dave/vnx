@@ -414,3 +414,70 @@ test('comparing node keys instead of their positions is NOT caught', async () =>
   assert.deepEqual(failing(cases), [],
     'the corpus now covers two distinct node keys at one position; assert the failure instead');
 });
+
+// An away-from-zero renderer for SPEC.md 4.5.3's tie, deciding the tie on the
+// double's EXACT value. The naive version — "prefer the larger last digit
+// whenever that spelling still parses back to the same double" — is the phantom
+// detector this repo keeps warning about: near 3.67 the double spacing is about
+// 4.4e-16 while the 17th significant digit steps by 1e-16, so THREE spellings
+// round-trip and only one is nearest. That version reddens
+// accept/full-precision-coordinate.vnx and accept/number-rendering.vnx as well,
+// for a different defect (emitting a non-nearest spelling), and would have
+// proved the wrong thing.
+const AWAY_FROM_ZERO_TIE = `  const sign = n < 0 ? '-' : '';
+  const mag = Math.abs(n);
+  const text = String(mag);
+  const parts = /^(\\d+)\\.(\\d*)(\\d)$/.exec(text);
+  if (parts && parts[3] !== '9') {
+    const view = new DataView(new ArrayBuffer(8));
+    view.setFloat64(0, mag);
+    const hi = view.getUint32(0);
+    const lo = view.getUint32(4);
+    const biased = (hi >>> 20) & 0x7ff;
+    let mantissa = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
+    let exponent = -1074;
+    if (biased !== 0) {
+      mantissa |= 1n << 52n;
+      exponent = biased - 1075;
+    }
+    const places = BigInt(parts[2].length + 1);
+    const lower = BigInt(parts[1] + parts[2] + parts[3]);
+    const midpointTimesTwo = 2n * lower + 1n;
+    const shift = BigInt(exponent) + 1n + places;
+    const scaled = mantissa * 5n ** places;
+    const tie = shift >= 0n
+      ? (scaled << shift) === midpointTimesTwo
+      : scaled === (midpointTimesTwo << -shift);
+    if (tie) return sign + parts[1] + '.' + parts[2] + String(Number(parts[3]) + 1);
+  }
+  return sign + text;`;
+
+test('rendering a tie away from zero is caught by the formatter tier', async () => {
+  // SPEC.md 4.5.3's rendering tie IS reachable by a re-render, because a
+  // re-render always re-spells: format/number-tie carries one spelling in and
+  // the other out. The rule is free in this seat — V8's Number::toString
+  // already rounds to even — and this proves the case would still catch a
+  // hand-written renderer HERE, rather than only catching other languages.
+  //
+  // I had this backwards in a note to the Python seat: I read the case passing
+  // as the case not reaching JavaScript. Passing is what a correct library
+  // does. Whether a case DISCRIMINATES is a separate question, and this is how
+  // it gets answered.
+  const cases = await runMutated([{
+    file: 'number.js',
+    from: '  return String(n);',
+    to: AWAY_FROM_ZERO_TIE,
+  }]);
+  assert.deepEqual(failing(cases), ['format/number-tie']);
+});
+
+test('the full-precision coordinates are NOT rendering ties', async () => {
+  // Three 17-digit spellings of -3.6712345678901235 round-trip to one double
+  // and only one is nearest, so it is a phantom rather than a tie. If it were a
+  // tie, the mutation above would have reddened the two accept files that carry
+  // it, and the case above could not have attributed its failure to the tie
+  // rule. Frozen because this is the distinction the whole section rests on.
+  assert.equal(-3.6712345678901235, -3.6712345678901236);
+  assert.equal(-3.6712345678901235, -3.6712345678901234);
+  assert.equal((-3.6712345678901235).toPrecision(21), '-3.67123456789012347912');
+});

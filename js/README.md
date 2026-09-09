@@ -44,8 +44,10 @@ BigInt. **No corpus tier reaches the writer**, so nothing there can catch a
 disagreement: `test/round.test.js` carries the guard for `SPEC.md` 4.5.4's tie
 rule, red-proofed against a mutated copy of `src/round.js`, and
 `test/redproof.test.js` records that the corpus stays green under the flip.
-`SPEC.md` 4.5.3's rendering tie is free here — V8 rounds to even — and is
-guarded in `test/canonical.test.js` all the same. Two more rules live beyond the
+`SPEC.md` 4.5.3's rendering TIE is a different matter: it is free here (V8 rounds
+to even) but it IS reachable by a re-render, because a re-render always
+re-spells, so `format/number-tie` catches it and a red-proof shows that it would
+still catch a hand-written renderer in this seat. Two more rules live beyond the
 corpus's reach for the same reason and are guarded locally: a negative zero the
 writer CREATED by rounding (`format/` only ever supplies one as an input
 literal), and shortening a position.

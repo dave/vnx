@@ -20,14 +20,18 @@ import vnx
 from vnx import decode, model, numbers
 from vnx.model import Position
 
-from . import test_corpus, test_reader
+from . import test_corpus, test_numbers, test_reader
+
+_MODULES = {"reader:": test_reader, "numbers:": test_numbers}
 
 
 def _run(name: str) -> unittest.TestResult:
-    module = test_reader if name.startswith("reader:") else test_corpus
-    suite = unittest.TestLoader().loadTestsFromName(
-        name.removeprefix("reader:"), module
-    )
+    module = test_corpus
+    for prefix, target in _MODULES.items():
+        if name.startswith(prefix):
+            module, name = target, name.removeprefix(prefix)
+            break
+    suite = unittest.TestLoader().loadTestsFromName(name, module)
     runner = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0)
     return runner.run(suite)
 
@@ -149,6 +153,38 @@ class RedProof(unittest.TestCase):
             "AcceptTier.test_accept",
             "track that sums first-to-last across the whole track",
         )
+
+    def test_a_tie_rounded_away_from_zero_is_caught(self) -> None:
+        """The defect Kotlin shipped: a rendering tie taken away from zero.
+
+        No corpus tier can reach this.  Every tier re-renders a document that
+        already spells its numbers one way, so a renderer only ever confirms a
+        spelling it was handed; a tie is only decided when a value is rendered
+        from a double with no text behind it.  That is why SPEC 4.5.3 makes it a
+        per-implementation test rather than a fixture.
+        """
+        original = numbers.render_number
+
+        def away_from_zero(value: float) -> str:
+            from decimal import Decimal
+
+            pair = test_numbers.TiesRoundToEven._tie(float(value))
+            if pair is None:
+                return original(value)
+            # Kotlin's shape: of the two equidistant spellings, take the one
+            # further from zero.
+            return max(pair, key=lambda spelling: abs(Decimal(spelling)))
+
+        # `test_numbers` binds render_number at import, so patching only
+        # `vnx.numbers` leaves the assertion calling the real one and the proof
+        # reports a blind test that is not blind.  Patch the reference the
+        # assertion actually reaches, and the library's, together.
+        with mock.patch.object(numbers, "render_number", away_from_zero):
+            self.assertGoesRed(
+                mock.patch.object(test_numbers, "render_number", away_from_zero),
+                "numbers:TiesRoundToEven.test_the_case_kotlin_got_wrong",
+                "renderer taking a tie away from zero",
+            )
 
     # -- canonical form -------------------------------------------------
 

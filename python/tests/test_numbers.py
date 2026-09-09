@@ -150,3 +150,89 @@ class AgainstV8(unittest.TestCase):
             if theirs != render_number(value)
         ]
         self.assertEqual(mismatches, [], f"{len(mismatches)} of {len(values)} differ")
+
+
+class TiesRoundToEven(unittest.TestCase):
+    """SPEC 4.5.3: a rendering tie rounds to even.
+
+    A tie is a double whose exact value sits EXACTLY midway between the two
+    shortest decimal spellings that both round-trip to it.  Kotlin shipped
+    away-from-zero and emitted `1497898211722073.3` where V8 and Go emit
+    `...073.2` -- the same double, different bytes, and nothing red anywhere,
+    because every corpus tier re-renders a document that already spells its
+    numbers one way.
+
+    A neighbouring spelling that merely round-trips is NOT a tie: above 2^49 the
+    double spacing exceeds 0.1, so several one-decimal spellings map to one
+    double and only one of them is nearest.  These tests use exact `Decimal`
+    arithmetic to tell the two apart, because the naive check reports ties that
+    are not ties and would pass for a renderer that is simply wrong.
+    """
+
+    @staticmethod
+    def _tie(value: float) -> "tuple[str, str] | None":
+        import re
+        from decimal import Decimal
+
+        spelling = repr(value)
+        if "e" in spelling:
+            return None
+        match = re.fullmatch(r"(-?)(\d+)(?:\.(\d+))?", spelling)
+        if match is None:
+            return None
+        sign, whole, frac = match.group(1), match.group(2), match.group(3) or ""
+        digits = whole + frac
+        exact = Decimal(value)
+        here = abs(Decimal(spelling) - exact)
+        for delta in (-1, 1):
+            shifted = str(int(digits) + delta).rjust(len(digits), "0")
+            if len(shifted) != len(digits):
+                continue
+            head, tail = shifted[: len(whole)], shifted[len(whole) :]
+            other = sign + head + ("." + tail if tail else "")
+            if float(other) == value and abs(Decimal(other) - exact) == here:
+                return spelling, other
+        return None
+
+    def test_the_case_kotlin_got_wrong(self) -> None:
+        from decimal import Decimal
+
+        value = 1497898211722073.2
+        self.assertEqual(str(Decimal(value)), "1497898211722073.25", "not a tie")
+        self.assertEqual(self._tie(value), ("1497898211722073.2", "1497898211722073.3"))
+        self.assertEqual(render_number(value), "1497898211722073.2")
+
+    def test_every_tie_found_takes_the_even_digit(self) -> None:
+        import random
+        import re
+
+        # Around 1e15 the double spacing is 0.25, so exact values ending .25 or
+        # .75 are genuine one-decimal ties.  That is the Kotlin case's magnitude
+        # and the cheapest place to find them.
+        rng = random.Random(7)
+        ties: list[float] = []
+        while len(ties) < 200:
+            value = rng.uniform(1e15, 4.5e15)
+            if rng.random() < 0.5:
+                value = -value
+            if self._tie(value):
+                ties.append(value)
+
+        odd = [
+            value
+            for value in ties
+            if int(re.sub(r"[^0-9]", "", render_number(value))[-1]) % 2
+        ]
+        self.assertEqual(odd, [], f"{len(odd)} of {len(ties)} ties chose an odd digit")
+
+    def test_a_tie_still_round_trips_whichever_way_it_went(self) -> None:
+        """Guards against reading the test above as being about round-tripping.
+
+        Both spellings of a tie round-trip; that is what makes it a tie, and it
+        is why round-tripping cannot detect the defect.
+        """
+        value = 1497898211722073.2
+        pair = self._tie(value)
+        assert pair is not None
+        for spelling in pair:
+            self.assertEqual(float(spelling), value)

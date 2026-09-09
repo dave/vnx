@@ -202,7 +202,7 @@ class _UTF8Info(zipfile.ZipInfo):
     not survive; shadowing the slot with a property does.
     """
 
-    __slots__ = ("_flag_bits",)
+    __slots__ = ("_flag_bits", "_external_attr")
 
     @property
     def flag_bits(self) -> int:
@@ -211,6 +211,21 @@ class _UTF8Info(zipfile.ZipInfo):
     @flag_bits.setter
     def flag_bits(self, value: int) -> None:
         self._flag_bits = value
+
+    @property
+    def external_attr(self) -> int:
+        """Always 0.
+
+        ``ZipFile.writestr`` assigns file mode 0o600 here even when it is handed
+        a ``ZipInfo`` that already set it, so an archive would otherwise carry
+        the writing platform's permission bits.  Shadowing the slot is the same
+        remedy the UTF-8 flag needs, and for the same reason.
+        """
+        return 0
+
+    @external_attr.setter
+    def external_attr(self, value: int) -> None:
+        self._external_attr = value
 
 
 def _zip_info(name: str) -> zipfile.ZipInfo:
@@ -224,4 +239,22 @@ def _zip_info(name: str) -> zipfile.ZipInfo:
     # The asymmetry matches canonical form: required of what a library writes,
     # never of what it will read.
     info.compress_type = zipfile.ZIP_STORED
+
+    # Pin every header field that `zipfile` would otherwise fill from the
+    # platform, so one document produces one archive everywhere.  Two of these
+    # encode the writing MACHINE rather than the content: `create_system` is 3
+    # (Unix) on macOS and Linux and 0 (MS-DOS) on Windows, and `writestr` sets
+    # external attributes to file mode 0o600, so the same Python on two
+    # platforms emitted two different archives for one document.  Fixing the
+    # timestamp was necessary and not sufficient.
+    #
+    # The VALUES follow the only other implementation to have stated its
+    # choices: version 1.0, which is what STORED requires, MS-DOS as the
+    # creating system, and no external attributes.  Which values is not yet
+    # ruled; that they must not come from the platform is not in doubt.
+    info.create_system = 0
+    info.create_version = 10
+    info.extract_version = 10
+    info.internal_attr = 0
+    info.volume = 0
     return info

@@ -1050,3 +1050,45 @@ class ContainerWriterUsesStored(unittest.TestCase):
         first = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         second = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         self.assertEqual(first, second)
+
+    def test_the_archive_matches_another_language_byte_for_byte(self) -> None:
+        """Cross-language byte identity, measured against the Kotlin seat.
+
+        The agreed input, its document re-rendered rather than written so the
+        number rules cannot muddy the comparison. This hash was produced
+        independently by two implementations that share no code.
+
+        Getting here needed three header fields pinned beyond compression and
+        the timestamp, and two of them encode the writing MACHINE rather than
+        the content: `create_system` is 3 on macOS and Linux and 0 on Windows,
+        and `writestr` stamps file mode 0o600 into the external attributes. The
+        same Python on two platforms emitted two different archives for one
+        document until this was fixed.
+        """
+        import hashlib
+
+        document = vnx.read_bytes(
+            b'{"vnx":"0.1.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}'
+        ).document
+        data = vnx.reformat_container_bytes(
+            document, {"attachments/photo.txt": b"not a photo\n"}
+        )
+        self.assertEqual(len(data), 350)
+        self.assertEqual(
+            hashlib.sha256(data).hexdigest(),
+            "43f7071245e04ad302ac7f92162015de010ef283936bf6abbd3787c9c3992f47",
+        )
+
+    def test_no_header_field_carries_the_writing_platform(self) -> None:
+        import zipfile
+
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        data = vnx.encode_container_bytes(document, {"a.txt": b"x"})
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            for info in archive.infolist():
+                with self.subTest(entry=info.filename):
+                    self.assertEqual(info.create_system, 0, "the writing OS leaked")
+                    self.assertEqual(info.external_attr, 0, "a file mode leaked")
+                    self.assertEqual(info.create_version, 10)
+                    self.assertEqual(info.extract_version, 10)
+                    self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))

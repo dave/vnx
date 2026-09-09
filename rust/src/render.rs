@@ -259,19 +259,42 @@ fn position(p: &Position, mode: Mode) -> Json {
     )
 }
 
-/// SPEC 4.5.4: a tie rounds to EVEN. `340.25` to one place is `340.2`, not
-/// `340.3`. These are exact doubles and a quarter-metre elevation grid
-/// produces them, so the case is ordinary rather than contrived.
+/// Round to `places` decimal places, ties to EVEN (SPEC 4.5.4).
 ///
-/// Rust's `f64::round` rounds a tie AWAY from zero, so it cannot be used here.
-/// `f64::round_ties_even` is what this wants and is stable since 1.77.
+/// The obvious spelling — multiply by 10^places, round, divide — is WRONG, and
+/// it is wrong in a way no corpus tier can reach, because no tier ever asks a
+/// library to write.
 ///
-/// No corpus tier reaches this: every tier re-renders, and nothing ever asks a
-/// library to WRITE. The tests below are this crate's own, as
-/// `corpus/format/README.md` asks each implementation to carry.
-fn round_to(value: f64, places: u32) -> f64 {
-    let scale = 10f64.powi(places as i32);
-    (value * scale).round_ties_even() / scale
+/// Multiplying by the scale is itself a rounding step, and it moves values onto
+/// an exact half that were not on one. Measured on this machine:
+///
+/// ```text
+///   value   nearest 1 dp of the ACTUAL double   (v * 10).round_ties_even() / 10
+///   0.15    0.1   (the double is 0.1499999999999999944…)   0.2
+///   0.05    0.1                                            0
+///   1.05    1.1                                            1
+///   0.45    0.5                                            0.4
+///   1.85    1.9                                            1.8
+///   340.25  340.2  (exact, a true tie)                      340.2
+/// ```
+///
+/// Six of ten ordinary elevation-shaped values disagree, in both directions. So
+/// "round to one place, ties to even" is not one rule: it is two, depending on
+/// whether the tie is judged against the double or against the scaled product,
+/// and SPEC 4.5.4 does not say which. Reported.
+///
+/// This crate takes the reading the prose states: the nearest value with that
+/// many decimal places to the double it was handed. Rust's `{:.*}` expands the
+/// double exactly and rounds ties to even, which is that rule, so the rounding
+/// is done by formatting and then parsing back.
+///
+/// The formatted text is NEVER the emitted bytes — `{:.1}` of 340.0 is `340.0`
+/// and of −0.04 is `-0.0`, both wrong for this format. Only the canonical
+/// renderer decides bytes; this returns a value.
+fn round_to(value: f64, places: usize) -> f64 {
+    format!("{value:.places$}")
+        .parse()
+        .expect("a fixed-precision formatting of a finite double parses back")
 }
 
 /// A small builder that drops absent keys. Nothing here decides key order —
@@ -395,6 +418,52 @@ mod tests {
         assert_eq!(round_to(340.75, 1), 340.8);
         // Rust's own `round` is the wrong one, and this says so out loud.
         assert_eq!((340.25f64 * 10.0).round() / 10.0, 340.3);
+    }
+
+    /// Decimal intuition lies about which way a value rounds. `3.05` is really
+    /// 3.04999999999999982…, so it rounds DOWN, and a test written from the
+    /// decimal spelling asserts 3.1 and reports a correct writer as broken.
+    #[test]
+    fn a_value_that_only_looks_like_a_tie_rounds_by_its_real_value() {
+        assert_eq!(round_to(3.05, 1), 3.0);
+        assert_eq!(round_to(0.15, 1), 0.1);
+        assert_eq!(round_to(1.05, 1), 1.1);
+    }
+
+    /// The scale-then-round spelling of the same rule, measured against this
+    /// one. Six of these ten disagree, in both directions, so SPEC 4.5.4's
+    /// "round to one place, ties to even" is two different rules depending on
+    /// whether the tie is judged against the double or against the scaled
+    /// product. This test is the measurement, and it goes red if either answer
+    /// moves.
+    #[test]
+    fn scale_then_round_is_a_different_rule_and_this_pins_the_difference() {
+        let scale_then_round = |v: f64| (v * 10.0).round_ties_even() / 10.0;
+        let cases: [(f64, f64, f64); 10] = [
+            //  value,     this crate, scale-then-round
+            (340.25, 340.2, 340.2),
+            (340.35, 340.4, 340.4),
+            (3.05, 3.0, 3.0),
+            (-340.25, -340.2, -340.2),
+            (0.15, 0.1, 0.2),
+            (0.05, 0.1, 0.0),
+            (1.05, 1.1, 1.0),
+            (0.45, 0.5, 0.4),
+            (1.85, 1.9, 1.8),
+            (0.95, 0.9, 1.0),
+        ];
+        let mut disagreements = 0;
+        for (value, ours, theirs) in cases {
+            assert_eq!(round_to(value, 1), ours, "{value} through this crate");
+            assert_eq!(scale_then_round(value), theirs, "{value} scaled first");
+            if ours != theirs {
+                disagreements += 1;
+            }
+        }
+        assert_eq!(
+            disagreements, 6,
+            "the two spellings of SPEC 4.5.4 no longer differ where they did"
+        );
     }
 
     /// SPEC 4.5.4: rounding can CREATE a negative zero that was never in the

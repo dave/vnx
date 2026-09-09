@@ -176,15 +176,41 @@ mod tests {
         assert_eq!(out, r#""\u0000\u0001\b\t\n\u000b\f\r\u001f""#);
     }
 
+    /// SPEC 4.5.1: lexicographic means by Unicode CODE POINT. Two pairs
+    /// separate that from the defaults other languages hand you, and both are
+    /// reachable because a data record body may carry any key (SPEC 5.1).
+    ///
+    /// Rust's `str` ordering is by UTF-8 byte, which agrees with code point
+    /// order everywhere, so this crate needs no comparator and these
+    /// assertions cannot fail by someone deleting one. They are here because a
+    /// future maintainer reaching for `char_indices` or a locale-aware
+    /// comparison would break them, and because the pairs are the ones the
+    /// other seats had to fix.
     #[test]
-    fn keys_sort_by_code_point_not_by_utf16_code_unit() {
-        // U+FF3A FULLWIDTH LATIN CAPITAL LETTER Z is above U+10000 in UTF-16
-        // code unit order but below it by code point. JavaScript's default
-        // `sort()` gets this pair the wrong way round.
+    fn keys_sort_by_code_point() {
+        // U+FF3A FULLWIDTH LATIN CAPITAL LETTER Z is below U+10000 by code
+        // point and above it by UTF-16 code unit, because an astral character
+        // is stored as a surrogate pair beginning in U+D800. JavaScript's
+        // `Array.prototype.sort()` and Java's `String.compareTo` get this pair
+        // the wrong way round.
         let out = canonicalise("{\"\u{10000}\":1,\"\u{ff3a}\":2}");
         assert!(
             out.find('\u{ff3a}') < out.find('\u{10000}'),
             "sorted by UTF-16 code unit rather than by code point: {out}"
+        );
+        assert!(
+            "\u{ff3a}" < "\u{10000}",
+            "Rust's own ordering no longer agrees with code point order"
+        );
+
+        // U+212B ANGSTROM SIGN is above U+00C6 by code point, and below it
+        // under Unicode canonical equivalence, because it decomposes to
+        // U+00C5. Swift's default `<` on String orders by equivalence and gets
+        // this pair wrong while getting the astral pair right.
+        let out = canonicalise("{\"\u{212b}\":1,\"\u{c6}\":2}");
+        assert!(
+            out.find('\u{c6}') < out.find('\u{212b}'),
+            "sorted by canonical equivalence rather than by code point: {out}"
         );
     }
 

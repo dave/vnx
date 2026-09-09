@@ -70,9 +70,18 @@ Two things a Rust implementation gets wrong by default, both in
   binary64 mantissa, not a round-trip probe — a probe finds phantoms above
   2^49, where several one-decimal spellings map to one double.
 
-`f64::round` is also the wrong rounding for the writer's boundary; SPEC 4.5.4
-wants ties to even, so `f64::round_ties_even` is used. That is why the crate's
-`rust-version` is 1.77.
+- **The writer's rounding.** `f64::round` rounds a tie away from zero and SPEC
+  4.5.4 wants ties to even — but the obvious fix, `(v * 10.0).round_ties_even()
+  / 10.0`, is a DIFFERENT RULE. Multiplying by the scale is itself a rounding
+  step and moves values onto an exact half that were not on one: `0.15` is
+  nearest `0.1` and comes out `0.2` that way. Six of ten ordinary
+  elevation-shaped values disagree, in both directions. This crate takes the
+  reading the prose states — the nearest value with that many decimal places to
+  the double it was handed — which is what Rust's `{:.*}` computes, so `round_to`
+  formats and parses back. `render::tests::scale_then_round_is_a_different_rule_
+  and_this_pins_the_difference` measures the gap. Reported as a spec gap: SPEC
+  4.5.4 does not say which of the two it means, and no corpus tier reaches
+  either, because no tier asks a library to write.
 
 Two things Rust makes easier than the other languages: `str` ordering is by
 UTF-8 byte and therefore by code point, so canonical key order needs no custom

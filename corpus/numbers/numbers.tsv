@@ -8,7 +8,7 @@
 # Answers are from Go's encoding/json and strconv, which SPEC 4.5.3 names as
 # the reference. Ties round to even in both columns.
 # seed=20260909 sample=2000 rows=5329
-# boundary=76 in-range=3000 named=14 negative-zero=5 render-tie=60 round1-tie=80 round6-tie=80 scaling-route=14 uniform=2000
+# counts: boundary=76 in-range=3000 named=14 negative-zero=5 render-tie=60 round1-tie=80 round6-tie=80 scaling-route=14 uniform=2000
 4075400000000000	named	340	340	340
 3eb0c6f7a0b5ed8d	named	0.000001	0.000001	0
 3e7ad7f29abcaf48	named	1e-7	0	0

@@ -423,16 +423,37 @@ func write(path string, rows []row, counts map[string]int, seed int64, sample in
 	fmt.Fprintln(w, "#   round1  its canonical spelling rounded to 1 place  (SPEC 4.5.4, elevation)")
 	fmt.Fprintln(w, "# Answers are from Go's encoding/json and strconv, which SPEC 4.5.3 names as")
 	fmt.Fprintln(w, "# the reference. Ties round to even in both columns.")
+	// ⚠ THE NEXT TWO LINES ARE A CONTRACT, NOT A COMMENT. A runner is required
+	// to parse `rows=` and the `counts:` line and to assert that what it
+	// observed matches what they declare. That is the only completeness check
+	// that survives a new category: five hand-written lists of "the categories
+	// I depend on" age exactly as badly as a hardcoded path did when this
+	// directory moved, and the newest category is always the one nothing pins.
+	//
+	// Measured: the Swift runner asserted five categories by name, none of them
+	// `scaling-route`, and `rows.count > 5000` — so the table could have lost
+	// all 14 of its most discriminating rows, or 300 rows of any kind, and that
+	// suite would have stayed green.
+	//
+	// `counts:` carries its own label so a parser can find it without counting
+	// header lines or matching on which keys it happens to contain.
 	fmt.Fprintf(w, "# seed=%d sample=%d rows=%d\n", seed, sample, len(rows))
 	// Sorted, because Go randomises map iteration and this file must be
 	// byte-reproducible — a table whose header changes on every run is a table
 	// nobody can diff, which is most of what it is for.
 	var kinds []string
+	total := 0
 	for k, n := range counts {
 		kinds = append(kinds, fmt.Sprintf("%s=%d", k, n))
+		total += n
 	}
 	sort.Strings(kinds)
-	fmt.Fprintf(w, "# %s\n", strings.Join(kinds, " "))
+	// A header that disagrees with the body is worse than no header, because a
+	// runner asserting against it would fail for a reason that is not its own.
+	if total != len(rows) {
+		log.Fatalf("declared counts sum to %d but the table has %d rows", total, len(rows))
+	}
+	fmt.Fprintf(w, "# counts: %s\n", strings.Join(kinds, " "))
 
 	for _, r := range rows {
 		fmt.Fprintf(w, "%016x\t%s\t%s\t%s\t%s\n", r.bits, r.kind, r.render, r.round6, r.round1)

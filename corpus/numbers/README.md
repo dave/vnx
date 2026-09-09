@@ -163,6 +163,38 @@ bits              kind        render      round6     round1
 Running it is about ten lines in any language: read the hex, bit-cast it to a
 double, and compare your three answers to the three columns.
 
+## The header is a contract
+
+Two header lines are machine-readable and a runner is REQUIRED to check them:
+
+```
+# seed=20260909 sample=2000 rows=5329
+# counts: boundary=76 in-range=3000 named=14 negative-zero=5 render-tie=60 ...
+```
+
+Parse `rows=` and the `counts:` line, and assert that what the run observed
+matches what they declare. Both are written by the generator, which refuses to
+emit a table whose declared counts do not sum to its row count, so the header
+cannot drift from the body.
+
+**This exists because the obvious alternative ages badly.** A runner that names
+the categories it depends on — a hardcoded list of what matters — goes stale the
+moment a category is added, and **the newest category is always the one nothing
+pins.** Measured: one runner asserted five categories by name, none of them
+`scaling-route`, and separately that the table held more than 5,000 rows. So the
+table could have lost all fourteen of its most discriminating rows, or three
+hundred rows of any kind, and that suite would have stayed green. Five
+hand-written lists age exactly as badly as the hardcoded path in each runner did
+when this directory moved.
+
+Checking the header instead means a runner learns about a new category from the
+table rather than from a message, and a category that vanishes is a failure
+rather than a silence.
+
+A runner MUST NOT branch on `kind`. It is there for diagnosis — so a failure can
+say which part of the sample broke — and the three answer columns are the whole
+expectation. `counts` is the one thing to read it for.
+
 ## Where the answers come from
 
 Go's `encoding/json` and `strconv`, which `SPEC.md` section 4.5.3 names as the

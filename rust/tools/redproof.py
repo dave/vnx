@@ -38,6 +38,7 @@ Measured 2026-09-09, all sixteen caught:
     skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
     ignore the ZIP64 end record          zip64
     take the segment-start cosine        accept AND diagnose, in opposite directions
+    round half UP                        write, numbers (caught by 340.25, NOT by 340.75)
 
 One entry is expected to SURVIVE, and fails the script if it ever goes red:
 reaching inward to a segment's first and last TIMED pip. That is a hole in
@@ -119,6 +120,13 @@ MUTATIONS = [
     ("scale before rounding, as the obvious spelling does", "src/render.rs",
      "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
      "    let s = 10f64.powi(places as i32); (value * s).round_ties_even() / s"),
+
+    # `Math.round(x * 10) / 10` — the idiom every language offers first, and
+    # exactly half-up. It agrees with half-to-even on 340.75, so a fixture
+    # carrying only that value would pass it.
+    ("round half UP at the writer boundary", "src/render.rs",
+     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
+     "    let s = 10f64.powi(places as i32); ((value * s) + 0.5).floor() / s"),
 
     ("round half away from zero at the writer boundary", "src/render.rs",
      "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",

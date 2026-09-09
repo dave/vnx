@@ -420,16 +420,116 @@ mod tests {
     }
 
     /// SPEC 4.5.4: a rounding tie goes to even, at the WRITER's boundary.
-    /// `corpus/format/README.md` names this as one of three rules no corpus
-    /// tier can reach, because no tier ever asks a library to write.
+    ///
+    /// BOTH tie values are load-bearing and neither is insurance. Each catches
+    /// a different pair of wrong rules, and only the two together identify
+    /// half-to-even. Measured here rather than asserted, so that deleting
+    /// either line as redundant fails rather than silently narrows the test:
+    ///
+    /// ```text
+    ///            to-even  half-odd  away-0   toward-0  half-up  half-down
+    ///   340.25    340.2    340.3    340.3     340.2     340.3    340.2
+    ///   340.75    340.8    340.7    340.8     340.7     340.8    340.7
+    /// ```
+    ///
+    /// `340.25` separates away-from-zero and half-up; `340.75` separates
+    /// toward-zero and half-down; each separates half-odd on its own. A
+    /// fixture carrying only one of them looks like tie coverage and leaves
+    /// two rules undetected.
     #[test]
     fn a_rounding_tie_goes_to_even() {
         assert_eq!(round_to(340.25, 1), 340.2, "not 340.3");
-        assert_eq!(round_to(340.35, 1), 340.4);
+        assert_eq!(round_to(340.75, 1), 340.8, "not 340.7");
         assert_eq!(round_to(-340.25, 1), -340.2);
-        assert_eq!(round_to(340.75, 1), 340.8);
-        // Rust's own `round` is the wrong one, and this says so out loud.
-        assert_eq!((340.25f64 * 10.0).round() / 10.0, 340.3);
+        assert_eq!(round_to(-340.75, 1), -340.8);
+        // Not a tie at all, so every rule agrees; here to show the tie cases
+        // above are not just "rounds down".
+        assert_eq!(round_to(340.35, 1), 340.4);
+    }
+
+    /// Each tie value must actually SEPARATE the rules it is credited with, or
+    /// the table above is decoration. This computes the five wrong rules from
+    /// their definitions and requires each value to catch its own pair.
+    ///
+    /// The lead's first framing had `340.25` as the instrument and `340.75` as
+    /// insurance against a reader rounding everything up. That framing is what
+    /// gets the "decorative" value deleted by the next person tidying, so the
+    /// discrimination is asserted rather than described.
+    #[test]
+    fn each_tie_value_separates_its_own_pair_of_wrong_rules() {
+        // The five wrong rules, at one decimal place, on an exact tie.
+        let scaled = |v: f64| v * 10.0;
+        let half_odd = |v: f64| {
+            let lo = scaled(v).floor();
+            (if lo.rem_euclid(2.0) == 1.0 { lo } else { lo + 1.0 }) / 10.0
+        };
+        let away_from_zero = |v: f64| scaled(v).abs().ceil().copysign(v) / 10.0;
+        let toward_zero = |v: f64| scaled(v).abs().floor().copysign(v) / 10.0;
+        let half_up = |v: f64| (scaled(v) + 0.5).floor() / 10.0;
+        let half_down = |v: f64| (scaled(v) - 0.5).ceil() / 10.0;
+
+        for (value, caught) in [
+            (340.25_f64, ["away-from-zero", "half-up"]),
+            (340.75_f64, ["toward-zero", "half-down"]),
+        ] {
+            let correct = round_to(value, 1);
+            let named: Vec<(&str, f64)> = vec![
+                ("half-odd", half_odd(value)),
+                ("away-from-zero", away_from_zero(value)),
+                ("toward-zero", toward_zero(value)),
+                ("half-up", half_up(value)),
+                ("half-down", half_down(value)),
+            ];
+            let separated: Vec<&str> = named
+                .iter()
+                .filter(|(_, answer)| *answer != correct)
+                .map(|(name, _)| *name)
+                .collect();
+            // Every tie separates half-odd; the pair is what each value adds.
+            assert!(
+                separated.contains(&"half-odd"),
+                "{value} does not separate half-odd"
+            );
+            for rule in caught {
+                assert!(
+                    separated.contains(&rule),
+                    "{value} was credited with catching {rule} and does not: \
+                     correct is {correct}, and the rules give {named:?}"
+                );
+            }
+        }
+
+        // And neither value catches the other's pair, which is why both are
+        // needed. This is the assertion that fails if one line is deleted.
+        assert_eq!(away_from_zero(340.75), round_to(340.75, 1));
+        assert_eq!(half_up(340.75), round_to(340.75, 1));
+        assert_eq!(toward_zero(340.25), round_to(340.25, 1));
+        assert_eq!(half_down(340.25), round_to(340.25, 1));
+    }
+
+    /// `Math.round(x * 10) / 10` is exactly half-up, and it is the trick every
+    /// language's idiom offers first. Rust's `f64::round` is half-AWAY-from-
+    /// zero, which differs from half-up only on negatives.
+    ///
+    /// Both are wrong, and neither is wrong on every tie — which is the reason
+    /// a single tie value cannot catch them.
+    #[test]
+    fn the_two_idioms_are_each_wrong_on_only_some_ties() {
+        let half_up = |v: f64| ((v * 10.0) + 0.5).floor() / 10.0;
+        let rust_round = |v: f64| (v * 10.0).round() / 10.0;
+
+        // half-up: wrong on 340.25 and on -340.75, right on the other two.
+        assert_ne!(half_up(340.25), round_to(340.25, 1));
+        assert_eq!(half_up(340.75), round_to(340.75, 1));
+        assert_eq!(half_up(-340.25), round_to(-340.25, 1));
+        assert_ne!(half_up(-340.75), round_to(-340.75, 1));
+
+        // Rust's `round`: wrong on both positives' odd-ward ties and on the
+        // negative mirror of each.
+        assert_ne!(rust_round(340.25), round_to(340.25, 1));
+        assert_eq!(rust_round(340.75), round_to(340.75, 1));
+        assert_ne!(rust_round(-340.25), round_to(-340.25, 1));
+        assert_eq!(rust_round(-340.75), round_to(-340.75, 1));
     }
 
     /// Decimal intuition lies about which way a value rounds. `3.05` is really

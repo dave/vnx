@@ -55,8 +55,8 @@ legitimately not what you read.
 
 ## Where Rust fights the format
 
-Two things a Rust implementation gets wrong by default, both in
-`json::number`:
+Three things a Rust implementation gets wrong by default. The first two are in
+`json::number` and the third is in `render`.
 
 - **Exponent form.** `{}` for `f64` never uses scientific notation — it renders
   `1e21` as twenty-two digits and `1e-7` as `0.0000001`. `{:e}` always uses it,
@@ -69,7 +69,6 @@ Two things a Rust implementation gets wrong by default, both in
   where `time_ms` lives. The detection is exact integer arithmetic on the
   binary64 mantissa, not a round-trip probe — a probe finds phantoms above
   2^49, where several one-decimal spellings map to one double.
-
 - **The writer's rounding.** `f64::round` rounds a tie away from zero and SPEC
   4.5.4 wants ties to even — but the obvious fix, `(v * 10.0).round_ties_even()
   / 10.0`, is a DIFFERENT RULE. Multiplying by the scale is itself a rounding

@@ -534,7 +534,7 @@ that contradicted it was one that implementation had already quoted for another 
 Reading the format through what your library happens to be is the failure this
 exercise exists to avoid.
 
-Go names them `Encode` and `Reformat` *(relayed, not read here)*; Swift
+Go names them `Encode` and `Reformat`; Swift
 `VNX.write` and `VNX.render`; JavaScript `write` and `rerender`; Python
 `encode_bytes` and `reformat_bytes`. Swift's account puts the reason plainly:
 separate entry points rather than one with a flag, because a writer rounds.
@@ -703,17 +703,22 @@ wrong reason under a wrong conclusion is caught by whoever tests the conclusion.
 A wrong reason under a right one holds everything up while being false, and
 survives exactly as long as nobody needs it for a second purpose.
 
-Two instances, from opposite directions. One implementation reasoned about a
-standard library's escaping rather than running it and reached the correct answer
-by a wrong route. Another wrote that `toFixed` rounds a tie away from zero on
-positives and toward zero on negatives, four lines below its own measured table
-showing `-340.25` going to `-340.3`; the divergence it was demonstrating was
-real, so nothing pulled it up. That reason survived until somebody needed the tie
-direction for a symmetry guard, measured it, and found it did not hold.
+Two instances. One implementation reasoned about a standard library's escaping
+rather than running it and reached the correct answer by a wrong route. Another
+wrote that `toFixed` rounds a tie away from zero on positives and toward zero on
+negatives, four lines below its own measured table showing `-340.25` going to
+`-340.3`. The divergence it was demonstrating was real, so nothing pulled it up.
 
-Which gives the detection rule: **a reason that has only ever supported one
-conclusion has never been tested.** And it narrows what provenance can do for
-you. Writing a claim for attribution surfaces a *borrowed* one, because the
+Which gives the detection rule: **a reason that has only ever answered one kind
+of question has never been tested.** The qualifier is the whole of it. That
+reason reached three implementations and a published document untested, because
+every use asked it the same thing; it was tested the first time somebody wanted
+the tie *direction* rather than the tie *divergence*. Reuse in the same direction
+accumulates confidence without accumulating evidence. "Has this been used
+elsewhere" gets a yes for almost everything; "has this answered a different
+question" discriminates.
+
+It also narrows what provenance can do for you. Writing a claim for attribution surfaces a *borrowed* one, because the
 empty provenance field is a visible question. It does not surface a *reasoned*
 one, because a derivation feels like your own work whether or not you checked it
 against data you already hold. *(Reported by the JavaScript implementation,

@@ -6,6 +6,7 @@ corpus case adds nothing.
 
 from __future__ import annotations
 
+import io
 import unittest
 
 import vnx
@@ -437,7 +438,6 @@ class Containers(unittest.TestCase):
     """SPEC 7 and 9.  The corpus has four archives and no writer case."""
 
     def build(self, entries: list[tuple[str, bytes]]) -> bytes:
-        import io
         import zipfile
 
         buffer = io.BytesIO()
@@ -496,7 +496,7 @@ class Containers(unittest.TestCase):
 
     def test_a_written_container_reads_back(self) -> None:
         document = vnx.read_bytes(b'{"vnx": "0.1.0", "waypoints": [{"at": [1, 2]}]}').document
-        data = vnx.write_container_bytes(document, {"attachments/p.txt": b"x"})
+        data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         result = vnx.read_container_bytes(data)
         self.assertEqual(result.attachments, ["attachments/p.txt"])
         assert result.document.waypoints is not None
@@ -504,12 +504,28 @@ class Containers(unittest.TestCase):
         assert at is not None
         self.assertEqual(at.lon, 1.0)
 
+    def test_the_container_paths_differ_exactly_as_the_plain_ones_do(self) -> None:
+        """Ruled 2026-09-09: repackaging must not silently lose precision."""
+        import zipfile
+
+        document = vnx.read_bytes(
+            b'{"vnx": "0.1.0", "waypoints": [{"at": [-3.6712345678901235, 57.118]}]}'
+        ).document
+        def doc_of(data: bytes) -> bytes:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                return archive.read("doc.vnx")
+        kept = doc_of(vnx.reformat_container_bytes(document))
+        rounded = doc_of(vnx.encode_container_bytes(document))
+        self.assertIn(b"-3.6712345678901235", kept)
+        self.assertIn(b"-3.671235", rounded)
+        self.assertNotEqual(kept, rounded)
+
     def test_a_written_container_sets_the_utf8_flag(self) -> None:
         import io
         import zipfile
 
         document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
-        with zipfile.ZipFile(io.BytesIO(vnx.write_container_bytes(document))) as archive:
+        with zipfile.ZipFile(io.BytesIO(vnx.encode_container_bytes(document))) as archive:
             for info in archive.infolist():
                 self.assertTrue(info.flag_bits & 0x800, info.filename)
 

@@ -16,11 +16,15 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from .decode import ReadResult, read_bytes
+from .encode import reformat_bytes
 from .writer import encode_bytes
 from .errors import Diagnostic, VNXRefusal
 from .model import Document
 
-__all__ = ["ContainerReadResult", "read_container_bytes", "write_container_bytes"]
+__all__ = [
+    "ContainerReadResult", "read_container_bytes",
+    "reformat_container_bytes", "encode_container_bytes",
+]
 
 _ROOT_DOCUMENT = "doc.vnx"
 _DRIVE_LETTER = re.compile(r"\A[A-Za-z]:")
@@ -104,23 +108,39 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
     )
 
 
-def write_container_bytes(
+def reformat_container_bytes(
     document: Document, attachments: Union[dict[str, bytes], None] = None
 ) -> bytes:
-    """Write a ``.vnz`` holding *document* as ``doc.vnx`` plus *attachments*.
+    """A ``.vnz`` whose document PRESERVES the values it carried.
 
-    Building a container from a model is a WRITER action, so the document is
-    emitted through `encode_bytes` and its coordinates are rounded to writer
-    precision.  To repackage a document unchanged, reformat it yourself and
-    place the bytes in the archive.
+    Repackaging a document must not silently lose precision, so a container
+    gets the same two paths as a plain document (ruled 2026-09-09).  A
+    container is not a special case; it is the same document inside a zip.
     """
+    return _container(reformat_bytes(document), attachments)
+
+
+def encode_container_bytes(
+    document: Document, attachments: Union[dict[str, bytes], None] = None
+) -> bytes:
+    """A ``.vnz`` whose document is emitted at WRITER precision.
+
+    Rounded to 6 and 1 places with the shortest spelling of every position,
+    exactly as `encode_bytes`.
+    """
+    return _container(encode_bytes(document), attachments)
+
+
+def _container(
+    body: bytes, attachments: Union[dict[str, bytes], None]
+) -> bytes:
     for name in attachments or {}:
         _check_path(name)
         if name.lower() == _ROOT_DOCUMENT:
             raise VNXRefusal(f"an attachment may not be named {name!r}")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(_zip_info(_ROOT_DOCUMENT), encode_bytes(document))
+        archive.writestr(_zip_info(_ROOT_DOCUMENT), body)
         for name, body in (attachments or {}).items():
             archive.writestr(_zip_info(name), body)
     return buffer.getvalue()

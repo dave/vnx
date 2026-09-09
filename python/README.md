@@ -33,6 +33,7 @@ and that is the point: that fixture reformats to itself and encodes to
 |---|---|
 | `reformat_bytes` / `reformat_file` | formatter — preserves values and position arity |
 | `encode_bytes` / `encode_file` | writer — rounds, shortens, then formats |
+| `reformat_container_bytes` / `encode_container_bytes` | the same split, for a `.vnz` |
 | `canonicalise` | bytes in, bytes out; never decodes to the model |
 
 A document that cannot be read at all raises `vnx.VNXRefusal`. A document that

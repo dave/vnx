@@ -28,7 +28,8 @@ from typing import Union
 
 from .canonical import render_document
 from .container import (
-    ContainerReadResult, read_container_bytes, write_container_bytes,
+    ContainerReadResult, encode_container_bytes, read_container_bytes,
+    reformat_container_bytes,
 )
 from .decode import ReadResult, SUPPORTED_VERSION, decode_document, read_bytes
 from .encode import encode_document, reformat_bytes
@@ -48,7 +49,8 @@ __all__ = [
     "Waypoint", "canonicalise", "decode_document", "encode_document",
     "encode_bytes", "encode_file", "read_bytes", "read_container_bytes",
     "read_container_file", "read_file", "reformat_bytes", "reformat_file",
-    "render_number", "rounded_document", "write_container_bytes",
+    "encode_container_bytes", "reformat_container_bytes",
+    "render_number", "rounded_document",
 ]
 
 __version__ = "0.1.0"

@@ -1,11 +1,14 @@
-# THIS FILE IS BUILT TO BE THROWN AWAY. DELETE IT WHEN IT IS EMPTY.
+# THIS FILE FAILS THE BUILD UNTIL IT IS DELETED. THAT IS ITS WHOLE LIFE.
 #
-# It is a work list, not a document. It records rulings that have been made and
-# have not yet reached SPEC.md, and `check-ruling-backlog.py` fails while any
-# entry is outstanding. When the last entry goes, delete this file and the
-# script beside it — a permanent ledger of what the specification used to be
-# missing is drafting history, and this repository does not keep drafting
-# history.
+# It fails while an entry is unmet. It fails when the last entry clears. The
+# only way to make the suite green again is to DELETE this file and the script
+# beside it. Deletion is not a tidy-up somebody has to remember; it is the only
+# exit, because a check that has to be remembered is a note.
+#
+# It is a work list, not a document. A permanent ledger of what the
+# specification used to be missing would be a drafting-history artefact arriving
+# through the back door wearing a check — and a mechanical guard is the last
+# place anyone looks for a register violation.
 #
 # WHY IT EXISTS. A ruling and the specification text are separate artefacts with
 # a lag between them, so a library can be correct against one and wrong against

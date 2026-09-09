@@ -3,10 +3,15 @@
 
     ./scripts/check-ruling-backlog.py
 
-DELETE THIS SCRIPT AND ITS LEDGER WHEN THE BACKLOG EMPTIES. Both are a work
-list, not a document, and a permanent record of what the specification used to
-be missing is drafting history that this repository does not keep. The script
-says so itself when the ledger runs dry.
+THIS SCRIPT AND ITS LEDGER FAIL THE BUILD UNTIL THEY ARE DELETED. It fails while
+an entry is unmet, it fails when the last entry clears, and the only way to make
+the suite green again is to delete both files. Deletion is not a tidy-up somebody
+has to remember; it is the only exit, because a check that has to be remembered
+is a note.
+
+A permanent record of what the specification used to be missing would be a
+drafting-history artefact arriving through the back door wearing a check, and a
+mechanical guard is the last place anyone looks for a register violation.
 
 WHAT IT IS FOR. A ruling and the specification text are separate artefacts with
 a lag between them, so a library can be correct against one and wrong against
@@ -84,10 +89,17 @@ This subsection mentions every other entry.
 
 SELF_TEST_CASES = [
     (
-        "a landed ruling passes and asks for its entry to be deleted",
+        "a ledger whose entries have ALL landed fails, demanding deletion",
         '[[ruling]]\nid = "landed"\nsection = "7"\nrequires = "backslash"\n',
-        0,
-        "have landed",
+        1,
+        "THE BACKLOG IS CLEAR",
+    ),
+    (
+        "a landed entry beside an unmet one is reported as landed",
+        '[[ruling]]\nid = "landed"\nsection = "7"\nrequires = "backslash"\n\n'
+        '[[ruling]]\nid = "unmet"\nsection = "3.9"\nrequires = "an array"\n',
+        1,
+        "should now be DELETED from the ledger",
     ),
     (
         "a phrase present only in a SUBSECTION still fails",
@@ -102,12 +114,16 @@ SELF_TEST_CASES = [
         "has no section 9.9",
     ),
     (
-        "an empty ledger says to delete the file",
+        "an empty ledger FAILS, so deletion is the only exit",
         "\n",
         1,
         "DELETE BOTH THIS SCRIPT AND THE LEDGER",
     ),
 ]
+
+# The one state that passes: both files gone. Checked separately, because it is
+# the absence of the ledger rather than a value in it.
+DELETED_IS_GREEN = ("a deleted ledger is the only green state", 0, "nothing outstanding")
 
 
 def self_test() -> None:
@@ -136,9 +152,16 @@ def self_test() -> None:
                 failures.append(f"{label}: output does not mention {want_text!r}\n{output}")
             else:
                 print(f"  ok  {label}")
+        label, want_code, want_text = DELETED_IS_GREEN
+        (root / "scripts" / "ruling-backlog.toml").unlink()
+        done = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+        if done.returncode != want_code or want_text not in done.stdout + done.stderr:
+            failures.append(f"{label}: exit {done.returncode}, expected {want_code}")
+        else:
+            print(f"  ok  {label}")
     if failures:
         sys.exit("check-ruling-backlog --self-test FAILED\n\n" + "\n".join(failures))
-    print(f"check-ruling-backlog: {len(SELF_TEST_CASES)} self-test cases pass")
+    print(f"check-ruling-backlog: {len(SELF_TEST_CASES) + 1} self-test cases pass")
 
 
 def main() -> None:
@@ -203,9 +226,17 @@ def main() -> None:
             "that publishes the problem instead of solving it. When the last entry "
             "goes, delete the ledger and this script."
         )
-    print(
+    # All landed is NOT a passing state. A ledger of entries that have all landed
+    # is a permanent record of what the specification used to be missing, which
+    # is the artefact this file exists to avoid becoming. The last entry clearing
+    # is the signal to delete, so it has to be a failure or nothing forces it.
+    sys.exit(
         f"check-ruling-backlog: all {len(rulings)} entries have landed. "
-        "Empty the ledger, then delete it and this script."
+        "THE BACKLOG IS CLEAR.\n\n"
+        "DELETE BOTH THIS SCRIPT AND THE LEDGER, and remove any invocation of "
+        "them. Deleting them is the only way to make this green: a ledger whose "
+        "entries have all landed is a record of what the specification used to "
+        "be missing, and keeping it would be drafting history wearing a check."
     )
 
 

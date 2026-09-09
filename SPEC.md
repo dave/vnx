@@ -103,13 +103,20 @@ diagnostics of Section 6.2.
 
 Through 0.x:
 
-- A reader MUST refuse a document whose MAJOR or MINOR component is above its
-  own, and the refusal MUST state that a newer reader is needed. During 0.x
-  the minor number is a breaking axis, so a 0.1.x reader cannot determine
-  whether 0.2.0 changed a construct it depends on.
-- A reader MUST accept a document whose MAJOR and MINOR match its own,
-  whatever the PATCH component. A 0.1.0 reader accepts 0.1.3 and 0.0.9; it
-  refuses 0.2.0 and 1.0.0.
+- Each MINOR is its own series. The minor number is a breaking axis through
+  0.x, which is to say a 0.2 document and a 0.1 document give a reader different
+  guarantees, exactly as a 2.x and a 1.x document would after 1.0. So the rule
+  above applies unchanged with MINOR in the place of MAJOR: a reader MAY support
+  several 0.x minor series, and MUST refuse a document in a series it does not
+  support, naming the version.
+- A reader MUST accept a document in a series it supports, whatever the PATCH
+  component. A 0.1.0 reader accepts 0.1.3. It refuses 0.2.0, and it refuses
+  0.0.9 unless it declares support for the 0.0 series.
+
+  A lower minor is refused for the same reason as a higher one, and the symmetry
+  is the point. A breaking axis means a construct may have CHANGED MEANING, not
+  merely been added, so a 0.1 reader can no more assume it understands 0.0 than
+  0.2. There is no argument that makes a downgrade safe while an upgrade is not.
 
 From version 1.0 onward, minor versions are additive: a reader MUST accept any
 minor version at or above its own and MUST ignore constructs it does not
@@ -233,6 +240,20 @@ An arc carries `from` and `to`, each naming a node in the same network, and
 An arc's `pips` array is its complete point list, from its first point to its
 last, and includes the positions of both endpoint nodes. A reader MUST NOT
 prepend or append node positions to it.
+
+The first pip states the position of the node `from` names, and the last states
+the position of the node `to` names. Where a terminal pip and its node disagree,
+THE PIPS ARE AUTHORITATIVE: the two are one fact written twice, and the geometry
+lives in the pips. That is why Section 6.2 keeps an arc naming an absent node —
+its geometry is real without the node.
+
+A reader MUST compare each terminal pip against its node's position and MUST
+record a diagnostic where they are further apart than the projection tolerance
+of Section 3.3.3, keeping both. The same 50 metres, deliberately: this is the
+same question about a different pair of objects, and two thresholds for one
+question is worse than one slightly loose one. Exact equality would be defensible
+for a document written by one program from one source and wrong for a
+hand-authored one, which is the population that tolerance exists for.
 
 Note: an implementation whose internal storage holds only the interior points of
 an arc must add the endpoint positions when writing and remove them when

@@ -58,9 +58,26 @@ func TestDecodeRefusals(t *testing.T) {
 
 // TestOlderMinorAccepted pins the other half of §2.1: a reader accepts a MAJOR
 // and MINOR at or below its own. Only NEWER is refused.
-func TestOlderMinorAccepted(t *testing.T) {
-	if _, _, err := Decode([]byte(`{"vnx":"0.0.0"}`)); err != nil {
-		t.Fatalf("0.0.0 must be accepted by a 0.1.0 reader: %v", err)
+// TestOlderMinorRefused pins spec §2.2's symmetry, which reversed this test.
+//
+// ⚠ THROUGH 0.x EACH MINOR IS ITS OWN SERIES. The minor number is a breaking
+// axis there, which means a construct may have CHANGED MEANING between 0.0 and
+// 0.1 rather than merely having been added — so a 0.1 reader can no more assume
+// it understands 0.0 than 0.2. This test asserted the opposite, on the reading
+// that an earlier version is a subset of a later one. That reading is what a
+// breaking axis denies.
+func TestOlderMinorRefused(t *testing.T) {
+	for _, declared := range []string{"0.0.0", "0.0.99"} {
+		_, _, err := Decode([]byte(`{"vnx":"` + declared + `"}`))
+		if err == nil {
+			t.Errorf("%s must be refused by a %s reader that does not declare 0.0 support", declared, Version)
+			continue
+		}
+		// The refusal must name the version, so whoever holds the file knows
+		// what they are holding rather than only that it failed.
+		if !strings.Contains(err.Error(), declared) {
+			t.Errorf("refusal does not name the version: %v", err)
+		}
 	}
 }
 
@@ -73,7 +90,11 @@ func TestOlderMinorAccepted(t *testing.T) {
 // would be indistinguishable to a user from the correct 0.2.0 one — which is why
 // it has its own test rather than riding on TestOlderMinorAccepted.
 func TestNewerPatchAccepted(t *testing.T) {
-	for _, declared := range []string{"0.1.1", "0.1.3", "0.1.99", "0.0.99"} {
+	// ⚠ EVERY CASE IS IN THIS READER'S OWN MINOR SERIES. "0.0.99" used to be
+	// here, which made the test's name wrong about what it covered: that is a
+	// lower minor carrying a high patch, and spec §2.2 now refuses it, so it was
+	// never testing the patch rule. It moved to TestOlderMinorRefused.
+	for _, declared := range []string{"0.1.0", "0.1.1", "0.1.3", "0.1.99"} {
 		doc, _, err := Decode([]byte(`{"vnx":"` + declared + `"}`))
 		if err != nil {
 			t.Fatalf("%s must be accepted by a %s reader: %v", declared, Version, err)

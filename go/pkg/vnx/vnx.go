@@ -272,6 +272,20 @@ func checkVersion(declared string) error {
 		return fmt.Errorf("%w: document is %s, this reader implements %s — a newer reader is needed",
 			ErrUnsupportedVersion, declared, Version)
 	}
+	// ⚠ A LOWER MINOR IS REFUSED TOO, THROUGH 0.x. Spec §2.2 makes each 0.x
+	// minor its OWN SERIES, because the minor number is a breaking axis there:
+	// a construct may have CHANGED MEANING between 0.0 and 0.1, not merely been
+	// added. So a 0.1 reader can no more assume it understands 0.0 than 0.2,
+	// and the symmetry is the point — there is no argument that makes a
+	// downgrade safe while an upgrade is not.
+	//
+	// This reader declares support for one series, so it refuses every other.
+	// A reader MAY support several, and one that did would apply each
+	// document's own series rules.
+	if dMaj == 0 && oMaj == 0 && dMin < oMin {
+		return fmt.Errorf("%w: document is %s and this reader implements %s — through 0.x each minor is a separate series, and this reader does not implement %d.%d",
+			ErrUnsupportedVersion, declared, Version, dMaj, dMin)
+	}
 	return nil
 }
 

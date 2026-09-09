@@ -22,13 +22,18 @@ from vnx.errors import Diagnostic
 __all__ = ["match_diagnostics"]
 
 
+# SPEC 6.3: `message_advisory` exists so a person reading a sidecar can see what
+# the case is about, and it is NEVER compared -- a corpus that matched substrings
+# of prose across implementations would pin translations of a rule rather than
+# the rule.  The field is named advisory precisely so that nothing compares it.
+UNCOMPARED_DIAGNOSTIC_FIELDS = frozenset({"message_advisory"})
+COMPARED_DIAGNOSTIC_FIELDS = frozenset({"path", "code"})
+
+
 def _satisfies(expected: dict[str, str], reported: Diagnostic) -> bool:
-    path, message = reported.path, reported.message
-    if "path" in expected and expected["path"] != path:
+    if "path" in expected and expected["path"] != reported.path:
         return False
-    # SPEC 8.1: a message is matched as a substring.  The exact wording of a
-    # diagnostic is an implementation's own business; naming the cause is not.
-    if "message" in expected and expected["message"] not in message:
+    if "code" in expected and expected["code"] != reported.code:
         return False
     return True
 

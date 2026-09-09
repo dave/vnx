@@ -70,8 +70,8 @@ class _Reader:
 
     # -- diagnostics ---------------------------------------------------
 
-    def note(self, path: str, message: str) -> None:
-        self.diagnostics.append(Diagnostic(path, message))
+    def note(self, path: str, message: str, code: Union[str, None] = None) -> None:
+        self.diagnostics.append(Diagnostic(path, message, code))
 
     # -- primitives ----------------------------------------------------
 
@@ -84,7 +84,7 @@ class _Reader:
             return None
         for key in value:
             if key not in known:
-                self.note(join(path, key), "unknown key")
+                self.note(join(path, key), "unknown key", "unknown-key")
         return value
 
     def _complete(
@@ -139,7 +139,7 @@ class _Reader:
             # SPEC 6.2 lists a record-level timestamp carrying an offset other
             # than Z as an unusable value: drop it, diagnose, continue.  The
             # element dropped is the timestamp, not the item that carries it.
-            self.note(join(path, key), "must be UTC with a Z suffix")
+            self.note(join(path, key), "must be UTC with a Z suffix", "timestamp-not-utc")
             return None
         return value
 
@@ -429,7 +429,8 @@ class _Reader:
             isinstance(item, list) and item and isinstance(item[0], list)
             for item in value
         ):
-            self.note(path, "nested rings: this format carries one closed ring")
+            self.note(path, "nested rings: this format carries one closed ring",
+                      "polygon-nested-rings")
             return None
         ring: list[Position] = []
         for index, item in enumerate(value):
@@ -656,7 +657,11 @@ class _Reader:
             # SPEC 6.2 names this exactly: a link naming an arc that is absent
             # from the document is an unusable value.  A link's whole meaning is
             # the arc it traverses, so there is no geometry to keep.
-            self.note(path, "not in this network: this link names no arc it can traverse")
+            self.note(
+            path,
+            "not in this network: this link names no arc it can traverse",
+            "link-arc-absent",
+        )
             return None
         arc = arcs[arc_key]
         link = Link(arc=arc_key)
@@ -710,6 +715,7 @@ class _Reader:
                 f"does not lie on arc `{arc_name(network, arc)}`: "
                 f"{distance:.0f} m, beyond the "
                 f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
+                "endpoint-off-arc",
             )
             return None
         return position
@@ -733,6 +739,7 @@ class _Reader:
                     join(path, "links", index_b),
                     "not one connected walk: this link does not start where the "
                     "previous one ended",
+                    "chain-discontinuity",
                 )
 
     def _same_endpoint(

@@ -10,6 +10,7 @@ diagnostic is a value.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Union
 
 __all__ = ["VNXRefusal", "Diagnostic"]
 
@@ -62,7 +63,16 @@ class Diagnostic:
     not into the model after elements were dropped.  ``message`` is short
     English.  There is deliberately no severity: every diagnostic this format
     defines reports the same kind of fact.
+
+    ``code`` is a short stable token naming WHICH diagnostic this is, and it is
+    the only thing a conformance case compares (SPEC 6.3).  The English is never
+    compared across implementations -- a corpus that matched substrings of prose
+    would pin translations of a rule rather than the rule.  A reader MAY leave
+    the code absent on any diagnostic no corpus case pins; codes are wire
+    commitments and the format does not need one for every way a document can be
+    malformed.
     """
 
     path: str
     message: str
+    code: Union[str, None] = None

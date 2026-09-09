@@ -788,3 +788,64 @@ class DanglingFolder(unittest.TestCase):
         assert result.document.tracks is not None
         self.assertEqual(len(result.document.tracks), 1)
         self.assertIsNone(result.document.tracks[0].folder)
+
+
+class EscapingTable(unittest.TestCase):
+    """SPEC 4.5.5's escaping rule, which no corpus file reaches.
+
+    Five control characters take their short escape; every other control
+    character is \\u00xx with LOWERCASE hex; nothing else is escaped at all,
+    including the five that Go's encoding/json escapes by default.
+    """
+
+    def test_the_five_short_escapes(self) -> None:
+        from vnx.canonical import render_string
+
+        for raw, want in (
+            ("\b", '"\\b"'),
+            ("\f", '"\\f"'),
+            ("\n", '"\\n"'),
+            ("\r", '"\\r"'),
+            ("\t", '"\\t"'),
+        ):
+            with self.subTest(char=repr(raw)):
+                self.assertEqual(render_string(raw), want)
+
+    def test_every_other_control_character_is_lower_case_u00xx(self) -> None:
+        from vnx.canonical import render_string
+
+        for code, want in ((0x00, '"\\u0000"'), (0x07, '"\\u0007"'),
+                           (0x0B, '"\\u000b"'), (0x1F, '"\\u001f"')):
+            with self.subTest(code=hex(code)):
+                self.assertEqual(render_string(chr(code)), want)
+
+    def test_upper_case_hex_would_be_wrong(self) -> None:
+        from vnx.canonical import render_string
+
+        self.assertEqual(render_string(chr(0x1F)), '"\\u001f"')
+        self.assertNotEqual(render_string(chr(0x1F)), '"\\u001F"')
+
+    def test_the_two_characters_json_itself_requires(self) -> None:
+        from vnx.canonical import render_string
+
+        self.assertEqual(render_string('"'), '"\\""')
+        self.assertEqual(render_string("\\"), '"\\\\"')
+
+    def test_the_five_go_escapes_by_default_are_written_raw(self) -> None:
+        from vnx.canonical import render_string
+
+        for char in ("<", ">", "&", " ", " "):
+            with self.subTest(char=repr(char)):
+                self.assertEqual(render_string(char), f'"{char}"')
+
+    def test_nothing_above_007f_is_ever_escaped(self) -> None:
+        from vnx.canonical import render_string
+
+        for code in (0x80, 0xE0, 0x2028, 0xFFFD, 0x1F600):
+            with self.subTest(code=hex(code)):
+                self.assertNotIn("\\u", render_string(chr(code)))
+
+    def test_a_solidus_is_not_escaped(self) -> None:
+        from vnx.canonical import render_string
+
+        self.assertEqual(render_string("a/b"), '"a/b"')

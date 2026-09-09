@@ -17,6 +17,7 @@ import vnx
 from vnx.canonical import render_document
 from vnx.jsonio import parse_json
 
+from . import matching
 from .matching import match_diagnostics
 from .resolve import resolve
 
@@ -124,6 +125,33 @@ class CorpusStructure(unittest.TestCase):
                         f"{sidecar.name}: this runner does not know {field!r}, so "
                         "the expectation would pass without being compared",
                     )
+
+    def test_the_runner_knows_every_field_INSIDE_a_diagnostic(self) -> None:
+        """The top-level sweep above is not enough, and that cost real coverage.
+
+        When `diagnostics[].message` became `code` + `message_advisory` on
+        2026-09-09, the top-level test stayed green -- `diagnostics` was still a
+        known top-level key -- while the matcher, which looked for `message`,
+        silently fell back to comparing paths alone. Every diagnose case passed
+        while checking half of what it pins. A nested expectation needs a nested
+        sweep.
+        """
+        known = matching.COMPARED_DIAGNOSTIC_FIELDS | matching.UNCOMPARED_DIAGNOSTIC_FIELDS
+        for sidecar in sorted((CORPUS / "diagnose").glob("*.expect.json")):
+            for expected in json.loads(sidecar.read_text()).get("diagnostics", []):
+                for field in expected:
+                    self.assertIn(
+                        field,
+                        known,
+                        f"{sidecar.name}: the matcher does not know "
+                        f"diagnostics[].{field!r}",
+                    )
+
+    def test_every_pinned_diagnostic_names_a_code(self) -> None:
+        """SPEC 6.3: a diagnostic a corpus case pins MUST carry a code."""
+        for sidecar in sorted((CORPUS / "diagnose").glob("*.expect.json")):
+            for expected in json.loads(sidecar.read_text()).get("diagnostics", []):
+                self.assertIn("code", expected, f"{sidecar.name}: pinned without a code")
 
     def test_every_sidecar_declares_its_kind_and_reason(self) -> None:
         for kind in ("accept", "reject", "diagnose"):

@@ -397,6 +397,61 @@ class RedProof(unittest.TestCase):
             "reader that records no diagnostics",
         )
 
+    def test_a_reader_that_emits_no_codes_is_caught(self) -> None:
+        """SPEC 6.3: a diagnostic a corpus case pins MUST carry a code.
+
+        Until 2026-09-09 the sidecars pinned English and this runner matched it
+        as a substring.  When they moved to codes, the matcher looked for a
+        `message` field that no longer existed and fell through to comparing
+        paths alone -- every diagnose case green while checking half of what it
+        pins.  Nothing went red, because a matcher that checks less always
+        passes.  These three tests are what would have caught it.
+        """
+        original = decode._Reader.note
+
+        self.assertGoesRed(
+            mock.patch.object(
+                decode._Reader, "note",
+                lambda self, path, message, code=None: original(self, path, message),
+            ),
+            "DiagnoseTier.test_diagnose",
+            "reader that reports no diagnostic codes",
+        )
+
+    def test_a_reader_that_emits_the_wrong_code_is_caught(self) -> None:
+        original = decode._Reader.note
+
+        self.assertGoesRed(
+            mock.patch.object(
+                decode._Reader, "note",
+                lambda self, path, message, code=None: original(
+                    self, path, message, "not-the-right-code"
+                ),
+            ),
+            "DiagnoseTier.test_diagnose",
+            "reader that reports the wrong diagnostic code",
+        )
+
+    def test_the_english_really_is_not_compared(self) -> None:
+        """The other half, and the one that must STAY green.
+
+        A reader whose wording shares nothing with the sidecar's still passes.
+        If this ever goes red, English has crept back into the comparison and
+        the corpus has started pinning translations of a rule.
+        """
+        original = decode._Reader.note
+
+        with mock.patch.object(
+            decode._Reader, "note",
+            lambda self, path, message, code=None: original(
+                self, path, "xyzzy plugh", code
+            ),
+        ):
+            self.assertTrue(
+                _run("DiagnoseTier.test_diagnose").wasSuccessful(),
+                "a diagnostic's English is being compared; it must not be",
+            )
+
     def test_a_reader_with_no_continuity_check_is_caught(self) -> None:
         self.assertGoesRed(
             mock.patch.object(
@@ -459,7 +514,10 @@ class RedProof(unittest.TestCase):
         with mock.patch.object(
             decode._Reader, "_check_continuity", across_the_hole
         ):
-            self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
+            self.assertFalse(
+                _run("DiagnoseTier.test_diagnose").wasSuccessful(),
+                "the corpus stopped seeing this; has the chain been simplified?",
+            )
 
     def test_a_duplicate_key_diagnostic_would_go_red(self) -> None:
         """SPEC 6.4's limitation is recorded, not assumed permanent.

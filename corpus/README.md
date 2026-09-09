@@ -71,11 +71,12 @@ Resolve it against your decoded model, never against the raw JSON. Resolving it
 against the file compares the file to itself and cannot see a decoder that
 swapped two channels, which is the entire point of the check.
 
-Until 2026-09-09 this field named waypoints only, so a reader that transposed
-longitude and latitude on every arc pip, node, area vertex and track pip passed
-the whole corpus — `accept/lonlat-transposition.vnx` included, since it holds a
-waypoint and nothing else. `accept/example-network.expect.json` now pins one
-position of every kind. Do not narrow that list.
+`accept/example-network.expect.json` pins one position of every kind, and that
+breadth is the point. A list naming waypoints only leaves a transposition on
+every arc pip, node, area vertex and track pip unchecked — including in
+`accept/lonlat-transposition.vnx`, which holds a waypoint and nothing else, so
+the file named for this defect cannot catch it anywhere else. Do not narrow the
+list.
 
 `moving_time_ms: null` means unknown, which is not zero. A reader that answers 0
 for a track carrying no pip times has answered a question it cannot answer, and
@@ -243,8 +244,7 @@ already says. Two consequences are live today:
 
 That is not a defect in a fixture. It is a field the corpus does not look at,
 and a second implementation reading a fixture infers its shape as though it were
-the format. Coordinates outside a waypoint were the same hole until 2026-09-09;
-`positions` now reaches all of them.
+the format.
 
 ## Editing a case
 

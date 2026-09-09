@@ -1,7 +1,15 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "Every number whose rendering differs between the target languages, in one file. Measured 2026-09-01: Python and Swift both emit 340.0 / 1e-06 / 1e-07 where the reference emits 340 / 0.000001 / 1e-7; Go emits -0 where ECMAScript emits 0; Apple's JSONSerialization renders -3.67 as -3.6699999999999999. NONE of those is caught by any other corpus file, because no other file contains an exponent-boundary number - so a Python or Swift implementation could pass the whole accept corpus while writing bytes nobody else writes. The canonical check on this file is what closes that. The values live in an opaque data record because that is the only place arbitrary numbers legitimately appear. DO NOT REFORMAT THIS SIDECAR WITH A JSON LIBRARY. Its lon literal is written as -3.6712345678901234, and every language's encoder will happily re-render it as -3.6712345678901235 — the same binary64, a different spelling. That is harmless in any other file and wrong in this one, whose entire subject is that number text differs between languages. It has already happened once, on 2026-09-09, and was caught by reading the diff rather than by a test: the comparison is between doubles, so the suite stays green either way. Edit this file by hand.",
-  "counts": {"waypoints": 1},
-  "positions": [{"at": "/waypoints/0/at", "lon": -3.6712345678901234, "lat": 57.118}]
+  "note": "Every number whose rendering differs between the target languages, in one file. Measured 2026-09-01: Python and Swift both emit 340.0 / 1e-06 / 1e-07 where the reference emits 340 / 0.000001 / 1e-7; Go emits -0 where ECMAScript emits 0; Apple's JSONSerialization renders -3.67 as -3.6699999999999999. None of those is caught by any other corpus file, because no other file contains an exponent-boundary number, so a Python or Swift implementation could pass the whole accept corpus while writing bytes nobody else writes. The canonical check on this file is what closes that. The values live in an opaque data record because that is the only place arbitrary numbers legitimately appear. Do not reformat this sidecar with a JSON library. Its lon literal is written as -3.6712345678901234, and every language's encoder will re-render it as -3.6712345678901235 - the same binary64, a different spelling. That is harmless in any other file and wrong in this one, whose subject is that number text differs between languages. The comparison is between doubles, so the suite stays green either way and only the diff shows it. Edit this file by hand.",
+  "counts": {
+    "waypoints": 1
+  },
+  "positions": [
+    {
+      "at": "/waypoints/0/at",
+      "lon": -3.6712345678901235,
+      "lat": 57.118
+    }
+  ]
 }

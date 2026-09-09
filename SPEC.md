@@ -584,6 +584,9 @@ people.
 
 ### 4.5 Canonical form
 
+`IMPLEMENTING.md`, distributed beside this document, is an informative guide to
+the rules in this section and the traps in them. It is not normative.
+
 Canonical form is the byte layout a conforming formatter emits. Every
 conforming writer, in every language, MUST emit these bytes for a given
 document, so that exports of one library from different implementations are
@@ -738,9 +741,14 @@ A string escapes only what [RFC 8259] requires: `"`, `\` and the control
 characters below U+0020. Every other character is written raw, including
 non-ASCII characters, `<`, `>`, `&`, U+2028 and U+2029.
 
-A control character with a short escape is written with it — `\b`, `\f`,
-`\n`, `\r`, `\t`. Every other control character is written `\u00xx` with
-LOWERCASE hexadecimal digits.
+A control character with a short escape is written with it: `\b`, `\f`, `\n`,
+`\r`, `\t`. Every other control character is written `\u00xx`. The hexadecimal
+digits are lowercase.
+
+Note: Go's `encoding/json` escapes U+2028 and U+2029 even with
+`SetEscapeHTML(false)`, so no configuration of it emits canonical form. That is
+measured, and it is why writing a string renderer is a requirement rather than a
+preference; the `<`, `>` and `&` escaping is only the visible half.
 
 Note: Go's `encoding/json` escapes those last five by default and must be
 configured not to. No character above U+007F may be written as a `\u` escape.
@@ -967,8 +975,7 @@ A reader is tolerant of damage and silent about nothing.
   Section 7 states the causes for which a container is refused. They are
   separate, and a fault in an attachment is not among them.
 
-The remedies for the constructs this document constrains but Section 6.2 did
-not previously reach:
+The remedies for the remaining constructs this document constrains:
 
 | Construct | Remedy |
 |---|---|

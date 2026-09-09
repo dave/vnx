@@ -35,6 +35,7 @@ RATIONALE = pathlib.Path.home() / "src/knowledge/features/export/format-spec.md"
 
 PUBLISHED = [
     "SPEC.md",
+    "IMPLEMENTING.md",
     "README.md",
     "corpus/README.md",
     "corpus/format/README.md",
@@ -69,6 +70,82 @@ LEAKAGE = [
     ),
 ]
 
+# A document in this repository never describes its own past.
+#
+# Nothing here has ever been public. There is no reader for whom a correction is
+# news, no implementation built against an earlier wording, and no holder of a
+# file written under one. A note like that exists only because the drafting was
+# visible to whoever wrote it, and it reads as an apology to a reader who does
+# not exist. State the rule, not the history of the rule.
+#
+# A rationale for why the FORMAT is this way is welcome and belongs in the spec.
+# A rationale for why the DOCUMENT says it differently than it once did is not.
+HISTORY = [
+    (
+        re.compile(r"\ban earlier (revision|draft|version)\b", re.IGNORECASE),
+        "the document describing its own past.",
+    ),
+    (
+        re.compile(r"\bformerly\b|\bpreviously\b|\bused to (be|say|read|have|do)\b", re.IGNORECASE),
+        "the document describing its own past.",
+    ),
+    (
+        re.compile(r"\bis now (consistent|correct|fixed)\b|\bwas corrected\b|\bhas been corrected\b", re.IGNORECASE),
+        "a note whose subject is the document rather than the format.",
+    ),
+    (
+        re.compile(r"\buntil 20\d\d-\d\d-\d\d\b|\bbefore 20\d\d-\d\d-\d\d\b", re.IGNORECASE),
+        "a date marking when the document changed. A measured fact may carry a "
+        "date; a change to this document may not.",
+    ),
+    (
+        # A commit hash: 7 or more hex characters carrying BOTH a letter and a
+        # digit, so a long decimal number is not mistaken for one. Every number
+        # in SPEC.md's rendering tables would otherwise trip this.
+        re.compile(
+            # Not part of a longer token, and not part of a decimal number --
+            # `1.4978982117220732e15` would otherwise match from after the dot,
+            # because `e` is a hex digit.
+            r"(?<![0-9a-zA-Z.])"
+            r"(?=[0-9a-f]{7,40}(?![0-9a-zA-Z.]))"
+            # A letter other than `e`, so scientific notation is not a hash.
+            r"(?=[0-9a-f]*[abcdf])"
+            r"(?=[0-9a-f]*[0-9])"
+            r"[0-9a-f]{7,40}"
+        ),
+        "what looks like a commit hash. A published document does not cite the "
+        "moment something changed.",
+    ),
+]
+
+# Register markers. These are WARNINGS and not failures on purpose: every one has
+# an innocent use, and it is the density that reads wrong rather than any single
+# instance. A hard failure here would teach people to route around the check.
+REGISTER_WARNINGS = [
+    (
+        re.compile(r"\*\*[^*\n]{1,80}\*\*"),
+        "bold mid-sentence. Bold belongs on a defined term or on a line a "
+        "skimming reader must not miss, not on a claim that wants shouting.",
+    ),
+    (
+        re.compile(r" — |—"),
+        "an em dash. Currently the most recognised marker of machine-written "
+        "prose; most join two clauses a full stop or a colon joins better.",
+    ),
+    (
+        # Capitals used to shout. RFC 2119 keywords, acronyms and the version
+        # components are legitimate all-caps and are excluded by name, so the
+        # count reflects emphasis rather than vocabulary.
+        re.compile(
+            r"\b(?!(?:MUST|SHOULD|SHALL|REQUIRED|OPTIONAL|"
+            r"JSON|JSONC|ASCII|UTF|IEEE|RFC|BCP|STD|ZIP|APPNOTE|README|SPEC|"
+            r"MAJOR|MINOR|PATCH|EOCD|NAN|VNX|VNZ|GPX|KML|GEOJSON|CLI|MVT|"
+            r"TRUE|FALSE|NULL)\b)[A-Z]{4,}\b"
+        ),
+        "capitals used as emphasis.",
+    ),
+]
+
 # A markdown link whose target is a relative path. The target has to exist in
 # this repository, or the document points a reader at something they cannot
 # open — which is how a knowledge-base link gets published.
@@ -91,9 +168,9 @@ def check_published(problems: list[str]) -> None:
             problems.append(f"{name}: missing")
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for pattern, why in LEAKAGE:
+            for pattern, why in LEAKAGE + HISTORY:
                 if match := pattern.search(line):
-                    problems.append(f"{name}:{number}: {match.group(0)!r} — {why}\n    {line.strip()}")
+                    problems.append(f"{name}:{number}: {match.group(0)!r} - {why}\n    {line.strip()}")
             for match in LINK.finditer(line):
                 target = match.group(1).strip()
                 if not (path.parent / target).exists():
@@ -130,6 +207,33 @@ def check_rationale(problems: list[str]) -> None:
             )
 
 
+def register_warnings() -> list[str]:
+    """Density warnings, not failures.
+
+    These do not stop a publish. Every pattern here has an innocent use, and it
+    is the RATE that reads as machine-written rather than any single instance, so
+    the report is per-document counts and a per-thousand-words rate. A hard
+    failure would teach whoever is next in the file to route around the check.
+    """
+    lines: list[str] = []
+    for name in PUBLISHED:
+        path = ROOT / name
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        words = max(len(text.split()), 1)
+        hits = []
+        for pattern, why in REGISTER_WARNINGS:
+            n = len(pattern.findall(text))
+            if n:
+                hits.append((n, n * 1000 / words, why))
+        if hits:
+            lines.append(f"  {name} ({words} words)")
+            for n, rate, why in sorted(hits, reverse=True):
+                lines.append(f"    {n:4d}  {rate:5.1f} per 1000 words  {why}")
+    return lines
+
+
 def main() -> None:
     problems: list[str] = []
     check_published(problems)
@@ -144,6 +248,9 @@ def main() -> None:
             "problem instead of solving it."
         )
     print(f"check-spec: {len(PUBLISHED)} published documents are clean")
+    if warnings := register_warnings():
+        print("\ncheck-spec: register warnings, which do not block a publish:")
+        print("\n".join(warnings))
 
 
 if __name__ == "__main__":

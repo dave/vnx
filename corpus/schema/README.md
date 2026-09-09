@@ -78,8 +78,6 @@ Schema validator is a third-party dependency, and `pkg/vnx` imports the standard
 library and nothing else. It is the reference implementation, and a dependency-
 free build is the property everyone reimplementing this format relies on.
 
-The reason used to be sharper than the enforcement: the standard-library guard
-skipped `_test.go` files, so putting this test in `pkg/vnx` would have compiled
-and passed while quietly making the library undeliverable. Since 2026-09-06 the
-guards read test files too, so the same mistake now goes red in the package that
-made it.
+The guard reads test files as well as production ones, which matters: a
+third-party import reached only from a `_test.go` file still makes the library
+undeliverable, and a guard that skipped tests would let that compile and pass.

@@ -73,8 +73,8 @@ BOTH their node keys and their positions. So a reader comparing keys only and a
 reader comparing resolved positions return the same verdict, and the file passes
 either way.
 
-When `SPEC.md` section 3.3.3 changed on 2026-09-09 to require that two distinct
-node keys at the same position MEET, one implementation had already shipped the
-opposite reading — and nothing here went red. The corpus is a set of cases, not
-a set of rules; a case only discriminates between the readings its own data can
+So this file cannot tell the two readings apart, and section 3.3.3 requires one
+of them: two distinct node keys at the same position meet. An implementation that
+compares keys only passes here and is wrong. The corpus is a set of cases, not a
+set of rules, and a case only discriminates between the readings its own data can
 separate.

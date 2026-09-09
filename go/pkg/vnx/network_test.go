@@ -186,3 +186,75 @@ func TestRouteArcsNameNoNodes(t *testing.T) {
 		t.Fatalf("a route's arc named nodes %q/%q; it owns its geometry and names nothing", arc.From, arc.To)
 	}
 }
+
+// TestADroppedLinkDoesNotMakeItsNeighboursAdjacent pins spec §3.3.3's
+// one-defect-must-not-become-two rule directly, rather than only through
+// diagnose/link-names-absent-arc.vnx.
+//
+// ⚠ THE CORPUS FIXTURE COULD NOT TEST THIS FOR MOST OF ITS LIFE. It had two
+// links, so dropping one left no consecutive pair and no reader could report a
+// break — the expectation of exactly one diagnostic was guaranteed by arity
+// rather than by care, and its note claimed a property the file could not
+// check. A three-link version whose survivors happen to MEET is blind too. This
+// test states the property directly so it does not depend on a fixture's shape
+// staying right.
+func TestADroppedLinkDoesNotMakeItsNeighboursAdjacent(t *testing.T) {
+	const src = `{"vnx":"0.1.0","networks":[{"name":"n",` +
+		`"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.2,56.1],"n4":[-3.19,56.09]},` +
+		`"arcs":{"near":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[-3.66,57.1]]},` +
+		`"far":{"from":"n3","to":"n4","pips":[[-3.2,56.1],[-3.19,56.09]]}},` +
+		`"chains":[{"name":"c","links":[` +
+		`{"arc":"near","from":"n1","to":"n2"},` +
+		`{"arc":"ghost","from":"n2","to":"n3"},` +
+		`{"arc":"far","from":"n3","to":"n4"}]}]}]}`
+	_, diags, err := Decode([]byte(src))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// The survivors are 60 km apart, so a reader comparing across the hole
+	// cannot fail to notice. If this test ever sees only one link surviving,
+	// it has stopped measuring.
+	var codes []string
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	if len(diags) != 1 || diags[0].Code != CodeLinkArcAbsent {
+		t.Fatalf("want exactly one %q diagnostic, got %d %v:\n%v", CodeLinkArcAbsent, len(diags), codes, diags)
+	}
+	// And the path names the link as the DOCUMENT numbers it, not as the
+	// surviving slice does. Before 2026-09-09 this said /links/1.
+	if want := "/networks/0/chains/0/links/1"; diags[0].Path != want {
+		t.Errorf("path = %q, want %q", diags[0].Path, want)
+	}
+}
+
+// TestContinuityIsReportedAtTheDocumentsIndex pins the second half: when a
+// break IS real and something earlier was dropped, the path still names the
+// link the document numbers, not the one the surviving slice does.
+func TestContinuityIsReportedAtTheDocumentsIndex(t *testing.T) {
+	const src = `{"vnx":"0.1.0","networks":[{"name":"n",` +
+		`"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.2,56.1],"n4":[-3.19,56.09]},` +
+		`"arcs":{"near":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[-3.66,57.1]]},` +
+		`"far":{"from":"n3","to":"n4","pips":[[-3.2,56.1],[-3.19,56.09]]}},` +
+		`"chains":[{"name":"c","links":[` +
+		`{"arc":"ghost","from":"n1","to":"n2"},` +
+		`{"arc":"near","from":"n1","to":"n2"},` +
+		`{"arc":"far","from":"n3","to":"n4"}]}]}]}`
+	_, diags, err := Decode([]byte(src))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var broke *Diagnostic
+	for i := range diags {
+		if diags[i].Code == CodeChainDiscontinuity {
+			broke = &diags[i]
+		}
+	}
+	if broke == nil {
+		t.Fatalf("links 1 and 2 are consecutive in the document and do not meet; want a %q diagnostic, got %v",
+			CodeChainDiscontinuity, diags)
+	}
+	if want := "/networks/0/chains/0/links/2"; broke.Path != want {
+		t.Errorf("path = %q, want %q — the surviving index would have said /links/1", broke.Path, want)
+	}
+}

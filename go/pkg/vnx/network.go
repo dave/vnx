@@ -266,6 +266,7 @@ func decodeLinks(v any, path string, nodes map[string]Position, arcs map[string]
 			Message: fmt.Sprintf("`links` is %s, expected an array — ignored", jsonKind(v))})
 	}
 	out := make([]Link, 0, len(arr))
+	kept := make([]int, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
 		obj, isObj := item.(map[string]any)
@@ -292,8 +293,9 @@ func decodeLinks(v any, path string, nodes map[string]Position, arcs map[string]
 			continue
 		}
 		out = append(out, Link{Arc: arcID, From: from, To: to})
+		kept = append(kept, i)
 	}
-	return checkChainContinuity(out, path, diags)
+	return checkChainContinuity(out, kept, path, diags)
 }
 
 // checkChainContinuity reports where consecutive links do not meet.
@@ -305,10 +307,24 @@ func decodeLinks(v any, path string, nodes map[string]Position, arcs map[string]
 //
 // The links are KEPT when they do not meet — the geometry is real, and a gap
 // the writer intended is not ours to delete. Reporting lets the reader decide.
-func checkChainContinuity(links []Link, path string, diags []Diagnostic) ([]Link, []Diagnostic) {
+//
+// ⚠ A DROPPED LINK DOES NOT MAKE ITS NEIGHBOURS ADJACENT. `kept` carries each
+// surviving link's index in the DOCUMENT, and two survivors are compared only
+// when those indices are consecutive. Comparing across a hole turns one defect
+// into two: a document with a dangling arc reference reports the drop AND a
+// spurious break, and a reader cannot tell how much is actually wrong. Spec
+// §3.3.3 states the rule.
+//
+// The same slice fixes a second defect it hid. The diagnostic's path used the
+// SURVIVING index, so once anything had been dropped the path named the wrong
+// link — pointing a reader, very often an agent, at a link that is fine.
+func checkChainContinuity(links []Link, kept []int, path string, diags []Diagnostic) ([]Link, []Diagnostic) {
 	for i := 1; i < len(links); i++ {
+		if kept[i] != kept[i-1]+1 {
+			continue
+		}
 		if !links[i-1].To.Same(links[i].From) {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
+			diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, kept[i]),
 				Code: CodeChainDiscontinuity, Message: fmt.Sprintf("this link starts at %s but the previous one ends at %s — the chain is not one connected walk",
 					links[i].From, links[i-1].To)})
 		}

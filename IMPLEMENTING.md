@@ -705,13 +705,13 @@ to answer a different question. Which gives the rule: **a reason that has only e
 answered one kind of question has never been tested.** *(Reported by the JavaScript
 implementation, against its own earlier claim.)*
 
-So the useful question is not which rules are unreachable, but which are
-unreached *today*, and what shape a case would have to take. Where the two
-readings of a rule produce different text for the same value, a re-render tier
-can reach it. Where a rule only takes effect when a model becomes a document, a
-write tier can. Where neither is true, the prose is the only statement of the
-rule and your own tests are the only enforcement: the tolerance boundary at
-exactly 50 metres is one, because no two distance models land on exactly 50.
+So the question is not which rules are unreachable but which are unreached
+*today*, and what shape a case would take. Where two readings of a rule produce
+different text for one value, a re-render tier reaches it. Where a rule takes
+effect only when a model becomes a document, a write tier does. Where neither is
+true, the prose is the only statement of the rule and your own tests the only
+enforcement: the tolerance boundary at exactly 50 metres is one, because no two
+distance models land on exactly 50.
 
 ### 6.2 A case only separates the readings its own data can separate
 
@@ -742,12 +742,12 @@ coverage, being in `diagnose/` and named for continuity, and it cannot attribute
 its verdict to either reading. Any fixture that changes two variables together
 tests neither. *(Reported by the JavaScript implementation.)*
 
+**A ZIP64 fixture** that masked sizes in the local header only, so disabling the
+extra-field parser left the test green. *(Reported by the Swift implementation.)*
+
 **A tie table.** Sixty rows labelled as rendering ties, mined by an
 undiscriminating detector, every one green when the tie rule was reverted: 60
 rows, zero discrimination. *(Measured by the Kotlin implementation.)*
-
-**A ZIP64 fixture.** It masked sizes in the local header only, so disabling the
-extra-field parser left the test green. *(Reported by the Swift implementation.)*
 
 #### A check that was discriminating and quietly stopped
 
@@ -790,9 +790,8 @@ Kotlin implementation, which reads its own archives with `java.util.zip`.)*
 Necessary and not sufficient, which is the sharper half. Every ZIP
 library resolves an entry from the **central directory**: it is the
 authoritative index and the local header a hint. So no library-based check can
-witness a rule about a local header, whoever wrote the library. Corrupt a local
-header's version and CRC and a library-based reader reports nothing wrong: that
-header is never consulted.
+witness a rule about a local header, whoever wrote the library. Corrupt a local header's version and CRC and a
+library-based reader reports nothing wrong: it never consults that header.
 
 > An independent reader is not automatically an independent instrument. It can
 > still consult the same field the defect is not in.
@@ -839,27 +838,34 @@ separate.
 A passing corpus is not evidence that the corpus discriminates. Break one thing,
 run the check that should notice, watch it go red, restore.
 
-A red proof lies in two ways. It can miss its target: one patched the library's
+A red proof lies in five ways. It can miss its target: one patched the library's
 function while the test module had bound the name at import, so the assertion was
-still calling the real one and the guard stayed green. "The red proof stayed
-green" is exactly the evidence someone uses to throw a good test away. *(Measured by the Python implementation.)* And its mutation can match nothing, which is why the JavaScript suite
+still calling the real one and the guard stayed green. "The red proof stayed green" is
+the evidence someone uses to throw a good test away. *(Measured by the
+Python implementation.)* Its mutation can match nothing, which is why one suite
 makes each mutation assert that its own search string was found: a substitution
-matching nothing would make the whole file a test of nothing. *(Measured by the JavaScript implementation.)*
+matching nothing makes the whole file a test of nothing. *(Measured by the
+JavaScript implementation.)*
 
-A third way, and the least obvious: **the mutation can be broader than the rule
-it claims to test.** A first attempt at an away-from-zero renderer used the
-round-trip shortcut of Section 1.4, so it changed the spelling of phantoms as well
-as of ties and reddened four corpus cases instead of one. Writing the assertion to
-match what was observed would have recorded a broader claim than the truth and
-attributed three failures to a rule they had nothing to do with. The repair is a
-companion test freezing that the extra value is a phantom, so the single
-remaining failure can be attributed to the tie rule. *(Measured by the JavaScript implementation.)*
+Third, and least obvious: **the mutation can be broader than the rule it claims
+to test.** An away-from-zero renderer built on the round-trip shortcut of Section
+1.4 re-spells phantoms as well as ties, reddening four corpus cases instead of
+one. Writing the assertion to match that would attribute three failures to a rule
+they had nothing to do with. The repair is a companion test freezing that the
+extra value is a phantom. *(Measured by the JavaScript implementation.)*
 
-A fourth way, and the simplest: **the mutation can never reach the code it claims
-to break.** A notes-discarding mutation came back green because it patched only
-the first of several call sites, and no accept fixture had a folder carrying
-`notes`. A mutation that misses its target is indistinguishable from a runner that
-found nothing wrong.
+Fourth: **the mutation may never reach the code it claims to break.** A
+notes-discarding mutation came back green because it patched only the first of
+several call sites, and no accept fixture had a folder carrying `notes`. A
+mutation that misses its target is indistinguishable from a runner finding nothing
+wrong.
+
+Fifth, and the only one leaving a proof that measures nothing: **it may not come
+back green.** One patched two modules and left one active during the
+restore, so the check it named was permanently red, which reads as confidence
+rather than as a broken instrument. A red-proof author watches for the red, so the
+revert is the half nobody tests. Assert both directions. *(Measured by the Python
+implementation.)*
 
 And a proof whose conclusion is an absence needs re-running whenever the thing
 it claims to be absent from grows. A red-proof asserting that no tier catches
@@ -867,10 +873,9 @@ some defect is a green-asserting proof, and those rot silently as the corpus gai
 cases. The rendering tie is the worked example: the assertion was true when
 written and false once a formatter case reached it.
 
-Three of JavaScript's 25 mutations assert that a defect is *not* caught, which
-records a gap in the corpus rather than assuming one. Swift injected 34. Freezing a
-gap pays off directly: such an assertion goes red the moment a fixture closes the
-gap, which is how its author finds out.
+Three of one suite's 25 mutations assert that a defect is *not* caught, recording
+a gap rather than assuming one; another injected 34. Such an assertion goes red
+the moment a fixture closes the gap, which is how its author finds out.
 
 The mutations that come back green are the ones worth the exercise. Of 34
 injected into one implementation, 26 went red as designed and taught their author
@@ -922,16 +927,16 @@ that reappear when the tie mode is reverted. Without those, zero disagreements i
 indistinguishable from a comparison that is not running.
 
 An agreement certifies only what its shared input varies. Four implementations
-once produced a byte-identical container for one agreed input and cited it as
-their strongest cross-language evidence. The input carried one attachment, so the
+produced a byte-identical container for one agreed input and cited it as their
+strongest cross-language evidence. That input carried one attachment, so the
 entry-ordering rule all four were breaking is the same bytes either way:
-**obeying that rule moved no byte of the artefact they agreed on.** Nine header
-fields certified, silent on the tenth, and a matching hash offers no surface on
-which that silence shows. A note can be doubted; a SHA-256 reads as total
-agreement. *(Reported by the JavaScript implementation, against its own result.)*
+**obeying it moved no byte of the artefact they agreed on.** Nine fields
+certified, silent on the tenth, and a matching hash offers no surface on which
+that silence shows. A note can be doubted; a SHA-256 reads as agreement.
+*(Reported by the JavaScript implementation, against its own result.)*
 
-So two implementations measuring one fact is overlap only if their inputs differ.
-Four writers fed one input is one measurement performed four times.
+Two implementations measuring one fact is overlap only if their inputs differ.
+Four writers fed one input is one measurement, four times.
 
 Three traps in building one *(Kotlin implementation)*: bits must travel as bits,
 since an unsigned parser fails on every negative double and, with the error

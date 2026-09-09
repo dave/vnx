@@ -123,7 +123,7 @@ latitude, elevation and epoch milliseconds, none produced one: coordinates and
 elevations are too small, and a millisecond count is an integer. Over uniformly
 drawn binary64 bit patterns they occur at about one in 4,200. So the hazard is an
 arbitrary number inside a data record body, which the format permits anywhere and
-does not constrain — and it is a smaller hazard than the rounding tie of 1.5,
+does not constrain. It is a smaller hazard than the rounding tie of 1.5,
 which reaches every coordinate and every elevation. *(Measured by the Go implementation; the population matters more than the rate, and the rate alone points at the wrong risk.)*
 
 Rust is the third implementation to ship the wrong direction:
@@ -690,7 +690,7 @@ The reason to keep this entry is what happened to the claim it used to make.
 The writer boundary was described, in this document and elsewhere, as permanently
 beyond the corpus's reach. It was not: it was beyond the reach of the tiers that
 existed. The same correction had already been made once, to a claim that a
-rendering tie could not be reached because a tie is a value rather than a shape —
+rendering tie could not be reached because a tie is a value rather than a shape,
 until a formatter case carried one spelling of such a double as its input and the
 other as its expected output.
 
@@ -698,31 +698,12 @@ other as its expected output.
 > ingenuity, not about the format.
 
 A related trap, and the one condition here that care does not fix: a wrong reason
-under a right conclusion has nothing in the world with a motive to check it. A
-wrong reason under a wrong conclusion is caught by whoever tests the conclusion.
-A wrong reason under a right one holds everything up while being false, and
-survives exactly as long as nobody needs it for a second purpose.
-
-Two instances. One implementation reasoned about a standard library's escaping
-rather than running it and reached the correct answer by a wrong route. Another
-wrote that `toFixed` rounds a tie away from zero on positives and toward zero on
-negatives, four lines below its own measured table showing `-340.25` going to
-`-340.3`. The divergence it was demonstrating was real, so nothing pulled it up.
-
-Which gives the detection rule: **a reason that has only ever answered one kind
-of question has never been tested.** The qualifier is the whole of it. That
-reason reached three implementations and a published document untested, because
-every use asked it the same thing; it was tested the first time somebody wanted
-the tie *direction* rather than the tie *divergence*. Reuse in the same direction
-accumulates confidence without accumulating evidence. "Has this been used
-elsewhere" gets a yes for almost everything; "has this answered a different
-question" discriminates.
-
-It also narrows what provenance can do for you. Writing a claim for attribution surfaces a *borrowed* one, because the
-empty provenance field is a visible question. It does not surface a *reasoned*
-one, because a derivation feels like your own work whether or not you checked it
-against data you already hold. *(Reported by the JavaScript implementation,
-against its own earlier claim.)*
+under a right conclusion has nothing with a motive to check it. A wrong reason
+under a wrong conclusion is caught by whoever tests the conclusion; under a right
+one it holds everything up while being false, and survives until somebody needs it
+to answer a different question. Which gives the rule: **a reason that has only ever
+answered one kind of question has never been tested.** *(Reported by the JavaScript
+implementation, against its own earlier claim.)*
 
 So the useful question is not which rules are unreachable, but which are
 unreached *today*, and what shape a case would have to take. Where the two
@@ -756,30 +737,29 @@ own tests could not help either, having been written to match it, and the fix wa
 as invisible as the defect.
 
 `diagnose/chain-does-not-join.vnx` varies the node keys *and* the positions
-together, so a key comparator and a position comparator return the same verdict on
-it. It looks like coverage: it is in `diagnose/`, it is named for continuity, and
-it cannot attribute its verdict to either reading. Any fixture that changes two
-variables together tests neither. *(Reported by the JavaScript implementation.)*
+together, so both comparators return the same verdict on it. It looks like
+coverage, being in `diagnose/` and named for continuity, and it cannot attribute
+its verdict to either reading. Any fixture that changes two variables together
+tests neither. *(Reported by the JavaScript implementation.)*
 
-**Kotlin's tie table.** Sixty rows labelled as rendering ties, mined by an
-undiscriminating detector, every one green when the tie rule was reverted. The
-decoration was measurable: 60 rows, zero discrimination. *(Measured by the Kotlin implementation.)*
+**A tie table.** Sixty rows labelled as rendering ties, mined by an
+undiscriminating detector, every one green when the tie rule was reverted: 60
+rows, zero discrimination. *(Measured by the Kotlin implementation.)*
 
-**Swift's ZIP64 fixture.** Its first one masked sizes in the local header only,
-so disabling the extra-field parser left the test green. *(Reported by the Swift
-implementation.)*
+**A ZIP64 fixture.** It masked sizes in the local header only, so disabling the
+extra-field parser left the test green. *(Reported by the Swift implementation.)*
 
 #### A check that was discriminating and quietly stopped
 
 These worked when written. Something moved underneath them.
 
-**A corpus runner that stopped comparing.** A sidecar pins a diagnostic by reason
-code; one runner's matcher looked for an English `message` field, found nothing,
-and fell through to comparing paths alone. Every diagnose case stayed green while checking half of what it
-pinned. *(Measured by the Python implementation.)*
+**A runner that stopped comparing.** A sidecar pins a diagnostic by reason code;
+one matcher looked for an English `message` field, found nothing, and fell through
+to comparing paths alone, leaving every diagnose case green while checking half of
+what it pinned. *(Measured by the Python implementation.)*
 
-**Absence-proofs that went stale.** A proof asserting that no tier catches some
-defect is true until a case reaches it. See 6.3.
+**Absence-proofs that went stale.** A proof that no tier catches some defect is
+true until a case reaches it. See 6.3.
 
 **A fixture retired by a rule change.** A test used two positions that collide
 once rounded, to prove that arc-boundary de-duplication compares full values.
@@ -791,13 +771,13 @@ it looks wrong at any point.
 
 The sharpest of the three, because the other two at least once measured something.
 
-**A test named for a fixture that never reads the fixture.** A Rust test called
+**A test named for a fixture that never reads the fixture.** One called
 `the_corpus_fixtures_land_where_their_names_say` would still have passed if both
-corpus files were deleted: it restated numbers rather than reading the artefact.
-Beside it, a test asserting that the wrong cosine reference changes neither corpus
-verdict passed green while asserting something false of the corpus it named.
-Restating a number is not reading an artefact, and a test that restates one cannot
-notice when the artefact moves. *(Reported by the Rust implementation.)*
+corpus files were deleted, because it restated numbers rather than reading the
+artefact. Beside it, a test asserting that the wrong cosine reference changes
+neither verdict passed green while asserting something false of the corpus it
+named. A test that restates a number cannot notice when the artefact moves.
+*(Reported by the Rust implementation.)*
 
 **A ZIP reader and writer by the same hand.** The container section of `SPEC.md`
 needs control a stock library may not expose, so you write your own writer: the
@@ -928,11 +908,23 @@ The number that makes it worth having is not 460,007 but 78, the disagreements
 that reappear when the tie mode is reverted. Without those, zero disagreements is
 indistinguishable from a comparison that is not running.
 
+An agreement certifies only what its shared input varies. Four implementations
+once produced a byte-identical container for one agreed input and cited it as
+their strongest cross-language evidence. The input carried one attachment, so the
+entry-ordering rule all four were breaking is the same bytes either way:
+**obeying that rule moved no byte of the artefact they agreed on.** Nine header
+fields certified, silent on the tenth, and a matching hash offers no surface on
+which that silence shows. A note can be doubted; a SHA-256 reads as total
+agreement. *(Reported by the JavaScript implementation, against its own result.)*
+
+So two implementations measuring one fact is overlap only if their inputs differ.
+Four writers fed one input is one measurement performed four times.
+
 Three traps in building one *(Kotlin implementation)*: bits must travel as bits,
 since an unsigned parser fails on every negative double and, with the error
-ignored, reported 149,667 disagreements against a value of `0`; a mining criterion
-can decorate rather than discriminate (1.4); and the generator must be
-deterministic, because a table nobody can diff is most of the way to useless.
+ignored, reported 149,667 disagreements against `0`; a mining criterion can
+decorate rather than discriminate (1.4); and the generator must be deterministic,
+because a table nobody can diff is useless.
 
 The result, `corpus/numbers/numbers.tsv`, is 5,315 doubles with three reference
 answers each: rendered, rounded to 6 places, rounded to 1. About ten lines to
@@ -966,7 +958,7 @@ being legal, and a backslash in an entry name being refused. *(Reported by the
 JavaScript implementation, which holds a proof for each.)*
 
 The corpus can do worse than fail to enforce a rule. The four committed `.vnz`
-fixtures violate the container section of `SPEC.md` in six ways — wrong version
+fixtures violate the container section of `SPEC.md` in six ways: wrong version
 fields, wrong flags, deflate where the rule says stored, and a local header
 carrying zeros where the central directory carries the truth. Every
 implementation passes them, because a conforming reader must accept a data

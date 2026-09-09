@@ -74,6 +74,16 @@ significant; see Section 4.4.
 The value is `MAJOR.MINOR.PATCH`: three components, each one or more decimal
 digits, separated by U+002E FULL STOP. All three components are REQUIRED.
 
+The rules a reader applies are selected by the DOCUMENT's MAJOR component, not
+by the reader's. They describe the compatibility guarantees a document's author
+was working under, and a newer reader cannot grant itself later rules over an
+older document.
+
+A reader that does not implement a document's major series MUST refuse it, rather
+than read it under the rules of a series it does implement. Reading a 0.x
+document under 1.x's rule that a reader ignores what it does not recognise is a guess about
+guarantees the document never carried.
+
 A reader MUST compare the MAJOR and MINOR components of the document against
 its own supported version. The PATCH component MUST NOT be used to refuse a
 document at any version, because a patch increment is additive by definition;
@@ -269,8 +279,14 @@ implementation carrying a tile pipeline reaches for first.
 
 A polyline of one vertex is that point. A polyline of no vertices has no
 distance: the reader MUST record a diagnostic and drop the link rather than
-invent a number. An inline
-position that does not project onto its arc within that tolerance is an
+invent a number. A position exactly 50 metres from its arc is within tolerance and is accepted.
+No conformance case can pin that boundary and none should be attempted: a
+distance at exactly the threshold is not reachable by a fixture, because the
+computed value depends on the model and no two models land on 50.000. This
+sentence is the permanent statement of the rule, as Section 4.5.5's escaping
+rules are for escaping.
+
+An inline position that does not project onto its arc within that tolerance is an
 unusable value and is handled under Section 6.2.
 
 Note: an export computed from an existing polyline projects to well under a
@@ -345,9 +361,14 @@ segments of the difference between the last and first pip times in that segment.
 It is deliberately not the wall-clock span between `started` and `ended`, which
 pauses lengthen.
 
-Where the pips of a track carry no times, moving time cannot be derived. A
-reader MUST report it as unknown and MUST NOT report it as zero. Zero is
-indistinguishable from a track on which nobody moved.
+Moving time is derivable only when EVERY segment carries a time on its first and
+its last pip. Otherwise a reader MUST report it as unknown, MUST NOT report it as
+zero, and MUST NOT report a sum over the segments that do carry times.
+
+A partial sum is worse than zero rather than better: it is indistinguishable from
+a complete one, so no consumer can tell which it was given, where zero is at
+least recognisable as suspicious. A track with no segments at all is unknown for
+the same reason.
 
 ### 3.6 Waypoints and points
 
@@ -561,6 +582,14 @@ Record-level timestamps — `created`, `started` and `ended` — are ISO 8601 in
 UTC, with a literal `Z` suffix and OPTIONAL fractional seconds. An offset other
 than `Z` is not permitted.
 
+A record-level timestamp is checked for SHAPE only. A reader MUST NOT refuse or
+diagnose one on calendar grounds: `2026-13-45T99:99:99Z` matches the grammar and
+is accepted. That follows Section 6.2's rule that a reader checks a value only
+where this document states a normative range or enumeration for it, which is the
+same rule that leaves `icon-size` unchecked. Silence would diverge here rather
+than converge, because a reader built on a date library gets the calendar check
+for free and one parsing the grammar directly does not.
+
 Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 8601 string. A track holds tens of thousands of pips and they are not read by
 people.
@@ -689,10 +718,29 @@ A writer rounds at the serialisation boundary: longitude and latitude to 6
 decimal places, elevation to 1. Time is an integer count of milliseconds and is
 not rounded.
 
-A tie rounds to even. An elevation of `340.25` becomes `340.2`, not `340.3`.
-These are exact doubles and a quarter-metre grid produces them, so the case is
-ordinary rather than contrived. No re-render can detect a disagreement here,
-because rounding happens only when a writer emits a model.
+The rounded value is defined as a RESULT, not as a procedure. It is the value
+with at most that many decimal places nearest to the exact binary64 value the
+writer was handed, with a tie resolved to even. Equivalently: take the exact
+decimal expansion of the double, and round it at the target place.
+
+Multiplying by a power of ten, rounding, and dividing back does not always
+produce that value, and is not a conforming route unless an implementation has
+checked it against the number table in `corpus/numbers/`. The scaled product is
+itself a binary64 and is not always the exact scaled value, so the
+multiplication can manufacture a tie the true decimal never had, and can destroy
+one it did. Measured over ten ordinary elevation-shaped values the two routes
+disagree on six, in both directions: `0.15` rounds to `0.1` where the scaled
+route gives `0.2`; `0.05` rounds to `0.1` where the scaled route gives `0`;
+`0.45` rounds to `0.5` where the scaled route gives `0.4`.
+
+A tie rounds to even. An elevation of `340.25` becomes `340.2`, not `340.3`. Ties
+are structured rather than scattered: at one decimal place they are the odd
+quarters, so every quarter-metre elevation is one, and at six places they are the
+odd multiples of 1/128.
+
+No re-render can detect a disagreement about any of this, because rounding
+happens only when a writer emits a model and every corpus tier re-renders
+(Section 8.1). `corpus/numbers/` is the only instrument that reaches it.
 
 Note: 6 decimal places of latitude is about 11 cm, and a consumer GPS receiver
 is accurate to 3 to 5 m, so digits below the sixth place are the arithmetic's

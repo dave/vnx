@@ -1,0 +1,14 @@
+{
+  "kind": "accept",
+  "note": "A track whose first segment carries times and whose second does not. Moving time is unknown, not 60000 ms. Section 3.5 makes it derivable only when every segment carries a time on its first and last pip, because a sum over the segments that happen to be timed is indistinguishable from a complete one and no consumer can tell which it was given. Zero is at least recognisable as suspicious; a partial sum is not. Every other track in the corpus is fully timed or fully untimed, so nothing else here separates a reader that answers unknown from one that sums what it has. Three implementations summed, including the reference one, and every tier stayed green. Do not add times to the second segment.",
+  "schema": "valid",
+  "counts": {
+    "tracks": 1
+  },
+  "tracks": [
+    {
+      "name": "Timed on the way up, not on the way down",
+      "moving_time_ms": null
+    }
+  ]
+}

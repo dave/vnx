@@ -63,16 +63,50 @@ type Track struct {
 // absent one. Returning (0, false) rather than just 0 is what makes the
 // distinction impossible to ignore at the call site.
 func (t Track) MovingTime() (d time.Duration, known bool) {
-	for _, seg := range t.Segments {
-		if span, ok := seg.Span(); ok {
-			d += span
-			known = true
-		}
-	}
-	if !known {
+	// ⚠ EVERY SEGMENT, OR NOTHING. Spec §3.5 makes moving time derivable only
+	// when every segment carries a time on its first and last pip, and a
+	// PARTIAL sum is the answer it forbids most strongly — worse than the zero
+	// it also forbids, because a partial sum is indistinguishable from a
+	// complete one and no caller can tell which it was given, where zero is at
+	// least recognisable as suspicious.
+	//
+	// This summed the segments that had times and returned known. Two other
+	// implementations did the same, independently, and no corpus tier could see
+	// it: every track in the corpus is fully timed or fully untimed.
+	//
+	// A track with no segments is unknown for the same reason, which falls out
+	// of the loop rather than needing a case.
+	if len(t.Segments) == 0 {
 		return 0, false
 	}
+	for _, seg := range t.Segments {
+		span, ok := seg.timedSpan()
+		if !ok {
+			return 0, false
+		}
+		d += span
+	}
 	return d, true
+}
+
+// timedSpan is Span with the single-pip case answered rather than conflated.
+//
+// ⚠ Span RETURNS (0, false) FOR A SEGMENT WITH ONE TIMED PIP, which reads as
+// "no times" and is not. Spec §3.5 asks whether the FIRST and LAST pip carry
+// times; in a one-pip segment they are the same pip, so the segment is timed and
+// its span is legitimately zero. Distinguishing the two matters now that a
+// single untimed segment makes a whole track unknown: conflating them would turn
+// every track containing a one-pip segment unknown, which is a different wrong
+// answer from the one being fixed.
+func (s Segment) timedSpan() (time.Duration, bool) {
+	if len(s.Pips) == 0 {
+		return 0, false
+	}
+	first, last := s.Pips[0].Time, s.Pips[len(s.Pips)-1].Time
+	if first == nil || last == nil {
+		return 0, false
+	}
+	return time.Duration(*last-*first) * time.Millisecond, true
 }
 
 var trackKeys = map[string]bool{

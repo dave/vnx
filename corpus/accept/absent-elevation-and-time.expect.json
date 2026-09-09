@@ -8,7 +8,7 @@
   },
   "positions": [
     {
-      "waypoint": "No height known",
+      "at": "/waypoints/0/at",
       "lon": -3.6712,
       "lat": 57.118
     }

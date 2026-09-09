@@ -1,6 +1,6 @@
 {
   "kind": "accept",
-  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, a ruleset, and data records on eight different hosts.",
+  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, a ruleset, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries \u2014 node, network arc pip, inline chain endpoint, in-network point, in-network area vertex, top-level area vertex, route arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so until 2026-09-09 a reader that swapped the two channels everywhere EXCEPT on waypoints passed the whole corpus. Do not narrow this list.",
   "schema": "valid",
   "counts": {
     "folders": 2,
@@ -9,5 +9,52 @@
     "tracks": 1,
     "waypoints": 1,
     "areas": 1
-  }
+  },
+  "positions": [
+    {
+      "at": "/networks/0/nodes/node-1",
+      "lon": -3.6712,
+      "lat": 57.118
+    },
+    {
+      "at": "/networks/0/arcs/arc-1/pips/0",
+      "lon": -3.6712,
+      "lat": 57.118
+    },
+    {
+      "at": "/networks/0/chains/0/links/1/to",
+      "lon": -3.6521,
+      "lat": 57.1
+    },
+    {
+      "at": "/networks/0/points/0/at",
+      "lon": -3.665,
+      "lat": 57.109
+    },
+    {
+      "at": "/networks/0/areas/0/polygon/0",
+      "lon": -3.67,
+      "lat": 57.115
+    },
+    {
+      "at": "/areas/0/polygon/0",
+      "lon": -3.74,
+      "lat": 57.09
+    },
+    {
+      "at": "/routes/0/arcs/0/pips/0",
+      "lon": -3.728,
+      "lat": 57.0782
+    },
+    {
+      "at": "/tracks/0/segments/0/pips/0",
+      "lon": -3.6712,
+      "lat": 57.118
+    },
+    {
+      "at": "/waypoints/0/at",
+      "lon": -3.675,
+      "lat": 57.1201
+    }
+  ]
 }

@@ -33,6 +33,18 @@ type expectedDiagnostic struct {
 	Message string `json:"message"`
 }
 
+// expectedPosition pins one position in the document, addressed by a JSON
+// Pointer in the wire's own key names — "/waypoints/0/at",
+// "/networks/0/arcs/arc-1/pips/3", "/tracks/0/segments/1/pips/0". The pointer
+// is resolved against the DECODED model, never against the raw JSON: resolving
+// it against the file would compare the file to itself and could not see a
+// decoder that swapped two channels.
+type expectedPosition struct {
+	At  string  `json:"at"`
+	Lon float64 `json:"lon"`
+	Lat float64 `json:"lat"`
+}
+
 type expectation struct {
 	Kind string `json:"kind"`
 	Note string `json:"note"`
@@ -56,11 +68,14 @@ type expectation struct {
 	// can catch a lon/lat transposition — both orderings parse — so this is the
 	// only defence, and the values are JSON numbers in the sidecar so the
 	// comparison is between doubles rather than between formatted text.
-	Positions []struct {
-		Waypoint string  `json:"waypoint"`
-		Lon      float64 `json:"lon"`
-		Lat      float64 `json:"lat"`
-	} `json:"positions"`
+	//
+	// ⚠ IT ADDRESSES EVERY POSITION, NOT JUST WAYPOINTS. It named waypoints
+	// only until 2026-09-09, which meant a reader that transposed lon/lat on
+	// every arc pip, node, area vertex and track pip passed the entire corpus —
+	// including accept/lonlat-transposition.vnx, the file that exists for this
+	// bug. A fixture containing a construct is not a test of it; only a named
+	// expectation is.
+	Positions []expectedPosition `json:"positions"`
 
 	// Tracks carries derived moving time. A null means UNKNOWN, which is not
 	// zero: a reader that answers 0 for a track with no pip times has answered
@@ -223,26 +238,83 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 
 func checkPositions(t *testing.T, doc *Document, e expectation) {
 	t.Helper()
+	if len(e.Positions) == 0 {
+		return
+	}
+	have := positionsByPointer(doc)
 	for _, want := range e.Positions {
-		var found *Waypoint
-		for i := range doc.Waypoints {
-			if doc.Waypoints[i].Name == want.Waypoint {
-				found = &doc.Waypoints[i]
-				break
-			}
-		}
-		if found == nil {
-			t.Errorf("no waypoint named %q", want.Waypoint)
+		got, ok := have[want.At]
+		if !ok {
+			t.Errorf("no position at %q; the document holds %d addressable positions", want.At, len(have))
 			continue
 		}
 		// Exact float comparison, deliberately. These are the same doubles the
 		// file holds, parsed by the same parser, so anything but equality means
 		// a channel was swapped or precision was lost.
-		if found.At.Lon != want.Lon || found.At.Lat != want.Lat {
+		if got.Lon != want.Lon || got.Lat != want.Lat {
 			t.Errorf("%s: got lon=%v lat=%v, want lon=%v lat=%v",
-				want.Waypoint, found.At.Lon, found.At.Lat, want.Lon, want.Lat)
+				want.At, got.Lon, got.Lat, want.Lon, want.Lat)
 		}
 	}
+}
+
+// positionsByPointer walks the decoded document and returns every position in
+// it, keyed by a JSON Pointer in the wire's own key names.
+//
+// It is a producer rather than a resolver on purpose: one traversal answers
+// every pointer, so a case can pin a pip deep inside a network without the
+// harness growing a pointer parser. An implementation in another language
+// writes the same walk over its own model.
+func positionsByPointer(doc *Document) map[string]Position {
+	out := map[string]Position{}
+	pips := func(prefix string, ps []Position) {
+		for i, p := range ps {
+			out[fmt.Sprintf("%s/%d", prefix, i)] = p
+		}
+	}
+	for i, w := range doc.Waypoints {
+		out[fmt.Sprintf("/waypoints/%d/at", i)] = w.At
+	}
+	for i, a := range doc.Areas {
+		pips(fmt.Sprintf("/areas/%d/polygon", i), a.Polygon)
+	}
+	for i, n := range doc.Networks {
+		for key, node := range n.Nodes {
+			out[fmt.Sprintf("/networks/%d/nodes/%s", i, key)] = node
+		}
+		for key, arc := range n.Arcs {
+			pips(fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key), arc.Pips)
+		}
+		for j, c := range n.Chains {
+			for k, l := range c.Links {
+				// Only an INLINE endpoint is a position. A node key is a
+				// reference and is addressed at the node.
+				if l.From.At != nil {
+					out[fmt.Sprintf("/networks/%d/chains/%d/links/%d/from", i, j, k)] = *l.From.At
+				}
+				if l.To.At != nil {
+					out[fmt.Sprintf("/networks/%d/chains/%d/links/%d/to", i, j, k)] = *l.To.At
+				}
+			}
+		}
+		for j, w := range n.Points {
+			out[fmt.Sprintf("/networks/%d/points/%d/at", i, j)] = w.At
+		}
+		for j, a := range n.Areas {
+			pips(fmt.Sprintf("/networks/%d/areas/%d/polygon", i, j), a.Polygon)
+		}
+	}
+	for i, r := range doc.Routes {
+		for j, a := range r.Arcs {
+			pips(fmt.Sprintf("/routes/%d/arcs/%d/pips", i, j), a.Pips)
+		}
+	}
+	for i, tr := range doc.Tracks {
+		for j, s := range tr.Segments {
+			pips(fmt.Sprintf("/tracks/%d/segments/%d/pips", i, j), s.Pips)
+		}
+	}
+	return out
 }
 
 func checkTracks(t *testing.T, doc *Document, e expectation) {

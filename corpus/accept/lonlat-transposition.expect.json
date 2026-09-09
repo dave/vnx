@@ -7,7 +7,7 @@
   },
   "positions": [
     {
-      "waypoint": "Cairn Gorm summit",
+      "at": "/waypoints/0/at",
       "lon": -3.6423,
       "lat": 57.1169
     }

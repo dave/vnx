@@ -7,7 +7,7 @@
   },
   "positions": [
     {
-      "waypoint": "Full precision",
+      "at": "/waypoints/0/at",
       "lon": -3.6712345678901235,
       "lat": 57.11812345678901
     }

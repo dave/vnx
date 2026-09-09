@@ -28,7 +28,7 @@ otherwise exactly the one that is not.
   "note": "why this case exists",             // required
 
   "counts":    {"waypoints": 1, "tracks": 1}, // exact, per collection
-  "positions": [{"waypoint": "X", "lon": -3.6, "lat": 57.1}],
+  "positions": [{"at": "/networks/0/arcs/arc-1/pips/0", "lon": -3.6, "lat": 57.1}],
   "tracks":    [{"name": "T", "moving_time_ms": 167000}],  // null = unknown
   "attachments": ["photos/summit.jpg"],       // .vnz only
 
@@ -49,6 +49,27 @@ transposition. Both orderings parse, both are in range, and nothing structural
 can tell them apart while the point lands 8,000 km away. The values are JSON
 numbers in the sidecar, so the comparison is between doubles rather than between
 formatted text, which is also what makes the full-precision case work.
+
+`at` is a JSON Pointer in the wire's own key names, and it addresses every kind
+of position the format carries:
+
+```
+/waypoints/0/at                     /networks/0/nodes/node-1
+/areas/0/polygon/0                  /networks/0/arcs/arc-1/pips/0
+/routes/0/arcs/0/pips/0             /networks/0/chains/0/links/1/to
+/tracks/0/segments/0/pips/0         /networks/0/points/0/at
+                                    /networks/0/areas/0/polygon/0
+```
+
+Resolve it against your decoded model, never against the raw JSON. Resolving it
+against the file compares the file to itself and cannot see a decoder that
+swapped two channels, which is the entire point of the check.
+
+Until 2026-09-09 this field named waypoints only, so a reader that transposed
+longitude and latitude on every arc pip, node, area vertex and track pip passed
+the whole corpus — `accept/lonlat-transposition.vnx` included, since it holds a
+waypoint and nothing else. `accept/example-network.expect.json` now pins one
+position of every kind. Do not narrow that list.
 
 `moving_time_ms: null` means unknown, which is not zero. A reader that answers 0
 for a track carrying no pip times has answered a question it cannot answer, and
@@ -156,16 +177,16 @@ everything else in a document is compared only through the canonical-form check,
 which compares bytes to bytes and therefore agrees with whatever the fixture
 already says. Two consequences are live today:
 
-- `positions` names waypoints only, so a lon/lat transposition on an arc pip, a
-  node, an area ring or a track pip passes every case in the corpus.
 - A `data` record body is opaque to the decoder, so a record's fields are
   compared against nothing at all. `accept/example-network.vnx` writes
-  `app.viatrail.camp` with integer fields where the internal design says they
-  are booleans, and nothing here can see the disagreement.
+  `app.viatrail.camp` with integer fields, which is right — but nothing here
+  could have told you so, and the internal design document said booleans until
+  the fixture was ruled the accurate source.
 
-Neither is a defect in a fixture. Both are fields the corpus does not look at,
-and a second implementation reading a fixture would infer its shape as though it
-were the format.
+That is not a defect in a fixture. It is a field the corpus does not look at,
+and a second implementation reading a fixture infers its shape as though it were
+the format. Coordinates outside a waypoint were the same hole until 2026-09-09;
+`positions` now reaches all of them.
 
 ## Editing a case
 

@@ -232,4 +232,15 @@ var (
 	// CodeEndpointOffArc: an inline chain endpoint that does not project onto
 	// its arc within tolerance (§3.3.3). The link is dropped.
 	CodeEndpointOffArc = decodeCode("endpoint-off-arc")
+	// CodeWrongTypeOptional: a value of the wrong JSON type in an OPTIONAL key
+	// (§6.2). The field is dropped and the item is kept.
+	CodeWrongTypeOptional = decodeCode("wrong-type-optional")
+	// CodeWrongTypeRequired: a value of the wrong JSON type in a REQUIRED key
+	// (§6.2). The ITEM is dropped.
+	//
+	// ⚠ THE TWO ARE SEPARATE CODES BECAUSE THE OUTCOMES DIFFER FOR WHOEVER
+	// HOLDS THE FILE, not because the remedies differ in this package. "A field
+	// is gone" is recoverable from the rest of the item and "the item is gone"
+	// is not, so a caller has to tell them apart without parsing English.
+	CodeWrongTypeRequired = decodeCode("wrong-type-required")
 )

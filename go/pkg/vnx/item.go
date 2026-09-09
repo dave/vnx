@@ -73,8 +73,17 @@ func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []
 		}
 		posArr, ok := obj["at"].([]any)
 		if !ok {
+			// ⚠ `at` MISSING AND `at` WRONG-TYPED TAKE ONE REMEDY AND ARE NOT ONE
+			// FACT. §3.10 makes `at` required, so both drop the item, but a
+			// reader told "missing or malformed" learns neither. Distinguished
+			// here; the code is the same because the outcome is.
+			what := "is missing"
+			if _, present := obj["at"]; present {
+				what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
+			}
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
-				Message: "missing or malformed `at` — item dropped"})
+				Code:    CodeWrongTypeRequired,
+				Message: fmt.Sprintf("`at` %s — item dropped", what)})
 			continue
 		}
 		pos, err := decodePosition(posArr, at+"/at")

@@ -126,7 +126,8 @@ func boolField(obj map[string]any, key, path string, diags []Diagnostic) (bool, 
 	b, ok := v.(bool)
 	if !ok {
 		return false, append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
-			Message: fmt.Sprintf("expected a boolean, found %s — ignored", jsonKind(v))})
+			Code:    CodeWrongTypeOptional,
+			Message: fmt.Sprintf("expected a boolean, found %s — field dropped, item kept", jsonKind(v))})
 	}
 	return b, diags
 }

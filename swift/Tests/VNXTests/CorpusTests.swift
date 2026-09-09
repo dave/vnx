@@ -214,6 +214,18 @@ final class CorpusTests: XCTestCase {
     /// corpus entirely: every other tier RE-RENDERS, and a re-render applies
     /// neither rounding nor shortening.
     ///
+    /// Two things about `emit-boundary`'s elevation ties, so that neither reads
+    /// as an oversight to whoever tidies the fixture next:
+    ///
+    /// - BOTH `340.25` and `340.75` are load-bearing, and it takes the pair.
+    ///   `340.25` separates half-to-even from half-away-from-zero and half-up;
+    ///   `340.75` separates it from half-toward-zero and half-down. Neither
+    ///   alone leaves one rule standing —
+    ///   `RoundingTests.testOnlyHalfToEvenSurvivesThePair` asserts exactly that.
+    /// - There is deliberately NO NEGATIVE TIE, and that is not a gap: all five
+    ///   wrong rules are already caught by a positive value, so a negative one
+    ///   would add a row and separate nothing.
+    ///
     /// The tier's README is worth quoting, because it corrects something this
     /// library's own comments asserted: "That was stated for months as a
     /// permanent property — 'rounding is unreachable because no tier rounds' —

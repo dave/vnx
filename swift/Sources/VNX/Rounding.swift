@@ -23,9 +23,15 @@ import Foundation
 /// 2026-09-09, and the comment here said so as though it were a property of the
 /// format. It was not. It was a property of which tiers had been built: every
 /// tier RE-RENDERED, so nothing ever asked a library to write. The write tier
-/// now decodes a document, calls WRITE, and byte-compares, and it carries
-/// `340.25` precisely because that value separates half-to-even from
-/// half-away-from-zero.
+/// now decodes a document, calls WRITE, and byte-compares, and it carries BOTH
+/// `340.25` and `340.75`, because it takes the pair to identify the rule:
+/// `340.25` separates half-to-even from half-away-from-zero and half-up, and
+/// `340.75` separates it from half-toward-zero and half-down. Neither alone
+/// leaves only one rule standing. An earlier version of this comment repeated
+/// the framing that `340.75` was insurance against a reader rounding everything
+/// upward, which is the framing that gets it deleted by whoever tidies the
+/// fixture next; `RoundingTests.testOnlyHalfToEvenSurvivesThePair` states it as
+/// an assertion instead.
 ///
 /// The general lesson, from the tier's own README: an unreachability claim is a
 /// claim about the current state of someone's ingenuity, not about the format.

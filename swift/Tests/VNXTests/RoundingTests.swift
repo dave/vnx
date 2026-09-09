@@ -122,12 +122,87 @@ final class RoundingTests: XCTestCase {
 
     /// A genuine tie — where the exact expansion really does end at a 5 in the
     /// place below the target — rounds to even. SPEC 4.5.4's own example.
+    ///
+    /// `340.35` used to be in this list and is NOT a tie: as a binary64 it sits
+    /// 0.0000000000002274 above the halfway point, so it rounds up under every
+    /// candidate rule and separates nothing. A non-tie inside a test named for
+    /// ties is the same defect as a fixture that looks like coverage and
+    /// discriminates against nothing — it is kept below, labelled, rather than
+    /// deleted, because the label is the useful part.
     func testGenuineTiesRoundToEven() {
-        XCTAssertEqual(Rounding.toDecimalPlaces(340.25, 1), 340.2)
+        for (value, expected) in [(340.25, 340.2), (340.75, 340.8), (0.25, 0.2), (0.75, 0.8),
+                                  (-340.25, -340.2), (-340.75, -340.8)] {
+            XCTAssertEqual(Rounding.toDecimalPlaces(value, 1), expected, "\(value)")
+            XCTAssertTrue(isExactTie(value, 1), "\(value) must actually BE a tie for this test to mean anything")
+            // The negatives here are sign symmetry, not discrimination: every
+            // wrong rule is already separated by a positive value, which is why
+            // `corpus/write/emit-boundary` carries no negative tie at all.
+        }
+        // Not a tie, and here to say so.
+        XCTAssertFalse(isExactTie(340.35, 1))
         XCTAssertEqual(Rounding.toDecimalPlaces(340.35, 1), 340.4)
-        XCTAssertEqual(Rounding.toDecimalPlaces(-340.25, 1), -340.2)
-        XCTAssertEqual(Rounding.toDecimalPlaces(0.25, 1), 0.2)
-        XCTAssertEqual(Rounding.toDecimalPlaces(0.75, 1), 0.8)
+    }
+
+    /// That the PAIR `340.25` and `340.75` identifies half-to-even, and that
+    /// NEITHER VALUE ALONE DOES.
+    ///
+    /// The second half is the point. `340.25` rules out half-to-odd,
+    /// half-away-from-zero and half-up; `340.75` rules out half-to-odd,
+    /// half-toward-zero and half-down. Drop either and one wrong rule survives
+    /// undetected — which is exactly what happens when somebody tidies a fixture
+    /// on the belief that one of the two is redundant insurance. Stating it as
+    /// an executable assertion is the only form that survives a tidy-up.
+    ///
+    /// The spelling worth naming rather than the rule in the abstract:
+    /// `Math.round(x * 10) / 10` is exactly half-up in both JavaScript and Java
+    /// — wrong on every positive tie, and right on every negative one by
+    /// accident.
+    func testOnlyHalfToEvenSurvivesThePair() {
+        // Each candidate rule, applied to the scaled integer of a tie.
+        let rules: [(name: String, apply: (Int) -> Int)] = [
+            ("half to even", { $0 % 2 == 0 ? $0 : $0 + 1 }),
+            ("half to odd", { $0 % 2 != 0 ? $0 : $0 + 1 }),
+            ("half away from zero", { $0 + 1 }),
+            ("half toward zero", { $0 }),
+            ("half up", { $0 + 1 }),
+            ("half down", { $0 }),
+        ]
+        let pair = [340.25, 340.75]
+
+        func floorScaled(_ x: Double) -> Int { Int((x * 10).rounded(.down)) }
+        func ours(_ x: Double) -> Int { Int((Rounding.toDecimalPlaces(x, 1) * 10).rounded()) }
+
+        // Half-to-even, and only half-to-even, agrees with this library on both.
+        for rule in rules {
+            let agreesEverywhere = pair.allSatisfy { rule.apply(floorScaled($0)) == ours($0) }
+            XCTAssertEqual(agreesEverywhere, rule.name == "half to even",
+                           "`\(rule.name)` agreement across the pair")
+        }
+
+        // And neither value on its own is enough: drop one and something wrong
+        // still agrees with us everywhere that is left.
+        for dropped in pair {
+            let remaining = pair.filter { $0 != dropped }
+            let survivors = rules.filter { rule in
+                remaining.allSatisfy { rule.apply(floorScaled($0)) == ours($0) }
+            }.map(\.name)
+            XCTAssertGreaterThan(survivors.count, 1,
+                                 "without \(dropped) these rules are indistinguishable from half-to-even: \(survivors)")
+        }
+    }
+
+    /// Whether the exact binary64 value sits exactly halfway between two
+    /// decimals at `places`. Computed by the same 128-bit route as `Rounding`
+    /// but stated as a question rather than an answer, so a test can assert that
+    /// its own inputs are what it calls them.
+    private func isExactTie(_ x: Double, _ places: Int) -> Bool {
+        let scaled = x.magnitude * pow(10.0, Double(places))
+        // A tie at 1 place means the value is an odd multiple of 0.05 exactly,
+        // which for a binary64 means an odd quarter — checkable exactly, because
+        // 0.25 is a power of two.
+        guard places == 1 else { return false }
+        let quarters = x.magnitude * 4
+        return quarters == quarters.rounded() && Int(quarters) % 2 == 1 && scaled != scaled.rounded()
     }
 
     /// SPEC 4.5.4: "A writer applies the negative-zero rule of Section 4.5.3

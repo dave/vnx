@@ -1,0 +1,27 @@
+{
+  "kind": "diagnose",
+  "note": "A position that will not parse, in the two containers whose remedies differ. Section 6.2 drops the offending element, and what the offending element IS depends on the container: a pip is one element of an array, so dropping it leaves a shorter polyline that is still a polyline; a ring vertex is not, because section 3.7 makes a polygon ONE closed ring of at least four positions, so removing a vertex leaves a three-vertex non-ring and moves the outline of an area that survives looking plausible. So the pip goes and the area goes, and both are the same rule applied to containers that differ. Both are needed in one document: a library that drops the element every time and a library that drops the item every time each pass a document carrying only one of the two. The second area exists to prove the drop is scoped rather than total. The boundary against wrong-type-required is at IS IT AN ARRAY AT ALL - `at: \"beside the burn\"` is a wrong type in a required key, while `[null, 57.1]` is an array that will not parse as a position - and that line is a reading of section 6.2's two clauses rather than a quotation of them, stated here because a case pinning this path pins the boundary as a side effect. The `positions` entry is doing more work than it looks: it resolves /tracks/0/segments/0/pips/1 to the coordinates of what was the THIRD pip, so it fails a reader that kept the bad pip, one that replaced it with nulls, and one that dropped the whole segment - none of which `counts` alone could separate.",
+  "schema": "invalid",
+  "counts": {
+    "tracks": 1,
+    "areas": 1
+  },
+  "positions": [
+    { "at": "/tracks/0/segments/0/pips/1", "lon": -3.6681, "lat": 57.1139 }
+  ],
+  "tracks": [
+    { "name": "One unusable pip in the middle of a segment", "moving_time_ms": null }
+  ],
+  "diagnostics": [
+    {
+      "path": "/tracks/0/segments/0/pips/1",
+      "code": "position-unusable",
+      "message_advisory": "longitude is null, expected a number — pip dropped"
+    },
+    {
+      "path": "/areas/0/polygon/1",
+      "code": "position-unusable",
+      "message_advisory": "longitude is null, expected a number — area dropped"
+    }
+  ]
+}

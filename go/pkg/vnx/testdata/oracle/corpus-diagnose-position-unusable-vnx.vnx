@@ -1,0 +1,27 @@
+{
+  "vnx": "0.1.0",
+  "areas": [
+    {
+      "name": "Kept, to prove the drop is scoped",
+      "polygon": [
+        [-3.62, 57.2],
+        [-3.61, 57.2],
+        [-3.61, 57.21],
+        [-3.62, 57.2]
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "One unusable pip in the middle of a segment",
+      "segments": [
+        {
+          "pips": [
+            [-3.6712, 57.118, 341],
+            [-3.6681, 57.1139, 366.9]
+          ]
+        }
+      ]
+    }
+  ]
+}

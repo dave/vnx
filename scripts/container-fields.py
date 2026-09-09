@@ -7,6 +7,7 @@ the corpus itself is held to.
     scripts/container-fields.py a.vnz b.vnz c.vnz     # compare seats
     scripts/container-fields.py --spec a.vnz          # check WRITER OUTPUT against 7.1
     scripts/container-fields.py --fields a.vnz        # just print the table
+    scripts/container-fields.py --self-test           # prove the checks can fail
 
 Exits non-zero when any archive disagrees with another, when a local and
 central header disagree with each other, or, under --spec, when a field departs
@@ -62,6 +63,7 @@ derive them rather than trust whoever generated them.
 """
 
 import argparse
+import os
 import struct
 import sys
 
@@ -438,12 +440,145 @@ def print_table(archives):
         print()
 
 
+# ----------------------------------------------------------------- self test
+
+
+def _build(entries, *, bit3=False, method=0, central_order=None):
+    """A minimal ZIP builder, for archives that are deliberately wrong."""
+    out = bytearray()
+    directory = []
+    for name, body in entries:
+        n = name.encode("utf-8")
+        crc = 0 if bit3 else struct.unpack("<I", struct.pack("<I", _crc32(body)))[0]
+        size = 0 if bit3 else len(body)
+        flags = 0x0800 | (0x0008 if bit3 else 0)
+        offset = len(out)
+        out += struct.pack(
+            "<IHHHHHIIIHH", LOCAL_SIGNATURE, 10, flags, method, 0, 0x21, crc, size, size, len(n), 0
+        ) + n + body
+        directory.append((name, _crc32(body), len(body), offset, flags))
+    order = central_order if central_order is not None else range(len(directory))
+    cd = bytearray()
+    for i in order:
+        name, crc, size, offset, flags = directory[i]
+        n = name.encode("utf-8")
+        cd += struct.pack(
+            "<IHHHHHHIIIHHHHHII", CENTRAL_SIGNATURE, 10, 10, flags, method, 0, 0x21,
+            crc, size, size, len(n), 0, 0, 0, 0, 0, offset,
+        ) + n
+    cd_offset = len(out)
+    out += cd
+    out += struct.pack(
+        "<IHHHHIIH", EOCD_SIGNATURE, 0, 0, len(directory), len(directory), len(cd), cd_offset, 0
+    )
+    return bytes(out)
+
+
+def _crc32(body):
+    import zlib
+
+    return zlib.crc32(body) & 0xFFFFFFFF
+
+
+def self_test():
+    """Every check, shown failing on an archive built to break it.
+
+    A checker nobody has watched fail is a green light with no bulb in it. These
+    are here rather than in a shell history so that whoever inherits this file can
+    re-establish in one command that it still discriminates.
+    """
+    import tempfile
+
+    doc = b'{\n  "vnx": "0.1.0"\n}\n'
+    emoji = "\U0001F600.txt"
+    replacement = "\uFFFD.txt"
+
+    cases = [
+        # name, archive, expect_fault_without_spec, expect_fault_with_spec, substring
+        ("conforming", _build([("doc.vnx", doc), ("aaa.txt", b"a"), ("zzz.txt", b"z")]), False, False, None),
+        ("attachments in caller order",
+         _build([("doc.vnx", doc), ("zzz.txt", b"z"), ("aaa.txt", b"a")]), False, True, "not sorted"),
+        ("attachments in UTF-16 order",
+         _build([("doc.vnx", doc), (emoji, b"e"), (replacement, b"r")]), False, True, "CODE UNIT"),
+        ("root document not first",
+         _build([("aaa.txt", b"a"), ("doc.vnx", doc)]), False, True, "section 7.1 puts it first"),
+        ("deflate", _build([("doc.vnx", doc)], method=8), False, True, "method"),
+        ("data descriptor bit", _build([("doc.vnx", doc)], bit3=True), False, True, "data-descriptor"),
+        ("local and central order disagree",
+         _build([("doc.vnx", doc), ("aaa.txt", b"a"), ("zzz.txt", b"z")], central_order=[0, 2, 1]),
+         True, True, "disagree about entry order"),
+    ]
+
+    # A local CRC that disagrees with its central twin, bit 3 clear.
+    tampered = bytearray(_build([("doc.vnx", doc)]))
+    struct.pack_into("<I", tampered, 14, 0xDEADBEEF)
+    cases.append(("local CRC disagrees with central", bytes(tampered), True, True, "local crc="))
+
+    # A saturated field with no ZIP64 extra to resolve it from.
+    saturated = bytearray(_build([("doc.vnx", doc)]))
+    eocd = saturated.rfind(b"PK\x05\x06")
+    cd_offset = u32(saturated, eocd + 16)
+    struct.pack_into("<I", saturated, cd_offset + 20, SATURATED32)
+    cases.append(("saturated field, no ZIP64 extra", bytes(saturated), None, None, "no ZIP64 extra field"))
+
+    failures = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, data, want_plain, want_spec, substring in cases:
+            path = os.path.join(tmp, "case.vnz")
+            with open(path, "wb") as f:
+                f.write(data)
+            for spec, want in (("", want_plain), ("--spec", want_spec)):
+                if want is None:
+                    # Expected to be unparseable, which is exit 2 either way.
+                    try:
+                        describe(path)
+                        failures.append(f"{name}: parsed, and should not have")
+                    except Fault as e:
+                        if substring not in str(e):
+                            failures.append(f"{name}: refused with {e!r}, expected {substring!r}")
+                        else:
+                            print(f"ok    {name} [unparseable, as expected]")
+                    break
+                archives = {path: describe(path)}
+                faults = []
+                check_local_matches_central(archives, faults)
+                check_order_consistency(archives, faults)
+                if spec:
+                    check_spec(archives, faults)
+                    check_spec_order(archives, faults)
+                got = bool(faults)
+                label = f"{name} [{spec or 'no flag'}]"
+                if got != want:
+                    failures.append(
+                        f"{label}: expected {'a fault' if want else 'no fault'}, got {len(faults)}"
+                        + ("" if not faults else f" — first: {faults[0].splitlines()[0]}")
+                    )
+                elif want and substring and not any(substring in f for f in faults):
+                    failures.append(f"{label}: faulted, but none mentioned {substring!r}")
+                else:
+                    print(f"ok    {label}")
+
+    for failure in failures:
+        print(f"FAIL  {failure}")
+    if failures:
+        print(f"\n{len(failures)} self-test failure(s): this checker is not discriminating.")
+        return 1
+    print(f"\nall {len(cases)} cases discriminate")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("archives", nargs="+", help=".vnz files to compare")
+    parser.add_argument("archives", nargs="*", help=".vnz files to compare")
     parser.add_argument("--spec", action="store_true", help="also check each against SPEC.md 7.1")
     parser.add_argument("--fields", action="store_true", help="print the field table even when all agree")
+    parser.add_argument("--self-test", action="store_true", help="prove every check can fail")
     args = parser.parse_args()
+
+    if args.self_test:
+        return self_test()
+    if not args.archives:
+        parser.error("give at least one .vnz, or --self-test")
 
     archives = {}
     for path in args.archives:

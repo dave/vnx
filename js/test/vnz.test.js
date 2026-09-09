@@ -404,6 +404,17 @@ test('RAW: the local and central headers agree with each other', () => {
   const central = centralHeaders(buf);
   assert.equal(local.length, central.length, 'entry counts');
   assert.ok(local.length >= 2, 'the fixture must have more than one entry');
+
+  // ORDER, named rather than left to fall out of the field loop below. The two
+  // sequences can disagree independently of every field's value: a writer may
+  // emit local headers in one order and list them in the central directory in
+  // another, and both halves would then be individually correct. It was
+  // covered here only because `name` happens to be in that list, so removing
+  // `name` as a duplicate of the check elsewhere would have deleted this
+  // property with nothing to say so.
+  assert.deepEqual(local.map((h) => h.name), central.map((h) => h.name),
+    'the local headers and the central directory list the entries in different orders');
+
   for (let i = 0; i < local.length; i++) {
     for (const field of ['name', 'flags', 'method', 'dosTime', 'dosDate', 'crc',
       'compressedSize', 'uncompressedSize', 'versionNeeded']) {
@@ -569,4 +580,26 @@ test('repackaging a container sorts too, so a read-modify-write cannot reorder',
     assert.deepEqual(readEntries(packed).map((e) => e.name),
       ['doc.vnx', 'a/first.txt', 'z/last.txt']);
   }
+});
+
+test('RAW: the order check fires when the two sequences disagree', () => {
+  // Red proof for the assertion above. Swapping two names in the CENTRAL
+  // directory alone leaves every individual field value present somewhere in
+  // each header, so a per-entry field comparison that did not include `name`
+  // would see nothing wrong. The order check is what catches it.
+  const buf = Buffer.from(encodeContainer(DOC, [
+    ['aaaaaa.txt', Buffer.from('a')],
+    ['bbbbbb.txt', Buffer.from('b')],
+  ]));
+  const a = buf.indexOf(Buffer.from('aaaaaa.txt'), buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
+  const b = buf.indexOf(Buffer.from('bbbbbb.txt'), buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
+  assert.ok(a !== -1 && b !== -1, 'both names appear in the central directory');
+  buf.write('bbbbbb.txt', a, 'utf8');
+  buf.write('aaaaaa.txt', b, 'utf8');
+
+  const local = localHeaders(buf).map((h) => h.name);
+  const central = centralHeaders(buf).map((h) => h.name);
+  assert.notDeepEqual(local, central, 'the mutation must actually disagree');
+  assert.deepEqual([...local].sort(), [...central].sort(),
+    'and it must disagree ONLY in order, so a set comparison would miss it');
 });

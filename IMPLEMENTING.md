@@ -106,7 +106,7 @@ Two properties make this a guide entry rather than a bug report. Both spellings
 parse to the identical double, so every round-trip test passes, every value-level
 assertion passes, and the whole corpus passes: two conforming libraries emit
 different files and no test in the project can see it. And it is not rare.
-Rendering ties are about one double in 4,200 of a uniform random sample,
+Rendering ties are about one double in 4,200 of a uniform random sample —
 concentrated between 1e13 and 1e15, which is where Unix epoch milliseconds live.
 *(Kotlin seat.)*
 
@@ -183,6 +183,11 @@ it. *(Kotlin seat.)*
 
 Swift's `.rounded()` does not round half to even; its emit boundary specifies
 `.toNearestOrEven`. *(Swift seat.)*
+
+Go's `math.Round` is half away from zero, and the reference implementation shipped
+this defect as well. Two of five implementations got it wrong, which is what turns
+"an implementation should check this" into "implementations do get this wrong".
+*(Relayed, not read here.)*
 
 ### 1.6 Building a rounding-tie fixture is a trap
 
@@ -678,7 +683,7 @@ dense small magnitudes. The two halves share no code. One language writes raw
 IEEE 754 bits plus its own rendering to a table, and about thirty lines in the
 other bit-casts each row back and compares.
 
-The number that makes it worth having is not 460,007 but 78, the disagreements
+The number that makes it worth having is not 460,007 but 78 — the disagreements
 that reappear when the tie mode is reverted. Without those, a zero-disagreement
 result is indistinguishable from a comparison that is not running.
 
@@ -751,9 +756,10 @@ than an edit.
 
 Navigation only. Every fact here is stated above.
 
-**Go.** Negative zero renders as `-0` (1.8). `encoding/json` escapes `<`, `>`,
-`&`, U+2028 and U+2029, and cannot be configured to stop escaping the last two
-(2.3). Key order (1.1).
+**Go.** Negative zero renders as `-0` (1.8). `math.Round` is half away from zero
+(1.5). `encoding/json` escapes `<`, `>`, `&`, U+2028 and U+2029, and cannot be
+configured to stop escaping the last two (2.3). It accepts `1e400` into
+`json.Number` and refuses it only into `float64` (4.1). Key order (1.1).
 
 **Python.** `1e-06` and `1e-07` at the exponent boundaries (1.2). `json` accepts
 `NaN` and `Infinity` by default (4.1). `sort_keys` is plain lexicographic (1.1,
@@ -763,11 +769,13 @@ Navigation only. Every fact here is stated above.
 not be used; `JSONEncoder` gives `1e-06` and `1e-07`, and both stock encoders
 separate a key from its value with `" : "` (1.1, 1.2). `.rounded()` is not
 half-to-even (1.5); `Double.description` is (1.3). `<` on `String` orders by
-Unicode canonical equivalence (2.2).
+Unicode canonical equivalence, which sorts the astral pair correctly and U+212B
+wrongly (2.2).
 
 **Kotlin.** Shortest-repr ties away from zero (1.3). `BigDecimal.HALF_UP` at the
-rounding boundary (1.5). `String.compareTo` orders by UTF-16 `char` (2.2).
-`java.util.zip` cannot express what Section 7 of the specification needs (6.5).
+rounding boundary (1.5). `String.compareTo` orders by UTF-16 `char` on the JVM,
+and Kotlin/Native is unmeasured (2.2). `java.util.zip` cannot express what
+Section 7 of the specification needs (6.5).
 
 **JavaScript.** `toFixed` rounds ties away from zero for a positive value and
 toward zero for a negative one (1.5). `JSON.stringify` uses insertion order for

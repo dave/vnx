@@ -1,34 +1,35 @@
 # The VNX conformance corpus
 
-Spec §8. **Every implementation runs these same files.** The corpus is the only
-real defence against independent libraries quietly disagreeing, and it cannot do
-that retroactively — which is why it exists before the second library does.
+Every implementation runs these same files. The corpus is the only defence
+against independent libraries quietly disagreeing with each other, and it cannot
+work retroactively, which is why it exists before the second library does.
+
+`SPEC.md` section 8 defines what the corpus requires.
 
 ## Layout
 
 ```
-accept/    must be read, with ZERO diagnostics
+accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
-diagnose/  must be READ, reporting exactly the listed diagnostics
-format/    messy input + exactly the bytes a formatter must emit for it
+diagnose/  must be read, reporting exactly the listed diagnostics
+format/    messy input, plus exactly the bytes a formatter must emit for it
 tools/     the generator for the .vnz archives
 ```
 
-Each `foo.vnx` (or `foo.vnz`) has a `foo.expect.json` beside it. **A file with
-no sidecar is a failure, not a skip** — a corpus that silently ignores what it
-cannot explain is worth nothing, because the file everyone assumes is covered is
-exactly the one that is not.
+Each `foo.vnx` or `foo.vnz` has a `foo.expect.json` beside it. A file with no
+sidecar is a failure, not a skip: the file everyone assumes is covered is
+otherwise exactly the one that is not.
 
 ## The sidecar
 
 ```jsonc
 {
   "kind": "accept" | "reject" | "diagnose",   // must match the directory
-  "note": "why this case exists",             // required; the thing that rots first
+  "note": "why this case exists",             // required
 
   "counts":    {"waypoints": 1, "tracks": 1}, // exact, per collection
   "positions": [{"waypoint": "X", "lon": -3.6, "lat": 57.1}],
-  "tracks":    [{"name": "T", "moving_time_ms": 167000}],  // null = UNKNOWN
+  "tracks":    [{"name": "T", "moving_time_ms": 167000}],  // null = unknown
   "attachments": ["photos/summit.jpg"],       // .vnz only
 
   "refusal":     "substring of the expected error",        // reject only
@@ -37,106 +38,112 @@ exactly the one that is not.
 }
 ```
 
-Three of these earn their place rather than being decoration:
+Three fields do work that is not evident from their names.
 
-- **`counts`** stops an accept file passing vacuously. A decoder that returned an
-  empty document for every input would otherwise satisfy "no error, no
-  diagnostics" on all of them.
-- **`positions`** is the only defence against a lon/lat transposition. Both
-  orderings parse, both are in range, and nothing structural can tell them
-  apart — the point lands 8000 km away and every check still passes. The values
-  are JSON numbers in the sidecar so the comparison is between doubles, not
-  between formatted text, which is also what makes the full-precision case work.
-- **`moving_time_ms: null`** means UNKNOWN, which is not zero. A reader that
-  answers 0 for a track carrying no pip times has answered a question it cannot
-  answer, and its answer is indistinguishable from a track where nobody moved.
+`counts` stops an accept file passing vacuously. A decoder that returned an empty
+document for every input would otherwise satisfy "no error, no diagnostics" on
+all of them.
 
-`message` is matched as a substring and `refusal` likewise: exact wording is a
-reader's business, but a refusal that does not name its cause is a bug.
+`positions` is the only available defence against a longitude and latitude
+transposition. Both orderings parse, both are in range, and nothing structural
+can tell them apart while the point lands 8,000 km away. The values are JSON
+numbers in the sidecar, so the comparison is between doubles rather than between
+formatted text, which is also what makes the full-precision case work.
 
-## Accept files are canonical — this is the layout contract
+`moving_time_ms: null` means unknown, which is not zero. A reader that answers 0
+for a track carrying no pip times has answered a question it cannot answer, and
+its answer is indistinguishable from a track on which nobody moved.
 
-Every `accept/*.vnx` is stored in canonical form (§4.5), and the runner asserts
-`canonicalise(file) == file` byte-for-byte.
+`message` and `refusal` are matched as substrings. Exact wording is a reader's
+own business; naming the cause is not.
 
-**That check IS the byte-compatibility guarantee between the libraries.** Every
-conforming writer, in every language, must emit these exact bytes for a given
-document — a Go export, a Swift export and a Python export of one library are
+## Accept files are canonical
+
+Every `accept/*.vnx` is stored in canonical form (`SPEC.md` section 4.5), and
+the runner asserts `canonicalise(file) == file` byte for byte.
+
+That check is the byte-compatibility guarantee between the libraries. Every
+conforming writer, in every language, emits these exact bytes for a given
+document, so a Go export, a Swift export and a Python export of one library are
 identical files or one of them is wrong. An implementation whose formatter
-differs in any respect fails here, so nobody has to trust anyone's reading of the
-specification's prose.
+differs in any respect fails here, which means nobody has to trust anyone's
+reading of the specification's prose.
 
-What the layout is, in one place:
+The layout, in one place:
 
 - Two-space indent, UTF-8, no BOM, newline at end of file.
-- Object keys: scalars first (lexicographic), then containers (lexicographic),
-  classified by the value in *this* object.
-- Arrays never reorder.
-- **An array holding only numbers and `null` is written on ONE line**, elements
-  separated by `, ` — every position in the format. `null` counts, so a position
-  does not change shape when an elevation goes missing. Six lines per position
-  would make a day's recorded track fifty thousand lines; this makes it ten.
+- Object keys: scalars first in lexicographic order, then containers in
+  lexicographic order, classified by the value in this object.
+- Arrays are never reordered.
+- An array holding only numbers and `null` is written on one line, elements
+  separated by `, `. That is every position in the format. `null` counts, so a
+  position does not change shape when an elevation goes missing. Six lines per
+  position would make a day's recorded track fifty thousand lines; this makes it
+  ten.
 - Numbers render with ECMAScript `Number::toString` semantics — what
-  `JSON.stringify` emits and what Go's `encoding/json` reproduces.
+  `JSON.stringify` emits and what Go's `encoding/json` reproduces — with
+  negative zero collapsed to `0`.
 
-⚠ **No stock JSON encoder can emit this layout in any language** — measured
-2026-09-01. Every implementation writes its own serialiser; the reference one is
-155 lines. The key ordering alone rules the stock encoders out (`sort_keys` /
-`.sortedKeys` give plain lexicographic, which puts `networks` before `vnx`), so
-the inline-position rule costs nothing extra. Numbers are the other trap: Python
-AND Swift both emit `340.0`/`1e-06`/`1e-07` where the reference emits
-`340`/`0.000001`/`1e-7`, and Apple's `JSONSerialization` renders `-3.67` as
-`-3.6699999999999999` and must not be used. Only Go and JS can lean on their
-built-in number formatting. Details in spec §4.5.1.
+No stock JSON encoder can emit this layout in any of the target languages,
+measured 2026-09-01, so every implementation writes its own serialiser. The key
+ordering alone rules the stock encoders out: `sort_keys` and `.sortedKeys` give
+plain lexicographic order, which puts `networks` before `vnx`. The
+inline-position rule therefore costs nothing extra. Numbers are the other trap:
+Python and Swift both emit `340.0`, `1e-06` and `1e-07` where the reference emits
+`340`, `0.000001` and `1e-7`, and Apple's `JSONSerialization` renders `-3.67` as
+`-3.6699999999999999` and must not be used. Only Go and JavaScript can lean on
+their built-in number formatting. `SPEC.md` section 4.5.6 has the table.
 
-The canonical check also does more than police layout: it is what proves the
-whole file — including data records of types no implementation knows, whose
+The canonical check does more than police layout. It is what proves that a whole
+document — including data records of types no implementation recognises, whose
 bodies nothing else inspects — survives parse and re-render at value level.
 
-Regenerate after editing one:
+Regenerate a file after editing it:
 
 ```sh
 cd go && go run ./cmd/vnx fmt --write ../corpus/accept/<file>.vnx
 ```
 
-(Both commands here are run from the repository root, and both need Go. The
-corpus itself does not — that is the point of it.)
+That command is run from the repository root and needs Go. The corpus itself
+does not, which is the point of it.
 
 ## Rebuilding the archives
 
 The `.vnz` files are committed as binaries, because an implementation in another
 language cannot be asked to build a Go program before it can run the corpus.
 `tools/makevnz` is committed beside them so the bytes stay reproducible and
-reviewable rather than mysterious:
+reviewable:
 
 ```sh
 cd corpus && go run ./tools/makevnz
 ```
 
-It writes its output relative to the working directory, so that directory must
+It writes its output relative to the working directory, so that directory has to
 be `corpus/`. The `go.mod` beside this file exists only so the go tool will run
-it at all — see the comment in it.
+it at all; see the comment in it.
 
 ## Why `format/` exists separately
 
-The accept files cannot catch a formatter bug. They are stored canonical, so
+The accept files cannot catch a formatter defect. They are stored canonical, so
 canonicalising one only ever asks the renderer about values already spelled
-correctly — a writer that renders negative zero as `-0`, or `0.000001` as
+correctly. A writer that renders negative zero as `-0`, or `0.000001` as
 `1e-06`, is never asked the question. The reference implementation had exactly
-the negative-zero bug and its own corpus was blind to it. The `format/` inputs
-are written in the WRONG spellings on purpose, and each case asserts its input is
-not already canonical so it cannot pass vacuously.
+the negative-zero defect and its own corpus was blind to it.
 
-## What the corpus cannot do
+The `format/` inputs are therefore written in the wrong spellings on purpose, and
+each case asserts that its input is not already canonical, so it cannot pass
+vacuously.
 
-`diagnose/duplicate-object-key.vnx` expects **no** diagnostic. Two `n1` entries
-in one `nodes` map resolve last-wins in every mainstream parser, before any VNX
-code runs, so a node vanishes and a standard parser offers no way to know. This
-is documented rather than papered over (§6.4). If a reader ever gains the ability
-to see it, that file goes red and the limitation gets revisited instead of
-quietly outliving its cause.
+## What the corpus cannot check
 
-## Never
+`diagnose/duplicate-object-key.vnx` expects no diagnostic. Two `n1` entries in
+one `nodes` object resolve last-wins in every mainstream parser, before any VNX
+code runs, so a node vanishes and a standard parser offers no way to know
+(`SPEC.md` section 6.4). The limitation is documented rather than papered over.
+If a reader ever gains the ability to see it, that file goes red and the
+limitation gets revisited instead of quietly outliving its cause.
+
+## Editing a case
 
 Do not make a red corpus file green by editing the fixture. The fixture is the
 instrument.

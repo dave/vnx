@@ -49,6 +49,21 @@ resolved by interpretation.
 An example in this document is illustrative. It does not define a rule, and a
 rule that is not stated in prose is a gap in this specification.
 
+Two documents ship beside this one and NEITHER IS NORMATIVE.
+
+`corpus/README.md` explains how to run the corpus and why particular cases are
+shaped as they are. Some of what it explains is load-bearing and appears nowhere
+else — why two fixtures must NOT be made consistent with each other, what a
+runner that pairs one report with two expectations fails to catch — and an
+implementation may reasonably rely on it. But where it and this document differ,
+THIS ONE DECIDES, and anything in it that a conforming implementation must obey
+belongs in Section 8 instead. A rule discovered only by reading a README is a
+rule the next implementer will not find.
+
+`IMPLEMENTING.md` is a guide to the traps in this specification. It is
+informative throughout and normative nowhere, and it quotes this document rather
+than restating it.
+
 ## 2. Document identification
 
 ### 2.1 Names and media types
@@ -142,6 +157,11 @@ The JSON Schema (Section 8.2) is named for the MINOR series and covers every
 patch of it. A new minor version gets a new schema file.
 
 ## 3. Document structure
+
+THE NORMATIVE KEY SET IS SECTION 3.10. The JSON below is illustrative, as
+Section 1.3 says of every example: a reader building a key list from these blocks
+will get one that is close and wrong, and Section 6.2 makes an unrecognised key a
+diagnostic, so the mistake is one this format punishes.
 
 ### 3.1 Envelope
 
@@ -330,6 +350,25 @@ unusable value and is handled under Section 6.2.
 Note: an export computed from an existing polyline projects to well under a
 metre. The tolerance exists for hand-authored and third-party documents, whose
 coordinates are typed rather than computed.
+
+A chain's links MUST form one connected walk: the point at which link *k* ends
+MUST be the point at which link *k+1* begins. Where they do not, a reader keeps
+both links and reports the break (Section 6.2).
+
+Two endpoints meet when their LONGITUDE AND LATITUDE ARE EQUAL, and no other
+channel takes part in the comparison. That follows from the paragraph above: an
+inline endpoint carries no elevation because elevation is resolved from the
+polyline, while a node may carry one, so a comparison over all channels reports
+EVERY junction between a node and an inline endpoint as broken.
+
+A node key is resolved to its position before comparing. Two distinct node keys
+at the same position therefore meet: comparing the keys alone would report a
+continuous walk as broken, which is the failure this rule exists to prevent. Key
+equality is a valid fast path.
+
+A link that was dropped under Section 6.2 takes no part in the comparison on
+either side. The links either side of it are not thereby adjacent, and a reader
+MUST NOT report a break across the gap: one defect must not become two.
 
 Two links in one chain MAY share an endpoint position, which is how a
 reversal is expressed. Inline positions carry no identity, so:
@@ -1178,25 +1217,7 @@ The remedies for the remaining constructs this document constrains:
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
 
-A chain's links MUST form one connected walk: the point at which link *k* ends
-MUST be the point at which link *k+1* begins.
-
-Two endpoints meet when their LONGITUDE AND LATITUDE ARE EQUAL. No other
-channel takes part in the comparison. A node may carry an elevation and an
-inline endpoint never does (elevation is resolved from the polyline), so a
-comparison over all channels reports every junction between a node and an
-inline endpoint as broken.
-
-A node key is resolved to its position before comparing. Two distinct node keys
-at the same position therefore meet: comparing the keys alone would report a
-continuous walk as broken, which is the failure this rule exists to prevent.
-Key equality is a valid fast path.
-
-A link that was dropped under Section 6.2 takes no part in the comparison on
-either side: the links either side of it are not thereby adjacent, and a reader
-MUST NOT report a break across the gap. One defect must not become two.
-
-The diagnostic addresses the second link of the pair.
+The diagnostic for a break addresses the second link of the pair.
 
 A `folder` naming a folder that is not present in the document is not an
 unusable value. The reader MUST treat the key as absent, so the item sits at the

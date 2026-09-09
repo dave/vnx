@@ -160,5 +160,10 @@ test('every refusal substring the corpus expects is in the refusal table', () =>
 
 test('the whole corpus passes', () => {
   const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender, write });
-  assert.deepEqual(cases.filter((c) => c.failures.length > 0).map((c) => [c.name, c.failures]), []);
+  const red = cases.filter((c) => c.failures.length > 0);
+  // Reported with the failure text rather than as a bare set inequality: when
+  // this goes red the question is always "which case, and why", and a corpus
+  // this library does not own is mid-edit often enough that the answer is
+  // sometimes "not us".
+  assert.deepEqual(red.map((c) => `${c.name}: ${c.failures.join('; ')}`), []);
 });

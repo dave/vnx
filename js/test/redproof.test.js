@@ -68,14 +68,49 @@ async function runMutated(edits) {
   });
 }
 
-function failing(cases) {
+function allFailing(cases) {
   return cases.filter((c) => c.failures.length > 0).map((c) => c.name).sort();
 }
 
-test('the unmutated library passes every corpus case', async () => {
+/**
+ * The corpus is a shared tree and is routinely mid-edit, so a case can be red
+ * for reasons that have nothing to do with the mutation under test. Every
+ * assertion here is therefore about the DELTA a mutation causes, measured
+ * against a baseline taken from the unmutated library.
+ *
+ * Asserting the absolute set instead makes one unrelated corpus defect cascade
+ * into every red-proof at once — measured 2026-09-09, when a fixture and its
+ * sidecar disagreed about a track's name and 29 of these went red without a
+ * single mutation being at fault. A red-proof measures what its mutation
+ * changed; anything else is not its business.
+ */
+let baseline = null;
+
+async function baselineFailures() {
+  if (baseline === null) baseline = allFailing(await runMutated([]));
+  return baseline;
+}
+
+async function failingDelta(cases) {
+  const before = new Set(await baselineFailures());
+  return allFailing(cases).filter((name) => !before.has(name));
+}
+
+test('the corpus baseline is recorded, and any pre-existing failure is named', async () => {
   const cases = await runMutated([]);
-  assert.deepEqual(failing(cases), []);
   assert.ok(cases.length >= 30, `only ${cases.length} cases ran`);
+  const red = cases.filter((c) => c.failures.length > 0);
+  if (red.length > 0) {
+    // Not an assertion failure: the corpus being red is not this library's
+    // defect to report, and failing here would hide every mutation result
+    // behind it. It is printed so it cannot pass unnoticed either.
+    console.error(
+      `\n  NOTE: ${red.length} corpus case(s) are red before any mutation. ` +
+      'Every red-proof below measures its delta against that baseline.\n' +
+      red.map((c) => `    ${c.name}: ${c.failures.join('; ')}`).join('\n') + '\n',
+    );
+  }
+  await baselineFailures();
 });
 
 test('transposing lon and lat, invisibly to the byte check, is caught by positions', async () => {
@@ -94,7 +129,7 @@ test('transposing lon and lat, invisibly to the byte check, is caught by positio
       to: '  const c = position.channels.slice(); [c[0], c[1]] = [c[1], c[0]];',
     },
   ]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/lonlat-transposition.vnx'), red.join(', '));
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
 });
@@ -105,7 +140,7 @@ test('normalising [lon, lat, null] to [lon, lat] in the model breaks the accept 
     from: '  return ctx.position(path, new Position(v.slice()));',
     to: '  const s = v.slice();\n  while (s.length > 2 && s[s.length - 1] === null) s.pop();\n  return ctx.position(path, new Position(s));',
   }]);
-  assert.deepEqual(failing(cases), [
+  assert.deepEqual(await failingDelta(cases), [
     'accept/absent-elevation-and-time.vnx',
     'accept/compute-failed-arc.vnx',
   ]);
@@ -117,7 +152,7 @@ test('plain lexicographic key order, without the scalar/container split, is caug
     from: '    (v !== null && typeof v === \'object\' ? containers : scalars).push(k);',
     to: '    scalars.push(k);',
   }]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
   // The turnaround file is the one where classification-by-value is visible on
   // its own: its second link spells `arc, to, from` because `from` holds an
@@ -131,7 +166,7 @@ test('rendering negative zero as -0 is caught by the format tier alone', async (
     from: "  if (n === 0) return '0'; // collapses -0 as well as 0",
     to: "  if (n === 0) return Object.is(n, -0) ? '-0' : '0';",
   }]);
-  assert.deepEqual(failing(cases), ['format/messy-spellings']);
+  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings']);
 });
 
 test('a reader that discards data records is caught by the accept tier', async () => {
@@ -140,7 +175,7 @@ test('a reader that discards data records is caught by the accept tier', async (
     from: '  const a = arr(\'data\', path, kv, false, ctx);\n  if (a === undefined) return undefined;',
     to: '  const a = arr(\'data\', path, kv, false, ctx);\n  if (a !== undefined) return undefined;\n  if (a === undefined) return undefined;',
   }]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
   assert.ok(red.includes('accept/unknown-data-on-unexpected-hosts.vnx'), red.join(', '));
 });
@@ -151,7 +186,7 @@ test('a reader that discards rulesets is caught by the accept tier', async () =>
     from: "  doc.rulesets = arr('rulesets', '', kv, false, ctx);",
     to: '  doc.rulesets = undefined;',
   }]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
 });
 
@@ -172,7 +207,7 @@ test('answering 0 for an unknown moving time is caught', async () => {
       to: '    return total;',
     },
   ]);
-  assert.deepEqual(failing(cases), [
+  assert.deepEqual(await failingDelta(cases), [
     'accept/absent-elevation-and-time.vnx',
     'accept/track-partly-timed.vnx',
     'accept/track-without-times.vnx',
@@ -185,7 +220,7 @@ test('rounding in the reader is caught by the full-precision case', async () => 
     from: '  return ctx.position(path, new Position(v.slice()));',
     to: '  const s = v.slice().map((c, i) => (typeof c === \'number\' && i < 2 ? Number(c.toFixed(6)) : c));\n  return ctx.position(path, new Position(s));',
   }]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/full-precision-coordinate.vnx'), red.join(', '));
 });
 
@@ -195,7 +230,7 @@ test('a reader with no continuity check is caught by the diagnose tier', async (
     from: '    if (endpointsMeet(a.link.to, b.link.from, nodes)) continue;',
     to: '    if (true) continue;',
   }]);
-  assert.deepEqual(failing(cases), ['diagnose/chain-does-not-join.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/chain-does-not-join.vnx']);
 });
 
 test('comparing inline endpoints by identity rather than value is caught by one file only', async () => {
@@ -209,7 +244,7 @@ test('comparing inline endpoints by identity rather than value is caught by one 
   // its inline endpoint is a chain terminus and is never compared to anything.
   // accept/shared-turnaround-handle.vnx is the whole of the corpus's coverage
   // for value equality between inline endpoints.
-  assert.deepEqual(failing(cases), ['accept/shared-turnaround-handle.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['accept/shared-turnaround-handle.vnx']);
 });
 
 test('accepting a MINOR above the reader is caught by the reject tier', async () => {
@@ -218,7 +253,7 @@ test('accepting a MINOR above the reader is caught by the reject tier', async ()
     from: '  if (major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR)) {',
     to: '  if (false) {',
   }]);
-  assert.deepEqual(failing(cases), ['reject/version-too-new.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['reject/version-too-new.vnx']);
 });
 
 test('refusing a newer PATCH is caught by the accept tier', async () => {
@@ -228,7 +263,7 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
     to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
   }]);
   // write/emit-boundary declares 0.1.99 too, so the same defect reddens both.
-  assert.deepEqual(failing(cases), [
+  assert.deepEqual(await failingDelta(cases), [
     'accept/version-newer-patch.vnx',
     'write/emit-boundary',
   ]);
@@ -240,7 +275,7 @@ test('coercing a two-component version is caught by the reject tier', async () =
     from: 'const VERSION = /^(\\d+)\\.(\\d+)\\.(\\d+)$/;',
     to: 'const VERSION = /^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$/;',
   }]);
-  assert.deepEqual(failing(cases), ['reject/version-two-component.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['reject/version-two-component.vnx']);
 });
 
 test('keeping the outer ring of a nested polygon is caught', async () => {
@@ -256,7 +291,7 @@ test('keeping the outer ring of a nested polygon is caught', async () => {
       to: '    ring = ring[0];',
     },
   ]);
-  assert.deepEqual(failing(cases), ['diagnose/polygon-second-ring.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/polygon-second-ring.vnx']);
 });
 
 test('comparing links that were not adjacent in the document is caught', async () => {
@@ -274,7 +309,7 @@ test('comparing links that were not adjacent in the document is caught', async (
   // one was the LAST, so no reader could report a break past it and the
   // expectation was guaranteed by arity. It now has three links with the middle
   // one dropped and survivors that do not meet, so the guard is real.
-  assert.deepEqual(failing(cases), ['diagnose/link-names-absent-arc.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/link-names-absent-arc.vnx']);
 });
 
 test('refusing a timestamp with an offset, rather than diagnosing it, is caught', async () => {
@@ -283,7 +318,7 @@ test('refusing a timestamp with an offset, rather than diagnosing it, is caught'
     from: "    ctx.diag(`${path}/${esc(k)}`, `\"${k}\" must be UTC with a Z suffix`, 'timestamp-not-utc');\n    return undefined;",
     to: "    throw new VnxRefusal('timestamp-not-utc', 'must be UTC with a Z suffix');",
   }]);
-  assert.deepEqual(failing(cases), ['diagnose/timestamp-with-offset.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/timestamp-with-offset.vnx']);
 });
 
 test('skipping an unknown key silently is caught by the diagnose tier', async () => {
@@ -292,7 +327,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     from: "    else ctx.diag(`${path}/${esc(k)}`, `unknown key \"${k}\"`, 'unknown-key');",
     to: '    else { /* silently skipped */ }',
   }]);
-  assert.deepEqual(failing(cases), ['diagnose/unknown-key.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/unknown-key.vnx']);
 });
 
 test('a container matching its root document on the base name is caught', async () => {
@@ -305,7 +340,7 @@ test('a container matching its root document on the base name is caught', async 
   }]);
   // Nothing in the corpus has a nested doc.vnx, so this mutation is NOT caught.
   // Asserting that fact here keeps the gap visible instead of assumed.
-  assert.deepEqual(failing(cases), [],
+  assert.deepEqual(await failingDelta(cases), [],
     'the corpus now discriminates the base-name match; delete this test and add a real one');
 });
 
@@ -315,7 +350,7 @@ test('accepting a duplicate entry name is caught by the reject tier', async () =
     from: '    if (seen.has(key)) {',
     to: '    if (false) {',
   }]);
-  assert.deepEqual(failing(cases), ['reject/container-duplicate-entries.vnz']);
+  assert.deepEqual(await failingDelta(cases), ['reject/container-duplicate-entries.vnz']);
 });
 
 test('treating `..` as a substring rather than a segment still passes; the corpus has no case for it', async () => {
@@ -326,7 +361,7 @@ test('treating `..` as a substring rather than a segment still passes; the corpu
   }]);
   // `a..b/photo.jpg` is explicitly legal (SPEC.md 7) and no corpus file holds
   // one, so the over-strict reader passes. Recorded, not papered over.
-  assert.deepEqual(failing(cases), [],
+  assert.deepEqual(await failingDelta(cases), [],
     'the corpus now holds a legal `a..b` entry name; delete this test and add a real one');
 });
 
@@ -336,7 +371,7 @@ test('accepting a path that escapes the archive is caught by the reject tier', a
     from: '    if (fault !== null) {',
     to: '    if (false) {',
   }]);
-  assert.deepEqual(failing(cases), ['reject/container-escapes.vnz']);
+  assert.deepEqual(await failingDelta(cases), ['reject/container-escapes.vnz']);
 });
 
 test('widening the projection tolerance is caught by the diagnose tier', async () => {
@@ -345,7 +380,7 @@ test('widening the projection tolerance is caught by the diagnose tier', async (
     from: 'export const PROJECTION_TOLERANCE_M = 50;',
     to: 'export const PROJECTION_TOLERANCE_M = 100;',
   }]);
-  assert.deepEqual(failing(cases), ['diagnose/inline-endpoint-beyond-tolerance.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/inline-endpoint-beyond-tolerance.vnx']);
 });
 
 test('narrowing the projection tolerance is caught by the accept tier', async () => {
@@ -354,7 +389,7 @@ test('narrowing the projection tolerance is caught by the accept tier', async ()
     from: 'export const PROJECTION_TOLERANCE_M = 50;',
     to: 'export const PROJECTION_TOLERANCE_M = 40;',
   }]);
-  assert.deepEqual(failing(cases), ['accept/inline-endpoint-within-tolerance.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['accept/inline-endpoint-within-tolerance.vnx']);
 });
 
 test('taking the cosine of the segment start latitude is caught in BOTH directions', async () => {
@@ -368,7 +403,7 @@ test('taking the cosine of the segment start latitude is caught in BOTH directio
     from: '  const k = EARTH_RADIUS_M * Math.cos(point.lat * DEG);',
     to: '  const k = EARTH_RADIUS_M * Math.cos(pips[0].lat * DEG);',
   }]);
-  assert.deepEqual(failing(cases), [
+  assert.deepEqual(await failingDelta(cases), [
     'accept/inline-endpoint-within-tolerance.vnx',
     'diagnose/inline-endpoint-beyond-tolerance.vnx',
   ]);
@@ -380,7 +415,7 @@ test('using Web Mercator for the projection IS caught', async () => {
     from: '  const k = EARTH_RADIUS_M * Math.cos(point.lat * DEG);',
     to: '  const k = EARTH_RADIUS_M;',
   }]);
-  const red = failing(cases);
+  const red = await failingDelta(cases);
   assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
 });
 
@@ -403,7 +438,7 @@ test('the WRITE path is exercised by the write tier and by nothing else', async 
   ]);
   // Exactly one case, which is the point: the writer is reached, and no
   // re-rendering tier is disturbed by breaking it.
-  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
 test('shortening a position is caught by the write tier', async () => {
@@ -412,7 +447,7 @@ test('shortening a position is caught by the write tier', async () => {
     from: '  while (n > 2 && out[n - 1] === null) n--;',
     to: '  // no shortening',
   }]);
-  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
 test('shortening past an interior null is caught by the write tier', async () => {
@@ -422,7 +457,7 @@ test('shortening past an interior null is caught by the write tier', async () =>
     from: '  while (n > 2 && out[n - 1] === null) n--;',
     to: '  return out.filter((channel) => channel !== null);',
   }]);
-  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
 test('a negative zero the writer CREATED is caught by the write tier', async () => {
@@ -437,7 +472,7 @@ test('a negative zero the writer CREATED is caught by the write tier', async () 
     from: '  return Number(decimalText(q, places, negative));',
     to: '  return negative ? -Number(decimalText(q, places, false)) : Number(decimalText(q, places, false));',
   }]);
-  assert.deepEqual(failing(cases), ['format/messy-spellings', 'write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings', 'write/emit-boundary']);
 });
 
 test('rounding an unknown channel is caught by the write tier', async () => {
@@ -448,7 +483,7 @@ test('rounding an unknown channel is caught by the write tier', async () => {
     from: '  if (out.length > 2) out[2] = round(out[2], ELEVATION_PLACES);',
     to: '  for (let i = 2; i < out.length; i++) out[i] = round(out[i], ELEVATION_PLACES);',
   }]);
-  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
 test('rounding half away from zero instead of half to even is caught by the write tier', async () => {
@@ -465,7 +500,7 @@ test('rounding half away from zero instead of half to even is caught by the writ
     from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',
     to: '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
   }]);
-  assert.deepEqual(failing(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
 test('comparing node keys instead of their positions is NOT caught', async () => {
@@ -478,7 +513,7 @@ test('comparing node keys instead of their positions is NOT caught', async () =>
     from: "  if (a.kind === 'node' && b.kind === 'node' && a.node === b.node) return true;",
     to: "  if (a.kind === 'node' && b.kind === 'node') return a.node === b.node;",
   }]);
-  assert.deepEqual(failing(cases), [],
+  assert.deepEqual(await failingDelta(cases), [],
     'the corpus now covers two distinct node keys at one position; assert the failure instead');
 });
 
@@ -535,7 +570,7 @@ test('rendering a tie away from zero is caught by the formatter tier', async () 
     from: '  return String(n);',
     to: AWAY_FROM_ZERO_TIE,
   }]);
-  assert.deepEqual(failing(cases), ['format/number-tie']);
+  assert.deepEqual(await failingDelta(cases), ['format/number-tie']);
 });
 
 test('the full-precision coordinates are NOT rendering ties', async () => {
@@ -559,7 +594,7 @@ test('accepting a backslash in an entry name is NOT caught', async () => {
     from: "  if (name.includes('\\\\')) return 'the name carries a backslash';",
     to: '  // backslash permitted',
   }]);
-  assert.deepEqual(failing(cases), [],
+  assert.deepEqual(await failingDelta(cases), [],
     'the corpus now carries a backslash entry name; assert the failure instead');
 });
 
@@ -578,5 +613,5 @@ test('summing only the timed segments of a partial track is caught', async () =>
     from: '      if (typeof first !== \'number\' || typeof last !== \'number\') return null;',
     to: '      if (typeof first !== \'number\' || typeof last !== \'number\') continue;',
   }]);
-  assert.deepEqual(failing(cases), ['accept/track-partly-timed.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['accept/track-partly-timed.vnx']);
 });

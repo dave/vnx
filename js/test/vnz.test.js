@@ -73,7 +73,7 @@ test('duplicate entry names are refused, compared case-insensitively', () => {
 });
 
 test('a path that escapes the archive is refused', () => {
-  for (const name of ['../etc/passwd', 'a/../../b', '/etc/passwd', 'C:/windows', '..\\\\x']) {
+  for (const name of ['../etc/passwd', 'a/../../b', '/etc/passwd', 'C:/windows']) {
     const buf = writeArchive([
       { name: 'doc.vnx', data: Buffer.from(DOC) },
       { name, data: Buffer.from('x') },
@@ -228,3 +228,34 @@ function zip64Archive(name, data) {
 
   return Buffer.concat([localBytes, centralBytes, z64, locator, eocd]);
 }
+
+test('a backslash anywhere in an entry name is refused, on its own', () => {
+  // Ruled 2026-09-09, stricter than APPNOTE, which permits the character. The
+  // check stands alone and fires BEFORE the `..` segment hunt, so `..\x` is
+  // refused for the simple reason and the question "is a backslash a separator
+  // while hunting for the segment" never arises.
+  for (const name of ['..\\x', 'weird\\name.jpg', 'sub\\dir\\photo.jpg', '\\abs.jpg']) {
+    const buf = writeArchive([
+      { name: 'doc.vnx', data: Buffer.from(DOC) },
+      { name, data: Buffer.from('x') },
+    ]);
+    const err = refusal(() => decodeContainer(buf));
+    assert.equal(err.cause_code, 'zip-path-escapes', name);
+    assert.match(err.message, /backslash/, name);
+  }
+});
+
+test('a legal `a..b/` name is still accepted after the backslash rule', () => {
+  // The two rules must not collapse into one: `a..b/photo.jpg` is named legal by
+  // SPEC.md 7 and carries no backslash.
+  const buf = writeArchive([
+    { name: 'doc.vnx', data: Buffer.from(DOC) },
+    { name: 'a..b/photo.jpg', data: Buffer.from('x') },
+  ]);
+  assert.deepEqual([...decodeContainer(buf).attachments.keys()], ['a..b/photo.jpg']);
+});
+
+test('the writer refuses to pack a name it would refuse to read', () => {
+  assert.throws(() => encodeContainer(DOC, [['weird\\name.jpg', Buffer.from('x')]]),
+    /backslash/);
+});

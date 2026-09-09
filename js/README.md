@@ -128,3 +128,6 @@ corpus rather than assuming there is none.
   SHOULD bound what one document may consume. This one does not.
 - **ZIP64 is read, not written.** The writer emits a plain archive, which
   `SPEC.md` 7 permits.
+- **A backslash in an archive entry name is refused outright**, which is
+  stricter than [APPNOTE]. Ruled 2026-09-09; no corpus case covers it, so
+  `test/vnz.test.js` holds the guard and a red-proof records the gap.

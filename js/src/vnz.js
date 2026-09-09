@@ -109,14 +109,24 @@ export function decodeContainer(buf) {
 }
 
 /**
- * `..` is a path SEGMENT, not a substring: `a..b/photo.jpg` is a legal name and
- * escapes nothing.
+ * SPEC.md 7's path rules, in the order they are applied.
+ *
+ * The BACKSLASH check stands alone and fires FIRST, so `..\\x` is refused for the
+ * simple reason rather than the subtle one and "is a backslash a separator while
+ * hunting for the segment" never has to be answered. Ruled 2026-09-09; the
+ * refusal is deliberately stricter than [APPNOTE], which permits the character,
+ * because no VNX archive has a legitimate use for it in an entry name.
+ *
+ * `..` is then a path SEGMENT, not a substring: `a..b/photo.jpg` is a legal name
+ * and escapes nothing.
+ *
  * @returns {string|null} the fault, or null when the path is fine
  */
 function pathFault(name) {
-  if (name.startsWith('/') || name.startsWith('\\')) return 'the path is absolute';
+  if (name.includes('\\')) return 'the name carries a backslash';
+  if (name.startsWith('/')) return 'the path is absolute';
   if (/^[A-Za-z]:/.test(name)) return 'the path carries a drive letter';
-  for (const segment of name.split(/[/\\]/)) {
+  for (const segment of name.split('/')) {
     if (segment === '..') return 'the path has a `..` segment';
   }
   return null;

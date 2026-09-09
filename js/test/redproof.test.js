@@ -481,3 +481,17 @@ test('the full-precision coordinates are NOT rendering ties', async () => {
   assert.equal(-3.6712345678901235, -3.6712345678901234);
   assert.equal((-3.6712345678901235).toPrecision(21), '-3.67123456789012347912');
 });
+
+test('accepting a backslash in an entry name is NOT caught', async () => {
+  // Ruled 2026-09-09 and stricter than APPNOTE, but no archive in the corpus
+  // carries a backslash, so a reader that permits one passes every tier while
+  // accepting a name that traverses on Windows. test/vnz.test.js holds the
+  // local guard. Recorded rather than assumed.
+  const cases = await runMutated([{
+    file: 'vnz.js',
+    from: "  if (name.includes('\\\\')) return 'the name carries a backslash';",
+    to: '  // backslash permitted',
+  }]);
+  assert.deepEqual(failing(cases), [],
+    'the corpus now carries a backslash entry name; assert the failure instead');
+});

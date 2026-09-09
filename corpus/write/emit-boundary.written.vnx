@@ -19,6 +19,7 @@
       },
       "nodes": {
         "collapses-to-zero": [0, 0, 0],
+        "scale-first-gets-this-wrong": [-3.6707, 57.1177, 0.1],
         "tie-down": [-3.671235, 57.118123, 340.2],
         "tie-up": [-3.671, 57.118, 340.8]
       }

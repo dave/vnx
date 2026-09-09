@@ -441,53 +441,38 @@ test('RAW: the walker refuses an archive it cannot walk, so the guard above is r
   assert.throws(() => localHeaders(buf), /cannot be walked forward-only/);
 });
 
-test('the committed .vnz fixtures do NOT satisfy SPEC.md 7.1, and this test is the signal when they are regenerated', () => {
-  // This library's raw-byte guards above run only against its OWN writer's
-  // output, so they say nothing about the corpus archives — and the reader
-  // accepts these because SPEC.md 7 requires accepting bit 3 and takes sizes
-  // from the central directory. The whole suite is therefore green on archives
-  // that are a worked example of breaking the rule it enforces elsewhere, and
-  // could not say so.
+test('the deflate .vnz fixtures are the only coverage of two reader MUSTs, and must not be regenerated', () => {
+  // SPEC.md 7 divides the two in as many words: "This section states what a
+  // READER accepts. Section 7.1 states what a writer emits." These four
+  // archives are INPUT, so deflate and a deferred size are not defects in them
+  // — they are the properties a reader is required to accept, and §7 line 26
+  // and lines 35-36 are the MUSTs they witness.
   //
-  // Measured 2026-09-10. All four are Go-generated and predate the always-STORED
-  // and no-data-descriptor rulings.
+  // Nothing else in the corpus exercises either rule. Regenerating them to
+  // satisfy §7.1's writer table would delete deflate-reading and bit-3-reading
+  // coverage at a stroke, WITH EVERY IMPLEMENTATION STILL PASSING, because
+  // nothing left would ask the question. This pins them so that act cannot be
+  // silent.
   //
-  // WHEN THE ARCHIVES ARE REGENERATED THIS GOES RED. That is the point: a silent
-  // regeneration is the failure mode, because nothing else here would notice.
-  // Invert it then — assert conformance rather than the current state — and
-  // delete this comment.
-  const fixtures = [
+  // An earlier version of this test called them non-conforming, on a reading
+  // two other seats have since retracted. Running a WRITER-conformance checker
+  // over an INPUT fixture reports category errors rather than defects.
+  const readerMusts = [
     'accept/container-root-doc.vnz',
     'accept/container-named-document.vnz',
     'reject/container-duplicate-entries.vnz',
     'reject/container-escapes.vnz',
   ];
-  const observed = [];
-  for (const name of fixtures) {
+  for (const name of readerMusts) {
     const buf = fs.readFileSync(path.join(CORPUS, name));
-    observed.push({
-      fixture: name,
-      versionNeeded: buf.readUInt16LE(4),
-      flags: buf.readUInt16LE(6),
-      method: buf.readUInt16LE(8),
-      localCrc: buf.readUInt32LE(14),
-      localCompressedSize: buf.readUInt32LE(18),
-      forwardWalkable: (buf.readUInt16LE(6) & 0x08) === 0,
-    });
+    assert.equal(buf.readUInt16LE(8), 8, `${name}: deflate, which §7 line 26 requires a reader to accept`);
+    assert.equal(buf.readUInt16LE(6) & 0x08, 0x08,
+      `${name}: the data-descriptor bit, which §7 lines 35-36 require a reader to accept`);
+    assert.equal(buf.readUInt32LE(14), 0, `${name}: the CRC is deferred, so it must come from the central directory`);
   }
-  for (const o of observed) {
-    assert.equal(o.flags, 0x0808, `${o.fixture}: bit 3 set and the UTF-8 flag set`);
-    assert.equal(o.method, 8, `${o.fixture}: deflate, where 7.1 requires stored`);
-    assert.equal(o.versionNeeded, 20, `${o.fixture}: 2.0, needed only for deflate`);
-    assert.equal(o.localCrc, 0, `${o.fixture}: CRC deferred to a data descriptor`);
-    assert.equal(o.localCompressedSize, 0, `${o.fixture}: size deferred`);
-    assert.equal(o.forwardWalkable, false, `${o.fixture}: cannot be walked forward-only`);
-  }
-  // And they must stay READABLE whatever their headers say: SPEC.md 7's
-  // asymmetry is required of a writer and never of a reader.
-  for (const name of fixtures.slice(0, 2)) {
-    const c = decodeContainer(fs.readFileSync(path.join(CORPUS, name)));
-    assert.ok(c.document.vnx, `${name}: still reads`);
+  // And they must READ, which is the coverage itself rather than a side effect.
+  for (const name of readerMusts.slice(0, 2)) {
+    assert.ok(decodeContainer(fs.readFileSync(path.join(CORPUS, name))).document.vnx, `${name} reads`);
   }
 });
 
@@ -524,19 +509,31 @@ test('an independently written parser agrees that this writer satisfies SPEC.md 
   }
 });
 
-test('the cross-seat checker is able to fail, on a fixture that violates SPEC.md 7.1', () => {
-  // Red proof for the corroboration above. A checker that returned 0 for
-  // everything would agree with my writer for the wrong reason, and the
-  // committed archives are the nearest thing to hand that genuinely breaks the
-  // rule. Expected to go GREEN-failing here when they are regenerated, at which
-  // point point it at a hand-broken archive instead.
+test('the cross-seat checker is able to fail, on an archive that breaks a WRITER rule', () => {
+  // Red proof for the corroboration above: a checker returning 0 for everything
+  // would agree with my writer for the wrong reason.
+  //
+  // The archive is built UNSORTED through `writeArchive`, which bypasses the
+  // sort in `encodeContainer` — so this exercises §7.1's entry-order rule, which
+  // is a writer rule and is the right thing to judge with a writer checker. The
+  // committed deflate fixtures are NOT usable here: they are input, and a
+  // writer checker over input reports category errors rather than defects.
   const tool = path.resolve(CORPUS, '..', 'scripts', 'container-fields.py');
-  const fixture = path.join(CORPUS, 'accept', 'container-root-doc.vnz');
-  const done = spawnSync('python3', [tool, '--spec', fixture], { encoding: 'utf8' });
-  if (done.error && done.error.code === 'ENOENT') return;
-  assert.equal(done.status, 1, 'the checker must report faults for this archive');
-  assert.match(done.stdout, /local crc=.* but central crc=/,
-    'and must name the local-versus-central class specifically');
+  const out = path.join(os.tmpdir(), `vnx-unsorted-${process.pid}.vnz`);
+  fs.writeFileSync(out, writeArchive([
+    { name: 'doc.vnx', data: Buffer.from(DOC) },
+    { name: 'zzz/late.txt', data: Buffer.from('z') },
+    { name: 'aaa/early.txt', data: Buffer.from('a') },
+  ]));
+  try {
+    const done = spawnSync('python3', [tool, '--spec', out], { encoding: 'utf8' });
+    if (done.error && done.error.code === 'ENOENT') return;
+    assert.equal(done.status, 1, `the checker must report a fault for an unsorted archive:\n${done.stdout}`);
+    assert.match(done.stdout + done.stderr, /sorted|order/i,
+      'and must name the ordering rule rather than some unrelated field');
+  } finally {
+    fs.rmSync(out, { force: true });
+  }
 });
 
 test('attachments are sorted by entry name, and the caller order is not preserved', () => {

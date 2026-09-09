@@ -36,8 +36,10 @@ same way — `rerenderContainer` and `writeContainer` — so repackaging a conta
 unchanged cannot silently round it. `encodeContainer` takes document text the
 caller has already produced, so the choice is the caller's.
 
-The `write/` corpus tier exercises the first path and is the only tier that does;
-see `corpus/write/README.md`.
+The `write/` corpus tier exercises the first path and is the only document tier
+that does; see `corpus/write/README.md`. `corpus/numbers/` reaches the same
+boundary at value level, pinning what every implementation must emit for a given
+double before and after rounding to 6 and to 1 places.
 
 A rounding TIE rounds to even (`SPEC.md` 4.5.4): `340.25` to one place is `340.2`,
 where JavaScript's `toFixed` gives `340.3`. `src/round.js` decides the tie on the

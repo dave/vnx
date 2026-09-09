@@ -65,6 +65,8 @@ async function runMutated(edits) {
     decodeContainer: api.decodeContainer,
     rerender: api.rerender,
     write: api.write,
+    renderNumber: api.renderNumber,
+    roundToPlaces: api.roundToPlaces,
   });
 }
 
@@ -166,7 +168,9 @@ test('rendering negative zero as -0 is caught by the format tier alone', async (
     from: "  if (n === 0) return '0'; // collapses -0 as well as 0",
     to: "  if (n === 0) return Object.is(n, -0) ? '-0' : '0';",
   }]);
-  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings']);
+  // The number tier catches it too, in its `render` column: a rendering rule and
+  // a rounding rule are different code paths and it checks both.
+  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings', 'numbers/numbers.tsv']);
 });
 
 test('a reader that discards data records is caught by the accept tier', async () => {
@@ -472,7 +476,8 @@ test('a negative zero the writer CREATED is caught by the write tier', async () 
     from: '  return Number(decimalText(q, places, negative));',
     to: '  return negative ? -Number(decimalText(q, places, false)) : Number(decimalText(q, places, false));',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings', 'write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases),
+    ['format/messy-spellings', 'numbers/numbers.tsv', 'write/emit-boundary']);
 });
 
 test('rounding an unknown channel is caught by the write tier', async () => {
@@ -500,7 +505,9 @@ test('rounding half away from zero instead of half to even is caught by the writ
     from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',
     to: '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
+  // Both tiers, and the README for the number tier requires exactly that: the
+  // `round6` and `round1` columns are a different path from `render`.
+  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv', 'write/emit-boundary']);
 });
 
 test('comparing node keys instead of their positions is NOT caught', async () => {
@@ -570,7 +577,7 @@ test('rendering a tie away from zero is caught by the formatter tier', async () 
     from: '  return String(n);',
     to: AWAY_FROM_ZERO_TIE,
   }]);
-  assert.deepEqual(await failingDelta(cases), ['format/number-tie']);
+  assert.deepEqual(await failingDelta(cases), ['format/number-tie', 'numbers/numbers.tsv']);
 });
 
 test('the full-precision coordinates are NOT rendering ties', async () => {
@@ -614,4 +621,72 @@ test('summing only the timed segments of a partial track is caught', async () =>
     to: '      if (typeof first !== \'number\' || typeof last !== \'number\') continue;',
   }]);
   assert.deepEqual(await failingDelta(cases), ['accept/track-partly-timed.vnx']);
+});
+
+test('rounding by scaling first, rather than on the exact expansion, is caught by the write tier', async () => {
+  requireFixture(
+    'write/emit-boundary.in.vnx',
+    (d) => JSON.stringify(d).includes('0.15'),
+    'it needs the 0.15 elevation; the two ties are blind to the choice of operation',
+  );
+  // Rounding a decimal place has TWO independent choices: which way a tie goes,
+  // and whether the value is rounded on its exact decimal expansion or scaled
+  // by a power of ten and rounded as an integer. The elevation ties pin the
+  // first and were blind to the second until 0.15 was added — every other value
+  // in the fixture gives the identical answer under both operations.
+  //
+  // The mutation breaks ties to EVEN so that only the operation differs; a
+  // Math.round-based mutation would change both at once and prove neither.
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  return roundToPlaces(v, places);',
+    to: `  const scaled = v * 10 ** places;
+  const floor = Math.floor(scaled);
+  const diff = scaled - floor;
+  let n;
+  if (diff > 0.5) n = floor + 1;
+  else if (diff < 0.5) n = floor;
+  else n = floor % 2 === 0 ? floor : floor + 1;
+  return n / 10 ** places;`,
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
+});
+
+test('the scaling route reddens the ROUND columns of the number tier and not the render column', async () => {
+  // The number tier's README requires this separation: a tie mutation reaches
+  // `render` and the two round columns; a ROUTE mutation reaches only the round
+  // columns, because rendering does not round. A single "the table went red"
+  // would not distinguish them.
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  return roundToPlaces(v, places);',
+    to: `  const scaled = v * 10 ** places;
+  const floor = Math.floor(scaled);
+  const diff = scaled - floor;
+  let n;
+  if (diff > 0.5) n = floor + 1;
+  else if (diff < 0.5) n = floor;
+  else n = floor % 2 === 0 ? floor : floor + 1;
+  return n / 10 ** places;`,
+  }]);
+  // emit.js is the WRITE path only, so the number tier is untouched by this
+  // mutation and `write/emit-boundary` carries it alone — which is exactly why
+  // the 0.15 value had to be added to that fixture.
+  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
+});
+
+test('the scaling route in the ROUNDER itself reddens the number tier too', async () => {
+  const cases = await runMutated([{
+    file: 'round.js',
+    from: '  return Number(decimalText(q, places, negative));',
+    to: `  const scaled = v * 10 ** places;
+  const floor = Math.floor(scaled);
+  const diff = scaled - floor;
+  let n;
+  if (diff > 0.5) n = floor + 1;
+  else if (diff < 0.5) n = floor;
+  else n = floor % 2 === 0 ? floor : floor + 1;
+  return n / 10 ** places;`,
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv', 'write/emit-boundary']);
 });

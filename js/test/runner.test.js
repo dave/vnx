@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { Case, matchDiagnostics } from '../corpus/runner.js';
 import { decodeText } from '../src/decode.js';
 import { decodeContainer } from '../src/vnz.js';
-import { rerender, write } from '../src/index.js';
+import { rerender, write, renderNumber, roundToPlaces } from '../src/index.js';
 import { runCorpus } from '../corpus/runner.js';
 import { DIAGNOSTIC_CODES, PINNED_CODES, REFUSAL_SUBSTRINGS } from '../src/errors.js';
 
@@ -159,7 +159,7 @@ test('every refusal substring the corpus expects is in the refusal table', () =>
 });
 
 test('the whole corpus passes', () => {
-  const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender, write });
+  const cases = runCorpus(CORPUS, { decodeText, decodeContainer, rerender, write, renderNumber, roundToPlaces });
   const red = cases.filter((c) => c.failures.length > 0);
   // Reported with the failure text rather than as a bare set inequality: when
   // this goes red the question is always "which case, and why", and a corpus

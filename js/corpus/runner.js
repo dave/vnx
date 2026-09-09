@@ -47,6 +47,7 @@ export function runCorpus(CORPUS, api) {
   }
   cases.push(...runFormatCases(path.join(CORPUS, 'format'), api));
   cases.push(...runWriteCases(path.join(CORPUS, 'write'), api));
+  cases.push(...runNumberCases(path.join(CORPUS, 'numbers'), api));
   return cases;
 }
 
@@ -239,6 +240,76 @@ function runFormatCases(dir, api) {
     cases.push(c);
   }
   return cases;
+}
+
+/**
+ * The NUMBER tier: `numbers.tsv` fixes what every implementation must emit for a
+ * given double, as three columns — the canonical spelling, and the spelling after
+ * rounding to 6 and to 1 decimal places.
+ *
+ * A row is a value rather than a document, so there is no sidecar: the three
+ * answer columns ARE the expectation. It is the only tier that reaches past the
+ * writer boundary at value level, and it separates two independent choices the
+ * document tiers cannot — the tie direction, and whether rounding is done on the
+ * exact decimal expansion or by scaling first.
+ *
+ * The double arrives as 16 hexadecimal digits of its IEEE 754 encoding. A decimal
+ * literal would beg the question the table exists to answer.
+ */
+function runNumberCases(dir, api) {
+  const { renderNumber, roundToPlaces } = api;
+  if (!fs.existsSync(dir)) return [];
+  const c = new Case('numbers/numbers.tsv');
+  const file = path.join(dir, 'numbers.tsv');
+  if (!fs.existsSync(file)) {
+    c.failures.push('no numbers.tsv in the numbers tier');
+    return [c];
+  }
+  if (typeof renderNumber !== 'function' || typeof roundToPlaces !== 'function') {
+    c.failures.push('the implementation exposes no number renderer or no rounder');
+    return [c];
+  }
+
+  const view = new DataView(new ArrayBuffer(8));
+  const toDouble = (hex) => {
+    view.setBigUint64(0, BigInt(`0x${hex}`));
+    return view.getFloat64(0);
+  };
+
+  let rows = 0;
+  let failedRows = 0;
+  const kinds = new Set();
+  const sample = [];
+  const COLUMNS = ['render', 'round6', 'round1'];
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  for (const [index, line] of lines.entries()) {
+    if (line === '' || line.startsWith('#')) continue;
+    const columns = line.split('\t');
+    if (columns.length !== 5) {
+      c.failures.push(`line ${index + 1}: expected five tab-separated columns, found ${columns.length}`);
+      continue;
+    }
+    const [bits, kind, ...want] = columns;
+    rows++;
+    kinds.add(kind);
+    const v = toDouble(bits);
+    const got = [renderNumber(v), renderNumber(roundToPlaces(v, 6)), renderNumber(roundToPlaces(v, 1))];
+    if (got.every((g, i) => g === want[i])) continue;
+    failedRows++;
+    // A bounded sample: five thousand identical failures are one defect, and a
+    // report nobody reads is not a report. The count above it is the scale.
+    if (sample.length < 12) {
+      const wrong = COLUMNS.filter((_, i) => got[i] !== want[i]).join(' and ');
+      sample.push(`line ${index + 1}  ${bits} (${kind})  ${wrong}: expected [${want}], produced [${got}]`);
+    }
+  }
+  if (failedRows > 0) {
+    c.failures.push(`${failedRows} of ${rows} rows disagree; first ${sample.length}:`, ...sample);
+  }
+  // A table read as zero rows would satisfy every comparison in it.
+  c.check(rows > 100, `only ${rows} rows read from numbers.tsv`);
+  c.check(kinds.size >= 5, `only ${kinds.size} kinds present, so the sample is narrower than the table claims`);
+  return [c];
 }
 
 /**

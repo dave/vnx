@@ -1,13 +1,13 @@
 {
   "kind": "accept",
-  "note": "A track whose first segment carries times and whose second does not. Moving time is unknown, not 60000 ms. Section 3.5 makes it derivable only when every segment carries a time on its first and last pip, because a sum over the segments that happen to be timed is indistinguishable from a complete one and no consumer can tell which it was given. Zero is at least recognisable as suspicious; a partial sum is not. Every other track in the corpus is fully timed or fully untimed, so nothing else here separates a reader that answers unknown from one that sums what it has. Three implementations summed, including the reference one, and every tier stayed green. Do not add times to the second segment.",
+  "note": "A track whose first segment carries pip times and whose second does not. Moving time is UNKNOWN for the whole track, not the sum of the segments that happen to be timed. Section 3.5 forbids reporting zero for an untimed track because a plausible-looking wrong number is worse than an absence, and a partial sum is the same failure with the evidence removed: 0 at least reads as suspicious, while a partial sum is indistinguishable from a complete one and no caller can tell which it was handed. What this file discriminates, exactly: the timed segment spans 1778569391000 to 1778569494000, so a reader that sums only the timed segments answers 103000 and a conforming reader answers unknown. Do not make the second segment timed and do not delete it - a track that is wholly timed or wholly untimed is what every other track case in this corpus already is, and it was that uniformity that let two independent libraries ship the partial sum with nothing anywhere going red. Red-proofed 2026-09-09, and the first proof was too blunt to count: summing the timed segments unconditionally reddens this case AND track-without-times AND absent-elevation-and-time, because that mutation also turns a wholly untimed track into zero, which those two already guard. The mutation this file alone answers is the narrow one - sum the timed segments, but still report unknown when no segment is timed - and under it exactly one case goes red, this one.",
   "schema": "valid",
   "counts": {
     "tracks": 1
   },
   "tracks": [
     {
-      "name": "Timed on the way up, not on the way down",
+      "name": "Recorded, then joined by a segment the clock never reached",
       "moving_time_ms": null
     }
   ]

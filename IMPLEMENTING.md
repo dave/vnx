@@ -13,6 +13,12 @@ Six implementations were written from `SPEC.md` and `corpus/` alone: Go, Python,
 Swift, Kotlin, JavaScript and Rust. Everything below is something at least one of
 them got wrong first.
 
+Every number here is a measurement of a particular file at a particular moment,
+not a property of the format. Fixtures move. A number copied out of this document
+into a test asserts, from then on, that a file still says what it said, so name
+the artefact beside it or write it as a counterfactual, which has no artefact to
+go stale against.
+
 Read it before writing your serialiser, not after your corpus run goes red.
 
 ---
@@ -702,22 +708,18 @@ one. The symptom is shared and the repairs are not.
 These were never checking the thing they named, because no answer they could
 produce would differ between a correct implementation and a wrong one.
 
-**JavaScript's node-key comparison, where the order of events is the lesson.** It
-implemented an earlier reading of Section 6.2 literally, that two node keys meet
-when the keys are equal, so two distinct keys at one position did not meet and a
-continuous walk was reported as broken. The rule was then settled the other way,
-resolving a key to its position first and demoting key equality to a fast path.
-The library had shipped the opposite reading, and on re-running the corpus: 31 of
-31, green. Nothing went red, and its own tests could not help either, having been
-written to match its own reading.
+**A node-key comparison.** Section 6.2 resolves a node key to its position before
+comparing chain continuity, demoting key equality to a fast path. Compare the keys
+instead and two distinct keys at one position do not meet, so a continuous walk is
+reported as broken. One library shipped that reading and ran 31 of 31, green; its
+own tests could not help either, having been written to match it, and the fix was
+as invisible as the defect.
 
-The fixture that exists for continuity, `diagnose/chain-does-not-join.vnx`,
-varies the node keys *and* the positions together, so a key comparator and a
-position comparator return the same verdict on it. It looks like coverage. It is
-in `diagnose/`, it is named for continuity, its note explains it, and it cannot
-attribute its verdict to either reading. Any fixture that changes two variables
-together tests neither. *(Measured by the JavaScript implementation.)* The fix was as invisible as the
-defect, still 31 of 31 afterwards.
+`diagnose/chain-does-not-join.vnx` varies the node keys *and* the positions
+together, so a key comparator and a position comparator return the same verdict on
+it. It looks like coverage: it is in `diagnose/`, it is named for continuity, and
+it cannot attribute its verdict to either reading. Any fixture that changes two
+variables together tests neither. *(Reported by the JavaScript implementation.)*
 
 **Kotlin's tie table.** Sixty rows labelled as rendering ties, mined by an
 undiscriminating detector, every one green when the tie rule was reverted. The
@@ -736,9 +738,8 @@ code; one runner's matcher looked for an English `message` field, found nothing,
 and fell through to comparing paths alone. Every diagnose case stayed green while checking half of what it
 pinned. *(Measured by the Python implementation.)*
 
-**Absence-proofs that went stale.** A red-proof asserting that no corpus tier
-catches some defect was true when written and false once a formatter case reached
-it. See 6.3.
+**Absence-proofs that went stale.** A proof asserting that no tier catches some
+defect is true until a case reaches it. See 6.3.
 
 **A fixture retired by a rule change.** A test used two positions that collide
 once rounded, to prove that arc-boundary de-duplication compares full values.
@@ -758,11 +759,42 @@ verdict passed green while asserting something false of the corpus it named.
 Restating a number is not reading an artefact, and a test that restates one cannot
 notice when the artefact moves. *(Reported by the Rust implementation.)*
 
-**A ZIP reader and writer by the same hand**, which is the container-boundary
-instance and the only one whose fix is to check against an implementation not
-written from this specification. See 6.5 below.
+**A ZIP reader and writer by the same hand.** The container section of `SPEC.md`
+needs control a stock library may not expose, so you write your own writer: the
+UTF-8 flag set explicitly, per-entry compression method inspection, and seeing
+*both* halves of a duplicated entry name. A reader and a writer written by the
+same person can be wrong in the same way and agree perfectly, so read every
+archive you produce back with a library that has never seen this specification.
+This is the only instance whose fix is to check against an implementation not
+written from this document. *(Reported by the Kotlin implementation, which reads
+its own archives with `java.util.zip`.)*
 
-The repair for this third mechanism is to make the test read the artefact. Mutate
+#### A rule with no guard at all
+
+The three mechanisms above are about a guard that fails. The fourth state has no
+guard in it.
+
+A rule that is unambiguous, stated in the normative document, and enforced by
+nothing produces total confidence and zero enforcement. An open question makes
+people uneasy, so it stays on a list and somebody eventually checks it. A settled
+one does not, and nobody asks whether anything checks it, because the question
+feels answered.
+
+The evidence is the partly-timed track. Three implementations summed a partial
+moving time with every corpus tier green, and that was already a rule the
+specification stated. Prose did not change what passed; a fixture did.
+
+> Prose changes what people believe. A fixture changes what passes.
+
+So "this one is ruled, so it must be handled" is backwards. **A written rule with
+no fixture is the one most likely to be quietly violated, because everyone reading
+the specification believes it is enforced.** Four rules were in that state at once
+here: node-key resolution, the full-entry-name root document match, `a..b/photo.jpg`
+being legal, and a backslash in an entry name being refused. *(Reported by the
+JavaScript implementation, which holds a proof for each asserting the corpus stays
+green while the rule is broken.)*
+
+The repair for the three failing mechanisms is to make the test read the artefact. Mutate
 the implementation, run the real corpus, and assert exactly which cases fail. That
 turns "the corpus discriminates" from a restated number into a measurement, and it
 goes red when a fixture moves.
@@ -871,51 +903,60 @@ learned nothing until you have said which of the three it is.
 > A comparison that has never been seen to fail is not a comparison. It is a
 > green light with no bulb in it. *(Measured by the Kotlin implementation.)*
 
-The Kotlin cross-check against Go covers 460,007 doubles with zero
-disagreements: 300,000 uniform over the whole binary64 range via
-`Double.fromBits`, every value the specification and corpus name, and 40,000
-dense small magnitudes. The two halves share no code. One language writes raw
-IEEE 754 bits plus its own rendering to a table, and about thirty lines in the
-other bit-casts each row back and compares.
+One cross-language check covers 460,007 doubles with zero disagreements: 300,000
+uniform over the binary64 range via a bits-to-double constructor, 40,000 dense
+small magnitudes, and every value the specification and corpus name. The two
+halves share no code: one language writes raw IEEE 754 bits and its own rendering
+to a table, and thirty lines in the other bit-cast each row back and compare.
 
-The number that makes it worth having is not 460,007 but 78 — the disagreements
-that reappear when the tie mode is reverted. Without those, a zero-disagreement
-result is indistinguishable from a comparison that is not running.
+The number that makes it worth having is not 460,007 but 78, the disagreements
+that reappear when the tie mode is reverted. Without those, zero disagreements is
+indistinguishable from a comparison that is not running.
 
-Three traps in building such an instrument, all first-hand *(Kotlin implementation)*:
+Three traps in building one *(Kotlin implementation)*: bits must travel as bits,
+since an unsigned parser fails on every negative double and, with the error
+ignored, reported 149,667 disagreements against a value of `0`; a mining criterion
+can decorate rather than discriminate (1.4); and the generator must be
+deterministic, because a table nobody can diff is most of the way to useless.
 
-- Bits must travel as bits. Parsing the bit patterns with an unsigned parser
-  fails on every negative double, because the sign bit makes the integer
-  negative. With the error ignored, that reported 149,667 disagreements against a
-  value of `0`. Parse signed and convert, or write the bits as hex.
-- A mining criterion can decorate rather than discriminate; Section 1.4.
-- Determinism. Go randomises map iteration, so a generated table's header changed
-  on every run, and a table nobody can diff is most of the way to useless.
-
-The result is a language-neutral table of 5,315 doubles with three reference
-answers each, rendered, rounded to 6 places and rounded to 1, which is about ten
-lines to read in any language.
-
-### 6.5 A reader and a writer by the same hand agree with each other
-
-The format pushes you into writing your own serialiser (Section 1.1), your own
-JSON parser (Section 4.1), and for `.vnz` your own ZIP writer, because Section 7
-needs control a stock library may not expose: the UTF-8 flag set explicitly,
-per-entry compression method inspection, and seeing *both* halves of a duplicated
-entry name rather than whichever one the library resolves to.
-
-A reader and a writer written by the same person can be wrong in the same way and
-agree perfectly. So read every archive you produce back with a library that has
-never seen this specification. The Kotlin implementation reads its own archives with
-`java.util.zip` for that reason: it is cheap, and it is the only thing standing
-between an implementation and a self-consistent private dialect of ZIP. *(Measured by the Kotlin implementation.)*
-
-The corpus already does that job for the JSON layer, which is a good reason to
-notice that no tier does it for archive structure.
+The result, `corpus/numbers/numbers.tsv`, is 5,315 doubles with three reference
+answers each: rendered, rounded to 6 places, rounded to 1. About ten lines to
+read in any language.
 
 ---
 
-## 7. Where each language falls in
+## 7. What a guard that works looks like
+
+Three properties, from a test written to keep a corpus runner strict about which
+field a sidecar pins. *(Reported by the Swift implementation.)*
+
+*Build the input on disk; do not assert about the corpus.* A guard tested only
+against inputs that satisfy it has not been tested, and the whole corpus satisfies
+this one: every sidecar is well-formed, so no corpus file can ever exercise the
+refusal. The test writes malformed sidecars into a temporary directory and parses
+those.
+
+*Carry a well-formed control.* Without one, two refusal tests prove only that
+the parser rejects *something*, not that it rejects the thing they name. The
+control is a valid sidecar asserted to parse and to yield the expected values, and
+it is what makes the refusals discriminate rather than merely fail.
+
+*Pin the state of the world the strictness assumes.* A separate test walks every
+tier and asserts that no sidecar carries the field the strict parser refuses. If
+one reappears, that goes red naming the corpus and the rule, instead of surfacing
+as an opaque parse failure inside whichever tier happened to load it first. A
+guard should fail informatively about why the world changed, not about what it
+hit.
+
+Two caveats came with it. The third property is a source scan, so it sees a
+literal spelling and a sidecar spelling it differently escapes: a tripwire for one
+regression rather than a validator. And it rests on a measurement with a date on
+it. If the corpus deliberately reintroduces what the guard refuses, the answer is
+to change the rule rather than loosen the guard back into a fallback.
+
+---
+
+## 8. Where each language falls in
 
 Navigation only. Every fact here is stated above.
 
@@ -937,7 +978,7 @@ wrongly (2.2).
 
 **Kotlin.** Shortest-repr ties away from zero (1.3). `BigDecimal.HALF_UP` at the
 rounding boundary (1.5). `String.compareTo` orders by UTF-16 `char` on the JVM,
-and Kotlin/Native is unmeasured (2.2). `java.util.zip` cannot write what Section 7
+and Kotlin/Native is unmeasured (2.2). `java.util.zip` cannot write what the container section of `SPEC.md`
 needs, not exposing the UTF-8 flag or the version fields, while remaining a sound
 independent reader (6.5).
 

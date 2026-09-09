@@ -188,3 +188,48 @@ func WriterCodes() []string {
 	copy(out, writerCodes)
 	return out
 }
+
+// decodeCodes is every Code a DECODE diagnostic can carry, in declaration order.
+//
+// ⚠ IT IS DELIBERATELY SHORT, and it stays short. Spec 5b ruled that the sixty
+// decode sites in this package do NOT get codes — they report malformed input
+// to `vnx validate` and to logs, they have never reached a translated surface,
+// and inventing sixty codes to make a field look full would be sixty wire
+// commitments nobody asked for. That ruling stands.
+//
+// What changed on 2026-09-09 is narrower: a conformance corpus case cannot pin
+// a diagnostic by its ENGLISH. Five implementations matching substrings of
+// free prose is the same defect as the refusal wordings, and worse, because
+// there are more of them and no prose behind any. So spec §6.3 now requires a
+// code for exactly the diagnostics a corpus case pins, and this is that list.
+//
+// A code here with no corpus case, or a corpus case naming a code that is not
+// here, is a test failure — see TestEveryDecodeCodeIsPinnedByTheCorpus.
+var decodeCodes []string
+
+func decodeCode(s string) string {
+	decodeCodes = append(decodeCodes, s)
+	return s
+}
+
+// The decode Codes the conformance corpus pins.
+var (
+	// CodeUnknownKey: an unrecognised key on an object this format defines
+	// (§6.2). The key is skipped and the item kept.
+	CodeUnknownKey = decodeCode("unknown-key")
+	// CodeLinkArcAbsent: a link naming an arc that is not in its network
+	// (§6.2). The link is dropped.
+	CodeLinkArcAbsent = decodeCode("link-arc-absent")
+	// CodeChainDiscontinuity: consecutive links in a chain that do not meet
+	// (§3.3.3). Both links are kept and the break is reported.
+	CodeChainDiscontinuity = decodeCode("chain-discontinuity")
+	// CodePolygonNestedRings: a polygon carrying more than one ring (§3.7).
+	// The item is dropped.
+	CodePolygonNestedRings = decodeCode("polygon-nested-rings")
+	// CodeTimestampNotUTC: a record-level timestamp with an offset other than
+	// `Z` (§4.3). The timestamp is dropped and the item kept.
+	CodeTimestampNotUTC = decodeCode("timestamp-not-utc")
+	// CodeEndpointOffArc: an inline chain endpoint that does not project onto
+	// its arc within tolerance (§3.3.3). The link is dropped.
+	CodeEndpointOffArc = decodeCode("endpoint-off-arc")
+)

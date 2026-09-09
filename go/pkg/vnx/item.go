@@ -142,7 +142,7 @@ func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Dia
 		if first, isArr := arr[0].([]any); isArr && len(first) > 0 {
 			if _, nested := first[0].([]any); nested {
 				return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-					Message: "polygon holds nested rings; this format carries ONE closed ring and cannot express holes — area dropped"})
+					Code: CodePolygonNestedRings, Message: "polygon holds nested rings; this format carries ONE closed ring and cannot express holes — area dropped"})
 			}
 		}
 	}

@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/networks/0/chains/0/links/1",
-      "message": "not one connected walk"
+      "code": "chain-discontinuity",
+      "message_advisory": "not one connected walk"
     }
   ]
 }

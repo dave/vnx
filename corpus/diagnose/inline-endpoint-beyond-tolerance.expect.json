@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/networks/0/chains/0/links/0/to",
-      "message": "beyond the 50 m tolerance"
+      "code": "endpoint-off-arc",
+      "message_advisory": "beyond the 50 m tolerance"
     }
   ]
 }

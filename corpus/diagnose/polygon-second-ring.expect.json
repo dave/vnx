@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/areas/0/polygon",
-      "message": "nested rings"
+      "code": "polygon-nested-rings",
+      "message_advisory": "nested rings"
     }
   ]
 }

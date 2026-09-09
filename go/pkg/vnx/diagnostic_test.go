@@ -104,9 +104,26 @@ func TestDiagnosticStringIsReadable(t *testing.T) {
 // field — and a half-populated Code is worse than an empty one, since a
 // consumer cannot tell "this diagnostic has no code" from "codes are not
 // populated yet".
-func TestDecodeDiagnosticsCarryNoCode(t *testing.T) {
-	// A document with several distinct decode faults, so this reaches more
-	// than one of the seven files that raise diagnostics.
+func TestDecodeDiagnosticsCarryACodeOnlyWhereTheCorpusPinsOne(t *testing.T) {
+	// ⚠ THIS TEST WAS "decode diagnostics carry NO code", AND THE RULING
+	// NARROWED RATHER THAN REVERSED. Spec 5b's reason still stands: the sixty
+	// decode sites in this package report malformed input to `vnx validate`
+	// and to logs, and minting sixty codes to fill a field would be sixty wire
+	// commitments nobody asked for.
+	//
+	// What changed on 2026-09-09 is that a conformance corpus case cannot pin
+	// a diagnostic by its ENGLISH — five implementations matching substrings
+	// of free prose is the defect the refusal wordings already had. So spec
+	// §6.3 requires a code for exactly the diagnostics a corpus case pins,
+	// which is decodeCodes and nothing else.
+	//
+	// The guard therefore still guards the thing worth guarding: code CREEP.
+	// A decode site that mints a code outside that list reddens here.
+	known := map[string]bool{}
+	for _, c := range decodeCodes {
+		known[c] = true
+	}
+
 	const src = `{"vnx":"0.1.0","profile":"full",` +
 		`"folders":[{"id":"f1","name":"F"},{"name":"no id"}],` +
 		`"nonsense":[1,2,3]}`
@@ -119,9 +136,29 @@ func TestDecodeDiagnosticsCarryNoCode(t *testing.T) {
 			"the property it guards if nothing was diagnosed", len(diags), diags)
 	}
 	for _, d := range diags {
-		if d.Code != "" {
-			t.Errorf("decode diagnostic %v carries Code %q; the ruling is that decode sites "+
-				"carry no code and writers always do", d, d.Code)
+		if d.Code != "" && !known[d.Code] {
+			t.Errorf("decode diagnostic %v carries Code %q, which is not in decodeCodes; "+
+				"a decode site gets a code only when a corpus case pins it", d, d.Code)
+		}
+	}
+}
+
+// TestEveryDecodeCodeIsPinnedByTheCorpus is the other direction, and it is the
+// half that stops the list growing for its own sake: a code declared here that
+// no corpus case names is a wire commitment with nothing asking for it.
+func TestEveryDecodeCodeIsPinnedByTheCorpus(t *testing.T) {
+	pinned := map[string]bool{}
+	for _, c := range loadCorpus(t) {
+		for _, d := range c.expect.Diagnostics {
+			if d.Code != "" {
+				pinned[d.Code] = true
+			}
+		}
+	}
+	for _, c := range decodeCodes {
+		if !pinned[c] {
+			t.Errorf("decode code %q is declared but no corpus case pins it; "+
+				"spec §6.3 gives a code to the diagnostics the corpus pins, and only those", c)
 		}
 	}
 }

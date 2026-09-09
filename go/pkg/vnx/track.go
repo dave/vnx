@@ -180,7 +180,7 @@ func timeField(obj map[string]any, key, path string, diags []Diagnostic) (*time.
 	t, err := parseTimestamp(s)
 	if err != nil {
 		return nil, append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
-			Message: err.Error() + " — ignored"})
+			Code: CodeTimestampNotUTC, Message: err.Error() + " — ignored"})
 	}
 	return &t, diags
 }

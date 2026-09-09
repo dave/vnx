@@ -1003,12 +1003,22 @@ A reader MUST return a list of diagnostics alongside the document it read. A
 reader that returns a document alone has discarded the only evidence that
 anything was wrong.
 
-Each diagnostic carries two fields:
+Each diagnostic carries:
 
 | Field | Value |
 |---|---|
 | `path` | a JSON Pointer ([RFC 6901]) locating the element the diagnostic is about |
+| `code` | a short stable token naming which diagnostic this is, or absent |
 | `message` | a short description in English |
+
+A diagnostic that a conformance corpus case pins MUST carry a `code`, and the
+code is what the case compares. The English MUST NOT be compared: exact wording
+is a reader's own business, and a corpus that matched substrings of prose across
+implementations would be pinning translations of a rule rather than the rule.
+
+A reader MAY leave `code` absent on any diagnostic no corpus case pins. Codes
+are wire commitments, and a format does not need one for every way a document
+can be malformed.
 
 A diagnostic carries no severity. Every diagnostic this format defines reports
 the same kind of fact — something in the document could not be used as written —

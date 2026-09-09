@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/networks/0/chains/0/links/1",
-      "message": "not in this network"
+      "code": "link-arc-absent",
+      "message_advisory": "not in this network"
     }
   ]
 }

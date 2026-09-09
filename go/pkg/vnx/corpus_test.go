@@ -29,8 +29,19 @@ const corpusDir = "../../../corpus"
 // compared exactly and Message as a substring, because the exact wording of a
 // diagnostic is a reader's business and naming its cause is not.
 type expectedDiagnostic struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
+	Path string `json:"path"`
+	// Code is what is COMPARED. Spec §6.3 requires a code on every diagnostic
+	// a corpus case pins, for the reason the refusal wordings already showed:
+	// five implementations matching substrings of free English is a corpus
+	// comparing prose, and prose is a reader's own business.
+	Code string `json:"code"`
+	// Message is advisory and is NOT compared. It is here so a person reading
+	// the sidecar can see what the case is about without running anything.
+	//
+	// ⚠ IT IS NAMED FOR WHAT IT IS. A field called `message` that nothing
+	// compares reads as a claim and is not one — half-coupling is worse than
+	// none, because it looks like it is there.
+	MessageAdvisory string `json:"message_advisory"`
 }
 
 // expectedPosition pins one position in the document, addressed by a JSON
@@ -552,7 +563,7 @@ func TestFormatterCases(t *testing.T) {
 
 // matchDiagnostics pairs each expected diagnostic with one distinct reported
 // diagnostic, and returns what could not be paired from each side. Matching is
-// on an exact Path and a substring Message.
+// on an exact Path and an exact Code; the English is not compared at all.
 //
 // It is a SET comparison because spec §6.3 says emission order is not
 // significant. TestMatchDiagnostics is what keeps it from degenerating into
@@ -564,14 +575,14 @@ func matchDiagnostics(got []Diagnostic, want []expectedDiagnostic) (unmatched, e
 	for _, w := range want {
 		found := false
 		for i, d := range got {
-			if !paired[i] && d.Path == w.Path && strings.Contains(d.Message, w.Message) {
+			if !paired[i] && d.Path == w.Path && d.Code == w.Code {
 				paired[i] = true
 				found = true
 				break
 			}
 		}
 		if !found {
-			unmatched = append(unmatched, fmt.Sprintf("%s ~ %q", w.Path, w.Message))
+			unmatched = append(unmatched, fmt.Sprintf("%s [%s]", w.Path, w.Code))
 		}
 	}
 	for i, d := range got {
@@ -592,11 +603,11 @@ func matchDiagnostics(got []Diagnostic, want []expectedDiagnostic) (unmatched, e
 // Each case below is one way a reader can be wrong. If any of them stops being
 // reported, the diagnose tier of the corpus has stopped measuring.
 func TestMatchDiagnostics(t *testing.T) {
-	d := func(path, msg string) Diagnostic {
-		return Diagnostic{Severity: Warning, Path: path, Message: msg}
+	d := func(path, code string) Diagnostic {
+		return Diagnostic{Severity: Warning, Path: path, Code: code, Message: "some English nobody compares"}
 	}
-	w := func(path, msg string) expectedDiagnostic {
-		return expectedDiagnostic{Path: path, Message: msg}
+	w := func(path, code string) expectedDiagnostic {
+		return expectedDiagnostic{Path: path, Code: code}
 	}
 
 	for _, tc := range []struct {
@@ -607,35 +618,37 @@ func TestMatchDiagnostics(t *testing.T) {
 	}{
 		{
 			name: "order does not matter",
-			got:  []Diagnostic{d("/areas/0/polygon", "nested rings"), d("/waypoints/0/nmae", "unknown key")},
-			want: []expectedDiagnostic{w("/waypoints/0/nmae", "unknown key"), w("/areas/0/polygon", "nested rings")},
+			got:  []Diagnostic{d("/areas/0/polygon", "polygon-nested-rings"), d("/waypoints/0/nmae", "unknown-key")},
+			want: []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key"), w("/areas/0/polygon", "polygon-nested-rings")},
 		},
 		{
-			name: "message is matched as a substring",
-			got:  []Diagnostic{d("/waypoints/0/nmae", "unknown key \"nmae\" — skipped")},
-			want: []expectedDiagnostic{w("/waypoints/0/nmae", "unknown key")},
+			// Two diagnostics with the same code and wildly different English
+			// still pair: the English is advisory.
+			name: "the English is not compared",
+			got:  []Diagnostic{{Severity: Warning, Path: "/waypoints/0/nmae", Code: "unknown-key", Message: "totally different prose"}},
+			want: []expectedDiagnostic{{Path: "/waypoints/0/nmae", Code: "unknown-key", MessageAdvisory: "unknown-key"}},
 		},
 		{
 			name:      "a diagnostic the reader never reported",
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown key")},
+			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
 			unmatched: 1,
 		},
 		{
 			name:  "a diagnostic the reader invented",
-			got:   []Diagnostic{d("/waypoints/0/nmae", "unknown key")},
+			got:   []Diagnostic{d("/waypoints/0/nmae", "unknown-key")},
 			extra: 1,
 		},
 		{
 			name:      "the right message at the wrong path",
-			got:       []Diagnostic{d("/waypoints/1/nmae", "unknown key")},
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown key")},
+			got:       []Diagnostic{d("/waypoints/1/nmae", "unknown-key")},
+			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
 			unmatched: 1,
 			extra:     1,
 		},
 		{
 			name:      "the right path with the wrong message",
-			got:       []Diagnostic{d("/waypoints/0/nmae", "could not parse")},
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown key")},
+			got:       []Diagnostic{d("/waypoints/0/nmae", "timestamp-not-utc")},
+			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
 			unmatched: 1,
 			extra:     1,
 		},
@@ -644,8 +657,8 @@ func TestMatchDiagnostics(t *testing.T) {
 			// that let one reported diagnostic satisfy both would report a
 			// reader that found half the defects as fully correct.
 			name:      "duplicates are not double-counted",
-			got:       []Diagnostic{d("/networks/0/chains/0/links/1", "not in this network")},
-			want:      []expectedDiagnostic{w("/networks/0/chains/0/links/1", "not in this network"), w("/networks/0/chains/0/links/1", "not in this network")},
+			got:       []Diagnostic{d("/networks/0/chains/0/links/1", "link-arc-absent")},
+			want:      []expectedDiagnostic{w("/networks/0/chains/0/links/1", "link-arc-absent"), w("/networks/0/chains/0/links/1", "link-arc-absent")},
 			unmatched: 1,
 		},
 		{

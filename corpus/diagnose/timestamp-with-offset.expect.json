@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/tracks/0/started",
-      "message": "must be UTC with a Z suffix"
+      "code": "timestamp-not-utc",
+      "message_advisory": "must be UTC with a Z suffix"
     }
   ]
 }

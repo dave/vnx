@@ -38,7 +38,8 @@ otherwise exactly the one that is not.
   "attachments": ["photos/summit.jpg"],       // .vnz only
 
   "refusal":     "substring of the expected error",        // reject only
-  "diagnostics": [{"path": "/waypoints/0/nmae", "message": "unknown key"}],
+  "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
+                   "message_advisory": "unknown key"}],
   "cannot_detect": "why no diagnostic is possible"         // documented limitation
 }
 ```
@@ -80,8 +81,19 @@ position of every kind. Do not narrow that list.
 for a track carrying no pip times has answered a question it cannot answer, and
 its answer is indistinguishable from a track on which nobody moved.
 
-`message` and `refusal` are matched as substrings. Exact wording is a reader's
-own business; naming the cause is not.
+A diagnostic is matched on its `path` and its `code`. **The English is not
+compared at all**, which is why the field is called `message_advisory` rather
+than `message`: it is there so a person reading the sidecar can see what the
+case is about, and a field named `message` that nothing compares reads as a
+claim and is not one. Half-coupling is worse than none, because it looks like it
+is there.
+
+`refusal` is still matched as a substring. That is the remaining place where
+this corpus compares English across implementations, and it is a known defect —
+one of the six wordings, `malformed JSON` for a non-finite literal, is a Go
+artefact: a strict parser rejects it before any format rule runs, while a
+permissive one reaches the format's own rule and refuses for the right reason in
+different words. Typed refusal codes are the fix and are not built yet.
 
 Diagnostics are compared as a set, not by position. `SPEC.md` section 6.3 makes
 emission order insignificant: a reader that resolves cross-references in a second

@@ -8,7 +8,8 @@
   "diagnostics": [
     {
       "path": "/waypoints/0/nmae",
-      "message": "unknown key"
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
     }
   ]
 }

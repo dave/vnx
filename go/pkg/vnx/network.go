@@ -280,7 +280,7 @@ func decodeLinks(v any, path string, nodes map[string]Position, arcs map[string]
 			// The link's whole meaning is the arc it traverses. Without it there
 			// is no geometry to draw and nothing to keep.
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("link names arc %q, which is not in this network — dropped", arcID)})
+				Code: CodeLinkArcAbsent, Message: fmt.Sprintf("link names arc %q, which is not in this network — dropped", arcID)})
 			continue
 		}
 		from, okFrom, diags2 := decodeEndpoint(obj["from"], at+"/from", nodes, arc, diags)
@@ -309,7 +309,7 @@ func checkChainContinuity(links []Link, path string, diags []Diagnostic) ([]Link
 	for i := 1; i < len(links); i++ {
 		if !links[i-1].To.Same(links[i].From) {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
-				Message: fmt.Sprintf("this link starts at %s but the previous one ends at %s — the chain is not one connected walk",
+				Code: CodeChainDiscontinuity, Message: fmt.Sprintf("this link starts at %s but the previous one ends at %s — the chain is not one connected walk",
 					links[i].From, links[i-1].To)})
 		}
 	}
@@ -336,7 +336,7 @@ func decodeEndpoint(v any, path string, nodes map[string]Position, arc Arc, diag
 		}
 		if d := distanceToArc(p, arc); d > EndpointToleranceMetres {
 			return Endpoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-				Message: fmt.Sprintf("inline endpoint %s is %.0f m from its arc, beyond the %.0f m tolerance — link dropped", p, d, EndpointToleranceMetres)})
+				Code: CodeEndpointOffArc, Message: fmt.Sprintf("inline endpoint %s is %.0f m from its arc, beyond the %.0f m tolerance — link dropped", p, d, EndpointToleranceMetres)})
 		}
 		return Endpoint{At: &p}, true, diags
 	default:

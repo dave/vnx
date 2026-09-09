@@ -226,7 +226,7 @@ func reportUnknownKeys(obj map[string]any, path string, known map[string]bool, d
 	sort.Strings(unknown)
 	for _, k := range unknown {
 		diags = append(diags, Diagnostic{Severity: Warning, Path: path + "/" + k,
-			Message: "unknown key — ignored"})
+			Code: CodeUnknownKey, Message: "unknown key — ignored"})
 	}
 	return diags
 }

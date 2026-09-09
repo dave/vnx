@@ -96,14 +96,39 @@ class UnknownKeys(unittest.TestCase):
         self.assertEqual(messages(result), [("/areas/0/colour", "unknown key")])
         self.assertEqual(len(result.document.areas or []), 1)
 
-    def test_an_unknown_style_key_is_diagnosed_and_dropped(self) -> None:
+    def test_a_style_body_has_no_unknown_keys(self) -> None:
+        """Ruled 2026-09-09, reversing this implementation's first reading.
+
+        A style used to be key-checked here, because it is an object this format
+        defines and SPEC 6.2 reaches one.  Ruled opaque instead: a style
+        vocabulary grows faster than a structural one, so key sets would have
+        four implementations diagnosing a valid document every time Viatrail
+        adds a style key.  This test is the superseded ruling rewritten, not a
+        guard removed -- the assertion it makes now is the opposite one, and it
+        would still catch a reader that dropped what it did not recognise.
+        """
         result = read(
             '{"vnx": "0.1.0", "waypoints": [{"at": [0,0],'
             ' "style": {"color": "#fff", "colour": "#fff"}}]}'
         )
-        self.assertEqual(messages(result), [("/waypoints/0/style/colour", "unknown key")])
+        self.assertEqual(messages(result), [])
         assert result.document.waypoints is not None
-        self.assertEqual(result.document.waypoints[0].style, {"color": "#fff"})
+        self.assertEqual(
+            result.document.waypoints[0].style, {"color": "#fff", "colour": "#fff"}
+        )
+
+    def test_an_unrecognised_style_key_survives_a_round_trip(self) -> None:
+        source = (
+            '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n'
+            '      "style": {\n        "future-key": "value"\n      }\n'
+            '    }\n  ]\n}\n'
+        )
+        document = read(source).document
+        self.assertEqual(vnx.write_bytes(document).decode(), source)
+
+    def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
+        result = read('{"vnx": "0.1.0", "waypoints": [{"style": 3}]}')
+        self.assertEqual(messages(result), [("/waypoints/0/style", "a style must be an object")])
 
     def test_a_data_record_body_has_no_unknown_keys(self) -> None:
         # SPEC 5.1.2: a record body is opaque apart from @type.

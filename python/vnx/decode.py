@@ -134,30 +134,36 @@ class _Reader:
             return None
         return value
 
-    def _style(
-        self, obj: dict[str, JSONValue], path: str, known: frozenset[str]
-    ) -> Union[Style, None]:
+    def _style(self, obj: dict[str, JSONValue], path: str) -> Union[Style, None]:
+        """A style body is opaque (ruled 2026-09-09; see `keys.py`).
+
+        Its shape is checked and its contents are not: no key inside a style is
+        ever unknown, and every key survives a read-modify-write.
+        """
         if "style" not in obj:
             return None
-        at = join(path, "style")
-        style = self._object(obj["style"], at, known, "style")
-        if style is None:
+        value = obj["style"]
+        if not isinstance(value, dict):
+            self.note(join(path, "style"), "a style must be an object")
             return None
-        kept = {k: v for k, v in style.items() if k in known}
-        # SPEC 3.6 states two ranges and does not say which constrains a value.
-        # Dave ruled on 2026-09-09: `importance` is normative, `icon-size`'s
-        # list of the sizes Viatrail uses is informative.  So `importance` is
-        # the one style value this reader inspects.  An out-of-range value is
-        # an unusable value under SPEC 6.2 -- the key is dropped, the style and
-        # the item are kept.  The remedy is this implementation's reading; SPEC
-        # 6.2 gives no remedy for a value outside a stated range.
-        if "importance" in kept and not _is_importance(kept["importance"]):
+        return dict(value)
+
+    def _check_importance(self, style: Union[Style, None], path: str) -> None:
+        """SPEC 3.6's `importance` range, ruled normative on 2026-09-09.
+
+        `icon-size`'s list of the sizes Viatrail uses was ruled informative in
+        the same breath and is not checked.  An out-of-range `importance` is an
+        unusable value under SPEC 6.2: the key is dropped, the style and the
+        item are kept.  That remedy is this implementation's reading -- SPEC 6.2
+        gives none for a value outside a stated range.
+        """
+        if style is None or "importance" not in style:
+            return
+        if not _is_importance(style["importance"]):
             self.note(
-                join(at, "importance"),
-                "must be an integer from 1 to 5",
+                join(path, "style", "importance"), "must be an integer from 1 to 5"
             )
-            del kept["importance"]
-        return kept
+            del style["importance"]
 
     def _data(
         self, obj: dict[str, JSONValue], path: str
@@ -312,13 +318,15 @@ class _Reader:
         at = None
         if "at" in obj:
             at = self._position(obj["at"], join(path, "at"))
+        style = self._style(obj, path)
+        self._check_importance(style, path)
         return Waypoint(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             at=at,
-            style=self._style(obj, path, K.POINT_STYLE),
+            style=style,
             data=self._data(obj, path),
         )
 
@@ -345,7 +353,7 @@ class _Reader:
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             polygon=polygon,
-            style=self._style(obj, path, K.AREA_STYLE),
+            style=self._style(obj, path),
             data=self._data(obj, path),
         )
 
@@ -395,7 +403,7 @@ class _Reader:
             started=self._timestamp(obj, "started", path),
             ended=self._timestamp(obj, "ended", path),
             hidden=self._bool(obj, "hidden", path),
-            style=self._style(obj, path, K.LINE_STYLE),
+            style=self._style(obj, path),
             segments=segments,
             data=self._data(obj, path),
         )
@@ -424,7 +432,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
-            style=self._style(obj, path, K.LINE_STYLE),
+            style=self._style(obj, path),
             arcs=arcs,
             data=self._data(obj, path),
         )
@@ -541,7 +549,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
-            style=self._style(obj, path, K.LINE_STYLE),
+            style=self._style(obj, path),
             data=self._data(obj, path),
         )
         items = self._array(obj, "links", path)

@@ -17,7 +17,6 @@ __all__ = [
     "DOCUMENT", "FOLDER", "NETWORK", "ARC", "CHAIN", "LINK", "ROUTE",
     "ROUTE_ARC", "TRACK", "SEGMENT", "WAYPOINT", "AREA",
     "WAYPOINT_IN_NETWORK", "AREA_IN_NETWORK",
-    "LINE_STYLE", "POINT_STYLE", "AREA_STYLE",
 ]
 
 # SPEC 3.1.
@@ -80,13 +79,24 @@ AREA = frozenset({"folder", "name", "notes", "hidden", "polygon", "style", "data
 WAYPOINT_IN_NETWORK = WAYPOINT - {"folder"}
 AREA_IN_NETWORK = AREA - {"folder"}
 
-# Style key sets.  SPEC gives one example per host and no rule.  The three sets
-# below are by geometry rather than by host: a chain, a route and a track are
-# all drawn as lines, and SPEC 3.5's track example showing only `color` and
-# `width` is an example, not a restriction.
-LINE_STYLE = frozenset({"color", "width", "opacity", "line-style"})
-POINT_STYLE = frozenset({
-    "color", "icon", "icon-size", "pin-shape",
-    "label-position", "label-visible", "importance",
-})
-AREA_STYLE = frozenset({"fill-color", "fill-opacity", "stroke-color", "stroke-width"})
+# There is deliberately NO style key set here.
+#
+# This implementation had three, invented from the three examples in SPEC 3.3.3,
+# 3.6 and 3.7, because a style is an object this format defines and SPEC 6.2
+# therefore reaches it.  Ruled the other way on 2026-09-09, and the reasoning is
+# worth keeping so nobody re-adds them as an obvious improvement:
+#
+#   A style vocabulary grows faster than a structural one.  Key sets would mean
+#   every implementation diagnosing a valid document each time Viatrail adds a
+#   style key, and that brittleness costs more than the typo detection buys.
+#   A data record body is opaque for the same reason (SPEC 5.1.2), so making a
+#   style opaque is the consistent answer rather than a special case.
+#
+# A style body is therefore opaque: no key inside one can be unknown, and every
+# key survives a read-modify-write untouched.
+#
+# One style VALUE is still inspected, and that is not a contradiction.  SPEC 3.6
+# states a normative range for `importance`, ruled 2026-09-09, and a normative
+# range is a rule about a value rather than about the key set -- exactly as
+# SPEC 5.2 gives typed payloads to records whose bodies stay opaque.  See
+# `decode._Reader._waypoint`.

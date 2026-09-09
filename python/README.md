@@ -60,13 +60,16 @@ and asserts it goes red.
   This library places no limit on item counts, pip counts or folder depth.
 - **No duplicate-key detection.** §6.4: `json` resolves duplicates last-wins
   before any VNX rule runs, like every mainstream parser.
-- **Almost no style value validation.** Style *keys* are checked against the
-  sets in `vnx/keys.py`; style *values* are carried through uninspected, with
-  one exception — `importance`, which was ruled normative. So `line-style`,
-  `pin-shape`, `label-position` and the enumerations in §5.2 accept anything,
-  and so does `label-visible`, whose tristate §3.6 makes load-bearing. Those
-  ranges are stated in the specification without a rule saying what a reader
-  does with a value outside them.
+- **Almost nothing inside a style.** A style body is opaque by ruling, so no
+  key inside one is ever unknown and every key survives a read-modify-write.
+  One *value* is inspected — `importance`, ruled normative at 1 to 5. That is
+  not a contradiction: a normative range is a rule about a value, not about a
+  key set, exactly as §5.2 gives typed payloads to records whose bodies stay
+  opaque. Everything else passes uninspected, including `line-style`,
+  `pin-shape`, `label-position`, the enumerations in §5.2, and `label-visible`,
+  whose tristate §3.6 makes load-bearing. Those ranges are stated in the
+  specification with no rule saying what a reader does with a value outside
+  them.
 
 ## Decisions this implementation had to make
 
@@ -81,6 +84,7 @@ and has not caught up yet. Rows marked **ruled** are the ruling, not a choice.
 |---|---|
 | Does canonical form shorten `[lon, lat, null]`? | No. §4.1 says it does, §4.5 does not list it, and `accept/absent-elevation-and-time.vnx` is stored canonical carrying trailing nulls. Shortening is a writer-boundary rule alongside rounding (§4.5.4). Position arity is therefore kept in the model. |
 | Which keys are "defined by this format"? | `vnx/keys.py`, read off the §3 examples and constrained from below by the accept corpus. §1.3 says an example defines no rule, so no key set in this format is normative today. |
+| Are style objects key-checked? | **Ruled: no, a style body is opaque**, like a data record body. This library checked style key names at first, from three invented key sets; the ruling reversed that, because a style vocabulary grows faster than a structural one and key sets would diagnose a valid document every time Viatrail adds a style key. |
 | Does a network's own point or area carry `folder`? | **Ruled: no.** §3.2 gives `folder` to "any item"; an item a network already contains does not also sit in a folder. Conditional on Viatrail's exporter not writing one — `vnx/keys.py` says how to flip it. |
 | Is `importance` a constraint or a description? | **Ruled: normative**, 1 to 5. `icon-size`'s list of sizes is informative and unchecked. An out-of-range `importance` is diagnosed and the key dropped; the remedy is this library's reading, since §6.2 gives none for a value outside a stated range. |
 | Is `hidden` legal on a top-level waypoint? | **Ruled: yes** — §3.6's "share one shape" governs §3.8's host list. |

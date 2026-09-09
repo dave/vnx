@@ -1,0 +1,15 @@
+{
+  "kind": "accept",
+  "note": "An inline chain endpoint 45 m from its arc, under the distance model SPEC 3.3.3 states. Until this file the corpus exercised the 50 m tolerance at no distance at all: the worked example's inline endpoint sits at about 20 m, where four plausible distance models spread from 19.8 m to 36.5 m and all four pass, so nothing could tell them apart. The arc runs NORTH-SOUTH over three degrees on purpose. That is what makes the cosine REFERENCE decide: a model taking the cosine of each segment's start latitude reads this endpoint 8.5% further away than one taking the cosine of the query point's latitude, which SPEC 3.3.3 requires. An east-west arc hides that difference completely, which is why the obvious fixture shape would have been useless.",
+  "schema": "valid",
+  "counts": {
+    "networks": 1
+  },
+  "positions": [
+    {
+      "at": "/networks/0/chains/0/links/0/to",
+      "lon": -2.99919305,
+      "lat": 59.9
+    }
+  ]
+}

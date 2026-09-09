@@ -1,0 +1,30 @@
+{
+  "vnx": "0.1.0",
+  "networks": [
+    {
+      "name": "An inline endpoint 55 m off its arc",
+      "arcs": {
+        "long": {
+          "from": "n1",
+          "to": "n2",
+          "pips": [
+            [-3.0, 57.0],
+            [-3.0, 60.0]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "Its endpoint is not on the arc",
+          "links": [
+            { "arc": "long", "from": "n1", "to": [-2.999013728, 59.9] }
+          ]
+        }
+      ],
+      "nodes": {
+        "n1": [-3.0, 57.0],
+        "n2": [-3.0, 60.0]
+      }
+    }
+  ]
+}

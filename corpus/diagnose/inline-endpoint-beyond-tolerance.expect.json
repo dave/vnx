@@ -1,0 +1,14 @@
+{
+  "kind": "diagnose",
+  "note": "The counterpart to accept/inline-endpoint-within-tolerance.vnx: the same arc, the same shape, an inline endpoint 55 m away instead of 45 m. SPEC 3.3.3 makes an endpoint that does not project within tolerance an unusable value, and SPEC 6.2's remedy is to drop the LINK - not the endpoint, which would leave a malformed link, and not the chain, which would be disproportionate. The expected message deliberately does NOT include the measured distance: the number a reader reports depends on its distance model, and pinning it would make this case fail for a conforming implementation whose arithmetic differs in the last metre. What is pinned is that the endpoint was refused and the tolerance named.",
+  "schema": "valid",
+  "counts": {
+    "networks": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/networks/0/chains/0/links/0/to",
+      "message": "beyond the 50 m tolerance"
+    }
+  ]
+}

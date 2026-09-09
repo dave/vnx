@@ -176,6 +176,22 @@ The `format/` inputs are therefore written in the wrong spellings on purpose, an
 each case asserts that its input is not already canonical, so it cannot pass
 vacuously.
 
+## The tolerance cases
+
+`accept/inline-endpoint-within-tolerance.vnx` and
+`diagnose/inline-endpoint-beyond-tolerance.vnx` are the only cases that exercise
+the 50 m projection tolerance at any distance. Until they existed the corpus
+could not distinguish four plausible distance models from each other: the worked
+example's inline endpoint sits about 20 m from its arc, where those four models
+read 19.81 m, 20.34 m, 25.52 m and 36.47 m and all four pass.
+
+Both arcs run NORTH-SOUTH over three degrees, and that shape is the point.
+`SPEC.md` section 3.3.3 takes the cosine of the QUERY POINT's latitude and holds
+it constant for every vertex. A model that instead takes the cosine of each
+segment's start latitude reads these endpoints 8.5% further away. On an
+east-west arc the two agree to within 0.06%, so the obvious fixture shape would
+have discriminated nothing.
+
 ## What the corpus cannot check
 
 `diagnose/duplicate-object-key.vnx` expects no diagnostic. Two `n1` entries in

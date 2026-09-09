@@ -1181,3 +1181,80 @@ class WrongTypedValues(unittest.TestCase):
         self.assertNotEqual(
             optional.diagnostics[0].code, required.diagnostics[0].code
         )
+
+
+class ContainerHeadersAgree(unittest.TestCase):
+    """SPEC 7.1's fields, read as bytes rather than through a ZIP library.
+
+    Every assertion this suite made about those fields went through
+    `zipfile.infolist()`, which resolves from the CENTRAL DIRECTORY. Corrupting
+    a local header's version and CRC leaves every one of them green and leaves
+    the archive readable, because the local header is never consulted. Measured,
+    not assumed.
+
+    So a library-based check cannot witness a rule about a local header, and
+    reading your own output back with a foreign library does not fix it: an
+    independent reader is not automatically an independent instrument, because
+    it can still consult the same field the defect is not in.
+    """
+
+    def archive(self) -> bytes:
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        return vnx.encode_container_bytes(
+            document, {"z.txt": b"zz", "a.txt": b"a"}
+        )
+
+    def test_the_two_headers_agree_on_every_shared_field(self) -> None:
+        from .zipbytes import central_headers, local_headers
+
+        data = self.archive()
+        local, central = local_headers(data), central_headers(data)
+        self.assertEqual(len(local), len(central))
+        self.assertTrue(local, "no local headers found")
+        for one, two in zip(local, central):
+            with self.subTest(entry=one.name):
+                self.assertEqual(one.name, two.name)
+                self.assertEqual(one.version, two.version)
+                self.assertEqual(one.flags, two.flags)
+                self.assertEqual(one.method, two.method)
+                self.assertEqual(one.crc, two.crc)
+                self.assertEqual(one.compressed, two.compressed)
+                self.assertEqual(one.uncompressed, two.uncompressed)
+
+    def test_the_local_headers_carry_the_fields_7_1_fixes(self) -> None:
+        from .zipbytes import local_headers
+
+        for header in local_headers(self.archive()):
+            with self.subTest(entry=header.name):
+                self.assertEqual(header.version, 10)
+                self.assertEqual(header.flags, 0x0800, "UTF-8 set, bit 3 clear")
+                self.assertEqual(header.method, 0, "stored")
+                self.assertEqual(header.extra_len, 0)
+                self.assertNotEqual(header.crc, 0, "written, not deferred")
+
+    def test_a_corrupted_local_header_is_caught_here_and_nowhere_else(self) -> None:
+        """The red proof for this whole class, frozen.
+
+        A library-based reader sees nothing wrong with this archive.
+        """
+        import struct
+        import zipfile
+
+        from .zipbytes import central_headers, local_headers
+
+        data = bytearray(self.archive())
+        struct.pack_into("<H", data, 4, 20)   # local version 10 -> 20
+        struct.pack_into("<I", data, 14, 0)   # local CRC -> 0
+        corrupted = bytes(data)
+
+        with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
+            self.assertTrue(
+                all(info.extract_version == 10 for info in archive.infolist()),
+                "the library saw the corruption; this test is no longer needed",
+            )
+
+        local, central = local_headers(corrupted), central_headers(corrupted)
+        self.assertNotEqual(
+            local[0].version, central[0].version, "the headers must now disagree"
+        )
+        self.assertNotEqual(local[0].crc, central[0].crc)

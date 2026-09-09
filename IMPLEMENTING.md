@@ -782,12 +782,25 @@ named. A test that restates a number cannot notice when the artefact moves.
 **A ZIP reader and writer by the same hand.** The container section of `SPEC.md`
 needs control a stock library may not expose, so you write your own writer: the
 UTF-8 flag set explicitly, per-entry compression method inspection, and seeing
-*both* halves of a duplicated entry name. A reader and a writer written by the
-same person can be wrong in the same way and agree perfectly, so read every
-archive you produce back with a library that has never seen this specification.
-This is the only instance whose fix is to check against an implementation not
-written from this document. *(Reported by the Kotlin implementation, which reads
-its own archives with `java.util.zip`.)*
+*both* halves of a duplicated entry name. A reader and a writer by the same hand
+can be wrong in the same way and agree perfectly, so read every archive you
+produce back with a library that never saw this specification. *(Reported by the
+Kotlin implementation, which reads its own archives with `java.util.zip`.)*
+
+Necessary and not sufficient, which is the sharper half. Every ZIP library
+resolves an entry from the **central directory**, on purpose: it is the
+authoritative index and the local header a hint. So no library-based check can
+witness a rule about a local header, whoever wrote the library. Corrupt a local
+header's version and CRC and a library-based reader reports nothing wrong, because
+that header is never consulted.
+
+> An independent reader is not automatically an independent instrument. It can
+> still consult the same field the defect is not in.
+
+The property is that the two headers **agree**, and no reader of either one can
+check it. Walk the archive forward as bytes and compare them. *(Reported by the
+Kotlin and JavaScript implementations; the corruption above measured by the
+Python one, whose own container assertions were blind to it.)*
 
 The repair for all three is to make the test read the artefact. Mutate
 the implementation, run the real corpus, and assert exactly which cases fail. That

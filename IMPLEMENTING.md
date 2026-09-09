@@ -57,6 +57,12 @@ the thresholds are unintuitive:
 | `1e20` | `100000000000000000000` | 21 digits, still plain |
 | `1e21` | `1e+21` | 22 digits, exponential, and note the `+` |
 
+Rust is the clearest case of the split, because its standard library gives you
+the hard half and none of the easy one. `{}` on an `f64` produces shortest
+round-trip digits and never uses exponent notation at all, so `1e21` comes out as
+twenty-two digits and `1e-7` as `0.0000001`; `{:e}` always uses it and spells the
+exponent `e21` where the format needs `e+21`. *(Rust seat.)*
+
 Python and Swift emit `1e-06` and `1e-07` where the format needs `0.000001` and
 `1e-7`, so both implement the placement rule by hand. *(Python seat, 6,009
 doubles cross-checked against V8; Swift seat, 220,011 doubles.)*
@@ -110,6 +116,12 @@ Rendering ties are about one double in 4,200 of a uniform random sample —
 concentrated between 1e13 and 1e15, which is where Unix epoch milliseconds live.
 *(Kotlin seat.)*
 
+Rust is the third implementation to ship the wrong direction:
+`format!("{}", 1497898211722073.25)` gives `…073.3`. *(Rust seat.)* Its route is
+worth naming because it is the opposite of carelessness: a shortest-round-trip
+formatter looks safe precisely because it gets the difficult part right. The
+language hands you the expensive half and quietly loses the cheap one.
+
 Swift's `Double.description` and Python's `repr` already round to even. Verify
 rather than assume; it costs one test, and it is documented behaviour in neither.
 
@@ -160,7 +172,12 @@ and all 91 were artefacts of the detector. *(Python seat.)*
 A true tie needs exact equidistance, which needs exact arithmetic: rational or
 big-decimal, never floating point. `fractions.Fraction(v)` and `decimal.Decimal(v)`
 are both exact for a Python float; BigInt over the decomposed double works in
-JavaScript. Kotlin's generator goes further and defines the detector *as* the
+JavaScript. Integer arithmetic on the mantissa needs no big-number type at all:
+with the value as `m · 2^e` and the two candidate spellings summing to an odd
+`half`, a tie is `m · 2^(e+1−scale) == half · 5^scale`, and both sides fit in a
+128-bit integer for every case that can be a tie, because the odd parts must be
+equal and one is bounded by 2^53. Bailing out on overflow is sound there rather
+than a fallback. *(Rust seat.)* Kotlin's generator goes further and defines the detector *as* the
 thing under test, shortest-to-even against shortest-away-from-zero in exact
 rational arithmetic, then refuses to emit a table in which any tie category fails
 to discriminate.
@@ -221,15 +238,49 @@ than either route.)*
 The JavaScript suite keeps `0.0000005` beside the real ties as a named non-tie,
 so nobody later mistakes it for the tie case.
 
-### 1.7 Decimal intuition lies about which way a value rounds
+### 1.7 "Round to N places" names two different operations
 
-`3.05` rounds down to `3.0`, correctly, because the literal is really
-`3.04999999999999982236431605997495353221893310546875` and sits below the
-midpoint. A rounding test written from decimal intuition asserts `3.1` here and
-reports a correct writer as broken. *(Python seat, which wrote that expectation
-before measuring it.)*
+Scaling by a power of ten, rounding, and dividing back is not "the nearest value
+with n decimal places, ties to even". It is a different rule wearing the right
+name, and every language's idiom hands it to you. Multiplying by the scale is
+itself a rounding step, and it moves values onto an exact half that were never on
+one.
 
-Compute your expected values, or pick values whose exactness you have checked.
+| value | nearest 1 dp of the double | scale, then round ties to even |
+|---|---|---|
+| `0.15` | `0.1` (it is 0.1499999999999999944…) | `0.2` |
+| `0.05` | `0.1` | `0` |
+| `1.05` | `1.1` | `1` |
+| `0.45` | `0.5` | `0.4` |
+| `1.85` | `1.9` | `1.8` |
+| `0.95` | `0.9` | `1.0` |
+| `340.25` | `340.2` (exact, a genuine tie) | `340.2` |
+
+*(Rust seat.)* Six of those seven disagree, in both directions, and they are
+ordinary elevation-shaped values rather than corner cases. Run against the
+5,315-row number table, **160 rows separate the two readings and all 160 side with
+rounding against the double**; three more overflow to infinity when scaled, where
+rounding against the double does not. *(Rust seat.)*
+
+This is a larger defect than the tie direction of 1.5, and a separate one. The tie
+direction disagrees only on exact halves; the operation disagrees on most values.
+A library can have the tie rule right and still be wrong on almost every elevation
+it writes.
+
+Formatting to a decimal string and parsing it back is one correct implementation,
+because the formatter expands the double exactly and rounds ties to even. The
+caveat is 1.9: the formatted text must never become the emitted bytes, since a
+one-place format of `340.0` is `340.0`. Round to a *value*, then let the renderer
+decide the bytes.
+
+Decimal intuition lies about which way a value rounds, whichever operation you
+pick. `3.05` rounds down to `3.0`, correctly, because the literal is really
+`3.04999999999999982236431605997495353221893310546875`. A test written from
+intuition asserts `3.1` and reports a correct writer as broken. *(Python seat,
+which wrote that expectation before measuring it.)* But `3.05` gives `3.0` under
+both operations above, so it cannot tell them apart, and it stood as this
+section's worked example until the Rust seat pointed that out. **An instance of
+6.2 inside this document.**
 
 ### 1.8 Negative zero, twice over
 
@@ -286,6 +337,13 @@ That is the real hazard of being the reference language: the things that are rig
 by accident are the things you are least likely to notice the specification never
 said. *(JavaScript seat.)*
 
+The pattern is not confined to that seat. A Rust `String` is UTF-8 by
+construction, so a lone surrogate cannot be represented and its parser refuses
+`"\ud83d"` rather than substituting U+FFFD. Section 4.5.5 says nothing about a
+lone surrogate on the *parse* side, and a language with UTF-16 strings accepts one
+and carries it. Correct behaviour, arriving free, on a question the format has not
+answered. *(Rust seat.)*
+
 ---
 
 ## 2. Key order and strings
@@ -316,6 +374,7 @@ sorts below everything in U+E000..U+FFFF; by code point it sorts above all of it
 | JavaScript `Array.prototype.sort()` | UTF-16 code unit | wrong | yes |
 | Java `String.compareTo` | UTF-16 `char` | wrong | yes |
 | Kotlin `String.compareTo` | UTF-16 `char` on the JVM | expected wrong | yes |
+| Rust `str` ordering | UTF-8 byte, so code point | correct | no |
 
 *(JavaScript seat: measured JavaScript on Node 22.19, Java through `jshell`,
 Python on CPython 3, Go, and Swift. Kotlin is reasoned from Kotlin/JVM delegating
@@ -323,7 +382,9 @@ to `java.lang.String.compareTo`, which was measured; Kotlin/Native does not go
 through `java.lang.String` and may differ.)*
 
 `String.compareTo` returns -10176 on that pair, which is 0xD83D minus 0xFFFD, so
-the mechanism is visible in the return value.
+the mechanism is visible in the return value. Rust orders by UTF-8 byte, which for
+well-formed UTF-8 is code-point order, and gets both of the pairs the other seats
+had to fix. *(Rust seat.)*
 
 Swift is the row that rewards care. Its default sorts the astral pair correctly,
 so a Swift test written against U+1F600 passes while the library is still wrong.
@@ -350,8 +411,23 @@ default happens to agree, which on ASCII it always does. *(JavaScript seat.)*
 
 ### 2.3 String escaping
 
-Section 4.5.5 is worth reading rather than guessing, because two languages'
-defaults disagree with it in opposite directions.
+Section 4.5.5 names *which* characters are escaped. Until recently it did not say
+*how*, and RFC 8259 offers two conforming spellings for the same character: the
+two-character escape and the six-character `\uXXXX`. A `notes` field carrying a
+form feed was `\f` from one conforming implementation and `\u000c` from another,
+with both satisfying the prose exactly.
+
+The argument that settled it is worth more than the answer, because it applies to
+the next rule of its kind. Section 4.5.3 had already reached outside the format
+for one byte-level rule, to ECMAScript. Once a format has chosen an anchor,
+reaching to the same place for the next byte-level question is consistency, and
+reaching anywhere else is a second arbitrary choice the reader has no way to
+predict. So the answer is `JSON.stringify`'s, not because ECMAScript is
+authoritative about JSON strings, but because it was already the format's anchor.
+*(Rust seat.)*
+
+It is worth reading rather than guessing, because two languages' defaults disagree
+with it in opposite directions.
 
 Escape only `"`, `\` and the control characters below U+0020. Five control
 characters take their short escape, `\b`, `\f`, `\n`, `\r` and `\t`, and every
@@ -365,6 +441,13 @@ and U+2029, so the Go standard library cannot emit canonical form at any setting
 which makes writing strings yourself forced rather than preferred. It writes `\b`
 and `\f` in their short forms, agreeing with the format. *(Kotlin seat,
 measured.)*
+
+Go's escaping of U+2028 and U+2029 is unconditional because its encoder is
+defending output that might be pasted into a `<script>` tag: a sound default for a
+general-purpose encoder and wrong for a format that pins its bytes. So strings
+are a second independent reason every implementation writes its own serialiser,
+with the reference implementation's own standard library as the instance.
+*(Rust seat.)*
 
 Nothing constrains the case of the hex digits except the rule itself, and Go, V8
 and Kotlin all emit lowercase, so no implementation disagrees and no fixture
@@ -393,6 +476,14 @@ A model with an `ele: Double?` field therefore cannot reproduce the accept corpu
 Store the channels as written. *(Swift seat: "an `ele: Double?` model cannot
 re-render absent-elevation-and-time.vnx.")*
 
+Why that shape is so attractive is worth naming, because the pull is strongest in
+the languages best at modelling absence. `Option<f64>` in Rust is zero-cost,
+idiomatic, obviously correct, and what every tutorial would produce. A type
+system can be very good at "this value may be missing" and have no idiom at all
+for "this value may be missing, and how its absence was spelled is data." The
+correct model reads like an under-designed one: the position carries its channels
+and its arity is a method. *(Rust seat.)*
+
 Shortening a position is a writer rule, not a formatter rule; see Section 3.3.
 
 ### 3.2 Absent, empty and false are three different documents
@@ -405,6 +496,14 @@ have to round-trip as three.
 `label-visible` is where getting this wrong is invisible. Absence means Auto, and
 a reader that treats it as `false` flattens Auto to hidden with nothing to report
 (Section 3.6).
+
+This is the arity trap of 3.1 one level of nesting out, and the language pulls
+the same way. A plain list for every collection, where absent and empty are one
+value, is more idiomatic in Rust than an optional list, and every reviewer would
+suggest the change. Until a fixture carrying an empty collection landed, no corpus
+case had one, so an implementation that conflated them passed every tier. The Rust
+seat reports getting this right by accident and for the wrong reason, having been
+warned about arity and not about collections. *(Rust seat.)*
 
 ### 3.3 There are two emit paths, and a codec will reason itself into having one
 
@@ -718,7 +817,7 @@ nothing. *(JavaScript seat, and independently by the Python seat at 48.842 m and
 part of the entry rather than a footnote to it. The three-degree pair was replaced
 by one whose arc spans thirteen degrees and runs in opposite directions in the two
 files. Against the pair now in the corpus, the segment-start-cosine model reads
-**67.4 m** where the correct model reads 45, and **36.8 m** where the correct model
+67.4 m where the correct model reads 45, and 36.8 m where the correct model
 reads 55: it refuses a legal document in the first file and accepts an illegal one
 in the second. The replacement discriminates in both directions.
 
@@ -762,8 +861,8 @@ the first of several call sites, and no accept fixture had a folder carrying
 `notes`. A mutation that misses its target is indistinguishable from a runner that
 found nothing wrong. *(Relayed, not read here.)*
 
-**And a proof whose conclusion is an absence needs re-running whenever the thing
-it claims to be absent from grows.** A red-proof asserting that no tier catches
+And a proof whose conclusion is an absence needs re-running whenever the thing
+it claims to be absent from grows. A red-proof asserting that no tier catches
 some defect is a green-asserting proof, and those rot silently as the corpus gains
 cases. The rendering tie is the worked example: the assertion was true when
 written and false once a formatter case reached it.
@@ -886,7 +985,14 @@ keys (1.1). `Array.prototype.sort` with no comparator orders by UTF-16 code unit
 (2.2). `1e400` parses to infinity rather than failing (4.1). Number rendering is
 otherwise free, which is its own hazard (1.10).
 
-**Rust.** Not yet reported.
+**Rust.** `{}` on an `f64` never uses exponent notation and `{:e}` always does,
+spelling it `e21` rather than `e+21` (1.2). It resolves a rendering tie away from
+zero (1.3). `f64::round` is half away from zero, and `round_ties_even` is the
+right rounding mode applied to the wrong operation (1.5, 1.7). `str` ordering is
+by UTF-8 byte and needs no comparator (2.2). A lone surrogate cannot be
+represented, so the parser refuses one for free (1.10). The idiomatic model of an
+optional field, and of a collection, both lose distinctions the format carries
+(3.1, 3.2).
 
 ---
 

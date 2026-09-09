@@ -1,0 +1,610 @@
+import Foundation
+import XCTest
+@testable import VNX
+
+/// What the conformance corpus does not reach.
+///
+/// SPEC 1.3 says the corpus decides conformance, and the corpus README says
+/// what it cannot check. Everything here is a rule this specification states in
+/// prose that no corpus case exercises, so passing the corpus is not evidence
+/// about any of it.
+final class LibraryTests: XCTestCase {
+
+    private func read(_ json: String) throws -> VNX.ReadResult {
+        try VNX.read(Data(json.utf8))
+    }
+
+    private func minimal(_ body: String) -> String {
+        "{\"vnx\":\"0.1.0\"\(body.isEmpty ? "" : ",")\(body)}"
+    }
+
+    // MARK: - Versions (SPEC 2.2)
+
+    func testVersionComponentsAreCompletelyNumeric() throws {
+        // "Each component is one or more decimal digits, with no bound on
+        // length and no rule against a leading zero: `00.01.0000` is a legal
+        // spelling of 0.1.0."
+        let result = try read("{\"vnx\":\"00.01.0000\"}")
+        XCTAssertEqual(result.document.vnx, "00.01.0000",
+                       "a reader that re-encodes writes the version the document declared")
+        XCTAssertEqual(VNX.render(result.document), Data("{\n  \"vnx\": \"00.01.0000\"\n}\n".utf8))
+    }
+
+    func testVersionsAcceptedAndRefused() throws {
+        for accepted in ["0.1.0", "0.1.3", "0.0.9", "0.1.99", "00.1.0", "0.01.000000000000000000005"] {
+            XCTAssertNoThrow(try read("{\"vnx\":\"\(accepted)\"}"), accepted)
+        }
+        for tooNew in ["0.2.0", "1.0.0", "9.9.9", "0.10.0"] {
+            XCTAssertThrowsError(try read("{\"vnx\":\"\(tooNew)\"}"), tooNew) {
+                XCTAssertEqual(($0 as? Refusal)?.cause, .versionTooNew, tooNew)
+            }
+        }
+        // "A version string that is not three digit-runs separated by full
+        // stops MUST be refused, and MUST NOT be coerced."
+        for malformed in ["0.1", "0.1.0.0", "0.1.x", "0.1.+1", "", "0..1", "0.1.", " 0.1.0"] {
+            XCTAssertThrowsError(try read("{\"vnx\":\"\(malformed)\"}"), malformed) {
+                XCTAssertEqual(($0 as? Refusal)?.cause, .versionMalformed, malformed)
+                XCTAssertTrue(($0 as! Refusal).message.contains("MAJOR.MINOR.PATCH"),
+                              "the refusal must name the expected shape: that is what tells the holder what to produce instead")
+            }
+        }
+    }
+
+    func testTopLevelMustBeAnObjectCarryingVNX() {
+        XCTAssertThrowsError(try read("[]")) { XCTAssertEqual(($0 as? Refusal)?.cause, .notAVNXDocument) }
+        XCTAssertThrowsError(try read("\"0.1.0\"")) { XCTAssertEqual(($0 as? Refusal)?.cause, .notAVNXDocument) }
+        XCTAssertThrowsError(try read("{}")) { XCTAssertEqual(($0 as? Refusal)?.cause, .notAVNXDocument) }
+        XCTAssertThrowsError(try read("{\"vnx\":10}")) { XCTAssertEqual(($0 as? Refusal)?.cause, .versionMalformed) }
+    }
+
+    /// SPEC 6.2: a plain document is refused for exactly four causes and a
+    /// reader MUST NOT refuse one for any other. Everything here is damage a
+    /// reader has to tolerate.
+    func testDamageIsToleratedRatherThanRefused() throws {
+        let damaged = minimal("""
+        "waypoints":[{"at":"not a position"},{"at":[1,2],"style":7,"importance":9}],
+        "tracks":[{"segments":"nope"}],
+        "areas":[{"polygon":[[1,2],[3,4]]}],
+        "folders":[{"name":"no id"}],
+        "networks":[{"arcs":{"a":{"from":"x","to":"y","pips":[[0,0],[1,1]]}},"chains":[{"links":[{"arc":"ghost","from":"x","to":"y"}]}]}]
+        """)
+        let result = try read(damaged)
+        XCTAssertGreaterThan(result.diagnostics.count, 5)
+        XCTAssertEqual(result.document.waypoints?.count, 1, "the usable waypoint survives")
+        XCTAssertEqual(result.document.folders?.count, 0)
+        XCTAssertEqual(result.document.areas?.count, 0)
+        XCTAssertEqual(result.document.tracks?.count, 0)
+    }
+
+    // MARK: - Positions (SPEC 4.1)
+
+    func testPositionArityIsPreservedThroughAReRender() throws {
+        let json = minimal("""
+        "waypoints":[{"at":[1,2]},{"at":[1,2,null]},{"at":[1,2,3]},{"at":[1,2,null,4]},{"at":[1,2,3,4]}]
+        """)
+        let document = try read(json).document
+        XCTAssertEqual(document.waypoints?.map(\.at.arity), [2, 3, 3, 4, 4])
+        let rendered = String(decoding: VNX.render(document), as: UTF8.self)
+        XCTAssertTrue(rendered.contains("[1, 2, null]"), "the longer spelling survives a re-render")
+        XCTAssertTrue(rendered.contains("[1, 2, null, 4]"), "an interior absence keeps its null")
+    }
+
+    /// SPEC 4.1: "A reader MUST ignore channels beyond those it knows, so that
+    /// a future channel is additive." Additive only means something if the
+    /// channel comes back out.
+    func testChannelsAboveIndexThreeSurvive() throws {
+        let document = try read(minimal("\"waypoints\":[{\"at\":[1,2,3,4,5,null]}]")).document
+        XCTAssertEqual(document.waypoints?[0].at.arity, 6)
+        XCTAssertTrue(String(decoding: VNX.render(document), as: UTF8.self).contains("[1, 2, 3, 4, 5, null]"))
+        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self).contains("[1, 2, 3, 4, 5, null]"))
+    }
+
+    /// SPEC 4.5.4: a WRITE rounds longitude and latitude to 6 decimal places
+    /// and elevation to 1, and SPEC 4.1 shortens. A RE-RENDER does neither.
+    func testWriteRoundsAndShortensWhereReRenderDoesNot() throws {
+        let json = minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
+        let document = try read(json).document
+        XCTAssertTrue(String(decoding: VNX.render(document), as: UTF8.self)
+            .contains("[-3.6712345678901235, 57.11812345678901, 340.06, null]"))
+        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self)
+            .contains("[-3.671235, 57.118123, 340.1]"),
+            "a writer rounds and drops the trailing null; that is why the accept tier must not use it")
+    }
+
+    /// SPEC 4.5.4: "A tie rounds to even. An elevation of `340.25` becomes
+    /// `340.2`, not `340.3`."
+    ///
+    /// Swift's bare `.rounded()` rounds away from zero and gets every one of
+    /// these wrong. No fixture anywhere can catch it — rounding happens only
+    /// when a writer emits a model, and every corpus tier re-renders — so this
+    /// test is the whole guard.
+    func testRoundingTiesGoToEven() {
+        func written(_ p: Position) -> String {
+            String(decoding: VNX.write({ var d = Document(); d.waypoints = [Waypoint(at: p)]; return d }()), as: UTF8.self)
+        }
+        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: 340.25)).contains("[1, 2, 340.2]"))
+        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: 340.35)).contains("[1, 2, 340.4]"))
+        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: -340.25)).contains("[1, 2, -340.2]"))
+        XCTAssertTrue(written(Position(lon: 0.00000125, lat: 0.00000175)).contains("[0.000001, 0.000002]"))
+    }
+
+    func testWriteKeepsAnInteriorNull() {
+        var document = Document()
+        document.waypoints = [Waypoint(at: Position(lon: 1.0, lat: 2.0, elevation: nil, timeMilliseconds: 1778914991000))]
+        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self)
+            .contains("[1, 2, null, 1778914991000]"),
+            "dropping the null would move the time into the elevation channel")
+    }
+
+    // MARK: - Canonical form (SPEC 4.5)
+
+    /// SPEC 4.5.1: lexicographic means BY UNICODE CODE POINT, and the note
+    /// warns that an implementation whose default comparison is by UTF-16 code
+    /// unit must supply its own comparator. Swift's `String <` is neither: it
+    /// compares normalised grapheme clusters.
+    func testKeyOrderIsByCodePointNotUTF16NorSwiftDefault() {
+        // U+FFFD sorts BELOW U+10000 by code point and ABOVE it by UTF-16 code
+        // unit, because a supplementary scalar begins with a surrogate at
+        // U+D800. This is the disagreement SPEC 4.5.1 names.
+        let high = "\u{10000}", replacement = "\u{FFFD}"
+        XCTAssertTrue(CanonicalWriter.codePointLess(replacement, high))
+        XCTAssertTrue(Array(high.utf16)[0] < Array(replacement.utf16)[0],
+                      "UTF-16 order disagrees, which is the trap")
+
+        let rendered = String(decoding: CanonicalWriter.render(
+            .object([high: .number(1), replacement: .number(2)])), as: UTF8.self)
+        XCTAssertLessThan(rendered.range(of: replacement)!.lowerBound,
+                          rendered.range(of: high)!.lowerBound)
+    }
+
+    /// SPEC 4.5.1: classification is by the VALUE present in this object, not
+    /// by the key name. No key is named by the rule.
+    func testScalarAndContainerGroupsAreClassifiedByValue() {
+        let rendered = String(decoding: CanonicalWriter.render(.object([
+            "zeta": .number(1),          // scalar, sorts after `alpha` but before it
+            "alpha": .array([.string("x")]),
+        ])), as: UTF8.self)
+        XCTAssertEqual(rendered, """
+        {
+          "zeta": 1,
+          "alpha": [
+            "x"
+          ]
+        }
+
+        """)
+    }
+
+    /// SPEC 4.5.5: a string escapes only what RFC 8259 requires. Everything
+    /// else is written raw, including `<`, `>`, `&`, U+2028 and U+2029 — which
+    /// Go's encoder escapes by default and must be configured not to.
+    func testStringEscaping() {
+        let rendered = String(decoding: CanonicalWriter.render(
+            .string("<>&\u{2028}\u{2029}é日\"\\\n\u{01}")), as: UTF8.self)
+        XCTAssertEqual(rendered, "\"<>&\u{2028}\u{2029}é日\\\"\\\\\\n\\u0001\"\n")
+        XCTAssertFalse(rendered.contains("\\u00e9"), "no character above U+007F may be written as a \\u escape")
+    }
+
+    func testEmptyContainersAreWrittenOnOneLine() {
+        XCTAssertEqual(String(decoding: CanonicalWriter.render(
+            .object(["a": .array([]), "b": .object([:])])), as: UTF8.self),
+            "{\n  \"a\": [],\n  \"b\": {}\n}\n")
+    }
+
+    /// SPEC 4.5.2's rule is about an array of numbers and nulls, not about
+    /// positions, so it applies equally inside an opaque data record.
+    func testNumberArrayRuleAppliesInsideAnOpaqueRecord() throws {
+        let document = try read(minimal("""
+        "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","v":[1,null,2],"w":[1,"a"]}]}]
+        """)).document
+        let rendered = String(decoding: VNX.render(document), as: UTF8.self)
+        XCTAssertTrue(rendered.contains("\"v\": [1, null, 2]"))
+        XCTAssertTrue(rendered.contains("\"w\": [\n"), "an array holding a string is not a number array")
+    }
+
+    func testEmptyCollectionIsDistinctFromAnAbsentOne() throws {
+        // SPEC 3.10: "an empty array is distinct from an absent one".
+        let withEmpty = minimal("\"waypoints\":[]")
+        XCTAssertEqual(try VNX.canonicalise(Data(withEmpty.utf8)),
+                       Data("{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": []\n}\n".utf8))
+        XCTAssertEqual(try VNX.canonicalise(Data("{\"vnx\":\"0.1.0\"}".utf8)),
+                       Data("{\n  \"vnx\": \"0.1.0\"\n}\n".utf8))
+    }
+
+    // MARK: - Data records (SPEC 5)
+
+    /// SPEC 5.3: the `app.viatrail.` prefix is matched case-insensitively for
+    /// the purposes of profile classification, and NOWHERE else. `@type` itself
+    /// is compared exactly.
+    func testNamespaceIsCaseInsensitiveButTypeIdentityIsNot() {
+        XCTAssertTrue(DataRecord(type: "app.viatrail.tag").isInViatrailNamespace)
+        XCTAssertTrue(DataRecord(type: "App.viatrail.x").isInViatrailNamespace)
+        XCTAssertTrue(DataRecord(type: "APP.VIATRAIL.X").isInViatrailNamespace)
+        XCTAssertFalse(DataRecord(type: "com.example.tag").isInViatrailNamespace)
+        XCTAssertNotEqual(DataRecord(type: "App.viatrail.tag"), DataRecord(type: "app.viatrail.tag"))
+    }
+
+    /// SPEC 6.2: "a reader MUST NOT check the type, range or enumeration of a
+    /// field inside" a data record body. Checking them would break the
+    /// mechanism by which an unrecognised record survives a read-modify-write.
+    func testRecordBodiesAreNotValidated() throws {
+        let json = minimal("""
+        "waypoints":[{"at":[1,2],"data":[{"@type":"app.viatrail.camp","flat":"maybe","capacity":null,"importance":99}]}]
+        """)
+        let result = try read(json)
+        XCTAssertEqual(result.diagnostics, [], "nothing inside a record body is a reader's business")
+        XCTAssertEqual(result.document.waypoints?[0].data?.count, 1)
+    }
+
+    func testRecordWithNoTypeIsDropped() throws {
+        let result = try read(minimal("\"waypoints\":[{\"at\":[1,2],\"data\":[{\"x\":1},{\"@type\":7},{\"@type\":\"ok\"}]}]"))
+        XCTAssertEqual(result.document.waypoints?[0].data?.map(\.type), ["ok"])
+        XCTAssertEqual(result.diagnostics.filter { $0.cause == .dataRecordTypeUnusable }.count, 2)
+    }
+
+    // MARK: - Style (SPEC 3.10, 3.6, 6.2)
+
+    /// A style object is opaque, with one exception the specification states
+    /// twice: `importance` is "an integer from 1 to 5, and that is normative",
+    /// and SPEC 6.2 names it as the worked example of a value outside a stated
+    /// range.
+    func testImportanceIsTheOnlyCheckedStyleKey() throws {
+        let result = try read(minimal("""
+        "waypoints":[{"at":[1,2],"style":{"importance":9,"icon-size":999,"invented-key":{"deep":1}}}]
+        """))
+        XCTAssertEqual(result.diagnostics.map(\.cause), [.importanceOutOfRange])
+        XCTAssertNil(result.document.waypoints?[0].style?["importance"], "the field goes")
+        XCTAssertNotNil(result.document.waypoints?[0].style?["invented-key"], "the item, and the rest of the style, stay")
+        XCTAssertNotNil(result.document.waypoints?[0].style?["icon-size"])
+    }
+
+    func testImportanceInRangeIsKept() throws {
+        for value in [1, 2, 3, 4, 5] {
+            let result = try read(minimal("\"waypoints\":[{\"at\":[1,2],\"style\":{\"importance\":\(value)}}]"))
+            XCTAssertEqual(result.diagnostics, [], "importance \(value)")
+        }
+    }
+
+    // MARK: - Hidden (SPEC 3.8)
+
+    func testHiddenAbsenceMeansVisibleAndIsNotInvented() throws {
+        let document = try read(minimal("\"waypoints\":[{\"at\":[1,2]},{\"at\":[3,4],\"hidden\":true}]")).document
+        XCTAssertNil(document.waypoints?[0].hidden, "absence means visible; it is not `false`")
+        XCTAssertEqual(document.waypoints?[1].hidden, true)
+        XCTAssertFalse(String(decoding: VNX.render(document), as: UTF8.self).contains("\"hidden\": false"))
+    }
+
+    // MARK: - Folders (SPEC 6.2)
+
+    func testFolderReferenceThatDoesNotResolveKeepsTheItemAtTheTopLevel() throws {
+        let result = try read(minimal("\"waypoints\":[{\"at\":[1,2],\"folder\":\"nowhere\"}]"))
+        XCTAssertEqual(result.diagnostics.map(\.cause), [.folderNotPresent])
+        XCTAssertEqual(result.diagnostics.map(\.path), ["/waypoints/0/folder"])
+        XCTAssertEqual(result.document.waypoints?.count, 1, "dropping the item would lose content over a lost grouping")
+        XCTAssertNil(result.document.waypoints?[0].folder)
+    }
+
+    /// "A folder with no `id` is dropped under the rule above. Items that named
+    /// it are then covered by the previous paragraph and sit at the top level,
+    /// so a folder's contents survive the loss of the folder."
+    func testAFoldersContentsSurviveTheLossOfTheFolder() throws {
+        let result = try read(minimal("""
+        "folders":[{"name":"no id here"}],"waypoints":[{"at":[1,2],"folder":"gone"}]
+        """))
+        XCTAssertEqual(result.document.folders, [])
+        XCTAssertEqual(result.document.waypoints?.count, 1)
+        XCTAssertEqual(Set(result.diagnostics.map(\.cause)), [.requiredValueUnusable, .folderNotPresent])
+    }
+
+    // MARK: - Networks (SPEC 3.3, 6.2)
+
+    func testArcNamingAnAbsentNodeIsKept() throws {
+        let result = try read(minimal("""
+        "networks":[{"nodes":{"a":[0,0]},"arcs":{"x":{"from":"a","to":"missing","pips":[[0,0],[1,1]]}}}]
+        """))
+        XCTAssertEqual(result.document.networks?[0].arcs?.count, 1, "the arc is kept; its geometry is real")
+        XCTAssertEqual(result.diagnostics.map(\.cause), [.arcNodeNotInNetwork])
+    }
+
+    /// SPEC 6.2's remedy table: "keep the link; exclude that end from the
+    /// continuity comparison". The link still names an arc, so it still carries
+    /// geometry; only the junction is unknowable.
+    func testLinkNamingAnAbsentNodeIsKeptAndLeavesTheContinuityComparison() throws {
+        let result = try read(minimal("""
+        "networks":[{"nodes":{"a":[0,0],"b":[1,1]},
+        "arcs":{"x":{"from":"a","to":"b","pips":[[0,0],[1,1]]}},
+        "chains":[{"links":[{"arc":"x","from":"a","to":"missing"},{"arc":"x","from":"b","to":"a"}]}]}]
+        """))
+        XCTAssertEqual(result.document.networks?[0].chains?[0].links.count, 2)
+        XCTAssertEqual(result.diagnostics.map(\.cause), [.linkNodeNotInNetwork],
+                       "no break is reported across the unknowable end: one defect must not become two")
+    }
+
+    /// SPEC 6.2: "Two distinct node keys at the same position therefore meet:
+    /// comparing the keys alone would report a continuous walk as broken."
+    func testTwoDistinctNodeKeysAtOnePositionMeet() throws {
+        let result = try read(minimal("""
+        "networks":[{"nodes":{"a":[0,0],"b":[1,1],"b2":[1,1],"c":[2,2]},
+        "arcs":{"x":{"from":"a","to":"b","pips":[[0,0],[1,1]]},"y":{"from":"b2","to":"c","pips":[[1,1],[2,2]]}},
+        "chains":[{"links":[{"arc":"x","from":"a","to":"b"},{"arc":"y","from":"b2","to":"c"}]}]}]
+        """))
+        XCTAssertEqual(result.diagnostics, [])
+    }
+
+    /// SPEC 3.3.3: "A polyline of no vertices has no distance: the reader MUST
+    /// record a diagnostic and drop the link rather than invent a number."
+    func testInlineEndpointOnAnArcWithNoVerticesIsDroppedNotMeasured() throws {
+        let result = try read(minimal("""
+        "networks":[{"arcs":{"x":{"from":"a","to":"b","pips":[]}},
+        "chains":[{"links":[{"arc":"x","from":[0,0],"to":[1,1]}]}]}]
+        """))
+        XCTAssertEqual(result.diagnostics.filter { $0.cause == .inlineEndpointOnEmptyArc }.count, 1)
+        XCTAssertEqual(result.document.networks?[0].chains?[0].links, [])
+    }
+
+    /// SPEC 3.3.3: "A polyline of one vertex is that point."
+    func testSingleVertexPolylineIsThatPoint() {
+        let one = [Position(lon: -3, lat: 57)]
+        XCTAssertEqual(Projection.distance(from: Position(lon: -3, lat: 57), toPolyline: one), 0)
+        let d = Projection.distance(from: Position(lon: -3.001, lat: 57), toPolyline: one)!
+        XCTAssertEqual(d, 0.001 * .pi / 180 * Projection.earthRadiusMetres * cos(57 * .pi / 180), accuracy: 1e-6)
+    }
+
+    /// The two corpus tolerance cases, checked as numbers rather than as
+    /// verdicts, so a model that is wrong by a hair shows the hair.
+    func testProjectionReadsTheCorpusTolerancePairExactly() {
+        let ascending = [Position(lon: -3, lat: 55), Position(lon: -3, lat: 68)]
+        XCTAssertEqual(Projection.distance(from: Position(lon: -2.998942483187279, lat: 67.5),
+                                           toPolyline: ascending)!, 45.0, accuracy: 0.001)
+        let descending = [Position(lon: -3, lat: 68), Position(lon: -3, lat: 55)]
+        XCTAssertEqual(Projection.distance(from: Position(lon: -2.999115464096596, lat: 56),
+                                           toPolyline: descending)!, 55.0, accuracy: 0.001)
+    }
+
+    /// SPEC 6.2: "A reader MUST compare a node key by its resolved position
+    /// rather than refusing to compare it, or a walk that is continuous is
+    /// reported as broken."
+    func testANodeKeyMeetsAnInlinePositionAtTheSamePlace() throws {
+        let result = try read(minimal("""
+        "networks":[{"nodes":{"a":[0,0,500],"b":[1,1]},
+        "arcs":{"x":{"from":"a","to":"b","pips":[[0,0],[1,1]]}},
+        "chains":[{"links":[{"arc":"x","from":"a","to":"b"},{"arc":"x","from":[1,1],"to":"a"}]}]}]
+        """))
+        XCTAssertEqual(result.diagnostics, [], "keys and inline positions must be comparable to each other")
+    }
+
+    /// The node in that test carries an elevation and the inline position
+    /// cannot, so comparing the elevation channel would report every such join
+    /// as a break.
+    func testMeetingIgnoresTheElevationChannel() {
+        XCTAssertTrue(Position(lon: 1, lat: 2, elevation: 500).isSamePlace(as: Position(lon: 1, lat: 2)))
+        XCTAssertFalse(Position(lon: 1, lat: 2).isSamePlace(as: Position(lon: 1, lat: 2.0000001)))
+    }
+
+    /// `corpus/diagnose/link-names-absent-arc.expect.json` insists on exactly
+    /// one diagnostic. That case drops the LAST link; this is the case it does
+    /// not cover, where the dropped link is in the middle and closing the gap
+    /// would manufacture a second defect out of the first.
+    func testADroppedMiddleLinkDoesNotManufactureABreak() throws {
+        let result = try read(minimal("""
+        "networks":[{"nodes":{"a":[0,0],"b":[1,1],"c":[2,2]},
+        "arcs":{"ab":{"from":"a","to":"b","pips":[[0,0],[1,1]]},"ca":{"from":"c","to":"a","pips":[[2,2],[0,0]]}},
+        "chains":[{"links":[
+          {"arc":"ab","from":"a","to":"b"},
+          {"arc":"ghost","from":"b","to":"c"},
+          {"arc":"ca","from":"c","to":"a"}]}]}]
+        """))
+        XCTAssertEqual(result.diagnostics.map(\.cause), [.linkArcNotInNetwork],
+                       "one defect must not become two")
+        XCTAssertEqual(result.document.networks?[0].chains?[0].links.count, 2)
+    }
+
+    // MARK: - Areas (SPEC 3.7)
+
+    func testRingMustHaveFourPositionsAndClose() throws {
+        for bad in ["[[0,0],[1,0],[0,0]]", "[[0,0],[1,0],[1,1],[0,1]]"] {
+            let result = try read(minimal("\"areas\":[{\"polygon\":\(bad)}]"))
+            XCTAssertEqual(result.document.areas, [], bad)
+            XCTAssertEqual(result.diagnostics.map(\.cause), [.polygonUnclosed], bad)
+        }
+        let good = try read(minimal("\"areas\":[{\"polygon\":[[0,0],[1,0],[1,1],[0,0]]}]"))
+        XCTAssertEqual(good.diagnostics, [])
+    }
+
+    // MARK: - Timestamps (SPEC 4.3)
+
+    func testTimestampShapes() throws {
+        for good in ["2026-05-12T07:03:11Z", "2026-05-12T07:03:11.5Z", "2026-05-12T07:03:11.123456789Z"] {
+            XCTAssertEqual(try read(minimal("\"created\":\"\(good)\"")).diagnostics, [], good)
+        }
+        for bad in ["2026-05-12T07:03:11+01:00", "2026-05-12T07:03:11", "2026-05-12", "2026-05-12T07:03:11.Z", "now"] {
+            let result = try read(minimal("\"created\":\"\(bad)\""))
+            XCTAssertEqual(result.diagnostics.map(\.cause), [.timestampNotUTC], bad)
+            XCTAssertNil(result.document.created, bad)
+        }
+    }
+
+    // MARK: - Duplicate object keys (SPEC 6.4)
+
+    func testDuplicateObjectKeysResolveLastWinsWithNoDiagnostic() throws {
+        let result = try read("{\"vnx\":\"0.1.0\",\"waypoints\":[{\"at\":[1,2]}],\"waypoints\":[{\"at\":[3,4]},{\"at\":[5,6]}]}")
+        XCTAssertEqual(result.document.waypoints?.count, 2)
+        XCTAssertEqual(result.diagnostics, [], "a documented limitation, not a rule")
+    }
+
+    // MARK: - The parser
+
+    func testTheParserIsStrict() {
+        for bad in ["{\"vnx\":\"0.1.0\",}", "{'vnx':'0.1.0'}", "{\"vnx\":\"0.1.0\"} trailing",
+                    "{\"vnx\":NaN}", "{\"vnx\":Infinity}", "{\"vnx\":-Infinity}", "{\"vnx\":01}",
+                    "{\"vnx\":.5}", "{\"vnx\":+1}", "{\"vnx\":\"a\\u00\"}", "// c\n{}",
+                    "{\"vnx\":\"tab\there\"}"] {
+            XCTAssertThrowsError(try read(bad), bad) {
+                XCTAssertEqual(($0 as? Refusal)?.cause, .malformedJSON, bad)
+                XCTAssertTrue(($0 as! Refusal).message.contains("malformed JSON"), bad)
+            }
+        }
+    }
+
+    func testTheParserAcceptsWhatJSONAllows() throws {
+        let result = try read("{\"vnx\":\"0.1.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
+        XCTAssertEqual(result.document.generator, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")
+    }
+
+    // MARK: - Containers (SPEC 7)
+
+    func testContainerRoundTripsThroughThisLibrarysOwnWriter() throws {
+        var document = Document()
+        document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201))]
+        let archive = VNX.writeContainer(document: document,
+                                         attachments: [Attachment(path: "attachments/photo.txt", bytes: Data("hello\n".utf8))])
+        let read = try VNX.readContainer(archive)
+        XCTAssertEqual(read.documentName, "doc.vnx")
+        XCTAssertEqual(read.document, document)
+        XCTAssertEqual(read.attachments.map(\.path), ["attachments/photo.txt"])
+        XCTAssertEqual(read.attachments[0].bytes, Data("hello\n".utf8))
+    }
+
+    /// SPEC 7's closing note, which no corpus case exercises: "an
+    /// implementation matching the root document on the base name alone matches
+    /// at any depth and lets the last match win rather than the first. The
+    /// match is on the full entry name."
+    func testRootDocumentMatchesTheFullEntryNameNotTheBaseName() throws {
+        let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.nestedDocDecoy))
+        XCTAssertEqual(read.documentName, "a-export.vnx",
+                       "`nested/doc.vnx` is not `doc.vnx` at the archive root")
+        XCTAssertEqual(read.attachments.map(\.path), ["nested/doc.vnx"])
+    }
+
+    /// "the reader takes the FIRST entry with a `.vnx` extension in archive
+    /// order" — first, not last.
+    func testFallbackTakesTheFirstVNXInArchiveOrder() throws {
+        let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.twoCandidates))
+        XCTAssertEqual(read.documentName, "first.vnx")
+    }
+
+    func testDuplicateEntryNamesAreComparedCaseInsensitively() {
+        XCTAssertThrowsError(try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.caseDuplicate))) {
+            XCTAssertEqual(($0 as? Refusal)?.cause, .containerDuplicateEntry)
+        }
+    }
+
+    /// SPEC 7: "`..` is a path segment, not a substring: `a..b/photo.jpg` is a
+    /// legal name and escapes nothing."
+    func testDotsInsideANameAreNotAnEscape() throws {
+        let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.dotsInName))
+        XCTAssertEqual(read.attachments.map(\.path), ["a..b/photo.jpg"])
+        XCTAssertNil(Container.unsafePath("a..b/photo.jpg"))
+        XCTAssertNotNil(Container.unsafePath("a/../b"))
+        XCTAssertNotNil(Container.unsafePath("../b"))
+        XCTAssertNotNil(Container.unsafePath("/etc/passwd"))
+        XCTAssertNotNil(Container.unsafePath("C:/windows"))
+        XCTAssertNotNil(Container.unsafePath("a\\b"))
+        XCTAssertNil(Container.unsafePath("..b/photo.jpg"))
+    }
+
+    /// SPEC 7: "A reader MUST read an archive that uses the ZIP64 extensions."
+    /// Nothing in the corpus does.
+    ///
+    /// Two fixtures, because the first one alone was a test that passed for the
+    /// wrong reason: `zipfile`'s `force_zip64` masks the sizes in the LOCAL
+    /// header and leaves the central directory in 32-bit form, and this reader
+    /// takes its sizes from the central directory, so disabling the extra-field
+    /// parser entirely left that case green. The second is hand-built with the
+    /// sizes AND the local header offset masked to 0xFFFFFFFF in the central
+    /// directory, a ZIP64 extra field carrying the real values, and a ZIP64
+    /// end-of-central-directory record and locator.
+    func testZIP64ArchiveIsRead() throws {
+        let viaLocalHeader = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.zip64Deflate))
+        XCTAssertEqual(viaLocalHeader.documentName, "doc.vnx")
+        XCTAssertEqual(viaLocalHeader.document.waypoints?.count, 1)
+        XCTAssertEqual(viaLocalHeader.attachments.map(\.path), ["attachments/photo.txt"])
+
+        let viaCentralDirectory = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.zip64CentralDirectory))
+        XCTAssertEqual(viaCentralDirectory.documentName, "doc.vnx")
+        XCTAssertEqual(viaCentralDirectory.document.waypoints?.count, 1)
+        XCTAssertEqual(viaCentralDirectory.attachments, [])
+    }
+
+    /// The corpus's four archives hold 138-byte entries, which deflate as one
+    /// small block. This one is large and repetitive enough to exercise
+    /// back-references and the dynamic Huffman path.
+    func testDeflateHandlesALargerEntry() throws {
+        let bytes = [UInt8](ZipFixtures.bytes(ZipFixtures.largeDeflate))
+        let entry = try Zip.entries(in: bytes)[0]
+        XCTAssertEqual(entry.method, Zip.methodDeflate)
+        XCTAssertEqual(Data(try Zip.contents(of: entry, in: bytes)), Data(ZipFixtures.largeDeflateBody.utf8))
+    }
+
+    /// SPEC 7: the remedy depends on which entry it is. An attachment goes and
+    /// the document is returned; the root document going means there is no
+    /// document, so the archive is refused.
+    func testUnsupportedCompressionIsAnAttachmentDiagnosticAndARootRefusal() throws {
+        let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.bzip2Attachment))
+        XCTAssertEqual(read.document.waypoints?.count, 1, "refusing a library over one photograph would be disproportionate")
+        XCTAssertEqual(read.attachments, [])
+        XCTAssertEqual(read.diagnostics.map(\.cause), [.attachmentCompressionUnsupported])
+
+        XCTAssertThrowsError(try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.bzip2Root))) {
+            XCTAssertEqual(($0 as? Refusal)?.cause, .containerRootCompressionUnsupported)
+        }
+    }
+
+    func testArchiveWithNoDocumentIsRefused() {
+        XCTAssertThrowsError(try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.noDocument))) {
+            XCTAssertEqual(($0 as? Refusal)?.cause, .containerNoDocument)
+        }
+    }
+
+    func testNotAZipAtAll() {
+        XCTAssertThrowsError(try VNX.readContainer(Data("{\"vnx\":\"0.1.0\"}".utf8))) {
+            XCTAssertEqual(($0 as? Refusal)?.cause, .containerMalformed)
+        }
+    }
+
+    // MARK: - Round trip
+
+    /// Decoding and re-rendering is idempotent over every accept file, and
+    /// re-rendering a re-render changes nothing. A formatter that was not a
+    /// fixed point would make "every conforming writer emits these exact bytes"
+    /// depend on how many times the file had been through one.
+    func testCanonicalFormIsAFixedPoint() throws {
+        for url in try Corpus.cases(in: "accept") where url.pathExtension == "vnx" {
+            let once = try VNX.canonicalise(try Data(contentsOf: url))
+            XCTAssertEqual(try VNX.canonicalise(once), once, url.lastPathComponent)
+        }
+    }
+
+    /// A model built by hand, written, read back, and compared. This is the
+    /// half the corpus cannot test at all: every corpus case starts from bytes.
+    func testWriteThenReadIsAFixedPointOverAModel() throws {
+        var document = Document()
+        document.generator = "VNX Swift tests"
+        document.created = "2026-09-09T12:00:00Z"
+        document.folders = [Folder(id: "f", parent: nil, name: "F", notes: nil, hidden: true, data: nil)]
+        document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201, elevation: 320),
+                                       name: "Car park", notes: "note", folder: "f", hidden: nil,
+                                       style: ["color": .string("#444444"), "importance": .number(2)],
+                                       data: [DataRecord(type: "com.example.x", body: ["value": .bool(true)])])]
+        document.networks = [Network(name: "N", notes: nil, folder: "f", hidden: nil,
+                                     nodes: ["a": Position(lon: 0, lat: 0), "b": Position(lon: 1, lat: 1)],
+                                     arcs: ["x": NetworkArc(from: "a", to: "b",
+                                                            pips: [Position(lon: 0, lat: 0), Position(lon: 1, lat: 1)],
+                                                            data: nil)],
+                                     chains: [Chain(links: [Link(arc: "x", from: .node("a"), to: .inline(Position(lon: 1, lat: 1)))])],
+                                     points: nil, areas: nil, data: nil)]
+        document.tracks = [Track(segments: [TrackSegment(pips: [
+            Position(lon: 0, lat: 0, elevation: 1, timeMilliseconds: 1000),
+            Position(lon: 1, lat: 1, elevation: 2, timeMilliseconds: 4000)])],
+            name: "T", notes: nil, folder: nil, hidden: nil, style: nil,
+            started: "2026-09-09T12:00:00Z", ended: "2026-09-09T12:00:04Z", data: nil)]
+        document.rulesets = [.object(["name": .string("r")])]
+
+        let bytes = VNX.write(document)
+        let read = try VNX.read(bytes)
+        XCTAssertEqual(read.diagnostics, [])
+        XCTAssertEqual(read.document, document)
+        XCTAssertEqual(VNX.write(read.document), bytes)
+        XCTAssertEqual(read.document.tracks?[0].movingTimeMilliseconds, 3000)
+    }
+}

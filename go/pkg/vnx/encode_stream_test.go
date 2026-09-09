@@ -109,7 +109,7 @@ func TestStreamedContainerTablesAreInCanonicalOrder(t *testing.T) {
 		docKeys = append(docKeys, c.key)
 	}
 	netKeys := make([]string, 0)
-	for _, c := range networkContainers(Network{}) {
+	for _, c := range networkContainers(emitter{}, Network{}) {
 		netKeys = append(netKeys, c.key)
 	}
 	for _, tbl := range []struct {

@@ -1095,13 +1095,32 @@ Three sidecar fields do work that is not evident from their names:
 diagnostic or a refusal is an implementation's own business; naming the cause is
 not.
 
-Every file in `accept/` is stored in canonical form (Section 4.5), and the
-runner asserts that canonicalising it reproduces it byte for byte. Files in
-`reject/` and `diagnose/` are not required to be canonical, and most are not. That check
-is the byte-compatibility guarantee between implementations, and it also proves
-that the whole document — including data records of types no implementation
-recognises, whose bodies nothing else inspects — survives parse and re-render at
-value level.
+Every file in `accept/` is stored in canonical form (Section 4.5). A runner MUST
+decode it, RE-RENDER the decoded document, and require the original bytes back.
+Files in `reject/` and `diagnose/` are not required to be canonical, and most
+are not.
+
+This document distinguishes two operations that both produce a document, and the
+accept tier requires the second:
+
+| Operation | What it does |
+|---|---|
+| WRITE | turn a model into a document, applying the emit-boundary rules: round coordinates (Section 4.5.4) and emit the shortest spelling of a position (Section 4.1) |
+| RE-RENDER | turn a document a reader was handed back into that document, applying neither, so arity and precision survive |
+
+A runner MUST NOT use its writer for this check: writing what was read is
+legitimately not what was read, because a writer rounds.
+
+Nor may a runner reformat the file's BYTES without decoding them. Reformatting
+bytes into bytes never builds a model, so it cannot observe anything about what
+a model kept — a reader that discarded every data record, every ruleset, every
+style and every `notes` passes such a check, which is the whole extensibility
+mechanism, all styling and all user prose. Measured 2026-09-09.
+
+The check is therefore two guarantees at once: the byte-compatibility guarantee
+between implementations, and the only thing that proves a reader KEPT what it
+read, including data records of types no implementation recognises, whose bodies
+nothing else inspects.
 
 ### 8.2 JSON Schema
 

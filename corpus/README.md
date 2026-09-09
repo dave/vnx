@@ -92,8 +92,17 @@ reader that found half the defects.
 
 ## Accept files are canonical
 
-Every `accept/*.vnx` is stored in canonical form (`SPEC.md` section 4.5), and
-the runner asserts `canonicalise(file) == file` byte for byte.
+Every `accept/*.vnx` is stored in canonical form (`SPEC.md` section 4.5). The
+runner decodes it, RE-RENDERS the decoded document, and requires the original
+bytes back.
+
+Re-render, not write, and not reformat-the-bytes. A writer rounds coordinates at
+the emit boundary and emits the shortest spelling of a position, so writing what
+you read is legitimately not what you read. And reformatting bytes into bytes
+never builds a model, so it cannot see a reader that threw away what it read:
+measured 2026-09-09, a reader discarding every data record, every ruleset, every
+style and every `notes` passed this tier green under a bytes-only check. Your
+model has to keep a position's arity for this to work — see section 4.1.
 
 That check is the byte-compatibility guarantee between the libraries. Every
 conforming writer, in every language, emits these exact bytes for a given

@@ -81,7 +81,7 @@ func TestPositionTrailingNullsAreTrimmedButInteriorOnesKept(t *testing.T) {
 		{"ele and time", Position{Lon: 1, Lat: 2, Ele: ptrF(340), Time: &ms}, 4},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := positionTree(c.p)
+			got, err := emitter{}.positionTree(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}

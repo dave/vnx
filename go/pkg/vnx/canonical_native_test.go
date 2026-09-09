@@ -255,7 +255,7 @@ func bigItemTree(t *testing.T) map[string]any {
 		ms := int64(1778569391000 + i*1000)
 		pips = append(pips, Position{Lon: -3.0 - float64(i)/1000, Lat: 57.0 + float64(i)/1000, Ele: &ele, Time: &ms})
 	}
-	tree, err := trackTree(Track{Name: "a long track", Segments: []Segment{{Pips: pips}}})
+	tree, err := emitter{}.trackTree(Track{Name: "a long track", Segments: []Segment{{Pips: pips}}})
 	if err != nil {
 		t.Fatal(err)
 	}

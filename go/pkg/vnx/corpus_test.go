@@ -145,31 +145,31 @@ func runAccept(t *testing.T, c corpusCase) {
 			t.Errorf("attachments = %v, want %v", attachments, *want)
 		}
 	}
-	// Accept files are stored in canonical form (§4.5), so canonicalising one
-	// is a no-op.
+	// The accept tier's check: DECODE the file, RE-RENDER the model, and
+	// require the bytes back.
 	//
-	// ⚠ THIS CHECK IS WEAKER THAN §8.1 CLAIMS, AND THE FIX IS NOT LANDED YET.
-	// §8.1 says it proves the whole document — unknown data records included —
-	// survives parse and re-render at value level. It cannot: canonicalise() is
-	// bytes in and bytes out and never builds a model, so it cannot see a
-	// reader that discarded what it read. Measured by the Python implementation
-	// 2026-09-09: a reader that dropped every data record, every ruleset, every
-	// style and every `notes` passed this tier GREEN.
+	// ⚠ IT IS Reformat, NOT Canonical AND NOT Encode, and both halves matter.
 	//
-	// The replacement is decode-then-re-encode. It needs a FORMATTER that
-	// neither rounds nor shortens — Encode is the WRITER and does both, by
-	// rule — and this package does not have one yet. Position.Channels is the
-	// groundwork: it records the arity a document carried, which a formatter
-	// must reproduce and which nothing reads today.
+	// Canonical is bytes in and bytes out. It never builds a model, so it cannot
+	// see a reader that discarded what it read — measured by the Python
+	// implementation 2026-09-09, a reader that dropped every data record, every
+	// ruleset, every style and every `notes` passed this tier GREEN under it.
+	// That is the whole extensibility mechanism, all styling and all user prose.
+	//
+	// Encode is the WRITER: §4.5.4 rounds at the emit boundary and §4.1 emits
+	// the shortest spelling, so Encode(Decode(f)) is legitimately not f.
+	// Reformat is the FORMATTER, which reproduces what the document carried.
 	if c.isContainer() {
 		return
 	}
-	got, err := Canonical(c.data)
+	got, err := Reformat(doc)
 	if err != nil {
-		t.Fatalf("Canonical: %v", err)
+		t.Fatalf("Reformat: %v", err)
 	}
 	if !bytes.Equal(got, c.data) {
-		t.Errorf("corpus file is not in canonical form; first difference at byte %d", firstDiff(got, c.data))
+		t.Errorf("re-rendering the decoded document did not reproduce the file; "+
+			"first difference at byte %d.\nEither the file is not canonical, or the "+
+			"reader dropped something it read", firstDiff(got, c.data))
 	}
 }
 

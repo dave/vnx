@@ -32,6 +32,42 @@ import (
 // Callers that have somewhere to write should use EncodeTo: this function
 // necessarily holds the whole output, which is the memory spec 4b exists to
 // stop paying.
+// emitter carries the one decision that separates a WRITER from a FORMATTER.
+//
+// A writer turns a model into a document: spec §4.5.4 has it round coordinates
+// at that boundary, and §4.1 has it emit the shortest spelling of a position.
+// A formatter re-renders a document a reader was handed, so it does neither —
+// it reproduces the arity and the precision the document carried, because
+// canonical form constrains key order and number SPELLING, not precision, and
+// shortening is a writer's rule rather than part of canonical form.
+//
+// ⚠ IT IS A STRUCT AND NOT A bool PARAMETER ON PURPOSE. arcTree already takes
+// a `named bool`, and a second adjacent bool is a silent transposition waiting
+// to happen in a package whose whole job is byte-exact output.
+type emitter struct{ verbatim bool }
+
+// Reformat re-renders a document that was DECODED, reproducing it exactly:
+// every position keeps the arity and the precision the file carried.
+//
+// ⚠ IT IS NOT Encode, AND THE DIFFERENCE IS THE POINT. Encode is a WRITER --
+// spec §4.5.4 has it round coordinates at the emit boundary and §4.1 has it
+// emit the shortest spelling of a position, so Encode(Decode(f)) is legitimately
+// not f. Reformat is the FORMATTER: §4.5.4 says a reader and a formatter round
+// nothing, and shortening is likewise a writer's rule rather than part of
+// canonical form.
+//
+// This is what the conformance corpus's accept tier compares against. That
+// check has to build a MODEL -- canonicalising is bytes in and bytes out and
+// cannot see a reader that discarded what it read -- while still reproducing the
+// file, which only a formatter does.
+func Reformat(doc *Document) ([]byte, error) {
+	var b bytes.Buffer
+	if err := encodeTo(emitter{verbatim: true}, &b, doc); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
 func Encode(doc *Document) ([]byte, error) {
 	var b bytes.Buffer
 	if err := EncodeTo(&b, doc); err != nil {
@@ -40,13 +76,13 @@ func Encode(doc *Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func waypointTree(w Waypoint) (map[string]any, error) {
+func (e emitter) waypointTree(w Waypoint) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", w.Name)
 	putString(o, "notes", w.Notes)
 	putString(o, "folder", w.Folder)
 	putBool(o, "hidden", w.Hidden)
-	at, err := positionTree(w.At)
+	at, err := e.positionTree(w.At)
 	if err != nil {
 		return nil, err
 	}
@@ -60,13 +96,13 @@ func waypointTree(w Waypoint) (map[string]any, error) {
 	return o, nil
 }
 
-func areaTree(a Area) (map[string]any, error) {
+func (e emitter) areaTree(a Area) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", a.Name)
 	putString(o, "notes", a.Notes)
 	putString(o, "folder", a.Folder)
 	putBool(o, "hidden", a.Hidden)
-	ring, err := positionsTree(a.Polygon)
+	ring, err := e.positionsTree(a.Polygon)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +116,7 @@ func areaTree(a Area) (map[string]any, error) {
 	return o, nil
 }
 
-func trackTree(t Track) (map[string]any, error) {
+func (e emitter) trackTree(t Track) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", t.Name)
 	putString(o, "notes", t.Notes)
@@ -94,7 +130,7 @@ func trackTree(t Track) (map[string]any, error) {
 	}
 	segs := make([]any, 0, len(t.Segments))
 	for _, s := range t.Segments {
-		pips, err := positionsTree(s.Pips)
+		pips, err := e.positionsTree(s.Pips)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +164,7 @@ func formatTimestamp(t time.Time) string {
 	return t.Format("2006-01-02T15:04:05.999999999Z")
 }
 
-func routeTree(r Route) (map[string]any, error) {
+func (e emitter) routeTree(r Route) (map[string]any, error) {
 	o := map[string]any{}
 	putString(o, "name", r.Name)
 	putString(o, "notes", r.Notes)
@@ -136,7 +172,7 @@ func routeTree(r Route) (map[string]any, error) {
 	putBool(o, "hidden", r.Hidden)
 	arcs := make([]any, 0, len(r.Arcs))
 	for _, a := range r.Arcs {
-		ao, err := arcTree(a, false)
+		ao, err := e.arcTree(a, false)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +194,7 @@ func routeTree(r Route) (map[string]any, error) {
 // materialising it (encode_stream.go). Keeping a second whole-network builder
 // beside it would be a second implementation of the container order with
 // nothing left to compare it against.
-func chainTree(c Chain) (map[string]any, error) {
+func (e emitter) chainTree(c Chain) (map[string]any, error) {
 	co := map[string]any{}
 	putString(co, "name", c.Name)
 	putString(co, "notes", c.Notes)
@@ -166,11 +202,11 @@ func chainTree(c Chain) (map[string]any, error) {
 	links := make([]any, 0, len(c.Links))
 	for _, l := range c.Links {
 		lo := map[string]any{"arc": l.Arc}
-		from, err := endpointTree(l.From)
+		from, err := e.endpointTree(l.From)
 		if err != nil {
 			return nil, err
 		}
-		to, err := endpointTree(l.To)
+		to, err := e.endpointTree(l.To)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +226,7 @@ func chainTree(c Chain) (map[string]any, error) {
 // arcTree writes an arc. `from` and `to` appear only on a NETWORK arc; a
 // route's arcs own their geometry and name nothing, so writing ids there would
 // invent a graph the route does not have.
-func arcTree(a Arc, named bool) (map[string]any, error) {
+func (e emitter) arcTree(a Arc, named bool) (map[string]any, error) {
 	o := map[string]any{}
 	if named {
 		if a.From == "" || a.To == "" {
@@ -198,7 +234,7 @@ func arcTree(a Arc, named bool) (map[string]any, error) {
 		}
 		o["from"], o["to"] = a.From, a.To
 	}
-	pips, err := positionsTree(a.Pips)
+	pips, err := e.positionsTree(a.Pips)
 	if err != nil {
 		return nil, err
 	}
@@ -209,14 +245,14 @@ func arcTree(a Arc, named bool) (map[string]any, error) {
 	return o, nil
 }
 
-func endpointTree(e Endpoint) (any, error) {
-	if e.At != nil {
-		return positionTree(*e.At)
+func (e emitter) endpointTree(ep Endpoint) (any, error) {
+	if ep.At != nil {
+		return e.positionTree(*ep.At)
 	}
-	if e.Node == "" {
+	if ep.Node == "" {
 		return nil, fmt.Errorf("vnx: an endpoint must be a node id or a position, and this is neither")
 	}
-	return e.Node, nil
+	return ep.Node, nil
 }
 
 // positionTree writes the fixed positional channels, trimming trailing absence.
@@ -240,33 +276,45 @@ func endpointTree(e Endpoint) (any, error) {
 // this function in a loop. Rounding in the Document instead would round the
 // values a route's arc-boundary dedup and a ring's winding are computed from.
 // See round.go.
-func positionTree(p Position) ([]any, error) {
-	p = RoundPosition(p)
+func (e emitter) positionTree(p Position) ([]any, error) {
+	if !e.verbatim {
+		p = RoundPosition(p)
+	}
 	if err := finite(p.Lon, "longitude"); err != nil {
 		return nil, err
 	}
 	if err := finite(p.Lat, "latitude"); err != nil {
 		return nil, err
 	}
+	// A formatter reproduces the arity the document carried; a writer emits the
+	// shortest spelling. Position.Channels is zero for a position built in code,
+	// which has no spelling of its own, so a formatter shortens those too.
+	want := 0
+	if e.verbatim {
+		want = p.Channels
+	}
+
 	out := []any{p.Lon, p.Lat}
 	if p.Ele != nil {
 		if err := finite(*p.Ele, "elevation"); err != nil {
 			return nil, err
 		}
 		out = append(out, *p.Ele)
-	} else if p.Time != nil {
+	} else if p.Time != nil || want >= 3 {
 		out = append(out, nil)
 	}
 	if p.Time != nil {
 		out = append(out, *p.Time)
+	} else if want >= 4 {
+		out = append(out, nil)
 	}
 	return out, nil
 }
 
-func positionsTree(ps []Position) ([]any, error) {
+func (e emitter) positionsTree(ps []Position) ([]any, error) {
 	out := make([]any, 0, len(ps))
 	for _, p := range ps {
-		t, err := positionTree(p)
+		t, err := e.positionTree(p)
 		if err != nil {
 			return nil, err
 		}

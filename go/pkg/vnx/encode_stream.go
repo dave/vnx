@@ -26,18 +26,23 @@ import (
 // TestEncodeToCoversEveryCollectionTheDocumentDeclares and by the determinism
 // test's two arms.
 func EncodeTo(w io.Writer, doc *Document) error {
+	return encodeTo(emitter{}, w, doc)
+}
+
+// encodeTo is EncodeTo and ReformatTo with the one decision made by the caller.
+func encodeTo(e emitter, w io.Writer, doc *Document) error {
 	if doc == nil {
 		return fmt.Errorf("vnx: nothing to encode")
 	}
 	b := Stick(w)
-	if err := writeDocument(b, doc); err != nil {
+	if err := writeDocument(e, b, doc); err != nil {
 		return err
 	}
 	b.WriteString("\n")
 	return b.err
 }
 
-func writeDocument(b *StickyWriter, doc *Document) error {
+func writeDocument(e emitter, b *StickyWriter, doc *Document) error {
 	version := doc.Version
 	if version == "" {
 		version = Version
@@ -54,7 +59,7 @@ func writeDocument(b *StickyWriter, doc *Document) error {
 		containers = append(containers, containerEmitter{
 			key:   c.key,
 			count: c.count(doc),
-			emit:  func(b *StickyWriter, depth int) error { return c.emit(b, doc, depth) },
+			emit:  func(b *StickyWriter, depth int) error { return c.emit(e, b, doc, depth) },
 		})
 	}
 	return streamObject(b, 0, scalars, containers)
@@ -165,30 +170,30 @@ type documentCollection struct {
 	field string
 	key   string
 	count func(*Document) int
-	emit  func(b *StickyWriter, doc *Document, depth int) error
+	emit  func(e emitter, b *StickyWriter, doc *Document, depth int) error
 }
 
 // Lexicographic by key, which is the canonical container order. Asserted, not
 // assumed — TestDocumentCollectionsAreInCanonicalOrder.
 var documentCollections = []documentCollection{
 	{"Areas", "areas", func(d *Document) int { return len(d.Areas) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Areas), func(i int) (map[string]any, error) { return areaTree(d.Areas[i]) })
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
+			return streamItems(b, depth, len(d.Areas), func(i int) (map[string]any, error) { return e.areaTree(d.Areas[i]) })
 		}},
 	{"Folders", "folders", func(d *Document) int { return len(d.Folders) },
-		func(b *StickyWriter, d *Document, depth int) error {
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
 			return streamItems(b, depth, len(d.Folders), func(i int) (map[string]any, error) { return folderTree(d.Folders[i]) })
 		}},
 	{"Networks", "networks", func(d *Document) int { return len(d.Networks) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamNetworks(b, d.Networks, depth)
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
+			return streamNetworks(e, b, d.Networks, depth)
 		}},
 	{"Routes", "routes", func(d *Document) int { return len(d.Routes) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Routes), func(i int) (map[string]any, error) { return routeTree(d.Routes[i]) })
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
+			return streamItems(b, depth, len(d.Routes), func(i int) (map[string]any, error) { return e.routeTree(d.Routes[i]) })
 		}},
 	{"Rulesets", "rulesets", func(d *Document) int { return len(d.Rulesets) },
-		func(b *StickyWriter, d *Document, depth int) error {
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
 			// Verbatim and uninspected (vnx.go:57-63), and NOT streamed: the
 			// block is already whole in memory, its elements are arbitrary
 			// values rather than item trees, and handing it to writeCanonical
@@ -198,12 +203,12 @@ var documentCollections = []documentCollection{
 			return writeCanonical(b, []any(d.Rulesets), depth)
 		}},
 	{"Tracks", "tracks", func(d *Document) int { return len(d.Tracks) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Tracks), func(i int) (map[string]any, error) { return trackTree(d.Tracks[i]) })
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
+			return streamItems(b, depth, len(d.Tracks), func(i int) (map[string]any, error) { return e.trackTree(d.Tracks[i]) })
 		}},
 	{"Waypoints", "waypoints", func(d *Document) int { return len(d.Waypoints) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamItems(b, depth, len(d.Waypoints), func(i int) (map[string]any, error) { return waypointTree(d.Waypoints[i]) })
+		func(e emitter, b *StickyWriter, d *Document, depth int) error {
+			return streamItems(b, depth, len(d.Waypoints), func(i int) (map[string]any, error) { return e.waypointTree(d.Waypoints[i]) })
 		}},
 }
 
@@ -257,7 +262,7 @@ func folderTree(f Folder) (map[string]any, error) {
 }
 
 // streamNetworks writes the networks array, one network at a time.
-func streamNetworks(b *StickyWriter, ns []Network, depth int) error {
+func streamNetworks(e emitter, b *StickyWriter, ns []Network, depth int) error {
 	if len(ns) == 0 {
 		b.WriteString("[]")
 		return b.err
@@ -269,7 +274,7 @@ func streamNetworks(b *StickyWriter, ns []Network, depth int) error {
 			b.WriteString(",\n")
 		}
 		b.WriteString(indent(inner))
-		if err := streamNetwork(b, ns[i], inner); err != nil {
+		if err := streamNetwork(e, b, ns[i], inner); err != nil {
 			return err
 		}
 	}
@@ -292,7 +297,7 @@ func streamNetworks(b *StickyWriter, ns []Network, depth int) error {
 // no error and no panic — non-determinism rather than breakage, which only a
 // byte comparison catches. That is what the determinism test's two arms are
 // for, and this is the code they are aimed at.
-func streamNetwork(b *StickyWriter, n Network, depth int) error {
+func streamNetwork(e emitter, b *StickyWriter, n Network, depth int) error {
 	scalars := map[string]any{}
 	putString2(scalars, "folder", n.Folder)
 	putString2(scalars, "name", n.Name)
@@ -300,7 +305,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 	if n.Hidden {
 		scalars["hidden"] = true
 	}
-	return streamObject(b, depth, scalars, networkContainers(n))
+	return streamObject(b, depth, scalars, networkContainers(e, n))
 }
 
 // networkContainers is the network's container table, in canonical order:
@@ -315,14 +320,14 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 // It is a function rather than a literal inside streamNetwork so that
 // TestStreamedContainerTablesAreInCanonicalOrder can read the SAME order the
 // encoder writes, instead of a second copy of it standing beside the first.
-func networkContainers(n Network) []containerEmitter {
+func networkContainers(e emitter, n Network) []containerEmitter {
 	return []containerEmitter{
-		{"arcs", len(n.Arcs), func(b *StickyWriter, d int) error { return streamArcs(b, n.Arcs, d) }},
+		{"arcs", len(n.Arcs), func(b *StickyWriter, d int) error { return streamArcs(e, b, n.Arcs, d) }},
 		{"areas", len(n.Areas), func(b *StickyWriter, d int) error {
-			return streamItems(b, d, len(n.Areas), func(i int) (map[string]any, error) { return areaTree(n.Areas[i]) })
+			return streamItems(b, d, len(n.Areas), func(i int) (map[string]any, error) { return e.areaTree(n.Areas[i]) })
 		}},
 		{"chains", len(n.Chains), func(b *StickyWriter, d int) error {
-			return streamItems(b, d, len(n.Chains), func(i int) (map[string]any, error) { return chainTree(n.Chains[i]) })
+			return streamItems(b, d, len(n.Chains), func(i int) (map[string]any, error) { return e.chainTree(n.Chains[i]) })
 		}},
 		{"data", len(n.Data), func(b *StickyWriter, d int) error {
 			recs, err := recordBodies(n.Data)
@@ -331,16 +336,16 @@ func networkContainers(n Network) []containerEmitter {
 			}
 			return writeCanonical(b, recs, d)
 		}},
-		{"nodes", len(n.Nodes), func(b *StickyWriter, d int) error { return streamNodes(b, n.Nodes, d) }},
+		{"nodes", len(n.Nodes), func(b *StickyWriter, d int) error { return streamNodes(e, b, n.Nodes, d) }},
 		{"points", len(n.Points), func(b *StickyWriter, d int) error {
-			return streamItems(b, d, len(n.Points), func(i int) (map[string]any, error) { return waypointTree(n.Points[i]) })
+			return streamItems(b, d, len(n.Points), func(i int) (map[string]any, error) { return e.waypointTree(n.Points[i]) })
 		}},
 	}
 }
 
 // streamNodes writes the nodes object: small, scalar, and buffered whole
 // because it is O(nodes) and nothing else.
-func streamNodes(b *StickyWriter, nodes map[string]Position, depth int) error {
+func streamNodes(e emitter, b *StickyWriter, nodes map[string]Position, depth int) error {
 	if len(nodes) == 0 {
 		b.WriteString("{}")
 		return b.err
@@ -358,7 +363,7 @@ func streamNodes(b *StickyWriter, nodes map[string]Position, depth int) error {
 		}
 		b.WriteString(indent(inner))
 		writeKey(b, k)
-		t, err := positionTree(nodes[k])
+		t, err := e.positionTree(nodes[k])
 		if err != nil {
 			return err
 		}
@@ -372,7 +377,7 @@ func streamNodes(b *StickyWriter, nodes map[string]Position, depth int) error {
 
 // streamArcs writes the arcs object one arc at a time. The pips live here, so
 // this is where the streaming actually earns its keep.
-func streamArcs(b *StickyWriter, arcs map[string]Arc, depth int) error {
+func streamArcs(e emitter, b *StickyWriter, arcs map[string]Arc, depth int) error {
 	if len(arcs) == 0 {
 		b.WriteString("{}")
 		return b.err
@@ -390,7 +395,7 @@ func streamArcs(b *StickyWriter, arcs map[string]Arc, depth int) error {
 		}
 		b.WriteString(indent(inner))
 		writeKey(b, k)
-		t, err := arcTree(arcs[k], true)
+		t, err := e.arcTree(arcs[k], true)
 		if err != nil {
 			return err
 		}

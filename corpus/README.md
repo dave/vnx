@@ -57,6 +57,13 @@ its answer is indistinguishable from a track on which nobody moved.
 `message` and `refusal` are matched as substrings. Exact wording is a reader's
 own business; naming the cause is not.
 
+Diagnostics are compared as a set, not by position. `SPEC.md` section 6.3 makes
+emission order insignificant: a reader that resolves cross-references in a second
+pass emits its link diagnostics after its key diagnostics, and is correct. Each
+expected diagnostic has to be paired with one distinct reported diagnostic, so a
+runner that let one reported diagnostic satisfy two expectations would pass a
+reader that found half the defects.
+
 ## Accept files are canonical
 
 Every `accept/*.vnx` is stored in canonical form (`SPEC.md` section 4.5), and
@@ -142,6 +149,23 @@ code runs, so a node vanishes and a standard parser offers no way to know
 (`SPEC.md` section 6.4). The limitation is documented rather than papered over.
 If a reader ever gains the ability to see it, that file goes red and the
 limitation gets revisited instead of quietly outliving its cause.
+
+The corpus also cannot check a field it does not look at. Its expectations are
+`counts`, `positions`, `tracks`, `attachments`, `refusal` and `diagnostics`;
+everything else in a document is compared only through the canonical-form check,
+which compares bytes to bytes and therefore agrees with whatever the fixture
+already says. Two consequences are live today:
+
+- `positions` names waypoints only, so a lon/lat transposition on an arc pip, a
+  node, an area ring or a track pip passes every case in the corpus.
+- A `data` record body is opaque to the decoder, so a record's fields are
+  compared against nothing at all. `accept/example-network.vnx` writes
+  `app.viatrail.camp` with integer fields where the internal design says they
+  are booleans, and nothing here can see the disagreement.
+
+Neither is a defect in a fixture. Both are fields the corpus does not look at,
+and a second implementation reading a fixture would infer its shape as though it
+were the format.
 
 ## Editing a case
 

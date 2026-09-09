@@ -777,6 +777,12 @@ An empty list means the document was read cleanly. Each diagnostic in a
 non-empty list reports one thing the reader could not use as written: a key it
 skipped, an element it dropped, or a relationship it could not resolve.
 
+The order in which a reader emits diagnostics is not significant, and a
+conformance runner MUST compare a case's reported diagnostics against its
+expected diagnostics as a set. A reader that resolves cross-references in a
+second pass emits them in a different order from a reader that does not, and
+both are correct. Nothing in this format consumes the order.
+
 A refusal (Section 6.2) is not a diagnostic, and a reader MUST report it through
 a separate channel, so that a caller can distinguish a document that was refused
 from one that was read with elements dropped.

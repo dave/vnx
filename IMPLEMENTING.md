@@ -256,6 +256,13 @@ costs a JavaScript implementation nothing, and the `1e+21` spelling appears in
 the corpus while being stated nowhere in Section 4.5.3's prose or table, so it
 arrives correct without anyone deciding it.
 
+The sharpest instance is on the other side of the codec. Section 4.5.3 anchors
+number *text* to `Number::toString`, which is the emit side. Nothing anchors the
+*parse* side to ECMAScript, and the parse side is where that runtime's one silent
+non-finite lives: `1e400` comes back as infinity rather than throwing (Section
+4.1). Being the reference for how numbers come out bought nothing about how they
+go in.
+
 That is the real hazard of being the reference language: the things that are right
 by accident are the things you are least likely to notice the specification never
 said. *(JavaScript seat.)*
@@ -282,15 +289,37 @@ surrogate pair beginning in U+D800..U+DBFF. By code unit an astral character
 sorts below everything in U+E000..U+FFFF; by code point it sorts above all of it.
 *(JavaScript seat.)*
 
-| Language | Default string comparison | Comparator needed |
-|---|---|---|
-| Go `sort.Strings` | code point | no |
-| Python `sorted()` | code point | no |
-| JavaScript `Array.prototype.sort()` | UTF-16 code unit | yes |
-| Java and Kotlin `String.compareTo` | UTF-16 `char` | yes |
-| Swift `<` on `String` | Unicode canonical equivalence, a third order | yes |
+| Language | Default string comparison | Astral pair | Comparator needed |
+|---|---|---|---|
+| Go `sort.Strings` | code point | correct | no |
+| Python `sorted()` | code point | correct | no |
+| Swift `<` on `String` | Unicode canonical equivalence | correct | yes, for a different input |
+| JavaScript `Array.prototype.sort()` | UTF-16 code unit | wrong | yes |
+| Java `String.compareTo` | UTF-16 `char` | wrong | yes |
+| Kotlin `String.compareTo` | UTF-16 `char` on the JVM | expected wrong | yes |
 
-*(JavaScript seat, which measured its own default and names the others.)*
+*(JavaScript seat: measured JavaScript on Node 22.19, Java through `jshell`,
+Python on CPython 3, Go, and Swift. Kotlin is reasoned from Kotlin/JVM delegating
+to `java.lang.String.compareTo`, which was measured; Kotlin/Native does not go
+through `java.lang.String` and may differ.)*
+
+`String.compareTo` returns -10176 on that pair, which is 0xD83D minus 0xFFFD, so
+the mechanism is visible in the return value.
+
+Swift is the row that rewards care. Its default sorts the astral pair correctly,
+so a Swift test written against U+1F600 passes while the library is still wrong.
+The divergence is a different input with a different trigger:
+
+```swift
+"\u{212B}" < "\u{00C6}"     // true in Swift
+0x212B < 0x00C6             // false by code point
+```
+
+U+212B ANGSTROM SIGN canonically decomposes to U+00C5, which is below U+00C6, so
+Swift orders by canonical equivalence rather than by scalar value. That is a real
+divergence from Section 4.5.1, reachable by the same route as the surrogate case,
+and it is the pair a Swift implementation should test. *(JavaScript seat,
+measured.)*
 
 The comparator is about nine lines: iterate both strings with a code-point
 iterator rather than by index, and compare code points.
@@ -411,12 +440,30 @@ binary64: it parses to infinity rather than failing. Check after parsing as well
 as during; a `JSON.parse` reviver or equivalent hook is enough. *(JavaScript
 seat.)*
 
-The two failures are refused for different reasons and in different words. A
-`NaN` literal is not JSON, so a strict parser rejects the text before any format
-rule runs, while a permissive parser reaches Section 4.2 and refuses for the right
-reason in different words. The corpus's expectation of the substring `malformed
-JSON` there reflects one implementation's route to the refusal rather than the
-rule.
+The three literals fail differently in different runtimes, and the differences do
+not line up:
+
+| literal in `{"a": …}` | Go `encoding/json` | Node `JSON.parse` | Python `json.loads` |
+|---|---|---|---|
+| `NaN` | error | throws | accepts, giving `nan` |
+| `Infinity` | error | throws | accepts, giving `inf` |
+| `1e400` | error into `float64` | returns infinity silently | accepts, giving `inf` |
+
+*(JavaScript seat, measured.)* Go accepts `1e400` into `json.Number`, keeping the
+text, and refuses it only on unmarshal into `float64`.
+
+Two consequences. The corpus's expected substring `malformed JSON` describes what
+a *strict* parser says, and both Go and Node are strict here, so it is a
+strict-parser artefact rather than one language's. The seat it bites is Python,
+whose `json.loads` accepts all three by default: a Python implementation either
+makes its parser strict or refuses under Section 4.2, and a Section 4.2 refusal
+legitimately does not contain the words "malformed JSON". *(Python seat, which is
+that counterexample.)*
+
+And `1e400` is the case every library catches for itself, with the runtimes
+failing differently rather than uniformly. Node hands back infinity with no
+complaint, so a reviver or an equivalent post-parse check is the only thing
+between it and a coordinate of infinity.
 
 ### 4.2 Duplicate object keys
 
@@ -496,7 +543,8 @@ visible without changing any verdict; thirteen degrees changes both.
 All four tiers re-render an existing document, which Section 8.1 requires
 *because* a writer rounds. Nothing in the corpus calls your writer, so no tier
 reaches the rounding of Section 4.5.4, the shortest-spelling rule of Section 4.1,
-a negative zero that rounding created, or the tie direction of Section 1.5.
+a negative zero that rounding created, or the rounding-tie direction of Section
+1.5.
 
 Two seats measured that boundary from opposite directions rather than asserting
 it. Reverting the rounding tie rule reddens 2 tests out of 101 in the Kotlin
@@ -509,10 +557,20 @@ green. *(JavaScript seat.)*
 The JavaScript suite keeps that mutation permanently, asserting green. It is a
 test whose job is to fail on the day a fixture reaches the writer.
 
-A rendering tie is unreachable for a second and stronger reason: it is a value,
-not a shape. Nobody hand-writes a double whose shortest decimal sits exactly
-halfway between two candidates, and both spellings parse to the same double
-anyway. *(Kotlin seat.)*
+The rendering tie of Section 1.3 was argued to be unreachable for a second and
+stronger reason: that it is a value rather than a shape, since nobody hand-writes
+a double whose shortest decimal sits exactly halfway between two candidates, and
+both spellings parse to the same double anyway. That argument is wrong. The
+counterexample is a formatter case whose input carries one spelling of such a
+double and whose expected output carries the other: a re-render decides the tie,
+because the input text and the output text are different spellings of one value.
+Mutating a renderer to take ties away from zero reddens the formatter tier and
+leaves the other three green. *(Python seat, measured.)*
+
+The surviving lesson is narrower than the original claim and more useful. A
+value-level property is reachable by a re-render whenever the two readings
+produce different *text* for the same value. Rounding is not, because a re-render
+never rounds. The tie is, because a re-render always re-spells.
 
 Kotlin's answer is `number-conformance/`, described in Section 6.4.
 

@@ -286,3 +286,137 @@ test('a writer does not defer sizes it already knows', () => {
   assert.notEqual(buf.readUInt32LE(18), 0, 'compressed size is in the local header');
   assert.notEqual(buf.readUInt32LE(22), 0, 'uncompressed size is in the local header');
 });
+
+// --- raw byte parsing ---------------------------------------------------------
+//
+// A ZIP LIBRARY CAN NEVER BE THE INSTRUMENT FOR A LOCAL-HEADER RULE, because
+// every ZIP library resolves from the central directory on purpose. `readEntries`
+// is one, so every assertion above that goes through it is an assertion about
+// the central directory and is blind to a local header that disagrees.
+//
+// That is not hypothetical: the reference implementation was found on 2026-09-09
+// emitting `flags=0x0008` in its local headers with correct values in its central
+// directory, and its own gap-pinning test could not see it, because the test read
+// its output back through `archive/zip`.
+//
+// These walk the bytes.
+
+const SIG_LOCAL = 0x04034b50;
+const SIG_CENTRAL = 0x02014b50;
+
+/**
+ * Walk the LOCAL headers, forward-only, exactly as a reader that cannot seek
+ * would have to.
+ *
+ * It can only be done while bit 3 is clear. With a data descriptor the sizes in
+ * the local header are zero, so there is nothing to advance by and a walker has
+ * to scan for the next signature — which for a STORED entry is ambiguous,
+ * because the payload can contain `PK\x03\x04`. This helper therefore embodies
+ * the argument for the rule it checks: if it cannot walk, the archive is the
+ * shape SPEC.md 7.1 forbids.
+ */
+function localHeaders(buf) {
+  const out = [];
+  let p = 0;
+  while (p + 30 <= buf.length && buf.readUInt32LE(p) === SIG_LOCAL) {
+    const flags = buf.readUInt16LE(p + 6);
+    if (flags & 0x08) {
+      throw new Error(
+        `entry ${out.length} sets bit 3, so its local header carries no sizes and this ` +
+        'archive cannot be walked forward-only',
+      );
+    }
+    const nameLen = buf.readUInt16LE(p + 26);
+    const extraLen = buf.readUInt16LE(p + 28);
+    out.push({
+      versionNeeded: buf.readUInt16LE(p + 4),
+      flags,
+      method: buf.readUInt16LE(p + 8),
+      dosTime: buf.readUInt16LE(p + 10),
+      dosDate: buf.readUInt16LE(p + 12),
+      crc: buf.readUInt32LE(p + 14),
+      compressedSize: buf.readUInt32LE(p + 18),
+      uncompressedSize: buf.readUInt32LE(p + 22),
+      extraLen,
+      name: buf.subarray(p + 30, p + 30 + nameLen).toString('utf8'),
+    });
+    p += 30 + nameLen + extraLen + buf.readUInt32LE(p + 18);
+  }
+  return out;
+}
+
+/** Walk the CENTRAL directory, by scanning for its signature. */
+function centralHeaders(buf) {
+  const out = [];
+  let p = buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  while (p !== -1 && buf.readUInt32LE(p) === SIG_CENTRAL) {
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    out.push({
+      versionMadeBy: buf.readUInt16LE(p + 4),
+      versionNeeded: buf.readUInt16LE(p + 6),
+      flags: buf.readUInt16LE(p + 8),
+      method: buf.readUInt16LE(p + 10),
+      dosTime: buf.readUInt16LE(p + 12),
+      dosDate: buf.readUInt16LE(p + 14),
+      crc: buf.readUInt32LE(p + 16),
+      compressedSize: buf.readUInt32LE(p + 20),
+      uncompressedSize: buf.readUInt32LE(p + 24),
+      extraLen,
+      name: buf.subarray(p + 46, p + 46 + nameLen).toString('utf8'),
+    });
+    p += 46 + nameLen + extraLen + commentLen;
+    if (p + 4 > buf.length || buf.readUInt32LE(p) !== SIG_CENTRAL) break;
+  }
+  return out;
+}
+
+const ARCHIVE = () => encodeContainer(DOC, [['attachments/photo.txt', Buffer.from('not a photo\n')]]);
+
+test('RAW: every local header carries SPEC.md 7.1 fields', () => {
+  for (const h of localHeaders(ARCHIVE())) {
+    assert.equal(h.method, 0, `${h.name}: stored`);
+    assert.equal(h.flags, 0x0800, `${h.name}: UTF-8 name flag only, bit 3 clear`);
+    assert.equal(h.versionNeeded, 10, `${h.name}: 2.0 is the DEFLATE minimum and is not needed`);
+    assert.equal(h.extraLen, 0, `${h.name}: no extra field`);
+    assert.notEqual(h.crc, 0, `${h.name}: CRC is present, not deferred`);
+    assert.equal(h.compressedSize, h.uncompressedSize, `${h.name}: stored, so the sizes match`);
+    assert.notEqual(h.uncompressedSize, 0, `${h.name}: size is present, not deferred`);
+  }
+});
+
+test('RAW: the local and central headers agree with each other', () => {
+  // The assertion nobody had. A reader resolving from the central directory
+  // cannot make it, and it is the one that would have caught the reference
+  // implementation writing zeroes into its local headers.
+  const buf = ARCHIVE();
+  const local = localHeaders(buf);
+  const central = centralHeaders(buf);
+  assert.equal(local.length, central.length, 'entry counts');
+  assert.ok(local.length >= 2, 'the fixture must have more than one entry');
+  for (let i = 0; i < local.length; i++) {
+    for (const field of ['name', 'flags', 'method', 'dosTime', 'dosDate', 'crc',
+      'compressedSize', 'uncompressedSize', 'versionNeeded']) {
+      assert.equal(local[i][field], central[i][field],
+        `entry ${i} (${local[i].name}): ${field} differs between local header and central directory`);
+    }
+  }
+});
+
+test('RAW: the archive can be walked forward-only', () => {
+  // The property bit 3 destroys, asserted directly rather than inferred from
+  // the flag. `localHeaders` throws if it cannot advance.
+  const buf = ARCHIVE();
+  assert.deepEqual(localHeaders(buf).map((h) => h.name),
+    ['doc.vnx', 'attachments/photo.txt']);
+});
+
+test('RAW: the walker refuses an archive it cannot walk, so the guard above is real', () => {
+  // Red proof for the helper. Set bit 3 in the first local header and the
+  // forward-only walk must fail rather than silently returning fewer entries —
+  // which is how this check would decay into asserting nothing.
+  const buf = Buffer.from(ARCHIVE());
+  buf.writeUInt16LE(0x0808, 6);
+  assert.throws(() => localHeaders(buf), /cannot be walked forward-only/);
+});

@@ -261,10 +261,22 @@ def show(field, value):
 
 
 def check_local_matches_central(archives, faults):
-    """The assertion no ZIP library can make."""
+    """The assertion no ZIP library can make.
+
+    General purpose bit 3 defers the CRC and both sizes to a descriptor after the
+    payload, so a local header that carries zeros for them is not disagreeing
+    with its central twin — it is declining to state them, which section 7 has a
+    reader accept. Comparing them anyway would report every bit-3 archive as
+    malformed, which over-fires on legal input and is how an instrument stops
+    being believed. Section 7.1 forbids a WRITER setting bit 3, and `--spec`
+    reports that separately.
+    """
     for path, (entries, _) in archives.items():
         for entry in entries:
+            deferred = bool(entry["local"]["flags"] & 0x0008)
             for field in SHARED:
+                if deferred and field in ("crc", "csize", "usize"):
+                    continue
                 a = entry["local"].get(field)
                 b = entry["central"].get(field)
                 if a != b:

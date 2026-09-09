@@ -1,0 +1,16 @@
+{
+  "name": "@viatrail/vnx",
+  "version": "0.1.0",
+  "description": "Reference JavaScript codec for the VNX trail interchange format",
+  "license": "SEE LICENCE IN ../LICENCE",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "corpus": "node corpus/run.js"
+  }
+}

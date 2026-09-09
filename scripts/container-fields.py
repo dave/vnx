@@ -27,20 +27,20 @@ WHY THIS EXISTS, AND WHY IT IS NOT TEN LINES OF `zipfile`
 --------------------------------------------------------
 
 **It diffs fields, not hashes.** A hash mismatch says only "you differ", and
-costs a round trip per field to localise. Measured 2026-09-09: a field list sent
-beside a hash let one implementation find and fix two divergent fields in a
-single message and another find three. That one choice turned a comparison into
-a repair, three times in one evening.
+costs a round trip per field to localise. Reported 2026-09-09 by the seat that
+did it, not measured here: a field list sent beside a hash let one implementation
+find and fix two divergent fields in a single message and another find three.
 
 **It parses raw, and never through a ZIP library.** Every ZIP library in every
 language resolves an entry from the CENTRAL DIRECTORY, on purpose — that is what
 the central directory is for. So no library-based reader can witness a rule
 about a LOCAL header, and a local header that disagrees with its central twin is
-structurally invisible to it. That is not hypothetical: a live VNX writer was
-found on 2026-09-09 setting the data-descriptor bit and writing zeros for the
-CRC and both sizes into its local headers, and the very test written to pin its
-known gaps could not see it, because that test read the output back through a
-ZIP reader and asserted on fields the central directory had right.
+structurally invisible to it. That is not hypothetical. Measured here: all four
+of the corpus's deflate archives carry zeros for the CRC and both sizes in every
+local header. Reported by another seat, not measured here: the same is true of a
+live VNX writer, and the very test written to pin its known gaps could not see
+it, because that test read the output back through a ZIP reader and asserted on
+fields the central directory had right.
 
 **So it asserts local and central agree** — on field values AND on entry
 sequence, which can disagree independently. No library-based reader can make
@@ -50,9 +50,14 @@ either assertion, which is why nobody had them.
 then attachments sorted by entry name under section 4.5.1's code-point
 comparator. Caller order is not a property of the content, so two conforming
 exporters — one iterating a hash map, one a sorted list — would otherwise emit
-different archives while satisfying every other field in the table. Measured
-2026-09-10: three of the six implementations emitted caller order, and this tool
-certified all three as clean before it looked at sequence.
+different archives while satisfying every other field in the table.
+
+Three implementations were found emitting caller order on 2026-09-10 — two
+reporting their own, one measured here — and this tool certified them clean
+before it looked at sequence. THAT IS THREE FOUND, NOT THREE OF SIX: the other
+implementations were never checked, and an earlier draft of this paragraph said
+"three of the six", which another seat then cited as a partition. Run --spec
+against a writer's output rather than trusting any count, including this one.
 
 **Always-STORED is what makes any of this possible.** Under deflate there is no
 canonical output — Go's compress/flate and zlib emit different bytes for the

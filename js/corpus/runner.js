@@ -74,8 +74,16 @@ function runSidecarCase(kind, dir, file, api) {
   } catch (err) {
     // Duck-typed on purpose: a red-proof runs a separate copy of the library,
     // whose VnxRefusal is a different class object.
-    if (typeof err.cause_code !== 'string') throw err;
-    refusal = err;
+    if (typeof err.cause_code === 'string') {
+      refusal = err;
+    } else {
+      // Anything else is a CRASH, not a refusal, and it fails this case rather
+      // than the run. Letting it propagate takes every other case down with it
+      // and reports one defect as a total collapse — the same hole this runner
+      // had in its format and write tiers, in a third place.
+      c.failures.push(`threw ${err && err.name}: ${err && err.message}`);
+      return c;
+    }
   }
 
   if (kind === 'reject') {

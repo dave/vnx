@@ -690,3 +690,22 @@ test('the scaling route in the ROUNDER itself reddens the number tier too', asyn
   }]);
   assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv', 'write/emit-boundary']);
 });
+
+test('a crash inside a tier fails its own case rather than the run', async () => {
+  // The third place this runner had the same hole. A refusal was contained, and
+  // the format and write tiers were fixed when the write tier landed, but a
+  // non-refusal THROW from a sidecar tier still propagated out of runCorpus and
+  // took every other case with it — 38 passing cases vanishing behind one
+  // defect. Found by a mutation that made zlib throw, not by any fixture.
+  const cases = await runMutated([{
+    file: 'zip.js',
+    from: '      out = zlib.inflateRawSync(raw);',
+    to: '      out = zlib.inflateRawSync(raw.subarray(0, 3));',
+  }]);
+  const red = await failingDelta(cases);
+  // Some cases go red, which is the mutation working — and crucially the RUN
+  // completed, so the rest of the corpus was still measured.
+  assert.ok(red.length > 0, 'the mutation must break something');
+  assert.ok(cases.length >= 39, `the run must complete: only ${cases.length} cases reported`);
+  assert.ok(red.every((n) => n.endsWith('.vnz')), `only container cases: ${red.join(', ')}`);
+});

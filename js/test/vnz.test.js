@@ -441,39 +441,60 @@ test('RAW: the walker refuses an archive it cannot walk, so the guard above is r
   assert.throws(() => localHeaders(buf), /cannot be walked forward-only/);
 });
 
-test('the deflate .vnz fixtures are the only coverage of two reader MUSTs, and must not be regenerated', () => {
+test('TWO accept archives are the only coverage of two reader MUSTs, and must not be regenerated', () => {
   // SPEC.md 7 divides the two in as many words: "This section states what a
-  // READER accepts. Section 7.1 states what a writer emits." These four
-  // archives are INPUT, so deflate and a deferred size are not defects in them
-  // — they are the properties a reader is required to accept, and §7 line 26
-  // and lines 35-36 are the MUSTs they witness.
+  // READER accepts. Section 7.1 states what a writer emits." These archives are
+  // INPUT, so deflate and a deferred size are not defects in them — they are
+  // what §7 line 26 and lines 35-36 require a reader to accept.
   //
-  // Nothing else in the corpus exercises either rule. Regenerating them to
-  // satisfy §7.1's writer table would delete deflate-reading and bit-3-reading
-  // coverage at a stroke, WITH EVERY IMPLEMENTATION STILL PASSING, because
-  // nothing left would ask the question. This pins them so that act cannot be
-  // silent.
+  // Regenerating them to satisfy §7.1's writer table would delete both MUSTs
+  // with every implementation still passing, because nothing left would ask the
+  // question. This pins them so that act cannot be silent.
   //
-  // An earlier version of this test called them non-conforming, on a reading
-  // two other seats have since retracted. Running a WRITER-conformance checker
-  // over an INPUT fixture reports category errors rather than defects.
-  const readerMusts = [
+  // TWO, not four. All four deflate archives carry the same headers, but a
+  // REJECT case's expectation is a refusal naming a duplicate entry or an
+  // escaping path, and both are decided before anything is decompressed — so a
+  // reader with no deflate at all, or one trusting the local header's zeroed
+  // sizes, still refuses them correctly. Measured by mutation: removing deflate
+  // reddens these two and nothing else, and so does taking sizes from the local
+  // header. An earlier version of this test said four, which over-claimed in the
+  // same direction as the retracted reading it replaced.
+  const coverBothMusts = [
     'accept/container-root-doc.vnz',
     'accept/container-named-document.vnz',
+  ];
+  const sameHeadersButNotCoverage = [
     'reject/container-duplicate-entries.vnz',
     'reject/container-escapes.vnz',
   ];
-  for (const name of readerMusts) {
+  for (const name of [...coverBothMusts, ...sameHeadersButNotCoverage]) {
     const buf = fs.readFileSync(path.join(CORPUS, name));
-    assert.equal(buf.readUInt16LE(8), 8, `${name}: deflate, which §7 line 26 requires a reader to accept`);
-    assert.equal(buf.readUInt16LE(6) & 0x08, 0x08,
-      `${name}: the data-descriptor bit, which §7 lines 35-36 require a reader to accept`);
-    assert.equal(buf.readUInt32LE(14), 0, `${name}: the CRC is deferred, so it must come from the central directory`);
+    assert.equal(buf.readUInt16LE(8), 8, `${name}: deflate`);
+    assert.equal(buf.readUInt16LE(6) & 0x08, 0x08, `${name}: the data-descriptor bit`);
+    assert.equal(buf.readUInt32LE(14), 0, `${name}: CRC deferred to the descriptor`);
   }
-  // And they must READ, which is the coverage itself rather than a side effect.
-  for (const name of readerMusts.slice(0, 2)) {
+  // The coverage itself: these two must READ, which is what a reject case does
+  // not require and therefore does not defend.
+  for (const name of coverBothMusts) {
     assert.ok(decodeContainer(fs.readFileSync(path.join(CORPUS, name))).document.vnx, `${name} reads`);
   }
+});
+
+test('a corrupt deflate stream is a refusal, not a crash', () => {
+  // `zlib` throws its own Error, which escaped every ZipError handler and left
+  // the caller entirely — found by a mutation experiment, not by the corpus.
+  // A library that crashes on a malformed archive gives a caller nothing to
+  // catch and takes down whatever it was iterating.
+  const good = readEntries(fs.readFileSync(path.join(CORPUS, 'accept/container-root-doc.vnz')));
+  const buf = Buffer.from(fs.readFileSync(path.join(CORPUS, 'accept/container-root-doc.vnz')));
+  const entry = good.find((e) => e.name === 'doc.vnx');
+  const nameLen = buf.readUInt16LE(entry.localOffset + 26);
+  const extraLen = buf.readUInt16LE(entry.localOffset + 28);
+  const start = entry.localOffset + 30 + nameLen + extraLen;
+  buf.fill(0xff, start, start + 20); // wreck the deflate stream
+  const err = refusal(() => decodeContainer(buf));
+  assert.equal(err.cause_code, 'zip-malformed');
+  assert.match(err.message, /will not inflate|malformed archive/);
 });
 
 test('an independently written parser agrees that this writer satisfies SPEC.md 7.1', () => {

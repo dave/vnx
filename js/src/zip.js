@@ -20,8 +20,8 @@ const MAX32 = 0xffffffff;
 const MAX16 = 0xffff;
 
 export class ZipError extends Error {
-  constructor(message) {
-    super(message);
+  constructor(message, options = {}) {
+    super(message, options);
     this.name = 'ZipError';
   }
 }
@@ -117,9 +117,23 @@ export function readEntryData(buf, entry) {
   const start = p + 30 + nameLen + extraLen;
   const raw = buf.subarray(start, start + entry.compressedSize);
   let out;
-  if (entry.method === METHOD_STORE) out = Buffer.from(raw);
-  else if (entry.method === METHOD_DEFLATE) out = zlib.inflateRawSync(raw);
-  else throw new ZipError(`entry ${JSON.stringify(entry.name)} uses compression method ${entry.method}`);
+  if (entry.method === METHOD_STORE) {
+    out = Buffer.from(raw);
+  } else if (entry.method === METHOD_DEFLATE) {
+    try {
+      out = zlib.inflateRawSync(raw);
+    } catch (err) {
+      // A corrupt or truncated deflate stream is a malformed archive, not a
+      // crash. `zlib` throws its own Error, which would otherwise escape past
+      // every ZipError handler above this and out of the caller entirely.
+      throw new ZipError(
+        `entry ${JSON.stringify(entry.name)} will not inflate: ${err.message}`,
+        { cause: err },
+      );
+    }
+  } else {
+    throw new ZipError(`entry ${JSON.stringify(entry.name)} uses compression method ${entry.method}`);
+  }
   if (crc32(out) !== entry.crc) {
     throw new ZipError(`entry ${JSON.stringify(entry.name)} fails its CRC check`);
   }

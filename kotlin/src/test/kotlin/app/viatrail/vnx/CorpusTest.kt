@@ -41,7 +41,7 @@ class CorpusTest {
     @Test
     fun `every case carries a well-formed sidecar whose kind matches its directory`() {
         for (tier in listOf("accept", "reject", "diagnose")) {
-            for (case in cases(tier)) {
+            eachCase(tier, cases(tier), { it.name }) { case ->
                 val sidecar = sidecarFor(case)
                 assertEquals(tier, sidecar.kind, "${case.name}: `kind` must match the directory")
                 assertTrue(sidecar.note.isNotBlank(), "${case.name}: `note` says why the case exists and is required")
@@ -76,7 +76,7 @@ class CorpusTest {
 
     @Test
     fun accept() {
-        for (case in cases("accept")) {
+        eachCase("accept", cases("accept"), { it.name }) { case ->
             val sidecar = sidecarFor(case)
             val result = try {
                 Vnx.read(case)
@@ -164,7 +164,7 @@ class CorpusTest {
 
     @Test
     fun reject() {
-        for (case in cases("reject")) {
+        eachCase("reject", cases("reject"), { it.name }) { case ->
             val sidecar = sidecarFor(case)
             val expected = sidecar.refusal ?: fail("${case.name}: a reject case needs `refusal`")
             try {
@@ -187,7 +187,7 @@ class CorpusTest {
 
     @Test
     fun diagnose() {
-        for (case in cases("diagnose")) {
+        eachCase("diagnose", cases("diagnose"), { it.name }) { case ->
             val sidecar = sidecarFor(case)
             val expected = sidecar.diagnostics()
                 ?: fail("${case.name}: a diagnose case needs `diagnostics`, and an empty list is an expectation")
@@ -231,7 +231,7 @@ class CorpusTest {
      */
     @Test
     fun write() {
-        for ((input, written) in writePairs()) {
+        eachCase("write", writePairs(), { it.first.name }) { (input, written) ->
             val expected = written.readText()
             // Without this a writer that echoed its input would pass every case.
             assertTrue(
@@ -275,7 +275,7 @@ class CorpusTest {
 
     @Test
     fun format() {
-        for ((input, canonical) in formatPairs()) {
+        eachCase("format", formatPairs(), { it.first.name }) { (input, canonical) ->
             val messy = input.readText()
             val expected = canonical.readText()
             // SPEC.md section 8.1: a runner MUST assert that each format input is
@@ -298,6 +298,34 @@ class CorpusTest {
     }
 
     // ----------------------------------------------------------------- utility
+
+    /**
+     * Runs one tier, case by case, so that a single defect is reported as a
+     * single defect.
+     *
+     * Two failures this prevents, and neither is hypothetical. A REFUSAL raised
+     * where a tier does not expect one propagates out of the loop and takes every
+     * remaining case with it — one defect reported as a total collapse, with the
+     * cases that would have named it simply absent from the output. And an
+     * ordinary failed assertion aborts the loop just as thoroughly, so the second
+     * broken case is invisible until the first is fixed.
+     *
+     * A throwing language has to arrange this deliberately; a language returning
+     * errors gets it structurally. Kotlin is the first kind.
+     */
+    private fun <T> eachCase(tier: String, cases: List<T>, name: (T) -> String, body: (T) -> Unit) {
+        val failures = ArrayList<String>()
+        for (case in cases) {
+            try {
+                body(case)
+            } catch (e: Throwable) {
+                failures.add("  ${name(case)}\n    ${(e.message ?: e.toString()).replace("\n", "\n    ")}")
+            }
+        }
+        if (failures.isNotEmpty()) {
+            fail("$tier: ${failures.size} of ${cases.size} case(s) failed\n\n" + failures.joinToString("\n\n"))
+        }
+    }
 
     private fun diff(expected: String, actual: String): String {
         val e = expected.lines()

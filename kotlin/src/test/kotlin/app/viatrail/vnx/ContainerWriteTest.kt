@@ -147,6 +147,116 @@ class ContainerWriteTest {
         }
     }
 
+    /**
+     * Every field SPEC.md section 7.1 fixes, read RAW out of both headers.
+     *
+     * Not through `java.util.zip`, and this is the point rather than a
+     * preference: every ZIP library in every language resolves an entry from the
+     * CENTRAL DIRECTORY, on purpose. So no library-based reader can witness a
+     * rule about a LOCAL header, and a local header that disagrees with its
+     * central twin is invisible to it. A live VNX writer was found on 2026-09-09
+     * zeroing the CRC and both sizes in its local headers, and the test written
+     * to pin its known gaps could not see it, because that test read the output
+     * back through a ZIP reader.
+     *
+     * My own container tests had the same blindness until this one: they went
+     * through `ZipInputStream`, which is at least a local-header reader, but
+     * nothing here compared the two headers against each other.
+     */
+    @Test
+    fun `every field section 7-1 fixes, read raw from both headers`() {
+        val bytes = Vnx.renderContainer(
+            documentOf(fullPrecision),
+            linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()),
+        )
+        val entries = rawEntries(bytes)
+        assertEquals(2, entries.size)
+        for (entry in entries) {
+            // The values section 7.1 fixes.
+            assertEquals(10, entry.local["version_needed"], "${entry.name}: local version needed")
+            assertEquals(10, entry.central["version_needed"], "${entry.name}: central version needed")
+            assertEquals(10, entry.central["version_made_by_low"], "${entry.name}: version made by")
+            assertEquals(0, entry.central["create_system"], "${entry.name}: create system encodes the machine")
+            assertEquals(0x0800, entry.local["flags"], "${entry.name}: UTF-8 name flag only")
+            assertEquals(0, entry.local["flags"]!! and 0x0008, "${entry.name}: the data-descriptor bit")
+            assertEquals(0, entry.local["method"], "${entry.name}: STORED")
+            assertEquals(0x0000, entry.local["dos_time"], "${entry.name}: 1980-01-01 00:00:00")
+            assertEquals(0x0021, entry.local["dos_date"], "${entry.name}: 1980-01-01 00:00:00")
+            assertEquals(0, entry.local["extra_len"], "${entry.name}: no extra field")
+            assertEquals(0, entry.central["comment_len"], "${entry.name}: no comment")
+            assertEquals(0, entry.central["disk_start"])
+            assertEquals(0, entry.central["internal_attr"])
+            assertEquals(0, entry.central["external_attr"], "${entry.name}: external attributes encode the machine")
+
+            // The assertion no ZIP library can make.
+            for (field in listOf("version_needed", "flags", "method", "dos_time", "dos_date", "crc", "csize", "usize")) {
+                assertEquals(
+                    entry.local[field], entry.central[field],
+                    "${entry.name}: local and central disagree on $field",
+                )
+            }
+            // A stored entry's payload can itself contain PK\x03\x04, so the sizes
+            // being real in the local header is what keeps forward-only parsing
+            // unambiguous.
+            assertTrue(entry.local["csize"]!! > 0 || entry.name.endsWith("empty.bin"))
+            assertEquals(entry.local["csize"], entry.local["usize"], "${entry.name}: stored, so the sizes match")
+        }
+        assertEquals("doc.vnx", entries[0].name, "the document goes first, so section 7's fallback finds it")
+    }
+
+    private class RawEntry(val name: String, val local: Map<String, Int>, val central: Map<String, Int>)
+
+    /** A minimal raw reader. Twenty lines, and the only instrument that works. */
+    private fun rawEntries(data: ByteArray): List<RawEntry> {
+        fun u16(i: Int) = (data[i].toInt() and 0xff) or ((data[i + 1].toInt() and 0xff) shl 8)
+        fun u32(i: Int) = u16(i) or (u16(i + 2) shl 16)
+
+        var eocd = data.size - 22
+        while (eocd >= 0 && u32(eocd) != 0x06054b50) eocd--
+        check(eocd >= 0) { "no end-of-central-directory record" }
+        val count = u16(eocd + 10)
+        var p = u32(eocd + 16)
+        val out = ArrayList<RawEntry>()
+        repeat(count) {
+            check(u32(p) == 0x02014b50) { "bad central signature" }
+            val nameLen = u16(p + 28)
+            val name = String(data, p + 46, nameLen, Charsets.UTF_8)
+            val central = mapOf(
+                "version_made_by_low" to (data[p + 4].toInt() and 0xff),
+                "create_system" to (data[p + 5].toInt() and 0xff),
+                "version_needed" to u16(p + 6), "flags" to u16(p + 8), "method" to u16(p + 10),
+                "dos_time" to u16(p + 12), "dos_date" to u16(p + 14), "crc" to u32(p + 16),
+                "csize" to u32(p + 20), "usize" to u32(p + 24), "comment_len" to u16(p + 32),
+                "disk_start" to u16(p + 34), "internal_attr" to u16(p + 36), "external_attr" to u32(p + 38),
+            )
+            val offset = u32(p + 42)
+            check(u32(offset) == 0x04034b50) { "bad local signature for $name" }
+            val local = mapOf(
+                "version_needed" to u16(offset + 4), "flags" to u16(offset + 6), "method" to u16(offset + 8),
+                "dos_time" to u16(offset + 10), "dos_date" to u16(offset + 12), "crc" to u32(offset + 14),
+                "csize" to u32(offset + 18), "usize" to u32(offset + 22), "extra_len" to u16(offset + 28),
+            )
+            out.add(RawEntry(name, local, central))
+            p += 46 + nameLen + u16(p + 30) + u16(p + 32)
+        }
+        return out
+    }
+
+    @Test
+    fun `a reader accepts the data-descriptor bit even though a writer must not set it`() {
+        // Section 7.1 forbids a writer setting bit 3 and requires a reader to
+        // accept it. java.util.zip's ZipOutputStream sets it, which makes it a
+        // convenient source of exactly the archive this reader must tolerate.
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { zo ->
+            zo.putNextEntry(java.util.zip.ZipEntry("doc.vnx"))
+            zo.write(Vnx.render(documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
+            zo.closeEntry()
+        }
+        val result = Vnx.readContainer(out.toByteArray())
+        assertEquals("Bit three", result.document.waypoints!![0].name)
+    }
+
     /** The bytes of the `doc.vnx` entry, read back out of an archive. */
     private fun inner(bytes: ByteArray): ByteArray {
         ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->

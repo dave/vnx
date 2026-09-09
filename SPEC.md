@@ -342,9 +342,9 @@ partly engine-routed retains that structure.
 Because each arc carries its own geometry, parallel arcs between the same pair
 of implied nodes need no disambiguation.
 
-Note: an arc's two endpoints are distinct. A self-loop arc, whose endpoints are
-the same node, is not produced by Viatrail and is not a case this shape is
-designed for.
+An arc whose two endpoints are the same node is legal and needs no special
+handling. A loop trail leaving and returning to one junction is an ordinary
+thing on the ground, and its geometry is as real as any other arc's.
 
 Top-level areas are defined in Section 3.7 and appear in the top-level `areas`
 collection, not inside a route.
@@ -1041,9 +1041,13 @@ A reader is tolerant of damage and silent about nothing.
   record a diagnostic, MUST skip the key, and MUST keep the item. An
   unrecognised key is not an unusable value.
 - An unusable value — a position that will not parse, a link naming an arc that
-  is absent from the document, a polygon ring beyond the first, a record-level
-  timestamp carrying an offset other than `Z` — the reader MUST drop the
-  offending element, MUST record a diagnostic, and MUST continue.
+  is absent from the document, a POLYGON carrying a ring beyond the first, a
+  record-level timestamp carrying an offset other than `Z` — the reader MUST drop
+  the offending element, MUST record a diagnostic, and MUST continue.
+
+  The unusable value in the polygon case is the whole `polygon`, not the extra
+  ring: Section 3.7 forbids silently keeping the outer ring, so the outer ring is
+  unusable too and the unusable extent is the entire ring set.
 - A value of the wrong JSON type is an unusable value. Where the key is
   OPTIONAL (Section 3.10), the reader MUST drop the field and MUST keep the
   item. Where the key is REQUIRED, the reader MUST drop the item, because the
@@ -1173,9 +1177,27 @@ A reader MAY leave `code` absent on any diagnostic no corpus case pins. Codes
 are wire commitments, and a format does not need one for every way a document
 can be malformed.
 
-Where a diagnostic is about a relationship rather than a value, `path` names the
-SECOND of the pair: a chain whose links do not meet names the link that failed to
-continue, not the one it failed to continue from.
+`path` names the SMALLEST ELEMENT NO PART OF WHICH COULD BE USED. That is not
+always the element the remedy drops: an inline endpoint that does not project
+names the endpoint while the link is dropped around it, and a polygon with nested
+rings names the polygon while the area is dropped around it. Those two agree with
+each other, and naming what was dropped instead would point a reader at an item
+that is often perfectly good apart from one value inside it.
+
+"No part of which" is load-bearing. A link naming an absent arc and an inline
+endpoint that misses its arc are near-twins — both well-formed values that fail
+to resolve against another object — and they land at different depths for a
+reason. When the arc is absent nothing about the link resolves, so the link is
+named; when the endpoint misses the arc, the arc and the other endpoint are
+still fine, so only `to` is. Without that phrase an implementer pins the first at
+`/links/1/arc` to match the second, and is wrong.
+
+A SECOND RULE covers a diagnostic about a relationship, where nothing is
+unusable at all: it names the SECOND of the pair. A chain whose links do not meet
+names the link that failed to continue, not the one it failed to continue from.
+Both of that chain's links are kept, so the first rule does not reach the case —
+this is a rule for a different kind of diagnostic rather than an exception to the
+one above it.
 
 A diagnostic carries no severity. Every diagnostic this format defines reports
 the same kind of fact — something in the document could not be used as written —
@@ -1340,7 +1362,7 @@ for a document plus two attachments including a non-ASCII entry name.
 The corpus distributed with this specification is what decides whether an
 implementation conforms. Every implementation runs the same files.
 
-The corpus has four kinds of case:
+The corpus has five kinds of case:
 
 | Directory | Requirement |
 |---|---|

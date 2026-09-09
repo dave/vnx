@@ -206,11 +206,26 @@ code from Section 1.3 with a separate bug in it.
 *(Measured by the JavaScript implementation on Go 1.25.6, CPython 3.14 and
 Node 22.19.)*
 
-ECMAScript's `toFixed` is specified to pick "the larger n" on a tie, which is
-half away from zero for a positive value and toward zero for a negative one. It
-therefore agrees with half-to-even in one direction, which is worse than
-disagreeing consistently: a guard that tests only positive values passes by
-accident.
+`toFixed` strips the sign and rounds the magnitude, so it is symmetric: away from
+zero on both signs, `-340.25` to `-340.3` as well.
+
+The asymmetric rule is the one everybody reaches for first. `Math.round(x * 10) / 10`
+is half-up in both JavaScript and Java, because `Math.round` breaks a tie toward
+positive infinity, so it is wrong on every positive tie and right on every
+negative one by accident. **A guard testing only negative ties passes it.**
+*(Measured by the Kotlin implementation.)*
+
+Five wrong tie rules and the two values that separate them:
+
+| value | rule | half-odd | away from 0 | toward 0 | half-up | half-down |
+|---|---|---|---|---|---|---|
+| `340.25` | `340.2` | `340.3` | `340.3` | `340.2` | `340.3` | `340.2` |
+| `340.75` | `340.8` | `340.7` | `340.8` | `340.7` | `340.8` | `340.7` |
+
+`340.25` catches half-away-from-zero and half-up; `340.75` catches
+half-toward-zero and half-down; either catches half-to-odd. **Only the pair
+identifies half-to-even**, so a fixture carrying one of them tests less than it
+looks. *(Measured by the JavaScript implementation.)*
 
 The values are reachable rather than contrived. A tie at one decimal place needs
 a fractional part of exactly `.x5`, and of the ten candidates only `.25` and
@@ -633,7 +648,7 @@ model refuses a 55 m case.
 
 Discrimination comes from the arc's direction. Run the arc north to south, so its
 first vertex sits at high latitude and the query point at low, and a model taking
-the cosine of the segment's start latitude under-reads: 36.8 m against a true 55,
+the cosine of the segment's start latitude under-reads: 36.845 m against a true 55,
 which accepts a document the format refuses. That is the more dangerous
 direction, and only an arc pointing that way exposes it.
 
@@ -646,8 +661,14 @@ than merely move the number, and that is a stronger requirement than it sounds. 
 an arc spanning three degrees of latitude, a segment-start-cosine model reads
 48.87 m and 59.73 m where the correct model reads 45 and 55: an 8.5 per cent
 error, plainly visible in the numbers, and the verdict is unchanged on both
-files. Thirteen degrees gives 67.4 m and 36.8 m, which flips both. A fixture
-that moves a number without moving a verdict separates nothing.
+files. Thirteen degrees gives 67.447 m and 36.845 m, which flips both. A fixture that
+moves a number without moving a verdict separates nothing.
+
+All four figures assume the mean radius of 6 371 008.8 m that Section 3.3.3
+names, and only that constant reproduces the 45 and 55 the fixtures are named
+for: at 111 132 m per degree the same coordinates solve to 44.974 and 54.969.
+The difference never moves a verdict, which is exactly why a distance quoted
+without its constant outlives both. *(Measured by the Rust implementation.)*
 
 ---
 
@@ -676,13 +697,27 @@ other as its expected output.
 > An unreachability claim is a claim about the current state of somebody's
 > ingenuity, not about the format.
 
-A related trap, and the one condition here that care does not fix: a wrong fact
-travels unchallenged when the conclusion it supports is right anyway. One
-implementation reasoned about a standard library's escaping rather than running
-it, reached the correct answer by a wrong route, and nobody had reason to check,
-because the answer was the same either way. Evidence that is never load-bearing
-is never tested. When a claim you are relying on would not change your conclusion
-if it were false, that is exactly when to measure it.
+A related trap, and the one condition here that care does not fix: a wrong reason
+under a right conclusion has nothing in the world with a motive to check it. A
+wrong reason under a wrong conclusion is caught by whoever tests the conclusion.
+A wrong reason under a right one holds everything up while being false, and
+survives exactly as long as nobody needs it for a second purpose.
+
+Two instances, from opposite directions. One implementation reasoned about a
+standard library's escaping rather than running it and reached the correct answer
+by a wrong route. Another wrote that `toFixed` rounds a tie away from zero on
+positives and toward zero on negatives, four lines below its own measured table
+showing `-340.25` going to `-340.3`; the divergence it was demonstrating was
+real, so nothing pulled it up. That reason survived until somebody needed the tie
+direction for a symmetry guard, measured it, and found it did not hold.
+
+Which gives the detection rule: **a reason that has only ever supported one
+conclusion has never been tested.** And it narrows what provenance can do for
+you. Writing a claim for attribution surfaces a *borrowed* one, because the
+empty provenance field is a visible question. It does not surface a *reasoned*
+one, because a derivation feels like your own work whether or not you checked it
+against data you already hold. *(Reported by the JavaScript implementation,
+against its own earlier claim.)*
 
 So the useful question is not which rules are unreachable, but which are
 unreached *today*, and what shape a case would have to take. Where the two
@@ -769,30 +804,7 @@ This is the only instance whose fix is to check against an implementation not
 written from this document. *(Reported by the Kotlin implementation, which reads
 its own archives with `java.util.zip`.)*
 
-#### A rule with no guard at all
-
-The three mechanisms above are about a guard that fails. The fourth state has no
-guard in it.
-
-A rule that is unambiguous, stated in the normative document, and enforced by
-nothing produces total confidence and zero enforcement. An open question makes
-people uneasy, so it stays on a list and gets checked. A settled one does not,
-and nobody asks whether anything checks it, because the question feels answered.
-
-The evidence is the partly-timed track. Three implementations summed a partial
-moving time with every corpus tier green, and that was already a rule the
-specification stated. Prose did not change what passed; a fixture did.
-
-> Prose changes what people believe. A fixture changes what passes.
-
-So "this one is ruled, so it must be handled" is backwards. A written rule with no
-fixture is the one most likely to be quietly violated, because everyone reading
-the specification believes it is enforced. Four rules sat in that state at once:
-node-key resolution, the full-entry-name root document match, `a..b/photo.jpg`
-being legal, and a backslash in an entry name being refused. *(Reported by the
-JavaScript implementation, which holds a proof for each.)*
-
-The repair for the three failing mechanisms is to make the test read the artefact. Mutate
+The repair for all three is to make the test read the artefact. Mutate
 the implementation, run the real corpus, and assert exactly which cases fail. That
 turns "the corpus discriminates" from a restated number into a measurement, and it
 goes red when a fixture moves.
@@ -923,7 +935,41 @@ read in any language.
 
 ---
 
-## 7. What a guard that works looks like
+## 7. Guards
+
+### 7.1 A rule with no guard at all
+
+Section 6 is about a guard that fails. This is the state with no guard in it, and
+it is the one made invisible by its own clarity.
+
+A rule that is unambiguous, stated in the normative document, and enforced by
+nothing produces total confidence and zero enforcement. An open question makes
+people uneasy, so it stays on a list and gets checked. A settled one does not,
+and nobody asks whether anything checks it, because the question feels answered.
+
+The evidence is the partly-timed track. Three implementations summed a partial
+moving time with every corpus tier green, and that was already a rule the
+specification stated. Prose did not change what passed; a fixture did.
+
+> Prose changes what people believe. A fixture changes what passes.
+
+So "this one is ruled, so it must be handled" is backwards. A written rule with no
+fixture is the one most likely to be quietly violated, because everyone reading
+the specification believes it is enforced. Four rules sat in that state at once:
+node-key resolution, the full-entry-name root document match, `a..b/photo.jpg`
+being legal, and a backslash in an entry name being refused. *(Reported by the
+JavaScript implementation, which holds a proof for each.)*
+
+The corpus can do worse than fail to enforce a rule. The four committed `.vnz`
+fixtures violate the container section of `SPEC.md` in six ways — wrong version
+fields, wrong flags, deflate where the rule says stored, and a local header
+carrying zeros where the central directory carries the truth. Every
+implementation passes them, because a conforming reader must accept a data
+descriptor and must take its sizes from the central directory. The fixtures
+demonstrate the opposite of the rule and nothing goes red. *(Reported by the
+Kotlin implementation.)*
+
+### 7.2 What a guard that works looks like
 
 Three properties, from a test written to keep a corpus runner strict about which
 field a sidecar pins. *(Reported by the Swift implementation.)*
@@ -980,8 +1026,8 @@ and Kotlin/Native is unmeasured (2.2). `java.util.zip` cannot write what the con
 needs, not exposing the UTF-8 flag or the version fields, while remaining a sound
 independent reader (6.5).
 
-**JavaScript.** `toFixed` rounds ties away from zero for a positive value and
-toward zero for a negative one (1.5). `JSON.stringify` uses insertion order for
+**JavaScript.** `toFixed` rounds ties away from zero on both signs, and
+`Math.round(x * 10) / 10` is half-up (1.5). `JSON.stringify` uses insertion order for
 keys (1.1). `Array.prototype.sort` with no comparator orders by UTF-16 code unit
 (2.2). `1e400` parses to infinity rather than failing (4.1). Number rendering is
 otherwise free, which is its own hazard (1.10).

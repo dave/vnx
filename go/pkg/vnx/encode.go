@@ -222,9 +222,17 @@ func endpointTree(e Endpoint) (any, error) {
 // positionTree writes the fixed positional channels, trimming trailing absence.
 //
 // Trailing `null`s are OMITTED rather than written: [lon, lat, null, null] and
-// [lon, lat] say exactly the same thing, and the shorter spelling is the
-// canonical one. An interior absence still needs its null — [lon, lat, null,
-// t] cannot be shortened without moving the time into the elevation channel.
+// [lon, lat] say exactly the same thing, and the shorter spelling is the one a
+// WRITER emits. An interior absence still needs its null — [lon, lat, null, t]
+// cannot be shortened without moving the time into the elevation channel.
+//
+// ⚠ THIS IS THE WRITER. A FORMATTER MUST NOT SHORTEN, and does not exist yet.
+// Spec §4.1 makes shortening a writer's rule rather than part of canonical
+// form, so re-rendering a document a reader was handed has to reproduce the
+// arity it carried — which is what Position.Channels records and what nothing
+// currently reads. See the Reformat work: until it lands, decode-then-Encode
+// is a WRITE and legitimately shortens and rounds, and the accept tier cannot
+// use it as its check.
 //
 // ⚠ THIS IS WHERE VNX ROUNDS, and it is the only place: every position on a
 // VNX wire — a waypoint's `at`, an area's ring, a track's pips, an arc's pips,

@@ -27,12 +27,38 @@ type Position struct {
 	Lon, Lat float64
 	Ele      *float64 // nil: elevation unknown
 	Time     *int64   // nil: no time; otherwise Unix milliseconds
+
+	// Channels is how many positional channels the DOCUMENT carried for this
+	// position, and it is load-bearing model state rather than bookkeeping.
+	//
+	// ⚠ [lon, lat, null] and [lon, lat] say the same thing and a reader takes
+	// either, but they are different BYTES, and re-encoding a document must
+	// reproduce the bytes it read. Spec §4.1 makes shortening a rule for a
+	// WRITER emitting a model, not part of canonical form: a formatter
+	// re-renders the spelling the document carries, exactly as §4.5.4 makes
+	// rounding an emit-path rule that a reader and a formatter never apply.
+	//
+	// So a model that normalises [lon, lat, null] to [lon, lat] cannot
+	// re-encode the accept corpus, and `Ele *float64` alone IS that model —
+	// which is the obvious modelling choice every implementation will make
+	// first. accept/absent-elevation-and-time.vnx is the file that catches it.
+	//
+	// Zero means "not read from a document": a position built in code carries
+	// no spelling, so a writer emits the shortest one. Decode sets it, capped
+	// at 4 — a reader ignores channels beyond those it knows (§4.1), and a
+	// channel it ignored is one it cannot reproduce, so an accept file may not
+	// carry more than four.
+	Channels int
 }
 
 // Equal compares by value, following the pointers. Positions are compared by
 // VALUE and not by identity throughout this package — spec §3.2 requires it for
 // shared chain handles, where two links referencing one turnaround point are
 // recognised only by their coordinates being equal.
+// Channels is deliberately NOT compared: it is a spelling, not a value, and
+// two positions differing only in whether an absent elevation was written as
+// `null` denote the same point. A chain's shared turnaround handle is
+// recognised by coordinates alone (§3.3.3) and must stay so.
 func (p Position) Equal(q Position) bool {
 	if p.Lon != q.Lon || p.Lat != q.Lat {
 		return false
@@ -83,7 +109,7 @@ func decodePosition(arr []any, path string) (Position, error) {
 	if lat < -90 || lat > 90 {
 		return Position{}, fmt.Errorf("latitude %v at %s is off the globe", lat, path)
 	}
-	p := Position{Lon: lon, Lat: lat}
+	p := Position{Lon: lon, Lat: lat, Channels: min(len(arr), 4)}
 
 	if len(arr) >= 3 {
 		ele, ok, err := optionalNumber(arr[2], path, "elevation")

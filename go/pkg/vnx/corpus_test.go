@@ -146,9 +146,21 @@ func runAccept(t *testing.T, c corpusCase) {
 		}
 	}
 	// Accept files are stored in canonical form (§4.5), so canonicalising one
-	// is a no-op. This is not decoration: it is what proves the whole file —
-	// unknown data records included, whose bodies nothing else in this package
-	// inspects — survives parse and re-render at value level.
+	// is a no-op.
+	//
+	// ⚠ THIS CHECK IS WEAKER THAN §8.1 CLAIMS, AND THE FIX IS NOT LANDED YET.
+	// §8.1 says it proves the whole document — unknown data records included —
+	// survives parse and re-render at value level. It cannot: canonicalise() is
+	// bytes in and bytes out and never builds a model, so it cannot see a
+	// reader that discarded what it read. Measured by the Python implementation
+	// 2026-09-09: a reader that dropped every data record, every ruleset, every
+	// style and every `notes` passed this tier GREEN.
+	//
+	// The replacement is decode-then-re-encode. It needs a FORMATTER that
+	// neither rounds nor shortens — Encode is the WRITER and does both, by
+	// rule — and this package does not have one yet. Position.Channels is the
+	// groundwork: it records the arity a document carried, which a formatter
+	// must reproduce and which nothing reads today.
 	if c.isContainer() {
 		return
 	}

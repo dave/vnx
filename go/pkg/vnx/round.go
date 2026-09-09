@@ -69,6 +69,10 @@ func RoundPosition(p Position) Position {
 		Lon:  RoundCoordinate(p.Lon),
 		Lat:  RoundCoordinate(p.Lat),
 		Time: p.Time,
+		// Channels is a spelling, not a value, and rounding does not change it.
+		// Dropping it here silently un-did Position.Channels for every position
+		// on the wire, because rounding sits between the model and the emitter.
+		Channels: p.Channels,
 	}
 	if p.Ele != nil {
 		e := RoundElevation(*p.Ele)

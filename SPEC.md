@@ -83,7 +83,7 @@ diagnostics of Section 6.2.
 Through 0.x:
 
 - A reader MUST refuse a document whose MAJOR or MINOR component is above its
-  own, and the refusal MUST state that a newer reader is required. During 0.x
+  own, and the refusal MUST state that a newer reader is needed. During 0.x
   the minor number is a breaking axis, so a 0.1.x reader cannot determine
   whether 0.2.0 changed a construct it depends on.
 - A reader MUST accept a document whose MAJOR and MINOR match its own,
@@ -94,6 +94,10 @@ From version 1.0 onward, minor versions are additive: a reader MUST accept any
 minor version at or above its own and MUST ignore constructs it does not
 recognise, and only a MAJOR increment is a refusal. The rule for PATCH does not
 change.
+
+Each component is one or more decimal digits, with no bound on length and no
+rule against a leading zero: `00.01.0000` is a legal spelling of 0.1.0, and a
+reader compares the numeric values rather than the text.
 
 A version string that is not three digit-runs separated by full stops MUST be
 refused, and MUST NOT be coerced. `"0.1"`, `"0.1.0.0"`, `"0.1.x"` and `"0.1.+1"`
@@ -132,8 +136,14 @@ A VNX document is a JSON object.
 }
 ```
 
-Only `vnx` is REQUIRED. Every other key in every object defined by this format
-is OPTIONAL, and a reader MUST accept its absence.
+Every key is OPTIONAL except the ones its object requires, which Section 3.10
+lists. A reader MUST accept the absence of every other key.
+
+Note: an earlier revision of this document said that `vnx` was the only required
+key anywhere. That was contradicted one section away by Section 8.2, which
+lists "the fields required per object" among what the JSON Schema checks, and by
+the schema itself, which requires thirteen fields across eleven object types.
+Section 3.10 is the authority.
 
 Absence means "not known". It MUST NOT be read as a default value, with two
 exceptions stated where they arise: `label-visible`, where absence means Auto
@@ -148,9 +158,10 @@ All seven collections are OPTIONAL and default to empty.
 
 - An application writes its own name and version, for example
   `"Viatrail 0.1.1498"`. The version is supplied by the caller requesting the
-  export. An export request that carries no version MUST be refused rather than
+  export. An export request that carries no version is refused rather than
   written with a placeholder version, because a header that reads as a fact and
-  is not one is worse than no export.
+  is not one is worse than no export. That is a requirement on an application's
+  export path, not on a library: a library has no export request.
 - A development or command-line tool names itself, and MUST NOT name itself as
   the application. A document written by such a tool did not come from an
   application export.
@@ -234,7 +245,33 @@ which the chain starts, ends or reverses.
 
 An inline position MUST lie on the named arc. A reader resolves it by projecting
 it onto the arc's polyline; elevation is taken from the polyline and is never
-stored on the endpoint. The projection tolerance is 50 metres. An inline
+stored on the endpoint. The projection tolerance is 50 metres, measured as
+follows.
+
+Every coordinate — the inline position and every vertex of the arc's `pips` — is
+projected to metres by a local equirectangular map about the LATITUDE OF THE
+INLINE POSITION, using an Earth radius of 6371008.8 m:
+
+```
+x = radians(lon) * 6371008.8 * cos(radians(lat_of_the_inline_position))
+y = radians(lat) * 6371008.8
+```
+
+The cosine term uses that one latitude for every coordinate, which keeps the map
+affine, so a straight polyline segment stays straight and the plane geometry is
+exact. The distance is then the least distance from the projected position to
+any projected segment of the polyline, each segment measured as the distance to
+the nearest point on that segment.
+
+The model is stated because the choice decides which documents are legal, not
+because the arithmetic is delicate. Measured against one endpoint of the worked
+example, four plausible models give 19.81 m, 20.34 m, 25.52 m and 36.47 m — a
+factor of 1.8 — and Web Mercator, the largest of the four, is the one an
+implementation carrying a tile pipeline reaches for first.
+
+A polyline of one vertex is that point. A polyline of no vertices has no
+distance: the reader MUST record a diagnostic and drop the link rather than
+invent a number. An inline
 position that does not project onto its arc within that tolerance is an
 unusable value and is handled under Section 6.2.
 
@@ -334,8 +371,10 @@ Top-level `waypoints` and a network's `points` share one shape.
 
 `at` is a position (Section 4.1).
 
-`icon-size` is an integer in points; the values Viatrail uses are 16, 21, 27, 35
-and 46. `importance` is an integer from 1 to 5. Neither is spelled as a word.
+`icon-size` is an integer in points. The values 16, 21, 27, 35 and 46 are the
+ones Viatrail emits; that sentence is informative and does not constrain a
+document. `importance` is an integer from 1 to 5, and that is normative: a value
+outside the range is handled under Section 6.2. Neither is spelled as a word.
 
 `label-visible` is a tristate, and its absence is meaningful:
 
@@ -383,6 +422,63 @@ A document MAY carry a `rulesets` key. A 0.1.x reader MUST treat its contents as
 opaque and MUST preserve them through a read-modify-write, under the same rules
 as an unknown data record (Section 5.1).
 
+### 3.10 Recognised keys
+
+This section is the set of keys this format defines. A reader needs it to apply
+Section 6.2's unrecognised-key rule, which cannot be implemented without it.
+
+A key marked REQUIRED must be present for the object to exist. Requiring a key
+does not require a non-empty value: `"links": []` satisfies `links`, and an
+empty array is distinct from an absent one.
+
+| Object | Required | Optional |
+|---|---|---|
+| document | `vnx` | `profile`, `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
+| network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `chains`, `points`, `areas`, `data` |
+| arc, in a network | `from`, `to`, `pips` | `data` |
+| chain | `links` | `name`, `notes`, `hidden`, `style`, `data` |
+| link | `arc`, `from`, `to` | — |
+| route | `arcs` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
+| arc, in a route | `pips` | `data` |
+| track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
+| segment | `pips` | — |
+| waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
+| point, in a network | `at` | `name`, `notes`, `hidden`, `style`, `data` |
+| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
+| area, in a network | `polygon` | `name`, `notes`, `hidden`, `style`, `data` |
+| data record | `@type` | opaque; see below |
+
+A node is a position (Section 4.1), not an object, and has no keys.
+
+Three notes on the table:
+
+- `folder` names the folder an item sits in. It does not appear on a folder,
+  which places itself with `parent`, and it does not appear on a network's
+  `points` or `areas`, which their network already contains.
+- `hidden` appears on every item that can be hidden, including a top-level
+  waypoint. Section 3.8 names the shape rather than the collection, and a
+  waypoint and a network's point are one shape (Section 3.6).
+- An arc carries no `name`, `notes`, `hidden` or `style`, and neither a link nor
+  a segment carries `hidden`. A per-arc style is a plausible future addition and
+  is not part of version 0.1.
+
+#### Objects this section does not reach
+
+Two kinds of object are opaque, and a reader MUST NOT apply Section 6.2's
+unrecognised-key rule inside either:
+
+- A data record, apart from its `@type` (Section 5.1).
+- Everything under `rulesets` (Section 3.9).
+
+A style object is opaque for the same reason. This format defines the style keys
+its own examples use, and a reader MUST carry any other key in a style object
+through a read-modify-write without reporting it. Style vocabulary grows faster
+than structural vocabulary, so a fixed style key set would make every
+implementation report a diagnostic for a valid document each time one
+implementation added a style key, until all of them caught up. That cost is
+larger than the mistyped-key detection it would buy.
+
 ## 4. Values
 
 ### 4.1 Positions
@@ -417,8 +513,18 @@ The following rules apply:
 
 A writer MUST emit the shortest spelling of a position; a reader MUST accept any
 of them. `[lon, lat, null]` and `[lon, lat]` state the same thing, and a reader
-takes either. Canonical form (Section 4.5) requires one spelling on the way out
-so that two exports of one library are byte-identical.
+takes either.
+
+Shortening happens where rounding happens, at the serialisation boundary
+(Section 4.5.4), and it is NOT part of canonical form. A formatter re-renders
+the spelling the document carries, so a position's arity survives a
+read-modify-write.
+
+Note: a model that normalises `[lon, lat, null]` to `[lon, lat]` cannot
+re-render the conformance corpus, because `accept/absent-elevation-and-time.vnx`
+is stored canonical and carries the longer spelling. An elevation field that is
+merely optional is that model, and it is the first one most implementations
+reach for. Position arity is state a reader has to keep.
 
 An interior absence keeps its `null`. `[lon, lat, null, t]` cannot be shortened,
 because dropping the `null` would move the time into the elevation channel.
@@ -484,6 +590,16 @@ Object keys sort in two groups:
 
 1. Scalars — strings, numbers, booleans and nulls — in lexicographic order.
 2. Containers — objects and arrays — in lexicographic order.
+
+Lexicographic means by Unicode code point. Every key this format defines is
+ASCII, where code point, UTF-8 byte and UTF-16 code unit order all agree, but a
+data record body may carry any key (Section 5.1), and the three orders disagree
+above U+FFFF.
+
+Note: an implementation whose default string comparison is by UTF-16 code unit
+MUST supply its own comparator. JavaScript's `Array.prototype.sort()` is such a
+default; Python's `sorted()` and Go's `sort.Strings` already order by code
+point.
 
 Classification is by the value present in this object, not by the key name. No
 key is named by the rule.
@@ -575,6 +691,15 @@ precision.
 #### 4.5.5 Encoding
 
 UTF-8, no byte order mark, two-space indent, and a newline at end of file.
+
+A string escapes only what [RFC 8259] requires: `"`, `\` and the control
+characters below U+0020. Every other character is written raw, including
+non-ASCII characters, `<`, `>`, `&`, U+2028 and U+2029.
+
+Note: Go's `encoding/json` escapes those last five by default and must be
+configured not to. No character above U+007F may be written as a `\u` escape.
+
+An empty array is written `[]` and an empty object `{}`, each on one line.
 
 #### 4.5.6 Note on stock encoders
 
@@ -674,10 +799,14 @@ straight-line and every frozen arc.
 The record carries `source` and nothing derivable from it. In Viatrail's model,
 the arc kind is a total function of the source and the configuration kind is a
 total function of the arc kind, so writing either alongside `source` would state
-one fact three times. A writer MUST verify that relationship for the arc it is
-writing rather than assume it, and MUST report a diagnostic for an arc whose
+one fact three times.
+
+The following is a requirement on Viatrail's export path rather than on a
+library, because the relationship it names holds between values that exist only
+inside Viatrail's model: an exporter verifies that relationship for the arc it
+is writing rather than assuming it, and reports a diagnostic for an arc whose
 stored kind and source fall outside it, because writing `source` alone for such
-an arc would lose the kind.
+an arc would lose the kind. A library reading this format sees only `source`.
 
 `app.viatrail.navigation` is aspirational. Viatrail's routing engine has no
 avoid-this-area or avoid-this-span input, so a reader must not expect the record
@@ -696,6 +825,12 @@ SHOULD disclose the failure rather than present the geometry as computed.
 |---|---|
 | `full` | every record is present |
 | `portable` | records marked vendor in Section 5.2 are omitted |
+
+`profile` records the choice its writer made. A reader MUST preserve the value
+and MUST NOT act on it: the records a profile would have removed are already
+absent, and a reader that filtered again would remove records from a document
+that had kept them deliberately. A reader MUST accept an unrecognised value and
+an absent one, and MUST NOT refuse either.
 
 A record whose type is outside the `app.viatrail.` namespace is kept in both
 profiles. A portable export strips Viatrail-private records; it does not strip
@@ -753,9 +888,59 @@ A reader is tolerant of damage and silent about nothing.
   is absent from the document, a polygon ring beyond the first, a record-level
   timestamp carrying an offset other than `Z` — the reader MUST drop the
   offending element, MUST record a diagnostic, and MUST continue.
-- A non-finite number (Section 4.2), or a `vnx` version above the reader's
-  (Section 2.2): the reader MUST refuse the document. These are the only two
-  refusals defined for a plain document.
+- A value of the wrong JSON type is an unusable value. Where the key is
+  OPTIONAL (Section 3.10), the reader MUST drop the field and MUST keep the
+  item. Where the key is REQUIRED, the reader MUST drop the item, because the
+  object cannot exist without it.
+
+  The exception is not a special case: dropping a required field would leave a
+  waypoint that is nowhere, a link that traverses nothing, or an arc with no
+  geometry. Section 5.1's rule for a record with an unusable `@type` is the same
+  rule — the record goes, not the key.
+- A value that is outside a range or an enumeration this document states — an
+  `importance` outside 1 to 5, a `size` that is not `hamlet`, `village` or
+  `town` — is an unusable value in an optional key, so the reader MUST drop the
+  field and MUST keep the item.
+- A refusal. A plain document is refused for exactly four causes, and a reader
+  MUST NOT refuse one for any other:
+
+  | Cause | Section |
+  |---|---|
+  | the top level is not a JSON object, or carries no `vnx` key | 2.2 |
+  | `vnx` is not three digit-runs separated by full stops | 2.2 |
+  | `vnx` names a MAJOR or MINOR above the reader's | 2.2 |
+  | a number in the document is not finite | 4.2 |
+
+  Section 7 states the causes for which a container is refused. They are
+  separate, and a fault in an attachment is not among them.
+
+The remedies for the constructs this document constrains but Section 6.2 did
+not previously reach:
+
+| Construct | Remedy |
+|---|---|
+| an inline link endpoint that does not project onto its arc within tolerance (3.3.3) | drop the link |
+| a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
+| an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
+| a data record with no `@type`, or one that is not a string (5) | drop the record |
+| consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
+
+A chain's links MUST form one connected walk: the point at which link *k* ends
+MUST be the point at which link *k+1* begins. A node key and an inline position
+meet when the position of the named node and the inline position are equal by
+value, and two node keys meet when the keys are equal. A reader MUST compare a
+node key by its resolved position rather than refusing to compare it, or a walk
+that is continuous is reported as broken. The diagnostic addresses the second
+link of the pair.
+
+A `folder` naming a folder that is not present in the document is not an
+unusable value. The reader MUST treat the key as absent, so the item sits at the
+top level, and MUST record a diagnostic. Dropping the item would lose content
+over a lost grouping.
+
+A folder with no `id` is dropped under the rule above. Items that named it are
+then covered by the previous paragraph and sit at the top level, so a folder's
+contents survive the loss of the folder.
 
 Neither tolerance nor refusal may be silent.
 
@@ -807,14 +992,22 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - Root document: a reader MUST prefer an entry named `doc.vnx` at the archive
   root. Where there is none, the reader takes the first entry with a `.vnx`
   extension in archive order. Names are compared case-insensitively.
-- Attachment paths MUST be relative and forward-slash separated. A path
-  containing `..`, an absolute path, or a path carrying a drive letter MUST be
-  refused.
-- Duplicate entry names MUST be refused. Language runtimes resolve them
-  differently, so one archive would yield different documents in different
-  languages.
+- Attachment paths MUST be relative and forward-slash separated. An absolute
+  path, a path carrying a drive letter, or a path with a `..` SEGMENT MUST be
+  refused. `..` is a path segment, not a substring: `a..b/photo.jpg` is a
+  legal name and escapes nothing.
+- Duplicate entry names MUST be refused, compared case-insensitively. Language
+  runtimes resolve a repeated name differently, so one archive would yield
+  different documents in different languages — and that applies to `doc.vnx`
+  beside `DOC.VNX` exactly as it applies to an exact repeat, which is why the
+  comparison matches the root-document rule above.
 - Compression MUST be stored or deflate. Other methods are not available in
-  every target language.
+  every target language. An entry compressed by another method is unreadable,
+  and the remedy depends on which entry it is: if it is the root document, the
+  reader MUST refuse the archive, because there is no document to return; if it
+  is an attachment, the reader MUST drop that attachment, MUST record a
+  diagnostic, and MUST return the document. Refusing a whole library because one
+  photograph used an unusual method would be disproportionate.
 - The UTF-8 filename flag is set.
 - A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE].
   A writer MAY write a plain archive without them. The asymmetry is deliberate:
@@ -877,7 +1070,13 @@ Each `foo.vnx` or `foo.vnz` has a `foo.expect.json` sidecar holding its expected
 result. The sidecar is plain JSON beside the file rather than inside a test in
 any one language, so that an implementation in any language can run the corpus.
 
-A file with no sidecar is a failure, not a skip.
+A file with no sidecar is a failure, not a skip. The exception is `format/`,
+where a case is a pair — `X.in.vnx` and `X.canonical.vnx` — and the expected
+result is the second file rather than a sidecar.
+
+A runner MUST assert that each `format/` input is not already canonical.
+Without that assertion a formatter that echoed its input would pass every case
+in the tier.
 
 Three sidecar fields do work that is not evident from their names:
 
@@ -897,7 +1096,8 @@ diagnostic or a refusal is an implementation's own business; naming the cause is
 not.
 
 Every file in `accept/` is stored in canonical form (Section 4.5), and the
-runner asserts that canonicalising it reproduces it byte for byte. That check
+runner asserts that canonicalising it reproduces it byte for byte. Files in
+`reject/` and `diagnose/` are not required to be canonical, and most are not. That check
 is the byte-compatibility guarantee between implementations, and it also proves
 that the whole document — including data records of types no implementation
 recognises, whose bodies nothing else inspects — survives parse and re-render at
@@ -976,3 +1176,5 @@ the size of an opaque data record.
   T. Schaub, "The GeoJSON Format", RFC 7946, August 2016.
 - [RFC 8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key
   Words", BCP 14, RFC 8174, May 2017.
+- [RFC 8259] Bray, T., "The JavaScript Object Notation (JSON) Data Interchange
+  Format", STD 90, RFC 8259, December 2017.

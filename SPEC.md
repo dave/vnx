@@ -172,7 +172,12 @@ exceptions stated where they arise: `label-visible`, where absence means Auto
 (Section 3.6), and `hidden`, where absence means visible (Section 3.8).
 
 All seven collections are OPTIONAL. An absent collection and an empty one carry
-the same content, and a reader MUST treat them alike when reading. They are
+the same content, and a reader MUST treat them alike when reading.
+
+This rule is not about the envelope. It holds WHEREVER A CONTAINER APPEARS in
+this format: an empty `data` bag, an empty `links` array, an empty `nodes`
+object are each distinct from the key being absent, and Section 3.10 states the
+same thing from the other side. They are
 different DOCUMENTS, though, so a reader MUST record which it was given and a
 formatter MUST reproduce it (Section 8.1). Whether a collection was present is
 model state, in the same way a position's arity is (Section 4.1).
@@ -430,7 +435,9 @@ Top-level `waypoints` and a network's `points` share one shape.
 
 `icon-size` is an integer in points. The values 16, 21, 27, 35 and 46 are the
 ones Viatrail emits; that sentence is informative and does not constrain a
-document. `importance` is an integer from 1 to 5, and that is normative: a value
+document. NO RANGE IS STATED FOR IT, so a reader does not check it and
+`"icon-size": "large"` passes unremarked — Section 6.2 checks a value only where
+this document states a range or an enumeration. `importance` is an integer from 1 to 5, and that is normative: a value
 outside the range is handled under Section 6.2. Neither is spelled as a word.
 
 `label-visible` is a tristate, and its absence is meaningful:
@@ -573,7 +580,8 @@ The following rules apply:
   expressible.
 - Trailing channels MAY be omitted. A reader MUST ignore channels beyond those
   it knows, so that a future channel is additive.
-- Arity 2 through 4 carry the channels this version defines. Arity 2 is used
+- Arity 2 through 4 carry the channels this version defines. That is not an
+  upper bound; see the bullet below on further channels. Arity 2 is used
   for inline chain endpoints (Section 3.3.3) and for area rings (Section 3.7).
   Arity 4 is legal on an arc, but Viatrail writes no arc pip carrying a time,
   and a reader should not expect one.
@@ -811,9 +819,9 @@ are structured rather than scattered: at one decimal place they are the odd
 quarters, so every quarter-metre elevation is one, and at six places they are the
 odd multiples of 1/128.
 
-No re-render can detect a disagreement about any of this, because rounding
-happens only when a writer emits a model and every corpus tier re-renders
-(Section 8.1). `corpus/numbers/` is the only instrument that reaches it.
+No tier that RE-RENDERS can detect a disagreement about any of this, because
+rounding happens only when a writer emits a model. The `write/` tier and
+`corpus/numbers/` are what reach it; Section 8 says which tiers do which.
 
 Note: 6 decimal places of latitude is about 11 cm, and a consumer GPS receiver
 is accurate to 3 to 5 m, so digits below the sixth place are the arithmetic's
@@ -1034,8 +1042,9 @@ section MUST match the prefix case-insensitively. Otherwise a near-miss produced
 by a capitalising keyboard is classified as third-party extensibility and kept
 in a portable export that was meant to strip it.
 
-This is a rule about the namespace, not about identity. A `@type` value is
-compared exactly everywhere else in this format: `App.viatrail.tag` is a
+The two rules that follow look contradictory and are not: THE CASE-INSENSITIVE
+RULE IS ABOUT THE NAMESPACE, AND THE EXACT RULE IS ABOUT IDENTITY. A `@type`
+value is compared exactly everywhere else in this format: `App.viatrail.tag` is a
 different type from `app.viatrail.tag` and has no row in the table in
 Section 5.2. A reader MUST NOT fold case to resolve one onto the other, which
 would change what the record means. Rules 3 and 4 of Section 5.1 govern it as
@@ -1086,6 +1095,12 @@ A reader is tolerant of damage and silent about nothing.
   OPTIONAL (Section 3.10), the reader MUST drop the field and MUST keep the
   item. Where the key is REQUIRED, the reader MUST drop the item, because the
   object cannot exist without it.
+
+  The two cases are DIFFERENT DIAGNOSTICS and not one diagnostic with two
+  remedies. "a field is gone" and "the item is gone" are materially different
+  outcomes for whoever holds the file — the first is recoverable from the rest of
+  the item and the second is not — so a caller must be able to tell them apart
+  without parsing English, which means a distinct code for each.
 
   The exception is not a special case: dropping a required field would leave a
   waypoint that is nowhere, a link that traverses nothing, or an arc with no
@@ -1199,6 +1214,7 @@ Each diagnostic carries:
 | Field | Value |
 |---|---|
 | `path` | a JSON Pointer ([RFC 6901]) locating the element the diagnostic is about |
+| | for a fault in an ARCHIVE ENTRY rather than in the document: `#/entries/<name>`, with the member name escaped per [RFC 6901] |
 | `code` | a short stable token naming which diagnostic this is, or absent |
 | `message` | a short description in English |
 
@@ -1226,12 +1242,20 @@ named; when the endpoint misses the arc, the arc and the other endpoint are
 still fine, so only `to` is. Without that phrase an implementer pins the first at
 `/links/1/arc` to match the second, and is wrong.
 
-A SECOND RULE covers a diagnostic about a relationship, where nothing is
-unusable at all: it names the SECOND of the pair. A chain whose links do not meet
-names the link that failed to continue, not the one it failed to continue from.
-Both of that chain's links are kept, so the first rule does not reach the case —
-this is a rule for a different kind of diagnostic rather than an exception to the
-one above it.
+There is a SECOND RULE, for a different kind of diagnostic rather than an
+exception to the one above. Where a diagnostic is about a relationship, nothing
+is unusable at all — a chain whose links do not meet keeps both links — so the
+first rule does not reach the case. Such a diagnostic names the SECOND of the
+pair: the link that failed to continue, not the one it failed to continue
+from.
+
+An archive entry is not part of the document, so a diagnostic about one cannot
+be located by a pointer into the document. It uses the separate space
+`#/entries/<name>` — not a path under any document key, because every such
+spelling collides with something: `/attachments/…` is already the name of a
+sidecar expectation field, and an absent `path` would make the field optional
+and grow a null case in every runner comparison, which is the defect the
+`message` field had one column over.
 
 A diagnostic carries no severity. Every diagnostic this format defines reports
 the same kind of fact — something in the document could not be used as written —
@@ -1286,18 +1310,25 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
   different documents in different languages — and that applies to `doc.vnx`
   beside `DOC.VNX` exactly as it applies to an exact repeat, which is why the
   comparison matches the root-document rule above.
-- A reader MUST accept stored and deflate. A writer emits stored only; see
-  Section 7.1. Other methods are not available in every target language. An entry compressed by another method is unreadable,
+- A reader MUST accept stored and deflate. Other methods are not available in
+  every target language. An entry compressed by another method is unreadable,
   and the remedy depends on which entry it is: if it is the root document, the
   reader MUST refuse the archive, because there is no document to return; if it
   is an attachment, the reader MUST drop that attachment, MUST record a
   diagnostic, and MUST return the document. Refusing a whole library because one
   photograph used an unusual method would be disproportionate.
 - The UTF-8 filename flag is set.
-- A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE]. A
-  writer does not write them (Section 7.1). The asymmetry is deliberate: an
-  export stays readable by the widest range of tools, and an archive from
-  elsewhere is still readable by every conforming implementation.
+- A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE].
+- A reader MUST accept an archive whose entries defer their sizes to a data
+  descriptor, and MUST take the sizes from the CENTRAL DIRECTORY rather than
+  from a local header.
+
+This section states what a READER accepts. Section 7.1 states what a writer
+emits, which is narrower in every case: an export stays readable by the widest
+range of tools, while an archive from anywhere else is still readable by every
+conforming implementation. That asymmetry is the shape this format uses
+throughout — canonical form constrains what a library writes and never what it
+will read.
 
 Note: an implementation matching the root document on the base name alone
 matches at any depth and lets the last match win rather than the first. The
@@ -1328,10 +1359,7 @@ in both.
 
 A writer MUST emit stored for every entry, and MUST NOT deflate. It MUST write
 the CRC and both sizes in the local header and MUST NOT set general purpose bit
-3. A reader still accepts deflate, still accepts bit 3, and MUST still read
-ZIP64. Those asymmetries are deliberate and are the shape this format uses
-elsewhere: canonical form constrains what a library writes and never what it
-will read.
+3. Every one of those is narrower than what Section 7 has a reader accept.
 
 Bit 3 defers the CRC and the sizes to a descriptor after the payload, which
 forces a forward-only reader to scan for the next entry's signature — and for a

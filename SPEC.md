@@ -649,7 +649,7 @@ misreading it.
 
 | Type | Hosts | Payload | Profile |
 |---|---|---|---|
-| `app.viatrail.camp` | point | `flat`, `sheltered`, `water` (each a rating, see below), `capacity` (number) | core |
+| `app.viatrail.camp` | point | `flat` (boolean), `sheltered` (boolean), `water` (boolean), `capacity` (number) | core |
 | `app.viatrail.compute-failed` | arc | none | vendor |
 | `app.viatrail.hotel` | point | `phone` (string), `url` (string), `booking-required` (boolean) | core |
 | `app.viatrail.navigation` | chain, area | `value`, `strength` | vendor |
@@ -658,17 +658,13 @@ misreading it.
 | `app.viatrail.shelter` | point | `kind` (`bothy`, `hut`, `refuge` or `lean-to`), `capacity` (number), `locked` (boolean) | core |
 | `app.viatrail.tag` | any item | `value` (string) | core |
 | `app.viatrail.trail-note` | any item | `value` (string, may contain line breaks) | core |
-| `app.viatrail.water` | point | `seasonal`, `flow`, `verified` | core |
+| `app.viatrail.water` | point | `seasonal` (boolean), `flow` (`trickle`, `steady` or `strong`), `verified` (timestamp) | core |
 
 This table is normative and defines the core and vendor boundary. It is
 maintained as the vocabulary grows.
 
-`app.viatrail.camp`'s `flat`, `sheltered` and `water` are ratings, not
-booleans: each is an integer from 1 to 5, where 5 is the best and 1 the worst
-for the quality named. How flat a pitch is and how sheltered it is are matters
-of degree, and a reader MUST NOT collapse one to a boolean — "somewhat
-sheltered" is the state the scale exists to record. `capacity` is an ordinary
-number and is not a rating.
+`app.viatrail.camp`'s `flat`, `sheltered` and `water` are booleans. `capacity`
+is an ordinary number.
 
 `app.viatrail.routing` carries `source`, and carries `config` only when the
 routing engine has parameters to record. A configuration that holds nothing but

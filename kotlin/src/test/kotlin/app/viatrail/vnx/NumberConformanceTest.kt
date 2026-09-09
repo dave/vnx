@@ -172,19 +172,40 @@ class NumberConformanceTest {
     }
 
     @Test
-    fun `the rounding guard covers negatives, because one wrong rule agrees on half of them`() {
-        // From the JavaScript seat, refined by measurement here. `toFixed` is
-        // symmetric — it strips the sign first, so it rounds away from zero on
-        // both — but `Math.round` is not, in JavaScript and in Java identically:
-        // it rounds a tie towards POSITIVE INFINITY, so `Math.round(x * 10) / 10`
-        // gives 340.3 for 340.25 and -340.2 for -340.25. That AGREES with the
-        // correct rule on every negative tie and disagrees on every positive one,
-        // so a guard testing only positives passes on half the failures.
-        //
-        // `Math.rint` is the other near-miss: it is half-to-even, but applied to
-        // the scaled value, and scaling by a power of ten is not exact.
+    fun `Math dot round is half toward positive infinity, and parity decides where it differs`() {
+        // Measured in Java and in JavaScript, and both give these four. I claimed
+        // this differed by SIGN — "agrees on every negative tie, disagrees on
+        // every positive one" — from two data points that were both true and a
+        // generalisation that was not. Sign does not decide it. The parity of the
+        // LOWER candidate does: `Math.round(x * 10) / 10` differs from this rule
+        // exactly where the rule rounds towards negative infinity.
+        val roundedHere = mapOf(340.25 to "340.2", 340.75 to "340.8", -340.25 to "-340.2", -340.75 to "-340.8")
+        val differs = setOf(340.25, -340.75)
+        for ((value, expected) in roundedHere) {
+            assertEquals(expected, EcmaNumber.render(Rounding.toPlaces(value, 1)), "rounding $value")
+            val viaMathRound = Math.round(value * 10) / 10.0
+            assertEquals(
+                value in differs, viaMathRound != expected.toDouble(),
+                "Math.round(x*10)/10 on $value: expected it to " +
+                    (if (value in differs) "differ" else "agree") + ", and it gave $viaMathRound",
+            )
+        }
+        // The consequence that matters for a fixture: one carrying only 340.75
+        // passes a Math.round implementation, and 340.25 catches it unaided. Both
+        // ties are load-bearing, and neither is load-bearing because of its sign.
+        assertEquals(340.8, Math.round(340.75 * 10) / 10.0, "340.75 alone cannot catch it")
+        assertEquals(340.3, Math.round(340.25 * 10) / 10.0, "340.25 alone can")
+    }
+
+    @Test
+    fun `rounding is symmetric about zero`() {
+        // This is NOT the Math.round guard — that one is above, and 340.25 does
+        // it alone. What symmetry catches is an implementation that treats the
+        // sign as a special case, `if (x < 0) -round(-x) else round(x)` with a
+        // helper that is not quite the same on both branches. A real failure
+        // mode, and a different one from any single wrong tie rule.
         for (places in listOf(1, 6)) {
-            for (magnitude in listOf(0.25, 340.25, 1296.75, 0.0078125, 3.0 + 1.0 / 128)) {
+            for (magnitude in listOf(0.25, 0.75, 340.25, 340.75, 1296.75, 0.0078125, 3.0 + 1.0 / 128)) {
                 val positive = EcmaNumber.render(Rounding.toPlaces(magnitude, places))
                 val negative = EcmaNumber.render(Rounding.toPlaces(-magnitude, places))
                 assertEquals(
@@ -193,8 +214,6 @@ class NumberConformanceTest {
                 )
             }
         }
-        assertEquals("-340.2", EcmaNumber.render(Rounding.toPlaces(-340.25, 1)))
-        assertEquals("-0.007812", EcmaNumber.render(Rounding.toPlaces(-0.0078125, 6)))
     }
 
     @Test

@@ -211,9 +211,20 @@ internal class Encoder(private val rounding: Boolean) {
  * odd multiple of 1/128.
  *
  * `Math.round` is the other trap and the worse one: in Java and JavaScript alike
- * it rounds a tie towards POSITIVE INFINITY, so `Math.round(x * 10) / 10` agrees
- * with the correct rule on every negative tie and disagrees on every positive
- * one. A guard written over positive values only passes half the failures.
+ * `Math.round(x * 10) / 10` rounds a tie towards POSITIVE INFINITY, which is not
+ * this rule. Where it differs is decided by the PARITY OF THE LOWER CANDIDATE,
+ * not by the sign:
+ *
+ * ```
+ *   340.25 -> 340.2 here, 340.3 there    differs
+ *   340.75 -> 340.8 here, 340.8 there    agrees
+ *  -340.25 -> -340.2 here, -340.2 there  agrees
+ *  -340.75 -> -340.8 here, -340.7 there  differs
+ * ```
+ *
+ * It differs exactly where this rule rounds towards negative infinity. So a
+ * fixture carrying only `340.75` passes a `Math.round` implementation, and one
+ * carrying only positives does not: `340.25` catches it on its own.
  */
 internal object Rounding {
     fun toPlaces(value: Double, places: Int): Double =

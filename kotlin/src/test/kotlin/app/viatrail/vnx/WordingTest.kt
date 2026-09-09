@@ -43,6 +43,14 @@ class WordingTest {
     @Test
     fun `each diagnostic cause emits the code and the advisory wording its table claims`() {
         val provoked = mapOf(
+            DiagnosticCause.WRONG_TYPE_OPTIONAL to causeOf(
+                """{"vnx":"0.1.0","waypoints":[{"at":[-3,57],"hidden":"yes"}]}""",
+                DiagnosticCause.WRONG_TYPE_OPTIONAL,
+            ),
+            DiagnosticCause.WRONG_TYPE_REQUIRED to causeOf(
+                """{"vnx":"0.1.0","waypoints":[{"at":"beside the burn"}]}""",
+                DiagnosticCause.WRONG_TYPE_REQUIRED,
+            ),
             DiagnosticCause.UNKNOWN_KEY to causeOf(
                 """{"vnx":"0.1.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
                 DiagnosticCause.UNKNOWN_KEY,
@@ -147,6 +155,10 @@ class WordingTest {
             orphaned.isEmpty(),
             "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
         )
-        assertEquals(6, corpusCodes.size, "the corpus pinned six codes on 2026-09-09; it now pins ${corpusCodes.size}")
+        assertEquals(
+            8, corpusCodes.size,
+            "the corpus pinned eight codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
+                "A new one is a deliberate edit here, not a silent widening.",
+        )
     }
 }

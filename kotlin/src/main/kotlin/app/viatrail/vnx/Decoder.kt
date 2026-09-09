@@ -129,7 +129,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         report(
             at.child(key),
             "`$key` must be $expected; $dropped",
-            DiagnosticCause.WRONG_TYPE,
+            DiagnosticCause.WRONG_TYPE_OPTIONAL,
         )
     }
 
@@ -177,7 +177,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at.child("style").child("importance"),
                 "`importance` is an integer from 1 to 5; the field is dropped and the item kept",
-                if (importance is JsonNumber) DiagnosticCause.OUT_OF_RANGE else DiagnosticCause.WRONG_TYPE,
+                if (importance is JsonNumber) DiagnosticCause.OUT_OF_RANGE else DiagnosticCause.WRONG_TYPE_OPTIONAL,
             )
             return JsonObject(v.entries().filter { it.first != "importance" })
         }
@@ -254,7 +254,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 report(
                     itemAt,
                     "an entry of `$key` must be an object; the item is dropped",
-                    DiagnosticCause.WRONG_TYPE,
+                    DiagnosticCause.WRONG_TYPE_REQUIRED,
                 )
                 continue
             }
@@ -280,7 +280,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         for ((index, element) in v.elements.withIndex()) {
             val recordAt = here.child(index)
             if (element !is JsonObject) {
-                report(recordAt, "a data record must be an object; the record is dropped", DiagnosticCause.WRONG_TYPE)
+                report(recordAt, "a data record must be an object; the record is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
                 continue
             }
             val type = element["@type"]
@@ -308,7 +308,17 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      */
     private fun position(value: JsonValue, at: Pointer): Position? {
         if (value !is JsonArray) {
-            report(at, "a position must be an array of numbers", DiagnosticCause.POSITION_MALFORMED)
+            // A value of the wrong JSON TYPE, not a malformed position: the two
+            // are different facts and the corpus gives them different codes. Every
+            // caller drops the thing that held it, so this is the required-key
+            // remedy — a waypoint whose `at` is a string is a waypoint that is
+            // nowhere.
+            report(
+                at,
+                "a position must be an array of numbers, and this is ${value.typeName()}; " +
+                    "the item is dropped",
+                DiagnosticCause.WRONG_TYPE_REQUIRED,
+            )
             return null
         }
         if (value.elements.size < 2) {
@@ -349,7 +359,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             return null
         }
         if (v !is JsonArray) {
-            report(at.child("pips"), "`pips` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE)
+            report(at.child("pips"), "`pips` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
             return null
         }
         val here = at.child("pips")
@@ -372,7 +382,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a folder requires an `id` string; the folder is dropped and its items sit at the top level",
-                if (obj["id"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE,
+                if (obj["id"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
@@ -431,7 +441,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         for ((key, value) in v.entries()) {
             val arcAt = here.child(key)
             if (value !is JsonObject) {
-                report(arcAt, "an arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE)
+                report(arcAt, "an arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
                 continue
             }
             recogniseKeys(value, arcAt, Keys.NETWORK_ARC_REQUIRED, Keys.NETWORK_ARC_OPTIONAL)
@@ -484,7 +494,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a chain requires a `links` array; the chain is dropped",
-                if (rawLinks == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE,
+                if (rawLinks == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
@@ -516,7 +526,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         arcs: Map<String, NetworkArc>,
     ): Link? {
         if (value !is JsonObject) {
-            report(at, "a link must be an object; the link is dropped", DiagnosticCause.WRONG_TYPE)
+            report(at, "a link must be an object; the link is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
             return null
         }
         recogniseKeys(value, at, Keys.LINK_REQUIRED, Keys.LINK_OPTIONAL)
@@ -525,7 +535,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a link requires an `arc` key naming the arc it traverses; the link is dropped",
-                if (value["arc"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE,
+                if (value["arc"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
@@ -567,7 +577,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 report(
                     at.child(key),
                     "a link endpoint is a node key or an inline position; the link is dropped",
-                    DiagnosticCause.WRONG_TYPE,
+                    DiagnosticCause.WRONG_TYPE_REQUIRED,
                 )
                 null
             }
@@ -678,7 +688,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a route requires an `arcs` array; the route is dropped",
-                if (rawArcs == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE,
+                if (rawArcs == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
@@ -687,7 +697,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         for ((index, element) in rawArcs.elements.withIndex()) {
             val arcAt = arcsAt.child(index)
             if (element !is JsonObject) {
-                report(arcAt, "a route arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE)
+                report(arcAt, "a route arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
                 continue
             }
             recogniseKeys(element, arcAt, Keys.ROUTE_ARC_REQUIRED, Keys.ROUTE_ARC_OPTIONAL)
@@ -714,7 +724,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a track requires a `segments` array; the track is dropped",
-                if (rawSegments == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE,
+                if (rawSegments == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
@@ -723,7 +733,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         for ((index, element) in rawSegments.elements.withIndex()) {
             val segmentAt = segmentsAt.child(index)
             if (element !is JsonObject) {
-                report(segmentAt, "a segment must be an object; the segment is dropped", DiagnosticCause.WRONG_TYPE)
+                report(segmentAt, "a segment must be an object; the segment is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
                 continue
             }
             recogniseKeys(element, segmentAt, Keys.SEGMENT_REQUIRED, Keys.SEGMENT_OPTIONAL)
@@ -805,7 +815,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         }
         val here = at.child("polygon")
         if (v !is JsonArray) {
-            report(here, "`polygon` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE)
+            report(here, "`polygon` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
             return null
         }
         if (v.elements.any { it is JsonArray && it.elements.any { inner -> inner is JsonArray } }) {
@@ -846,6 +856,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             return null
         }
         return ring
+    }
+
+    private fun JsonValue.typeName() = when (this) {
+        is JsonString -> "a string"
+        is JsonNumber -> "a number"
+        is JsonBool -> "a boolean"
+        is JsonNull -> "null"
+        is JsonArray -> "an array"
+        is JsonObject -> "an object"
     }
 
     private companion object {

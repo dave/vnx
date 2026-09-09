@@ -39,8 +39,24 @@ enum class DiagnosticCause(
     /** A REQUIRED key is absent, so the object cannot exist. (3.10, 6.2) */
     MISSING_REQUIRED_KEY(null, null),
 
-    /** A value of the wrong JSON type. (6.2) */
-    WRONG_TYPE(null, null),
+    /**
+     * A value of the wrong JSON type in an OPTIONAL key: the field is dropped and
+     * the item is kept. (6.2)
+     */
+    WRONG_TYPE_OPTIONAL("wrong-type-optional", null),
+
+    /**
+     * A value of the wrong JSON type in a REQUIRED key: the item is dropped,
+     * because the object cannot exist without it. (6.2)
+     *
+     * Separate from [MISSING_REQUIRED_KEY], which takes the same remedy and is
+     * not the same fact. And separate from [WRONG_TYPE_OPTIONAL] for the reason
+     * the remedies differ: "a field is gone" and "the item is gone" differ in
+     * whether the rest of the item survives, and a consumer told only that a type
+     * was wrong would have to re-derive required-ness from section 3.10's table
+     * to find out which happened — which is the lookup a code exists to save.
+     */
+    WRONG_TYPE_REQUIRED("wrong-type-required", null),
 
     /** A value outside a range or enumeration this format states. (6.2) */
     OUT_OF_RANGE(null, null),

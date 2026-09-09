@@ -34,7 +34,29 @@ class ReaderRulesTest {
         val r = read("""{"vnx":"0.1.0","waypoints":[{"name":7,"at":[-3.675,57.1201]}]}""")
         assertEquals(1, r.document.waypoints!!.size)
         assertNull(r.document.waypoints!![0].name)
-        assertEquals(DiagnosticCause.WRONG_TYPE, r.diagnostics.single().cause)
+        assertEquals(DiagnosticCause.WRONG_TYPE_OPTIONAL, r.diagnostics.single().cause)
+    }
+
+    @Test
+    fun `the two wrong-type remedies are different facts and carry different codes`() {
+        // Section 6.2 gives two remedies and the corpus gives them two codes: a
+        // consumer told only that a type was wrong would have to re-derive
+        // required-ness from section 3.10's table to learn whether the rest of the
+        // item survived, which is the lookup a code exists to save. A reader that
+        // drops the item every time, and one that drops the field every time, each
+        // pass a document carrying only one of the two.
+        val r = read(
+            """{"vnx":"0.1.0","waypoints":[
+               {"name":"Kept, minus one field","at":[-3.6712,57.118],"hidden":"yes"},
+               {"name":"Dropped","at":"beside the burn"}]}""",
+        )
+        assertEquals(1, r.document.waypoints!!.size, "one waypoint read, not two and not two with one positionless")
+        assertEquals("Kept, minus one field", r.document.waypoints!![0].name)
+        assertNull(r.document.waypoints!![0].hidden)
+        assertEquals(
+            listOf("wrong-type-optional", "wrong-type-required"),
+            r.diagnostics.map { it.code },
+        )
     }
 
     @Test

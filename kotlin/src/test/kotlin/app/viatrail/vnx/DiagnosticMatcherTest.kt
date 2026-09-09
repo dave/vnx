@@ -63,7 +63,7 @@ class DiagnosticMatcherTest {
         assertNotNull(
             DiagnosticMatcher.mismatch(
                 expect("/waypoints/0/nmae" to "unknown-key"),
-                report("/waypoints/0/nmae" to DiagnosticCause.WRONG_TYPE),
+                report("/waypoints/0/nmae" to DiagnosticCause.WRONG_TYPE_OPTIONAL),
             ),
         )
     }

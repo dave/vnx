@@ -5,12 +5,22 @@ Python 3, standard library only, no VNX implementation required — the same bar
 the corpus itself is held to.
 
     scripts/container-fields.py a.vnz b.vnz c.vnz     # compare seats
-    scripts/container-fields.py --spec a.vnz          # check one against 7.1
+    scripts/container-fields.py --spec a.vnz          # check WRITER OUTPUT against 7.1
     scripts/container-fields.py --fields a.vnz        # just print the table
 
 Exits non-zero when any archive disagrees with another, when a local and
 central header disagree with each other, or, under --spec, when a field departs
 from what section 7.1 fixes.
+
+`--spec` is for an archive a conforming WRITER produced. Section 7.1 constrains
+writers, and section 7 has a reader accept far more — so an INPUT fixture, such
+as `corpus/accept/container-zip64.vnz`, legitimately reports faults under
+`--spec` and is not defective. Without the flag the tool checks only what is
+malformed under any reading, which is what an input fixture should be held to.
+
+ZIP64 is read, because section 7 requires a reader to understand it and lets a
+writer omit it, so a legal input can carry it. The parse is cross-checked
+against Python's own `zipfile` on the corpus's ZIP64 archive.
 
 WHY THIS EXISTS, AND WHY IT IS NOT TEN LINES OF `zipfile`
 --------------------------------------------------------
@@ -58,6 +68,10 @@ import sys
 LOCAL_SIGNATURE = 0x04034B50
 CENTRAL_SIGNATURE = 0x02014B50
 EOCD_SIGNATURE = 0x06054B50
+ZIP64_LOCATOR_SIGNATURE = 0x07064B50
+ZIP64_EOCD_SIGNATURE = 0x06064B50
+SATURATED32 = 0xFFFFFFFF
+SATURATED16 = 0xFFFF
 
 # What SPEC.md section 7.1 fixes. `None` means the field is content-determined
 # (a CRC, a size, a name) and is compared between archives rather than to a
@@ -93,6 +107,37 @@ def u32(b, i):
     return struct.unpack_from("<I", b, i)[0]
 
 
+def u64(b, i):
+    return struct.unpack_from("<Q", b, i)[0]
+
+
+def zip64_extra(data, offset, length, wanted):
+    """The ZIP64 extra field's values, in presence order.
+
+    Section 7 requires a READER to understand ZIP64 and allows a writer to omit
+    it, so an archive carrying it is legal input that this tool must parse.
+    `wanted` names which of uncompressed, compressed and local-offset were
+    saturated, in that fixed order; the extra field carries only those, with no
+    tags of their own.
+    """
+    p = offset
+    end = offset + length
+    while p + 4 <= end:
+        tag = u16(data, p)
+        size = u16(data, p + 2)
+        if tag == 0x0001:
+            q = p + 4
+            values = {}
+            for field in wanted:
+                if q + 8 > end:
+                    break
+                values[field] = u64(data, q)
+                q += 8
+            return values
+        p += 4 + size
+    raise Fault("a field is saturated but the entry carries no ZIP64 extra field")
+
+
 def find_eocd(data):
     earliest = max(0, len(data) - 22 - 0xFFFF)
     for p in range(len(data) - 22, earliest - 1, -1):
@@ -106,6 +151,15 @@ def read_central(data):
     eocd = find_eocd(data)
     count = u16(data, eocd + 10)
     offset = u32(data, eocd + 16)
+    if count == SATURATED16 or offset == SATURATED32:
+        locator = eocd - 20
+        if locator < 0 or u32(data, locator) != ZIP64_LOCATOR_SIGNATURE:
+            raise Fault("a 32-bit field is saturated but there is no ZIP64 locator")
+        zip64 = u64(data, locator + 8)
+        if u32(data, zip64) != ZIP64_EOCD_SIGNATURE:
+            raise Fault("the ZIP64 locator does not point at a ZIP64 end-of-central-directory record")
+        count = u64(data, zip64 + 32)
+        offset = u64(data, zip64 + 48)
     entries = []
     p = offset
     for i in range(count):
@@ -114,6 +168,18 @@ def read_central(data):
         name_len = u16(data, p + 28)
         extra_len = u16(data, p + 30)
         comment_len = u16(data, p + 32)
+        usize, csize = u32(data, p + 24), u32(data, p + 20)
+        local_offset = u32(data, p + 42)
+        saturated = [
+            field
+            for field, value in (("usize", usize), ("csize", csize), ("local_offset", local_offset))
+            if value == SATURATED32
+        ]
+        if saturated:
+            real = zip64_extra(data, p + 46 + name_len, extra_len, saturated)
+            usize = real.get("usize", usize)
+            csize = real.get("csize", csize)
+            local_offset = real.get("local_offset", local_offset)
         entries.append(
             {
                 "version_made_by": data[p + 4],
@@ -124,14 +190,14 @@ def read_central(data):
                 "dos_time": u16(data, p + 12),
                 "dos_date": u16(data, p + 14),
                 "crc": u32(data, p + 16),
-                "csize": u32(data, p + 20),
-                "usize": u32(data, p + 24),
+                "csize": csize,
+                "usize": usize,
                 "extra_len": extra_len,
                 "comment_len": comment_len,
                 "disk_start": u16(data, p + 34),
                 "internal_attr": u16(data, p + 36),
                 "external_attr": u32(data, p + 38),
-                "local_offset": u32(data, p + 42),
+                "local_offset": local_offset,
                 "name": data[p + 46 : p + 46 + name_len].decode("utf-8", "replace"),
             }
         )
@@ -144,6 +210,14 @@ def read_local(data, offset):
         raise Fault(f"no local header at offset {offset}")
     name_len = u16(data, offset + 26)
     extra_len = u16(data, offset + 28)
+    csize, usize = u32(data, offset + 18), u32(data, offset + 22)
+    saturated = [f for f, v in (("usize", usize), ("csize", csize)) if v == SATURATED32]
+    if saturated:
+        # The local header's ZIP64 extra carries uncompressed then compressed,
+        # both always present, regardless of which was saturated.
+        real = zip64_extra(data, offset + 30 + name_len, extra_len, ["usize", "csize"])
+        usize = real.get("usize", usize)
+        csize = real.get("csize", csize)
     return {
         "version_needed": u16(data, offset + 4),
         "flags": u16(data, offset + 6),
@@ -151,8 +225,8 @@ def read_local(data, offset):
         "dos_time": u16(data, offset + 10),
         "dos_date": u16(data, offset + 12),
         "crc": u32(data, offset + 14),
-        "csize": u32(data, offset + 18),
-        "usize": u32(data, offset + 22),
+        "csize": csize,
+        "usize": usize,
         "extra_len": extra_len,
         "name": data[offset + 30 : offset + 30 + name_len].decode("utf-8", "replace"),
     }

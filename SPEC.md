@@ -290,7 +290,8 @@ implementation carrying a tile pipeline reaches for first.
 
 A polyline of one vertex is that point. A polyline of no vertices has no
 distance: the reader MUST record a diagnostic and drop the link rather than
-invent a number. A position exactly 50 metres from its arc is within tolerance and is accepted.
+invent a number. A position at or within 50 metres of its arc is accepted: a distance equal to the
+tolerance is within it.
 No conformance case can pin that boundary and none should be attempted: a
 distance at exactly the threshold is not reachable by a fixture, because the
 computed value depends on the model and no two models land on 50.000. This
@@ -454,8 +455,10 @@ and a document SHOULD NOT contain `"hidden": false`.
 
 Rulesets are not defined in version 0.1.
 
-A document MAY carry a `rulesets` key. A 0.1.x reader MUST treat its contents as
-opaque and MUST preserve them through a read-modify-write, under the same rules
+A document MAY carry a `rulesets` key, whose value is an array. Its CONTENTS are
+opaque, but the value itself has a shape, and a value of the wrong JSON type is
+handled under Section 6.2 like any other. A 0.1.x reader MUST treat its contents
+as opaque and MUST preserve them through a read-modify-write, under the same rules
 as an unknown data record (Section 5.1).
 
 ### 3.10 Recognised keys
@@ -513,10 +516,15 @@ one.
 
 Opaque means unrecognised keys are not reported. It does not exempt a value from
 a range this document states normatively: `importance` is an integer from 1 to 5
-(Section 3.6), and a reader MUST apply that range wherever `importance` appears,
-including in a style object this format does not otherwise document. A
+(Section 3.6), and a reader MUST apply that range to an `importance` in any
+STYLE object, including one this format does not otherwise document. A
 non-integer `importance` is out of range. Every other style value is carried
-untouched, because no other style key has a stated range. Style vocabulary grows faster
+untouched, because no other style key has a stated range.
+
+A field named `importance` inside a DATA RECORD body is not checked. Section
+6.2's prohibition on inspecting a record body is the mechanism by which a record
+of an unrecognised type survives a read-modify-write, which is load-bearing, and
+it wins. The range above is a rule about styles. Style vocabulary grows faster
 than structural vocabulary, so a fixed style key set would make every
 implementation report a diagnostic for a valid document each time one
 implementation added a style key, until all of them caught up. That cost is
@@ -784,6 +792,12 @@ The one exception is the winding of a ring written to GeoJSON, which [RFC 7946]
 constrains in the file: a sub-metre sliver that is counterclockwise at full
 precision can be clockwise once its vertices are snapped to the grid, so its
 winding is computed from the rounded ring.
+
+A channel beyond the four this version names is written back unchanged. Rounding
+is definable only where the units are known: six places is a statement about
+degrees and one place a statement about metres, so a channel whose units this
+version does not define cannot be rounded without guessing. That is the reason
+time is not rounded, applied to a channel this version does not name.
 
 A reader MUST NOT round, and neither MUST a formatter. Decoding preserves full
 binary64 precision, and canonicalising a document re-renders the bytes another
@@ -1060,6 +1074,13 @@ A reader is tolerant of damage and silent about nothing.
   Section 7 states the causes for which a container is refused. They are
   separate, and a fault in an attachment is not among them.
 
+A position inside `pips` that will not parse drops the arc that holds it, not the
+position. `pips` is REQUIRED (Section 3.10) and an arc whose `pips` cannot be
+used is an object that cannot exist, so this is the required-key rule rather than
+an exception to it. Dropping the position instead would leave an arc whose
+geometry silently lost a vertex: a shorter line, plausible everywhere, with
+nothing to indicate it.
+
 The remedies for the remaining constructs this document constrains:
 
 | Construct | Remedy |
@@ -1068,6 +1089,7 @@ The remedies for the remaining constructs this document constrains:
 | a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
 | an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
 | a link naming a node that is not in its network (3.3.3) | keep the link; exclude that end from the continuity comparison |
+| a position inside `pips` that will not parse (4.1) | drop the ARC, not the pip |
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
 
@@ -1095,6 +1117,10 @@ A `folder` naming a folder that is not present in the document is not an
 unusable value. The reader MUST treat the key as absent, so the item sits at the
 top level, and MUST record a diagnostic. Dropping the item would lose content
 over a lost grouping.
+
+A folder's `parent` naming a folder that is not present takes the same remedy: the
+reader MUST treat the key as absent, so the folder sits at the root, and MUST
+record a diagnostic.
 
 A folder with no `id` is dropped under the rule above. Items that named it are
 then covered by the previous paragraph and sit at the top level, so a folder's
@@ -1124,6 +1150,17 @@ implementations would be pinning translations of a rule rather than the rule.
 A reader MAY leave `code` absent on any diagnostic no corpus case pins. Codes
 are wire commitments, and a format does not need one for every way a document
 can be malformed.
+
+`path` names the SMALLEST ELEMENT THAT COULD NOT BE USED, which is not always
+the element the remedy drops. An inline endpoint that does not project names the
+endpoint, and the link is dropped around it; a polygon with nested rings names
+the polygon, and the area is dropped around it. Naming what was dropped instead
+would point a reader at an item that is often perfectly good apart from the one
+value inside it.
+
+Where a diagnostic is about a relationship rather than a value, it names the
+SECOND of the pair: a chain whose links do not meet names the link that failed
+to continue, not the one it failed to continue from.
 
 A diagnostic carries no severity. Every diagnostic this format defines reports
 the same kind of fact — something in the document could not be used as written —
@@ -1160,9 +1197,18 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - Root document: a reader MUST prefer an entry named `doc.vnx` at the archive
   root. Where there is none, the reader takes the first entry with a `.vnx`
   extension in archive order. Names are compared case-insensitively.
+- The root document is selected by the two rules above, and every other entry is
+  an attachment whatever its name ends in. A reader MUST NOT decide what is
+  payload by looking at a file extension: a reader that sniffs extensions
+  diverges silently from one that does not.
 - Attachment paths MUST be relative and forward-slash separated. An absolute
   path, a path carrying a drive letter, or a path with a `..` SEGMENT MUST be
-  refused. `..` is a path segment, not a substring: `a..b/photo.jpg` is a
+  refused.
+- An entry name containing a backslash anywhere MUST be refused. That check
+  stands alone and applies before the `..` rule, so `..\x` is refused for the
+  simple reason and the question of whether a backslash separates path segments
+  never arises. This is deliberately stricter than [APPNOTE], which permits the
+  character. `..` is a path segment, not a substring: `a..b/photo.jpg` is a
   legal name and escapes nothing.
 - Duplicate entry names MUST be refused, compared case-insensitively. Language
   runtimes resolve a repeated name differently, so one archive would yield
@@ -1280,6 +1326,15 @@ The corpus has four kinds of case:
 | `reject/` | MUST be refused, and the refusal MUST name its cause |
 | `diagnose/` | MUST be read, reporting exactly the listed diagnostics |
 | `format/` | a non-canonical input, and exactly the bytes a formatter MUST emit for it |
+| `write/` | a document, and exactly the bytes a writer MUST emit for it |
+
+The `write/` tier is the only one that exercises the emit-boundary rules of
+Section 4.5.4. Every other tier RE-RENDERS, which by definition applies none of
+them, so rounding and position shortening are unreachable without it. A runner
+MUST assert that a case's input is not already the written form, and that the
+written form is a fixed point of the writer — the same two guards `format/`
+carries, for the same reason: without them a writer that echoed its input would
+pass the tier.
 
 Formatter cases are separate because the accept files cannot catch a formatter
 defect. Accept files are stored in canonical form, so canonicalising one only

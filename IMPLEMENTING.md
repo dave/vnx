@@ -137,6 +137,20 @@ Above 2^49 the gap between adjacent doubles exceeds 0.1, so several one-decimal
 spellings map to one double and only one of them is nearest. That is an ordinary
 shortest-representation choice, not a tie.
 
+`-3.6712345678901235`, the coordinate in two accept files, is the same trap at
+full precision. Its exact value is `-3.67123456789012347912…`; near 3.67 the
+spacing between adjacent doubles is about 4.4e-16 while the seventeenth
+significant digit steps by 1e-16, so three spellings map to that one double and
+only the middle one is nearest. The shortcut calls it a tie and exact arithmetic
+does not. *(JavaScript seat, measured.)*
+
+Those two instances are the same rule at magnitudes eleven orders of magnitude
+apart, found independently by two seats, so the general form is worth stating:
+
+> Wherever the decimal step at the shortest-round-trip length is finer than the
+> spacing between adjacent doubles, several spellings share one double and the
+> round-trip shortcut finds phantoms.
+
 Two implementations built this detector independently, and red-proofing caught
 both. The Kotlin generator mined 60 rows labelled as ties, every one of which
 stayed green when the tie rule was reverted; the category was decoration. *(Kotlin
@@ -577,6 +591,12 @@ value-level property is reachable by a re-render whenever the two readings
 produce different *text* for the same value. Rounding is not, because a re-render
 never rounds. The tie is, because a re-render always re-spells.
 
+The value was unreachable only while nobody had thought of the trick, which is to
+write one spelling of the double as the input and the other as the expected
+output. A second seat confirmed the case discriminates against a hand-written
+renderer in its own language, where a mutated renderer reddens
+`format/number-tie` and nothing else. *(JavaScript seat.)*
+
 Kotlin's answer is `number-conformance/`, described in Section 6.4.
 
 ### 6.2 A case only separates the readings its own data can separate
@@ -664,6 +684,21 @@ green" is exactly the evidence someone uses to throw a good test away. *(Python
 seat.)* And its mutation can match nothing, which is why the JavaScript suite
 makes each mutation assert that its own search string was found: a substitution
 matching nothing would make the whole file a test of nothing. *(JavaScript seat.)*
+
+A third way, and the least obvious: **the mutation can be broader than the rule
+it claims to test.** A first attempt at an away-from-zero renderer used the
+round-trip shortcut of Section 1.4, so it changed the spelling of phantoms as well
+as of ties and reddened four corpus cases instead of one. Writing the assertion to
+match what was observed would have recorded a broader claim than the truth and
+attributed three failures to a rule they had nothing to do with. The repair is a
+companion test freezing that the extra value is a phantom, so the single
+remaining failure can be attributed to the tie rule. *(JavaScript seat.)*
+
+**And a proof whose conclusion is an absence needs re-running whenever the thing
+it claims to be absent from grows.** A red-proof asserting that no tier catches
+some defect is a green-asserting proof, and those rot silently as the corpus gains
+cases. The rendering tie is the worked example: the assertion was true when
+written and false once a formatter case reached it.
 
 Three of JavaScript's 25 mutations assert that a defect is *not* caught, which
 records a gap in the corpus rather than assuming one. Swift injected 34. Freezing

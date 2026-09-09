@@ -236,3 +236,37 @@ class TiesRoundToEven(unittest.TestCase):
         assert pair is not None
         for spelling in pair:
             self.assertEqual(float(spelling), value)
+
+    def test_the_corpus_coordinate_is_a_phantom_and_not_a_tie(self) -> None:
+        """Freezes the value the round-trip shortcut misreads at full precision.
+
+        `-3.6712345678901235` appears in two accept files. Near 3.67 the spacing
+        between adjacent doubles is about 4.4e-16 while the seventeenth
+        significant digit steps by 1e-16, so three spellings map to that one
+        double and only the middle one is nearest. The shortcut calls it a tie;
+        exact arithmetic does not.
+
+        Without this, the tie tests above cannot attribute their failures: if
+        that coordinate were a tie, a mutated renderer would legitimately redden
+        the accept tier too, and a mutation reddening four cases would get
+        written up as a claim about ties. Found at this magnitude by the
+        JavaScript seat, and at a different one by the search in
+        test_every_tie_found_takes_the_even_digit.
+        """
+        value = -3.6712345678901235
+        self.assertIsNone(self._tie(value), "this is a phantom, not a tie")
+        for spelling in ("-3.6712345678901234", "-3.6712345678901235",
+                         "-3.6712345678901236"):
+            self.assertEqual(
+                float(spelling), value, "all three must share the one double"
+            )
+        self.assertEqual(render_number(value), "-3.6712345678901235")
+
+    def test_a_rounding_tie_is_not_a_rendering_tie(self) -> None:
+        """`340.25` rounds as a tie at one place and renders uniquely.
+
+        The two kinds of tie are different properties of a value, which is why
+        Sections 1.3 and 1.5 of the guide are separate defects in separate code.
+        """
+        self.assertIsNone(self._tie(340.25))
+        self.assertEqual(render_number(340.25), "340.25")

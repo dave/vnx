@@ -18,8 +18,12 @@ rounding is applied only where a writer turns a model into a document, and
 section 8.1 forbids a runner from using its writer for the accept check
 precisely because a writer rounds. So an implementation can round every
 coordinate and every elevation in the format the wrong way and take all four
-tiers green. Measured in the Kotlin suite: reverting the rounding tie rule
-reddens two tests out of ninety-one, and both of them are this table.
+tiers green. Measured in the Kotlin suite before the `write/` tier existed:
+reverting the rounding tie rule reddened two tests out of ninety-one, and both
+of them were this table. That gap is closed now — `write/` decodes and then
+writes, so it applies the emit-boundary rules and a reverted tie rule reddens it
+too. The measurement stands as what the four document tiers could not see, which
+is why this table was built; it is no longer a live hole.
 
 A re-render does re-spell, though, so section 4.5.3's rendering tie is reachable
 by `format/number-tie`, whose input spells the value one way and whose expected
@@ -103,6 +107,25 @@ implementation taking the scaling route differs from a conforming one on
 everyday data rather than on corner cases. The same hazard applies at six places
 to every coordinate.
 
+The `scaling-route` category carries those values, and it exists because the
+table did not reach them. Measured 2026-09-10 over the table as it stood: 161
+rows separated the two routes, and **every one of them was above 1e9** — while
+the argument above is about quarter-metre elevations and six-place coordinates.
+An implementation whose scaling route was guarded at large magnitudes, which is
+a plausible thing to write, passed the whole table and still emitted `0.2` for
+an elevation of `0.15`. The instrument caught the defect only where nobody meets
+it. Fourteen rows now sit below 1e9, eight elevation-shaped and six valid
+longitudes and latitudes; there is no round number of degrees that separates the
+routes, so the coordinates were found by search.
+
+Note that the exact count of rows catching a scaling route is **not a
+well-defined number**, which is why the figure above carries the qualifier
+rather than standing alone. It depends on which scaling variant is written —
+whether it short-circuits above some magnitude, and whether it rounds the
+product with a library call or by hand. Below 1e15, where no magnitude guard
+applies, two independently written variants agree exactly on 161. Above it they
+do not agree with each other.
+
 ## The format
 
 Tab separated. Lines beginning `#` are comments; the header names the columns
@@ -145,7 +168,7 @@ refuses to write a table in which any category came out empty, or in which a
 tie category does not actually differ from rounding away from zero — an
 undiscriminating table is the failure that would not announce itself.
 
-The committed table is 5,315 rows, sized to be read and diffed. The `-sample`
+The committed table is 5,329 rows, sized to be read and diffed. The `-sample`
 flag is what settles a rendering question at a scale the committed table cannot:
 over 460,007 doubles, a library rounding rendering ties to even agrees with this
 table everywhere, and one rounding them away from zero disagrees on 78 of them.
@@ -165,14 +188,20 @@ and the seven values in the table above are what separates them.
 
 Two ways a red proof over this table lies, both of which have happened here.
 
-**Mining the table for ties by asking whether a second equally short spelling
-round-trips** labels far more rows than are ties, because wherever the decimal
-step at the shortest-round-trip length is finer than the double spacing there
-are several spellings and only one of them is nearest. Those are phantoms, not
-ties. Sixty rows were labelled `render-tie` on that proxy and every one stayed
-green when the tie rule was reverted. Decide a tie in exact arithmetic — the
-value is a tie when its exact binary expansion is an exact midpoint between two
-representable answers — never by round-tripping a candidate.
+**A tie must be defined as the thing under test, not approximated by it.**
+Asking whether a second equally short spelling round-trips is the tempting
+proxy, and it labels far more rows than are ties: wherever the decimal step at
+the shortest-round-trip length is finer than the double spacing, several
+spellings map to one double and only one is nearest. Those are phantoms. The
+proxy once produced sixty `render-tie` rows of which every one stayed green when
+the tie rule was reverted — a category that discriminated nothing while looking
+exactly as though it did.
+
+The generator decides a tie exactly, in rational arithmetic, and
+`assertDiscriminates` refuses to write a table in which a tie category fails to
+separate rounding to even from rounding away from zero. `assertCatchesScaling
+Route` does the same for the scaling category. Those two guards, not the
+category names, are the evidence.
 
 **A proof whose conclusion is an absence stops asserting anything the moment the
 absence ends.** "No tier catches this" is a green-asserting test: it passes

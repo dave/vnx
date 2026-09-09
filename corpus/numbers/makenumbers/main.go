@@ -77,6 +77,32 @@ func main() {
 		57.118, -3.6712, 57.1201, -3.675, 0.9, 0.25, 512.5, 352.4,
 	)
 
+	// 1b. Values that separate the two ways of rounding to a decimal place, at
+	//     the magnitudes the format actually carries.
+	//
+	// SPEC 4.5.4 defines the rounded value as a RESULT — the value with that
+	// many places nearest the double — and says that multiplying by 10^n,
+	// rounding, and dividing back is a different operation. The scaled product
+	// is itself a binary64, so the multiplication can manufacture a tie the true
+	// decimal never had and destroy one it did.
+	//
+	// ⚠ WITHOUT THIS CATEGORY THE TABLE MISSES THAT ENTIRELY BELOW 1e9.
+	// Measured over the committed table: 161 rows separate the two routes and
+	// EVERY ONE of them is above 1e9, while the argument SPEC 4.5.4 makes is
+	// about quarter-metre elevations and six-place coordinates. An
+	// implementation whose scaling route was guarded at large magnitudes — a
+	// plausible thing to write — passed the whole table and still emitted 0.2
+	// for an elevation of 0.15. The instrument caught the defect only where
+	// nobody meets it.
+	//
+	// The elevations are the seven SPEC 4.5.4 names plus two the format's own
+	// fixtures use; the coordinates are valid longitudes and latitudes found by
+	// search, since no round number of degrees separates the routes.
+	add("scaling-route",
+		0.15, 0.05, 1.05, 0.45, 1.85, 0.95, 340.15, 512.45,
+		-154.8520475, 27.7570615, -125.2855675, 28.7622735, -9.3245985, 23.8828405,
+	)
+
 	// 2. Boundaries: the exponent switch points of SPEC 4.5.3, the extremes of
 	//    binary64, and the powers of ten either side of both.
 	add("boundary",
@@ -145,7 +171,7 @@ func main() {
 
 	// The table is worthless if a category came out empty, and an empty category
 	// is exactly the failure that would not announce itself.
-	for _, kind := range []string{"named", "boundary", "negative-zero", "render-tie", "round1-tie", "round6-tie", "uniform", "in-range"} {
+	for _, kind := range []string{"named", "boundary", "negative-zero", "render-tie", "round1-tie", "round6-tie", "scaling-route", "uniform", "in-range"} {
 		if counts[kind] == 0 {
 			log.Fatalf("category %q is empty, so the table does not discriminate what it claims to", kind)
 		}
@@ -153,6 +179,7 @@ func main() {
 	// And a tie category that does not actually differ from rounding away from
 	// zero would be a category in name only.
 	assertDiscriminates(rows)
+	assertCatchesScalingRoute(rows)
 
 	write(*out, rows, counts, *seed, *sample)
 	log.Printf("wrote %s: %d rows %v", *out, len(rows), counts)
@@ -331,6 +358,51 @@ func assertDiscriminates(rows []row) {
 		log.Fatalf("a tie category does not discriminate: render=%d round1=%d round6=%d", render, round1, round6)
 	}
 	log.Printf("discriminating rows: render-tie=%d round1-tie=%d round6-tie=%d", render, round1, round6)
+}
+
+// assertCatchesScalingRoute is assertDiscriminates for the OTHER rounding
+// disagreement: not which way a tie goes, but whether the value was a tie at
+// all.
+//
+// ⚠ A CATEGORY THAT NAMES A DEFECT AND DOES NOT CATCH IT IS WORSE THAN NO
+// CATEGORY, because it reads as coverage. Every guard in this file exists
+// because that happened: the render-tie category was mined with a round-trip
+// proxy and produced sixty rows that all stayed green when the tie rule was
+// reverted.
+//
+// The scaled route is written here the way an implementer would write it —
+// multiply, round half-to-even, divide — and every row of the category must
+// disagree with the reference answer at one place or at six. A value that
+// agrees under both routes tests nothing and must not sit in this category
+// wearing its name.
+func assertCatchesScalingRoute(rows []row) {
+	caught := 0
+	for _, r := range rows {
+		if r.kind != "scaling-route" {
+			continue
+		}
+		if scaledRoute(r.value, 1) != r.round1 || scaledRoute(r.value, 6) != r.round6 {
+			caught++
+			continue
+		}
+		log.Fatalf("scaling-route row %v agrees with the scaled route at both places, so it discriminates nothing", r.value)
+	}
+	if caught == 0 {
+		log.Fatal("no scaling-route row separates the two rounding routes")
+	}
+	log.Printf("discriminating rows: scaling-route=%d", caught)
+}
+
+// scaledRoute is the non-conforming route SPEC 4.5.4 names: multiply by a power
+// of ten, round the product to even, and divide back. It exists only so the
+// guard above can prove the category catches it.
+func scaledRoute(v float64, places int) string {
+	scale := math.Pow(10, float64(places))
+	p := v * scale
+	if math.IsInf(p, 0) || math.IsNaN(p) {
+		return canonical(v)
+	}
+	return canonical(math.RoundToEven(p) / scale)
 }
 
 func write(path string, rows []row, counts map[string]int, seed int64, sample int) {

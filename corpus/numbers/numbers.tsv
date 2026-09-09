@@ -7,8 +7,8 @@
 #   round1  its canonical spelling rounded to 1 place  (SPEC 4.5.4, elevation)
 # Answers are from Go's encoding/json and strconv, which SPEC 4.5.3 names as
 # the reference. Ties round to even in both columns.
-# seed=20260909 sample=2000 rows=5315
-# boundary=76 in-range=3000 named=14 negative-zero=5 render-tie=60 round1-tie=80 round6-tie=80 uniform=2000
+# seed=20260909 sample=2000 rows=5329
+# boundary=76 in-range=3000 named=14 negative-zero=5 render-tie=60 round1-tie=80 round6-tie=80 scaling-route=14 uniform=2000
 4075400000000000	named	340	340	340
 3eb0c6f7a0b5ed8d	named	0.000001	0.000001	0
 3e7ad7f29abcaf48	named	1e-7	0	0
@@ -23,6 +23,20 @@ c00d666666666666	named	-3.675	-3.675	-3.7
 3fd0000000000000	named	0.25	0.25	0.2
 4080040000000000	named	512.5	512.5	512.5
 4076066666666666	named	352.4	352.4	352.4
+3fc3333333333333	scaling-route	0.15	0.15	0.1
+3fa999999999999a	scaling-route	0.05	0.05	0.1
+3ff0cccccccccccd	scaling-route	1.05	1.05	1.1
+3fdccccccccccccd	scaling-route	0.45	0.45	0.5
+3ffd99999999999a	scaling-route	1.85	1.85	1.9
+3fee666666666666	scaling-route	0.95	0.95	0.9
+4075426666666666	scaling-route	340.15	340.15	340.1
+408003999999999a	scaling-route	512.45	512.45	512.5
+c0635b43f91e646f	scaling-route	-154.8520475	-154.852047	-154.9
+403bc1cec84f8f8a	scaling-route	27.7570615	27.757061	27.8
+c05f5246bce8533b	scaling-route	-125.2855675	-125.285567	-125.3
+403cc3245b291b82	scaling-route	28.7622735	28.762273	28.8
+c022a631c64ba94c	scaling-route	-9.3245985	-9.324599	-9.3
+4037e201d5c31594	scaling-route	23.8828405	23.882841	23.9
 4415af1d78b58c40	boundary	100000000000000000000	100000000000000000000	100000000000000000000
 444b1ae4d6e2ef50	boundary	1e+21	1e+21	1e+21
 4480f0cf064dd592	boundary	1e+22	1e+22	1e+22

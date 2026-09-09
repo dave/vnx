@@ -61,6 +61,20 @@ type foundPos struct {
 func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 	fixtures := append(loadAcceptFixtures(t), noisyFixture())
 
+	// Fixtures that carry no geometry AT ALL, named rather than skipped by a
+	// zero check.
+	//
+	// ⚠ THE VACUITY GUARD BELOW IS THE POINT OF THIS FILE, so a fixture is
+	// excused from it only by being listed here. Letting the guard skip any
+	// fixture whose walk came back empty would excuse exactly the fixture that
+	// had silently LOST its positions, which is the case it exists to catch.
+	// accept/empty-collections.vnx tests the difference between an absent
+	// collection and an empty one (spec §3.1) and holds no positions by design.
+	noGeometry := map[string]bool{"empty-collections.vnx": true}
+	if n := len(noGeometry); n > 1 {
+		t.Logf("%d fixtures are excused the vacuity guard; keep that list short", n)
+	}
+
 	// Every channel a VNX position can appear in. If the walk stops visiting
 	// one — a key renamed, a nesting level added — this set goes short and the
 	// test says which channel it lost, rather than passing on the ones it can
@@ -92,7 +106,7 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 				// shape means the walk found nothing is a FAILURE — either the
 				// walk is broken or the fixture does not belong in a writer
 				// test.
-				if len(got) == 0 && w.everyDocumentHasGeometry {
+				if len(got) == 0 && w.everyDocumentHasGeometry && !noGeometry[f.name] {
 					t.Fatalf("%s: the walk found no positions at all in %d bytes of output — this assertion is vacuous",
 						w.name, b.Len())
 				}

@@ -68,9 +68,22 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 		// green by hand-writing a fixture for the new field.
 		doc := &Document{}
 		reflect.ValueOf(doc).Elem().Field(i).Set(reflect.MakeSlice(f.Type, 1, 1))
-		if got := c.count(doc); got != 1 {
-			t.Errorf("documentCollections[%s].count says a document holding one %s has %d",
-				c.key, f.Name, got)
+		if !c.present(doc) {
+			t.Errorf("documentCollections[%s].present says a document holding one %s does not carry it",
+				c.key, f.Name)
+		}
+		// And an EMPTY-but-present collection is still present. Spec §3.1 makes
+		// that a different document from one where the key is absent, so a
+		// `present` written as len(...) > 0 would drop it — which is what this
+		// arm exists to catch, reflectively, for every collection at once.
+		empty := &Document{}
+		reflect.ValueOf(empty).Elem().Field(i).Set(reflect.MakeSlice(f.Type, 0, 0))
+		if !c.present(empty) {
+			t.Errorf("documentCollections[%s].present says an EMPTY %s is absent; an empty "+
+				"collection and an absent one are different documents", c.key, f.Name)
+		}
+		if absent := (&Document{}); c.present(absent) {
+			t.Errorf("documentCollections[%s].present says an ABSENT %s is present", c.key, f.Name)
 		}
 		var b bytes.Buffer
 		if err := EncodeTo(&b, doc); err != nil {
@@ -212,25 +225,43 @@ func sortedArcNames(m map[string]Arc) []string {
 	return out
 }
 
-// ⚠ AN EMPTY COLLECTION OMITS ITS KEY. Both goldens carry all seven containers
-// and cannot catch `"areas": []`, so this asserts it directly at every
-// collection rather than relying on one corpus case to happen to cover it.
-func TestAnEmptyCollectionOmitsItsKeyEntirely(t *testing.T) {
+// TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot pins both sides of
+// spec §3.1's distinction, at every collection.
+//
+// ⚠ THE RULE REVERSED ON 2026-09-09, and the test it replaced knew exactly
+// which case was at stake — its comment read "an EMPTY non-nil slice, which is
+// the case an `if len(...) > 0` guard and an `if ... != nil` guard disagree
+// about", and it asserted the len guard. §3.1 now makes an absent collection
+// and an empty one the same CONTENT and different DOCUMENTS: a reader treats
+// them alike, and a formatter reproduces which it was given, because §8.1's
+// accept tier requires the bytes back.
+//
+// Both goldens carry all seven containers populated, so neither can catch
+// either half of this. It is asserted directly.
+func TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot(t *testing.T) {
+	const headerOnly = "{\n  \"vnx\": \"0.1.0\"\n}\n"
 	for _, c := range documentCollections {
-		var b bytes.Buffer
-		// An EMPTY non-nil slice, which is the case an `if len(...) > 0` guard
-		// and an `if ... != nil` guard disagree about.
+		// ABSENT: nil, so the key is omitted and nothing else appears.
+		var absent bytes.Buffer
+		if err := EncodeTo(&absent, &Document{}); err != nil {
+			t.Fatalf("%s: %v", c.key, err)
+		}
+		if absent.String() != headerOnly {
+			t.Errorf("a document with no %s produced %q, want the header-only document", c.field, absent.String())
+		}
+
+		// EMPTY BUT PRESENT: a non-nil zero-length slice, which must emit its
+		// key with an empty array.
 		doc := &Document{}
 		v := reflect.ValueOf(doc).Elem().FieldByName(c.field)
 		v.Set(reflect.MakeSlice(v.Type(), 0, 0))
-		if err := EncodeTo(&b, doc); err != nil {
+		var empty bytes.Buffer
+		if err := EncodeTo(&empty, doc); err != nil {
 			t.Fatalf("%s: %v", c.key, err)
 		}
-		if strings.Contains(b.String(), c.key) {
-			t.Errorf("an empty %s emitted its key:\n%s", c.field, b.String())
-		}
-		if b.String() != "{\n  \"vnx\": \"0.1.0\"\n}\n" {
-			t.Errorf("an empty %s produced %q, want the header-only document", c.field, b.String())
+		want := fmt.Sprintf("{\n  \"vnx\": \"0.1.0\",\n  %q: []\n}\n", c.key)
+		if empty.String() != want {
+			t.Errorf("an empty %s produced %q, want %q", c.field, empty.String(), want)
 		}
 	}
 }

@@ -139,3 +139,38 @@ test('rounding creates no negative zero on the wire', () => {
   assert.ok(!Object.is(roundToPlaces(-0.00000004, 6), -0));
   assert.equal(renderNumber(roundToPlaces(-0.04, 1)), '0');
 });
+
+test('the tie rule is separated from all five wrong ones, and it takes both signs of value', () => {
+  // Measured 2026-09-10 against the five rules an implementation actually
+  // reaches for. Each of the two fixture values catches a different pair, and
+  // only both together identify half-to-even:
+  //
+  //   value    rule   half-odd  away-0  toward-0  half-up  half-down
+  //   340.25   340.2  340.3     340.3   340.2     340.3    340.2
+  //   340.75   340.8  340.7     340.8   340.7     340.8    340.7
+  //
+  // half-up is not exotic: `Math.round(x * 10) / 10` is exactly it, in both
+  // JavaScript and Java, because Math.round breaks a tie toward positive
+  // infinity in both. That is the trick this rounder exists to avoid.
+  assert.equal(roundToPlaces(340.25, 1), 340.2);
+  assert.equal(roundToPlaces(340.75, 1), 340.8);
+  // Math.round's asymmetry is what makes a positives-only or negatives-only
+  // guard unsafe in general, so both signs are pinned even though the two
+  // positives happen to be sufficient for these five rules.
+  assert.equal(roundToPlaces(-340.25, 1), -340.2);
+  assert.equal(roundToPlaces(-340.75, 1), -340.8);
+  assert.notEqual(roundToPlaces(340.25, 1), Math.round(340.25 * 10) / 10);
+  assert.equal(Math.round(-340.25 * 10) / 10, -340.2, 'and it is RIGHT on this one, by accident');
+});
+
+test('toFixed rounds away from zero on BOTH signs', () => {
+  // Recorded because I got this wrong in writing and had the measurement in
+  // front of me: `toFixed` strips the sign and rounds the magnitude, so it is
+  // symmetric. The asymmetric function is `Math.round`, above. A reason
+  // reasoned from prose is not a measurement, even when the conclusion it
+  // supports is correct.
+  assert.equal((340.25).toFixed(1), '340.3');
+  assert.equal((-340.25).toFixed(1), '-340.3');
+  assert.equal((2.5).toFixed(0), '3');
+  assert.equal((-2.5).toFixed(0), '-3');
+});

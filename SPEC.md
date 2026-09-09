@@ -409,6 +409,11 @@ The following rules apply:
   (Section 3.3.3) and for area rings (Section 3.7). Arity 4 is legal on an arc,
   but Viatrail writes no arc pip carrying a time, and a reader should not
   expect one.
+- Positions of differing arity MAY appear within one `pips` array, and a reader
+  MUST read each position independently of its neighbours. This follows from
+  trailing omission: one pip may carry an elevation and the next may not, which
+  is ordinary in imported data. Forcing a whole array to one arity would mean
+  either inventing elevations or discarding them.
 
 A writer MUST emit the shortest spelling of a position; a reader MUST accept any
 of them. `[lon, lat, null]` and `[lon, lat]` state the same thing, and a reader
@@ -644,12 +649,16 @@ misreading it.
 
 | Type | Hosts | Payload | Profile |
 |---|---|---|---|
-| `app.viatrail.tag` | any item | `value` (string) | core |
-| `app.viatrail.routing` | arc | `source`, `config` | vendor |
-| `app.viatrail.compute-failed` | arc | none | vendor |
-| `app.viatrail.navigation` | chain, area | `value`, `strength` | vendor |
-| `app.viatrail.water` | point | `seasonal`, `flow`, `verified` | core |
 | `app.viatrail.camp` | point | `flat`, `sheltered`, `water`, `capacity` | core |
+| `app.viatrail.compute-failed` | arc | none | vendor |
+| `app.viatrail.hotel` | point | `phone` (string), `url` (string), `booking-required` (boolean) | core |
+| `app.viatrail.navigation` | chain, area | `value`, `strength` | vendor |
+| `app.viatrail.routing` | arc | `source`, `config` | vendor |
+| `app.viatrail.settlement` | point, area | `size` (`hamlet`, `village` or `town`), `shop` (boolean), `resupply` (boolean) | core |
+| `app.viatrail.shelter` | point | `kind` (`bothy`, `hut`, `refuge` or `lean-to`), `capacity` (number), `locked` (boolean) | core |
+| `app.viatrail.tag` | any item | `value` (string) | core |
+| `app.viatrail.trail-note` | any item | `value` (string, may contain line breaks) | core |
+| `app.viatrail.water` | point | `seasonal`, `flow`, `verified` | core |
 
 This table is normative and defines the core and vendor boundary. It is
 maintained as the vocabulary grows.
@@ -715,6 +724,10 @@ omission:
 - Cached distance, elevation gain, elevation loss, and bounds. All are derivable
   from geometry the reader has just been handed, and a reader that trusts a
   written figure trusts the writer's arithmetic over its own.
+- Items the source library holds as soft-deleted, or trashed. An export carries
+  what a user would see in the application. This follows from VNX being a
+  snapshot rather than a backup (Section 1.1), and it keeps a document from
+  carrying items its author had deleted.
 - Durable identity, plans, offline map tiles and download state, and creation
   and modification timestamps of items.
 - A network's or chain's default routing configuration.
@@ -745,13 +758,28 @@ Neither tolerance nor refusal may be silent.
 
 ### 6.3 Diagnostics
 
-A reader MUST return diagnostics alongside the document it read, and a caller
-MUST be able to distinguish a document read cleanly from a document read with
-elements dropped. A reader that returns a document alone has discarded the only
-evidence that anything was wrong.
+A reader MUST return a list of diagnostics alongside the document it read. A
+reader that returns a document alone has discarded the only evidence that
+anything was wrong.
 
-Each diagnostic carries a severity, a location expressed as a path into the
-document, and a short description in English.
+Each diagnostic carries two fields:
+
+| Field | Value |
+|---|---|
+| `path` | a JSON Pointer ([RFC 6901]) locating the element the diagnostic is about |
+| `message` | a short description in English |
+
+A diagnostic carries no severity. Every diagnostic this format defines reports
+the same kind of fact — something in the document could not be used as written —
+so there is nothing for a severity to rank.
+
+An empty list means the document was read cleanly. Each diagnostic in a
+non-empty list reports one thing the reader could not use as written: a key it
+skipped, an element it dropped, or a relationship it could not resolve.
+
+A refusal (Section 6.2) is not a diagnostic, and a reader MUST report it through
+a separate channel, so that a caller can distinguish a document that was refused
+from one that was read with elements dropped.
 
 ### 6.4 Duplicate object keys
 
@@ -779,6 +807,10 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - Compression MUST be stored or deflate. Other methods are not available in
   every target language.
 - The UTF-8 filename flag is set.
+- A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE].
+  A writer MAY write a plain archive without them. The asymmetry is deliberate:
+  a small export stays readable by the widest range of tools, and a large one is
+  still readable by every conforming implementation.
 
 Note: an implementation matching the root document on the base name alone
 matches at any depth and lets the last match win rather than the first. The
@@ -921,54 +953,16 @@ resources one document may consume. The format places no limit on the number of
 items, the number of pips in an arc or track, the depth of the folder tree, or
 the size of an opaque data record.
 
-## 10. Open items
+## 10. References
 
-The following are not settled in version 0.1. An implementation that must act on
-one of them is choosing behaviour that this specification does not define, and
-that choice may not survive a later version.
-
-### 10.1 Mixed position arity within one `pips` array
-
-Whether positions of differing arity may appear within one `pips` array is not
-specified.
-
-Note: `corpus/accept/example-network.vnx` contains such an array, so an
-implementation validated against the corpus as distributed must accept one. The
-corpus is not the definition of this rule.
-
-### 10.2 Trashed items
-
-Whether items that have been soft-deleted in the source library are included in
-an export is not specified.
-
-### 10.3 The shape of a diagnostic
-
-Section 6.3 requires a severity, a path and a description, and does not fix
-their spelling or the structure that carries them.
-
-Note: the corpus sidecars express a diagnostic as an object carrying `path`, a
-JSON Pointer into the document, and `message`, matched as a substring. They do
-not carry a severity. That is a property of the corpus format, not a definition
-of the diagnostic shape.
-
-### 10.4 ZIP64
-
-Whether a VNZ container may use ZIP64 extensions, and whether a reader must
-support them, is not specified (Section 7).
-
-### 10.5 Vocabulary entries not yet defined
-
-Four further core types are intended for the vocabulary of Section 5.2 —
-`trail-note`, `shelter`, `hotel` and `settlement` — and are not defined here.
-Until they are, a document carrying one is carrying a record of an unrecognised
-type, governed by rules 3 and 4 of Section 5.1.
-
-## 11. References
-
+- [APPNOTE] PKWARE, Inc., ".ZIP File Format Specification", APPNOTE.TXT,
+  version 6.3.10, November 2022.
 - [RFC 2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement
   Levels", BCP 14, RFC 2119, March 1997.
 - [RFC 6839] Hansen, T. and A. Melnikov, "Additional Media Type Structured
   Syntax Suffixes", RFC 6839, January 2013.
+- [RFC 6901] Bryan, P., Zyp, K. and M. Nottingham, "JavaScript Object Notation
+  (JSON) Pointer", RFC 6901, April 2013.
 - [RFC 7946] Butler, H., Daly, M., Doyle, A., Gillies, S., Hagen, S. and
   T. Schaub, "The GeoJSON Format", RFC 7946, August 2016.
 - [RFC 8174] Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key

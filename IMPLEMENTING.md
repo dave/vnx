@@ -597,7 +597,7 @@ output. A second seat confirmed the case discriminates against a hand-written
 renderer in its own language, where a mutated renderer reddens
 `format/number-tie` and nothing else. *(JavaScript seat.)*
 
-Kotlin's answer is `number-conformance/`, described in Section 6.4.
+Kotlin's answer is `number-conformance/`, described in 6.4 below.
 
 ### 6.2 A case only separates the readings its own data can separate
 
@@ -606,6 +606,14 @@ The most valuable entry here, with five instances found in one day.
 A fixture that *contains* a construct is not a test *of* it. What a case can
 discriminate is decided by the data in the case, not by the construct it holds or
 the note it carries.
+
+Eight instances have turned up, and they fall into three mechanisms rather than
+one. The symptom is shared and the repairs are not.
+
+#### A case whose data cannot separate the readings
+
+These were never checking the thing they named, because no answer they could
+produce would differ between a correct implementation and a wrong one.
 
 **JavaScript's node-key comparison, where the order of events is the lesson.** It
 implemented an earlier reading of Section 6.2 literally, that two node keys meet
@@ -632,18 +640,52 @@ decoration was measurable: 60 rows, zero discrimination. *(Kotlin seat.)*
 so disabling the extra-field parser left the test green. *(Swift seat; relayed by
 the lead rather than read here.)*
 
+#### A check that was discriminating and quietly stopped
+
+These worked when written. Something moved underneath them.
+
 **A corpus runner that stopped comparing.** When sidecars moved from pinning
 English to pinning a reason code, one runner's matcher looked for a `message`
 field that was no longer there, found nothing, and fell through to comparing
 paths alone. Every diagnose case stayed green while checking half of what it
 pinned. *(Python seat.)*
 
+**Absence-proofs that went stale.** A red-proof asserting that no corpus tier
+catches some defect was true when written and false once a formatter case reached
+it. See 6.3.
+
+**A fixture retired by a later ruling.** A Go test used two positions that
+collided once rounded, to prove that arc-boundary de-duplication compares full
+values. Under a later tie rule they stopped colliding, so the test was left
+asserting that a de-duplication had not merged two points it could no longer have
+merged. Nothing about it ever looked wrong and nobody was careless. *(Relayed, not
+read here.)*
+
+#### A guard that was never connected to what it names
+
+The sharpest of the three, because the other two at least once measured something.
+
+**A test named for a fixture that never reads the fixture.** A Rust test called
+`the_corpus_fixtures_land_where_their_names_say` **would still have passed if both
+corpus files were deleted**: it restated numbers rather than reading the artefact.
+Beside it, a test asserting that the wrong cosine reference changes neither corpus
+verdict passed green while asserting something false of the corpus it named, with
+a doc comment recording that the finding had been reported upstream. That is how a
+stale number became a live bug report. *(Relayed, not read here; the Rust seat's
+own account may sharpen it.)*
+
 **A ZIP reader and writer by the same hand**, which is the container-boundary
 instance and the only one whose fix is to check against an implementation not
-written from this specification. Section 6.5.
+written from this specification. See 6.5 below.
 
-The common shape is that a check which quietly stops discriminating always
-passes. Nothing goes red, because red requires a comparison.
+The repair for this third mechanism is one sentence and it generalises: **make the
+test read the artefact.** Mutate the implementation, run the real corpus, and
+assert exactly which cases fail. That turns "the corpus discriminates" from a
+restated number into a measurement, and it goes red when a fixture moves. Which
+one has.
+
+The common shape across all three is that a check which does not discriminate
+always passes. Nothing goes red, because red requires a comparison.
 
 Five seats hit this class within an hour and each wrote a different guard, which
 is the useful part, because the guards compose:
@@ -665,12 +707,32 @@ still separate.
 
 That recipe found three real gaps in one afternoon: the continuity fixture above;
 `link-names-absent-arc.vnx`, whose two links made "one defect must not become
-two" a guarantee of arity rather than of the reader; and a tolerance pair at three
-degrees of latitude, where the segment-start-cosine model reads 48.87 m and
-59.73 m against a true 45 and 55 and returns the same verdict on both files, so a
-pair that existed to discriminate the cosine reference discriminated nothing.
-*(JavaScript seat; the tolerance measurement was made independently by the Python
-seat, which reached 48.842 m and 59.696 m by a different route.)*
+two" a guarantee of arity rather than of the reader; and a tolerance pair whose
+arc spanned three degrees of latitude, where the segment-start-cosine model read
+48.87 m and 59.73 m against a true 45 and 55, returning the same verdict on both
+files, so a pair that existed to discriminate the cosine reference discriminated
+nothing. *(JavaScript seat, and independently by the Python seat at 48.842 m and
+59.696 m by a different route.)*
+
+**Those two figures describe a fixture that no longer exists**, and saying so is
+part of the entry rather than a footnote to it. The three-degree pair was replaced
+by one whose arc spans thirteen degrees and runs in opposite directions in the two
+files. Against the pair now in the corpus, the segment-start-cosine model reads
+**67.4 m** where the correct model reads 45, and **36.8 m** where the correct model
+reads 55: it refuses a legal document in the first file and accepts an illegal one
+in the second. The replacement discriminates in both directions.
+
+Quoting the superseded numbers here cost another seat a working afternoon. It
+hard-coded 48.87 and 59.73 into two of its own tests, concluded from them that the
+corpus does not discriminate, and reported that upstream as a live defect, which
+took an audit to unwind. **A measurement is about a particular artefact, and a
+number that does not say which artefact will outlive it.**
+
+One nuance, since the numbers are quoted in more than one place: the fixtures'
+sidecars give 67.409 m and 36.824 m, computed with Go's earlier 111132.0 metres
+per degree, while the mean radius the specification now names gives 67.447 m and
+36.845 m. The 0.057 per cent between them never moves a verdict, but a cited
+distance should say which radius it assumes.
 
 ### 6.3 Red-proof everything, and check the proof reached its target
 
@@ -693,6 +755,12 @@ match what was observed would have recorded a broader claim than the truth and
 attributed three failures to a rule they had nothing to do with. The repair is a
 companion test freezing that the extra value is a phantom, so the single
 remaining failure can be attributed to the tie rule. *(JavaScript seat.)*
+
+A fourth way, and the simplest: **the mutation can never reach the code it claims
+to break.** A notes-discarding mutation came back green because it patched only
+the first of several call sites, and no accept fixture had a folder carrying
+`notes`. A mutation that misses its target is indistinguishable from a runner that
+found nothing wrong. *(Relayed, not read here.)*
 
 **And a proof whose conclusion is an absence needs re-running whenever the thing
 it claims to be absent from grows.** A red-proof asserting that no tier catches

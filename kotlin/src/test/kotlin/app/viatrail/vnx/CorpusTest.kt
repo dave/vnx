@@ -1,0 +1,260 @@
+package app.viatrail.vnx
+
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.fail
+
+/**
+ * The conformance corpus. SPEC.md section 1.3: an implementation conforms when
+ * it passes this, and where the prose and the corpus disagree the disagreement
+ * is a defect in one of them and is reported rather than resolved by
+ * interpretation.
+ *
+ * Every case is run. A file with no sidecar is a failure, not a skip: the file
+ * everyone assumes is covered is otherwise exactly the one that is not.
+ */
+class CorpusTest {
+
+    private val corpus = File(
+        System.getProperty("vnx.corpus")
+            ?: error("the corpus location must be passed as -Dvnx.corpus; see build.gradle.kts"),
+    )
+
+    private fun cases(tier: String): List<File> {
+        val dir = File(corpus, tier)
+        assertTrue(dir.isDirectory, "the corpus tier $tier is missing at ${dir.absolutePath}")
+        return dir.listFiles()!!
+            .filter { it.name.endsWith(".vnx") || it.name.endsWith(".vnz") }
+            .sortedBy { it.name }
+    }
+
+    private fun sidecarFor(case: File): Sidecar {
+        val sidecar = File(case.parentFile, case.name.substringBeforeLast('.') + ".expect.json")
+        assertTrue(sidecar.isFile, "${case.name} has no ${sidecar.name}: a file with no sidecar is a failure, not a skip")
+        return Sidecar.read(sidecar)
+    }
+
+    // ------------------------------------------------------------- invariants
+
+    @Test
+    fun `every case carries a well-formed sidecar whose kind matches its directory`() {
+        for (tier in listOf("accept", "reject", "diagnose")) {
+            for (case in cases(tier)) {
+                val sidecar = sidecarFor(case)
+                assertEquals(tier, sidecar.kind, "${case.name}: `kind` must match the directory")
+                assertTrue(sidecar.note.isNotBlank(), "${case.name}: `note` says why the case exists and is required")
+                assertTrue(
+                    sidecar.schemaVerdict in listOf(null, "valid", "invalid", "not-json"),
+                    "${case.name}: `schema` is \"${sidecar.schemaVerdict}\", which is not a verdict this runner knows",
+                )
+                assertTrue(
+                    sidecar.unknownFields.isEmpty(),
+                    "${case.name}: the sidecar carries fields this runner does not read: ${sidecar.unknownFields}. " +
+                        "A field nothing looks at is a field that quietly stops being tested.",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the corpus has at least the cases section 8 requires`() {
+        // A guard against a tier being emptied or a directory being renamed: the
+        // runner would otherwise pass with nothing to run.
+        assertTrue(cases("accept").size >= 14, "the accept tier has shrunk: ${cases("accept").size} cases")
+        assertTrue(cases("reject").size >= 7, "the reject tier has shrunk: ${cases("reject").size} cases")
+        assertTrue(cases("diagnose").size >= 6, "the diagnose tier has shrunk: ${cases("diagnose").size} cases")
+        assertTrue(formatPairs().isNotEmpty(), "the format tier is empty")
+    }
+
+    // ---------------------------------------------------------------- accept
+
+    @Test
+    fun accept() {
+        for (case in cases("accept")) {
+            val sidecar = sidecarFor(case)
+            val result = try {
+                Vnx.read(case)
+            } catch (e: VnxRefusal) {
+                fail("${case.name} must be read, and was refused: $e")
+            }
+            assertEquals(
+                emptyList(), result.diagnostics,
+                "${case.name} must be read with no diagnostics",
+            )
+            checkCounts(case, sidecar, result)
+            checkPositions(case, sidecar, result)
+            checkTracks(case, sidecar, result)
+            checkAttachments(case, sidecar, result)
+            if (case.name.endsWith(".vnx")) checkReRender(case, result)
+        }
+    }
+
+    /**
+     * SPEC.md section 8.1: the runner decodes the file, RE-RENDERS the decoded
+     * document, and requires the original bytes back.
+     *
+     * Re-render, not write: a writer rounds coordinates and emits the shortest
+     * spelling of a position, so writing what you read is legitimately not what
+     * you read. And not reformat-the-bytes: reformatting never builds a model, so
+     * it cannot see a reader that threw away what it read.
+     */
+    private fun checkReRender(case: File, result: ReadResult) {
+        val original = case.readText()
+        val rendered = Vnx.render(result.document)
+        if (rendered != original) {
+            fail("${case.name}: re-rendering the decoded document did not reproduce the file.\n${diff(original, rendered)}")
+        }
+    }
+
+    private fun checkCounts(case: File, sidecar: Sidecar, result: ReadResult) {
+        val expected = sidecar.counts() ?: fail("${case.name}: an accept or diagnose case needs `counts`")
+        val unknown = expected.keys - Sidecar.COLLECTIONS.toSet()
+        assertTrue(unknown.isEmpty(), "${case.name}: `counts` names collections that do not exist: $unknown")
+        val document = result.document
+        // A collection the sidecar does not name is expected to be empty. That is
+        // what makes `counts` complete rather than a spot check.
+        val actual = mapOf(
+            "folders" to (document.folders?.size ?: 0),
+            "networks" to (document.networks?.size ?: 0),
+            "routes" to (document.routes?.size ?: 0),
+            "tracks" to (document.tracks?.size ?: 0),
+            "waypoints" to (document.waypoints?.size ?: 0),
+            "areas" to (document.areas?.size ?: 0),
+            "rulesets" to ((document.rulesets as? JsonArray)?.elements?.size ?: 0),
+        )
+        for (collection in Sidecar.COLLECTIONS) {
+            assertEquals(
+                expected[collection] ?: 0, actual[collection],
+                "${case.name}: `$collection` count",
+            )
+        }
+    }
+
+    private fun checkPositions(case: File, sidecar: Sidecar, result: ReadResult) {
+        for (expected in sidecar.positions()) {
+            val position = ModelPointer.resolve(result.document, expected.at)
+            assertEquals(expected.lon, position.lon, "${case.name}: longitude at ${expected.at}")
+            assertEquals(expected.lat, position.lat, "${case.name}: latitude at ${expected.at}")
+        }
+    }
+
+    private fun checkTracks(case: File, sidecar: Sidecar, result: ReadResult) {
+        for (expected in sidecar.tracks()) {
+            val track = result.document.tracks?.firstOrNull { it.name == expected.name }
+                ?: fail("${case.name}: no track named \"${expected.name}\"")
+            assertEquals(
+                expected.movingTimeMs, track.movingTimeMs(),
+                "${case.name}: moving time of \"${expected.name}\" — null means unknown, which is not zero",
+            )
+        }
+    }
+
+    private fun checkAttachments(case: File, sidecar: Sidecar, result: ReadResult) {
+        val expected = sidecar.attachments() ?: return
+        assertEquals(expected, result.attachments ?: emptyList(), "${case.name}: attachments")
+    }
+
+    // ---------------------------------------------------------------- reject
+
+    @Test
+    fun reject() {
+        for (case in cases("reject")) {
+            val sidecar = sidecarFor(case)
+            val expected = sidecar.refusal ?: fail("${case.name}: a reject case needs `refusal`")
+            try {
+                val result = Vnx.read(case)
+                fail(
+                    "${case.name} must be refused, and was read with ${result.diagnostics.size} diagnostic(s). " +
+                        "The refusal was to name: \"$expected\"",
+                )
+            } catch (e: VnxRefusal) {
+                assertTrue(
+                    e.message.contains(expected),
+                    "${case.name}: the refusal must name its cause. Expected the message to contain " +
+                        "\"$expected\" and it was: ${e.message}",
+                )
+            }
+        }
+    }
+
+    // -------------------------------------------------------------- diagnose
+
+    @Test
+    fun diagnose() {
+        for (case in cases("diagnose")) {
+            val sidecar = sidecarFor(case)
+            val expected = sidecar.diagnostics()
+                ?: fail("${case.name}: a diagnose case needs `diagnostics`, and an empty list is an expectation")
+            val result = try {
+                Vnx.read(case)
+            } catch (e: VnxRefusal) {
+                fail("${case.name} must be READ while reporting, and was refused: $e")
+            }
+            DiagnosticMatcher.mismatch(expected, result.diagnostics)?.let { fail("${case.name}: $it") }
+            checkCounts(case, sidecar, result)
+            checkPositions(case, sidecar, result)
+            checkTracks(case, sidecar, result)
+        }
+    }
+
+    // ---------------------------------------------------------------- format
+
+    private fun formatPairs(): List<Pair<File, File>> {
+        val dir = File(corpus, "format")
+        assertTrue(dir.isDirectory, "the corpus tier format is missing at ${dir.absolutePath}")
+        return dir.listFiles()!!
+            .filter { it.name.endsWith(".in.vnx") }
+            .sortedBy { it.name }
+            .map { input ->
+                val canonical = File(dir, input.name.removeSuffix(".in.vnx") + ".canonical.vnx")
+                assertTrue(canonical.isFile, "${input.name} has no ${canonical.name}")
+                input to canonical
+            }
+    }
+
+    @Test
+    fun format() {
+        for ((input, canonical) in formatPairs()) {
+            val messy = input.readText()
+            val expected = canonical.readText()
+            // SPEC.md section 8.1: a runner MUST assert that each format input is
+            // not already canonical. Without that a formatter that echoed its
+            // input would pass every case in the tier.
+            assertTrue(
+                messy != expected,
+                "${input.name} is already canonical, so this case cannot fail for a formatter that echoes its input",
+            )
+            assertEquals(
+                expected, Vnx.canonicalise(messy),
+                "${input.name}: the formatter's bytes.\n${diff(expected, Vnx.canonicalise(messy))}",
+            )
+            // The stated canonical form must itself be a fixed point.
+            assertEquals(
+                expected, Vnx.canonicalise(expected),
+                "${canonical.name} is not a fixed point of the formatter",
+            )
+        }
+    }
+
+    // ----------------------------------------------------------------- utility
+
+    private fun diff(expected: String, actual: String): String {
+        val e = expected.lines()
+        val a = actual.lines()
+        val sb = StringBuilder()
+        for (i in 0 until maxOf(e.size, a.size)) {
+            val left = e.getOrNull(i)
+            val right = a.getOrNull(i)
+            if (left != right) {
+                sb.append("  line ${i + 1}\n    expected: ${left ?: "<end of file>"}\n    actual:   ${right ?: "<end of file>"}\n")
+                if (sb.count { it == '\n' } > 30) {
+                    sb.append("  ...\n")
+                    break
+                }
+            }
+        }
+        return sb.toString()
+    }
+}

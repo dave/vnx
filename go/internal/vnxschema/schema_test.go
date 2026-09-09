@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	schemaPath = "../../pkg/vnx/schema/vnx-0.1.schema.json"
+	schemaPath = "../../../corpus/schema/vnx-0.1.schema.json"
 	corpusDir  = "../../../corpus"
 )
 

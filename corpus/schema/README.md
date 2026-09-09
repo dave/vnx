@@ -3,6 +3,10 @@
 `vnx-0.1.schema.json`, draft 2020-12. It lets a tool validate a document with no
 VNX implementation present, which is useful from a script or an agent.
 
+It lives inside the corpus because every corpus case records a `schema` verdict
+in its sidecar. A sidecar field that only one implementation can reach is a
+corpus that cannot be run, so the schema ships with the cases that cite it.
+
 A document that validates against this schema is not necessarily a valid VNX
 document. Several of the format's load-bearing rules are not about shape, and a
 schema can only check shape.

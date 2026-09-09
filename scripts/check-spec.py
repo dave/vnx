@@ -38,7 +38,7 @@ PUBLISHED = [
     "README.md",
     "corpus/README.md",
     "corpus/format/README.md",
-    "go/pkg/vnx/schema/README.md",
+    "corpus/schema/README.md",
 ]
 
 # (pattern, what to do about it). The message has to stand alone: whoever trips

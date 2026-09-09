@@ -906,7 +906,7 @@ value level.
 ### 8.2 JSON Schema
 
 A JSON Schema for the format, draft 2020-12, is published at
-`go/pkg/vnx/schema/vnx-0.1.schema.json` with its own README. A document can be
+`corpus/schema/vnx-0.1.schema.json` with its own README. A document can be
 validated against it with no VNX implementation present.
 
 A document that validates against the schema is not necessarily a valid VNX

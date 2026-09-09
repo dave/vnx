@@ -49,7 +49,7 @@ type expectation struct {
 	Kind string `json:"kind"`
 	Note string `json:"note"`
 
-	// Schema is what the JSON Schema (pkg/vnx/schema) makes of this file:
+	// Schema is what the JSON Schema (corpus/schema) makes of this file:
 	// "valid", "invalid", or "not-json" when it is not JSON at all and no
 	// validator can reach it. It is recorded per case rather than derived,
 	// because the interesting entries are the ones where the schema and the
@@ -214,9 +214,6 @@ func runDiagnose(t *testing.T, c corpusCase) {
 
 func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 	t.Helper()
-	if want == nil {
-		return
-	}
 	got := map[string]int{
 		"folders":   len(doc.Folders),
 		"networks":  len(doc.Networks),
@@ -224,6 +221,7 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 		"tracks":    len(doc.Tracks),
 		"waypoints": len(doc.Waypoints),
 		"areas":     len(doc.Areas),
+		"rulesets":  len(doc.Rulesets),
 	}
 	for k, w := range want {
 		g, known := got[k]
@@ -232,6 +230,19 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 		}
 		if g != w {
 			t.Errorf("%s: got %d, want %d", k, g, w)
+		}
+	}
+	// A sidecar MUST name every collection its document carries. An omitted
+	// collection used to mean "unchecked", which let a decoder invent or drop
+	// items in it with nothing to say so — and the one file that had a gap was
+	// the worked example, which is the file every implementer reads first.
+	for k, g := range got {
+		if g == 0 {
+			continue
+		}
+		if _, named := want[k]; !named {
+			t.Errorf("the document carries %d %s and the sidecar does not name that collection; "+
+				"an unnamed collection is unchecked, not empty", g, k)
 		}
 	}
 }

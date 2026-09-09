@@ -13,8 +13,13 @@ accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
 diagnose/  must be read, reporting exactly the listed diagnostics
 format/    messy input, plus exactly the bytes a formatter must emit for it
+schema/    the JSON Schema, and what it can and cannot check
 tools/     the generator for the .vnz archives
 ```
+
+The schema lives here rather than beside the Go implementation because every
+case carries a `schema` verdict in its sidecar. A sidecar field that only one
+implementation can check is a corpus that cannot be run.
 
 Each `foo.vnx` or `foo.vnz` has a `foo.expect.json` beside it. A file with no
 sidecar is a failure, not a skip: the file everyone assumes is covered is

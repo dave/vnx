@@ -651,6 +651,27 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(padded.attachments.map(\.path), ["filler.txt"])
     }
 
+    /// SPEC 7.1 constrains a WRITER's entry order. It must not leak into the
+    /// reader.
+    ///
+    /// A reader that refused an out-of-order archive, or that silently reordered
+    /// what it returned, would be applying a writer's rule to something it was
+    /// given — the same asymmetry as stored-versus-deflate and
+    /// plain-versus-ZIP64, and the shape canonical form uses everywhere:
+    /// constrain what a library writes, never what it will read.
+    ///
+    /// Worth testing because I have just made the writer sort, and the obvious
+    /// way to get that wrong is to sort in the wrong place.
+    func testAReaderAcceptsAnArchiveWhoseEntriesAreNotSorted() throws {
+        let result = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.unsortedOnTheWire))
+        XCTAssertEqual(result.documentName, "doc.vnx")
+        XCTAssertEqual(result.document.waypoints?.count, 1)
+        XCTAssertEqual(result.diagnostics, [], "entry order is a writer's rule; a reader has nothing to say about it")
+        XCTAssertEqual(result.attachments.map(\.path),
+                       ["\u{00C6}ae.txt", "zz-last.txt", "aaa/earlier.txt"],
+                       "and the attachments come back IN THE ARCHIVE'S ORDER, not re-sorted")
+    }
+
     /// SPEC 7: a reader MUST accept general purpose bit 3, where the local
     /// header carries zeros for the CRC and both sizes, a data descriptor
     /// follows the payload, and only the central directory has the truth.

@@ -9,9 +9,14 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// The REPOSITORY, always. `CORPUS` may be an extract in a temp directory when a
+// run is measured against `git archive HEAD`, and the checker script lives with
+// the source rather than with the corpus copy under test.
+const REPO = path.resolve(HERE, '..', '..');
 const CORPUS = process.env.VNX_CORPUS
   ? path.resolve(process.env.VNX_CORPUS)
-  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'corpus');
+  : path.join(REPO, 'corpus');
 
 import { decodeContainer, encodeContainer, rerenderContainer, writeContainer } from '../src/vnz.js';
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
@@ -504,7 +509,7 @@ test('an independently written parser agrees that this writer satisfies SPEC.md 
   // and checks local against central. It is corroboration rather than coverage:
   // the assertions above stand on their own, and this is what would catch them
   // being wrong together.
-  const tool = path.resolve(CORPUS, '..', 'scripts', 'container-fields.py');
+  const tool = path.join(REPO, 'scripts', 'container-fields.py');
   if (!fs.existsSync(tool)) {
     // Not a skip. The script is committed in this repository, so its absence is
     // a fact about the checkout and is worth failing on.
@@ -539,7 +544,7 @@ test('the cross-seat checker is able to fail, on an archive that breaks a WRITER
   // is a writer rule and is the right thing to judge with a writer checker. The
   // committed deflate fixtures are NOT usable here: they are input, and a
   // writer checker over input reports category errors rather than defects.
-  const tool = path.resolve(CORPUS, '..', 'scripts', 'container-fields.py');
+  const tool = path.join(REPO, 'scripts', 'container-fields.py');
   const out = path.join(os.tmpdir(), `vnx-unsorted-${process.pid}.vnz`);
   fs.writeFileSync(out, writeArchive([
     { name: 'doc.vnx', data: Buffer.from(DOC) },

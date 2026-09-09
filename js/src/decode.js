@@ -35,8 +35,10 @@ function esc(token) {
 class Ctx {
   constructor() {
     /** @type {Diagnostic[]} */ this.diagnostics = [];
-    /** @type {Map<string, Position>} wire pointer -> position */
-    this.positions = new Map();
+    // Positions are indexed AFTER decoding, by walking the model — see
+    // `indexPositions`. Registering them during the read would index them by
+    // their WIRE path, and a dropped element shifts every later index.
+
     /** @type {WeakMap<object, string>} model item -> wire pointer */
     this.paths = new WeakMap();
   }
@@ -44,7 +46,6 @@ class Ctx {
     this.diagnostics.push(new Diagnostic(path, message, code));
   }
   position(path, position) {
-    this.positions.set(path, position);
     return position;
   }
 }
@@ -125,7 +126,7 @@ export function decodeValue(value) {
   const ctx = new Ctx();
   const doc = readDocument(value, ctx);
   resolveReferences(doc, ctx);
-  return { document: doc, diagnostics: ctx.diagnostics, positions: ctx.positions };
+  return { document: doc, diagnostics: ctx.diagnostics, positions: indexPositions(doc) };
 }
 
 // --- field helpers ----------------------------------------------------------
@@ -728,4 +729,58 @@ function endpointsMeet(a, b, nodes) {
   const pb = b.kind === 'node' ? nodes.get(b.node) : b.position;
   if (pa === undefined || pb === undefined) return false;
   return pa.sameCoordinates(pb);
+}
+
+
+// --- position index ---------------------------------------------------------
+
+/**
+ * Every position in the decoded document, by JSON Pointer.
+ *
+ * The pointers use the WIRE's key names — `at`, `pips`, `polygon` — and the
+ * MODEL's indices. That distinction is load-bearing and easy to get backwards:
+ * an element dropped under SPEC.md 6.2 shifts every later index, so after a
+ * reader drops the pip at wire index 1 the model's `/pips/1` is the wire's pip
+ * 2. `corpus/README.md` requires the pointer to be resolved against the decoded
+ * model, and this builds the index from the model for that reason.
+ *
+ * A DIAGNOSTIC's path is the other convention — it names where the fault was in
+ * the document the reader was handed, which is the wire index. So the same
+ * pointer string can mean two different elements in the two fields of one
+ * sidecar, and does in `diagnose/position-unusable`.
+ *
+ * @param {Document} doc
+ * @returns {Map<string, Position>}
+ */
+export function indexPositions(doc) {
+  const index = new Map();
+  const put = (path, p) => {
+    if (p !== undefined) index.set(path, p);
+  };
+  const pips = (path, list) => (list ?? []).forEach((p, i) => put(`${path}/pips/${i}`, p));
+  const ring = (path, list) => (list ?? []).forEach((p, i) => put(`${path}/polygon/${i}`, p));
+
+  (doc.waypoints ?? []).forEach((w, i) => put(`/waypoints/${i}/at`, w.at));
+  (doc.areas ?? []).forEach((a, i) => ring(`/areas/${i}`, a.polygon));
+  (doc.routes ?? []).forEach((r, i) => {
+    (r.arcs ?? []).forEach((arc, j) => pips(`/routes/${i}/arcs/${j}`, arc.pips));
+  });
+  (doc.tracks ?? []).forEach((t, i) => {
+    (t.segments ?? []).forEach((seg, j) => pips(`/tracks/${i}/segments/${j}`, seg.pips));
+  });
+  (doc.networks ?? []).forEach((n, i) => {
+    const base = `/networks/${i}`;
+    for (const [key, p] of n.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);
+    for (const [key, arc] of n.arcs ?? []) pips(`${base}/arcs/${esc(key)}`, arc.pips);
+    (n.chains ?? []).forEach((c, j) => {
+      (c.links ?? []).forEach((l, k) => {
+        for (const which of ['from', 'to']) {
+          if (l[which] && l[which].kind === 'inline') put(`${base}/chains/${j}/links/${k}/${which}`, l[which].position);
+        }
+      });
+    });
+    (n.points ?? []).forEach((pt, j) => put(`${base}/points/${j}/at`, pt.at));
+    (n.areas ?? []).forEach((a, j) => ring(`${base}/areas/${j}`, a.polygon));
+  });
+  return index;
 }

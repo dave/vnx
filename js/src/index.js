@@ -6,7 +6,7 @@ export {
   Position, Folder, Network, NetworkArc, Chain, Link, Endpoint,
   Route, RouteArc, Track, Segment, Waypoint, Area, Document,
 } from './model.js';
-export { decodeText, decodeValue, READER_MAJOR, READER_MINOR } from './decode.js';
+export { decodeText, decodeValue, indexPositions, READER_MAJOR, READER_MINOR } from './decode.js';
 export { renderCanonical } from './render.js';
 export { emitDocument, RERENDER, WRITE } from './emit.js';
 export { compareCodePoints } from './codepoint.js';

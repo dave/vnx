@@ -58,6 +58,7 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'link-arc-absent',
   'polygon-nested-rings',
   'timestamp-not-utc',
+  'position-unusable',
   'unknown-key',
   'wrong-type-optional',
   'wrong-type-required',
@@ -74,7 +75,6 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'parent-folder-absent',
   'polygon-not-closed',
   'polygon-too-short',
-  'position-unusable',
   'record-type-missing',
   'record-unusable',
 ]);
@@ -92,6 +92,7 @@ export const PINNED_CODES = Object.freeze([
   'endpoint-off-arc',
   'link-arc-absent',
   'polygon-nested-rings',
+  'position-unusable',
   'timestamp-not-utc',
   'unknown-key',
   'wrong-type-optional',

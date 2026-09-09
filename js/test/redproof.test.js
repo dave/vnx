@@ -211,10 +211,15 @@ test('answering 0 for an unknown moving time is caught', async () => {
       to: '    return total;',
     },
   ]);
+  // Every case whose sidecar carries a `tracks` expectation with an unknown
+  // moving time. The list grows as fixtures adopt that field, which is why the
+  // assertion is exact: a case that stops appearing here has stopped asserting
+  // the rule, and that is worth a failure rather than a shrug.
   assert.deepEqual(await failingDelta(cases), [
     'accept/absent-elevation-and-time.vnx',
     'accept/track-partly-timed.vnx',
     'accept/track-without-times.vnx',
+    'diagnose/position-unusable.vnx',
   ]);
 });
 

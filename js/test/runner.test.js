@@ -19,7 +19,9 @@ import { runCorpus } from '../corpus/runner.js';
 import { DIAGNOSTIC_CODES, PINNED_CODES, REFUSAL_SUBSTRINGS } from '../src/errors.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CORPUS = path.resolve(HERE, '..', '..', 'corpus');
+const CORPUS = process.env.VNX_CORPUS
+  ? path.resolve(process.env.VNX_CORPUS)
+  : path.resolve(HERE, '..', '..', 'corpus');
 
 function match(reported, expected) {
   const c = new Case('x');

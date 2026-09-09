@@ -490,3 +490,62 @@ class NumbersTier(unittest.TestCase):
         scaled = exact * 10
         return scaled == scaled.to_integral_value() + Decimal("0.5") or \
             scaled == scaled.to_integral_value() - Decimal("0.5")
+
+
+class ExpectationsResolveByName(unittest.TestCase):
+    """An expectation resolves by NAME, never by index.
+
+    `corpus/README.md` requires it, and the reason is that a sidecar which has
+    drifted from its fixture is caught by a name lookup and sailed straight past
+    by an index lookup, which finds *a* track at position 0 and compares the
+    wrong one.
+
+    Asserted directly rather than by mutating a sidecar and running the tier. An
+    indirect probe of this took two attempts to get right and reported the
+    opposite of the truth on the first, so the direct call is the instrument.
+    """
+
+    def case(self) -> _CorpusCase:
+        class Probe(_CorpusCase):
+            def runTest(self) -> None:  # pragma: no cover - never run as a test
+                pass
+
+        return Probe()
+
+    def document(self) -> vnx.Document:
+        return vnx.read_file(CORPUS / "accept" / "track-with-pause.vnx").document
+
+    def test_a_track_expectation_naming_nothing_is_caught(self) -> None:
+        probe, document = self.case(), self.document()
+        for name in ("a name no track in this fixture has", ""):
+            with self.subTest(name=name), self.assertRaises(AssertionError):
+                probe._check_tracks(
+                    {"tracks": [{"name": name, "moving_time_ms": 167000}]},
+                    document,
+                    "probe",
+                )
+
+    def test_the_correct_name_still_passes(self) -> None:
+        """The control. Without it the test above proves only that something
+        raises, not that it raises for the reason it names."""
+        probe, document = self.case(), self.document()
+        assert document.tracks is not None
+        probe._check_tracks(
+            {"tracks": [{"name": document.tracks[0].name, "moving_time_ms": 167000}]},
+            document,
+            "probe",
+        )
+
+    def test_a_counts_expectation_naming_no_collection_is_caught(self) -> None:
+        probe, document = self.case(), self.document()
+        with self.assertRaises(AssertionError):
+            probe._check_counts({"counts": {"sprockets": 1}}, document, "probe")
+
+    def test_a_positions_pointer_that_resolves_to_nothing_is_caught(self) -> None:
+        probe, document = self.case(), self.document()
+        with self.assertRaises((AssertionError, KeyError, IndexError)):
+            probe._check_positions(
+                {"positions": [{"at": "/waypoints/0/at", "lon": 0.0, "lat": 0.0}]},
+                document,
+                "probe",
+            )

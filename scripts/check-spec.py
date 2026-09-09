@@ -27,6 +27,7 @@ Widening a check here publishes the problem instead of solving it.
 """
 
 import pathlib
+import subprocess
 import re
 import sys
 
@@ -260,8 +261,33 @@ def register_warnings() -> list[str]:
     return lines
 
 
+def check_ruling_backlog(problems: list[str]) -> None:
+    """Fail while a ruling has been made and has not reached SPEC.md.
+
+    A ruling and the spec text are separate artefacts with a lag between them, so
+    a library can be correct against one and wrong against the other, and neither
+    is obviously the authority at the moment somebody looks. Checking the spec
+    then confirms the wrong answer with a clear conscience.
+
+    ⚠ THE SCRIPT IS BUILT TO BE DELETED. It exits non-zero when the ledger is
+    empty AND still present, so removing it is enforced rather than remembered —
+    a permanent ledger of what this document used to be missing would be exactly
+    the drafting history the repository forbids, arriving wearing a check, which
+    is the last place anyone looks for a register violation.
+    """
+    script = ROOT / "scripts" / "check-ruling-backlog.py"
+    if not script.exists():
+        return
+    done = subprocess.run(
+        [sys.executable, str(script)], capture_output=True, text=True, cwd=ROOT
+    )
+    if done.returncode != 0:
+        problems.append(done.stdout.strip() or done.stderr.strip())
+
+
 def main() -> None:
     problems: list[str] = []
+    check_ruling_backlog(problems)
     check_published(problems)
     check_register(problems)
     check_rationale(problems)

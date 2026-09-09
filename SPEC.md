@@ -607,11 +607,14 @@ UTC, with a literal `Z` suffix and OPTIONAL fractional seconds. An offset other
 than `Z` is not permitted.
 
 A record-level timestamp is checked for SHAPE only. A reader MUST NOT refuse or
-diagnose one on calendar grounds: `2026-13-45T99:99:99Z` matches the grammar and
-is accepted. That follows Section 6.2's rule that a reader checks a value only
-where this document states a normative range or enumeration for it, which is the
-same rule that leaves `icon-size` unchecked. Silence would diverge here rather
-than converge, because a reader built on a date library gets the calendar check
+diagnose one on calendar grounds, EVEN THOUGH ISO 8601 WOULD:
+`2026-13-45T99:99:99Z` matches the grammar this section states and is accepted.
+
+That is a rule rather than a consequence, and it is stated because the
+consequence points the other way. Naming ISO 8601 arguably imports a calendar,
+so an implementation that validates months against 01 to 12 can cite this
+section and believe it is reading the document correctly. Silence diverges here
+rather than converging: a reader built on a date library gets the calendar check
 for free and one parsing the grammar directly does not.
 
 Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
@@ -1074,12 +1077,31 @@ A reader is tolerant of damage and silent about nothing.
   Section 7 states the causes for which a container is refused. They are
   separate, and a fault in an attachment is not among them.
 
+A link naming a node that is not in its network keeps the link and excludes that
+end from the continuity comparison of Section 3.3.3. The link then runs from its
+RESOLVED endpoint along the named arc to that arc's terminus in the direction of
+travel: an absent `to` means from the resolved `from` to the far end, and an
+absent `from` means from the near terminus to the resolved `to`.
+
+Saying only that the link is kept is not enough to render it. A link is not its
+arc — it is a portion of an arc between two endpoints — so "render it from the
+arc" permits the whole arc or any stretch of it, and a chain drawing a whole arc
+where it meant a third of one still draws a plausible line. The rule above is
+deterministic and invents no position.
+
 A position inside `pips` that will not parse drops the arc that holds it, not the
-position. `pips` is REQUIRED (Section 3.10) and an arc whose `pips` cannot be
-used is an object that cannot exist, so this is the required-key rule rather than
-an exception to it. Dropping the position instead would leave an arc whose
-geometry silently lost a vertex: a shorter line, plausible everywhere, with
-nothing to indicate it.
+position. A link that cannot be used drops the link and keeps the chain. Those
+look opposite and are not, and the difference is worth stating because the two
+rules sit next to each other:
+
+GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex changes the shape
+of a line and leaves nothing to indicate it — a shorter, plausible, wrong line.
+A missing link leaves a gap between two endpoints that the continuity rule of
+Section 3.3.3 can see and report, so nothing is lost silently.
+
+This is not the required-key rule of Section 6.2. That rule is about a key whose
+VALUE is the wrong type: `"pips": "hello"`. Here `pips` is an array and is
+perfectly usable; one element inside it is not.
 
 The remedies for the remaining constructs this document constrains:
 
@@ -1088,7 +1110,7 @@ The remedies for the remaining constructs this document constrains:
 | an inline link endpoint that does not project onto its arc within tolerance (3.3.3) | drop the link |
 | a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
 | an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
-| a link naming a node that is not in its network (3.3.3) | keep the link; exclude that end from the continuity comparison |
+| a link naming a node that is not in its network (3.3.3) | keep the link; see below |
 | a position inside `pips` that will not parse (4.1) | drop the ARC, not the pip |
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
@@ -1151,16 +1173,9 @@ A reader MAY leave `code` absent on any diagnostic no corpus case pins. Codes
 are wire commitments, and a format does not need one for every way a document
 can be malformed.
 
-`path` names the SMALLEST ELEMENT THAT COULD NOT BE USED, which is not always
-the element the remedy drops. An inline endpoint that does not project names the
-endpoint, and the link is dropped around it; a polygon with nested rings names
-the polygon, and the area is dropped around it. Naming what was dropped instead
-would point a reader at an item that is often perfectly good apart from the one
-value inside it.
-
-Where a diagnostic is about a relationship rather than a value, it names the
-SECOND of the pair: a chain whose links do not meet names the link that failed
-to continue, not the one it failed to continue from.
+Where a diagnostic is about a relationship rather than a value, `path` names the
+SECOND of the pair: a chain whose links do not meet names the link that failed to
+continue, not the one it failed to continue from.
 
 A diagnostic carries no severity. Every diagnostic this format defines reports
 the same kind of fact — something in the document could not be used as written —
@@ -1251,7 +1266,7 @@ in both.
 | internal attributes, external attributes | 0 |
 | CRC and both sizes | written in the local header |
 | general purpose bit 3, the data descriptor flag | not set |
-| entry order | the root document first, then attachments in the order the caller gave them |
+| entry order | the root document first, then attachments sorted by entry name, compared by Unicode code point as in Section 4.5.1 |
 | ZIP64 records | not written |
 | archive comment | none |
 
@@ -1283,6 +1298,13 @@ The root document first because the fallback rule above takes the first `.vnx`
 entry in archive order. Putting the document first makes the fallback and the
 preferred-name rule agree, so a reader that implements the fallback subtly wrong
 still lands on the right entry.
+
+Attachments SORTED rather than in the order the caller supplied them, because
+caller order is not a property of the content. Two conforming exporters using one
+library — one iterating a hash map, one a sorted list — would otherwise emit
+different archives for the same document while satisfying every other field in
+this table, which defeats what the table is for. The comparator is the one
+Section 4.5.1 already defines, so no implementation needs a second one.
 
 Three of those fields are worth their own sentence, because each one alone looks
 like tidiness and none of them is.

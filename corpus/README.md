@@ -13,9 +13,16 @@ accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
 diagnose/  must be read, reporting exactly the listed diagnostics
 format/    messy input, plus exactly the bytes a formatter must emit for it
+numbers/   what every implementation must emit for a given double
 schema/    the JSON Schema, and what it can and cannot check
 tools/     the generator for the .vnz archives
 ```
+
+The first four are directories of documents and share the sidecar described
+below. `numbers/` is a table rather than a directory, because the properties it
+pins are per-value rather than per-document; it has its own README and no
+sidecars. It is a tier all the same, and it is the only one that reaches past
+the boundary where a writer turns a model into a document.
 
 The schema lives here rather than beside the Go implementation because every
 case carries a `schema` verdict in its sidecar. A sidecar field that only one
@@ -82,6 +89,16 @@ list.
 for a track carrying no pip times has answered a question it cannot answer, and
 its answer is indistinguishable from a track on which nobody moved.
 
+Unknown also covers a track that is only partly timed. Moving time is a number
+only when every segment carries a time on its first and last pip; otherwise it
+is unknown, and a sum over the segments that happen to be timed is the worse
+answer of the two the format forbids. Zero at least reads as suspicious. A
+partial sum is indistinguishable from a complete one, and no caller can tell
+which it was handed. `accept/track-partly-timed.vnx` is the only case that
+separates the two readings — every other track here is wholly timed or wholly
+untimed, and it was that uniformity that let three implementations ship the
+partial sum with every tier green.
+
 A diagnostic is matched on its `path` and its `code`. **The English is not
 compared at all**, which is why the field is called `message_advisory` rather
 than `message`: it is there so a person reading the sidecar can see what the
@@ -90,11 +107,27 @@ claim and is not one. Half-coupling is worse than none, because it looks like it
 is there.
 
 `refusal` is still matched as a substring. That is the remaining place where
-this corpus compares English across implementations, and it is a known defect —
-one of the six wordings, `malformed JSON` for a non-finite literal, is a Go
-artefact: a strict parser rejects it before any format rule runs, while a
-permissive one reaches the format's own rule and refuses for the right reason in
-different words. Typed refusal codes are the fix and are not built yet.
+this corpus compares English across implementations, and it is a known defect.
+
+One of the six wordings shows the shape of it. `reject/nan-literal` and
+`reject/infinity-literal` pin the substring `malformed JSON`, and that wording
+is an artefact of a STRICT parser rather than of the format. A strict parser
+refuses a `NaN` literal as a syntax error, before any VNX rule has run, and the
+expected substring happens to match its message. A permissive parser accepts the
+literal, reaches section 4.2's own rule and refuses for exactly the right
+reason — in different words, which do not match, so the correct reader is the
+one that fails.
+
+Which seat this bites was measured by the JavaScript seat rather than assumed,
+and the answer is not the one the wording suggests: Python's own `json.loads`
+accepts `NaN`, `Infinity` and `1e400` by default, so Python is where a reader
+reaches the format's rule and refuses in its own words. Two libraries currently
+pass by wording their syntax error to match a substring, which is agreement
+about a string rather than about the format.
+
+Typed refusal codes are the fix and are not built yet. Until they are, do not
+narrow a refusal message to make a case go green — that is the fixture editing
+the implementation, backwards.
 
 Diagnostics are compared as a set, not by position. `SPEC.md` section 6.3 makes
 emission order insignificant: a reader that resolves cross-references in a second
@@ -102,6 +135,48 @@ pass emits its link diagnostics after its key diagnostics, and is correct. Each
 expected diagnostic has to be paired with one distinct reported diagnostic, so a
 runner that let one reported diagnostic satisfy two expectations would pass a
 reader that found half the defects.
+
+## Writing a runner
+
+A matcher that checks less always passes. Every rule in this section exists
+because a runner degraded quietly to a weaker comparison and stayed green, and
+four implementations hit the same one on the same day.
+
+When the sidecars moved from pinning English to pinning `code`, every runner
+written against a `message` field stopped comparing anything but paths. None of
+them went red. A runner that looks for a field, does not find it, and compares
+what is left has not failed — it has narrowed, and a narrower comparison passes
+more. So:
+
+- **An expectation carrying no `code` is a failure of the case**, not a
+  path-only match. Section 6.3 requires a `code` on any diagnostic a corpus case
+  pins, so a missing one is a malformed sidecar and the run must say so.
+- **A sidecar carrying a bare `message` is a failure**, not a field to ignore.
+  The advisory field is `message_advisory` precisely so that nothing compares
+  it; a key spelled `message` is either a sidecar written against the old shape
+  or a runner about to compare English, and both need a person.
+- **A case with the right path, the right English and the wrong `code` must go
+  red.** If it does not, the runner is matching on path alone and every code in
+  every sidecar is decoration.
+
+**A nested expectation needs a nested sweep.** The guard that should have caught
+the first failure looked only at the top level of each sidecar, so a `code`
+inside `diagnostics` was invisible to it — the guard shared the defect it was
+guarding against. Sweep the structure, not its first level.
+
+Two more, from the same family:
+
+- **Pair each expected diagnostic with one DISTINCT reported diagnostic.** A
+  runner that lets one report satisfy two expectations passes a reader that
+  found half the defects.
+- **Assert that each `format/` input is not already canonical.** Without it a
+  formatter that echoed its input passes the whole tier.
+
+Red-proof the runner itself before trusting a green: break the library
+deliberately and confirm the case you expect goes red, and that it is the ONLY
+one. A mutation that reddens three cases cannot tell you which rule you broke —
+`accept/track-partly-timed.expect.json` records a proof that had to be narrowed
+twice before it meant anything.
 
 ## Accept files are canonical
 
@@ -245,6 +320,34 @@ already says. Two consequences are live today:
 That is not a defect in a fixture. It is a field the corpus does not look at,
 and a second implementation reading a fixture infers its shape as though it were
 the format.
+
+### Saying that carefully
+
+"No tier catches this" is a green-asserting claim, and it stops being true
+without anything going red. Three such claims about this corpus were retired in
+a single day, each by somebody building the thing the claim said was impossible:
+that no fixture could carry a number tie, retired by `format/number-tie`, whose
+input spells a value one way and whose expected output spells it the other; that
+nothing past the writer boundary was reachable by a tier, retired by a tier that
+decodes and then writes; and that a ZIP64 archive small enough to commit could
+not exercise an extra-field parser, retired by masking the central directory
+instead of the local header.
+
+Every one of those was true of the corpus as it stood. None was a property of
+the format.
+
+> An unreachability claim is a claim about the current state of someone's
+> ingenuity.
+
+The working rule that survives is narrower and more useful: **a value-level
+property is reachable by a re-render whenever the two readings produce different
+TEXT for the same value.** Rounding is not, because a re-render never rounds.
+A rendering tie is, because a re-render always re-spells.
+
+So if a test in an implementation concludes that something is unreachable, that
+test asserts nothing the moment the corpus grows, and nothing will tell it. Re-run
+those tests when cases land, and prefer a proof naming what it expects to be RED
+over one that expects everything to be green.
 
 ## Editing a case
 

@@ -1,0 +1,414 @@
+//! The decoded document.
+//!
+//! Two properties of this model are load-bearing and neither is the shape a
+//! Rust type system pushes you towards:
+//!
+//! * A [`Position`] keeps its channel count. `[lon, lat, null]` and
+//!   `[lon, lat]` state the same thing (SPEC 4.1) and MUST both survive a
+//!   read-modify-write as written, so an `Option<f64>` elevation field — the
+//!   first shape most implementations reach for — cannot re-render the corpus.
+//! * A [`Record`] body, a `style` object and `rulesets` are kept as raw
+//!   [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and must survive
+//!   a read-modify-write at value level.
+
+use crate::json::Json;
+
+/// The `vnx` version string, and the numbers read out of it.
+///
+/// The declared text is kept because SPEC 2.2 requires a reader that
+/// re-encodes a document to write the version the document declared, not its
+/// own: `00.01.0000` is a legal spelling of 0.1.0 and is written back as it
+/// was read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Version {
+    pub text: String,
+    pub major: u64,
+    pub minor: u64,
+    pub patch: u64,
+}
+
+/// The version this crate implements.
+pub const SUPPORTED: (u64, u64) = (0, 1);
+
+/// A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC 4.1).
+///
+/// The channel count is state, not a detail of spelling. `channels` is at
+/// least two long, and its first two entries are always present.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Position {
+    channels: Vec<Option<f64>>,
+}
+
+impl Position {
+    /// Build a position from its channels.
+    ///
+    /// # Panics
+    ///
+    /// Panics if fewer than two channels are given, or if longitude or
+    /// latitude is absent. SPEC 4.1 permits `null` only from index 2 upward,
+    /// and the decoder rejects a document that breaks that rule before this is
+    /// reached.
+    pub fn new(channels: Vec<Option<f64>>) -> Self {
+        assert!(
+            channels.len() >= 2,
+            "a position carries at least longitude and latitude"
+        );
+        assert!(
+            channels[0].is_some() && channels[1].is_some(),
+            "longitude and latitude are never absent"
+        );
+        Position { channels }
+    }
+
+    /// A two-channel position.
+    pub fn lon_lat(lon: f64, lat: f64) -> Self {
+        Position::new(vec![Some(lon), Some(lat)])
+    }
+
+    pub fn lon(&self) -> f64 {
+        self.channels[0].expect("longitude is never absent")
+    }
+
+    pub fn lat(&self) -> f64 {
+        self.channels[1].expect("latitude is never absent")
+    }
+
+    /// Elevation in metres, absent when the channel is `null` or omitted.
+    pub fn ele(&self) -> Option<f64> {
+        self.channels.get(2).copied().flatten()
+    }
+
+    /// Unix milliseconds, absent when the channel is `null` or omitted.
+    pub fn time_ms(&self) -> Option<f64> {
+        self.channels.get(3).copied().flatten()
+    }
+
+    /// How many channels this position was written with. Load-bearing state:
+    /// a re-render reproduces it.
+    pub fn arity(&self) -> usize {
+        self.channels.len()
+    }
+
+    pub fn channels(&self) -> &[Option<f64>] {
+        &self.channels
+    }
+
+    /// Two positions meet when their longitude and latitude are equal.
+    ///
+    /// SPEC 3.3.3 compares inline chain endpoints "by value". Only longitude
+    /// and latitude are compared: an inline endpoint carries no elevation —
+    /// "elevation is taken from the polyline and is never stored on the
+    /// endpoint" — so a node at arity 3 and an inline endpoint at arity 2 name
+    /// the same point and must be found equal.
+    pub fn same_point(&self, other: &Position) -> bool {
+        self.lon() == other.lon() && self.lat() == other.lat()
+    }
+}
+
+/// A data record (SPEC 5). The body is opaque apart from `@type`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Record {
+    /// The whole record, `@type` included, exactly as it was read.
+    entries: Vec<(String, Json)>,
+}
+
+impl Record {
+    /// # Panics
+    ///
+    /// Panics unless the entries carry a string `@type`. The decoder drops a
+    /// record without one (SPEC 6.2) rather than constructing this.
+    pub fn new(entries: Vec<(String, Json)>) -> Self {
+        assert!(
+            entries
+                .iter()
+                .any(|(k, v)| k == "@type" && matches!(v, Json::String(_))),
+            "a record carries a string @type"
+        );
+        Record { entries }
+    }
+
+    pub fn type_name(&self) -> &str {
+        self.entries
+            .iter()
+            .find(|(k, _)| k == "@type")
+            .and_then(|(_, v)| v.as_str())
+            .expect("a record carries a string @type")
+    }
+
+    pub fn entries(&self) -> &[(String, Json)] {
+        &self.entries
+    }
+
+    /// True when this record's type is inside the reserved `app.viatrail.`
+    /// namespace (SPEC 5.3).
+    ///
+    /// The prefix is matched without regard to case, deliberately: a near-miss
+    /// produced by a capitalising keyboard is inside the namespace, not
+    /// another program's extension. Identity is still compared exactly — see
+    /// [`Record::type_name`] — so `App.viatrail.tag` remains a different type
+    /// from `app.viatrail.tag` and has no row in SPEC 5.2's table.
+    pub fn is_reserved_namespace(&self) -> bool {
+        let name = self.type_name();
+        name.len() >= "app.viatrail.".len()
+            && name[.."app.viatrail.".len()].eq_ignore_ascii_case("app.viatrail.")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Document {
+    pub vnx: Option<Version>,
+    pub profile: Option<String>,
+    pub generator: Option<String>,
+    pub created: Option<String>,
+    /// Every collection distinguishes absent from empty: SPEC 3.10 makes an
+    /// empty array distinct from an absent one, so `"waypoints": []` and no
+    /// `waypoints` key re-render differently.
+    pub folders: Option<Vec<Folder>>,
+    pub networks: Option<Vec<Network>>,
+    pub routes: Option<Vec<Route>>,
+    pub tracks: Option<Vec<Track>>,
+    pub waypoints: Option<Vec<Waypoint>>,
+    pub areas: Option<Vec<Area>>,
+    /// Opaque (SPEC 3.9). A 0.1 reader preserves it and interprets none of it.
+    pub rulesets: Option<Json>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Folder {
+    pub id: String,
+    pub parent: Option<String>,
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub hidden: Option<bool>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Network {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub folder: Option<String>,
+    pub hidden: Option<bool>,
+    /// Keyed by identifier, scoped to this network (SPEC 4.4). A `Vec` rather
+    /// than a map: entries are few, the key order is not significant, and the
+    /// crate takes no dependency on a hasher.
+    pub nodes: Option<Vec<(String, Position)>>,
+    pub arcs: Option<Vec<(String, NetworkArc)>>,
+    pub chains: Option<Vec<Chain>>,
+    pub points: Option<Vec<Waypoint>>,
+    pub areas: Option<Vec<Area>>,
+    pub data: Option<Vec<Record>>,
+}
+
+impl Network {
+    pub fn node(&self, key: &str) -> Option<&Position> {
+        self.nodes
+            .as_ref()?
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, p)| p)
+    }
+
+    pub fn arc(&self, key: &str) -> Option<&NetworkArc> {
+        self.arcs
+            .as_ref()?
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, a)| a)
+    }
+}
+
+/// An arc inside a network. `pips` is its COMPLETE point list, endpoints
+/// included (SPEC 3.3.2): a reader must not prepend or append node positions.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NetworkArc {
+    pub from: String,
+    pub to: String,
+    pub pips: Vec<Position>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Chain {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub hidden: Option<bool>,
+    pub style: Option<Json>,
+    pub links: Vec<Link>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Link {
+    pub arc: String,
+    pub from: Endpoint,
+    pub to: Endpoint,
+}
+
+/// A link endpoint: a node key, or a position on the named arc (SPEC 3.3.3).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Endpoint {
+    Node(String),
+    Inline(Position),
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Route {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub folder: Option<String>,
+    pub hidden: Option<bool>,
+    pub style: Option<Json>,
+    /// Ordered. An arc boundary is meaning — it is where the user changed how
+    /// the line was made — so the array is not a chunking of one polyline.
+    pub arcs: Vec<RouteArc>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RouteArc {
+    pub pips: Vec<Position>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Track {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub folder: Option<String>,
+    pub hidden: Option<bool>,
+    pub style: Option<Json>,
+    pub started: Option<String>,
+    pub ended: Option<String>,
+    pub segments: Vec<Segment>,
+    pub data: Option<Vec<Record>>,
+}
+
+impl Track {
+    /// Moving time in milliseconds, or `None` for unknown (SPEC 3.5).
+    ///
+    /// The sum over segments of the difference between the last and the first
+    /// pip time in that segment. Deliberately not the wall-clock span between
+    /// `started` and `ended`, which a pause lengthens.
+    ///
+    /// A segment whose first or last pip carries no time contributes nothing.
+    /// When no segment contributes, the answer is unknown — not zero, which is
+    /// indistinguishable from a track on which nobody moved. SPEC 3.5 states
+    /// the all-or-nothing case ("where the pips of a track carry no times")
+    /// and is silent on a partly timed track; skipping the untimed segments is
+    /// this crate's reading and is reported as such.
+    pub fn moving_time_ms(&self) -> Option<f64> {
+        let mut total = 0.0;
+        let mut any = false;
+        for segment in &self.segments {
+            let (Some(first), Some(last)) = (segment.pips.first(), segment.pips.last()) else {
+                continue;
+            };
+            let (Some(start), Some(end)) = (first.time_ms(), last.time_ms()) else {
+                continue;
+            };
+            total += end - start;
+            any = true;
+        }
+        any.then_some(total)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Segment {
+    pub pips: Vec<Position>,
+}
+
+/// A top-level waypoint, or a network's point. One shape (SPEC 3.6).
+///
+/// `folder` is carried only by a top-level waypoint; a network's point is
+/// placed by the network that contains it, and the decoder reports `folder` on
+/// one as an unrecognised key.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Waypoint {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub folder: Option<String>,
+    pub hidden: Option<bool>,
+    pub style: Option<Json>,
+    pub at: Position,
+    pub data: Option<Vec<Record>>,
+}
+
+/// A top-level area, or a network's area. `folder` is carried only by the
+/// top-level one, as for [`Waypoint`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Area {
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub folder: Option<String>,
+    pub hidden: Option<bool>,
+    pub style: Option<Json>,
+    /// One closed ring of at least four positions (SPEC 3.7). Holes and
+    /// multiple rings are not expressible.
+    pub polygon: Vec<Position>,
+    pub data: Option<Vec<Record>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arity_is_kept() {
+        let short = Position::lon_lat(-3.0, 57.0);
+        let long = Position::new(vec![Some(-3.0), Some(57.0), None]);
+        assert_eq!(short.arity(), 2);
+        assert_eq!(long.arity(), 3);
+        assert_eq!(short.ele(), None);
+        assert_eq!(long.ele(), None);
+        // The same point, differently spelled — and NOT the same model value,
+        // because the spelling has to survive a re-render.
+        assert!(short.same_point(&long));
+        assert_ne!(short, long);
+    }
+
+    #[test]
+    fn an_interior_absence_is_not_a_trailing_one() {
+        let p = Position::new(vec![Some(-3.0), Some(57.0), None, Some(1778914991000.0)]);
+        assert_eq!(p.ele(), None);
+        assert_eq!(p.time_ms(), Some(1778914991000.0));
+    }
+
+    #[test]
+    fn the_reserved_namespace_is_matched_without_regard_to_case() {
+        let record = |t: &str| {
+            Record::new(vec![("@type".to_string(), Json::String(t.to_string()))])
+        };
+        assert!(record("app.viatrail.tag").is_reserved_namespace());
+        assert!(record("App.viatrail.tag").is_reserved_namespace());
+        assert!(record("APP.VIATRAIL.X").is_reserved_namespace());
+        assert!(!record("com.example.tag").is_reserved_namespace());
+        assert!(!record("app.viatrai").is_reserved_namespace());
+        // Identity is still exact: the two spellings are different types.
+        assert_ne!(record("App.viatrail.tag").type_name(), record("app.viatrail.tag").type_name());
+    }
+
+    #[test]
+    fn moving_time_skips_a_pause_and_admits_when_it_cannot_know() {
+        let timed = |t0: f64, t1: f64| Segment {
+            pips: vec![
+                Position::new(vec![Some(-3.0), Some(57.0), None, Some(t0)]),
+                Position::new(vec![Some(-3.0), Some(57.1), None, Some(t1)]),
+            ],
+        };
+        let track = Track {
+            segments: vec![timed(0.0, 103_000.0), timed(1_889_000.0, 1_953_000.0)],
+            ..Track::default()
+        };
+        assert_eq!(track.moving_time_ms(), Some(167_000.0));
+
+        let untimed = Track {
+            segments: vec![Segment {
+                pips: vec![Position::lon_lat(-3.0, 57.0), Position::lon_lat(-3.0, 57.1)],
+            }],
+            ..Track::default()
+        };
+        assert_eq!(untimed.moving_time_ms(), None, "unknown is not zero");
+    }
+}

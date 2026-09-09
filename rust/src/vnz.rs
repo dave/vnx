@@ -1,0 +1,291 @@
+//! The VNZ container (SPEC 7): a ZIP archive carrying a VNX document and its
+//! attachments.
+
+use crate::decode::{decode, Reading};
+use crate::diag::{escape_token, Cause, Diagnostic};
+use crate::error::Refusal;
+use crate::zip::{Archive, Entry};
+
+/// A file carried alongside the document.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attachment {
+    pub path: String,
+    pub bytes: Vec<u8>,
+}
+
+/// A container that was read.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Container {
+    /// The name of the archive entry the document came from.
+    pub document_entry: String,
+    pub reading: Reading,
+    pub attachments: Vec<Attachment>,
+}
+
+/// Read a `.vnz` container.
+///
+/// SPEC 7's refusal causes are separate from SPEC 6.2's, and a fault in an
+/// attachment is not among either: an attachment this reader cannot decompress
+/// is dropped with a diagnostic, because refusing a whole library over one
+/// photograph would be disproportionate.
+pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
+    let archive = Archive::open(bytes).map_err(|e| Refusal::ContainerMalformed {
+        detail: e.to_string(),
+    })?;
+
+    check_paths(archive.entries())?;
+    check_duplicates(archive.entries())?;
+
+    let document_entry = choose_document(archive.entries())?;
+    if !document_entry.method_is_readable() {
+        return Err(Refusal::ContainerRootMethod {
+            method: document_entry.method,
+        });
+    }
+    let document_bytes = archive
+        .read(document_entry)
+        .map_err(|e| Refusal::ContainerMalformed {
+            detail: e.to_string(),
+        })?;
+    let mut reading = decode(&document_bytes)?;
+
+    let mut attachments = Vec::new();
+    for entry in archive.entries() {
+        if entry.name == document_entry.name || entry.is_directory() {
+            continue;
+        }
+        if !entry.method_is_readable() {
+            reading.diagnostics.push(Diagnostic::new(
+                attachment_pointer(&entry.name),
+                Cause::AttachmentMethodUnreadable {
+                    method: entry.method,
+                },
+            ));
+            continue;
+        }
+        match archive.read(entry) {
+            Ok(bytes) => attachments.push(Attachment {
+                path: entry.name.clone(),
+                bytes,
+            }),
+            Err(e) => {
+                return Err(Refusal::ContainerMalformed {
+                    detail: e.to_string(),
+                })
+            }
+        }
+    }
+
+    Ok(Container {
+        document_entry: document_entry.name.clone(),
+        reading,
+        attachments,
+    })
+}
+
+/// SPEC 6.3 defines a diagnostic's `path` as a JSON Pointer into the document,
+/// and an archive entry is not in the document. This crate points at
+/// `/attachments/<name>`, which no document key can collide with because a VNX
+/// document has no top-level `attachments`. Reported as a spec gap.
+fn attachment_pointer(name: &str) -> String {
+    format!("/attachments/{}", escape_token(name))
+}
+
+/// SPEC 7. A path must be relative and forward-slash separated; an absolute
+/// path, a drive letter, or a `..` SEGMENT is refused. `..` is a segment, not
+/// a substring: `a..b/photo.jpg` is a legal name and escapes nothing.
+///
+/// A backslash-separated name is refused too. SPEC 7's refusal sentence names
+/// three faults and not this one, but it also states the requirement, and a
+/// backslash is how the same escape is spelled on the platform that has drive
+/// letters. This crate's reading, reported as such.
+fn check_paths(entries: &[Entry]) -> Result<(), Refusal> {
+    for entry in entries {
+        let name = &entry.name;
+        let escapes = name.starts_with('/')
+            || name.contains('\\')
+            || has_drive_letter(name)
+            || name.split('/').any(|segment| segment == "..");
+        if escapes {
+            return Err(Refusal::ContainerPathEscapes { name: name.clone() });
+        }
+    }
+    Ok(())
+}
+
+fn has_drive_letter(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+}
+
+/// SPEC 7: duplicate entry names are refused, compared without regard to case.
+/// Language runtimes resolve a repeated name differently, so one archive would
+/// otherwise yield different documents in different languages — and that
+/// applies to `doc.vnx` beside `DOC.VNX` exactly as it applies to an exact
+/// repeat.
+fn check_duplicates(entries: &[Entry]) -> Result<(), Refusal> {
+    let mut seen: Vec<String> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let folded = entry.name.to_lowercase();
+        if seen.contains(&folded) {
+            return Err(Refusal::ContainerDuplicateEntry {
+                name: entry.name.clone(),
+            });
+        }
+        seen.push(folded);
+    }
+    Ok(())
+}
+
+/// SPEC 7: prefer an entry named `doc.vnx` at the archive root. Where there is
+/// none, take the FIRST entry with a `.vnx` extension in archive order. Names
+/// are compared without regard to case.
+///
+/// The match is on the full entry name, not on the base name: matching on the
+/// base name alone would match at any depth, and letting the last such match
+/// win rather than the first is the defect SPEC 7's note calls out.
+fn choose_document(entries: &[Entry]) -> Result<&Entry, Refusal> {
+    if let Some(entry) = entries
+        .iter()
+        .find(|e| e.name.eq_ignore_ascii_case("doc.vnx"))
+    {
+        return Ok(entry);
+    }
+    entries
+        .iter()
+        .find(|e| !e.is_directory() && has_vnx_extension(&e.name))
+        .ok_or(Refusal::ContainerNoDocument)
+}
+
+fn has_vnx_extension(name: &str) -> bool {
+    name.len() > 4 && name[name.len() - 4..].eq_ignore_ascii_case(".vnx")
+}
+
+// ---------------------------------------------------------------------------
+// Writing
+// ---------------------------------------------------------------------------
+
+/// Write a `.vnz` container: `doc.vnx` at the archive root, then the
+/// attachments in the order given.
+///
+/// Entries are STORED. SPEC 7 permits stored or deflate, and a compressor is
+/// not needed to produce a conforming archive — so this crate carries an
+/// inflater and no deflater. A caller that wants smaller files compresses the
+/// archive itself.
+///
+/// # Errors
+///
+/// An attachment path that SPEC 7 would make a reader refuse is refused here
+/// rather than written, so this writer cannot produce an archive its own
+/// reader would reject.
+pub fn write(document_bytes: &[u8], attachments: &[Attachment]) -> Result<Vec<u8>, Refusal> {
+    let mut names = vec![Attachment {
+        path: "doc.vnx".to_string(),
+        bytes: document_bytes.to_vec(),
+    }];
+    names.extend_from_slice(attachments);
+
+    let as_entries: Vec<Entry> = names
+        .iter()
+        .map(|a| Entry {
+            name: a.path.clone(),
+            method: 0,
+            crc32: 0,
+            compressed_size: 0,
+            uncompressed_size: 0,
+            local_header_offset: 0,
+        })
+        .collect();
+    check_paths(&as_entries)?;
+    check_duplicates(&as_entries)?;
+
+    Ok(crate::zip::write_stored(&names))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(name: &str) -> Entry {
+        Entry {
+            name: name.to_string(),
+            method: 0,
+            crc32: 0,
+            compressed_size: 0,
+            uncompressed_size: 0,
+            local_header_offset: 0,
+        }
+    }
+
+    #[test]
+    fn a_dot_dot_segment_is_refused_and_a_dot_dot_substring_is_not() {
+        assert!(check_paths(&[entry("../../etc/passwd")]).is_err());
+        assert!(check_paths(&[entry("photos/../secret")]).is_err());
+        assert!(check_paths(&[entry("/etc/passwd")]).is_err());
+        assert!(check_paths(&[entry("C:/windows/system32")]).is_err());
+        assert!(check_paths(&[entry("a\\b")]).is_err());
+        // `..` is a SEGMENT, not a substring.
+        assert!(check_paths(&[entry("a..b/photo.jpg")]).is_ok());
+        assert!(check_paths(&[entry("attachments/photo.txt")]).is_ok());
+    }
+
+    #[test]
+    fn duplicates_are_compared_without_regard_to_case() {
+        assert!(check_duplicates(&[entry("doc.vnx"), entry("doc.vnx")]).is_err());
+        assert!(check_duplicates(&[entry("doc.vnx"), entry("DOC.VNX")]).is_err());
+        assert!(check_duplicates(&[entry("doc.vnx"), entry("other.vnx")]).is_ok());
+    }
+
+    #[test]
+    fn the_root_document_is_preferred_and_the_fallback_takes_the_first() {
+        let entries = [entry("a.vnx"), entry("doc.vnx"), entry("z.vnx")];
+        assert_eq!(choose_document(&entries).expect("chosen").name, "doc.vnx");
+
+        let entries = [entry("some-export.vnx"), entry("later.vnx")];
+        assert_eq!(
+            choose_document(&entries).expect("chosen").name,
+            "some-export.vnx"
+        );
+
+        // The match is on the FULL name: a nested doc.vnx is not the root one,
+        // so the fallback applies and takes the first .vnx in archive order.
+        let entries = [entry("first.vnx"), entry("nested/doc.vnx")];
+        assert_eq!(choose_document(&entries).expect("chosen").name, "first.vnx");
+
+        assert!(choose_document(&[entry("photo.jpg")]).is_err());
+    }
+
+    #[test]
+    fn a_container_this_crate_writes_is_one_it_reads() {
+        let document = b"{\n  \"vnx\": \"0.1.0\"\n}\n";
+        let bytes = write(
+            document,
+            &[Attachment {
+                path: "attachments/photo.txt".into(),
+                bytes: b"not really a photo\n".to_vec(),
+            }],
+        )
+        .expect("written");
+        let container = read(&bytes).expect("read back");
+        assert_eq!(container.document_entry, "doc.vnx");
+        assert_eq!(container.attachments.len(), 1);
+        assert_eq!(container.attachments[0].path, "attachments/photo.txt");
+        assert_eq!(container.attachments[0].bytes, b"not really a photo\n");
+        assert_eq!(container.reading.diagnostics, vec![]);
+    }
+
+    #[test]
+    fn this_writer_will_not_produce_an_archive_its_reader_refuses() {
+        let refused = write(
+            b"{}",
+            &[Attachment {
+                path: "../escape.txt".into(),
+                bytes: vec![],
+            }],
+        );
+        assert!(matches!(
+            refused,
+            Err(Refusal::ContainerPathEscapes { .. })
+        ));
+    }
+}

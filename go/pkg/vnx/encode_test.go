@@ -198,3 +198,39 @@ func ring() []Position {
 		{Lon: -3, Lat: 57}, {Lon: -2.9, Lat: 57}, {Lon: -2.9, Lat: 57.1}, {Lon: -3, Lat: 57},
 	}
 }
+
+// TestAnEmptyDataBagIsPresent extends spec §3.1's absent-versus-empty rule to
+// the place §3.10 generalises it to: "requiring a key does not require a
+// non-empty value ... an empty array is distinct from an absent one".
+//
+// ⚠ THE SEVEN COLLECTIONS WERE A SAMPLE, NOT A CENSUS. `data` was the second
+// surface with the same defect and it was found by a cold reader, not by the
+// change that fixed the first. The remaining one is `style`, which needs a model
+// change rather than a guard change: PointStyle and ChainStyle are structs with
+// named fields, so an empty style and an absent one are the same value
+// everywhere in this package.
+func TestAnEmptyDataBagIsPresent(t *testing.T) {
+	const src = `{"vnx":"0.1.0","waypoints":[` +
+		`{"name":"absent","at":[-3,57]},` +
+		`{"name":"empty","at":[-3,57],"data":[]}]}`
+	doc, diags, err := Decode([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("an empty data bag is legal: %v", diags)
+	}
+	if doc.Waypoints[0].Data != nil {
+		t.Error("an absent `data` decoded to a non-nil bag")
+	}
+	if doc.Waypoints[1].Data == nil {
+		t.Error("an empty `data` decoded to nil, so the two are already one value in the model")
+	}
+	got, err := Reformat(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := bytes.Count(got, []byte(`"data": []`)); n != 1 {
+		t.Errorf("got %d empty data bags in the re-render, want exactly 1:\n%s", n, got)
+	}
+}

@@ -386,7 +386,12 @@ func chainStyleTree(s ChainStyle) map[string]any {
 // body is opaque apart from @type, so it is written back exactly as it came in
 // — that is what makes an unknown record survive read-modify-write.
 func putData(o map[string]any, recs []Record) error {
-	if len(recs) == 0 {
+	// ⚠ nil, NOT len == 0. Spec §3.10 generalises §3.1's rule beyond the
+	// envelope: requiring a key does not require a non-empty value, and an
+	// empty array is distinct from an absent one. `dataField` returns nil for an
+	// absent key and a non-nil empty slice for `[]`, so the model already draws
+	// the line and only this guard erased it.
+	if recs == nil {
 		return nil
 	}
 	arr, err := recordBodies(recs)

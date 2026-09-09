@@ -74,15 +74,26 @@ significant; see Section 4.4.
 The value is `MAJOR.MINOR.PATCH`: three components, each one or more decimal
 digits, separated by U+002E FULL STOP. All three components are REQUIRED.
 
-The rules a reader applies are selected by the DOCUMENT's MAJOR component, not
-by the reader's. They describe the compatibility guarantees a document's author
-was working under, and a newer reader cannot grant itself later rules over an
-older document.
+Which regime applies is selected by the DOCUMENT's MAJOR component: 0.x documents
+are read under the rules for 0.x below, and 1.0-and-later documents under the
+rules from 1.0. A regime describes the compatibility guarantees a document's
+author was working under, and those belong to the document rather than to
+whoever opens it.
 
-A reader that does not implement a document's major series MUST refuse it, rather
-than read it under the rules of a series it does implement. Reading a 0.x
-document under 1.x's rule that a reader ignores what it does not recognise is a guess about
-guarantees the document never carried.
+Within the selected regime, every comparison is against the READER's own version.
+
+A reader MAY support more than one MAJOR series, and one that supports several
+applies each document's own regime. A reader that does not support a document's
+MAJOR series MUST refuse it, naming the version, rather than read it under the
+rules of a series it does support. Reading a 0.x document under the 1.0 rule
+that a reader ignores what it does not recognise is a guess about guarantees the
+document never carried.
+
+Support for an earlier series is a MAY rather than a MUST because carrying it is
+a real burden on an implementation that never met one, and because refusing is
+visible to whoever holds the file where a wrong guess is silent. Note that every
+VNX document written so far is 0.1.x, so a 1.0 reader that drops 0.x support
+refuses every file in existence.
 
 A reader MUST compare the MAJOR and MINOR components of the document against
 its own supported version. The PATCH component MUST NOT be used to refuse a
@@ -793,10 +804,19 @@ A control character with a short escape is written with it: `\b`, `\f`, `\n`,
 `\r`, `\t`. Every other control character is written `\u00xx`. The hexadecimal
 digits are lowercase.
 
-Note: Go's `encoding/json` escapes U+2028 and U+2029 even with
-`SetEscapeHTML(false)`, so no configuration of it emits canonical form. That is
-measured, and it is why writing a string renderer is a requirement rather than a
-preference; the `<`, `>` and `&` escaping is only the visible half.
+A control character at or above U+0020 is not escaped. U+007F DELETE is written
+raw.
+
+Note: measured against Go 1.25.6's `encoding/json`, which agrees with these rules
+on the short escapes and on lowercase hexadecimal, and disagrees on two counts.
+It escapes `<`, `>` and `&`, which `SetEscapeHTML(false)` corrects. It also
+escapes U+2028 and U+2029, and no exported option reaches those: they are escaped
+at every setting, because they are legal in JSON and illegal inside a JavaScript
+string literal, so the encoder protects output that might be pasted into a
+script. Sound for a general encoder, and wrong for a format that pins its bytes.
+The consequence is that Go's standard library cannot emit canonical form at any
+configuration, so "configure the encoder" is not an instruction that can be
+followed and a conforming implementation writes its own string renderer.
 
 Note: Go's `encoding/json` escapes those last five by default and must be
 configured not to. No character above U+007F may be written as a `\u` escape.

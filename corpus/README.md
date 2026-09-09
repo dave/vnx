@@ -349,6 +349,32 @@ test asserts nothing the moment the corpus grows, and nothing will tell it. Re-r
 those tests when cases land, and prefer a proof naming what it expects to be RED
 over one that expects everything to be green.
 
+## Writing a case's note
+
+A note earns its place by saying what a fixture separates. That is a different
+claim from what the fixture contains, and the second is worth nothing on its
+own: a construct present in a case that no expectation names is not covered by
+it.
+
+**A claim that part of a fixture is decorative is unmeasured until a table
+exists.** Nobody writes that sentence after measuring; it is what gets written
+while explaining why a value was added, and it reads to the next person as
+permission to delete the value. `write/emit-boundary` carries two elevation
+ties, one of which looks redundant beside the other. Against the five wrong tie
+rules an implementation reaches for, they catch different pairs, and only both
+together identify round-half-to-even.
+
+So a note that says a value is `only` there for something, or is `not` the
+point, or exists `merely` to prevent something, is a claim about discrimination
+that nobody has checked. Either produce the table and put it in the note, or do not make the
+claim.
+
+The same applies to an absence. A fixture built carefully and missing an obvious
+case reads as an oversight, and the next person adds it. Where a case is left out
+deliberately, the note says why it adds nothing. `write/emit-boundary` carries
+no negative rounding tie because every wrong rule is already separated by one of
+its two positive values.
+
 ## Editing a case
 
 Do not make a red corpus file green by editing the fixture. The fixture is the

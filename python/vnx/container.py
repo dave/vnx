@@ -45,20 +45,22 @@ def _check_path(name: str) -> None:
         raise VNXRefusal(f"{name!r} escapes the archive: an absolute path")
     if _DRIVE_LETTER.match(name):
         raise VNXRefusal(f"{name!r} escapes the archive: a drive letter")
+    # A backslash anywhere in a member name is refused, unconditionally, and
+    # this check stands alone rather than feeding the `..` hunt below.  Ruled
+    # 2026-09-09.  It is deliberately stricter than the ZIP appnote, which
+    # permits the character: no VNX archive has a legitimate use for a backslash
+    # in an entry name, and on a Windows-authored archive `..\x` is a real
+    # escape.  Refusing the character outright means "is a backslash a separator
+    # while hunting for the segment" never has to be answered.
+    if "\\" in name:
+        raise VNXRefusal(
+            f"{name!r} escapes the archive: an entry name may not contain a "
+            "backslash"
+        )
+
     # SPEC 7: `..` is a path SEGMENT, not a substring, and names
     # `a..b/photo.jpg` as a legal entry that escapes nothing.
-    #
-    # A backslash is separated out because SPEC 7 requires a path to be
-    # forward-slash separated without saying what a reader does with one that is
-    # not.  A Windows-authored archive can carry `..\x`, which the ZIP appnote
-    # permits and which is a real escape on a Windows extractor, so `\` counts
-    # as a separator for THIS check only.  A name that merely contains a
-    # backslash, such as `weird\name.jpg`, is legal on a POSIX filesystem and is
-    # not refused: the rule is about separators rather than about the character.
-    #
-    # Refusing `..\x` is this implementation's reading. The JavaScript seat
-    # reached the same one independently; nothing in SPEC 7 states the remedy.
-    if ".." in re.split(r"[/\\]", name):
+    if ".." in name.split("/"):
         raise VNXRefusal(f"{name!r} escapes the archive: a `..` path segment")
 
 
@@ -110,18 +112,44 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
     if document_name is None:
         raise VNXRefusal("not a VNX document: the container holds no .vnx entry")
 
+    # SPEC 7: compression must be stored or deflate, and the remedy for another
+    # method depends on which entry carries it.  The root document leaves nothing
+    # to return, so the archive is refused; an attachment is dropped and
+    # reported, because refusing a whole library over one photograph compressed
+    # by an unusual method would be disproportionate.
+    unreadable: set[str] = set()
     for info in archive.infolist():
-        if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+        if info.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            continue
+        if info.filename == document_name:
             raise VNXRefusal(
-                f"entry {info.filename!r} uses a compression method that is not "
-                "stored or deflate"
+                f"the root document {info.filename!r} uses a compression method "
+                "that is not stored or deflate"
             )
+        unreadable.add(info.filename)
 
     result: ReadResult = read_bytes(archive.read(document_name))
-    attachments = [name for name in names if name != document_name]
+    diagnostics = list(result.diagnostics)
+    for name in sorted(unreadable):
+        # SPEC 6.3 shapes a diagnostic's path as a JSON Pointer into the
+        # document, and an archive entry is not in the document, so the pointer
+        # addresses the document as a whole and the message names the entry.
+        # No corpus case pins this diagnostic, so it carries no code: SPEC 6.3
+        # permits that, and inventing a token no case pins would commit the wire
+        # to one this format has not chosen.
+        diagnostics.append(
+            Diagnostic(
+                "",
+                f"attachment {name!r} uses a compression method that is not "
+                "stored or deflate, and was dropped",
+            )
+        )
+    attachments = [
+        name for name in names if name != document_name and name not in unreadable
+    ]
     return ContainerReadResult(
         document=result.document,
-        diagnostics=result.diagnostics,
+        diagnostics=diagnostics,
         attachments=attachments,
         document_name=document_name,
     )
@@ -154,11 +182,12 @@ def _container(
     body: bytes, attachments: Union[dict[str, bytes], None]
 ) -> bytes:
     for name in attachments or {}:
+        # A writer refuses to pack a name it would refuse to read.
         _check_path(name)
         if name.lower() == _ROOT_DOCUMENT:
             raise VNXRefusal(f"an attachment may not be named {name!r}")
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
         archive.writestr(_zip_info(_ROOT_DOCUMENT), body)
         for name, body in (attachments or {}).items():
             archive.writestr(_zip_info(name), body)
@@ -186,5 +215,13 @@ class _UTF8Info(zipfile.ZipInfo):
 
 def _zip_info(name: str) -> zipfile.ZipInfo:
     info = _UTF8Info(name, date_time=(1980, 1, 1, 0, 0, 0))
-    info.compress_type = zipfile.ZIP_DEFLATED
+    # A writer emits STORED for every entry; a reader still accepts deflate.
+    # Ruled 2026-09-09 because deflate has no canonical output: for one corpus
+    # document Go's compress/flate emits 116 bytes and zlib emits 108, and no
+    # zlib level from 0 to 9 reproduces the committed bytes.  A deflated archive
+    # is byte-reproducible only by the language that wrote it, whatever it pins
+    # in its headers, so fixing the timestamps was necessary and not sufficient.
+    # The asymmetry matches canonical form: required of what a library writes,
+    # never of what it will read.
+    info.compress_type = zipfile.ZIP_STORED
     return info

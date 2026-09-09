@@ -181,20 +181,29 @@ class Track:
         times in that segment.  Deliberately not the wall-clock span between
         ``started`` and ``ended``, which pauses lengthen.
 
-        ``None`` when no pip in the track carries a time.  Unknown is not zero:
-        zero is indistinguishable from a track on which nobody moved.
+        Derivable only when EVERY segment carries a time on its first and last
+        pip.  A sum over the segments that happen to be timed is
+        indistinguishable from a complete one, and no consumer can tell which it
+        was given: zero is at least recognisable as suspicious, a partial sum is
+        not.  This library summed what it had until that was ruled otherwise, as
+        did two other implementations including the reference one, and every
+        corpus tier stayed green for all three.
+
+        ``None`` for a track with no segments as well: unknown, not zero.
         """
+        segments = self.segments or []
+        if not segments:
+            return None
         total = 0.0
-        seen = False
-        for segment in self.segments or []:
-            times = [
-                pip.time_ms for pip in (segment.pips or []) if pip.time_ms is not None
-            ]
-            if not times:
-                continue
-            seen = True
-            total += times[-1] - times[0]
-        return total if seen else None
+        for segment in segments:
+            pips = segment.pips or []
+            if not pips:
+                return None
+            first, last = pips[0].time_ms, pips[-1].time_ms
+            if first is None or last is None:
+                return None
+            total += last - first
+        return total
 
 
 @dataclass(slots=True)

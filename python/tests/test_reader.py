@@ -321,12 +321,32 @@ class MovingTime(unittest.TestCase):
         track = self.track('[{"pips": [[0,0,null,1000]]}]')
         self.assertEqual(track.moving_time_ms(), 0.0)
 
-    def test_a_partly_timed_track_uses_the_pips_that_carry_times(self) -> None:
-        # SPEC 3.5 covers "no times at all" and every pip timed.  A track with
-        # some pips timed is not addressed; this implementation uses the first
-        # and last timed pip of each segment.
+    def test_a_segment_whose_END_PIPS_lack_times_is_unknown(self) -> None:
+        """Ruled 2026-09-09: derivable only when every segment carries a time on
+        its FIRST and LAST pip. This library previously took the first and last
+        TIMED pip and answered 3000 here."""
         track = self.track('[{"pips": [[0,0], [0,0,null,1000], [0,0,null,4000], [0,0]]}]')
-        self.assertEqual(track.moving_time_ms(), 3000.0)
+        self.assertIsNone(track.moving_time_ms())
+
+    def test_one_untimed_segment_makes_the_whole_track_unknown(self) -> None:
+        """A sum over the timed segments is indistinguishable from a complete
+        one, and no consumer can tell which it was given."""
+        track = self.track(
+            '[{"pips": [[0,0,null,1000], [0,0,null,4000]]},'
+            ' {"pips": [[0,0], [0,0]]}]'
+        )
+        self.assertIsNone(track.moving_time_ms())
+
+    def test_every_segment_timed_still_sums(self) -> None:
+        track = self.track(
+            '[{"pips": [[0,0,null,1000], [0,0,null,4000]]},'
+            ' {"pips": [[0,0,null,9000], [0,0,null,9500]]}]'
+        )
+        self.assertEqual(track.moving_time_ms(), 3500.0)
+
+    def test_an_empty_segment_makes_it_unknown(self) -> None:
+        track = self.track('[{"pips": [[0,0,null,1000], [0,0,null,4000]]}, {"pips": []}]')
+        self.assertIsNone(track.moving_time_ms())
 
     def test_no_segments_is_unknown(self) -> None:
         self.assertIsNone(self.track("[]").moving_time_ms())
@@ -878,18 +898,33 @@ class ContainerPathRules(unittest.TestCase):
     def test_a_dot_dot_segment_is_refused(self) -> None:
         self.assertIn("escapes the archive", self.refuses("../x"))
 
-    def test_a_backslash_separated_dot_dot_is_refused(self) -> None:
-        """A Windows-authored archive can carry `..\\x`, which the ZIP appnote
-        permits and which is a real escape on a Windows extractor. SPEC 7 states
-        no remedy; the JavaScript seat reached the same reading independently."""
-        self.assertIn("escapes the archive", self.refuses("..\\x"))
-        self.assertIn("escapes the archive", self.refuses("a\\..\\b"))
+    def test_a_backslash_anywhere_is_refused(self) -> None:
+        """Ruled 2026-09-09, and deliberately stricter than the ZIP appnote.
 
-    def test_a_backslash_in_a_name_is_not_itself_refused(self) -> None:
-        """`weird\\name.jpg` is a legal POSIX filename and escapes nothing. The
-        rule is about separators, not about the character."""
-        result = vnx.read_container_bytes(self.build(["weird\\name.jpg"]))
-        self.assertEqual(result.attachments, ["weird\\name.jpg"])
+        No VNX archive has a legitimate use for a backslash in an entry name, and
+        on a Windows-authored archive `..\\x` is a real escape. Refusing the
+        character outright means "is a backslash a separator while hunting for
+        the `..` segment" never has to be answered.
+
+        This library first shipped the narrower reading, splitting on `\\` for
+        the segment hunt alone, which accepted `weird\\name.jpg`.
+        """
+        for name in ("..\\x", "a\\..\\b", "weird\\name.jpg", "sub\\photo.jpg"):
+            with self.subTest(name=name):
+                self.assertIn("backslash", self.refuses(name))
+
+    def test_the_backslash_and_segment_rules_do_not_collapse(self) -> None:
+        """Two independent rules, so neither absorbs the other."""
+        self.assertIn("backslash", self.refuses("a\\b.jpg"))
+        self.assertIn("`..` path segment", self.refuses("../x"))
+        result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
+        self.assertEqual(result.attachments, ["a..b/photo.jpg"])
+
+    def test_the_writer_refuses_a_name_it_would_refuse_to_read(self) -> None:
+        document = vnx.read_bytes(self.DOC).document
+        for name in ("weird\\name.jpg", "../x", "/abs", "C:/x"):
+            with self.subTest(name=name), self.assertRaises(vnx.VNXRefusal):
+                vnx.encode_container_bytes(document, {name: b"x"})
 
     def test_a_dot_dot_substring_is_legal(self) -> None:
         """SPEC 7 names `a..b/photo.jpg` legal: `..` is a segment, not a
@@ -927,3 +962,91 @@ class ContainerPathRules(unittest.TestCase):
             vnx.read_container_bytes(buffer.getvalue())
         self.assertIn("duplicate entry", str(caught.exception))
         self.assertNotIn("only by case", str(caught.exception))
+
+
+class ContainerCompression(unittest.TestCase):
+    """SPEC 7's compression remedy, which depends on which entry it is.
+
+    No corpus archive uses a method other than stored or deflate, so nothing
+    here is reachable by the corpus.
+    """
+
+    DOC = b'{"vnx": "0.1.0"}'
+
+    def archive(self, doc_method: int, attachment_method: int) -> bytes:
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as handle:
+            for name, body, method in (
+                ("doc.vnx", self.DOC, doc_method),
+                ("attachments/photo.txt", b"x", attachment_method),
+            ):
+                info = zipfile.ZipInfo(name)
+                info.compress_type = method
+                handle.writestr(info, body)
+        return buffer.getvalue()
+
+    def test_stored_and_deflate_are_both_read(self) -> None:
+        import zipfile
+
+        for method in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            with self.subTest(method=method):
+                result = vnx.read_container_bytes(self.archive(method, method))
+                self.assertEqual(result.attachments, ["attachments/photo.txt"])
+                self.assertEqual(result.diagnostics, [])
+
+    def test_an_unreadable_root_document_refuses_the_archive(self) -> None:
+        import zipfile
+
+        with self.assertRaises(vnx.VNXRefusal) as caught:
+            vnx.read_container_bytes(
+                self.archive(zipfile.ZIP_BZIP2, zipfile.ZIP_STORED)
+            )
+        self.assertIn("root document", str(caught.exception))
+
+    def test_an_unreadable_attachment_is_dropped_and_reported(self) -> None:
+        """Refusing a whole library over one photograph would be
+        disproportionate, so the document is returned without it."""
+        import zipfile
+
+        result = vnx.read_container_bytes(
+            self.archive(zipfile.ZIP_STORED, zipfile.ZIP_BZIP2)
+        )
+        self.assertEqual(result.attachments, [])
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertIn("attachments/photo.txt", result.diagnostics[0].message)
+        self.assertIsNone(
+            result.diagnostics[0].code, "no corpus case pins this diagnostic"
+        )
+        self.assertIsNotNone(result.document)
+
+
+class ContainerWriterUsesStored(unittest.TestCase):
+    """A writer emits STORED for every entry; a reader still accepts deflate.
+
+    Ruled 2026-09-09 because deflate has no canonical output: for one corpus
+    document Go's `compress/flate` emits 116 bytes and zlib emits 108, and no
+    zlib level from 0 to 9 reproduces the committed bytes. A deflated archive is
+    byte-reproducible only by the language that wrote it.
+
+    Python is the seat least likely to notice the rule is needed, because
+    `zipfile` defaults to stored: this library satisfied the rule by accident
+    before it existed, in the same way its number rendering satisfies others.
+    """
+
+    def test_every_entry_is_stored(self) -> None:
+        import zipfile
+
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            for info in archive.infolist():
+                with self.subTest(entry=info.filename):
+                    self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+
+    def test_the_archive_is_byte_reproducible(self) -> None:
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        first = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
+        second = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
+        self.assertEqual(first, second)

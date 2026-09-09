@@ -776,9 +776,8 @@ guard in it.
 
 A rule that is unambiguous, stated in the normative document, and enforced by
 nothing produces total confidence and zero enforcement. An open question makes
-people uneasy, so it stays on a list and somebody eventually checks it. A settled
-one does not, and nobody asks whether anything checks it, because the question
-feels answered.
+people uneasy, so it stays on a list and gets checked. A settled one does not,
+and nobody asks whether anything checks it, because the question feels answered.
 
 The evidence is the partly-timed track. Three implementations summed a partial
 moving time with every corpus tier green, and that was already a rule the
@@ -786,13 +785,12 @@ specification stated. Prose did not change what passed; a fixture did.
 
 > Prose changes what people believe. A fixture changes what passes.
 
-So "this one is ruled, so it must be handled" is backwards. **A written rule with
-no fixture is the one most likely to be quietly violated, because everyone reading
-the specification believes it is enforced.** Four rules were in that state at once
-here: node-key resolution, the full-entry-name root document match, `a..b/photo.jpg`
+So "this one is ruled, so it must be handled" is backwards. A written rule with no
+fixture is the one most likely to be quietly violated, because everyone reading
+the specification believes it is enforced. Four rules sat in that state at once:
+node-key resolution, the full-entry-name root document match, `a..b/photo.jpg`
 being legal, and a backslash in an entry name being refused. *(Reported by the
-JavaScript implementation, which holds a proof for each asserting the corpus stays
-green while the rule is broken.)*
+JavaScript implementation, which holds a proof for each.)*
 
 The repair for the three failing mechanisms is to make the test read the artefact. Mutate
 the implementation, run the real corpus, and assert exactly which cases fail. That

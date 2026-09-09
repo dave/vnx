@@ -1,0 +1,22 @@
+{
+  "vnx": "0.1.0",
+  "networks": [
+    {
+      "name": "Every empty container, spelled long",
+      "arcs": {},
+      "areas": [],
+      "chains": [],
+      "data": [
+        {
+          "@type": "com.example.empties",
+          "list": [],
+          "map": {}
+        }
+      ],
+      "nodes": {},
+      "points": []
+    }
+  ],
+  "routes": [],
+  "waypoints": []
+}

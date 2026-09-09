@@ -36,6 +36,21 @@ renderer about values already spelled correctly — the same blindness that hid 
 negative-zero defect. Only an input written in the WRONG spelling asks the
 question.
 
+## `empty-containers`
+
+Section 4.5.5 writes an empty array `[]` and an empty object `{}`, each on one
+line. `empty-containers.in.vnx` spells nine of them long — across several lines,
+with and without blank lines inside — at all three depths the rule has to reach:
+a top-level collection, a network's `nodes` and `arcs`, and a list and a map
+inside an opaque data record body, where the formatter cannot know the key and
+has to classify by the value alone.
+
+`accept/empty-collections.vnx` carries empty containers too and cannot do this
+job. It is stored canonical, so it only ever hands the renderer a container
+already spelled `[]`. Red-proofed 2026-09-09 by making an empty array render
+across two lines: this pair goes red and the whole accept tier stays green,
+which is the same blindness that hid the negative-zero defect.
+
 ## Where the corpus's reach ends
 
 Every tier here re-renders a document. **No tier ever asks a library to WRITE

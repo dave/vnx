@@ -95,8 +95,11 @@ AREA_IN_NETWORK = AREA - {"folder"}
 # A style body is therefore opaque: no key inside one can be unknown, and every
 # key survives a read-modify-write untouched.
 #
-# One style VALUE is still inspected, and that is not a contradiction.  SPEC 3.6
-# states a normative range for `importance`, ruled 2026-09-09, and a normative
-# range is a rule about a value rather than about the key set -- exactly as
-# SPEC 5.2 gives typed payloads to records whose bodies stay opaque.  See
-# `decode._Reader._waypoint`.
+# "Styles are opaque, so why is `importance` checked?"  Because opacity is a
+# rule about the KEY SET and a normative range is a rule about a VALUE, and the
+# two do not collide.  SPEC 5.2 already has exactly this shape: a data record
+# body stays opaque while a recognised type carries a typed payload.  So a style
+# whose keys are not enumerated can still have a stated range on one of them --
+# SPEC 3.6's `importance`, 1 to 5, ruled normative on 2026-09-09 in the same
+# breath as `icon-size`'s list of sizes being ruled informative.  The check is
+# `decode._Reader._check_importance`.

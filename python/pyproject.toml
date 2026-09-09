@@ -1,0 +1,19 @@
+# The library has no dependencies and is not published anywhere; this file
+# exists so an editor, a type checker and `pip install -e .` all agree on where
+# the package is.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vnx"
+version = "0.1.0"
+description = "A Python codec for the VNX (Viatrail Network eXchange) format"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools]
+packages = ["vnx"]
+
+[tool.mypy]
+strict = true

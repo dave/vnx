@@ -1,0 +1,347 @@
+"""Proof that the corpus runner would catch a defect.
+
+"The corpus passes" is not evidence that the corpus discriminates.  Each test
+here breaks one thing on purpose, runs the corpus check that is supposed to
+notice, and asserts it goes red -- then unbreaks it.  A check that stays green
+under its own defect is not a check, and this file is where that would show.
+
+The defects are chosen to be the ones the corpus README says its fields exist to
+catch, plus the ones this implementation had to decide for itself.
+"""
+
+from __future__ import annotations
+
+import io
+import unittest
+from typing import Any, Callable
+from unittest import mock
+
+import vnx
+from vnx import decode, model, numbers
+from vnx.model import Position
+
+from . import test_corpus, test_reader
+
+
+def _run(name: str) -> unittest.TestResult:
+    module = test_reader if name.startswith("reader:") else test_corpus
+    suite = unittest.TestLoader().loadTestsFromName(
+        name.removeprefix("reader:"), module
+    )
+    runner = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0)
+    return runner.run(suite)
+
+
+class RedProof(unittest.TestCase):
+    def assertGoesRed(self, defect: Any, check: str, because: str) -> None:
+        with defect:
+            result = _run(check)
+        self.assertFalse(
+            result.wasSuccessful(),
+            f"{check} stayed green with a broken {because}; it is not checking it",
+        )
+        self.assertTrue(
+            _run(check).wasSuccessful(), f"{check} did not come back green"
+        )
+
+    # -- the checks the corpus README names -----------------------------
+
+    def test_transposed_lon_lat_is_caught(self) -> None:
+        """`positions` is the only defence against a lon/lat transposition."""
+        original = decode._Reader._position
+
+        def transposing(self: Any, value: Any, path: str) -> Any:
+            got = original(self, value, path)
+            if got is None:
+                return None
+            channels = list(got.channels)
+            channels[0], channels[1] = channels[1], channels[0]
+            return Position(tuple(channels))
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_position", transposing),
+            "AcceptTier.test_accept",
+            "position decoder that swaps longitude and latitude",
+        )
+
+    def test_a_vacuous_decoder_is_caught(self) -> None:
+        """`counts` stops an accept file passing vacuously."""
+        self.assertGoesRed(
+            mock.patch.object(model.Document, "counts", lambda self: {
+                key: 0 for key in test_corpus.COLLECTIONS + ("rulesets",)
+            }),
+            "AcceptTier.test_accept",
+            "decoder that returns an empty document",
+        )
+
+    def test_moving_time_reported_as_zero_is_caught(self) -> None:
+        """`moving_time_ms: null` means unknown, which is not zero."""
+        self.assertGoesRed(
+            mock.patch.object(model.Track, "moving_time_ms", lambda self: 0.0),
+            "AcceptTier.test_accept",
+            "track that answers 0 for a moving time it cannot know",
+        )
+
+    def test_moving_time_summed_across_the_pause_is_caught(self) -> None:
+        """A pause is not walking: the wall-clock span is not the moving time."""
+
+        def wall_clock(self: Any) -> Any:
+            times = [
+                pip.time_ms
+                for segment in (self.segments or [])
+                for pip in (segment.pips or [])
+                if pip.time_ms is not None
+            ]
+            return times[-1] - times[0] if times else None
+
+        self.assertGoesRed(
+            mock.patch.object(model.Track, "moving_time_ms", wall_clock),
+            "AcceptTier.test_accept",
+            "track that sums first-to-last across the whole track",
+        )
+
+    # -- canonical form -------------------------------------------------
+
+    def test_python_number_rendering_is_caught(self) -> None:
+        """Python's own rendering disagrees on both exponent boundaries."""
+        self.assertGoesRed(
+            mock.patch.object(vnx.canonical, "render_number", lambda v: repr(float(v))),
+            "FormatTier.test_formatter_emits_the_canonical_bytes",
+            "number renderer using Python's repr",
+        )
+
+    def test_negative_zero_is_caught(self) -> None:
+        """SPEC 4.5.3: negative zero MUST render as `0`."""
+        original = numbers.render_number
+
+        def signed_zero(value: float) -> str:
+            if float(value) == 0.0 and str(float(value))[0] == "-":
+                return "-0"
+            return original(value)
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.canonical, "render_number", signed_zero),
+            "FormatTier.test_formatter_emits_the_canonical_bytes",
+            "renderer that keeps the sign of negative zero",
+        )
+
+    def test_plain_lexicographic_key_order_is_caught(self) -> None:
+        """Scalars sort before containers; `sort_keys` puts `networks` first."""
+        original = vnx.canonical.is_scalar
+        self.assertGoesRed(
+            mock.patch.object(vnx.canonical, "is_scalar", lambda value: True),
+            "AcceptTier.test_accept_files_are_canonical",
+            "serialiser using plain lexicographic key order",
+        )
+        self.assertIs(vnx.canonical.is_scalar, original)
+
+    def test_multi_line_positions_are_caught(self) -> None:
+        """SPEC 4.5.2: a number-and-null array is written on one line."""
+        self.assertGoesRed(
+            mock.patch.object(vnx.canonical, "_is_number_or_null", lambda value: False),
+            "AcceptTier.test_accept_files_are_canonical",
+            "serialiser that spreads positions over several lines",
+        )
+
+    def test_a_normalised_position_arity_is_caught(self) -> None:
+        """A trailing `null` is not noise: dropping it changes the bytes."""
+        original = decode._Reader._position
+
+        def shortening(self: Any, value: Any, path: str) -> Any:
+            got = original(self, value, path)
+            if got is None:
+                return None
+            channels = list(got.channels)
+            while len(channels) > 2 and channels[-1] is None:
+                channels.pop()
+            return Position(tuple(channels))
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_position", shortening),
+            "AcceptTier.test_accept_files_survive_the_model",
+            "model that shortens a position on the way in",
+        )
+
+    def test_a_dropped_ruleset_is_caught(self) -> None:
+        """SPEC 3.9: a ruleset is opaque and MUST survive read-modify-write."""
+        self.assertGoesRed(
+            mock.patch.object(vnx.encode, "encode_document", _without("rulesets")),
+            "AcceptTier.test_accept_files_survive_the_model",
+            "encoder that drops rulesets",
+        )
+
+    def test_a_flattened_data_record_is_caught(self) -> None:
+        """SPEC 5.1.4: an unrecognised record survives at value level."""
+        original = vnx.encode._records
+
+        def emptied(items: Any) -> Any:
+            got = original(items)
+            if got is None:
+                return None
+            return [{"@type": record["@type"]} for record in got]
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.encode, "_records", emptied),
+            "AcceptTier.test_accept_files_survive_the_model",
+            "encoder that keeps a record's type but not its body",
+        )
+
+    # -- refusals -------------------------------------------------------
+
+    def test_a_reader_that_never_refuses_is_caught(self) -> None:
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_check_version", lambda self, v: None),
+            "RejectTier.test_reject",
+            "reader that never refuses a version",
+        )
+
+    def test_a_permissive_json_parser_is_caught(self) -> None:
+        """Some libraries offer a mode that accepts NaN.  It must not be used."""
+        import json
+
+        self.assertGoesRed(
+            mock.patch(
+                "vnx.jsonio.json.loads",
+                lambda text, **kwargs: json.loads(
+                    text, parse_int=float, parse_float=float
+                ),
+            ),
+            "RejectTier.test_reject",
+            "parser that accepts NaN and Infinity",
+        )
+
+    # -- diagnostics ----------------------------------------------------
+
+    def test_a_reader_that_reports_nothing_is_caught(self) -> None:
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "note", lambda self, path, message: None),
+            "DiagnoseTier.test_diagnose",
+            "reader that records no diagnostics",
+        )
+
+    def test_a_reader_with_no_continuity_check_is_caught(self) -> None:
+        self.assertGoesRed(
+            mock.patch.object(
+                decode._Reader, "_check_continuity", lambda self, kept, path, net: None
+            ),
+            "DiagnoseTier.test_diagnose",
+            "reader with no chain continuity check",
+        )
+
+    def test_a_reader_that_keeps_the_outer_ring_is_caught(self) -> None:
+        """SPEC 3.7: drop the item, do not quietly keep ring 1."""
+        original = decode._Reader._polygon
+
+        def outer_ring(self: Any, value: Any, path: str) -> Any:
+            if isinstance(value, list) and value and isinstance(value[0], list) \
+                    and value[0] and isinstance(value[0][0], list):
+                return original(self, value[0], path)
+            return original(self, value, path)
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_polygon", outer_ring),
+            "DiagnoseTier.test_diagnose",
+            "reader that flattens a nested polygon to its outer ring",
+        )
+
+    def test_a_second_diagnostic_from_one_defect_is_caught(self) -> None:
+        """Dropping a dangling link must not then also report a broken chain.
+
+        Red-proofed against a unit test, not against the corpus: the corpus
+        case for this, `diagnose/link-names-absent-arc.vnx`, carries a two-link
+        chain, so after the drop no reader has a consecutive pair left to
+        misjudge.  The defect below leaves that case green.
+        """
+        original = decode._Reader._check_continuity
+
+        def across_the_hole(self: Any, kept: Any, path: str, network: Any) -> None:
+            renumbered = [(index, link) for index, (_, link) in enumerate(kept)]
+            original(self, renumbered, path, network)
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_check_continuity", across_the_hole),
+            "reader:Chains.test_one_dropped_link_reports_one_diagnostic",
+            "reader that checks continuity across a dropped link",
+        )
+
+    def test_the_corpus_alone_cannot_see_that_defect(self) -> None:
+        """The finding above, frozen so it is not rediscovered.
+
+        `diagnose/link-names-absent-arc.expect.json` says its point is that
+        "dropping the second link must not then also report the chain as
+        broken".  Its fixture cannot show that.  If the fixture ever gains a
+        third link this goes red and the note stops overstating the case.
+        """
+        original = decode._Reader._check_continuity
+
+        def across_the_hole(self: Any, kept: Any, path: str, network: Any) -> None:
+            renumbered = [(index, link) for index, (_, link) in enumerate(kept)]
+            original(self, renumbered, path, network)
+
+        with mock.patch.object(
+            decode._Reader, "_check_continuity", across_the_hole
+        ):
+            self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
+
+    def test_a_duplicate_key_diagnostic_would_go_red(self) -> None:
+        """SPEC 6.4's limitation is recorded, not assumed permanent.
+
+        `diagnose/duplicate-object-key.vnx` expects no diagnostic because no
+        standard parser can see one.  If a reader ever gains that reach, this
+        goes red and the limitation gets revisited rather than outliving its
+        cause.
+        """
+        original = decode._Reader.document
+
+        def noisy(self: Any, value: Any) -> Any:
+            got = original(self, value)
+            self.note("/networks/0/nodes/n1", "duplicate object key")
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "document", noisy),
+            "DiagnoseTier.test_diagnose",
+            "reader reporting a duplicate object key",
+        )
+
+    # -- containers -----------------------------------------------------
+
+    def test_a_container_that_lists_its_document_as_an_attachment_is_caught(self) -> None:
+        original = vnx.container.read_container_bytes
+
+        def sloppy(data: bytes) -> Any:
+            got = original(data)
+            got.attachments = got.attachments + [got.document_name]
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(vnx, "read_container_bytes", sloppy),
+            "AcceptTier.test_accept",
+            "container reader that counts the document as an attachment",
+        )
+
+    def test_a_container_reader_that_takes_the_last_vnx_entry_is_caught(self) -> None:
+        """SPEC 7: the fallback is the FIRST .vnx entry in archive order."""
+        # reject/container-duplicate-entries.vnz holds two doc.vnx entries; a
+        # reader that did not refuse them would have to pick one.  The corpus
+        # case that this defect breaks is the duplicate refusal.
+        self.assertGoesRed(
+            mock.patch.object(vnx.container, "_check_path", lambda name: None),
+            "RejectTier.test_reject",
+            "container reader that does not check attachment paths",
+        )
+
+
+def _without(key: str) -> Callable[[Any], Any]:
+    original = vnx.encode.encode_document
+
+    def encode(document: Any) -> Any:
+        obj = original(document)
+        obj.pop(key, None)
+        return obj
+
+    return encode
+
+
+if __name__ == "__main__":
+    unittest.main()

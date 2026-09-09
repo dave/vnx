@@ -64,19 +64,63 @@ Python and Swift emit `1e-06` and `1e-07` where the format needs `0.000001` and
 `1e-7`, so both implement the placement rule by hand. *(Measured: Python seat,
 6,009 doubles cross-checked against V8; Swift seat, 220,011 doubles.)*
 
-### 1.3 A rendering tie rounds to even
+### 1.3 A rendering tie rounds to even — and the route to getting it wrong
 
 When two equally short decimal spellings both round-trip to the same double and
 sit **exactly** equidistant from its true value, the format takes the one whose
 last digit is even (§4.5.3).
 
-Kotlin shipped away-from-zero and emitted `1497898211722073.3` where V8, Go,
-Python and Swift emit `…073.2`. The exact value is `…073.25`. Same double,
-different bytes, and nothing anywhere went red. *(Kotlin seat.)*
+**The rule is one line. The route is the entry**, because the route is what
+catches the next person, and it looks like doing the job properly at every step.
+*(Kotlin seat, in its own account.)*
 
-Swift's `Double.description` and Python's `repr` already do this. Verify rather
-than assume it: it costs one test, and it is not documented behaviour in either
-language.
+§4.5.3 says numbers render with ECMAScript `Number::toString`. So: go and read
+ECMAScript. Find the clause about choosing between candidate digit strings. It
+says — in the edition you are likely to land on — **"if there are two such
+possible values of s, choose the one that is larger."** That is unambiguous, it
+is a normative standard, and the format explicitly pointed you at it. Implement
+half away from zero. Write a test asserting it. Ship.
+
+Two things are wrong with that, and neither is carelessness.
+
+**The standard does not decide it.** The current text says the opposite of
+deciding: *"the least significant digit of s is not necessarily uniquely
+determined by these criteria."* The "choose the larger" line is older text,
+superseded by an explicit refusal to answer. Following a normative-sounding
+sentence produced a more confident wrong answer than guessing would have.
+
+**And §4.5.3 does not cite only a standard — it names two implementations**, "what
+`JSON.stringify` emits and what Go's `encoding/json` reproduces". It is easy to
+read those as illustrative colour and the standard as the authority. It is the
+other way round:
+
+```
+1.4978982117220732e15
+  V8                1497898211722073.2
+  Go encoding/json  1497898211722073.2
+  Kotlin, as shipped 1497898211722073.3
+```
+
+> **When a specification cites a standard *and* names reference implementations,
+> the implementations are the authority for anything the standard declines to
+> decide.** The standard gives you the shape; the implementations settle the
+> residue.
+
+Two properties make this a guide entry rather than a bug report:
+
+- **Both spellings parse to the identical double.** Every round-trip test passes,
+  every value-level assertion passes, the whole corpus passes. Two conforming
+  libraries emit different files and no test in the project can see it.
+- **It is not rare.** Rendering ties are about **one double in 4,200** of a
+  uniform random sample, concentrated between 1e13 and 1e15 — which is where Unix
+  epoch milliseconds live. *(Kotlin seat.)*
+
+Swift's `Double.description` and Python's `repr` already round to even. Verify
+rather than assume: it costs one test, and it is documented behaviour in neither.
+
+**And check your two number paths separately.** Fixing the renderer does not fix
+the writer — see §1.5. The Kotlin seat found the second only after being told to
+look at them as different code.
 
 ### 1.4 Detecting a rendering tie is itself a trap
 
@@ -286,10 +330,18 @@ every other one is `\u00xx` with **lowercase** hex. Nothing else is escaped,
 including non-ASCII, `<`, `>`, `&`, U+2028 and U+2029, and nothing above U+007F
 is ever written as a `\u` escape.
 
-Go's `encoding/json` escapes `<`, `>`, `&`, U+2028 and U+2029 by default and has
-to be configured not to. It writes `\b` and `\f` in their short forms, which
-agrees with the format. *(Kotlin seat measured Go's behaviour; relayed to this
-document by the lead rather than read here.)*
+Go's `encoding/json` escapes `<`, `>`, `&`, U+2028 and U+2029 by default, and
+**`SetEscapeHTML(false)` turns off only the first three — it still escapes U+2028
+and U+2029.** So the Go standard library cannot emit canonical form at any
+setting, which makes writing strings yourself forced rather than preferred. It
+writes `\b` and `\f` in their short forms, which agrees with the format.
+*(Kotlin seat, measured.)*
+
+The lowercase-hex requirement was an unconstrained spelling until it was written
+down: Go, V8 and Kotlin all happened to emit lowercase, so no implementation
+disagreed and no fixture could have exposed one that did. **Same shape as the two
+ties** — a degree of freedom that costs nothing until someone exercises it.
+*(Kotlin seat flagged it; §4.5.5 now settles it.)*
 
 No corpus file exercised any of this until an escaping tier was added, and it is
 still the rule most likely to differ silently between two implementations that
@@ -400,6 +452,13 @@ before any format rule runs, so an item vanishes and a reader built on a standar
 parser has no way to observe it (§6.4). This is a documented limitation of the
 format rather than a rule, and the corpus carries a case that expects no
 diagnostic.
+
+**Worth knowing before taking that at face value:** the format already pushes you
+into writing your own parser (§4.1), and once you have one, detecting a duplicate
+key is about three lines. The limitation is a property of stock parsers, not of
+the format. *(Kotlin seat.)* The corpus case expects no diagnostic, so a reader
+that gains the ability turns it red — which is the intended signal to revisit the
+limitation rather than a failure.
 
 ### 4.3 Parse every number as binary64
 
@@ -580,7 +639,56 @@ a gap this way pays off directly: one such frozen assertion went red the day the
 `link-names-absent-arc` fixture gained a third link, which is how its author
 learned the gap had closed.
 
-### 6.4 A relayed fact is not a measurement
+### 6.4 Red-proof the instrument, not only the code
+
+> **A comparison that has never been seen to fail is not a comparison. It is a
+> green light with no bulb in it.** *(Kotlin seat.)*
+
+The Kotlin seat's cross-check against Go covers **460,007 doubles with zero
+disagreements** — 300,000 uniform over the whole binary64 range via
+`Double.fromBits`, every value the specification and corpus name, and 40,000
+dense small magnitudes. Two halves that share no code: one language writes raw
+IEEE 754 bits plus its own rendering to a table, and about thirty lines in the
+other language bit-casts each row back and compares.
+
+**The number that makes it worth having is not 460,007. It is 78** — the
+disagreements that reappear when the tie mode is reverted. Without that, a
+zero-disagreement result is indistinguishable from a comparison that is not
+running.
+
+Three traps in building such an instrument, all first-hand *(Kotlin seat)*:
+
+- **Bits must travel as bits.** Parsing the bit patterns with an unsigned parser
+  fails on every negative double, because the sign bit makes the integer
+  negative. With the error ignored, that reported 149,667 disagreements against a
+  value of `0`. Parse signed and convert, or write the bits as hex.
+- **A mining criterion can decorate rather than discriminate** — §1.4.
+- **Determinism.** Go randomises map iteration, so a generated table's header
+  changed on every run. A table nobody can diff is most of the way to useless.
+
+The result is `number-conformance/`: a language-neutral table of 5,315 doubles
+with three reference answers each — rendered, rounded to 6 places, rounded to 1 —
+which is about ten lines to read in any language.
+
+### 6.5 A reader and a writer by the same hand agree with each other
+
+The format pushes you into writing your own serialiser (§1.1), your own JSON
+parser (§4.1), and — for `.vnz` — your own ZIP writer, because §7 needs control a
+stock library may not expose: the UTF-8 flag set explicitly, per-entry
+compression method inspection, and seeing *both* halves of a duplicated entry
+name rather than whichever one the library resolves to.
+
+**A reader and a writer written by the same person can be wrong in the same way
+and agree perfectly.** So read every archive you produce back with a library that
+has never seen this specification. The Kotlin seat reads its own archives with
+`java.util.zip` for exactly this reason: it is cheap, and it is the only thing
+standing between an implementation and a self-consistent private dialect of ZIP.
+
+The same argument applies to the JSON layer, where the corpus is already doing
+that job for you — which is a good reason to notice that it is not doing it for
+the container in any tier that inspects archive structure.
+
+### 6.6 A relayed fact is not a measurement
 
 Five implementations coordinating through one person means most facts reach most
 seats second-hand, and **a confident relay is indistinguishable from a measured
@@ -599,7 +707,7 @@ that did. This document does that inline, and the two entries above are the
 reason. Where you have only a relay, say so; a reader can then go and measure it,
 which is the whole difference between a document and a rumour.
 
-### 6.5 Two runs against a shared tree, and they answer different questions
+### 6.7 Two runs against a shared tree, and they answer different questions
 
 If more than one implementation is being written in one repository, your suite
 can fail for reasons that are not yours.
@@ -654,3 +762,9 @@ implementation's own account.
 
 The rules themselves. Where this and `SPEC.md` appear to disagree, `SPEC.md` is
 right and this is a defect worth reporting.
+
+One last thing, from the seat that found two invisible defects in one day, both
+by comparing against another implementation rather than by reasoning:
+
+> **When you have a choice between arguing about a specification clause and
+> measuring two implementations, measure.** *(Kotlin seat.)*

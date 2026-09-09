@@ -732,14 +732,27 @@ recorded track holds tens of thousands of pips.
 
 #### 4.5.3 Number rendering
 
-Numbers are rendered with ECMAScript `Number::toString` semantics, which is what
-`JSON.stringify` emits. `340.0` renders as `340`, `0.000001` renders as
-`0.000001`, and `1e-7` renders as `1e-7`.
+Numbers are rendered with ECMAScript `Number::toString` semantics. `340.0`
+renders as `340`, `0.000001` renders as `0.000001`, and `1e-7` renders as
+`1e-7`.
 
-A tie is resolved by rounding to even. ECMAScript's `Number::toString`
-deliberately declines to fix the last digit of a tie, so the anchor is what the
-implementations do: `1497898211722073.25` renders `1497898211722073.2`, not
-`…073.3`.
+THE ANCHOR IS THE ECMASCRIPT SPECIFICATION, not any implementation of it.
+`JSON.stringify` is where those semantics are most easily observed and Go's
+`encoding/json` reproduces them deliberately, but neither is normative here: an
+implementation that agrees with one of them and not with this section is wrong,
+and Go is the worked example, since it renders negative zero as `-0` where this
+section requires `0`.
+
+The one place an implementation is the anchor is a tie, and only because
+`Number::toString` declines to fix the last digit of one. That case is settled
+below rather than left to observation, so nothing in this section requires
+consulting a runtime.
+
+A tie is resolved by rounding to even: `1497898211722073.25` renders
+`1497898211722073.2`, not `…073.3`. That is the rule, and it is stated here
+because `Number::toString` does not state it — where the ECMAScript
+specification declines to decide, this one does, and V8 and Go happen to agree
+with it.
 
 Note: a rendering tie is rare and does not arise in a coordinate. It needs 16 or
 17 significant digits, so it lives between roughly 1e10 and 1e16. Measured over

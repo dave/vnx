@@ -1,6 +1,26 @@
 #!/usr/bin/env python3
 """Check the published documents in this repository for internal leakage.
 
+⚠ WHAT A CLEAN REPORT FROM THIS SCRIPT MEANS, AND WHAT IT DOES NOT.
+
+It means: no forbidden spelling, no unbalanced emphasis marker, and acceptable
+register densities. It has never meant the documents are correct, and four
+classes of defect are outside it by construction. Every one below was found by a
+person reading, after this script passed the same files clean:
+
+  * A CONTRADICTION BETWEEN TWO DOCUMENTS. The guide said no tier reaches the
+    writer while corpus/write/README.md said the opposite, at one commit.
+  * A MISQUOTATION OF SPEC.md. The guide quoted section 4.5.3 as naming two
+    normative anchors where it names one.
+  * A PATH THAT DOES NOT EXIST in the tree.
+  * A COUNT THAT DISAGREES WITH ITSELF. Three documents gave three different
+    numbers of corpus directories and none matched the tree.
+
+Checking any of those means encoding the documents' content a second time, which
+is a second thing to get wrong. They need a reader, and saying so here is worth
+more than implying a coverage this cannot have.
+
+
     ./scripts/check-spec.py
 
 Exits non-zero and names every problem it found.
@@ -175,6 +195,42 @@ REGISTER = [
 ]
 
 
+def check_markdown_structure(problems: list[str]) -> None:
+    """Unbalanced emphasis markers, which the density warnings cannot see.
+
+    ⚠ A CLEAN REPORT FROM THE REST OF THIS SCRIPT MEANS "NO FORBIDDEN SPELLINGS
+    AND ACCEPTABLE DENSITIES". It has never meant "well-formed". A deletion that
+    took the closing marker of a bold span with it left the orphaned opener
+    swallowing the next heading, so a section existed with no heading and every
+    span after it paired wrongly — and this script passed the file clean twice,
+    reporting two numbers that were both true and both measured on a document
+    with a missing heading.
+
+    Three shapes, all structural rather than stylistic: an odd number of `**` in
+    a paragraph, a heading carrying one, and a span crossing a blank line.
+    """
+    for name in PUBLISHED:
+        path = ROOT / name
+        if not path.exists():
+            continue
+        line_no = 1
+        for para in path.read_text(encoding="utf-8").split("\n\n"):
+            lines = para.split("\n")
+            if para.count("**") % 2:
+                problems.append(
+                    f"{name}:{line_no}: an odd number of `**` in one paragraph, so a bold "
+                    f"span is unclosed and will swallow whatever follows it\n"
+                    f"    {lines[0].strip()[:90]}"
+                )
+            for offset, line in enumerate(lines):
+                if line.lstrip().startswith("#") and "**" in line:
+                    problems.append(
+                        f"{name}:{line_no + offset}: a heading carrying `**`, which is what an "
+                        f"unclosed span upstream looks like once it has eaten one\n    {line.strip()[:90]}"
+                    )
+            line_no += len(lines) + 1
+
+
 def check_sidecar_notes(problems: list[str]) -> None:
     """The corpus ships with the format, so a `note` is published prose.
 
@@ -323,6 +379,7 @@ def main() -> None:
     problems: list[str] = []
     check_ruling_backlog(problems)
     check_sidecar_notes(problems)
+    check_markdown_structure(problems)
     check_published(problems)
     check_register(problems)
     check_rationale(problems)

@@ -100,11 +100,22 @@ export const PINNED_CODES = Object.freeze([
  * The substring the corpus expects for each refusal cause. Refusals are still
  * compared as English; this is the whole of the migration when they gain codes.
  *
- * `non-finite-number` has no corpus case. The corpus expects `malformed JSON`
- * for a `NaN` or `Infinity` LITERAL, which is what a strict parser says before
- * any format rule runs. A literal that merely overflows the double range —
- * `1e999` — is well-formed JSON and reaches SPEC.md 4.2, which is a different
- * cause and says so.
+ * `non-finite-number` has no corpus case, and the gap is the clearest argument
+ * for typed refusals. The corpus expects `malformed JSON` for a `NaN` or
+ * `Infinity` LITERAL, which only a STRICT parser says: measured 2026-09-09,
+ *
+ *   literal        Go encoding/json      Node JSON.parse   Python json.loads
+ *   NaN            invalid character     throws            accepts as nan
+ *   Infinity       invalid character     throws            accepts as inf
+ *   1e400          cannot unmarshal      Infinity          accepts as inf
+ *
+ * so the expected substring describes a route to the refusal and not the rule.
+ * A permissive parser reaches SPEC.md 4.2 and refuses for the right reason in
+ * different words.
+ *
+ * `1e400` is the case this library has to catch itself: it is well-formed JSON
+ * and `JSON.parse` yields `Infinity` without complaint, so the reviver in
+ * decode.js is the only thing between it and a coordinate of Infinity.
  */
 export const REFUSAL_SUBSTRINGS = Object.freeze({
   'malformed-json': 'malformed JSON',

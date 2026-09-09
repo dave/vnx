@@ -6,6 +6,8 @@ import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 const CORPUS = process.env.VNX_CORPUS
   ? path.resolve(process.env.VNX_CORPUS)
@@ -476,4 +478,52 @@ test('the committed .vnz fixtures do NOT satisfy SPEC.md 7.1, and this test is t
     const c = decodeContainer(fs.readFileSync(path.join(CORPUS, name)));
     assert.ok(c.document.vnx, `${name}: still reads`);
   }
+});
+
+test('an independently written parser agrees that this writer satisfies SPEC.md 7.1', () => {
+  // My raw-byte guards above and my writer are both mine, so they can share a
+  // misconception and agree with each other about it. `scripts/container-fields.py`
+  // was written at another seat from the same section of the spec, parses raw,
+  // and checks local against central. It is corroboration rather than coverage:
+  // the assertions above stand on their own, and this is what would catch them
+  // being wrong together.
+  const tool = path.resolve(CORPUS, '..', 'scripts', 'container-fields.py');
+  if (!fs.existsSync(tool)) {
+    // Not a skip. The script is committed in this repository, so its absence is
+    // a fact about the checkout and is worth failing on.
+    assert.fail(`no ${tool}: the cross-seat container checker is missing from this checkout`);
+  }
+
+  const out = path.join(os.tmpdir(), `vnx-crosscheck-${process.pid}.vnz`);
+  fs.writeFileSync(out, encodeContainer(DOC, [['attachments/photo.txt', Buffer.from('not a photo\n')]]));
+  try {
+    const done = spawnSync('python3', [tool, '--spec', out], { encoding: 'utf8' });
+    if (done.error && done.error.code === 'ENOENT') {
+      // The one honest non-assertion here: python3 is not this repository's to
+      // provide. Losing corroboration is not the same as losing coverage, and
+      // saying so loudly is better than a silent skip.
+      console.error('\n  NOTE: python3 is absent, so the cross-seat container check did not run. ' +
+        'The raw-byte assertions above still cover SPEC.md 7.1 from this seat alone.\n');
+      return;
+    }
+    assert.equal(done.status, 0,
+      `container-fields.py reports faults in this writer's output:\n${done.stdout}${done.stderr}`);
+  } finally {
+    fs.rmSync(out, { force: true });
+  }
+});
+
+test('the cross-seat checker is able to fail, on a fixture that violates SPEC.md 7.1', () => {
+  // Red proof for the corroboration above. A checker that returned 0 for
+  // everything would agree with my writer for the wrong reason, and the
+  // committed archives are the nearest thing to hand that genuinely breaks the
+  // rule. Expected to go GREEN-failing here when they are regenerated, at which
+  // point point it at a hand-broken archive instead.
+  const tool = path.resolve(CORPUS, '..', 'scripts', 'container-fields.py');
+  const fixture = path.join(CORPUS, 'accept', 'container-root-doc.vnz');
+  const done = spawnSync('python3', [tool, '--spec', fixture], { encoding: 'utf8' });
+  if (done.error && done.error.code === 'ENOENT') return;
+  assert.equal(done.status, 1, 'the checker must report faults for this archive');
+  assert.match(done.stdout, /local crc=.* but central crc=/,
+    'and must name the local-versus-central class specifically');
 });

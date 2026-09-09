@@ -252,22 +252,35 @@ function data(path, kv, ctx) {
  * document carried, because `[lon, lat, null]` and `[lon, lat]` are different
  * spellings that canonical form does not unify (SPEC.md 4.1, 8.1).
  */
-function position(v, path, ctx) {
+/**
+ * @param {string} [code] the diagnostic code to report a failure under.
+ *
+ * Defaults to `position-unusable`, which is the right fact for a position that
+ * is an ELEMENT of something — a pip, a ring vertex, a node in a map — where
+ * dropping it leaves the containing item alive.
+ *
+ * Where the position is the value of a REQUIRED KEY, the caller passes
+ * `wrong-type-required` instead, because the two codes differ in whether the
+ * rest of the item survives (SPEC.md 6.2). A consumer told only that a type was
+ * wrong would otherwise have to re-derive required-ness from 3.10's table to
+ * find out which happened, which is the lookup a code exists to save.
+ */
+function position(v, path, ctx, code = 'position-unusable') {
   if (!Array.isArray(v)) {
-    ctx.diag(path, `a position must be an array, not ${typeName(v)}`, 'position-unusable');
+    ctx.diag(path, `a position must be an array, not ${typeName(v)}`, code);
     return DROP;
   }
   if (v.length < 2) {
-    ctx.diag(path, 'a position must carry at least lon and lat', 'position-unusable');
+    ctx.diag(path, 'a position must carry at least lon and lat', code);
     return DROP;
   }
   if (typeof v[0] !== 'number' || typeof v[1] !== 'number') {
-    ctx.diag(path, 'lon and lat must both be numbers', 'position-unusable');
+    ctx.diag(path, 'lon and lat must both be numbers', code);
     return DROP;
   }
   for (let i = 2; i < v.length; i++) {
     if (v[i] !== null && typeof v[i] !== 'number') {
-      ctx.diag(path, `channel ${i} must be a number or null`, 'position-unusable');
+      ctx.diag(path, `channel ${i} must be a number or null`, code);
       return DROP;
     }
   }
@@ -445,7 +458,7 @@ function endpoint(k, path, kv, ctx) {
   }
   if (typeof v === 'string') return new Endpoint('node', v);
   if (Array.isArray(v)) {
-    const p = position(v, `${path}/${esc(k)}`, ctx);
+    const p = position(v, `${path}/${esc(k)}`, ctx, 'wrong-type-required');
     if (p === DROP) return DROP;
     return new Endpoint('inline', p);
   }
@@ -525,7 +538,7 @@ function readPointLike(raw, path, ctx, topLevel) {
     ctx.diag(path, 'missing required key "at"', 'missing-required-key');
     return DROP;
   }
-  const at = position(kv.at, `${path}/at`, ctx);
+  const at = position(kv.at, `${path}/at`, ctx, 'wrong-type-required');
   if (at === DROP) return DROP;
   w.at = at;
   w.name = str('name', path, kv, false, ctx);

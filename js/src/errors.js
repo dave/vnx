@@ -59,6 +59,8 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'polygon-nested-rings',
   'timestamp-not-utc',
   'unknown-key',
+  'wrong-type-optional',
+  'wrong-type-required',
   // not pinned: this library's own tokens, and not wire commitments
   'arc-node-absent',
   'attachment-compression',
@@ -75,8 +77,6 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'position-unusable',
   'record-type-missing',
   'record-unusable',
-  'wrong-type-optional',
-  'wrong-type-required',
 ]);
 
 /**
@@ -94,6 +94,8 @@ export const PINNED_CODES = Object.freeze([
   'polygon-nested-rings',
   'timestamp-not-utc',
   'unknown-key',
+  'wrong-type-optional',
+  'wrong-type-required',
 ]);
 
 /**

@@ -402,3 +402,44 @@ test('an untimed INTERIOR pip does not make a segment unmeasurable', () => {
   }));
   assert.equal(document.tracks[0].movingTimeMs(), 3000);
 });
+
+test('a wrong-typed position distinguishes a lost field from a lost item', () => {
+  // SPEC.md 6.2 gives two remedies, and the CODE is what says which happened —
+  // otherwise a consumer has to re-derive required-ness from 3.10's table to
+  // find out whether the rest of the item survived.
+  const { document, diagnostics } = decodeText(doc({
+    waypoints: [
+      { name: 'kept', at: [1, 2], hidden: 'yes' },
+      { name: 'dropped', at: 'beside the burn' },
+    ],
+  }));
+  assert.equal(document.waypoints.length, 1);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/waypoints/0/hidden', 'wrong-type-optional'],
+    ['/waypoints/1/at', 'wrong-type-required'],
+  ]);
+});
+
+test('a position that is an ELEMENT keeps position-unusable, because the item lives', () => {
+  // The distinction is about a required KEY, not about any position that will
+  // not parse. A bad pip leaves the arc alive, so it is a different fact.
+  const { document, diagnostics } = decodeText(doc({
+    tracks: [{ name: 't', segments: [{ pips: [[1, 2], 'nope', [3, 4]] }] }],
+  }));
+  assert.equal(document.tracks[0].segments[0].pips.length, 2);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
+    [['/tracks/0/segments/0/pips/1', 'position-unusable']]);
+});
+
+test('a link endpoint that will not parse drops the link, and says so', () => {
+  const { document, diagnostics } = decodeText(doc({
+    networks: [{
+      nodes: { a: [1, 2] },
+      arcs: { x: { from: 'a', to: 'a', pips: [[1, 2], [3, 4]] } },
+      chains: [{ links: [{ arc: 'x', from: 'a', to: [1] }] }],
+    }],
+  }));
+  assert.equal(document.networks[0].chains[0].links.length, 0);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
+    [['/networks/0/chains/0/links/0/to', 'wrong-type-required']]);
+});

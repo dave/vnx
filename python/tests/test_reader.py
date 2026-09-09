@@ -385,7 +385,11 @@ class HiddenAndAbsence(unittest.TestCase):
 
     def test_a_non_boolean_hidden_is_dropped(self) -> None:
         result = read(RING.replace('{"polygon"', '{"hidden": "yes", "polygon"'))
-        self.assertEqual(messages(result), [("/areas/0/hidden", "must be a boolean")])
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].path, "/areas/0/hidden")
+        self.assertEqual(result.diagnostics[0].code, "wrong-type-optional")
+        assert result.document.areas is not None
+        self.assertEqual(len(result.document.areas), 1, "the item is kept")
 
 
 class Records(unittest.TestCase):
@@ -1092,3 +1096,88 @@ class ContainerWriterUsesStored(unittest.TestCase):
                     self.assertEqual(info.create_version, 10)
                     self.assertEqual(info.extract_version, 10)
                     self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
+
+    def test_attachments_are_sorted_by_entry_name(self) -> None:
+        """SPEC 7.1: the root document first, then attachments sorted.
+
+        The names are supplied in REVERSE order on purpose. Two names already in
+        sorted order cannot separate a writer that sorts from one that iterates
+        the caller's mapping, and a test that supplies them sorted is decoration.
+        """
+        import zipfile
+
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        supplied = {"zebra.txt": b"z", "middle.txt": b"m", "alpha.txt": b"a"}
+        self.assertEqual(
+            list(supplied), ["zebra.txt", "middle.txt", "alpha.txt"],
+            "the mapping must preserve the reversed order or this proves nothing",
+        )
+        data = vnx.encode_container_bytes(document, supplied)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertEqual(
+                archive.namelist(),
+                ["doc.vnx", "alpha.txt", "middle.txt", "zebra.txt"],
+            )
+
+    def test_the_sort_is_by_code_point_not_by_utf16(self) -> None:
+        """CPython's `sorted` is already code-point order, so this holds by
+        default. Asserted anyway: a default that happens to be right gives no
+        signal if the names are later routed through something that is not."""
+        import zipfile
+
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        # U+FFFD sorts BEFORE U+1F600 by code point and after it by UTF-16 code
+        # unit, because an astral character begins with a surrogate in D800..DBFF.
+        names = {"\U0001F600.txt": b"a", "�.txt": b"b"}
+        data = vnx.encode_container_bytes(document, names)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertEqual(
+                archive.namelist(), ["doc.vnx", "�.txt", "\U0001F600.txt"]
+            )
+
+    def test_the_document_comes_first_whatever_it_sorts_as(self) -> None:
+        import zipfile
+
+        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
+        data = vnx.encode_container_bytes(document, {"aaa.txt": b"a"})
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertEqual(archive.namelist()[0], "doc.vnx")
+
+
+class WrongTypedValues(unittest.TestCase):
+    """SPEC 6.2's two remedies for a wrong JSON type, and its two codes.
+
+    A library that always drops the item, and one that always drops the field,
+    each pass a document carrying only one of the two. Both readings have shipped
+    in this format at once.
+    """
+
+    def test_an_optional_key_drops_the_field_and_keeps_the_item(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
+        )
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].code, "wrong-type-optional")
+        assert result.document.waypoints is not None
+        self.assertEqual(len(result.document.waypoints), 1)
+        self.assertIsNone(result.document.waypoints[0].hidden)
+
+    def test_a_required_key_drops_the_item(self) -> None:
+        result = read('{"vnx": "0.1.0", "waypoints": [{"at": "beside the burn"}]}')
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].code, "wrong-type-required")
+        self.assertEqual(result.document.waypoints, [])
+
+    def test_the_two_codes_are_not_interchangeable(self) -> None:
+        """The assertion that makes the pair discriminate.
+
+        A reader emitting one code for both cases passes a document carrying
+        only one of them, which is why the corpus case carries both.
+        """
+        optional = read(
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
+        )
+        required = read('{"vnx": "0.1.0", "waypoints": [{"at": "nowhere"}]}')
+        self.assertNotEqual(
+            optional.diagnostics[0].code, required.diagnostics[0].code
+        )

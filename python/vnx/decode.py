@@ -87,6 +87,17 @@ class _Reader:
                 self.note(join(path, key), "unknown key", "unknown-key")
         return value
 
+    @staticmethod
+    def _type_code(key: str, required: frozenset[str]) -> str:
+        """SPEC 6.2 gives a wrong-typed value two remedies, so two codes.
+
+        An optional key is dropped and the item kept; a required key drops the
+        item, because dropping the field would leave a waypoint that is nowhere.
+        A library that always drops the item, and one that always drops the
+        field, each pass a document carrying only one of the two.
+        """
+        return "wrong-type-required" if key in required else "wrong-type-optional"
+
     def _complete(
         self,
         obj: dict[str, JSONValue],
@@ -108,24 +119,40 @@ class _Reader:
         return not missing
 
     def _string(
-        self, obj: dict[str, JSONValue], key: str, path: str
+        self,
+        obj: dict[str, JSONValue],
+        key: str,
+        path: str,
+        required: frozenset[str] = frozenset(),
     ) -> Union[str, None]:
         if key not in obj:
             return None
         value = obj[key]
         if not isinstance(value, str):
-            self.note(join(path, key), "must be a string")
+            self.note(
+                join(path, key),
+                f"`{key}` is not a string",
+                self._type_code(key, required),
+            )
             return None
         return value
 
     def _bool(
-        self, obj: dict[str, JSONValue], key: str, path: str
+        self,
+        obj: dict[str, JSONValue],
+        key: str,
+        path: str,
+        required: frozenset[str] = frozenset(),
     ) -> Union[bool, None]:
         if key not in obj:
             return None
         value = obj[key]
         if not isinstance(value, bool):
-            self.note(join(path, key), "must be a boolean")
+            self.note(
+                join(path, key),
+                f"`{key}` is not a boolean",
+                self._type_code(key, required),
+            )
             return None
         return value
 
@@ -144,13 +171,21 @@ class _Reader:
         return value
 
     def _array(
-        self, obj: dict[str, JSONValue], key: str, path: str
+        self,
+        obj: dict[str, JSONValue],
+        key: str,
+        path: str,
+        required: frozenset[str] = frozenset(),
     ) -> Union[list[JSONValue], None]:
         if key not in obj:
             return None
         value = obj[key]
         if not isinstance(value, list):
-            self.note(join(path, key), "must be an array")
+            self.note(
+                join(path, key),
+                f"`{key}` is not an array",
+                self._type_code(key, required),
+            )
             return None
         return value
 
@@ -209,10 +244,12 @@ class _Reader:
             records.append(DataRecord(type_name, body))
         return records
 
-    def _position(self, value: JSONValue, path: str) -> Union[Position, None]:
+    def _position(
+        self, value: JSONValue, path: str, code: Union[str, None] = None
+    ) -> Union[Position, None]:
         """SPEC 4.1.  Returns None for a position that will not parse."""
         if not isinstance(value, list):
-            self.note(path, "a position must be an array")
+            self.note(path, "a position must be an array of numbers", code)
             return None
         if len(value) < 2:
             self.note(path, "a position must carry at least longitude and latitude")
@@ -376,7 +413,9 @@ class _Reader:
             return None
         at = None
         if "at" in obj:
-            at = self._position(obj["at"], join(path, "at"))
+            at = self._position(
+                obj["at"], join(path, "at"), "wrong-type-required"
+            )
         style = self._style(obj, path)
         self._check_importance(style, path)
         if not self._complete(obj, path, "a waypoint", {"at": at}):
@@ -385,7 +424,7 @@ class _Reader:
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
-            hidden=self._bool(obj, "hidden", path),
+            hidden=self._bool(obj, "hidden", path, K.REQUIRED_WAYPOINT),
             at=at,
             style=style,
             data=self._data(obj, path),

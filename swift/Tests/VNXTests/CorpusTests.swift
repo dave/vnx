@@ -223,8 +223,13 @@ final class CorpusTests: XCTestCase {
     ///   alone leaves one rule standing —
     ///   `RoundingTests.testOnlyHalfToEvenSurvivesThePair` asserts exactly that.
     /// - There is deliberately NO NEGATIVE TIE, and that is not a gap: all five
-    ///   wrong rules are already caught by a positive value, so a negative one
-    ///   would add a row and separate nothing.
+    ///   wrong rules are already separated by the positive pair, which
+    ///   `RoundingTests.testOnlyHalfToEvenSurvivesThePair` asserts directly
+    ///   rather than taking on trust. Note what that does NOT say: over
+    ///   positives alone, half-away-from-zero and half-up are the same
+    ///   behaviour, as are half-toward-zero and half-down. Separating a wrong
+    ///   rule from half-to-even and telling two wrong rules apart are different
+    ///   jobs, and the fixture only needs the first.
     ///
     /// The tier's README is worth quoting, because it corrects something this
     /// library's own comments asserted: "That was stated for months as a

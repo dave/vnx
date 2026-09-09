@@ -154,41 +154,109 @@ final class RoundingTests: XCTestCase {
     /// an executable assertion is the only form that survives a tidy-up.
     ///
     /// The spelling worth naming rather than the rule in the abstract:
-    /// `Math.round(x * 10) / 10` is exactly half-up in both JavaScript and Java
-    /// — wrong on every positive tie, and right on every negative one by
-    /// accident.
+    /// `Math.round(x * 10) / 10` is exactly half-up in both JavaScript and Java.
+    ///
+    /// An earlier version of this comment added "wrong on every positive tie,
+    /// and right on every negative one by accident". That is FALSE, and it is
+    /// worth leaving the correction visible because the false version licenses a
+    /// deletion. Half-up differs from half-to-even wherever half-to-even rounds
+    /// toward negative infinity — `340.25` and `-340.75` — and agrees on
+    /// `340.75` and `-340.25`. **The sign is not what decides; the parity of the
+    /// digit below is.** A fixture carrying only `340.75` would pass a half-up
+    /// implementation, which is precisely the deletion the pair rule exists to
+    /// prevent.
     func testOnlyHalfToEvenSurvivesThePair() {
-        // Each candidate rule, applied to the scaled integer of a tie.
-        let rules: [(name: String, apply: (Int) -> Int)] = [
-            ("half to even", { $0 % 2 == 0 ? $0 : $0 + 1 }),
-            ("half to odd", { $0 % 2 != 0 ? $0 : $0 + 1 }),
-            ("half away from zero", { $0 + 1 }),
-            ("half toward zero", { $0 }),
-            ("half up", { $0 + 1 }),
-            ("half down", { $0 }),
+        // Each candidate rule, as a choice between the two integers a tie sits
+        // between. Defined over SIGNED values, which an earlier version of this
+        // test was not — see `testTheSixRulesAreActuallySixOverThisInputSet`.
+        let rules: [(name: String, apply: (_ below: Int, _ above: Int) -> Int)] = [
+            ("half to even", { below, above in below % 2 == 0 ? below : above }),
+            ("half to odd", { below, above in below % 2 != 0 ? below : above }),
+            ("half away from zero", { below, above in below < 0 ? below : above }),
+            ("half toward zero", { below, above in below < 0 ? above : below }),
+            ("half up", { _, above in above }),
+            ("half down", { below, _ in below }),
         ]
-        let pair = [340.25, 340.75]
+        let ties = [340.25, 340.75, -340.25, -340.75]
 
-        func floorScaled(_ x: Double) -> Int { Int((x * 10).rounded(.down)) }
+        func below(_ x: Double) -> Int { Int((x * 10).rounded(.down)) }
+        func above(_ x: Double) -> Int { below(x) + 1 }
         func ours(_ x: Double) -> Int { Int((Rounding.toDecimalPlaces(x, 1) * 10).rounded()) }
+        func agrees(_ rule: (name: String, apply: (Int, Int) -> Int), over values: [Double]) -> Bool {
+            values.allSatisfy { rule.apply(below($0), above($0)) == ours($0) }
+        }
 
-        // Half-to-even, and only half-to-even, agrees with this library on both.
+        // Half-to-even, and only half-to-even, agrees with this library.
         for rule in rules {
-            let agreesEverywhere = pair.allSatisfy { rule.apply(floorScaled($0)) == ours($0) }
-            XCTAssertEqual(agreesEverywhere, rule.name == "half to even",
-                           "`\(rule.name)` agreement across the pair")
+            XCTAssertEqual(agrees(rule, over: ties), rule.name == "half to even",
+                           "`\(rule.name)` agreement across the ties")
         }
 
-        // And neither value on its own is enough: drop one and something wrong
-        // still agrees with us everywhere that is left.
-        for dropped in pair {
-            let remaining = pair.filter { $0 != dropped }
-            let survivors = rules.filter { rule in
-                remaining.allSatisfy { rule.apply(floorScaled($0)) == ours($0) }
-            }.map(\.name)
-            XCTAssertGreaterThan(survivors.count, 1,
-                                 "without \(dropped) these rules are indistinguishable from half-to-even: \(survivors)")
+        // The positive pair alone still separates all five wrong rules, which is
+        // why `corpus/write/emit-boundary` needs no negative tie.
+        let positives = [340.25, 340.75]
+        for rule in rules where rule.name != "half to even" {
+            XCTAssertFalse(agrees(rule, over: positives),
+                           "`\(rule.name)` must be separated by the positive pair alone")
         }
+
+        // And no SINGLE tie is enough. Stated over every one of the four rather
+        // than over the pair, because the claim that gets a value deleted is
+        // always "this one is redundant".
+        for single in ties {
+            let survivors = rules.filter { agrees($0, over: [single]) }.map(\.name)
+            XCTAssertGreaterThan(survivors.count, 1,
+                                 "with \(single) alone these rules are indistinguishable from half-to-even: \(survivors)")
+        }
+
+        // The specific claim, named: a fixture carrying only 340.75 passes a
+        // half-up implementation.
+        XCTAssertTrue(agrees(rules.first { $0.name == "half up" }!, over: [340.75]),
+                      "half-up agrees with half-to-even on 340.75, which is why that value cannot stand alone")
+        XCTAssertFalse(agrees(rules.first { $0.name == "half up" }!, over: [340.25]),
+                       "and 340.25 is what catches it")
+    }
+
+    /// That the six rules above really are six DISTINCT rules over the values
+    /// this test feeds them.
+    ///
+    /// The earlier version of this file listed six rules whose bodies were four:
+    /// over positive values half-away-from-zero IS half-up and half-toward-zero
+    /// IS half-down, so two pairs were literally identical closures. It still
+    /// proved what it claimed — that only half-to-even matches — but its table
+    /// named six things and modelled four, which is the same defect as a fixture
+    /// that looks like coverage and separates nothing.
+    ///
+    /// The four rules collapse in pairs over positives and come apart over
+    /// negatives, which is the corrected reason `-340.75` is worth having in a
+    /// unit test even though the corpus fixture rightly has no negative tie.
+    func testTheSixRulesAreActuallySixOverThisInputSet() {
+        let rules: [(name: String, apply: (_ below: Int, _ above: Int) -> Int)] = [
+            ("half to even", { below, above in below % 2 == 0 ? below : above }),
+            ("half to odd", { below, above in below % 2 != 0 ? below : above }),
+            ("half away from zero", { below, above in below < 0 ? below : above }),
+            ("half toward zero", { below, above in below < 0 ? above : below }),
+            ("half up", { _, above in above }),
+            ("half down", { below, _ in below }),
+        ]
+        let ties = [340.25, 340.75, -340.25, -340.75]
+        func below(_ x: Double) -> Int { Int((x * 10).rounded(.down)) }
+
+        let answers = rules.map { rule in ties.map { rule.apply(below($0), below($0) + 1) } }
+        for i in rules.indices {
+            for j in rules.indices where j > i {
+                XCTAssertNotEqual(answers[i], answers[j],
+                                  "`\(rules[i].name)` and `\(rules[j].name)` are indistinguishable over these ties")
+            }
+        }
+
+        // And the collapse over positives alone, stated so it is a measurement
+        // rather than a claim in a comment.
+        let positiveAnswers = rules.map { rule in [340.25, 340.75].map { rule.apply(below($0), below($0) + 1) } }
+        XCTAssertEqual(positiveAnswers[2], positiveAnswers[4], "away from zero == half up, over positives")
+        XCTAssertEqual(positiveAnswers[3], positiveAnswers[5], "toward zero == half down, over positives")
+        XCTAssertEqual(Set(positiveAnswers.map(\.description)).count, 4,
+                       "six rules, four behaviours, once every input is positive")
     }
 
     /// Whether the exact binary64 value sits exactly halfway between two

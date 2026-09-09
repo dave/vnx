@@ -186,6 +186,33 @@ class RedProof(unittest.TestCase):
             "encoder that keeps a record's type but not its body",
         )
 
+    def test_only_the_model_check_defends_a_data_record(self) -> None:
+        """The two readings of SPEC 8.1's canonical check are not equivalent.
+
+        SPEC 8.1 defines the accept-tier check as "canonicalising it reproduces
+        it byte for byte", and `corpus/README.md` says canonicalise() is "bytes
+        in and bytes out".  Taken literally that check never builds a model, so
+        it cannot see a reader that discards what it read -- yet SPEC 8.1 also
+        claims the check "proves that the whole document -- including data
+        records of types no implementation recognises, whose bodies nothing
+        else inspects -- survives parse and re-render at value level".
+
+        It does not.  With every data record discarded on the way in, the
+        literal check stays green and only the decode-and-re-encode check goes
+        red.  Frozen here so that if SPEC 8.1 is corrected to require the model
+        round-trip, this test goes red and stops describing a hole that is
+        closed.
+        """
+        defect = mock.patch.object(decode._Reader, "_data", lambda self, o, p: None)
+        with defect:
+            self.assertTrue(
+                _run("AcceptTier.test_accept_files_are_canonical").wasSuccessful(),
+                "the literal SPEC 8.1 check has gained reach; revisit the note above",
+            )
+            self.assertFalse(
+                _run("AcceptTier.test_accept_files_survive_the_model").wasSuccessful()
+            )
+
     # -- refusals -------------------------------------------------------
 
     def test_a_reader_that_never_refuses_is_caught(self) -> None:

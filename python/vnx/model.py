@@ -87,10 +87,14 @@ Endpoint = Union[str, Position]
 
 @dataclass(slots=True)
 class Folder:
+    """SPEC 3.2 and 3.10.  `id` is REQUIRED; a folder without one is dropped."""
+
     id: Union[str, None] = None
     name: Union[str, None] = None
+    notes: Union[str, None] = None
     parent: Union[str, None] = None
     hidden: Union[bool, None] = None
+    data: Union[list[DataRecord], None] = None
 
 
 @dataclass(slots=True)

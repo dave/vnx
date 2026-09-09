@@ -87,6 +87,26 @@ class _Reader:
                 self.note(join(path, key), "unknown key")
         return value
 
+    def _complete(
+        self,
+        obj: dict[str, JSONValue],
+        path: str,
+        what: str,
+        fields: dict[str, object],
+    ) -> bool:
+        """SPEC 3.10: a REQUIRED key must be present for the object to exist.
+
+        Returns False when the item must be dropped.  A key that was present but
+        unusable has already been diagnosed where it was read, so only a key
+        genuinely ABSENT from the source object is reported here -- otherwise one
+        defect would produce two diagnostics.
+        """
+        missing = [key for key, value in fields.items() if value is None]
+        for key in missing:
+            if key not in obj:
+                self.note(join(path, key), f"{what} must carry `{key}`")
+        return not missing
+
     def _string(
         self, obj: dict[str, JSONValue], key: str, path: str
     ) -> Union[str, None]:
@@ -261,7 +281,38 @@ class _Reader:
         # inside them can be unknown.
         rulesets = self._array(obj, "rulesets", "")
         document.rulesets = rulesets
+        self._check_folder_references(document)
         return document
+
+    def _check_folder_references(self, document: Document) -> None:
+        """SPEC 6.2: a `folder` naming a folder that is not present.
+
+        Not an unusable value: the reader treats the key as absent, so the item
+        sits at the top level, and records a diagnostic.  Dropping the item
+        would lose content over a lost grouping.
+
+        This runs after every collection is decoded, because a folder may be
+        written after the items that name it -- key and element order carry no
+        meaning (SPEC 4.4).
+        """
+        known = {
+            folder.id for folder in (document.folders or []) if folder.id is not None
+        }
+        hosts: list[tuple[str, list[Any]]] = [
+            ("networks", list(document.networks or [])),
+            ("routes", list(document.routes or [])),
+            ("tracks", list(document.tracks or [])),
+            ("waypoints", list(document.waypoints or [])),
+            ("areas", list(document.areas or [])),
+        ]
+        for collection, items in hosts:
+            for index, item in enumerate(items):
+                if item.folder is not None and item.folder not in known:
+                    self.note(
+                        join("", collection, index, "folder"),
+                        f"no folder `{item.folder}` in this document",
+                    )
+                    item.folder = None
 
     def _check_version(self, version: str) -> None:
         match = _VERSION.match(version)
@@ -299,12 +350,20 @@ class _Reader:
         obj = self._object(value, path, K.FOLDER, "a folder")
         if obj is None:
             return None
-        return Folder(
+        folder = Folder(
             id=self._string(obj, "id", path),
             name=self._string(obj, "name", path),
+            notes=self._string(obj, "notes", path),
             parent=self._string(obj, "parent", path),
             hidden=self._bool(obj, "hidden", path),
+            data=self._data(obj, path),
         )
+        if not self._complete(obj, path, "a folder", {"id": folder.id}):
+            # SPEC 6.2: items that named it are then covered by the dangling
+            # `folder` rule and sit at the top level, so a folder's contents
+            # survive the loss of the folder.
+            return None
+        return folder
 
     def _waypoint(
         self,
@@ -320,6 +379,8 @@ class _Reader:
             at = self._position(obj["at"], join(path, "at"))
         style = self._style(obj, path)
         self._check_importance(style, path)
+        if not self._complete(obj, path, "a waypoint", {"at": at}):
+            return None
         return Waypoint(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
@@ -347,6 +408,8 @@ class _Reader:
                 # report a diagnostic and MUST drop the item.  It must not keep
                 # the outer ring and must not merge the rings.
                 return None
+        if not self._complete(obj, path, "an area", {"polygon": polygon}):
+            return None
         return Area(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
@@ -395,7 +458,12 @@ class _Reader:
                 seg = self._object(item, at, K.SEGMENT, "a segment")
                 if seg is None:
                     continue
-                segments.append(Segment(pips=self._positions(seg, "pips", at)))
+                pips = self._positions(seg, "pips", at)
+                if not self._complete(seg, at, "a segment", {"pips": pips}):
+                    continue
+                segments.append(Segment(pips=pips))
+        if not self._complete(obj, path, "a track", {"segments": segments}):
+            return None
         return Track(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
@@ -421,12 +489,12 @@ class _Reader:
                 arc = self._object(item, at, K.ROUTE_ARC, "a route arc")
                 if arc is None:
                     continue
-                arcs.append(
-                    RouteArc(
-                        pips=self._positions(arc, "pips", at),
-                        data=self._data(arc, at),
-                    )
-                )
+                pips = self._positions(arc, "pips", at)
+                if not self._complete(arc, at, "a route arc", {"pips": pips}):
+                    continue
+                arcs.append(RouteArc(pips=pips, data=self._data(arc, at)))
+        if not self._complete(obj, path, "a route", {"arcs": arcs}):
+            return None
         return Route(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
@@ -523,6 +591,11 @@ class _Reader:
                     self.note(
                         join(here, field_name), "not a node in this network"
                     )
+            if not self._complete(
+                entry, here, "an arc",
+                {"from": arc.from_, "to": arc.to, "pips": arc.pips},
+            ):
+                continue
             arcs[key] = arc
         return arcs
 
@@ -554,6 +627,8 @@ class _Reader:
         )
         items = self._array(obj, "links", path)
         if items is None:
+            if not self._complete(obj, path, "a chain", {"links": None}):
+                return None
             return chain
         chain.links = []
         # `kept` records which source indices survived, so that a break is only
@@ -591,6 +666,10 @@ class _Reader:
                 link.from_ = endpoint
             else:
                 link.to = endpoint
+        if not self._complete(
+            obj, path, "a link", {"from": link.from_, "to": link.to}
+        ):
+            return None
         return link
 
     def _endpoint(
@@ -621,11 +700,16 @@ class _Reader:
             return None
         distance = distance_to_polyline((position.lon, position.lat), polyline)
         if distance > PROJECTION_TOLERANCE_M:
+            # The corpus pins the substring "beyond the 50 m tolerance" and
+            # deliberately does NOT pin the measured distance, since the metres
+            # a reader reports depend on its distance model.  The distance is
+            # still worth reporting -- it is what tells a holder whether the
+            # document is nearly right or nowhere near.
             self.note(
                 at,
-                f"does not lie on arc {arc_name(network, arc)}: "
-                f"{distance:.0f} m from it, tolerance is "
-                f"{PROJECTION_TOLERANCE_M:.0f} m",
+                f"does not lie on arc `{arc_name(network, arc)}`: "
+                f"{distance:.0f} m, beyond the "
+                f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
             )
             return None
         return position

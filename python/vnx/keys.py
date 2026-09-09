@@ -19,15 +19,22 @@ __all__ = [
     "WAYPOINT_IN_NETWORK", "AREA_IN_NETWORK",
 ]
 
+# SPEC 3.10 is now the authority for both halves of this file.  Until 2026-09-09
+# the format stated no key set at all -- every one arrived inside an example, and
+# SPEC 1.3 says an example defines no rule -- so these sets were read off the
+# examples and constrained from below by the accept corpus.  They are now the
+# published table, checked against it key by key.
+
 # SPEC 3.1.
 DOCUMENT = frozenset({
     "vnx", "profile", "generator", "created",
     "folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets",
 })
 
-# SPEC 3.2.  A folder places itself with `parent`, not with the `folder` key
-# that SPEC 3.2 gives to "any item"; nothing in the format nests the two.
-FOLDER = frozenset({"id", "name", "parent", "hidden"})
+# SPEC 3.10.  `notes` and `data` were missing from this implementation's reading
+# -- neither appears in SPEC 3.2's example -- and the published table has both.
+# A folder places itself with `parent`, never with `folder`.
+FOLDER = frozenset({"id", "parent", "name", "notes", "hidden", "data"})
 
 # SPEC 3.3, plus `folder` (SPEC 3.2) and `hidden` (SPEC 3.8).
 NETWORK = frozenset({
@@ -78,6 +85,28 @@ AREA = frozenset({"folder", "name", "notes", "hidden", "polygon", "style", "data
 # pass WAYPOINT and AREA from `decode._network` again; nothing else changes.
 WAYPOINT_IN_NETWORK = WAYPOINT - {"folder"}
 AREA_IN_NETWORK = AREA - {"folder"}
+
+# SPEC 3.10's Required column.  "A key marked REQUIRED must be present for the
+# object to exist", and SPEC 6.2: a REQUIRED key carrying a value of the wrong
+# type means the reader MUST drop the ITEM, not the field, because dropping the
+# field would leave a waypoint that is nowhere or an arc with no geometry.
+#
+# Requiring a key does not require a non-empty value: `"links": []` satisfies
+# `links`.  This implementation distinguishes them -- absent is None, present
+# and empty is an empty list -- so the two cannot be confused.
+#
+# No corpus case omits a required key, so nothing here is constrained by the
+# corpus; it is constrained by the table.
+REQUIRED_FOLDER = frozenset({"id"})
+REQUIRED_ARC = frozenset({"from", "to", "pips"})
+REQUIRED_CHAIN = frozenset({"links"})
+REQUIRED_LINK = frozenset({"arc", "from", "to"})
+REQUIRED_ROUTE = frozenset({"arcs"})
+REQUIRED_ROUTE_ARC = frozenset({"pips"})
+REQUIRED_TRACK = frozenset({"segments"})
+REQUIRED_SEGMENT = frozenset({"pips"})
+REQUIRED_WAYPOINT = frozenset({"at"})
+REQUIRED_AREA = frozenset({"polygon"})
 
 # There is deliberately NO style key set here.
 #

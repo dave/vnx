@@ -65,8 +65,10 @@ def _folder(folder: Folder) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _put(obj, "id", folder.id)
     _put(obj, "name", folder.name)
+    _put(obj, "notes", folder.notes)
     _put(obj, "parent", folder.parent)
     _put(obj, "hidden", folder.hidden)
+    _put(obj, "data", _records(folder.data))
     return obj
 
 

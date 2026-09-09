@@ -21,6 +21,11 @@ def read(body: str) -> vnx.ReadResult:
     return read_bytes(doc(body))
 
 
+# A minimal VALID area: `polygon` is REQUIRED (SPEC 3.10), so a test about
+# something else still has to supply one.
+RING = '{"vnx": "0.1.0", "areas": [{"polygon": [[0,0],[1,0],[1,1],[0,0]]}]}'
+
+
 def messages(result: vnx.ReadResult) -> list[tuple[str, str]]:
     return sorted((d.path, d.message) for d in result.diagnostics)
 
@@ -120,6 +125,7 @@ class UnknownKeys(unittest.TestCase):
     def test_an_unrecognised_style_key_survives_a_round_trip(self) -> None:
         source = (
             '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n'
+            '      "at": [0, 0],\n'
             '      "style": {\n        "future-key": "value"\n      }\n'
             '    }\n  ]\n}\n'
         )
@@ -127,7 +133,7 @@ class UnknownKeys(unittest.TestCase):
         self.assertEqual(vnx.write_bytes(document).decode(), source)
 
     def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
-        result = read('{"vnx": "0.1.0", "waypoints": [{"style": 3}]}')
+        result = read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "style": 3}]}')
         self.assertEqual(messages(result), [("/waypoints/0/style", "a style must be an object")])
 
     def test_a_data_record_body_has_no_unknown_keys(self) -> None:
@@ -160,11 +166,17 @@ class Positions(unittest.TestCase):
         )
         self.assertEqual(len(result.diagnostics), 1)
 
-    def test_a_string_channel_is_dropped(self) -> None:
+    def test_a_string_channel_drops_the_whole_waypoint(self) -> None:
+        """SPEC 6.2: an unusable value in a REQUIRED key drops the ITEM.
+
+        `at` is REQUIRED (SPEC 3.10), and dropping only the field would leave a
+        waypoint that is nowhere.  Exactly one diagnostic: the position reports
+        where it failed, and the item's disappearance is that same defect rather
+        than a second one.
+        """
         result = read('{"vnx": "0.1.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
-        self.assertEqual(len(result.diagnostics), 1)
-        assert result.document.waypoints is not None
-        self.assertIsNone(result.document.waypoints[0].at)
+        self.assertEqual(len(result.diagnostics), 1, messages(result))
+        self.assertEqual(result.document.waypoints, [])
 
     def test_a_boolean_channel_is_not_a_number(self) -> None:
         result = read('{"vnx": "0.1.0", "waypoints": [{"at": [-3.6, true]}]}')
@@ -323,7 +335,11 @@ class HiddenAndAbsence(unittest.TestCase):
     """SPEC 3.1, 3.6 and 3.8.  Absence is not a default."""
 
     def test_hidden_false_survives(self) -> None:
-        source = '{\n  "vnx": "0.1.0",\n  "areas": [\n    {\n      "hidden": false\n    }\n  ]\n}\n'
+        source = (
+            '{\n  "vnx": "0.1.0",\n  "areas": [\n    {\n      "hidden": false,\n'
+            '      "polygon": [\n        [0, 0],\n        [1, 0],\n        [1, 1],\n'
+            '        [0, 0]\n      ]\n    }\n  ]\n}\n'
+        )
         self.assertEqual(vnx.canonicalise(doc(source)).decode(), source)
         document = read(source).document
         assert document.areas is not None
@@ -331,12 +347,12 @@ class HiddenAndAbsence(unittest.TestCase):
         self.assertEqual(vnx.write_bytes(document).decode(), source)
 
     def test_an_absent_hidden_is_not_false(self) -> None:
-        document = read('{"vnx": "0.1.0", "areas": [{}]}').document
+        document = read(RING).document
         assert document.areas is not None
         self.assertIsNone(document.areas[0].hidden)
 
     def test_an_absent_label_visible_is_not_false(self) -> None:
-        document = read('{"vnx": "0.1.0", "waypoints": [{"style": {}}]}').document
+        document = read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "style": {}}]}').document
         assert document.waypoints is not None
         self.assertNotIn("label-visible", document.waypoints[0].style or {})
 
@@ -347,7 +363,7 @@ class HiddenAndAbsence(unittest.TestCase):
                 self.assertEqual(vnx.write_bytes(document).decode(), source)
 
     def test_a_non_boolean_hidden_is_dropped(self) -> None:
-        result = read('{"vnx": "0.1.0", "areas": [{"hidden": "yes"}]}')
+        result = read(RING.replace('{"polygon"', '{"hidden": "yes", "polygon"'))
         self.assertEqual(messages(result), [("/areas/0/hidden", "must be a boolean")])
 
 
@@ -355,7 +371,7 @@ class Records(unittest.TestCase):
     """SPEC 5."""
 
     def test_a_record_without_a_type_is_dropped(self) -> None:
-        result = read('{"vnx": "0.1.0", "waypoints": [{"data": [{"value": 1}]}]}')
+        result = read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "data": [{"value": 1}]}]}')
         self.assertEqual(len(result.diagnostics), 1)
         assert result.document.waypoints is not None
         self.assertEqual(result.document.waypoints[0].data, [])
@@ -364,7 +380,7 @@ class Records(unittest.TestCase):
         # SPEC 5.3: a @type value is compared exactly everywhere except the
         # namespace test, so `App.viatrail.tag` is not `app.viatrail.tag`.
         document = read(
-            '{"vnx": "0.1.0", "waypoints": [{"data":'
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "data":'
             ' [{"@type": "App.viatrail.tag", "value": "x"}]}]}'
         ).document
         assert document.waypoints is not None
@@ -375,7 +391,7 @@ class Records(unittest.TestCase):
     def test_several_records_of_one_type_are_all_kept(self) -> None:
         # SPEC 5.1.1: data is a bag, not a map; three tags are three records.
         document = read(
-            '{"vnx": "0.1.0", "waypoints": [{"data": ['
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "data": ['
             '{"@type": "app.viatrail.tag", "value": "a"},'
             '{"@type": "app.viatrail.tag", "value": "b"},'
             '{"@type": "app.viatrail.tag", "value": "c"}]}]}'
@@ -577,7 +593,7 @@ class RuledStyleValues(unittest.TestCase):
     """
 
     def style(self, body: str) -> vnx.ReadResult:
-        return read('{"vnx": "0.1.0", "waypoints": [{"style": %s}]}' % body)
+        return read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "style": %s}]}' % body)
 
     def test_importance_in_range_is_kept(self) -> None:
         for value in (1, 3, 5):
@@ -616,26 +632,32 @@ class RuledFolderScope(unittest.TestCase):
 
     def test_a_top_level_waypoint_may_carry_a_folder(self) -> None:
         self.assertEqual(
-            messages(read('{"vnx": "0.1.0", "waypoints": [{"folder": "f"}]}')), []
+            messages(read('{"vnx": "0.1.0", "folders": [{"id": "f"}], "waypoints":'
+                          ' [{"at": [0,0], "folder": "f"}]}')), []
         )
 
     def test_a_network_point_may_not(self) -> None:
         result = read(
-            '{"vnx": "0.1.0", "networks": [{"points": [{"folder": "f"}]}]}'
+            '{"vnx": "0.1.0", "networks":'
+            ' [{"points": [{"at": [0,0], "folder": "f"}]}]}'
         )
         self.assertEqual(
             messages(result), [("/networks/0/points/0/folder", "unknown key")]
         )
 
     def test_a_network_area_may_not(self) -> None:
-        result = read('{"vnx": "0.1.0", "networks": [{"areas": [{"folder": "f"}]}]}')
+        result = read('{"vnx": "0.1.0", "networks": [{"areas":'
+                      ' [{"folder": "f", "polygon": [[0,0],[1,0],[1,1],[0,0]]}]}]}')
         self.assertEqual(
             messages(result), [("/networks/0/areas/0/folder", "unknown key")]
         )
 
     def test_a_top_level_area_may(self) -> None:
         self.assertEqual(
-            messages(read('{"vnx": "0.1.0", "areas": [{"folder": "f"}]}')), []
+            messages(read(
+                RING.replace('"areas"', '"folders": [{"id": "f"}], "areas"')
+                    .replace('{"polygon"', '{"folder": "f", "polygon"')
+            )), []
         )
 
     def test_the_two_sets_differ_by_exactly_folder(self) -> None:
@@ -649,3 +671,104 @@ class RuledFolderScope(unittest.TestCase):
 
         self.assertEqual(keys.WAYPOINT - keys.WAYPOINT_IN_NETWORK, {"folder"})
         self.assertEqual(keys.AREA - keys.AREA_IN_NETWORK, {"folder"})
+
+
+class RequiredKeys(unittest.TestCase):
+    """SPEC 3.10's Required column, and SPEC 6.2's remedy for it.
+
+    "A key marked REQUIRED must be present for the object to exist."  No corpus
+    case omits one, so every assertion here is against the table rather than
+    against a fixture.
+    """
+
+    def test_a_folder_without_an_id_is_dropped(self) -> None:
+        result = read('{"vnx": "0.1.0", "folders": [{"name": "Nameless"}]}')
+        self.assertEqual(messages(result), [("/folders/0/id", "a folder must carry `id`")])
+        self.assertEqual(result.document.folders, [])
+
+    def test_a_waypoint_without_a_position_is_dropped(self) -> None:
+        result = read('{"vnx": "0.1.0", "waypoints": [{"name": "Nowhere"}]}')
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.document.waypoints, [])
+
+    def test_an_area_without_a_polygon_is_dropped(self) -> None:
+        result = read('{"vnx": "0.1.0", "areas": [{"name": "Shapeless"}]}')
+        self.assertEqual(result.document.areas, [])
+
+    def test_a_track_without_segments_is_dropped(self) -> None:
+        result = read('{"vnx": "0.1.0", "tracks": [{"name": "No geometry"}]}')
+        self.assertEqual(result.document.tracks, [])
+
+    def test_an_arc_without_pips_is_dropped_and_the_network_survives(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "networks": [{"name": "N", "nodes": {"a": [0,0]},'
+            ' "arcs": {"bad": {"from": "a", "to": "a"}}}]}'
+        )
+        assert result.document.networks is not None
+        self.assertEqual(result.document.networks[0].arcs, {})
+        self.assertEqual(len(result.document.networks), 1)
+
+    def test_a_link_without_endpoints_is_dropped(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "networks": [{"nodes": {"a": [0,0], "b": [1,1]},'
+            ' "arcs": {"x": {"from": "a", "to": "b", "pips": [[0,0],[1,1]]}},'
+            ' "chains": [{"links": [{"arc": "x"}]}]}]}'
+        )
+        assert result.document.networks is not None
+        chains = result.document.networks[0].chains
+        assert chains is not None
+        self.assertEqual(chains[0].links, [])
+
+    def test_an_empty_required_array_is_present(self) -> None:
+        """SPEC 3.10: requiring a key does not require a non-empty value."""
+        result = read(
+            '{"vnx": "0.1.0", "networks": [{"chains": [{"links": []}]}],'
+            ' "tracks": [{"segments": []}]}'
+        )
+        self.assertEqual(messages(result), [])
+        assert result.document.tracks is not None
+        self.assertEqual(result.document.tracks[0].segments, [])
+
+    def test_an_absent_key_and_an_unusable_one_each_report_once(self) -> None:
+        """One defect, one diagnostic, whichever way the key fails."""
+        absent = read('{"vnx": "0.1.0", "waypoints": [{}]}')
+        unusable = read('{"vnx": "0.1.0", "waypoints": [{"at": "here"}]}')
+        self.assertEqual(len(absent.diagnostics), 1, messages(absent))
+        self.assertEqual(len(unusable.diagnostics), 1, messages(unusable))
+
+
+class DanglingFolder(unittest.TestCase):
+    """SPEC 6.2: a `folder` naming a folder that is not in the document."""
+
+    def test_the_item_survives_at_the_top_level(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "folder": "ghost"}]}'
+        )
+        self.assertEqual(
+            messages(result),
+            [("/waypoints/0/folder", "no folder `ghost` in this document")],
+        )
+        assert result.document.waypoints is not None
+        self.assertEqual(len(result.document.waypoints), 1)
+        self.assertIsNone(result.document.waypoints[0].folder)
+
+    def test_a_folder_written_after_the_item_that_names_it_is_found(self) -> None:
+        # SPEC 4.4: element order carries no meaning, so the check is a second
+        # pass rather than a running one.
+        result = read(
+            '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "folder": "f"}],'
+            ' "folders": [{"id": "f"}]}'
+        )
+        self.assertEqual(messages(result), [])
+
+    def test_a_dropped_folder_leaves_its_contents_at_the_top_level(self) -> None:
+        """SPEC 6.2's worked case: a folder with no `id` is dropped, and the
+        items that named it are then covered by the dangling-folder rule."""
+        result = read(
+            '{"vnx": "0.1.0", "folders": [{"name": "No id"}],'
+            ' "tracks": [{"segments": [], "folder": "whatever"}]}'
+        )
+        self.assertEqual(len(result.diagnostics), 2, messages(result))
+        assert result.document.tracks is not None
+        self.assertEqual(len(result.document.tracks), 1)
+        self.assertIsNone(result.document.tracks[0].folder)

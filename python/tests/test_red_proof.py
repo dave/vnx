@@ -20,9 +20,10 @@ import vnx
 from vnx import decode, model, numbers
 from vnx.model import Position
 
-from . import test_corpus, test_numbers, test_reader
+from . import test_corpus, test_numbers, test_reader, test_writer
 
-_MODULES = {"reader:": test_reader, "numbers:": test_numbers}
+_MODULES = {"reader:": test_reader, "numbers:": test_numbers,
+            "writer:": test_writer}
 
 
 def _run(name: str) -> unittest.TestResult:
@@ -185,6 +186,70 @@ class RedProof(unittest.TestCase):
                 "numbers:TiesRoundToEven.test_the_case_kotlin_got_wrong",
                 "renderer taking a tie away from zero",
             )
+
+    # -- the writer emit path -------------------------------------------
+
+    def test_rounding_away_from_zero_is_caught(self) -> None:
+        """The JavaScript seat's defect: `toFixed`-style away-from-zero.
+
+        Unreachable by any corpus tier -- rounding only happens when a model is
+        emitted, and every tier re-renders a document that already exists.
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+
+        def half_up(value: float, places: int = 0) -> float:
+            return float(
+                Decimal(value).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)
+            )
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.writer, "round", half_up, create=True),
+            "writer:RoundingTies.test_the_javascript_case",
+            "writer rounding ties away from zero",
+        )
+
+    def test_a_writer_that_does_not_round_at_all_is_caught(self) -> None:
+        self.assertGoesRed(
+            mock.patch.object(vnx.writer, "round", lambda v, places=0: v, create=True),
+            "writer:Rounding.test_places",
+            "writer that does not round",
+        )
+
+    def test_a_created_negative_zero_reaching_the_bytes_is_caught(self) -> None:
+        """If the renderer stopped collapsing negative zero, the writer would
+        emit one that no document ever contained."""
+        original = numbers.render_number
+
+        def keep_the_sign(value: float) -> str:
+            import math
+
+            if float(value) == 0.0 and math.copysign(1.0, float(value)) < 0:
+                return "-0"
+            return original(value)
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.canonical, "render_number", keep_the_sign),
+            "writer:RoundingCreatesNegativeZero"
+            ".test_a_created_negative_zero_never_reaches_the_bytes",
+            "renderer that keeps a created negative zero",
+        )
+
+    def test_shortening_in_the_FORMATTER_is_caught(self) -> None:
+        """The two emit paths must not converge.
+
+        SPEC 4.1's shortest-spelling rule belongs to the writer; a formatter
+        that also shortened would fail the accept tier, because
+        `absent-elevation-and-time.vnx` is stored canonical with trailing nulls.
+        """
+        self.assertGoesRed(
+            mock.patch.object(
+                vnx.encode, "_positions",
+                lambda items: None if items is None
+                else [list(vnx.writer.round_position(p).channels) for p in items],
+            ),
+            "AcceptTier.test_accept_files_survive_the_model",
+            "formatter that applies the writer's rules",
+        )
 
     # -- canonical form -------------------------------------------------
 

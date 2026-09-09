@@ -20,6 +20,21 @@ container = vnx.read_container_file("trip.vnz")
 print(container.document_name, container.attachments)
 ```
 
+**There are two emit paths and they are not interchangeable** (§4.5.4). A
+*formatter* reproduces what a document carried — it does not round and does not
+re-spell a position, which is why `accept/full-precision-coordinate.vnx`
+round-trips byte for byte. A *writer* emits a model as a document, rounding
+longitude and latitude to 6 places and elevation to 1, and emitting the shortest
+spelling of every position. The same file does not come out of both unchanged,
+and that is the point: that fixture reformats to itself and encodes to
+`-3.671235`, which its own sidecar says is correct.
+
+| Call | Path |
+|---|---|
+| `reformat_bytes` / `reformat_file` | formatter — preserves values and position arity |
+| `encode_bytes` / `encode_file` | writer — rounds, shortens, then formats |
+| `canonicalise` | bytes in, bytes out; never decodes to the model |
+
 A document that cannot be read at all raises `vnx.VNXRefusal`. A document that
 could be read with pieces dropped comes back with diagnostics. They are separate
 channels on purpose (§6.3), and nothing malformed ever becomes a default.
@@ -109,6 +124,7 @@ vnx/model.py       the document model (SPEC 3)
 vnx/decode.py      reading, with diagnostics and refusals (SPEC 6)
 vnx/encode.py      model to JSON tree
 vnx/container.py   the VNZ container (SPEC 7, 9)
+vnx/writer.py      the writer emit path: rounding and shortest spelling
 vnx/geo.py         point-to-polyline distance, for SPEC 3.3.3
 vnx/pointer.py     RFC 6901
 vnx/errors.py      VNXRefusal and Diagnostic

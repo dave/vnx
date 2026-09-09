@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from .decode import ReadResult, read_bytes
-from .encode import write_bytes
+from .writer import encode_bytes
 from .errors import Diagnostic, VNXRefusal
 from .model import Document
 
@@ -107,14 +107,20 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
 def write_container_bytes(
     document: Document, attachments: Union[dict[str, bytes], None] = None
 ) -> bytes:
-    """Write a ``.vnz`` holding *document* as ``doc.vnx`` plus *attachments*."""
+    """Write a ``.vnz`` holding *document* as ``doc.vnx`` plus *attachments*.
+
+    Building a container from a model is a WRITER action, so the document is
+    emitted through `encode_bytes` and its coordinates are rounded to writer
+    precision.  To repackage a document unchanged, reformat it yourself and
+    place the bytes in the archive.
+    """
     for name in attachments or {}:
         _check_path(name)
         if name.lower() == _ROOT_DOCUMENT:
             raise VNXRefusal(f"an attachment may not be named {name!r}")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(_zip_info(_ROOT_DOCUMENT), write_bytes(document))
+        archive.writestr(_zip_info(_ROOT_DOCUMENT), encode_bytes(document))
         for name, body in (attachments or {}).items():
             archive.writestr(_zip_info(name), body)
     return buffer.getvalue()

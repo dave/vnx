@@ -20,11 +20,16 @@ from .model import (
     Network, Position, Route, RouteArc, Segment, Track, Waypoint,
 )
 
-__all__ = ["write_bytes", "encode_document"]
+__all__ = ["reformat_bytes", "encode_document"]
 
 
-def write_bytes(document: Document) -> bytes:
-    """Render *document* in canonical form (SPEC 4.5)."""
+def reformat_bytes(document: Document) -> bytes:
+    """Render *document* in canonical form, preserving its values (SPEC 4.5).
+
+    This is the FORMATTER: it does not round and it does not re-spell a
+    position.  For the writer path, which applies the boundary rules of
+    SPEC 4.5.4 and 4.1, use `vnx.encode_bytes`.
+    """
     return render_document(encode_document(document))
 
 

@@ -64,7 +64,7 @@ class Versions(unittest.TestCase):
     def test_the_declared_version_is_written_back(self) -> None:
         # SPEC 2.2: a 0.1.0 reader that reads a 0.1.3 document writes `0.1.3`.
         document = read('{"vnx": "0.1.3"}').document
-        self.assertIn(b'"vnx": "0.1.3"', vnx.write_bytes(document))
+        self.assertIn(b'"vnx": "0.1.3"', vnx.reformat_bytes(document))
 
     def test_the_top_level_must_be_an_object(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -130,7 +130,7 @@ class UnknownKeys(unittest.TestCase):
             '    }\n  ]\n}\n'
         )
         document = read(source).document
-        self.assertEqual(vnx.write_bytes(document).decode(), source)
+        self.assertEqual(vnx.reformat_bytes(document).decode(), source)
 
     def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
         result = read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "style": 3}]}')
@@ -196,7 +196,7 @@ class Positions(unittest.TestCase):
         source = '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [-3.6, 57.1, 3, 5, 7]\n    }\n  ]\n}\n'
         result = read(source)
         self.assertEqual(messages(result), [])
-        self.assertEqual(vnx.write_bytes(result.document).decode(), source)
+        self.assertEqual(vnx.reformat_bytes(result.document).decode(), source)
 
 
 class Polygons(unittest.TestCase):
@@ -344,7 +344,7 @@ class HiddenAndAbsence(unittest.TestCase):
         document = read(source).document
         assert document.areas is not None
         self.assertIs(document.areas[0].hidden, False)
-        self.assertEqual(vnx.write_bytes(document).decode(), source)
+        self.assertEqual(vnx.reformat_bytes(document).decode(), source)
 
     def test_an_absent_hidden_is_not_false(self) -> None:
         document = read(RING).document
@@ -360,7 +360,7 @@ class HiddenAndAbsence(unittest.TestCase):
         for source in ('{\n  "vnx": "0.1.0",\n  "areas": []\n}\n', '{\n  "vnx": "0.1.0"\n}\n'):
             with self.subTest(source=source):
                 document = read(source).document
-                self.assertEqual(vnx.write_bytes(document).decode(), source)
+                self.assertEqual(vnx.reformat_bytes(document).decode(), source)
 
     def test_a_non_boolean_hidden_is_dropped(self) -> None:
         result = read(RING.replace('{"polygon"', '{"hidden": "yes", "polygon"'))

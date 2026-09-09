@@ -231,7 +231,7 @@ class AcceptTier(_CorpusCase):
             with self.subTest(case=path.name):
                 original = path.read_bytes()
                 document = vnx.read_bytes(original).document
-                self.assertEqual(vnx.write_bytes(document), original, path.name)
+                self.assertEqual(vnx.reformat_bytes(document), original, path.name)
 
 
 class RejectTier(_CorpusCase):

@@ -77,6 +77,17 @@ func writeDocument(e emitter, b *StickyWriter, doc *Document) error {
 // The decoder already draws that line — an absent key leaves the field nil,
 // while `[]` and `{}` produce non-nil empty values — so this is the encoder
 // catching up with what the model already knew.
+//
+// ⚠ FOUR LENGTH GUARDS ON THE EMIT PATH ARE CORRECT AND MUST NOT BE "FIXED".
+// streamObject's `len(scalars) == 0 && live == 0`, streamNetworks' `len(ns)`,
+// streamNodes' `len(nodes)` and streamArcs' `len(arcs)` all render the EMPTY
+// FORM — `[]` or `{}` — rather than omitting anything, and each is reached only
+// after presence has already been decided above it. That is the distinction
+// that makes them safe, and it is not visible from the call site.
+//
+// The unsafe shape is a length guard that decides whether a key APPEARS. A
+// census on 2026-09-09 found eleven guards on this path: those four, `putData`,
+// and six style sites. Six of the seven defects were one bug.
 type containerEmitter struct {
 	key     string
 	present bool

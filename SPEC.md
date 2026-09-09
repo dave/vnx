@@ -381,6 +381,11 @@ a complete one, so no consumer can tell which it was given, where zero is at
 least recognisable as suspicious. A track with no segments at all is unknown for
 the same reason.
 
+An EMPTY segment does not make a track unknown. It has no span to measure, so it
+is not an unmeasured span: it contributes zero. The rule above reads either way
+without this sentence, which is enough for two implementations to differ on a
+track containing an empty segment with nothing to catch it.
+
 ### 3.6 Waypoints and points
 
 Top-level `waypoints` and a network's `points` share one shape.
@@ -1198,14 +1203,32 @@ in both.
 | extra field, comment | length 0 |
 | disk numbers | 0 |
 | internal attributes, external attributes | 0 |
+| CRC and both sizes | written in the local header |
+| general purpose bit 3, the data descriptor flag | not set |
 | entry order | the root document first, then attachments in the order the caller gave them |
 | ZIP64 records | not written |
 | archive comment | none |
 
-A writer MUST emit stored for every entry, and MUST NOT deflate. A reader still
-accepts deflate, and a reader MUST still read ZIP64. Both asymmetries are
-deliberate and are the shape this format uses elsewhere: canonical form
-constrains what a library writes and never what it will read.
+A writer MUST emit stored for every entry, and MUST NOT deflate. It MUST write
+the CRC and both sizes in the local header and MUST NOT set general purpose bit
+3. A reader still accepts deflate, still accepts bit 3, and MUST still read
+ZIP64. Those asymmetries are deliberate and are the shape this format uses
+elsewhere: canonical form constrains what a library writes and never what it
+will read.
+
+Bit 3 defers the CRC and the sizes to a descriptor after the payload, which
+forces a forward-only reader to scan for the next entry's signature — and for a
+STORED entry the payload can itself contain that signature. The always-stored
+rule above therefore turns a theoretical ambiguity into a reachable one, which
+is what decides this. Bit 3 exists for a writer that cannot seek, and a VNX
+writer holds the whole document before it writes a byte.
+
+Note: a conforming reader takes the sizes from the CENTRAL DIRECTORY and never
+from the local header, which is why an archive written with bit 3 still reads.
+A reader that trusts the local header believes a deferred size of zero. That is
+the same shape as an archive with ZIP64 records reading correctly against a
+parser that ignores extra fields: in both cases the fixture passes because the
+reader happened not to consult the field that was wrong.
 
 Version 10 rather than 20 because a stored-only archive requires 1.0, and that
 field states a requirement rather than a habit.

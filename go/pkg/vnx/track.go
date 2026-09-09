@@ -99,8 +99,13 @@ func (t Track) MovingTime() (d time.Duration, known bool) {
 // every track containing a one-pip segment unknown, which is a different wrong
 // answer from the one being fixed.
 func (s Segment) timedSpan() (time.Duration, bool) {
+	// ⚠ AN EMPTY SEGMENT IS NOT AN UNMEASURED SPAN. It has no span to measure,
+	// so it contributes zero and does not make the track unknown. Spec §3.5 says
+	// so explicitly rather than leaving it implicit, because the moving-time
+	// rule reads either way and two libraries would have differed on a track
+	// containing an empty segment with nothing red.
 	if len(s.Pips) == 0 {
-		return 0, false
+		return 0, true
 	}
 	first, last := s.Pips[0].Time, s.Pips[len(s.Pips)-1].Time
 	if first == nil || last == nil {

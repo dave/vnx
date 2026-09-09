@@ -542,3 +542,85 @@ class CanonicalLayout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RuledStyleValues(unittest.TestCase):
+    """SPEC 3.6's two ranges, ruled 2026-09-09.
+
+    `importance` is normative and `icon-size`'s list of the sizes Viatrail uses
+    is informative.  No corpus case reaches either.
+    """
+
+    def style(self, body: str) -> vnx.ReadResult:
+        return read('{"vnx": "0.1.0", "waypoints": [{"style": %s}]}' % body)
+
+    def test_importance_in_range_is_kept(self) -> None:
+        for value in (1, 3, 5):
+            with self.subTest(value=value):
+                result = self.style('{"importance": %d}' % value)
+                self.assertEqual(messages(result), [])
+
+    def test_importance_out_of_range_is_dropped(self) -> None:
+        for value in ("0", "6", "-1", "2.5", '"3"', "true", "null"):
+            with self.subTest(value=value):
+                result = self.style('{"importance": %s}' % value)
+                self.assertEqual(
+                    messages(result),
+                    [("/waypoints/0/style/importance", "must be an integer from 1 to 5")],
+                )
+                assert result.document.waypoints is not None
+                style = result.document.waypoints[0].style
+                assert style is not None
+                self.assertNotIn("importance", style)
+
+    def test_the_item_and_the_rest_of_the_style_survive(self) -> None:
+        result = self.style('{"importance": 9, "color": "#fff"}')
+        assert result.document.waypoints is not None
+        self.assertEqual(result.document.waypoints[0].style, {"color": "#fff"})
+
+    def test_icon_size_is_informative_and_not_checked(self) -> None:
+        # SPEC 3.6 names 16, 21, 27, 35 and 46 as "the values Viatrail uses".
+        self.assertEqual(messages(self.style('{"icon-size": 19}')), [])
+
+
+class RuledFolderScope(unittest.TestCase):
+    """SPEC 3.2's "any item" does not reach a network's own points and areas.
+
+    Ruled 2026-09-09, conditional on Viatrail's exporter not writing one.
+    """
+
+    def test_a_top_level_waypoint_may_carry_a_folder(self) -> None:
+        self.assertEqual(
+            messages(read('{"vnx": "0.1.0", "waypoints": [{"folder": "f"}]}')), []
+        )
+
+    def test_a_network_point_may_not(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "networks": [{"points": [{"folder": "f"}]}]}'
+        )
+        self.assertEqual(
+            messages(result), [("/networks/0/points/0/folder", "unknown key")]
+        )
+
+    def test_a_network_area_may_not(self) -> None:
+        result = read('{"vnx": "0.1.0", "networks": [{"areas": [{"folder": "f"}]}]}')
+        self.assertEqual(
+            messages(result), [("/networks/0/areas/0/folder", "unknown key")]
+        )
+
+    def test_a_top_level_area_may(self) -> None:
+        self.assertEqual(
+            messages(read('{"vnx": "0.1.0", "areas": [{"folder": "f"}]}')), []
+        )
+
+    def test_the_two_sets_differ_by_exactly_folder(self) -> None:
+        """Guards the ruling against a future edit that reunifies the sets.
+
+        Without this, `WAYPOINT_IN_NETWORK = WAYPOINT` would leave every test
+        above green except the two that name a network, and the ruling would
+        quietly stop being implemented.
+        """
+        from vnx import keys
+
+        self.assertEqual(keys.WAYPOINT - keys.WAYPOINT_IN_NETWORK, {"folder"})
+        self.assertEqual(keys.AREA - keys.AREA_IN_NETWORK, {"folder"})

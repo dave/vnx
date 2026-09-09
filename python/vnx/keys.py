@@ -16,6 +16,7 @@ from __future__ import annotations
 __all__ = [
     "DOCUMENT", "FOLDER", "NETWORK", "ARC", "CHAIN", "LINK", "ROUTE",
     "ROUTE_ARC", "TRACK", "SEGMENT", "WAYPOINT", "AREA",
+    "WAYPOINT_IN_NETWORK", "AREA_IN_NETWORK",
     "LINE_STYLE", "POINT_STYLE", "AREA_STYLE",
 ]
 
@@ -50,8 +51,8 @@ ROUTE = frozenset({"folder", "name", "notes", "hidden", "style", "arcs", "data"}
 
 ROUTE_ARC = frozenset({"pips", "data"})
 
-# SPEC 3.5.  `notes` is not in the section's example but every other named item
-# in the format carries one; this is a widening.
+# SPEC 3.5.  `notes` is not in the section's example.  Dave ruled it legal on
+# 2026-09-09, after this implementation had assumed it on no evidence at all.
 TRACK = frozenset({
     "folder", "name", "notes", "hidden", "started", "ended",
     "style", "segments", "data",
@@ -60,12 +61,24 @@ TRACK = frozenset({
 SEGMENT = frozenset({"pips"})
 
 # SPEC 3.6.  One shape for a top-level waypoint and a network's point.  SPEC
-# 3.8 lists "points" among the hosts of `hidden`; whether that reaches a
-# top-level waypoint is not stated, and this set says yes for both.
+# 3.8 lists "points" among the hosts of `hidden` and does not say whether that
+# reaches a top-level waypoint; Dave ruled on 2026-09-09 that it does, because
+# "share one shape" governs.
 WAYPOINT = frozenset({"folder", "name", "notes", "hidden", "at", "style", "data"})
 
 # SPEC 3.7.
 AREA = frozenset({"folder", "name", "notes", "hidden", "polygon", "style", "data"})
+
+# SPEC 3.2 gives `folder` to "any item", which this implementation read as
+# reaching a network's own points and areas too.  Ruled the other way on
+# 2026-09-09: an item a network already contains does not also sit in a folder.
+#
+# The ruling is conditional -- it stands unless Viatrail's exporter is found to
+# write one, in which case `folder` becomes legal there rather than have the
+# format diagnose its own output.  If that happens, delete these two names and
+# pass WAYPOINT and AREA from `decode._network` again; nothing else changes.
+WAYPOINT_IN_NETWORK = WAYPOINT - {"folder"}
+AREA_IN_NETWORK = AREA - {"folder"}
 
 # Style key sets.  SPEC gives one example per host and no rule.  The three sets
 # below are by geometry rather than by host: a chain, a route and a track are

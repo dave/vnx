@@ -139,10 +139,25 @@ class _Reader:
     ) -> Union[Style, None]:
         if "style" not in obj:
             return None
-        style = self._object(obj["style"], join(path, "style"), known, "style")
+        at = join(path, "style")
+        style = self._object(obj["style"], at, known, "style")
         if style is None:
             return None
-        return {k: v for k, v in style.items() if k in known}
+        kept = {k: v for k, v in style.items() if k in known}
+        # SPEC 3.6 states two ranges and does not say which constrains a value.
+        # Dave ruled on 2026-09-09: `importance` is normative, `icon-size`'s
+        # list of the sizes Viatrail uses is informative.  So `importance` is
+        # the one style value this reader inspects.  An out-of-range value is
+        # an unusable value under SPEC 6.2 -- the key is dropped, the style and
+        # the item are kept.  The remedy is this implementation's reading; SPEC
+        # 6.2 gives no remedy for a value outside a stated range.
+        if "importance" in kept and not _is_importance(kept["importance"]):
+            self.note(
+                join(at, "importance"),
+                "must be an integer from 1 to 5",
+            )
+            del kept["importance"]
+        return kept
 
     def _data(
         self, obj: dict[str, JSONValue], path: str
@@ -285,8 +300,13 @@ class _Reader:
             hidden=self._bool(obj, "hidden", path),
         )
 
-    def _waypoint(self, value: JSONValue, path: str) -> Union[Waypoint, None]:
-        obj = self._object(value, path, K.WAYPOINT, "a waypoint")
+    def _waypoint(
+        self,
+        value: JSONValue,
+        path: str,
+        known: frozenset[str] = K.WAYPOINT,
+    ) -> Union[Waypoint, None]:
+        obj = self._object(value, path, known, "a waypoint")
         if obj is None:
             return None
         at = None
@@ -302,8 +322,13 @@ class _Reader:
             data=self._data(obj, path),
         )
 
-    def _area(self, value: JSONValue, path: str) -> Union[Area, None]:
-        obj = self._object(value, path, K.AREA, "an area")
+    def _area(
+        self,
+        value: JSONValue,
+        path: str,
+        known: frozenset[str] = K.AREA,
+    ) -> Union[Area, None]:
+        obj = self._object(value, path, known, "an area")
         if obj is None:
             return None
         polygon = None
@@ -424,7 +449,9 @@ class _Reader:
         if points is not None:
             network.points = []
             for index, item in enumerate(points):
-                point = self._waypoint(item, join(path, "points", index))
+                point = self._waypoint(
+                    item, join(path, "points", index), K.WAYPOINT_IN_NETWORK
+                )
                 if point is not None:
                     network.points.append(point)
 
@@ -432,7 +459,9 @@ class _Reader:
         if areas is not None:
             network.areas = []
             for index, item in enumerate(areas):
-                area = self._area(item, join(path, "areas", index))
+                area = self._area(
+                    item, join(path, "areas", index), K.AREA_IN_NETWORK
+                )
                 if area is not None:
                     network.areas.append(area)
 
@@ -630,6 +659,12 @@ class _Reader:
         if isinstance(endpoint, Position):
             return endpoint
         return (network.nodes or {}).get(endpoint)
+
+
+def _is_importance(value: JSONValue) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value).is_integer() and 1 <= value <= 5
 
 
 def arc_name(network: Network, arc: Arc) -> str:

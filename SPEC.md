@@ -691,15 +691,25 @@ Object keys sort in two groups:
 1. Scalars — strings, numbers, booleans and nulls — in lexicographic order.
 2. Containers — objects and arrays — in lexicographic order.
 
-Lexicographic means by Unicode code point. Every key this format defines is
-ASCII, where code point, UTF-8 byte and UTF-16 code unit order all agree, but a
-data record body may carry any key (Section 5.1), and the three orders disagree
-above U+FFFF.
+Lexicographic means CODE-POINT ORDER, which this document defines here and uses
+by that name wherever strings are ordered:
 
-Note: an implementation whose default string comparison is by UTF-16 code unit
-MUST supply its own comparator. JavaScript's `Array.prototype.sort()` is such a
-default; Python's `sorted()` and Go's `sort.Strings` already order by code
-point.
+> CODE-POINT ORDER compares two strings by the Unicode code points they contain,
+> in order. An implementation whose default string comparison is by UTF-16 code
+> unit MUST supply its own comparator, because the two disagree above U+FFFF:
+> JavaScript's `Array.prototype.sort()` is such a default, while Python's
+> `sorted()` and Go's `sort.Strings` already order by code point.
+
+Every key this format defines is ASCII, where code point, UTF-8 byte and UTF-16
+code unit order all agree — but a data record body may carry any key
+(Section 5.1), and an archive entry name may be anything at all (Section 7.1).
+
+The term is defined rather than restated wherever it is used because a section
+CROSS-REFERENCE invites the assumption that a reader already knows what is there,
+and this rule's whole content is a thing a reader does not know. An implementer
+who sees "code point" and believes their language does that is not being
+careless; they are being told the rule is defined elsewhere and that nothing here
+needs their attention.
 
 Classification is by the value present in this object, not by the key name. No
 key is named by the rule.
@@ -1353,7 +1363,7 @@ in both.
 | internal attributes, external attributes | 0 |
 | CRC and both sizes | written in the local header |
 | general purpose bit 3, the data descriptor flag | not set |
-| entry order | the root document first, then attachments sorted by entry name, compared by Unicode code point as in Section 4.5.1 |
+| entry order | the root document first, then attachments sorted by entry name in CODE-POINT ORDER, as defined in Section 4.5.1 |
 | ZIP64 records | not written |
 | archive comment | none |
 
@@ -1387,8 +1397,13 @@ Attachments SORTED rather than in the order the caller supplied them, because
 caller order is not a property of the content. Two conforming exporters using one
 library — one iterating a hash map, one a sorted list — would otherwise emit
 different archives for the same document while satisfying every other field in
-this table, which defeats what the table is for. The comparator is the one
-Section 4.5.1 already defines, so no implementation needs a second one.
+this table, which defeats what the table is for.
+
+The ordering is CODE-POINT ORDER, the term Section 4.5.1 defines, and an entry
+name is exactly where its warning bites: a document's keys are ASCII, where every
+comparator agrees, and an entry name may hold anything. Two archives can both
+look sorted and differ, and nothing in the bytes says which comparator produced
+them unless a name reaches above U+FFFF.
 
 Three of those fields are worth their own sentence, because each one alone looks
 like tidiness and none of them is.

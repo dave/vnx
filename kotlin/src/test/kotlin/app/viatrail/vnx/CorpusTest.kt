@@ -65,7 +65,10 @@ class CorpusTest {
         assertTrue(cases("accept").size >= 14, "the accept tier has shrunk: ${cases("accept").size} cases")
         assertTrue(cases("reject").size >= 7, "the reject tier has shrunk: ${cases("reject").size} cases")
         assertTrue(cases("diagnose").size >= 6, "the diagnose tier has shrunk: ${cases("diagnose").size} cases")
-        assertTrue(formatPairs().isNotEmpty(), "the format tier is empty")
+        // Three format cases as of 2026-09-09: messy-spellings, escaping and
+        // number-tie. A count rather than "not empty", because a tier losing a
+        // case is exactly the shrinkage that passes quietly.
+        assertTrue(formatPairs().size >= 3, "the format tier has shrunk to ${formatPairs().size} cases")
     }
 
     // ---------------------------------------------------------------- accept

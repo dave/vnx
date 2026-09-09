@@ -95,6 +95,27 @@ class ContainerTest {
     }
 
     @Test
+    fun `a backslash anywhere is refused, and refused BEFORE the dot-dot hunt`() {
+        // Ruled 2026-09-09, deliberately stricter than the ZIP appnote. Section 7
+        // says a `..` SEGMENT is refused and that `..` is a segment rather than a
+        // substring, but never says whether `\` counts as a separator while
+        // hunting for one — so a reader splitting on both refuses `..\x` and a
+        // reader splitting on `/` alone accepts it, and NEITHER fails any tier. On
+        // a Windows-authored archive that is a real escape. Refusing the backslash
+        // unconditionally and first means the subtle question is never asked.
+        for (name in listOf("..\\x", "a\\..\\b", "a\\b", "\\", "dir\\file.jpg", "ok/../..\\x")) {
+            val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
+                Vnx.readContainer(zip("doc.vnx" to doc, name to "x"))
+            }
+            assertEquals(RefusalCause.CONTAINER_PATH_ESCAPES, e.refusal, "for \"$name\"")
+            assertTrue(
+                e.message.contains("forward-slash separated"),
+                "the backslash must be the stated reason, not the `..` segment: ${e.message}",
+            )
+        }
+    }
+
+    @Test
     fun `dot-dot is a segment, not a substring`() {
         // Section 7 in as many words: `a..b/photo.jpg` is a legal name and escapes
         // nothing. A reader checking for the substring refuses a valid archive.

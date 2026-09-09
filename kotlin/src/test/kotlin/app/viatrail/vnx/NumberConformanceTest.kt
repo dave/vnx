@@ -10,23 +10,33 @@ import kotlin.test.fail
  * The number-conformance table: what every implementation must emit for a given
  * double, generated from the reference SPEC.md section 4.5.3 names.
  *
- * This is a fifth conformance tier, and it exists because the corpus cannot
- * reach either of the two rules that decide these bytes.
+ * This is a fifth conformance tier, for the rules the corpus does not reach.
  *
- * A RENDERING tie is a value, not a shape: nobody writes a fixture containing a
- * double whose shortest decimal is exactly halfway between two equal-length
- * candidates, and both spellings parse to the same double, so such a fixture
- * would pass either way at value level.
+ * The ROUNDING tie is the one it cannot reach even in principle. Rounding
+ * happens only when a WRITER emits a model, and all four corpus tiers RE-RENDER
+ * an existing document — which section 8.1 requires precisely because a writer
+ * rounds. The corpus's reach ends at the writer boundary, and an implementation
+ * can round every coordinate in the format the wrong way and pass every tier
+ * green. Measured: reverting the rounding tie rule reddens the two round columns
+ * here and nothing else in this suite.
  *
- * A ROUNDING tie is worse. Rounding happens only when a WRITER emits a model,
- * and all four corpus tiers RE-RENDER an existing document — which section 8.1
- * requires precisely because a writer rounds. The corpus's reach ends at the
- * writer boundary, and an implementation can round every coordinate in the
- * format the wrong way and pass every tier green.
+ * The RENDERING tie is NOT out of reach, and I argued that it was. My reasoning
+ * was that a tie is a value rather than a shape, so no fixture could carry one —
+ * and the spec seat then hand-wrote `format/number-tie`, whose input spells the
+ * value one way and whose expected output spells it the other. Falsified, and
+ * the rule that replaced mine is better because it says why: a value-level
+ * property is reachable by a re-render whenever the two readings produce
+ * different TEXT for the same value. Rounding is not, because a re-render never
+ * rounds; the tie is, because a re-render always re-spells.
  *
- * Rendering and rounding are separate code paths here, and this test covers both
- * separately. Red-proof it by changing either tie rule to half-away-from-zero;
- * each column must go red on its own.
+ * `the formatter tier reaches the rendering tie` below is what keeps that
+ * correction honest. An argument whose conclusion is an ABSENCE goes stale in
+ * silence when the thing it claims is absent from grows, so it is asserted as a
+ * presence instead.
+ *
+ * What is left to this table beyond the rounding tie: the shortest-spelling rule
+ * across the whole double range, the exponent boundaries, and a negative zero
+ * that a writer CREATES by rounding towards it, which no fixture can hand it.
  */
 class NumberConformanceTest {
 
@@ -108,6 +118,38 @@ class NumberConformanceTest {
     }
 
     @Test
+    fun `the formatter tier reaches the rendering tie, which I said it could not`() {
+        // Re-pointed from an absence to a presence. If `format/number-tie` is ever
+        // removed, this goes red and the claim gets revisited, rather than the
+        // suite quietly going on asserting something that stopped being true.
+        val format = File(System.getProperty("vnx.corpus")!!, "format")
+        val discriminating = format.listFiles()!!
+            .filter { it.name.endsWith(".in.vnx") }
+            .filter { input -> numbersIn(input.readText()).any { tieRuleIsVisible(it) } }
+        assertTrue(
+            discriminating.isNotEmpty(),
+            "no format case carries a number whose tie rule is visible, so the formatter tier no longer " +
+                "reaches the rendering tie — which it did on 2026-09-09 via format/number-tie",
+        )
+        // And the case must actually distinguish the two spellings in its BYTES,
+        // or it would pass for a formatter that echoed its input.
+        for (input in discriminating) {
+            val canonical = File(format, input.name.removeSuffix(".in.vnx") + ".canonical.vnx")
+            assertTrue(
+                input.readText() != canonical.readText(),
+                "${input.name} is already canonical, so it cannot decide anything",
+            )
+        }
+    }
+
+    /** Every JSON number literal in a document, as doubles. */
+    private fun numbersIn(text: String): List<Double> =
+        Regex("-?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?").findAll(text)
+            .mapNotNull { it.value.toDoubleOrNull() }
+            .filter { it.isFinite() }
+            .toList()
+
+    @Test
     fun `the two traps that make a tie test lie, both directions`() {
         // From the Python seat, 2026-09-09, and both are traps about DECIMAL
         // INTUITION rather than about rounding.
@@ -133,6 +175,32 @@ class NumberConformanceTest {
         // And the real one-place tie, where the rule finally shows.
         assertTrue(isExactHalfway(340.25, 1))
         assertEquals("340.2", EcmaNumber.render(Rounding.toPlaces(340.25, 1)))
+    }
+
+    @Test
+    fun `the rounding guard covers negatives, because one wrong rule agrees on half of them`() {
+        // From the JavaScript seat, refined by measurement here. `toFixed` is
+        // symmetric — it strips the sign first, so it rounds away from zero on
+        // both — but `Math.round` is not, in JavaScript and in Java identically:
+        // it rounds a tie towards POSITIVE INFINITY, so `Math.round(x * 10) / 10`
+        // gives 340.3 for 340.25 and -340.2 for -340.25. That AGREES with the
+        // correct rule on every negative tie and disagrees on every positive one,
+        // so a guard testing only positives passes on half the failures.
+        //
+        // `Math.rint` is the other near-miss: it is half-to-even, but applied to
+        // the scaled value, and scaling by a power of ten is not exact.
+        for (places in listOf(1, 6)) {
+            for (magnitude in listOf(0.25, 340.25, 1296.75, 0.0078125, 3.0 + 1.0 / 128)) {
+                val positive = EcmaNumber.render(Rounding.toPlaces(magnitude, places))
+                val negative = EcmaNumber.render(Rounding.toPlaces(-magnitude, places))
+                assertEquals(
+                    if (positive == "0") "0" else "-$positive", negative,
+                    "rounding must be symmetric about zero: $magnitude at $places places",
+                )
+            }
+        }
+        assertEquals("-340.2", EcmaNumber.render(Rounding.toPlaces(-340.25, 1)))
+        assertEquals("-0.007812", EcmaNumber.render(Rounding.toPlaces(-0.0078125, 6)))
     }
 
     @Test

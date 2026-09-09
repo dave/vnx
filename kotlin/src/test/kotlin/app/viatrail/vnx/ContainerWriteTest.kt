@@ -87,7 +87,13 @@ class ContainerWriteTest {
     fun `a writer refuses every path its own reader would refuse`() {
         // A writer that can emit an archive its own reader rejects is a writer
         // with a hole in it.
-        for (name in listOf("../secret", "a/../../secret", "/etc/passwd", "C:/windows", "a\\b", "", "dir/")) {
+        for (name in listOf(
+            "../secret", "a/../../secret", "/etc/passwd", "C:/windows", "", "dir/",
+            // The backslash ruling binds a writer for the same reason: this ZIP
+            // writer exists so that it cannot emit an archive its own reader
+            // refuses.
+            "a\\b", "..\\x", "dir\\file.jpg",
+        )) {
             val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
                 Vnx.renderContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
             }

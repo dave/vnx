@@ -13,19 +13,20 @@
 //
 // # Why this is not a corpus fixture
 //
-// The corpus cannot reach either tie rule.
-//
-// RENDERING ties are unreachable because a tie is a value, not a shape: no
-// fixture author writes down a double whose shortest decimal is exactly halfway
-// between two equal-length candidates, and both spellings parse to the same
-// double, so a fixture carrying one would pass either way at value level and
-// only differ in bytes nobody compares.
-//
-// ROUNDING ties are unreachable for a stronger reason: rounding happens only
-// when a WRITER emits a model, and all four corpus tiers RE-RENDER an existing
+// ROUNDING ties are unreachable by the corpus: rounding happens only when a
+// WRITER emits a model, and all four corpus tiers RE-RENDER an existing
 // document, which SPEC 8.1 requires precisely because a writer rounds. The
 // corpus's reach ends at the writer boundary. A conforming implementation can
 // round every coordinate the wrong way and pass every tier.
+//
+// RENDERING ties ARE reachable, and an earlier version of this comment said they
+// were not. The argument was that a tie is a value rather than a shape, so no
+// fixture could carry one; format/number-tie then carried one, spelling the value
+// one way in its input and the other in its expected output. A value-level
+// property is reachable by a re-render whenever the two readings produce
+// different TEXT for the same value. What is left to this table beyond the
+// rounding tie is the shortest-spelling rule over the whole double range, the
+// exponent boundaries, and a negative zero a writer creates by rounding.
 //
 // Measured 2026-09-09, both rules are live disagreements between real
 // implementations:

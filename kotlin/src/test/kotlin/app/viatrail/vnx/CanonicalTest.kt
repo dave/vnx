@@ -108,6 +108,28 @@ class CanonicalTest {
     }
 
     @Test
+    fun `the astral pair the other seats measured orders the same way here`() {
+        // U+1F600 against U+FFFD, so this row is comparable with the table the
+        // JavaScript seat built. Java's `compareTo` returns -10176 on this pair,
+        // which is 0xD83D - 0xFFFD: the high surrogate, not the code point. Go,
+        // Python and Swift order U+FFFD first, which is correct; JavaScript and
+        // Java order U+1F600 first, which is wrong.
+        //
+        // This library uses neither: it compares UTF-8 bytes, whose order IS code
+        // point order, so the answer does not depend on the platform's string
+        // comparison at all. That is the row for this seat.
+        val emoji = "\uD83D\uDE00" // U+1F600
+        val replacement = "\uFFFD"
+        assertEquals(-10176, emoji.compareTo(replacement), "the JVM's own comparison, for the record")
+        assertTrue(emoji.codePointAt(0) > replacement.codePointAt(0), "by code point U+1F600 sorts second")
+        val out = Canonical.render(JsonObject(listOf(emoji to JsonNumber(1.0), replacement to JsonNumber(2.0))))
+        assertTrue(
+            out.indexOf(replacement) < out.indexOf(emoji),
+            "U+FFFD must come first, and it did not:\n$out",
+        )
+    }
+
+    @Test
     fun `every document ends with exactly one newline`() {
         val out = render("""{"vnx":"0.1.0"}""")
         assertTrue(out.endsWith("}\n") && !out.endsWith("\n\n"))

@@ -8,19 +8,27 @@ the one line in each implementation's runner that points at it.
 
 ## Why it exists
 
-Two rules in `SPEC.md` decide bytes, and **the corpus can reach neither.**
+**Rounding ties (4.5.4)** cannot be reached by the corpus, even in principle.
+Rounding happens only when a **writer** emits a model, and all four corpus tiers
+RE-RENDER an existing document — which section 8.1 requires *precisely because a
+writer rounds*. **The corpus's reach ends at the writer boundary.** An
+implementation can round every coordinate in the format the wrong way and pass
+every tier green. Measured in the Kotlin suite: reverting the rounding tie rule
+reddens two tests, both of them this table, out of a hundred and one.
 
-**Rendering ties (4.5.3).** A tie is a value, not a shape. Nobody writes a
-fixture containing a double whose shortest decimal spelling is exactly halfway
-between two equal-length candidates — and if they did, both spellings parse to
-the same double, so it would pass either way at value level and differ only in
-bytes nothing compares.
+**Rendering ties (4.5.3) CAN be reached, and this file's first version said they
+could not.** The argument was that a tie is a value rather than a shape, so no
+fixture could carry one. `format/number-tie` then did exactly that: its input
+spells the value one way and its expected output spells it the other, so a
+re-render has to decide the tie. The corrected rule is more useful than the one
+it replaced — **a value-level property is reachable by a re-render whenever the
+two readings produce different TEXT for the same value.** Rounding is not,
+because a re-render never rounds; the tie is, because a re-render always
+re-spells.
 
-**Rounding ties (4.5.4).** Stronger: rounding happens only when a **writer**
-emits a model, and all four corpus tiers RE-RENDER an existing document —
-which section 8.1 requires *precisely because a writer rounds*. **The corpus's
-reach ends at the writer boundary.** An implementation can round every
-coordinate in the format the wrong way and pass every tier green.
+What is left to this table beyond the rounding tie: the shortest-spelling rule
+across the whole double range, the exponent boundaries of 4.5.3, and a negative
+zero that a writer CREATES by rounding towards it, which no fixture can hand it.
 
 Both are live disagreements between real implementations, measured 2026-09-09:
 
@@ -35,10 +43,27 @@ ECMAScript clause that declines to decide ("the least significant digit of s is
 not necessarily uniquely determined by these criteria"). Nothing anywhere went
 red. **Ties round to even, in both columns.**
 
-Ties are not exotic. Rendering ties are about one double in 4,200 of a uniform
-sample. Rounding ties are worse, because they are structured: at 1 decimal place
-every odd quarter is one, so **any quarter-metre elevation**; at 6 places every
-odd multiple of 1/128.
+**How often, exactly**, because the population matters more than the rate and
+the first version of this paragraph did not say which population. Measured
+2026-09-09 over three million samples each:
+
+| population | rendering ties |
+|---|---|
+| uniform over binary64 **bit patterns** | 1 in 4,225 |
+| longitude, latitude, elevation, epoch ms | **0 in 1,000,000 each** |
+
+Rendering ties exist only between about 1e10 and 1e16, overwhelmingly at 1e14 to
+1e15, and only where the shortest spelling needs 16 or 17 significant digits.
+Coordinates and elevations are far too small — their exact expansions run well
+past 17 digits — and `time_ms` is an integer count, which never ties. So the
+rendering tie does not threaten a coordinate; it threatens **an arbitrary number
+in an opaque data record body**, which this format permits anywhere, and which is
+where `format/number-tie` correctly put it.
+
+Rounding ties are the opposite: rare in no sense at all, because they are
+structured rather than accidental. At 1 decimal place the exact halfway values
+are the odd quarters, so **any quarter-metre elevation**; at 6 places they are
+the odd multiples of 1/128.
 
 ## The format
 

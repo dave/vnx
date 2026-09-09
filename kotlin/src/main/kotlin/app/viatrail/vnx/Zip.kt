@@ -1,7 +1,6 @@
 package app.viatrail.vnx
 
 import java.util.zip.CRC32
-import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 /**
@@ -259,16 +258,31 @@ internal object Zip {
         for (entry in entries) {
             val name = entry.name.toByteArray(Charsets.UTF_8)
             val crc = CRC32().apply { update(entry.body) }.value
-            val deflated = deflate(entry.body)
-            // Stored where deflating did not help, which is ordinary for small or
-            // already-compressed attachments and is what every ZIP writer does.
-            val stored = deflated.size >= entry.body.size
-            val payload = if (stored) entry.body else deflated
-            val method = if (stored) METHOD_STORED else METHOD_DEFLATE
+            // STORED, always. Not a size heuristic and not deflate.
+            //
+            // Deflate has no canonical output. Measured 2026-09-09: for the very
+            // document inside `corpus/accept/container-root-doc.vnz`, Go's
+            // compress/flate emits 116 bytes and zlib emits 108, and NO zlib
+            // level from 0 to 9 reproduces the committed bytes. Java and Python
+            // agree with each other because both are zlib; Go is a clean-room
+            // implementation and agrees with neither. So a deflated archive is
+            // byte-reproducible only by the language that wrote it, whatever a
+            // writer pins in its headers — which would make a container case in
+            // the `format/` tier impossible, since that tier compares bytes.
+            //
+            // Stored has no freedom at all. It also costs an export almost
+            // nothing in practice: attachments are photographs, which are already
+            // compressed.
+            //
+            // A reader still accepts deflate; section 7 requires that, and this is
+            // the same asymmetry canonical form has for a document — required of
+            // what this library writes, not of what it will read.
+            val payload = entry.body
+            val method = METHOD_STORED
             val localOffset = out.size()
 
             out.writeLE32(LOCAL_SIGNATURE)
-            out.writeLE16(20) // version needed: 2.0, deflate
+            out.writeLE16(10) // version needed: 1.0, stored
             out.writeLE16(0x800) // the UTF-8 filename flag of section 7
             out.writeLE16(method)
             out.writeLE16(FIXED_TIME)
@@ -282,8 +296,8 @@ internal object Zip {
             out.write(payload)
 
             directory.writeLE32(CENTRAL_SIGNATURE)
-            directory.writeLE16(20) // version made by
-            directory.writeLE16(20) // version needed
+            directory.writeLE16(10) // version made by
+            directory.writeLE16(10) // version needed
             directory.writeLE16(0x800)
             directory.writeLE16(method)
             directory.writeLE16(FIXED_TIME)
@@ -319,24 +333,6 @@ internal object Zip {
     /** MS-DOS 1980-01-01 00:00:00, so the bytes do not depend on when they were written. */
     private const val FIXED_TIME = 0
     private const val FIXED_DATE = 0x21
-
-    private fun deflate(body: ByteArray): ByteArray {
-        val deflater = Deflater(Deflater.DEFAULT_COMPRESSION, true)
-        try {
-            deflater.setInput(body)
-            deflater.finish()
-            val out = java.io.ByteArrayOutputStream()
-            val buffer = ByteArray(8192)
-            while (!deflater.finished()) {
-                val n = deflater.deflate(buffer)
-                if (n == 0 && deflater.needsInput()) break
-                out.write(buffer, 0, n)
-            }
-            return out.toByteArray()
-        } finally {
-            deflater.end()
-        }
-    }
 
     private fun java.io.ByteArrayOutputStream.writeLE16(v: Int) {
         write(v and 0xff)

@@ -1,6 +1,9 @@
 package vnx
 
-import "math"
+import (
+	"math"
+	"strconv"
+)
 
 // Rounding at the serialisation boundary (Dave's ruling, 2026-09-03).
 //
@@ -37,23 +40,11 @@ const (
 	ElevationDecimals = 1
 )
 
-// roundScale is the largest magnitude roundTo will scale. Above it a float64
-// has no fractional part left to drop (the spacing at 1e15 is 0.125), so
-// rounding is a no-op — and multiplying by the scale would be the only thing
-// that could happen, which for a value near math.MaxFloat64 overflows to +Inf.
-//
-// ⚠ THAT OVERFLOW WOULD MANUFACTURE A REFUSAL. finite() and every writer's own
-// non-finite check reject ±Inf, so without this bound an elevation of
-// 1.7976931348623157e308 — which the oracle carries — would go from a written
-// value to a failed export. A rounding helper must not change WHETHER a
-// document can be written, only how many digits it takes.
-const roundScale = 1e15
-
 // RoundCoordinate rounds a longitude or latitude for the wire.
-func RoundCoordinate(v float64) float64 { return roundTo(v, 1e6) }
+func RoundCoordinate(v float64) float64 { return roundTo(v, CoordinateDecimals) }
 
 // RoundElevation rounds an elevation for the wire.
-func RoundElevation(v float64) float64 { return roundTo(v, 10) }
+func RoundElevation(v float64) float64 { return roundTo(v, ElevationDecimals) }
 
 // RoundPosition returns p with its coordinates and elevation rounded for the
 // wire. It COPIES: the elevation pointer is new, so a writer cannot round the
@@ -97,18 +88,35 @@ func RoundPosition(p Position) Position {
 // NEGATIVE ZERO IS NORMALISED TO POSITIVE ZERO. -0.0000004 rounds to -0, and
 // canonical form spells that `0` (canonical.go's ECMAScript rule); doing it
 // here means all four writers agree without each remembering to.
-func roundTo(v float64, scale float64) float64 {
-	if math.IsNaN(v) || math.IsInf(v, 0) || math.Abs(v) >= roundScale {
+func roundTo(v float64, places int) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return v
 	}
-	// ⚠ RoundToEven, NOT Round. math.Round is half-away-from-zero, so it gave
-	// 340.3 for 340.25 where spec §4.5.4 requires 340.2. Ties are not exotic:
-	// 340.25 is an exact double and a quarter-metre elevation grid produces
-	// them routinely. And no corpus tier can catch this — every tier
-	// re-renders, and rounding happens only when a WRITER emits a model — so
-	// TestRoundingTiesGoToEven is the only thing standing between this line and
-	// two libraries disagreeing in silence.
-	r := math.RoundToEven(v*scale) / scale
+	// ⚠ FORMAT AND PARSE, NOT MULTIPLY AND DIVIDE. Spec §4.5.4 defines the
+	// rounded value as a RESULT — the value with at most `places` decimals
+	// nearest to the exact binary64, ties to even — and names
+	// scale-round-unscale as non-conforming, because the scaled product is
+	// itself a binary64 and is not always the exact scaled value. So the
+	// multiplication manufactures ties the true decimal never had and destroys
+	// ones it did.
+	//
+	// This line was `math.RoundToEven(v*scale) / scale` and disagreed with
+	// corpus/numbers/ on 175 of 5,329 rows: 0.15 gave 0.2 where the table says
+	// 0.1, 0.05 gave 0, 0.45 gave 0.4. Every one of them is a value §4.5.4
+	// argues from. It also lost precision by MAGNITUDE rather than at a tie,
+	// diverging from exact arithmetic 2,902 times in the 1e14–1e15 range.
+	//
+	// strconv.FormatFloat is correctly rounded and breaks a tie to even, which
+	// is the operation the table's generator uses, so the library and the table
+	// now perform the same one rather than two that agree on the easy cases.
+	s, err := strconv.ParseFloat(strconv.FormatFloat(v, 'f', places, 64), 64)
+	if err != nil {
+		// FormatFloat cannot produce something ParseFloat rejects for a finite
+		// v, and v is finite here. Returning v unrounded would be a silent
+		// fallback in a writer, so this is loud instead.
+		panic("vnx: BUG: rounding " + strconv.FormatFloat(v, 'g', -1, 64) + ": " + err.Error())
+	}
+	r := s
 	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
 	// math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one place
 	// yields a zero with its sign bit set — as does -4e-08 to six places. Spec

@@ -257,6 +257,27 @@ func TestRoundingTiesGoToEven(t *testing.T) {
 		want float64
 		note string
 	}{
+		// ⚠ THE FIRST SIX SEPARATE THE TWO ROUTES AND THE LAST FOUR DO NOT.
+		// This test held only 340.25, 340.35 and their negatives, and every one
+		// of those gives the same answer whether you round by formatting the
+		// exact value or by scaling, rounding and dividing back. So the guard
+		// was correctly reasoned, named its own importance accurately, and its
+		// data could not separate the readings it guarded — the library rounded
+		// by scaling and disagreed with corpus/numbers/ on 175 rows while this
+		// stayed green.
+		//
+		// These six are the values spec §4.5.4 argues from, and each one the
+		// scaling route gets wrong.
+		{0.15, 0.1, "the scaling route gives 0.2"},
+		{0.05, 0.1, "the scaling route gives 0"},
+		{0.45, 0.5, "the scaling route gives 0.4"},
+		{0.95, 0.9, "the scaling route gives 1"},
+		{1.05, 1.1, "the scaling route gives 1"},
+		{1.85, 1.9, "the scaling route gives 1.8"},
+
+		// And the four that do not discriminate, kept because they are the
+		// ordinary quarter-metre ties and a reader looking for those should
+		// find them here.
 		{340.25, 340.2, "round half to EVEN, not away from zero"},
 		{340.35, 340.4, "the even neighbour is upward here"},
 		{-340.25, -340.2, "and the sign does not change the rule"},

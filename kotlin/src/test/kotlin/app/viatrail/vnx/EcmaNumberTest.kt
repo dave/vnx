@@ -85,13 +85,30 @@ class EcmaNumberTest {
             val used = maxOf(digits.length, 1)
             if (used > 1) {
                 val shorter = java.math.BigDecimal(v)
-                    .round(java.math.MathContext(used - 1, java.math.RoundingMode.HALF_UP))
+                    .round(java.math.MathContext(used - 1, java.math.RoundingMode.HALF_EVEN))
                 assertTrue(
                     shorter.toDouble() != v,
                     "$v was written with $used digits but ${used - 1} would have round-tripped: $text",
                 )
             }
         }
+    }
+
+    @Test
+    fun `a tie in the last digit rounds to even, as V8 and Go both do`() {
+        // ECMAScript leaves the last digit of s under-determined, so section
+        // 4.5.3's real reference is what JSON.stringify emits and what Go's
+        // encoding/json reproduces. Measured against both, 2026-09-09. Rounding a
+        // tie away from zero gives the neighbouring digit, the same double, and a
+        // different file — which no corpus fixture would catch, because none
+        // contains a tie value.
+        assertEquals("1497898211722073.2", EcmaNumber.render(1.4978982117220732E15))
+        assertEquals("1762431842825611.2", EcmaNumber.render(1.7624318428256112E15))
+        assertEquals("-12240085416352.812", EcmaNumber.render(-1.2240085416352812E13))
+        assertEquals("977663590686462.2", EcmaNumber.render(9.776635906864622E14))
+        assertEquals("-710800478702527.2", EcmaNumber.render(-7.108004787025272E14))
+        // Both spellings are the same double, which is why nothing goes red.
+        assertEquals("1497898211722073.3".toDouble(), "1497898211722073.2".toDouble())
     }
 
     @Test

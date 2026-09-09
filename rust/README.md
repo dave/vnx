@@ -106,6 +106,28 @@ For the same reason a `data` record body, a `style` object and `rulesets` are
 kept as raw `Json`. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and the only
 thing that proves it is the accept tier's re-render.
 
+## Geometry is continuous and structure is not
+
+SPEC 6.2's sentence, and the one rule here that reads as its own opposite. A
+position inside `pips` that will not parse drops the **arc or segment that holds
+it**, not the position — while a link that cannot be used is dropped and its
+chain survives.
+
+They are the same rule. A missing vertex changes the shape of a line and leaves
+nothing to indicate it: a shorter, plausible, wrong line. A missing link leaves a
+gap the continuity rule of SPEC 3.3.3 can see and report, so nothing is lost
+silently.
+
+This crate kept the good pips until 2026-09-10, which is the reading SPEC 6.2
+explicitly rules out. A ring vertex that will not parse drops the **item**, for
+the same reason plus SPEC 3.7: a polygon is one closed ring of at least four
+positions, so dropping a vertex both moves the boundary and can turn a
+four-vertex ring into a three-vertex non-ring.
+
+`position-unusable` therefore names *what was dropped* rather than only what was
+wrong, because the remedy is not the same everywhere and a caller should not have
+to derive it from the pointer.
+
 ## No fallbacks
 
 A malformed value never becomes a default. It is dropped, and a diagnostic names
@@ -174,7 +196,7 @@ field must fail rather than be silently ignored.
 
 ## Every runner has been seen to fail
 
-`tools/redproof.py` breaks the reader twenty-six ways and requires each to reach
+`tools/redproof.py` breaks the reader twenty-eight ways and requires each to reach
 the verdict it should. Measured 2026-09-10; the script's own docstring carries the
 table.
 

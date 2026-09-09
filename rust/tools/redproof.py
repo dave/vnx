@@ -41,6 +41,7 @@ Measured 2026-09-09, all sixteen caught:
     round half UP                        numbers (JS/Java; caught by 340.25, NOT by 340.75)
     round half away from zero            numbers (Rust/C; differs from half-up on NEGATIVE ties)
     conflate the two wrong-type codes    diagnose
+    keep the good pips, drop one         unit tests only — NO corpus case reaches it
 
 A mutation may carry "expect-green", meaning it documents a hole in the CORPUS
 rather than in this crate and fails the script if it ever goes red. None does
@@ -192,13 +193,20 @@ MUTATIONS = [
      "            total += timed[timed.len() - 1] - timed[0];\n"
      "            let _ = (first, last);"),
 
+    # SPEC 6.2: "GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT." Keeping the good
+    # pips leaves a shorter, plausible, wrong line with nothing to indicate it.
+    # This crate shipped that reading until 2026-09-10.
+    ("keep the good pips and drop only the unusable one", "src/decode.rs",
+     "            out.push(self.position(item, &path.index(i), dropped)?);",
+     "            if let Some(p) = self.position(item, &path.index(i), dropped) { out.push(p); }"),
+
     ("conflate the optional and required wrong-type codes", "src/diag.rs",
      '            Cause::WrongTypeRequired { .. } => "wrong-type-required",',
      '            Cause::WrongTypeRequired { .. } => "wrong-type-optional",'),
 
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
-     "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i))).collect());"),
+     "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), \"the item\")).collect());"),
 ]
 
 
@@ -218,7 +226,11 @@ def restore(tmp):
 def run_corpus():
     # `--no-fail-fast`, or cargo stops after the first failing test BINARY and
     # a mutation that reddens both tiers is reported as reddening only one.
-    out = subprocess.run(["cargo", "test", "--no-fail-fast", "--test", "corpus",
+    # `--lib` too: the question is whether the SUITE notices, and several rules
+    # have no corpus case behind them and are held by unit tests alone. The
+    # detail line names which tests reddened, so corpus and unit coverage stay
+    # distinguishable.
+    out = subprocess.run(["cargo", "test", "--no-fail-fast", "--lib", "--test", "corpus",
                           "--test", "numbers", "--test", "zip64"],
                          cwd=ROOT, capture_output=True, text=True)
     text = out.stdout + out.stderr
@@ -229,14 +241,22 @@ def run_corpus():
         # spaces and carry no other whitespace. Taking them by shape rather than
         # by a keyword, because a filter written from the failures you EXPECT
         # cannot show the one you did not.
+        # The names cargo lists under `failures:`, which are indented four
+        # spaces and carry no other whitespace. Taken by SHAPE rather than by a
+        # keyword, because a filter written from the failures you EXPECT cannot
+        # show the one you did not — and `::`-qualified unit-test names count,
+        # or a mutation caught only by a unit test reports as "(?)". Reporting
+        # "something reddened" without saying what is the same defect as
+        # reporting only the first failing binary.
+        def looks_like_a_test_name(name: str) -> bool:
+            return (name
+                    and " " not in name
+                    and "_" in name
+                    and name[0].islower()
+                    and all(c.isalnum() or c in "_:" for c in name))
+
         failed = sorted({l.strip() for l in text.splitlines()
-                         if l.startswith("    ") and l.strip()
-                         and " " not in l.strip() and "::" not in l.strip()
-                         and l.strip().replace("_", "").isalnum()
-                         # A test name, not a stray token from an assertion
-                         # diff: lower-case, and carrying an underscore.
-                         and "_" in l.strip()
-                         and l.strip()[0].islower()})
+                         if l.startswith("    ") and looks_like_a_test_name(l.strip())})
         return "red", ", ".join(failed) or "?"
     return "DID NOT BUILD", text[-400:]
 

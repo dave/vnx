@@ -37,7 +37,18 @@ pub enum Cause {
     /// SPEC 3.10: a REQUIRED key is absent, so the object cannot exist.
     MissingRequiredKey { key: &'static str },
     /// SPEC 4.1: a position that will not parse.
-    BadPosition { detail: String },
+    ///
+    /// `dropped` names what goes, because that is the fact a caller needs and
+    /// the remedy is not the same everywhere: inside `pips` the ARC or SEGMENT
+    /// holding it is dropped, and inside a `polygon` ring the ITEM is.
+    ///
+    /// SPEC 6.2: "GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex
+    /// changes the shape of a line and leaves nothing to indicate it — a
+    /// shorter, plausible, wrong line."
+    PositionUnusable {
+        detail: String,
+        dropped: &'static str,
+    },
     /// SPEC 6.2: a link naming an arc absent from its network.
     LinkArcAbsent { arc: String },
     /// SPEC 6.2: a link endpoint naming a node absent from its network. The
@@ -97,7 +108,7 @@ impl Cause {
             Cause::WrongTypeOptional { .. } => "wrong-type-optional",
             Cause::WrongTypeRequired { .. } => "wrong-type-required",
             Cause::MissingRequiredKey { .. } => "missing-required-key",
-            Cause::BadPosition { .. } => "bad-position",
+            Cause::PositionUnusable { .. } => "position-unusable",
             Cause::LinkNodeAbsent { .. } => "link-node-absent",
             Cause::InlineEndpointOnEmptyArc => "endpoint-on-empty-arc",
             Cause::PolygonNotARing { .. } => "polygon-not-a-ring",
@@ -127,7 +138,9 @@ impl std::fmt::Display for Cause {
             Cause::MissingRequiredKey { key } => {
                 write!(f, "the required key `{key}` is absent, so the item is dropped")
             }
-            Cause::BadPosition { detail } => write!(f, "not a position: {detail}"),
+            Cause::PositionUnusable { detail, dropped } => {
+                write!(f, "not a position: {detail}; {dropped} is dropped")
+            }
             Cause::LinkArcAbsent { arc } => {
                 write!(f, "the arc `{arc}` is not in this network, so the link is dropped")
             }
@@ -335,7 +348,10 @@ mod tests {
             Cause::WrongTypeOptional { expected: "a", found: "b" },
             Cause::WrongTypeRequired { expected: "a", found: "b" },
             Cause::MissingRequiredKey { key: "at" },
-            Cause::BadPosition { detail: String::new() },
+            Cause::PositionUnusable {
+                detail: String::new(),
+                dropped: "the arc",
+            },
             Cause::LinkArcAbsent { arc: String::new() },
             Cause::LinkNodeAbsent { node: String::new() },
             Cause::InlineEndpointBeyondTolerance { metres: 0.0 },

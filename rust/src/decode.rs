@@ -48,14 +48,20 @@ struct Decoder {
     diagnostics: Vec<Diagnostic>,
 }
 
-/// Where a position sits, which decides how a value of the wrong JSON type is
-/// reported (SPEC 6.2).
+/// Where a position sits, which decides both how a value of the wrong JSON type
+/// is reported and what gets dropped when the position will not parse (SPEC
+/// 6.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Slot {
-    /// A required key, such as a waypoint's `at`. The item goes.
+    /// A required key, such as a waypoint's `at`, or a node's value. A value
+    /// that is not a position array at all is a wrong TYPE here, and the item
+    /// cannot exist without it.
     RequiredKey,
-    /// An element of an array, such as a pip. The element goes.
-    Element,
+    /// A position inside an array — a pip, or a ring vertex. A value that is
+    /// not an array is a position that will not parse rather than a wrong type,
+    /// because the array itself is perfectly usable and one element inside it
+    /// is not. `dropped` names what goes with it.
+    Element { dropped: &'static str },
 }
 
 // ---------------------------------------------------------------------------
@@ -270,8 +276,8 @@ impl Decoder {
     /// SPEC 4.1. Every channel is kept, including one this reader does not
     /// know, so that a future channel is additive and a re-render reproduces
     /// the spelling the document carried.
-    fn position(&mut self, value: &Json, path: &Path) -> Option<Position> {
-        self.position_in(value, path, Slot::Element)
+    fn position(&mut self, value: &Json, path: &Path, dropped: &'static str) -> Option<Position> {
+        self.position_in(value, path, Slot::Element { dropped })
     }
 
     /// A position in a REQUIRED key, where a value that is not an array at all
@@ -292,23 +298,29 @@ impl Decoder {
                         found: value.type_name(),
                     },
                 ),
-                Slot::Element => self.report(
+                Slot::Element { dropped } => self.report(
                     path,
-                    Cause::BadPosition {
+                    Cause::PositionUnusable {
                         detail: format!("expected an array but found {}", value.type_name()),
+                        dropped,
                     },
                 ),
             }
             return None;
         };
+        let dropped = match slot {
+            Slot::RequiredKey => "the item",
+            Slot::Element { dropped } => dropped,
+        };
         if items.len() < 2 {
             self.report(
                 path,
-                Cause::BadPosition {
+                Cause::PositionUnusable {
                     detail: format!(
                         "a position carries at least longitude and latitude, found {} channel(s)",
                         items.len()
                     ),
+                    dropped,
                 },
             );
             return None;
@@ -322,11 +334,12 @@ impl Decoder {
                 Json::Null => {
                     self.report(
                         path,
-                        Cause::BadPosition {
+                        Cause::PositionUnusable {
                             detail: format!(
                                 "channel {index} is null, and {} is never absent",
                                 if index == 0 { "longitude" } else { "latitude" }
                             ),
+                            dropped,
                         },
                     );
                     return None;
@@ -334,8 +347,9 @@ impl Decoder {
                 other => {
                     self.report(
                         path,
-                        Cause::BadPosition {
+                        Cause::PositionUnusable {
                             detail: format!("channel {index} is {}", other.type_name()),
+                            dropped,
                         },
                     );
                     return None;
@@ -345,14 +359,25 @@ impl Decoder {
         Some(Position::new(channels))
     }
 
-    /// A `pips` array. A pip that will not parse is dropped, with the rest of
-    /// the array kept (SPEC 6.2: drop the offending ELEMENT).
-    fn pips(&mut self, items: &[Json], path: &Path) -> Vec<Position> {
-        items
-            .iter()
-            .enumerate()
-            .filter_map(|(i, item)| self.position(item, &path.index(i)))
-            .collect()
+    /// A `pips` array. One position that will not parse drops the ARC or the
+    /// SEGMENT that holds it, NOT the position (SPEC 6.2).
+    ///
+    /// That reads as the opposite of the rule for a link, which is dropped
+    /// while its chain survives, and it is not:
+    ///
+    /// > GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex changes
+    /// > the shape of a line and leaves nothing to indicate it — a shorter,
+    /// > plausible, wrong line. A missing link leaves a gap between two
+    /// > endpoints that the continuity rule of Section 3.3.3 can see.
+    ///
+    /// This is not the required-key rule: `pips` is an array and is perfectly
+    /// usable; one element inside it is not.
+    fn pips(&mut self, items: &[Json], path: &Path, dropped: &'static str) -> Option<Vec<Position>> {
+        let mut out = Vec::with_capacity(items.len());
+        for (i, item) in items.iter().enumerate() {
+            out.push(self.position(item, &path.index(i), dropped)?);
+        }
+        Some(out)
     }
 
     /// SPEC 4.3: a record-level timestamp is ISO 8601 in UTC, `Z` suffix,
@@ -655,7 +680,7 @@ impl Decoder {
         let from = self.req_string(entries, "from", path)?;
         let to = self.req_string(entries, "to", path)?;
         let pip_items = self.req_array(entries, "pips", path)?.to_vec();
-        let pips = self.pips(&pip_items, &path.key("pips"));
+        let pips = self.pips(&pip_items, &path.key("pips"), "the arc")?;
         Some(NetworkArc {
             from,
             to,
@@ -743,7 +768,7 @@ impl Decoder {
                 Some(Endpoint::Node(node.clone()))
             }
             Some(array @ Json::Array(_)) => {
-                let position = self.position(array, &field_path)?;
+                let position = self.position(array, &field_path, "the link")?;
                 match distance_to_polyline(&position, &arc.pips) {
                     None => {
                         self.report(&field_path, Cause::InlineEndpointOnEmptyArc);
@@ -814,7 +839,7 @@ impl Decoder {
         let entries = self.object(value, path)?;
         self.check_keys(entries, ROUTE_ARC_KEYS, path);
         let pip_items = self.req_array(entries, "pips", path)?.to_vec();
-        let pips = self.pips(&pip_items, &path.key("pips"));
+        let pips = self.pips(&pip_items, &path.key("pips"), "the arc")?;
         Some(RouteArc {
             pips,
             data: self.records(entries, path),
@@ -848,8 +873,13 @@ impl Decoder {
         let entries = self.object(value, path)?;
         self.check_keys(entries, SEGMENT_KEYS, path);
         let pip_items = self.req_array(entries, "pips", path)?.to_vec();
+        // A track has segments rather than arcs, and a segment is the unit of
+        // continuous geometry: segments are already discontinuous from each
+        // other (a pause), so dropping one leaves a gap a consumer can see,
+        // where dropping a pip inside one would not. SPEC 6.2 names the arc;
+        // this is that rule applied to the shape a track has.
         Some(Segment {
-            pips: self.pips(&pip_items, &path.key("pips")),
+            pips: self.pips(&pip_items, &path.key("pips"), "the segment")?,
         })
     }
 
@@ -913,7 +943,12 @@ impl Decoder {
         }
         let mut ring = Vec::with_capacity(items.len());
         for (i, item) in items.iter().enumerate() {
-            ring.push(self.position(item, &path.index(i))?);
+            // A ring vertex that will not parse drops the ITEM, for SPEC 6.2's
+            // stated reason and because SPEC 3.7 makes a polygon ONE closed
+            // ring of at least four positions: dropping a vertex both moves the
+            // boundary and can turn a four-vertex ring into a three-vertex
+            // non-ring. Ruled 2026-09-10.
+            ring.push(self.position(item, &path.index(i), "the item")?);
         }
         if !ring[0].same_point(ring.last().expect("the ring is non-empty")) {
             self.report(
@@ -1191,7 +1226,7 @@ mod tests {
         assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
         assert!(matches!(
             reading.diagnostics[0].cause,
-            Cause::BadPosition { .. }
+            Cause::PositionUnusable { .. }
         ));
     }
 
@@ -1319,13 +1354,68 @@ mod tests {
         ));
     }
 
+    /// SPEC 6.2: a position inside `pips` that will not parse drops the ARC or
+    /// SEGMENT that holds it, NOT the position. "GEOMETRY IS CONTINUOUS AND
+    /// STRUCTURE IS NOT" — keeping the other pips leaves a shorter, plausible,
+    /// wrong line with nothing to indicate it.
+    ///
+    /// This crate kept the other pips until 2026-09-10, which is the reading
+    /// SPEC 6.2 explicitly rules out.
     #[test]
-    fn a_pip_that_will_not_parse_is_dropped_and_the_rest_of_the_array_kept() {
+    fn one_unusable_pip_drops_the_segment_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3.6,57.1],["x",1],[-3.5,57.2]]}]}]}"#,
+            r#"{"vnx":"0.1.0","tracks":[{"segments":[
+                 {"pips":[[-3.6,57.1],["x",1],[-3.5,57.2]]},
+                 {"pips":[[-3.4,57.3],[-3.3,57.4]]}]}]}"#,
         );
         let track = &reading.document.tracks.expect("kept")[0];
-        assert_eq!(track.segments[0].pips.len(), 2);
+        assert_eq!(track.segments.len(), 1, "the bad segment goes, whole");
+        assert_eq!(track.segments[0].pips.len(), 2, "the good segment stays");
         assert_eq!(reading.diagnostics.len(), 1);
+        assert_eq!(reading.diagnostics[0].code(), "position-unusable");
+        assert!(
+            reading.diagnostics[0].message().contains("the segment is dropped"),
+            "the message must name WHAT was dropped: {}",
+            reading.diagnostics[0].message()
+        );
+    }
+
+    /// The same rule on an arc, where SPEC 6.2 states it in those words. The
+    /// arc's entry leaves the network, so a chain traversing it then reports
+    /// the arc as absent — one real consequence, not a second defect.
+    #[test]
+    fn one_unusable_pip_drops_the_arc_that_holds_it() {
+        let reading = read(
+            r#"{"vnx":"0.1.0","networks":[{
+                 "nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+                 "arcs":{"bad":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[null,57.11]]},
+                         "good":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[-3.66,57.1]]}}}]}"#,
+        );
+        let network = &reading.document.networks.expect("kept")[0];
+        let arcs = network.arcs.as_ref().expect("arcs");
+        assert_eq!(arcs.len(), 1, "the bad arc goes, whole");
+        assert_eq!(arcs[0].0, "good");
+        assert!(reading
+            .diagnostics
+            .iter()
+            .any(|d| d.code() == "position-unusable"
+                && d.message().contains("the arc is dropped")));
+    }
+
+    /// A ring vertex that will not parse drops the ITEM, for the same reason
+    /// plus SPEC 3.7: a polygon is ONE closed ring of at least four positions,
+    /// so dropping a vertex both moves the boundary and can turn a four-vertex
+    /// ring into a three-vertex non-ring. Ruled 2026-09-10.
+    #[test]
+    fn one_unusable_ring_vertex_drops_the_item() {
+        let reading = read(
+            r#"{"vnx":"0.1.0","areas":[
+                 {"polygon":[[-3.7,57.09],[-3.6],[-3.6,57.0],[-3.7,57.09]]},
+                 {"polygon":[[-3.5,57.09],[-3.4,57.09],[-3.4,57.0],[-3.5,57.09]]}]}"#,
+        );
+        let areas = reading.document.areas.expect("kept");
+        assert_eq!(areas.len(), 1, "the drop is scoped to the offending item");
+        assert_eq!(reading.diagnostics[0].code(), "position-unusable");
+        assert!(reading.diagnostics[0].message().contains("the item is dropped"));
     }
 }

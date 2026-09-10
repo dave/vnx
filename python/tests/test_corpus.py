@@ -306,10 +306,10 @@ class DiagnosticsAreDistinguishable(unittest.TestCase):
     runner cannot tell apart -- and a set matcher pairing each expectation with
     one report would pass a reader that found ONE of two faults twice.
 
-    Note that SPEC 6.3 states this the other way round: "may share a `path`
-    unless they also share a `code`", which permits exactly the duplicate its
-    own next sentence forbids. This test implements the reason, not the
-    sentence, and the discrepancy is reported.
+    SPEC 6.3 stated this inverted when the check went in -- "may share a `path`
+    unless they also share a `code`", permitting exactly the duplicate its own
+    next sentence forbade -- so the check was written against the reason rather
+    than the letter. The sentence now says BOTH (`a824b1c`) and the two agree.
     """
 
     def documents(self) -> list[tuple[str, list[Any]]]:

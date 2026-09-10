@@ -229,13 +229,17 @@ func writeZip64(path string, entries []entry) {
 // it ever tries to decompress. A reader that inflated first would fail on the
 // body and could report the wrong cause.
 //
-// ⚠ THE DROPPED ENTRY'S NAME CONTAINS A SLASH, and that is load-bearing. §6.3
-// puts a container diagnostic in the `#/entries/` pointer space, where the member
-// name is one RFC 6901 reference token and a `/` inside it MUST be escaped as
-// `~1`. An attachment name is the one place in this format where a member name
-// routinely contains a slash, so a reader that forgets to escape emits a path
-// that no runner will match — and every attachment name without one passes
-// either way.
+// ⚠ THE DROPPED ENTRY'S NAME CARRIES BOTH CHARACTERS RFC 6901 ESCAPES, and that
+// is load-bearing. §6.3 puts a container diagnostic in the `#/entries/` pointer
+// space, where the member name is ONE reference token: a `/` inside it MUST be
+// written `~1` and a `~` MUST be written `~0`, in that order. `photos/a~b.jpg`
+// therefore exercises both, and the ORDER too — escaping `/` first and `~`
+// second turns `~1` into `~01`, so a reader that reverses the two produces a
+// different path from one that does not.
+//
+// An attachment name is the one place in this format where a member name
+// routinely contains a slash, and every attachment name without these two
+// characters passes whether a reader escapes at all.
 func writeUnusableMethod(path string) {
 	const unusableMethod = 12 // bzip2: legal in APPNOTE, not available everywhere
 	type raw struct {
@@ -245,7 +249,7 @@ func writeUnusableMethod(path string) {
 	}
 	entries := []raw{
 		{"doc.vnx", doc, 0},
-		{"attachments/photo.jpg", "not bzip2 data, and never decompressed\n", unusableMethod},
+		{"photos/a~b.jpg", "not bzip2 data, and never decompressed\n", unusableMethod},
 		{"notes/readable.txt", "kept, so the drop is provably scoped\n", 0},
 	}
 

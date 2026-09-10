@@ -433,8 +433,15 @@ final class CorpusTests: XCTestCase {
                 XCTFail("\(name): the pointer \(expected.pointer) does not resolve in the decoded model")
                 continue
             }
-            XCTAssertEqual(p.lon, expected.lon, "\(name): longitude at \(expected.pointer)")
-            XCTAssertEqual(p.lat, expected.lat, "\(name): latitude at \(expected.pointer)")
+            // BY BIT PATTERN. A sidecar's expected value is a JSON number read
+            // by THIS parser, so this cannot see a parser that is an ulp out —
+            // it would be wrong on both sides. What it does see is anything that
+            // moves a value between the parse and the model, and by bits it sees
+            // a move of one ulp, which by value it would not.
+            XCTAssertEqual(p.lon.bitPattern, expected.lon.bitPattern,
+                           "\(name): longitude at \(expected.pointer): \(p.lon) against \(expected.lon)")
+            XCTAssertEqual(p.lat.bitPattern, expected.lat.bitPattern,
+                           "\(name): latitude at \(expected.pointer): \(p.lat) against \(expected.lat)")
         }
     }
 

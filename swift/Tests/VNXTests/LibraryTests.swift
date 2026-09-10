@@ -147,8 +147,15 @@ final class LibraryTests: XCTestCase {
     func testAWriterRoundsAndShortensAndAReaderDoesNot() throws {
         let json = minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
         let document = try read(json).document
-        XCTAssertEqual(document.waypoints?[0].at.lon, -3.6712345678901235, "the reader keeps every bit")
-        XCTAssertEqual(document.waypoints?[0].at.lat, 57.11812345678901)
+        // BY BIT PATTERN. The message here used to claim the reader "keeps every
+        // bit" while comparing by value, which is half a guard: two doubles one
+        // ulp apart are not equal, but a value comparison that fails prints two
+        // identical numbers and reads as a broken test.
+        // `testTheParserConvertsAFullPrecisionLiteralCorrectly` is the guard
+        // proper; this is the same claim made honestly where it already stood.
+        XCTAssertEqual(document.waypoints?[0].at.lon.bitPattern, 0xc00d_5eb0_3aa8_431e,
+                       "the reader keeps every bit")
+        XCTAssertEqual(document.waypoints?[0].at.lat.bitPattern, 0x404c_8f1e_ab5f_e64e)
         XCTAssertTrue(String(decoding: try VNX.write(document), as: UTF8.self)
             .contains("[-3.671235,57.118123,340.1]"),
             "a writer rounds and drops the trailing null")

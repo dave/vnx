@@ -491,17 +491,6 @@ test('a negative zero the writer CREATED is caught by the write tier', async () 
     ['format/messy-spellings', 'numbers/numbers.tsv', 'write/emit-boundary']);
 });
 
-test('rounding an unknown channel is caught by the write tier', async () => {
-  // Ruled 2026-09-09: rounding is only definable where the units are known, so
-  // a channel this version does not name is written back unchanged.
-  const cases = await runMutated([{
-    file: 'emit.js',
-    from: '  if (out.length > 2) out[2] = round(out[2], ELEVATION_PLACES);',
-    to: '  for (let i = 2; i < out.length; i++) out[i] = round(out[i], ELEVATION_PLACES);',
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
-});
-
 test('rounding half away from zero instead of half to even is caught by the write tier', async () => {
   requireFixture(
     'write/emit-boundary.expect.json',

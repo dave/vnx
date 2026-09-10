@@ -63,6 +63,7 @@ PUBLISHED = [
     "corpus/format/README.md",
     "corpus/numbers/README.md",
     "corpus/schema/README.md",
+    "corpus/write/README.md",
 ]
 
 # (pattern, what to do about it). The message has to stand alone: whoever trips

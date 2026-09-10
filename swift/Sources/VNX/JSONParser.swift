@@ -190,8 +190,8 @@ struct JSONParser {
             }
             flushLoneSurrogate()
             // Raw UTF-8. Decode a whole sequence so that a scalar above U+FFFF
-            // arrives as one scalar; SPEC 4.5.1 orders keys by code point, and
-            // that only means anything if the scalars are intact.
+            // arrives as one scalar rather than as a surrogate pair: a key and a
+            // string value are compared by their scalars everywhere above this.
             let len = Self.utf8SequenceLength(b)
             guard len > 0, i + len <= bytes.count else { throw fail("malformed UTF-8 in a string") }
             let seq = Array(bytes[i..<(i + len)])

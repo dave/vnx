@@ -1,6 +1,6 @@
 import Foundation
 
-/// SPEC 4.5.4's emit-boundary rounding, computed from the EXACT decimal
+/// SPEC 4.1's emit-boundary precision, computed from the EXACT decimal
 /// expansion of the binary64 value, with ties to even.
 ///
 /// The obvious route — multiply by a power of ten, round, divide back — is not
@@ -13,7 +13,7 @@ import Foundation
 /// longitudes to six places hit it too (`91.0304145` is exact `91.030415`,
 /// scaled `91.030414`).
 ///
-/// Ruled 2026-09-09: the emitted value MUST be the one obtained by taking the
+/// SPEC 4.1: the emitted value MUST be the one obtained by taking the
 /// exact decimal expansion and rounding at the target place with ties to even,
 /// and scale-multiply-and-divide is not a conforming route. Go's reference
 /// `roundTo` used `math.Round`, which is half-away-from-zero, so two of five
@@ -22,22 +22,52 @@ import Foundation
 /// This was unreachable by the corpus until `corpus/write/` landed on
 /// 2026-09-09, and the comment here said so as though it were a property of the
 /// format. It was not. It was a property of which tiers had been built: every
-/// tier RE-RENDERED, so nothing ever asked a library to write. The write tier
-/// now decodes a document, calls WRITE, and byte-compares, and it carries BOTH
-/// `340.25` and `340.75`, because it takes the pair to identify the rule:
-/// `340.25` separates half-to-even from half-away-from-zero and half-up, and
-/// `340.75` separates it from half-toward-zero and half-down. Neither alone
-/// leaves only one rule standing. An earlier version of this comment repeated
-/// the framing that `340.75` was insurance against a reader rounding everything
-/// upward, which is the framing that gets it deleted by whoever tidies the
-/// fixture next; `RoundingTests.testOnlyHalfToEvenSurvivesThePair` states it as
-/// an assertion instead.
+/// tier re-encoded what it had decoded, so nothing ever asked a library to
+/// round a value that was not already rounded. The write tier now decodes a
+/// document, calls WRITE, and compares, and it carries BOTH `340.25` and
+/// `340.75`, because it takes the pair to identify the rule: `340.25` separates
+/// half-to-even from half-away-from-zero and half-up, and `340.75` separates it
+/// from half-toward-zero and half-down. Neither alone leaves only one rule
+/// standing. An earlier version of this comment repeated the framing that
+/// `340.75` was insurance against a reader rounding everything upward, which is
+/// the framing that gets it deleted by whoever tidies the fixture next;
+/// `RoundingTests.testOnlyHalfToEvenSurvivesThePair` states it as an assertion
+/// instead.
 ///
 /// The general lesson, from the tier's own README: an unreachability claim is a
 /// claim about the current state of someone's ingenuity, not about the format.
 /// `RoundingTests` and `corpus/numbers/` remain the finer instruments — one
 /// fixture cannot cover 4,082 values — but they are no longer the only ones.
 enum Rounding {
+
+    /// The precision SPEC 4.1 requires of a writer: 6 decimal places for
+    /// longitude and latitude, 1 for elevation.
+    ///
+    /// ⚠ THE NUMBERS ARE NOT A STYLE CHOICE. 6 decimal places of latitude is
+    /// about 11 cm on the ground and a consumer GPS is accurate to ±3–5 m, so
+    /// everything below the sixth place is the arithmetic's noise rather than
+    /// the instrument's reading.
+    static let coordinateDecimals = 6
+    static let elevationDecimals = 1
+
+    /// Rounds a longitude or latitude for the wire.
+    static func coordinate(_ x: Double) -> Double { emitted(x, coordinateDecimals) }
+
+    /// Rounds an elevation for the wire.
+    static func elevation(_ x: Double) -> Double { emitted(x, elevationDecimals) }
+
+    /// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
+    /// Rounding -0.04 to one place yields a zero with its sign bit set, as does
+    /// -4e-08 to six places. That zero is the same value as `0` and carries no
+    /// information, so the emit path collapses it — a writer that collapsed
+    /// only the negative zeros it was HANDED would still emit `-0` for one it
+    /// produced itself. `toDecimalPlaces` keeps the sign, because the sign is
+    /// the honest answer to the arithmetic it performs; the collapse belongs
+    /// here, at the boundary, which is also where `corpus/numbers/` measures it.
+    private static func emitted(_ x: Double, _ places: Int) -> Double {
+        let r = toDecimalPlaces(x, places)
+        return r == 0 ? 0 : r
+    }
 
     /// Rounds to `places` decimal places, ties to even, exactly.
     ///
@@ -118,10 +148,9 @@ enum Rounding {
         }
 
         let value = rounded.asDouble / powerOfTen[places]
-        // SPEC 4.5.4: the negative-zero rule of 4.5.3 is applied AFTER
-        // rounding, by the renderer. Rounding -0.04 to one place produces a
-        // zero with its sign bit set, and that is this function's honest
-        // answer; `ecmaScriptNumber` is what turns it into `0`.
+        // The sign survives this function: rounding -0.04 to one place produces
+        // a zero with its sign bit set, and that is the honest answer to the
+        // arithmetic here. `emitted` is what collapses it at the boundary.
         return negative ? -value : value
     }
 

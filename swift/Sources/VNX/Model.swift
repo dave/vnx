@@ -1,45 +1,28 @@
 import Foundation
 
-/// A position: `[lon, lat, ele, time_ms]` with trailing channels optionally
-/// omitted and `null` marking an absent value from index 2 upward (SPEC 4.1).
+/// A position: `[lon, lat, ele, time_ms]` on the wire (SPEC 4.1), and the four
+/// values it carries here.
 ///
-/// The channels are held as written, and that is the load-bearing decision in
-/// this whole model. `[lon, lat, null]` and `[lon, lat]` state the same thing,
-/// but SPEC 4.1 says shortening happens at the serialisation boundary and is
-/// NOT part of canonical form, so a re-render has to reproduce the spelling the
-/// document carried. A model that stores `ele: Double?` has already lost that
-/// and cannot re-render `accept/absent-elevation-and-time.vnx`.
-///
-/// Holding the raw channels also carries a channel above index 3 through a
-/// read-modify-write, which is what SPEC 4.1's "a reader MUST ignore channels
-/// beyond those it knows, so that a future channel is additive" needs to mean
-/// for the additivity to be real.
+/// ⚠ IT DOES NOT RECORD HOW MANY CHANNELS THE DOCUMENT SPELLED. `[lon, lat,
+/// null]` and `[lon, lat]` state the same thing, and a reader takes either; a
+/// model that kept the difference would be keeping the document's SPELLING, and
+/// a writer built on it would be reproducing bytes rather than content. A
+/// writer emits the shortest spelling from these four values.
 public struct Position: Equatable, Sendable {
-    /// At least two entries. Index 0 and 1 are finite numbers; index 2 upward
-    /// is a number or `null`.
-    public let channels: [JSONValue]
-
-    public init(channels: [JSONValue]) {
-        precondition(channels.count >= 2)
-        self.channels = channels
-    }
+    /// Longitude first, then latitude (SPEC 4.1).
+    public let lon: Double
+    public let lat: Double
+    /// Metres, and absent is a first-class state rather than zero.
+    public let elevation: Double?
+    /// Unix milliseconds. Not rounded — there is nothing below its last digit.
+    public let timeMilliseconds: Double?
 
     public init(lon: Double, lat: Double, elevation: Double? = nil, timeMilliseconds: Double? = nil) {
-        var c: [JSONValue] = [.number(lon), .number(lat)]
-        if let t = timeMilliseconds {
-            c.append(elevation.map(JSONValue.number) ?? .null)
-            c.append(.number(t))
-        } else if let e = elevation {
-            c.append(.number(e))
-        }
-        self.channels = c
+        self.lon = lon
+        self.lat = lat
+        self.elevation = elevation
+        self.timeMilliseconds = timeMilliseconds
     }
-
-    public var lon: Double { channels[0].numberValue! }
-    public var lat: Double { channels[1].numberValue! }
-    public var elevation: Double? { channels.count > 2 ? channels[2].numberValue : nil }
-    public var timeMilliseconds: Double? { channels.count > 3 ? channels[3].numberValue : nil }
-    public var arity: Int { channels.count }
 
     /// Whether two positions name the same place.
     ///
@@ -185,8 +168,10 @@ public struct Track: Equatable, Sendable {
     public var hidden: Bool?
     public var style: OpaqueObject?
     /// Held as written. SPEC 4.3 pins the spelling — ISO 8601 in UTC with a
-    /// literal `Z` and optional fractional seconds — and a re-render has to
-    /// reproduce the text, which a parsed `Date` cannot promise.
+    /// literal `Z` and optional fractional seconds — and a writer must not
+    /// change a timestamp it did not change, which a parsed `Date` cannot
+    /// promise: it has no way to say whether the text carried fractional
+    /// seconds.
     public var started: String?
     public var ended: String?
     public var data: [DataRecord]?
@@ -221,9 +206,11 @@ public struct Document: Equatable, Sendable {
     public var generator: String?
     public var created: String?
 
-    /// All seven collections are OPTIONAL. `nil` and `[]` are different
-    /// documents: SPEC 3.10 says an empty array is distinct from an absent one,
-    /// and a re-render has to reproduce which one the document carried.
+    /// All seven collections are OPTIONAL, and `nil` and `[]` are both held.
+    /// SPEC 3.1 has a READER treat an absent collection and an empty one alike,
+    /// so either spelling is conforming and a writer may emit either; this model
+    /// writes back what it was given, which is what makes a read-write-read a
+    /// fixed point.
     public var folders: [Folder]?
     public var networks: [Network]?
     public var routes: [Route]?

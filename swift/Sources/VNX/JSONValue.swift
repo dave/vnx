@@ -2,12 +2,11 @@ import Foundation
 
 /// A JSON value.
 ///
-/// VNX needs its own JSON tree rather than `Any`/`JSONSerialization` for three
-/// reasons the specification states directly: `JSONSerialization` renders
-/// `-3.67` as `-3.6699999999999999` (SPEC 4.5.6), a stock encoder cannot
-/// produce canonical key order, and a document's opaque regions — data record
-/// bodies, style objects, `rulesets` — must survive a read-modify-write at
-/// value level (SPEC 5.1 rule 4).
+/// A tree of its own rather than `Any`: a document's opaque regions — data
+/// record bodies, style objects, `rulesets` — must survive a read-modify-write
+/// at value level (SPEC 5.1 rule 4), and `Any` cannot be compared, hashed or
+/// carried across a concurrency boundary. `JSONEncoder` renders it; `JSONParser`
+/// reads it.
 public enum JSONValue: Equatable, Sendable {
     case null
     case bool(Bool)
@@ -15,14 +14,6 @@ public enum JSONValue: Equatable, Sendable {
     case string(String)
     case array([JSONValue])
     case object([String: JSONValue])
-
-    /// True for strings, numbers, booleans and nulls: group 1 of SPEC 4.5.1.
-    var isScalar: Bool {
-        switch self {
-        case .null, .bool, .number, .string: return true
-        case .array, .object: return false
-        }
-    }
 
     public var numberValue: Double? {
         if case .number(let d) = self { return d }
@@ -58,6 +49,51 @@ public enum JSONValue: Equatable, Sendable {
         case .string: return "a string"
         case .array: return "an array"
         case .object: return "an object"
+        }
+    }
+}
+
+/// What `JSONEncoder` needs to render this tree.
+///
+/// ⚠ `JSONSerialization` IS NOT AN ALTERNATIVE HERE: it renders `-3.67` as
+/// `-3.6699999999999999`. `JSONEncoder` writes the shortest decimal that
+/// round-trips, measured, which is what SPEC 4.2's value-level round-trip
+/// guarantee needs.
+extension JSONValue: Encodable {
+    private struct Key: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(_ s: String) { stringValue = s }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
+    }
+
+    public func encode(to encoder: Swift.Encoder) throws {
+        switch self {
+        case .null:
+            var c = encoder.singleValueContainer()
+            try c.encodeNil()
+        case .bool(let b):
+            var c = encoder.singleValueContainer()
+            try c.encode(b)
+        case .number(let d):
+            var c = encoder.singleValueContainer()
+            // SPEC 4.2 forbids a non-finite number on the wire, and
+            // `JSONEncoder` refuses one by default. That refusal is left to
+            // reach the caller: the alternative to failing is writing a `NaN`
+            // literal every conforming reader then rejects, which turns a
+            // writer's bug into a file the user only discovers is unreadable
+            // later.
+            try c.encode(d)
+        case .string(let s):
+            var c = encoder.singleValueContainer()
+            try c.encode(s)
+        case .array(let a):
+            var c = encoder.unkeyedContainer()
+            for element in a { try c.encode(element) }
+        case .object(let o):
+            var c = encoder.container(keyedBy: Key.self)
+            for (k, v) in o { try c.encode(v, forKey: Key(k)) }
         }
     }
 }

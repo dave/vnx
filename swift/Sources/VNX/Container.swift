@@ -144,26 +144,21 @@ enum Container {
         return nil
     }
 
-    /// SPEC 7.1: the root document first, then attachments SORTED BY ENTRY NAME,
-    /// compared by Unicode code point as in SPEC 4.5.1.
+    /// SPEC 7.1: the root document first, at the archive root, named `doc.vnx`.
     ///
-    /// Sorted rather than in the order the caller supplied, because caller order
-    /// is not a property of the content: two exporters using this one library —
-    /// one iterating a dictionary, one a sorted list — would otherwise emit
-    /// different archives for the same document while satisfying every other
-    /// field in 7.1's table.
-    ///
-    /// The comparator is the one SPEC 4.5.1 already defines and this library
-    /// already has. Swift's `<` is NOT it: it compares by canonical
-    /// equivalence, so `"\u{212B}"` sorts below `"\u{00C6}"` where code point
-    /// puts it far above. Same trap as canonical key ordering, one file over.
-    static func write(document: Document, attachments: [Attachment]) -> Data {
+    /// The attachments follow, SORTED BY ENTRY NAME. 7.1 does not constrain
+    /// their order; sorting them means that caller order — one exporter
+    /// iterating a dictionary, another a list — is not a property of the
+    /// archive. The comparator is by code point, because Swift's `<` normalises
+    /// and so places `"\u{212B}"` below `"\u{00C6}"` where code point puts it
+    /// far above.
+    static func write(document: Document, attachments: [Attachment]) throws -> Data {
         var entries: [(name: String, body: [UInt8])] = [
-            ("doc.vnx", [UInt8](VNX.write(document)))
+            ("doc.vnx", [UInt8](try VNX.write(document)))
         ]
-        for a in attachments.sorted(by: { CanonicalWriter.codePointLess($0.path, $1.path) }) {
+        for a in attachments.sorted(by: { codePointLess($0.path, $1.path) }) {
             entries.append((a.path, [UInt8](a.bytes)))
         }
-        return Zip.archive(entries: entries)
+        return try Zip.archive(entries: entries)
     }
 }

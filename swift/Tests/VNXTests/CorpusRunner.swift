@@ -9,11 +9,11 @@ import XCTest
 /// a lax runner passes a broken reader:
 ///
 /// - A file with no sidecar is a FAILURE, not a skip.
-/// - The accept tier is `re-render(decode(file)) == file`. Not `write(...)`,
-///   which rounds, and not a bytes-to-bytes reformat, which never builds a
-///   model and so cannot see a reader that threw away what it read.
-/// - Every `format/` input is asserted NOT to be canonical already, or a
-///   formatter that echoed its input would pass the whole tier.
+/// - The accept tier compares the tree parsed from the file against the tree
+///   parsed from `write(read(file))`. Never one decoded model against another,
+///   which cannot see a reader that threw away what it read.
+/// - Every `write/` input is asserted NOT to be the written form already, or a
+///   writer that echoed its input would pass the whole tier.
 enum Corpus {
     static let root: URL = {
         // .../vnx/swift/Tests/VNXTests/CorpusRunner.swift
@@ -45,9 +45,10 @@ enum Corpus {
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         return names.sorted()
             .filter { $0.hasSuffix(".vnx") || $0.hasSuffix(".vnz") }
-            // `format/` and `write/` are pair tiers: their halves are named
-            // `X.in.vnx` with `X.canonical.vnx` or `X.written.vnx`, and neither
-            // half is a case on its own.
+            // `write/` is a pair tier: its halves are named `X.in.vnx` and
+            // `X.written.vnx`, and neither half is a case on its own. The
+            // `format/` tier is no longer read, and its fixtures stay on disk
+            // until the corpus itself drops them.
             .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx")
                       && !$0.hasSuffix(".written.vnx") && !$0.hasSuffix(".written.vnz") }
             .map { directory.appendingPathComponent($0) }

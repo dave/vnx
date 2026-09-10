@@ -27,7 +27,7 @@ final class LibraryTests: XCTestCase {
         let result = try read("{\"vnx\":\"00.01.0000\"}")
         XCTAssertEqual(result.document.vnx, "00.01.0000",
                        "a reader that re-encodes writes the version the document declared")
-        XCTAssertEqual(VNX.render(result.document), Data("{\n  \"vnx\": \"00.01.0000\"\n}\n".utf8))
+        XCTAssertEqual(try VNX.write(result.document), Data("{\"vnx\":\"00.01.0000\"}".utf8))
     }
 
     func testVersionsAcceptedAndRefused() throws {
@@ -103,154 +103,132 @@ final class LibraryTests: XCTestCase {
 
     // MARK: - Positions (SPEC 4.1)
 
-    func testPositionArityIsPreservedThroughAReRender() throws {
+    /// SPEC 4.1: a writer emits the SHORTEST spelling, and a reader takes any
+    /// of them. So the arity a document happened to carry is not preserved —
+    /// `[1, 2, null]` is read as a position with no elevation and written back
+    /// as `[1, 2]`.
+    ///
+    /// An interior absence is the exception, and it is not a matter of taste:
+    /// dropping the `null` from `[1, 2, null, 4]` would move the time into the
+    /// elevation channel.
+    func testAWriterEmitsTheShortestSpellingOfAPosition() throws {
         let json = minimal("""
         "waypoints":[{"at":[1,2]},{"at":[1,2,null]},{"at":[1,2,3]},{"at":[1,2,null,4]},{"at":[1,2,3,4]}]
         """)
         let document = try read(json).document
-        XCTAssertEqual(document.waypoints?.map(\.at.arity), [2, 3, 3, 4, 4])
-        let rendered = String(decoding: VNX.render(document), as: UTF8.self)
-        XCTAssertTrue(rendered.contains("[1, 2, null]"), "the longer spelling survives a re-render")
-        XCTAssertTrue(rendered.contains("[1, 2, null, 4]"), "an interior absence keeps its null")
+        XCTAssertEqual(document.waypoints?.map(\.at.elevation), [nil, nil, 3, nil, 3])
+        XCTAssertEqual(document.waypoints?.map(\.at.timeMilliseconds), [nil, nil, nil, 4, 4])
+
+        let written = String(decoding: try VNX.write(document), as: UTF8.self)
+        XCTAssertTrue(written.contains("[1,2]"), "a trailing null is dropped")
+        XCTAssertTrue(written.contains("[1,2,null,4]"), "an interior absence keeps its null")
+        XCTAssertFalse(written.contains("[1,2,null]"), "and nothing carries a trailing null")
     }
 
-    /// SPEC 4.1: "A reader MUST ignore channels beyond those it knows, so that
-    /// a future channel is additive." Additive only means something if the
-    /// channel comes back out.
-    func testChannelsAboveIndexThreeSurvive() throws {
-        let document = try read(minimal("\"waypoints\":[{\"at\":[1,2,3,4,5,null]}]")).document
-        XCTAssertEqual(document.waypoints?[0].at.arity, 6)
-        XCTAssertTrue(String(decoding: VNX.render(document), as: UTF8.self).contains("[1, 2, 3, 4, 5, null]"))
-        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self).contains("[1, 2, 3, 4, 5, null]"))
+    /// SPEC 4.1: "A position MAY carry more channels than this version defines.
+    /// A reader MUST ignore them and MUST NOT report a diagnostic for them."
+    ///
+    /// Ignored, and not carried through a read-modify-write. The rule that asked
+    /// a writer to preserve a channel it did not understand was dropped in
+    /// September 2026: it was a formatter-era rule, and the reference
+    /// implementation never satisfied it.
+    func testChannelsAboveIndexThreeAreIgnoredWithoutADiagnostic() throws {
+        let result = try read(minimal("\"waypoints\":[{\"at\":[1,2,3,4,5,null]}]"))
+        XCTAssertEqual(result.diagnostics, [], "an unknown channel is not a diagnostic")
+        XCTAssertEqual(result.document.waypoints?[0].at,
+                       Position(lon: 1, lat: 2, elevation: 3, timeMilliseconds: 4))
+        XCTAssertEqual(String(decoding: try VNX.write(result.document), as: UTF8.self)
+            .contains("[1,2,3,4]"), true)
     }
 
-    /// SPEC 4.5.4: a WRITE rounds longitude and latitude to 6 decimal places
-    /// and elevation to 1, and SPEC 4.1 shortens. A RE-RENDER does neither.
-    func testWriteRoundsAndShortensWhereReRenderDoesNot() throws {
+    /// SPEC 4.1: a writer rounds longitude and latitude to 6 decimal places and
+    /// elevation to 1, and emits the shortest spelling. A reader does neither —
+    /// "a reader MUST NOT round. Decoding preserves full binary64 precision."
+    func testAWriterRoundsAndShortensAndAReaderDoesNot() throws {
         let json = minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
         let document = try read(json).document
-        XCTAssertTrue(String(decoding: VNX.render(document), as: UTF8.self)
-            .contains("[-3.6712345678901235, 57.11812345678901, 340.06, null]"))
-        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self)
-            .contains("[-3.671235, 57.118123, 340.1]"),
-            "a writer rounds and drops the trailing null; that is why the accept tier must not use it")
+        XCTAssertEqual(document.waypoints?[0].at.lon, -3.6712345678901235, "the reader keeps every bit")
+        XCTAssertEqual(document.waypoints?[0].at.lat, 57.11812345678901)
+        XCTAssertTrue(String(decoding: try VNX.write(document), as: UTF8.self)
+            .contains("[-3.671235,57.118123,340.1]"),
+            "a writer rounds and drops the trailing null")
     }
 
-    /// SPEC 4.5.4: "A tie rounds to even. An elevation of `340.25` becomes
-    /// `340.2`, not `340.3`."
+    /// SPEC 4.1: "The rounded value is the value with at most that many decimal
+    /// places nearest to the binary64 value the writer was handed, with a tie
+    /// resolved to even. An elevation of `340.25` becomes `340.2`, not `340.3`."
     ///
     /// Swift's bare `.rounded()` rounds away from zero and gets every one of
-    /// these wrong. No fixture anywhere can catch it — rounding happens only
-    /// when a writer emits a model, and every corpus tier re-renders — so this
-    /// test is the whole guard.
-    func testRoundingTiesGoToEven() {
-        func written(_ p: Position) -> String {
-            String(decoding: VNX.write({ var d = Document(); d.waypoints = [Waypoint(at: p)]; return d }()), as: UTF8.self)
+    /// these wrong. Only `corpus/write/` and `corpus/numbers/` reach the rule
+    /// from a fixture, so this is a third instrument on the shortest path.
+    func testRoundingTiesGoToEven() throws {
+        func written(_ p: Position) throws -> String {
+            String(decoding: try VNX.write({ var d = Document(); d.waypoints = [Waypoint(at: p)]; return d }()),
+                   as: UTF8.self)
         }
-        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: 340.25)).contains("[1, 2, 340.2]"))
-        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: 340.35)).contains("[1, 2, 340.4]"))
-        XCTAssertTrue(written(Position(lon: 1, lat: 2, elevation: -340.25)).contains("[1, 2, -340.2]"))
-        XCTAssertTrue(written(Position(lon: 0.00000125, lat: 0.00000175)).contains("[0.000001, 0.000002]"))
+        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: 340.25)).contains("[1,2,340.2]"))
+        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: 340.35)).contains("[1,2,340.4]"))
+        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: -340.25)).contains("[1,2,-340.2]"))
+        // The SPELLING here is Swift's shortest round-trip decimal, which uses
+        // an exponent below 1e-4. SPEC 4.2 makes that the writer's own business
+        // — the round trip is defined at value level — so the assertion is on
+        // the text this library emits and not on a form the format requires.
+        XCTAssertTrue(try written(Position(lon: 0.00000125, lat: 0.00000175)).contains("[1e-06,2e-06]"))
     }
 
-    func testWriteKeepsAnInteriorNull() {
+    func testWriteKeepsAnInteriorNull() throws {
         var document = Document()
         document.waypoints = [Waypoint(at: Position(lon: 1.0, lat: 2.0, elevation: nil, timeMilliseconds: 1778914991000))]
-        XCTAssertTrue(String(decoding: VNX.write(document), as: UTF8.self)
-            .contains("[1, 2, null, 1778914991000]"),
+        XCTAssertTrue(String(decoding: try VNX.write(document), as: UTF8.self)
+            .contains("[1,2,null,1778914991000]"),
             "dropping the null would move the time into the elevation channel")
     }
 
-    // MARK: - Canonical form (SPEC 4.5)
+    // MARK: - What a writer emits (SPEC 4.2, 4.4)
 
-    /// SPEC 4.5.1: lexicographic means BY UNICODE CODE POINT, and the note
-    /// warns that an implementation whose default comparison is by UTF-16 code
-    /// unit must supply its own comparator.
+    /// SPEC 4.2: a number round-trips at VALUE level, not at byte level.
     ///
-    /// **Swift is not that implementation, and an earlier version of this test
-    /// proved nothing.** It used an astral pair — U+1F600 against U+FFFD — on
-    /// the assumption that Swift sorted by UTF-16 code unit and would therefore
-    /// put the surrogate first. Measured: `"\u{1F600}" < "\u{FFFD}"` is false in
-    /// Swift, which agrees with code point. A comparator broken for the hazard
-    /// SPEC 4.5.1 names would have passed that test. Corrected 2026-09-09 after
-    /// the JavaScript seat measured it.
-    ///
-    /// Swift IS still a third order, and this is the input that shows it:
-    /// U+212B ANGSTROM SIGN canonically decomposes to U+00C5, so Swift's
-    /// normalising comparison places it below U+00C6 while code point places it
-    /// far above. That is why the comparator has to exist.
-    func testKeyOrderIsByCodePointAndSwiftsDefaultIsAThirdOrder() {
-        let angstrom = "\u{212B}", ae = "\u{00C6}"
-        XCTAssertTrue(angstrom < ae, "Swift normalises: U+212B decomposes to U+00C5, which is below U+00C6")
-        XCTAssertFalse(CanonicalWriter.codePointLess(angstrom, ae), "by code point, 0x212B is far above 0x00C6")
-
-        let rendered = String(decoding: CanonicalWriter.render(
-            .object([angstrom: .number(1), ae: .number(2)])), as: UTF8.self)
-        XCTAssertLessThan(rendered.range(of: ae)!.lowerBound,
-                          rendered.range(of: angstrom)!.lowerBound,
-                          "the canonical writer must not inherit Swift's collation")
-
-        // The astral case, kept as a measurement rather than as the discriminator
-        // it was mistaken for: Swift and code point agree here.
-        let emoji = "\u{1F600}", replacement = "\u{FFFD}"
-        XCTAssertFalse(emoji < replacement)
-        XCTAssertFalse(CanonicalWriter.codePointLess(emoji, replacement))
-        XCTAssertTrue(Array(emoji.utf16)[0] < Array(replacement.utf16)[0],
-                      "UTF-16 order is the one that would disagree, and Swift does not use it")
+    /// ⚠ `JSONSerialization` WOULD FAIL THIS, and that is why this library
+    /// encodes with `JSONEncoder`: it renders `-3.67` as `-3.6699999999999999`,
+    /// which parses back to the same double and is still 16 digits of noise in
+    /// every file. Measured on this platform rather than assumed.
+    func testNumbersAreWrittenAsTheShortestSpellingThatRoundTrips() throws {
+        var document = Document()
+        document.waypoints = [Waypoint(at: Position(lon: -3.67, lat: 340, elevation: 0.1))]
+        let written = String(decoding: try VNX.write(document), as: UTF8.self)
+        XCTAssertTrue(written.contains("[-3.67,340,0.1]"), "got \(written)")
     }
 
-    /// SPEC 4.5.1: classification is by the VALUE present in this object, not
-    /// by the key name. No key is named by the rule.
-    func testScalarAndContainerGroupsAreClassifiedByValue() {
-        let rendered = String(decoding: CanonicalWriter.render(.object([
-            "zeta": .number(1),          // scalar, sorts after `alpha` but before it
-            "alpha": .array([.string("x")]),
-        ])), as: UTF8.self)
-        XCTAssertEqual(rendered, """
-        {
-          "zeta": 1,
-          "alpha": [
-            "x"
-          ]
-        }
-
-        """)
+    /// SPEC 4.4: nothing about a document's whitespace is constrained, and this
+    /// writer emits none. A 200,000-pip track is 25.5 MB indented and 8.3 MB
+    /// compact, which is the whole argument.
+    func testTheOutputIsCompact() throws {
+        var document = Document()
+        document.waypoints = [Waypoint(at: Position(lon: 1, lat: 2), name: "x", notes: nil,
+                                       folder: nil, hidden: nil, style: nil, data: nil)]
+        let written = String(decoding: try VNX.write(document), as: UTF8.self)
+        XCTAssertFalse(written.contains("\n"), "no newline")
+        XCTAssertFalse(written.contains(": "), "no space after a colon")
     }
 
-    /// SPEC 4.5.5: a string escapes only what RFC 8259 requires. Everything
-    /// else is written raw, including `<`, `>`, `&`, U+2028 and U+2029 — which
-    /// Go's encoder escapes by default and must be configured not to.
-    func testStringEscaping() {
-        let rendered = String(decoding: CanonicalWriter.render(
-            .string("<>&\u{2028}\u{2029}é日\"\\\n\u{01}")), as: UTF8.self)
-        XCTAssertEqual(rendered, "\"<>&\u{2028}\u{2029}é日\\\"\\\\\\n\\u0001\"\n")
-        XCTAssertFalse(rendered.contains("\\u00e9"), "no character above U+007F may be written as a \\u escape")
-    }
-
-    func testEmptyContainersAreWrittenOnOneLine() {
-        XCTAssertEqual(String(decoding: CanonicalWriter.render(
-            .object(["a": .array([]), "b": .object([:])])), as: UTF8.self),
-            "{\n  \"a\": [],\n  \"b\": {}\n}\n")
-    }
-
-    /// SPEC 4.5.2's rule is about an array of numbers and nulls, not about
-    /// positions, so it applies equally inside an opaque data record.
-    func testNumberArrayRuleAppliesInsideAnOpaqueRecord() throws {
+    /// A data record body and a style are opaque and survive a write at VALUE
+    /// level (SPEC 5.1 rule 4), whatever they hold.
+    func testAnOpaqueBodySurvivesAWriteWhateverItHolds() throws {
         let document = try read(minimal("""
-        "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","v":[1,null,2],"w":[1,"a"]}]}]
+        "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","v":[1,null,2],"w":[1,"a"],"deep":{"k":{}}}]}]
         """)).document
-        let rendered = String(decoding: VNX.render(document), as: UTF8.self)
-        XCTAssertTrue(rendered.contains("\"v\": [1, null, 2]"))
-        XCTAssertTrue(rendered.contains("\"w\": [\n"), "an array holding a string is not a number array")
+        let back = try VNX.read(try VNX.write(document)).document
+        XCTAssertEqual(back.waypoints?[0].data, document.waypoints?[0].data)
     }
 
-    func testEmptyCollectionIsDistinctFromAnAbsentOne() throws {
-        // SPEC 3.10: "an empty array is distinct from an absent one".
-        let withEmpty = minimal("\"waypoints\":[]")
-        XCTAssertEqual(try VNX.canonicalise(Data(withEmpty.utf8)),
-                       Data("{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": []\n}\n".utf8))
-        XCTAssertEqual(try VNX.canonicalise(Data("{\"vnx\":\"0.1.0\"}".utf8)),
-                       Data("{\n  \"vnx\": \"0.1.0\"\n}\n".utf8))
+    func testAnEmptyCollectionIsWrittenAsAnEmptyCollection() throws {
+        // SPEC 3.1 has a reader treat an absent collection and an empty one
+        // alike, so either spelling is conforming. This writer emits back what
+        // the model holds, which is what makes the round trip a fixed point.
+        XCTAssertEqual(try VNX.write(try read(minimal("\"waypoints\":[]")).document),
+                       Data("{\"vnx\":\"0.1.0\",\"waypoints\":[]}".utf8))
+        XCTAssertEqual(try VNX.write(try read("{\"vnx\":\"0.1.0\"}").document),
+                       Data("{\"vnx\":\"0.1.0\"}".utf8))
     }
 
     // MARK: - Data records (SPEC 5)
@@ -313,7 +291,7 @@ final class LibraryTests: XCTestCase {
         let document = try read(minimal("\"waypoints\":[{\"at\":[1,2]},{\"at\":[3,4],\"hidden\":true}]")).document
         XCTAssertNil(document.waypoints?[0].hidden, "absence means visible; it is not `false`")
         XCTAssertEqual(document.waypoints?[1].hidden, true)
-        XCTAssertFalse(String(decoding: VNX.render(document), as: UTF8.self).contains("\"hidden\": false"))
+        XCTAssertFalse(String(decoding: try VNX.write(document), as: UTF8.self).contains("\"hidden\":false"))
     }
 
     // MARK: - Folders (SPEC 6.2)
@@ -558,8 +536,8 @@ final class LibraryTests: XCTestCase {
     func testContainerRoundTripsThroughThisLibrarysOwnWriter() throws {
         var document = Document()
         document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201))]
-        let archive = VNX.writeContainer(document: document,
-                                         attachments: [Attachment(path: "attachments/photo.txt", bytes: Data("hello\n".utf8))])
+        let archive = try VNX.writeContainer(document: document,
+                                             attachments: [Attachment(path: "attachments/photo.txt", bytes: Data("hello\n".utf8))])
         let read = try VNX.readContainer(archive)
         XCTAssertEqual(read.documentName, "doc.vnx")
         XCTAssertEqual(read.document, document)
@@ -651,14 +629,13 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(padded.attachments.map(\.path), ["filler.txt"])
     }
 
-    /// SPEC 7.1 constrains a WRITER's entry order. It must not leak into the
-    /// reader.
+    /// This WRITER sorts its entries. That must not leak into the reader.
     ///
     /// A reader that refused an out-of-order archive, or that silently reordered
-    /// what it returned, would be applying a writer's rule to something it was
+    /// what it returned, would be applying a writer's choice to something it was
     /// given — the same asymmetry as stored-versus-deflate and
-    /// plain-versus-ZIP64, and the shape canonical form uses everywhere:
-    /// constrain what a library writes, never what it will read.
+    /// plain-versus-ZIP64, and the shape this format keeps everywhere: constrain
+    /// what a library writes, never what it will read.
     ///
     /// Worth testing because I have just made the writer sort, and the obvious
     /// way to get that wrong is to sort in the wrong place.
@@ -741,14 +718,17 @@ final class LibraryTests: XCTestCase {
 
     // MARK: - Round trip
 
-    /// Decoding and re-rendering is idempotent over every accept file, and
-    /// re-rendering a re-render changes nothing. A formatter that was not a
-    /// fixed point would make "every conforming writer emits these exact bytes"
-    /// depend on how many times the file had been through one.
-    func testCanonicalFormIsAFixedPoint() throws {
+    /// Writing is a FIXED POINT over every accept file: read, write, read the
+    /// output, write again, and the two outputs are the same bytes.
+    ///
+    /// The precision rule and the shortest spelling are both idempotent, so a
+    /// second pass must change nothing. This is what the accept tier's tree
+    /// comparison cannot see on its own — it compares against the file, and the
+    /// file is only ever written once.
+    func testWritingIsAFixedPoint() throws {
         for url in try Corpus.cases(in: "accept") where url.pathExtension == "vnx" {
-            let once = try VNX.canonicalise(try Data(contentsOf: url))
-            XCTAssertEqual(try VNX.canonicalise(once), once, url.lastPathComponent)
+            let once = try VNX.write(try VNX.read(try Data(contentsOf: url)).document)
+            XCTAssertEqual(try VNX.write(try VNX.read(once).document), once, url.lastPathComponent)
         }
     }
 
@@ -777,11 +757,11 @@ final class LibraryTests: XCTestCase {
             started: "2026-09-09T12:00:00Z", ended: "2026-09-09T12:00:04Z", data: nil)]
         document.rulesets = [.object(["name": .string("r")])]
 
-        let bytes = VNX.write(document)
+        let bytes = try VNX.write(document)
         let read = try VNX.read(bytes)
         XCTAssertEqual(read.diagnostics, [])
         XCTAssertEqual(read.document, document)
-        XCTAssertEqual(VNX.write(read.document), bytes)
+        XCTAssertEqual(try VNX.write(read.document), bytes)
         XCTAssertEqual(read.document.tracks?[0].movingTimeMilliseconds, 3000)
     }
 }

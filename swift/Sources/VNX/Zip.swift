@@ -31,18 +31,13 @@ enum Zip {
     static let methodStored: UInt16 = 0
     static let methodDeflate: UInt16 = 8
 
-    // The three header fields SPEC 7 does not constrain, and which therefore
-    // decide whether two languages' `.vnz` files are byte-identical. SPEC 4.5
-    // requires byte-identical output from every conforming writer, but says it
-    // of canonical JSON; SPEC 7 says nothing about the ZIP envelope. Reported
-    // as a gap. Until it is ruled, these carry the values that are correct
-    // against [APPNOTE] rather than the values a language's defaults produce,
-    // and the Kotlin seat writes the same three.
+    // SPEC 7.1 constrains five rules and leaves every other field of the
+    // archive to the writer, so nothing below is a conformance requirement.
+    // Each value is what [APPNOTE] calls for, and they are fixed rather than
+    // defaulted so that one document always produces one archive.
 
-    /// 1.0 — the minimum version for a stored entry. 2.0 (20) is the floor for
-    /// DEFLATE, so a stored-only archive that stamps 20 overstates what a
-    /// reader needs. Verified against the Kotlin seat 2026-09-09.
-    static let versionNeededStored: UInt16 = 10
+    /// 2.0 — the floor [APPNOTE] sets for a DEFLATED entry.
+    static let versionNeededDeflate: UInt16 = 20
 
     /// 1980-01-01 00:00:00, the zero of the MS-DOS timestamp. `0x0000` in the
     /// date half is NOT that zero: it decodes as day 0 of month 0, which is not
@@ -138,10 +133,10 @@ enum Zip {
         let bytes: [UInt8]
         switch entry.method {
         case methodStored: bytes = raw
-        case methodDeflate: bytes = try Inflate.inflate(raw, expectedSize: entry.uncompressedSize)
+        case methodDeflate: bytes = try Deflate.decompress(raw, expectedSize: entry.uncompressedSize)
         default: throw MalformedArchive(message: "unsupported compression method \(entry.method)")
         }
-        guard CRC32.checksum(bytes) == entry.crc32 else {
+        guard Deflate.crc32(bytes) == entry.crc32 else {
             throw MalformedArchive(message: "CRC mismatch for \(entry.name)")
         }
         return bytes
@@ -189,40 +184,44 @@ enum Zip {
 
     // MARK: - Writing
 
-    /// Writes a plain (non-ZIP64) archive with every entry stored.
+    /// Writes a plain (non-ZIP64) archive with every entry DEFLATED.
     ///
-    /// SPEC 7 permits it: "Compression MUST be stored or deflate", and "a
-    /// writer MAY write a plain archive without [ZIP64]". Stored rather than
-    /// deflate because a deflate compressor is a second algorithm this library
-    /// would have to carry to no conformance end — nothing in the corpus, and
-    /// nothing in SPEC 7, asks a writer to compress.
-    static func archive(entries: [(name: String, body: [UInt8])]) -> Data {
+    /// SPEC 7.1: "Every entry MUST be stored or deflated. A writer MAY choose
+    /// either, per entry." Deflate rather than stored because a VNX document is
+    /// JSON and compresses to a fraction of itself, and an attachment a caller
+    /// hands over has already been through whatever compression suits it.
+    ///
+    /// The archive is fully determined by its content: no clock, no file mode,
+    /// no writer name. A writer whose output depends on when it ran cannot be
+    /// compared with anything, including its own previous run.
+    static func archive(entries: [(name: String, body: [UInt8])]) throws -> Data {
         var out: [UInt8] = []
         var central: [UInt8] = []
         for (name, body) in entries {
             let nameBytes = [UInt8](name.utf8)
-            let crc = CRC32.checksum(body)
+            let crc = Deflate.crc32(body)
+            let payload = try Deflate.compress(body)
             let offset = out.count
             out += [0x50, 0x4B, 0x03, 0x04]
-            out += le16(versionNeededStored)
-            out += le16(0x0800)          // UTF-8 filename flag, per SPEC 7
-            out += le16(methodStored)
+            out += le16(versionNeededDeflate)
+            out += le16(0x0800)          // UTF-8 filename flag, per SPEC 7.1
+            out += le16(methodDeflate)
             out += le16(dosTime) + le16(dosDate)
             out += le32(crc)
-            out += le32(UInt32(body.count))
+            out += le32(UInt32(payload.count))
             out += le32(UInt32(body.count))
             out += le16(UInt16(nameBytes.count))
             out += le16(0)
             out += nameBytes
-            out += body
+            out += payload
 
             central += [0x50, 0x4B, 0x01, 0x02]
-            central += le16(versionNeededStored) + le16(versionNeededStored)
+            central += le16(versionNeededDeflate) + le16(versionNeededDeflate)
             central += le16(0x0800)
-            central += le16(methodStored)
+            central += le16(methodDeflate)
             central += le16(dosTime) + le16(dosDate)
             central += le32(crc)
-            central += le32(UInt32(body.count))
+            central += le32(UInt32(payload.count))
             central += le32(UInt32(body.count))
             central += le16(UInt16(nameBytes.count))
             central += le16(0) + le16(0)

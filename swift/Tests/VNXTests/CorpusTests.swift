@@ -23,16 +23,17 @@ final class CorpusTests: XCTestCase {
         let document: Document
         let diagnostics: [Diagnostic]
         var attachments: [String] = []
-        var canonicalSource = bytes
+        var documentSource = bytes
 
         if url.pathExtension == "vnz" {
             let container = try VNX.readContainer(bytes)
             document = container.document
             diagnostics = container.diagnostics
             attachments = container.attachments.map(\.path)
-            // The document inside an accept container is stored canonical too,
-            // so the re-render check applies to it rather than to the archive.
-            canonicalSource = try containerDocumentBytes(bytes)
+            // The tree comparison is against the DOCUMENT inside the archive,
+            // not against the archive: SPEC 7.1 constrains five rules and leaves
+            // every other field of a container to its writer.
+            documentSource = try containerDocumentBytes(bytes)
         } else {
             let result = try VNX.read(bytes)
             document = result.document
@@ -49,11 +50,14 @@ final class CorpusTests: XCTestCase {
             XCTAssertEqual(attachments.sorted(), expected.sorted(), "\(name): attachments")
         }
 
-        // SPEC 8.1: decode, RE-RENDER, and require the original bytes back.
-        let rendered = VNX.render(document)
-        XCTAssertEqual(String(decoding: rendered, as: UTF8.self),
-                       String(decoding: canonicalSource, as: UTF8.self),
-                       "\(name): re-render did not reproduce the file")
+        // SPEC 8.1: decode, ENCODE, and compare the tree parsed from the
+        // original file against the tree parsed from the output. Never the
+        // decoded model against another decoded model — see `Tree`.
+        let written = try VNX.write(document)
+        if let d = try Tree.difference(got: written, want: documentSource,
+                                       Tree.Options(emitBoundary: true)) {
+            XCTFail("\(name): what this library wrote is not what it read — \(d)")
+        }
     }
 
     private func containerDocumentBytes(_ archive: Data) throws -> Data {
@@ -144,46 +148,6 @@ final class CorpusTests: XCTestCase {
         }
     }
 
-    // MARK: - format/
-
-    func testFormatTier() throws {
-        let directory = Corpus.root.appendingPathComponent("format")
-        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
-        let inputs = names.filter { $0.hasSuffix(".in.vnx") }
-        XCTAssertGreaterThan(inputs.count, 0, "the format tier is empty")
-        for input in inputs {
-            runCase(input) { try self.runFormatCase(directory, input) }
-        }
-    }
-
-    private func runFormatCase(_ directory: URL, _ input: String) throws {
-        do {
-            let stem = String(input.dropLast(".in.vnx".count))
-            let inputURL = directory.appendingPathComponent(input)
-            let canonicalURL = directory.appendingPathComponent("\(stem).canonical.vnx")
-            XCTAssertTrue(FileManager.default.fileExists(atPath: canonicalURL.path),
-                          "\(stem): a format case is a pair; the canonical half is missing")
-
-            let inputBytes = try Data(contentsOf: inputURL)
-            let expected = try Data(contentsOf: canonicalURL)
-
-            // SPEC 8.1: a runner MUST assert that each format input is NOT
-            // already canonical. Without it a formatter that echoed its input
-            // would pass every case in the tier.
-            XCTAssertNotEqual(inputBytes, expected,
-                              "\(stem): the input is already canonical, so this case cannot fail for a formatter that echoes its input")
-
-            let produced = try VNX.canonicalise(inputBytes)
-            XCTAssertEqual(String(decoding: produced, as: UTF8.self),
-                           String(decoding: expected, as: UTF8.self),
-                           "\(stem): canonical output")
-
-            // Canonical form is idempotent: the expected bytes are already it.
-            XCTAssertEqual(try VNX.canonicalise(expected), expected,
-                           "\(stem): canonicalising canonical bytes changed them")
-        }
-    }
-
     /// The one direction of the sidecar's `schema` verdict that a reader can
     /// check without a JSON Schema validator: `not-json` means no validator
     /// ever sees the document, and neither can this reader, so it must refuse.
@@ -210,9 +174,9 @@ final class CorpusTests: XCTestCase {
 
     // MARK: - write/
 
-    /// SPEC 4.5.4's WRITE path, which until this tier landed was beyond the
-    /// corpus entirely: every other tier RE-RENDERS, and a re-render applies
-    /// neither rounding nor shortening.
+    /// SPEC 4.1's emit boundary, which only this tier reaches: every other tier
+    /// encodes what it decoded, so it applies the precision rule to values that
+    /// already satisfy it and shortens positions that are already short.
     ///
     /// Two things about `emit-boundary`'s elevation ties, so that neither reads
     /// as an oversight to whoever tidies the fixture next:
@@ -268,10 +232,14 @@ final class CorpusTests: XCTestCase {
     ///
     /// The attachments are fed REVERSED. A writer's output must not depend on
     /// the order it was handed, and feeding them in manifest order cannot see
-    /// one that does. It is a robustness check and no longer more than that: the
-    /// rewritten SPEC 7.1 does not constrain entry order, so what makes the
-    /// difference observable today is this case's byte comparison rather than a
-    /// rule.
+    /// one that does.
+    ///
+    /// ⚠ THE ARCHIVE'S BYTES ARE NOT COMPARED. SPEC 7.1 constrains five rules
+    /// and leaves every other field to the writer, so two conforming writers are
+    /// not expected to agree byte for byte — the expected archive here was
+    /// written by another implementation. What is compared is what 7.1 does
+    /// constrain: the root document's tree, the entry names, the attachment
+    /// bodies, and the document being first.
     private func runWriteContainerCase(_ directory: URL, _ stem: String) throws {
         let inputURL = directory.appendingPathComponent("\(stem).in.vnx")
         let writtenURL = directory.appendingPathComponent("\(stem).written.vnz")
@@ -289,23 +257,50 @@ final class CorpusTests: XCTestCase {
         XCTAssertEqual(sidecar.rootEntry, "doc.vnx", "\(stem): this runner writes the document as doc.vnx")
 
         let manifest = try manifestAttachments(directory.appendingPathComponent("\(stem).attachments.json"))
-        let inputBytes = try Data(contentsOf: inputURL)
-        let expected = try Data(contentsOf: writtenURL)
-        XCTAssertNotEqual(inputBytes, expected, "\(stem): the input is already the written form")
+        let expected = try archiveEntries(try Data(contentsOf: writtenURL))
+        XCTAssertEqual(expected.first?.name, "doc.vnx",
+                       "\(stem): SPEC 7.1 puts the root document first")
 
-        let document = try VNX.read(inputBytes)
-        XCTAssertEqual(document.diagnostics.map(\.message), [], "\(stem): a writer case's input must read cleanly")
-        let produced = VNX.writeContainer(document: document.document, attachments: manifest.reversed())
-        XCTAssertEqual(produced, expected, "\(stem): the writer's archive. \(Self.firstByteDifference(expected, produced))")
+        let input = try VNX.read(try Data(contentsOf: inputURL))
+        XCTAssertEqual(input.diagnostics.map(\.message), [], "\(stem): a writer case's input must read cleanly")
+        let archive = try VNX.writeContainer(document: input.document, attachments: manifest.reversed())
+        let produced = try archiveEntries(archive)
 
-        // The written form is a fixed point, reached the way the tier reaches it
-        // everywhere else: read the expected output back and write it again.
-        let back = try VNX.readContainer(expected)
-        XCTAssertEqual(back.diagnostics.map(\.message), [], "\(stem): the written archive must read cleanly")
-        XCTAssertEqual(back.attachments, manifest.sorted { CanonicalWriter.codePointLess($0.path, $1.path) },
+        XCTAssertEqual(produced.map(\.name), expected.map(\.name), "\(stem): entry names, in archive order")
+        if let d = try Tree.difference(got: produced[0].body, want: expected[0].body) {
+            XCTFail("\(stem): the archive's root document is not the one the case expects — \(d)")
+        }
+        if let names = sidecar.attachments {
+            XCTAssertEqual(Array(produced.dropFirst()).map(\.name), names,
+                           "\(stem): the attachments the sidecar names")
+        }
+        // An attachment is bytes and is compared as bytes. Nothing in this
+        // format interprets one.
+        var bodies: [String: Data] = [:]
+        for a in manifest { bodies[a.path] = a.bytes }
+        for entry in produced.dropFirst() {
+            guard let want = bodies[entry.name] else {
+                XCTFail("\(stem): the archive carries \"\(entry.name)\", which the manifest does not name")
+                continue
+            }
+            XCTAssertEqual(entry.body, want, "\(stem): the body of \(entry.name)")
+        }
+
+        // And the archive this library wrote is one it reads.
+        let back = try VNX.readContainer(archive)
+        XCTAssertEqual(back.diagnostics.map(\.message), [], "\(stem): the archive must read back cleanly")
+        XCTAssertEqual(back.attachments, manifest.sorted { codePointLess($0.path, $1.path) },
                        "\(stem): the archive does not carry the manifest's attachments")
-        let again = VNX.writeContainer(document: back.document, attachments: back.attachments)
-        XCTAssertEqual(again, expected, "\(stem): the written form is not a fixed point")
+
+    }
+
+    /// Every entry of an archive, in archive order, through this library's own
+    /// ZIP reader.
+    private func archiveEntries(_ data: Data) throws -> [(name: String, body: Data)] {
+        let bytes = [UInt8](data)
+        return try Zip.entries(in: bytes)
+            .filter { !$0.name.hasSuffix("/") }
+            .map { (name: $0.name, body: Data(try Zip.contents(of: $0, in: bytes))) }
     }
 
     /// The manifest's attachments, in the order it lists them.
@@ -323,50 +318,49 @@ final class CorpusTests: XCTestCase {
         }
     }
 
-    /// Where two archives first disagree, which a length comparison cannot say.
-    private static func firstByteDifference(_ want: Data, _ got: Data) -> String {
-        if want == got { return "identical" }
-        let a = [UInt8](want), b = [UInt8](got)
-        for i in 0..<min(a.count, b.count) where a[i] != b[i] {
-            return String(format: "byte %d of %d: expected 0x%02x, produced 0x%02x (%d bytes written)",
-                          i, a.count, Int(a[i]), Int(b[i]), b.count)
-        }
-        return "identical for \(min(a.count, b.count)) bytes; expected \(a.count) and produced \(b.count)"
-    }
-
     private func runWriteCase(_ directory: URL, _ input: String) throws {
-        do {
-            let stem = String(input.dropLast(".in.vnx".count))
-            let inputURL = directory.appendingPathComponent(input)
-            let writtenURL = directory.appendingPathComponent("\(stem).written.vnx")
-            let sidecarURL = directory.appendingPathComponent("\(stem).expect.json")
+        let stem = String(input.dropLast(".in.vnx".count))
+        let inputURL = directory.appendingPathComponent(input)
+        let writtenURL = directory.appendingPathComponent("\(stem).written.vnx")
+        let sidecarURL = directory.appendingPathComponent("\(stem).expect.json")
 
-            XCTAssertTrue(FileManager.default.fileExists(atPath: writtenURL.path),
-                          "\(stem): a write case is a pair; the written half is missing")
-            guard FileManager.default.fileExists(atPath: sidecarURL.path) else {
-                XCTFail("\(stem): a case with no sidecar is a failure, not a skip")
-                return
-            }
-            let sidecar = try Corpus.Sidecar(sidecarURL)
-            XCTAssertEqual(sidecar.kind, "write", "\(stem): sidecar `kind` does not match its directory")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: writtenURL.path),
+                      "\(stem): a write case is a pair; the written half is missing")
+        guard FileManager.default.fileExists(atPath: sidecarURL.path) else {
+            XCTFail("\(stem): a case with no sidecar is a failure, not a skip")
+            return
+        }
+        let sidecar = try Corpus.Sidecar(sidecarURL)
+        XCTAssertEqual(sidecar.kind, "write", "\(stem): sidecar `kind` does not match its directory")
 
-            let inputBytes = try Data(contentsOf: inputURL)
-            let expected = try Data(contentsOf: writtenURL)
+        let inputBytes = try Data(contentsOf: inputURL)
+        let expected = try Data(contentsOf: writtenURL)
 
-            // Without this a writer that echoed its input would pass every case.
-            XCTAssertNotEqual(inputBytes, expected,
-                              "\(stem): the input is already the written form, so this case cannot fail for a writer that echoes")
+        // ⚠ AND THE TIER NORMALISES ALMOST NOTHING. The accept tier applies the
+        // precision rule to both sides and drops a trailing `null` from both,
+        // because it compares a document against a re-encoding of itself. Doing
+        // that here would normalise away the two rules under test. The one
+        // normalisation left is the one that is not about the emit boundary at
+        // all: SPEC 3.1's absent-versus-empty.
+        //
+        // Without the first assertion a writer that echoed its input would pass
+        // every case in the tier.
+        if try Tree.difference(got: inputBytes, want: expected) == nil {
+            XCTFail("\(stem): the input is already the written form, so this case cannot fail for a writer that echoes")
+            return
+        }
 
-            let produced = VNX.write(try VNX.read(inputBytes).document)
-            XCTAssertEqual(String(decoding: produced, as: UTF8.self),
-                           String(decoding: expected, as: UTF8.self),
-                           "\(stem): written output")
+        let produced = try VNX.write(try VNX.read(inputBytes).document)
+        if let d = try Tree.difference(got: produced, want: expected) {
+            XCTFail("\(stem): the written document is not the one the case expects — \(d)")
+        }
 
-            // Rounding and shortening are both idempotent, so the written form
-            // is a fixed point. A case that fails this is a defect in the
-            // fixture rather than in the writer.
-            XCTAssertEqual(VNX.write(try VNX.read(expected).document), expected,
-                           "\(stem): the written form is not a fixed point")
+        // Rounding and shortening are both idempotent, so the written form is a
+        // fixed point. A case that fails this is a defect in the fixture rather
+        // than in the writer.
+        let again = try VNX.write(try VNX.read(expected).document)
+        if let d = try Tree.difference(got: again, want: expected) {
+            XCTFail("\(stem): the expected output is not a fixed point of the writer — \(d)")
         }
     }
 
@@ -393,15 +387,6 @@ final class CorpusTests: XCTestCase {
                               "\(tier)/\(url.lastPathComponent) has no sidecar")
             }
         }
-    }
-
-    /// The format tier is the documented exception: a case there is a pair of
-    /// files rather than a file and a sidecar.
-    func testFormatTierUsesPairsNotSidecars() throws {
-        let directory = Corpus.root.appendingPathComponent("format")
-        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
-        XCTAssertTrue(names.filter { $0.hasSuffix(".expect.json") }.isEmpty,
-                      "the format tier is a pair-based tier; a sidecar here would not be read")
     }
 
     // MARK: - Shared assertions

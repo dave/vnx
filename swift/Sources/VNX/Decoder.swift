@@ -555,13 +555,14 @@ final class DocumentDecoder {
         return base + "/" + escaped
     }
 
+    /// A distance for a diagnostic's English, which nothing compares (SPEC 6.3).
     private func rounded(_ d: Double) -> String {
-        ecmaScriptNumber((d * 1000).rounded() / 1000)
+        String((d * 1000).rounded() / 1000)
     }
 
     private func report(unknownKeysIn o: [String: JSONValue], against shape: Keys.Shape, at path: String) {
         let known = shape.all
-        for key in o.keys.sorted(by: CanonicalWriter.codePointLess) where !known.contains(key) {
+        for key in o.keys.sorted(by: codePointLess) where !known.contains(key) {
             // SPEC 6.2: record a diagnostic, skip the key, keep the item. An
             // unrecognised key is not an unusable value.
             diagnose(.unknownKey, at: pointer(path, key),
@@ -795,6 +796,12 @@ final class DocumentDecoder {
                 return nil
             }
         }
-        return Position(channels: channels)
+        // Channels above index 3 are read and discarded. SPEC 4.1: "A reader
+        // MUST ignore them and MUST NOT report a diagnostic for them" — and a
+        // model that carried them would be carrying the document's SPELLING,
+        // which this format stopped constraining.
+        return Position(lon: channels[0].numberValue!, lat: channels[1].numberValue!,
+                        elevation: channels.count > 2 ? channels[2].numberValue : nil,
+                        timeMilliseconds: channels.count > 3 ? channels[3].numberValue : nil)
     }
 }

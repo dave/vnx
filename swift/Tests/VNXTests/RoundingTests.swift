@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import VNX
 
-/// SPEC 4.5.4's rounding, in depth.
+/// SPEC 4.1's precision rule, in depth.
 ///
 /// These tests were written when this rule was beyond the corpus altogether, and
 /// their header claimed that was permanent. `corpus/write/` disproved it within
@@ -82,19 +82,19 @@ final class RoundingTests: XCTestCase {
         func emitted(lon: Double, lat: Double, elevation: Double) -> String {
             var document = Document()
             document.waypoints = [Waypoint(at: Position(lon: lon, lat: lat, elevation: elevation))]
-            let text = String(decoding: VNX.write(document), as: UTF8.self)
-            let start = text.range(of: "\"at\": [")!.upperBound
+            let text = String(decoding: try! VNX.write(document), as: UTF8.self)
+            let start = text.range(of: "\"at\":[")!.upperBound
             return String(text[start..<text.range(of: "]", range: start..<text.endIndex)!.lowerBound])
         }
         // Scaling would give 91.030414, 58.813652 and 0.2 for these three.
         XCTAssertEqual(emitted(lon: 91.0304145, lat: 58.8136515, elevation: 0.15),
-                       "91.030415, 58.813651, 0.1")
+                       "91.030415,58.813651,0.1")
         // Scaling would give -70.427978 and 0.4.
         XCTAssertEqual(emitted(lon: -70.4279775, lat: 113.2614425, elevation: 0.45),
-                       "-70.427977, 113.261443, 0.5")
+                       "-70.427977,113.261443,0.5")
         // A genuine tie, where both routes agree, so it is not the discriminator
         // — kept beside them so the pair reads as one rule.
-        XCTAssertEqual(emitted(lon: 0, lat: 0, elevation: 340.25), "0, 0, 340.2")
+        XCTAssertEqual(emitted(lon: 0, lat: 0, elevation: 340.25), "0,0,340.2")
     }
 
     /// The named cases where scaling by a power of ten and rounding the product
@@ -110,7 +110,7 @@ final class RoundingTests: XCTestCase {
         // rounds UP, where the scaled product is a tie and goes to even.
         XCTAssertEqual(Rounding.toDecimalPlaces(0.45, 1), 0.5)
         XCTAssertEqual(Rounding.toDecimalPlaces(8401.15, 1), 8401.1)
-        // SPEC 4.5.4's third worked value: 0.05 is really 0.05000000000000000277…,
+        // SPEC 4.1's third worked value: 0.05 is really 0.05000000000000000277…,
         // so it rounds UP to 0.1 where the scaled route gives 0.
         XCTAssertEqual(Rounding.toDecimalPlaces(0.05, 1), 0.1)
         XCTAssertEqual(Rounding.toDecimalPlaces(-6507.95, 1), -6507.9)
@@ -121,7 +121,7 @@ final class RoundingTests: XCTestCase {
     }
 
     /// A genuine tie — where the exact expansion really does end at a 5 in the
-    /// place below the target — rounds to even. SPEC 4.5.4's own example.
+    /// place below the target — rounds to even. SPEC 4.1's own example.
     ///
     /// `340.35` used to be in this list and is NOT a tie: as a binary64 it sits
     /// 0.0000000000002274 above the halfway point, so it rounds up under every
@@ -273,21 +273,26 @@ final class RoundingTests: XCTestCase {
         return quarters == quarters.rounded() && Int(quarters) % 2 == 1 && scaled != scaled.rounded()
     }
 
-    /// SPEC 4.5.4: "A writer applies the negative-zero rule of Section 4.5.3
-    /// AFTER rounding, not before. Rounding can CREATE a negative zero that was
-    /// never in the model."
-    func testRoundingCanCreateANegativeZeroAndTheRendererCollapsesIt() {
+    /// Rounding can CREATE a negative zero that was never in the model, and the
+    /// emit boundary is where it is collapsed.
+    ///
+    /// The two halves are separate on purpose. `toDecimalPlaces` reports the
+    /// sign, because the sign is the honest answer to the arithmetic it does and
+    /// the 4,082-row oracle is generated against that answer. `Rounding.coordinate`
+    /// and `Rounding.elevation` are the emit boundary and collapse it, which is
+    /// also what `corpus/numbers/` measures.
+    func testRoundingCanCreateANegativeZeroAndTheEmitBoundaryCollapsesIt() throws {
         let created = Rounding.toDecimalPlaces(-0.04, 1)
         XCTAssertEqual(created, 0)
-        XCTAssertEqual(created.sign, .minus, "the sign bit is set: this is the value the spec warns about")
-        XCTAssertEqual(ecmaScriptNumber(created), "0", "and the renderer, not the rounder, is what collapses it")
+        XCTAssertEqual(created.sign, .minus, "the sign bit is set: this is the value the rule warns about")
+        XCTAssertEqual(Rounding.elevation(-0.04).sign, .plus, "and the emit boundary is what collapses it")
 
         var document = Document()
         // Longitude and latitude round to 6 places, elevation to 1, so each channel
         // needs its own value small enough to be rounded away.
         document.waypoints = [Waypoint(at: Position(lon: -0.00000004, lat: -0.0000004, elevation: -0.04))]
-        let written = String(decoding: VNX.write(document), as: UTF8.self)
-        XCTAssertTrue(written.contains("[0, 0, 0]"), "no `-0` reaches the wire; got \(written)")
+        let written = String(decoding: try VNX.write(document), as: UTF8.self)
+        XCTAssertTrue(written.contains("[0,0,0]"), "no `-0` reaches the wire; got \(written)")
     }
 
     /// Values already on the grid come back unchanged, bit for bit, including
@@ -334,12 +339,12 @@ final class RoundingTests: XCTestCase {
         // Past the boundary the value's own shortest spelling already has at
         // most `places` decimals, so the identity is not a dodge.
         for x in [2251799813685247.8, 1125899906842623.9, above] {
-            XCTAssertLessThanOrEqual(decimalPlaces(ecmaScriptNumber(x)), 1, "\(x)")
+            XCTAssertLessThanOrEqual(decimalPlaces(String(x)), 1, "\(x)")
         }
         // And every coordinate this format carries is far on the other side,
         // where real rounding happens.
         for magnitude in [180.0, 90.0, 179.9999994, 8848.94] {
-            XCTAssertLessThanOrEqual(decimalPlaces(ecmaScriptNumber(Rounding.toDecimalPlaces(magnitude, 6))), 6)
+            XCTAssertLessThanOrEqual(decimalPlaces(String(Rounding.toDecimalPlaces(magnitude, 6))), 6)
         }
     }
 

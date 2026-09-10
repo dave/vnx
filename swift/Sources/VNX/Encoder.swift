@@ -1,20 +1,6 @@
 import Foundation
 
-/// The two operations SPEC 8.1 distinguishes, both of which produce a document.
-public enum EmitMode: Sendable {
-    /// Turn a document a reader was handed back into that document, applying
-    /// neither rounding nor position shortening, so arity and precision
-    /// survive. This is what the accept tier requires: `re-render(decode(file))
-    /// == file`, and a runner MUST NOT use its writer for that check, because
-    /// writing what was read is legitimately not what was read.
-    case reRender
-    /// Turn a model into a document, applying the emit-boundary rules of SPEC
-    /// 4.5.4 and SPEC 4.1: round longitude and latitude to 6 decimal places and
-    /// elevation to 1, and emit the shortest spelling of every position.
-    case write
-}
-
-/// Turns a `Document` back into a JSON tree.
+/// Turns a `Document` into the JSON tree a writer emits.
 ///
 /// This is a reconstruction from the model, not a reformat of the bytes the
 /// reader was handed. SPEC 8.1 rules the second one out and says why: it "never
@@ -22,135 +8,139 @@ public enum EmitMode: Sendable {
 /// reader that discarded every data record, every ruleset, every style and
 /// every `notes` passes such a check". Everything below therefore has to come
 /// out of the model or it is gone.
+///
+/// There is ONE emit path. There used to be two, because a formatter had to
+/// reproduce the spelling of the document it was handed; SPEC 4.5 is gone and
+/// with it the only caller that wanted an unrounded, unshortened emit.
 enum DocumentEncoder {
-    static func encode(_ d: Document, mode: EmitMode) -> JSONValue {
+    static func encode(_ d: Document) -> JSONValue {
         var o: [String: JSONValue] = ["vnx": .string(d.vnx)]
         put(&o, "profile", d.profile)
         put(&o, "generator", d.generator)
         put(&o, "created", d.created)
-        putArray(&o, "folders", d.folders) { folder($0, mode) }
-        putArray(&o, "networks", d.networks) { network($0, mode) }
-        putArray(&o, "routes", d.routes) { route($0, mode) }
-        putArray(&o, "tracks", d.tracks) { track($0, mode) }
-        putArray(&o, "waypoints", d.waypoints) { waypoint($0, mode, allowsFolder: true) }
-        putArray(&o, "areas", d.areas) { area($0, mode, allowsFolder: true) }
+        putArray(&o, "folders", d.folders) { folder($0) }
+        putArray(&o, "networks", d.networks) { network($0) }
+        putArray(&o, "routes", d.routes) { route($0) }
+        putArray(&o, "tracks", d.tracks) { track($0) }
+        putArray(&o, "waypoints", d.waypoints) { waypoint($0, allowsFolder: true) }
+        putArray(&o, "areas", d.areas) { area($0, allowsFolder: true) }
         if let r = d.rulesets { o["rulesets"] = .array(r) }
         return .object(o)
     }
 
     // MARK: - Items
 
-    private static func folder(_ f: Folder, _ mode: EmitMode) -> JSONValue {
+    private static func folder(_ f: Folder) -> JSONValue {
         var o: [String: JSONValue] = ["id": .string(f.id)]
         put(&o, "parent", f.parent)
         put(&o, "name", f.name)
         put(&o, "notes", f.notes)
-        putHidden(&o, f.hidden, mode)
+        putHidden(&o, f.hidden)
         putData(&o, f.data)
         return .object(o)
     }
 
-    private static func waypoint(_ w: Waypoint, _ mode: EmitMode, allowsFolder: Bool) -> JSONValue {
-        var o: [String: JSONValue] = ["at": position(w.at, mode)]
+    private static func waypoint(_ w: Waypoint, allowsFolder: Bool) -> JSONValue {
+        var o: [String: JSONValue] = ["at": position(w.at)]
         put(&o, "name", w.name)
         put(&o, "notes", w.notes)
         if allowsFolder { put(&o, "folder", w.folder) }
-        putHidden(&o, w.hidden, mode)
+        putHidden(&o, w.hidden)
         putStyle(&o, w.style)
         putData(&o, w.data)
         return .object(o)
     }
 
-    private static func area(_ a: Area, _ mode: EmitMode, allowsFolder: Bool) -> JSONValue {
-        var o: [String: JSONValue] = ["polygon": .array(a.polygon.map { position($0, mode) })]
+    private static func area(_ a: Area, allowsFolder: Bool) -> JSONValue {
+        var o: [String: JSONValue] = ["polygon": .array(a.polygon.map { position($0) })]
         put(&o, "name", a.name)
         put(&o, "notes", a.notes)
         if allowsFolder { put(&o, "folder", a.folder) }
-        putHidden(&o, a.hidden, mode)
+        putHidden(&o, a.hidden)
         putStyle(&o, a.style)
         putData(&o, a.data)
         return .object(o)
     }
 
-    private static func network(_ n: Network, _ mode: EmitMode) -> JSONValue {
+    private static func network(_ n: Network) -> JSONValue {
         var o: [String: JSONValue] = [:]
         put(&o, "name", n.name)
         put(&o, "notes", n.notes)
         put(&o, "folder", n.folder)
-        putHidden(&o, n.hidden, mode)
+        putHidden(&o, n.hidden)
         if let nodes = n.nodes {
-            o["nodes"] = .object(nodes.mapValues { position($0, mode) })
+            o["nodes"] = .object(nodes.mapValues { position($0) })
         }
         if let arcs = n.arcs {
-            o["arcs"] = .object(arcs.mapValues { networkArc($0, mode) })
+            o["arcs"] = .object(arcs.mapValues { networkArc($0) })
         }
-        putArray(&o, "chains", n.chains) { chain($0, mode) }
-        putArray(&o, "points", n.points) { waypoint($0, mode, allowsFolder: false) }
-        putArray(&o, "areas", n.areas) { area($0, mode, allowsFolder: false) }
+        putArray(&o, "chains", n.chains) { chain($0) }
+        putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
+        putArray(&o, "areas", n.areas) { area($0, allowsFolder: false) }
         putData(&o, n.data)
         return .object(o)
     }
 
-    private static func networkArc(_ a: NetworkArc, _ mode: EmitMode) -> JSONValue {
+    private static func networkArc(_ a: NetworkArc) -> JSONValue {
         var o: [String: JSONValue] = [
             "from": .string(a.from),
             "to": .string(a.to),
-            "pips": .array(a.pips.map { position($0, mode) }),
+            "pips": .array(a.pips.map { position($0) }),
         ]
         putData(&o, a.data)
         return .object(o)
     }
 
-    private static func chain(_ c: Chain, _ mode: EmitMode) -> JSONValue {
-        var o: [String: JSONValue] = ["links": .array(c.links.map { link($0, mode) })]
+    private static func chain(_ c: Chain) -> JSONValue {
+        var o: [String: JSONValue] = ["links": .array(c.links.map { link($0) })]
         put(&o, "name", c.name)
         put(&o, "notes", c.notes)
-        putHidden(&o, c.hidden, mode)
+        putHidden(&o, c.hidden)
         putStyle(&o, c.style)
         putData(&o, c.data)
         return .object(o)
     }
 
-    private static func link(_ l: Link, _ mode: EmitMode) -> JSONValue {
+    private static func link(_ l: Link) -> JSONValue {
         .object([
             "arc": .string(l.arc),
-            "from": endpoint(l.from, mode),
-            "to": endpoint(l.to, mode),
+            "from": endpoint(l.from),
+            "to": endpoint(l.to),
         ])
     }
 
-    private static func endpoint(_ e: LinkEndpoint, _ mode: EmitMode) -> JSONValue {
+    private static func endpoint(_ e: LinkEndpoint) -> JSONValue {
         switch e {
         case .node(let k): return .string(k)
-        case .inline(let p): return position(p, mode)
+        case .inline(let p): return position(p)
         }
     }
 
-    private static func route(_ r: Route, _ mode: EmitMode) -> JSONValue {
-        var o: [String: JSONValue] = ["arcs": .array(r.arcs.map { routeArc($0, mode) })]
+    private static func route(_ r: Route) -> JSONValue {
+        var o: [String: JSONValue] = ["arcs": .array(r.arcs.map { routeArc($0) })]
         put(&o, "name", r.name)
         put(&o, "notes", r.notes)
         put(&o, "folder", r.folder)
-        putHidden(&o, r.hidden, mode)
+        putHidden(&o, r.hidden)
         putStyle(&o, r.style)
         putData(&o, r.data)
         return .object(o)
     }
 
-    private static func routeArc(_ a: RouteArc, _ mode: EmitMode) -> JSONValue {
-        var o: [String: JSONValue] = ["pips": .array(a.pips.map { position($0, mode) })]
+    private static func routeArc(_ a: RouteArc) -> JSONValue {
+        var o: [String: JSONValue] = ["pips": .array(a.pips.map { position($0) })]
         putData(&o, a.data)
         return .object(o)
     }
 
-    private static func track(_ t: Track, _ mode: EmitMode) -> JSONValue {
+    private static func track(_ t: Track) -> JSONValue {
         var o: [String: JSONValue] = [
-            "segments": .array(t.segments.map { .object(["pips": .array($0.pips.map { position($0, mode) })]) })
+            "segments": .array(t.segments.map { .object(["pips": .array($0.pips.map { position($0) })]) })
         ]
         put(&o, "name", t.name)
         put(&o, "notes", t.notes)
         put(&o, "folder", t.folder)
-        putHidden(&o, t.hidden, mode)
+        putHidden(&o, t.hidden)
         putStyle(&o, t.style)
         put(&o, "started", t.started)
         put(&o, "ended", t.ended)
@@ -160,58 +150,29 @@ enum DocumentEncoder {
 
     // MARK: - Positions
 
-    private static func position(_ p: Position, _ mode: EmitMode) -> JSONValue {
-        switch mode {
-        case .reRender:
-            // SPEC 4.1: shortening happens where rounding happens, at the
-            // serialisation boundary, and is NOT part of canonical form. A
-            // formatter re-renders the spelling the document carries.
-            return .array(p.channels)
-        case .write:
-            return .array(shortened(p))
-        }
-    }
-
-    /// SPEC 4.5.4 rounding, then SPEC 4.1's shortest spelling.
-    private static func shortened(_ p: Position) -> [JSONValue] {
+    /// SPEC 4.1's emit boundary: round, then emit the shortest spelling.
+    ///
+    /// ⚠ THIS IS WHERE VNX ROUNDS, and it is the only place. Every position on
+    /// the wire — a waypoint's `at`, an area's ring, a track's pip, an arc's
+    /// pip, a node, an inline endpoint — passes through here. Rounding in the
+    /// model instead would round the values a route's arc-boundary dedup and a
+    /// ring's winding are computed from, which is a change to the geometry
+    /// rather than to its spelling.
+    private static func position(_ p: Position) -> JSONValue {
         var channels: [JSONValue] = [
-            .number(round(p.lon, places: 6)),
-            .number(round(p.lat, places: 6)),
+            .number(Rounding.coordinate(p.lon)),
+            .number(Rounding.coordinate(p.lat)),
         ]
-        let elevation: JSONValue = p.elevation.map { .number(round($0, places: 1)) } ?? .null
-        // Time is an integer count of milliseconds and is not rounded.
-        let time: JSONValue = p.timeMilliseconds.map { .number($0) } ?? .null
-        // Channels above index 3 are not defined by 0.1. Carrying them keeps
-        // SPEC 4.1's "a future channel is additive" true through a write as
-        // well as through a re-render.
-        let extra = p.channels.count > 4 ? Array(p.channels[4...]) : []
-
-        if !extra.isEmpty {
-            channels.append(elevation)
-            channels.append(time)
-            channels.append(contentsOf: extra)
-            return channels
-        }
-        if case .number = time {
+        if let t = p.timeMilliseconds {
             // An interior absence keeps its `null`: dropping it would move the
             // time into the elevation channel.
-            channels.append(elevation)
-            channels.append(time)
-            return channels
+            channels.append(p.elevation.map { .number(Rounding.elevation($0)) } ?? .null)
+            // Time is an integer count of milliseconds and is not rounded.
+            channels.append(.number(t))
+        } else if let e = p.elevation {
+            channels.append(.number(Rounding.elevation(e)))
         }
-        if case .number = elevation {
-            channels.append(elevation)
-            return channels
-        }
-        return channels
-    }
-
-    /// SPEC 4.5.4, delegated to `Rounding`, which computes it from the value's
-    /// exact decimal expansion rather than by scaling and dividing. The
-    /// difference is not a corner: `0.15` at one place is `0.1` exactly and
-    /// `0.2` scaled.
-    private static func round(_ x: Double, places: Int) -> Double {
-        Rounding.toDecimalPlaces(x, places)
+        return .array(channels)
     }
 
     // MARK: - Field helpers
@@ -220,21 +181,16 @@ enum DocumentEncoder {
         if let value { o[key] = .string(value) }
     }
 
-    /// SPEC 3.8, and one of the few places the two emit paths genuinely differ.
+    /// SPEC 3.8: "Absence means visible. A writer MUST emit the key only when
+    /// its value is `true`, and a document SHOULD NOT contain
+    /// `"hidden": false`."
     ///
-    /// "Absence means visible. A writer MUST emit the key only when its value is
-    /// `true`, and a document SHOULD NOT contain `"hidden": false`." So a WRITE
-    /// drops a false — but a RE-RENDER must reproduce the document it was handed
-    /// (SPEC 8.1), and a document carrying `"hidden": false` is a document that
-    /// carries it. The model therefore keeps what it read and the mode decides
-    /// what is emitted.
-    ///
-    /// Caught by `corpus/write/emit-boundary`, which is the first tier ever to
-    /// ask this library to write.
-    private static func putHidden(_ o: inout [String: JSONValue], _ hidden: Bool?, _ mode: EmitMode) {
-        guard let hidden else { return }
-        if mode == .write && !hidden { return }
-        o["hidden"] = .bool(hidden)
+    /// So a `false` the reader was handed is read, kept in the model, and NOT
+    /// written back. Pinned by `corpus/write/emit-boundary`, whose input
+    /// carries one.
+    private static func putHidden(_ o: inout [String: JSONValue], _ hidden: Bool?) {
+        guard let hidden, hidden else { return }
+        o["hidden"] = .bool(true)
     }
 
     private static func putStyle(_ o: inout [String: JSONValue], _ style: OpaqueObject?) {

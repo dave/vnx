@@ -303,6 +303,34 @@ class ReaderRulesTest {
     // ------------------------------------------------------------ positions
 
     @Test
+    fun `a coordinate literal parses to the correctly rounded double, by bit pattern`() {
+        // THE CORPUS CANNOT SEE THIS. `accept/full-precision-coordinate.vnx`
+        // looks like the guard and is not: the accept tier applies section 4.1's
+        // precision to both sides before comparing, so this literal becomes
+        // -3.671235 on each side and a one-bit parse error is normalised away
+        // before anything looks at it. The fixture guarded full precision only
+        // while the tier compared bytes.
+        //
+        // Found by the Rust lane, which would have shipped a reader one bit out
+        // with a green suite: serde_json without `float_roundtrip` parses this
+        // literal to c00d5eb03aa8431d where the standard library gives ...431e.
+        //
+        // BIT PATTERNS, NOT VALUES. `==` on two doubles one bit apart is false,
+        // but a failure printing them shows two identical-looking numbers and the
+        // next person reads the test as broken rather than the parser.
+        val literal = "-3.6712345678901235"
+        val reference = literal.toDouble()
+        assertEquals(
+            reference.toRawBits(),
+            ((JsonParser.parse(literal) as JsonNumber).value).toRawBits(),
+            "the parser and the platform disagree on $literal by at least one bit",
+        )
+        // And through the whole reader, which is the path a document takes.
+        val at = read("""{"vnx":"0.1.0","waypoints":[{"at":[$literal,57.118]}]}""").document.waypoints!![0].at
+        assertEquals(reference.toRawBits(), at.lon.toRawBits(), "the decoded longitude is not the literal")
+    }
+
+    @Test
     fun `positions of differing arity may appear in one pips array`() {
         // Section 4.1: a reader MUST read each position independently of its
         // neighbours. Forcing one shape would mean inventing elevations or

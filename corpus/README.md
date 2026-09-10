@@ -205,9 +205,28 @@ about a single document may share a path unless they also share a code, because
 two reports agreeing on both are, to a runner, the same report twice. A reader
 that can emit two it cannot distinguish has a pointer that is not doing its job.
 
-Check it: group a run's reports by `path`, and fail where one path carries more
-than one distinct `code`. That is mechanical, it works over any document, and it
-does not need a fixture.
+**And a diagnostic that shares a path with another MUST carry a code.** Without
+that clause the rule passes the defect it was written for: two codeless
+diagnostics at one path share `code` by both lacking it, so the invariant is
+satisfied while the reports stay indistinguishable — which is precisely the shape
+the reference implementation emitted for Section 3.3.2. Treating an absent code as
+distinct from an absent code is not available either, because then every codeless
+pair would violate and the rule would fire on documents where nothing is wrong.
+So the pinning rule of Section 6.3 gains one condition: a code belongs to any
+diagnostic a corpus case pins, AND to any diagnostic that shares a path with
+another. A reader that always emits codes satisfies it for free.
+
+Check it: group a run's reports by `path`; fail where one path carries more than
+one distinct `code`, and fail where one path carries more than one report and any
+of them has no code. That is mechanical, works over any document, and needs no
+fixture.
+
+**This is a different kind of check from the four above it, and a runner author
+who has written those four will not think to write this one.** Every other check
+in this file compares a reader against an expectation. This one asks whether the
+reader's own output is well formed, with no expectation involved at all — the
+sidecar is not consulted. Both kinds are required, and only the first kind is
+what "running the corpus" sounds like.
 
 **Which is fortunate, because no case here exercises it.** Measured over every
 sidecar in the corpus: not one expects two diagnostics at a single path, so a

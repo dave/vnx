@@ -130,6 +130,22 @@ instrument caught the defect only where nobody meets it. Fourteen rows now sit
 below 1e9, eight elevation-shaped and six valid longitudes and latitudes, found
 by search because no round number of degrees separates the routes.
 
+**And if a count comes from reconstructing the wrong behaviour, the
+reconstruction is the thing to check first.** Breaking a disagreement down by
+category means rebuilding the route that produced it, and a rebuild that is not
+faithful answers a different question with the same confidence. Measured: an
+attempt to break down 175 disagreeing rows gave 410 on its first run, because
+the rebuild dropped a magnitude guard the shipped function had — so it was
+measuring a route that never existed. **The only thing that caught it was having
+a figure to disagree with.** Reconstructing something nobody had measured, 410
+would have been published with nothing to contradict it.
+
+> A reconstruction that is not faithful answers a different question.
+
+That is an argument for deliberate overlap: two people measuring the same
+quantity by different routes is not duplicated work, it is the only thing that
+catches a sound method pointed at the wrong subject.
+
 **Do not quote a row count for this from memory, and do not write one into a
 document.** The table grew by fourteen rows between two runs of the script that
 counts them, so a figure correct when written was stale within minutes. Compute

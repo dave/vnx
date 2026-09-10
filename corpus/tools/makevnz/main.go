@@ -59,6 +59,7 @@ func main() {
 	// test. This archive is input rather than writer output, so §7.1's
 	// root-document-first rule does not apply to it, and §7 selects the root
 	// by name at any position.
+	writeUnusableMethod("diagnose/container-unusable-method.vnz")
 	writeZip64("accept/container-zip64.vnz", []entry{
 		{name: "attachments/first.txt", body: "written before the document, so its offset is not zero\n", method: zip.Store},
 		{name: "doc.vnx", body: doc, method: zip.Store},
@@ -212,4 +213,106 @@ func writeZip64(path string, entries []entry) {
 		log.Fatal(err)
 	}
 	log.Printf("wrote %s (zip64)", path)
+}
+
+// writeUnusableMethod builds an archive one of whose attachments uses a
+// compression method that is neither stored nor deflate.
+//
+// §7's remedy is to DROP that attachment, record a diagnostic and return the
+// document: refusing a whole library because one photograph used an unusual
+// method would be disproportionate. Nothing in the corpus reached that remedy.
+//
+// archive/zip cannot write this: CreateHeader refuses a method it has no
+// registered compressor for, which is every method but these two. The entry is
+// written out by hand instead, and its body is never valid data for the method
+// it claims — deliberately, because a reader must refuse it on the METHOD before
+// it ever tries to decompress. A reader that inflated first would fail on the
+// body and could report the wrong cause.
+//
+// ⚠ THE DROPPED ENTRY'S NAME CONTAINS A SLASH, and that is load-bearing. §6.3
+// puts a container diagnostic in the `#/entries/` pointer space, where the member
+// name is one RFC 6901 reference token and a `/` inside it MUST be escaped as
+// `~1`. An attachment name is the one place in this format where a member name
+// routinely contains a slash, so a reader that forgets to escape emits a path
+// that no runner will match — and every attachment name without one passes
+// either way.
+func writeUnusableMethod(path string) {
+	const unusableMethod = 12 // bzip2: legal in APPNOTE, not available everywhere
+	type raw struct {
+		name   string
+		body   string
+		method uint16
+	}
+	entries := []raw{
+		{"doc.vnx", doc, 0},
+		{"attachments/photo.jpg", "not bzip2 data, and never decompressed\n", unusableMethod},
+		{"notes/readable.txt", "kept, so the drop is provably scoped\n", 0},
+	}
+
+	var out []byte
+	le16 := func(v uint16) { out = append(out, byte(v), byte(v>>8)) }
+	le32 := func(v uint32) { out = append(out, byte(v), byte(v>>8), byte(v>>16), byte(v>>24)) }
+
+	type placed struct {
+		raw
+		crc    uint32
+		size   uint32
+		offset uint32
+	}
+	var placedEntries []placed
+	for _, e := range entries {
+		p := placed{raw: e, crc: crc32.ChecksumIEEE([]byte(e.body)),
+			size: uint32(len(e.body)), offset: uint32(len(out))}
+		out = append(out, 'P', 'K', 3, 4)
+		le16(20)
+		le16(0x800)
+		le16(e.method)
+		le16(0)    // time  ) 1980-01-01 00:00:00, per §7.1
+		le16(0x21) // date  )
+		le32(p.crc)
+		le32(p.size)
+		le32(p.size)
+		le16(uint16(len(e.name)))
+		le16(0)
+		out = append(out, e.name...)
+		out = append(out, e.body...)
+		placedEntries = append(placedEntries, p)
+	}
+
+	cdOffset := uint32(len(out))
+	for _, p := range placedEntries {
+		out = append(out, 'P', 'K', 1, 2)
+		le16(20 | (3 << 8))
+		le16(20)
+		le16(0x800)
+		le16(p.method)
+		le16(0)
+		le16(0x21)
+		le32(p.crc)
+		le32(p.size)
+		le32(p.size)
+		le16(uint16(len(p.name)))
+		le16(0)
+		le16(0)
+		le16(0)
+		le16(0)
+		le32(0)
+		le32(p.offset)
+		out = append(out, p.name...)
+	}
+	cdSize := uint32(len(out)) - cdOffset
+
+	out = append(out, 'P', 'K', 5, 6)
+	le16(0)
+	le16(0)
+	le16(uint16(len(placedEntries)))
+	le16(uint16(len(placedEntries)))
+	le32(cdSize)
+	le32(cdOffset)
+	le16(0)
+
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("wrote %s (method %d attachment)", path, unusableMethod)
 }

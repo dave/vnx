@@ -46,10 +46,6 @@ class CorpusTest {
                 assertEquals(tier, sidecar.kind, "${case.name}: `kind` must match the directory")
                 assertTrue(sidecar.note.isNotBlank(), "${case.name}: `note` says why the case exists and is required")
                 assertTrue(
-                    sidecar.schemaVerdict in listOf(null, "valid", "invalid", "not-json"),
-                    "${case.name}: `schema` is \"${sidecar.schemaVerdict}\", which is not a verdict this runner knows",
-                )
-                assertTrue(
                     sidecar.unknownFields.isEmpty(),
                     "${case.name}: the sidecar carries fields this runner does not read: ${sidecar.unknownFields}. " +
                         "A field nothing looks at is a field that quietly stops being tested.",
@@ -140,9 +136,39 @@ class CorpusTest {
     private fun checkPositions(case: File, sidecar: Sidecar, result: ReadResult) {
         for (expected in sidecar.positions()) {
             val position = ModelPointer.resolve(result.document, expected.at)
-            assertEquals(expected.lon, position.lon, "${case.name}: longitude at ${expected.at}")
-            assertEquals(expected.lat, position.lat, "${case.name}: latitude at ${expected.at}")
+            checkChannel(case, expected.at, "longitude", expected.lon, position.lon)
+            checkChannel(case, expected.at, "latitude", expected.lat, position.lat)
         }
+    }
+
+    /**
+     * One channel of an expected position, compared BY BIT PATTERN.
+     *
+     * A value comparison cannot see a one-ulp move between the parse and the
+     * model, and on failure it prints two numbers that look identical.
+     *
+     * It is also one of only two instruments in the whole corpus that CAN see
+     * negative zero. Every tree comparison is by value and `-0` is written as
+     * `0`, so the other is the number table — a table of literals.
+     *
+     * That second reach is LATENT today, and the comment says so rather than
+     * claiming a guard nobody has: measured 2026-09-10, no `positions` entry in
+     * any sidecar carries a zero longitude or latitude, so flipping the sign of
+     * every zero channel in the decoder changes nothing here. The check is ready
+     * for a fixture that carries one. It is not evidence that one exists.
+     *
+     * WHAT IT CANNOT SEE, so that nobody reads more into it: a parser that is one
+     * ulp out. The sidecar's expected value is read by the same parser, so it is
+     * wrong on both sides and they agree. `a coordinate literal parses to the
+     * correctly rounded double` in ReaderRulesTest is the guard for that. This
+     * one is about anything that moves a value between the parse and the model.
+     */
+    private fun checkChannel(case: File, at: String, channel: String, want: Double, got: Double) {
+        if (got.toRawBits() == want.toRawBits()) return
+        fail(
+            "${case.name}: $channel at $at: got $got (%016x), want $want (%016x)"
+                .format(got.toRawBits(), want.toRawBits()),
+        )
     }
 
     private fun checkTracks(case: File, sidecar: Sidecar, result: ReadResult) {

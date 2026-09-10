@@ -1384,14 +1384,19 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - A reader MUST accept an archive whose entries defer their sizes to a data
   descriptor, and MUST take the sizes from the CENTRAL DIRECTORY rather than
   from a local header.
-- When a reader READS an entry, it MUST NOT refuse it for declaring a size
-  greater than the bytes present, where the CRC over those bytes agrees. A
-  reader that never reads the entry never asks the question.
+- A reader MUST NOT refuse an entry on the ground that its declared size exceeds
+  the bytes present, where the CRC over those bytes agrees. A reader is NOT
+  required to detect such a discrepancy. The rule constrains what a reader does
+  with one it has observed, so a reader that trusts the declared size and never
+  notices a shortfall has nothing to do here.
 
-  The scope is deliberate. Requiring every entry to be verified when a container
-  is opened makes opening one cost its whole payload, so a library of
-  photographs pays that on every read for a metadata field the reader has no use
-  for. That is a performance contract in a conformance rule's clothes.
+  It is a prohibition rather than an obligation so that no reader has to be
+  structured any particular way. Neither scanning for the next entry's signature
+  nor bounding an entry by the next local header's offset becomes normative, and
+  "the bytes present" never has to be derivable from the archive alone. An
+  obligation would also make opening a container cost its whole payload, so a
+  library of photographs would pay that on every read for a field the reader has
+  no use for: a performance contract in a conformance rule's clothes.
 
 Those two are the same point twice: A SIZE FIELD IS NOT THE AUTHORITY ON WHAT AN
 ENTRY CONTAINS, AND THE CHECKSUM IS. An archive written with the deferred-size
@@ -1401,12 +1406,13 @@ the checksum agreeing over the bytes present, the payload is complete and
 verified, so the size adds nothing the CRC has not already established. A short
 size is caught by the CRC rather than by comparing sizes at all.
 
-Neither rule is diagnosable and neither is fixturable. A committed archive has a
-valid stream and a matching CRC by construction, so no case can reach either, and
-a diagnostic would need a code no case pins. They are stated here because silence
-is what produces the question, and an implementer resolving it alone hardens
-until they refuse, believing they have improved robustness while breaking
-conformance.
+Neither rule is diagnosable: a reader that accepts has nothing to report, and a
+diagnostic would need a code no case pins. Both are fixturable, but not by a
+conforming writer — Section 7.1 forbids the deferred-size bit and leaves a writer
+no way to over-declare, so a case for either must be built by hand rather than
+produced. They are stated here because silence is what produces the question, and
+an implementer resolving it alone hardens until they refuse, believing they have
+improved robustness while breaking conformance.
 
 This section states what a READER accepts. Section 7.1 states what a writer
 emits, which is narrower in every case: an export stays readable by the widest

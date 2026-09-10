@@ -41,6 +41,16 @@ type Container struct {
 // using the conventional name is an EXPECTED absence, which is where the house
 // rule puts a fallback rather than an error.
 //
+// ⚠ THIS READER DOES NOT MEET §7, AND THE GAP IS archive/zip's. §7 requires a
+// reader not to refuse an entry that declares more bytes than it holds where the
+// CRC over the bytes present agrees. archive/zip reads the declared count and
+// checksums what it read, so it consumes past the payload and refuses with
+// "zip: checksum error" — it detects the discrepancy and refuses on it, which is
+// the one thing the rule forbids. The rule asks nothing of a reader that does
+// not notice. Pinned by TestOverDeclaredSizeIsRefusedAndSpecSaysAccept, which
+// asserts the non-conforming behaviour deliberately, and closed by giving
+// zipwrite.go a read side.
+//
 // ⚠ COPY KMZ'S INTENT, NOT ITS CODE. importer/kmz.go:27-36 says "prefer
 // doc.kml in the root" and then tests filepath.Base, which matches at any depth
 // and lets the LAST match win — so an archive holding a/doc.kml and b/doc.kml

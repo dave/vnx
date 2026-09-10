@@ -238,20 +238,24 @@ func overDeclaringArchive(doc []byte, name string) []byte {
 // and spec §7, deliberately asserting the NON-CONFORMING behaviour so that
 // fixing it turns this red and tells whoever did it to delete the test.
 //
-// ⚠ §7 REQUIRES ACCEPTANCE: a reader MUST NOT refuse an entry whose declared
-// size exceeds the bytes it holds where the CRC over those bytes agrees, because
-// a size field is not the authority on what an entry contains and the checksum
-// is. This reader refuses, with "zip: checksum error", because archive/zip reads
-// the DECLARED number of bytes and then checksums what it read — so it consumes
-// past the payload and the CRC disagrees.
+// ⚠ §7 FORBIDS THE REFUSAL, AND THAT IS THE WHOLE OF WHAT IT ASKS. A reader MUST
+// NOT refuse an entry on the ground that its declared size exceeds the bytes
+// present where the CRC over those bytes agrees, because a size field is not the
+// authority on what an entry contains and the checksum is. It is a prohibition,
+// not an obligation: a reader is not required to DETECT the discrepancy, so one
+// that trusts the declared size and never notices complies with nothing to do,
+// and "the bytes present" never has to be derivable from the archive alone.
 //
-// That makes archive/zip unable to meet §7 on the READ side as well as §7.1 on
-// the write side, which is a stronger claim than the one already recorded, and
-// it exposes a question the rule does not answer: a reader that trusts the
-// declared size has no other way to know where an entry ends, so "the bytes it
-// holds" is not derivable from the archive alone. Raised rather than resolved.
+// archive/zip notices and refuses, which is exactly and only what the rule
+// forbids: it reads the DECLARED number of bytes, checksums what it read, and so
+// consumes past the payload and reports "zip: checksum error". That makes it
+// unable to meet §7 on the READ side as well as §7.1 on the write side — it
+// cannot read a conforming archive, which is a stronger claim than the one about
+// writing and the reason the hand-written component wants to be a reader as well
+// as a writer.
 //
-// No corpus case can reach any of this, which is why it is a unit test.
+// A conforming WRITER cannot produce this archive, which is why it is hand-built
+// here; a corpus case could carry one, and none does yet.
 func TestOverDeclaredSizeIsRefusedAndSpecSaysAccept(t *testing.T) {
 	raw := overDeclaringArchive([]byte("{\n  \"vnx\": \"0.1.0\"\n}\n"), "doc.vnx")
 	_, _, err := vnx.DecodeContainer(bytes.NewReader(raw), int64(len(raw)))

@@ -15,10 +15,17 @@ package vnx
 // standard library is a general-purpose writer and the format wants one
 // particular archive.
 //
-// The reader is still archive/zip (container.go), which is the right asymmetry:
-// §7 has a reader accept a far wider range than §7.1 has a writer emit, so the
-// general-purpose implementation is closer to being right on the read side than
-// on the write side.
+// The reader is still archive/zip (container.go), and that is a KNOWN GAP rather
+// than a deliberate asymmetry. It refuses an archive §7 requires it to accept:
+// an entry declaring more bytes than it holds, where the CRC over the bytes
+// present agrees. It reads the declared count, checksums what it read, and so
+// consumes past the payload — detecting the discrepancy and refusing on it,
+// which is exactly what §7 forbids. Pinned by
+// TestOverDeclaredSizeIsRefusedAndSpecSaysAccept, which asserts the
+// non-conforming behaviour on purpose so that a fix goes red and says to delete
+// it. So the hand-written component wants to grow a reader; this file is half of
+// it, and the local-header walk in zipwrite_test.go is the other half already
+// written.
 //
 // This writer buffers each entry whole. It cannot do otherwise: §7.1 requires
 // the CRC and both sizes IN THE LOCAL HEADER and forbids general purpose bit 3,

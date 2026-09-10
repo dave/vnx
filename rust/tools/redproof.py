@@ -278,6 +278,21 @@ MUTATIONS = [
 
 
 def snapshot():
+    """Copy every file this script may mutate, and return the copy's directory.
+
+    ⚠ TAKEN IMMEDIATELY BEFORE EACH MUTATION, NEVER ONCE FOR THE WHOLE RUN.
+    A run is about thirty mutations and ten minutes, and `restore` puts back
+    whatever the snapshot holds — so a snapshot taken at the start silently
+    reverts every edit made to a listed file while the run is in progress, and
+    the run reports success. That is not hypothetical: it happened on
+    2026-09-10, to comment edits made in this same lane while a run was in the
+    background, and it surfaced as unrelated test failures rather than as
+    anything naming a restore.
+
+    Re-reading immediately before the write is the same remedy as
+    `~/src/knowledge/a-backup-brackets-its-own-writers-edit.md`: a copy taken at
+    the start of a turn brackets that turn's own edit and nothing else.
+    """
     tmp = tempfile.mkdtemp(prefix="vnx-redproof-")
     for rel in FILES:
         dst = os.path.join(tmp, rel.replace("/", "__"))
@@ -288,6 +303,7 @@ def snapshot():
 def restore(tmp):
     for rel in FILES:
         shutil.copyfile(os.path.join(tmp, rel.replace("/", "__")), os.path.join(ROOT, rel))
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def run_corpus():
@@ -329,12 +345,13 @@ def run_corpus():
 
 
 def main():
-    backup = snapshot()
     baseline, detail = run_corpus()
     if baseline != "GREEN":
         print("baseline is not green; aborting\n", detail)
         return 1
     print("baseline: GREEN\n")
+    print(f"  (holding a write lock on {len(FILES)} files for this run — "
+          "do not edit them until it finishes)\n")
     survivors = []
     for name, rel, old, new, *rest in MUTATIONS:
         count = -1 if "all" in rest else 1
@@ -342,11 +359,14 @@ def main():
         # corpus rather than a hole in this crate. It fails the script when it
         # goes red, so the note cannot outlive the limitation it records.
         want_green = "expect-green" in rest
+        # The snapshot is per-mutation. See `snapshot`.
+        backup = snapshot()
         path = os.path.join(ROOT, rel)
         s = io.open(path, encoding="utf-8").read()
         if old not in s:
             print(f"  SKIPPED (pattern gone): {name}")
             survivors.append(name + " [pattern not found]")
+            restore(backup)
             continue
         io.open(path, "w", encoding="utf-8").write(
             s.replace(old, new) if count == -1 else s.replace(old, new, 1))

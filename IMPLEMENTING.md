@@ -697,13 +697,18 @@ other as its expected output.
 > An unreachability claim is a claim about the current state of somebody's
 > ingenuity, not about the format.
 
+The opposite failure looks like tidying up. An artefact can be emptied by an act
+that reads as conformance: sixty decorative tie rows, an already-sorted
+attachment pair, four deflate archives judged against a writer's rule. **Before
+regenerating a fixture, say which rule each existing one is the only witness
+for.** *(Kotlin implementation, which declined the regeneration.)*
+
 A related trap, and the one condition here that care does not fix: a wrong reason
 under a right conclusion has nothing with a motive to check it. A wrong reason
 under a wrong conclusion is caught by whoever tests the conclusion; under a right
-one it holds everything up while being false, and survives until somebody needs it
-to answer a different question. Which gives the rule: **a reason that has only ever
-answered one kind of question has never been tested.** *(Reported by the JavaScript
-implementation, against its own earlier claim.)*
+one it holds everything up while being false. Which gives the rule: **a reason
+that has only ever answered one kind of question has never been tested.**
+*(JavaScript implementation, against its own earlier claim.)*
 
 So the question is not which rules are unreachable but which are unreached
 *today*, and what shape a case would take. Where two readings of a rule produce
@@ -714,8 +719,6 @@ enforcement: the tolerance boundary at exactly 50 metres is one, because no two
 distance models land on exactly 50.
 
 ### 6.2 A case only separates the readings its own data can separate
-
-The most valuable entry here, with five instances found in one day.
 
 A fixture that *contains* a construct is not a test *of* it. What a case can
 discriminate is decided by the data in the case, not by the construct it holds or
@@ -806,8 +809,6 @@ the implementation, run the real corpus, and assert exactly which cases fail. Th
 turns "the corpus discriminates" from a restated number into a measurement, and it
 goes red when a fixture moves.
 
-The common shape across all three is that a check which does not discriminate
-always passes. Nothing goes red, because red requires a comparison.
 
 Five implementations hit this class and each wrote a different guard, which
 is the useful part, because the guards compose:
@@ -822,8 +823,7 @@ is the useful part, because the guards compose:
   sidecar *(Python)*;
 - read your own output back with a foreign implementation *(Kotlin)*.
 
-The detection recipe is cheap and worth running over every fixture you rely on.
-Write down what the note claims the case tests, then write down which values the
+The detection recipe is cheap. Write down what the note claims the case tests, then write down which values the
 case actually varies. Where it varies more than one, ask which readings it can
 still separate.
 

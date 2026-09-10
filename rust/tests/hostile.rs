@@ -319,9 +319,8 @@ fn a_corrupt_attachment_is_refused_rather_than_returned() {
         vnz::read(&good).is_ok(),
         "the undamaged archive must read, or this proves nothing"
     );
-    let refusal = vnz::read(&damaged)
-        .err()
-        .expect("a corrupt attachment must be refused, not returned");
+    let refusal =
+        vnz::read(&damaged).expect_err("a corrupt attachment must be refused, not returned");
     assert!(
         refusal.to_string().contains("CRC"),
         "refused for the wrong reason: {refusal}"
@@ -351,9 +350,8 @@ fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
         damaged[cd + 27],
     ]);
     damaged[cd + 20..cd + 24].copy_from_slice(&(declared - 1).to_le_bytes());
-    let refusal = vnz::read(&damaged)
-        .err()
-        .expect("a stored entry with disagreeing sizes must be refused");
+    let refusal =
+        vnz::read(&damaged).expect_err("a stored entry with disagreeing sizes must be refused");
     // NOT an `||` with the CRC message. Removing the size check leaves the CRC
     // check to refuse this archive anyway, so an assertion that accepted either
     // message passed with the size check deleted — measured 2026-09-10, and it

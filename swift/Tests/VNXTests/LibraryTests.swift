@@ -717,7 +717,10 @@ final class LibraryTests: XCTestCase {
         let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.bzip2Attachment))
         XCTAssertEqual(read.document.waypoints?.count, 1, "refusing a library over one photograph would be disproportionate")
         XCTAssertEqual(read.attachments, [])
-        XCTAssertEqual(read.diagnostics.map(\.cause), [.attachmentCompressionUnsupported])
+        XCTAssertEqual(read.diagnostics.map(\.cause), [.attachmentUnreadable])
+        // SPEC 6.3's separate `#/entries/` space: an archive entry is not part
+        // of the document, so no pointer into the document can locate one.
+        XCTAssertEqual(read.diagnostics.map(\.path), ["#/entries/notes.bz2.txt"])
 
         XCTAssertThrowsError(try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.bzip2Root))) {
             XCTAssertEqual(($0 as? Refusal)?.cause, .containerRootCompressionUnsupported)

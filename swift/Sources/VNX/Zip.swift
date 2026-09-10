@@ -14,6 +14,16 @@ enum Zip {
         let uncompressedSize: Int
         let crc32: UInt32
         let localHeaderOffset: Int
+        /// Where this entry's payload cannot extend past: the nearest following
+        /// local header, or the central directory.
+        ///
+        /// THE DECLARED SIZE IS A CEILING, NOT A LENGTH, which is SPEC 7's size
+        /// rule: a reader MUST NOT refuse an entry that declares more bytes than
+        /// it holds where the CRC over the bytes present agrees. Reading the
+        /// declared count instead runs into the next local header and fails the
+        /// CRC on a conforming archive. A SHORT declaration needs nothing of its
+        /// own — the same CRC catches it.
+        let payloadBound: Int
     }
 
     struct MalformedArchive: Error { let message: String }
@@ -87,10 +97,19 @@ enum Zip {
                 q += 4 + size
             }
             out.append(Entry(name: name, method: method, compressedSize: compressed,
-                             uncompressedSize: uncompressed, crc32: crc, localHeaderOffset: localOffset))
+                             uncompressedSize: uncompressed, crc32: crc, localHeaderOffset: localOffset,
+                             payloadBound: 0))
             p += 46 + nameLength + extraLength + commentLength
         }
-        return out
+        // The bound takes every entry to know and every entry needs it, so it is
+        // filled in once the directory is complete.
+        let offsets = out.map(\.localHeaderOffset)
+        return out.map { entry in
+            let bound = offsets.filter { $0 > entry.localHeaderOffset }.min() ?? directoryOffset
+            return Entry(name: entry.name, method: entry.method, compressedSize: entry.compressedSize,
+                         uncompressedSize: entry.uncompressedSize, crc32: entry.crc32,
+                         localHeaderOffset: entry.localHeaderOffset, payloadBound: bound)
+        }
     }
 
     /// The uncompressed bytes of one entry.
@@ -107,10 +126,15 @@ enum Zip {
         let nameLength = Int(u16(data, p + 26))
         let extraLength = Int(u16(data, p + 28))
         let start = p + 30 + nameLength + extraLength
-        guard start + entry.compressedSize <= data.count else {
+        guard start <= entry.payloadBound else {
+            throw MalformedArchive(message: "the payload of \(entry.name) starts past where it must end")
+        }
+        // The declared size is a CEILING — see `Entry.payloadBound`.
+        let take = min(entry.compressedSize, entry.payloadBound - start)
+        guard start + take <= data.count else {
             throw MalformedArchive(message: "entry data runs past the end of the archive")
         }
-        let raw = Array(data[start..<(start + entry.compressedSize)])
+        let raw = Array(data[start..<(start + take)])
         let bytes: [UInt8]
         switch entry.method {
         case methodStored: bytes = raw

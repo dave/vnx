@@ -102,7 +102,16 @@ public enum Cause: String, Sendable, CaseIterable {
     case folderNotPresent
     /// An attachment compressed by a method other than stored or deflate. The
     /// attachment goes and the document is returned (SPEC 7).
-    case attachmentCompressionUnsupported
+    ///
+    /// The one cause here whose `path` is not a pointer into the document: an
+    /// archive entry is not part of the document, so it lives in SPEC 6.3's
+    /// separate `#/entries/<name>` space.
+    case attachmentUnreadable
+    /// An arc terminal pip further from the node that end names than SPEC
+    /// 3.3.3's tolerance allows (SPEC 3.3.2). Both are kept: the pips are
+    /// authoritative for geometry, and the node position and the terminal pip
+    /// are one fact written twice.
+    case terminalPipOffNode
 
     /// A stable kebab-case reason code, safe to switch on and safe to log.
     ///
@@ -128,6 +137,9 @@ public enum Cause: String, Sendable, CaseIterable {
         .polygonNestedRings: "polygon-nested-rings",
         .timestampNotUTC: "timestamp-not-utc",
         .inlineEndpointBeyondTolerance: "endpoint-off-arc",
+        .positionUnusable: "position-unusable",
+        .terminalPipOffNode: "terminal-pip-off-node",
+        .attachmentUnreadable: "attachment-unreadable",
     ]
 
     /// Codes for the causes the corpus has no vocabulary for yet. Kept
@@ -145,7 +157,6 @@ public enum Cause: String, Sendable, CaseIterable {
         .containerNoDocument: "container-no-document",
         .containerRootCompressionUnsupported: "container-root-compression-unsupported",
         .requiredKeyMissing: "missing-required-key",
-        .positionUnusable: "position-unusable",
         .importanceOutOfRange: "importance-out-of-range",
         .dataRecordTypeUnusable: "data-record-type-unusable",
         .polygonUnclosed: "polygon-unclosed",
@@ -153,7 +164,6 @@ public enum Cause: String, Sendable, CaseIterable {
         .arcNodeNotInNetwork: "arc-node-absent",
         .inlineEndpointOnEmptyArc: "endpoint-on-empty-arc",
         .folderNotPresent: "folder-absent",
-        .attachmentCompressionUnsupported: "attachment-compression-unsupported",
     ]
 
     /// The English substring the corpus expects for this cause today, for

@@ -25,6 +25,21 @@ enum Corpus {
             .appendingPathComponent("corpus")
     }()
 
+    /// Reads a corpus case, dispatching on its extension.
+    ///
+    /// A `.vnz` decoded as JSON fails at byte 0 on the `P` of `PK`, which reads
+    /// as a malformed document rather than as a runner that forgot a tier can
+    /// hold an archive.
+    static func read(_ url: URL) throws -> (document: Document, diagnostics: [Diagnostic]) {
+        let bytes = try Data(contentsOf: url)
+        if url.pathExtension == "vnz" {
+            let container = try VNX.readContainer(bytes)
+            return (container.document, container.diagnostics)
+        }
+        let result = try VNX.read(bytes)
+        return (result.document, result.diagnostics)
+    }
+
     static func cases(in tier: String) throws -> [URL] {
         let directory = root.appendingPathComponent(tier)
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
@@ -33,7 +48,8 @@ enum Corpus {
             // `format/` and `write/` are pair tiers: their halves are named
             // `X.in.vnx` with `X.canonical.vnx` or `X.written.vnx`, and neither
             // half is a case on its own.
-            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx") && !$0.hasSuffix(".written.vnx") }
+            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx")
+                      && !$0.hasSuffix(".written.vnx") && !$0.hasSuffix(".written.vnz") }
             .map { directory.appendingPathComponent($0) }
     }
 
@@ -50,6 +66,8 @@ enum Corpus {
         let tracks: [(name: String, movingTimeMilliseconds: Double?)]
         let attachments: [String]?
         let refusal: String?
+        /// The entry name a container write case expects its document under.
+        let rootEntry: String?
         /// A sidecar's expected diagnostics, matched on `code` and nothing
         /// else (SPEC 6.3: "The English MUST NOT be compared").
         ///
@@ -98,6 +116,7 @@ enum Corpus {
             }
             self.attachments = o["attachments"]?.arrayValue?.compactMap { $0.stringValue }
             self.refusal = o["refusal"]?.stringValue
+            self.rootEntry = o["root"]?.stringValue
             if let d = o["diagnostics"]?.arrayValue {
                 self.diagnostics = try d.map { entry in
                     guard let e = entry.objectValue, let path = e["path"]?.stringValue else {

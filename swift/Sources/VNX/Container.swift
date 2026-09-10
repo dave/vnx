@@ -73,22 +73,36 @@ enum Container {
                 // SPEC 7: refusing a whole library because one photograph used
                 // an unusual method would be disproportionate.
                 diagnostics.append(Diagnostic(
-                    path: "/" + entry.name,
+                    path: entryPointer(entry.name),
                     message: "the attachment \"\(entry.name)\" uses compression method \(entry.method), which is not stored or deflate, so it was dropped",
-                    cause: .attachmentCompressionUnsupported))
+                    cause: .attachmentUnreadable))
                 continue
             }
             do {
                 attachments.append(Attachment(path: entry.name, bytes: Data(try Zip.contents(of: entry, in: bytes))))
             } catch {
                 diagnostics.append(Diagnostic(
-                    path: "/" + entry.name,
+                    path: entryPointer(entry.name),
                     message: "the attachment \"\(entry.name)\" could not be read and was dropped: \(error)",
-                    cause: .attachmentCompressionUnsupported))
+                    cause: .attachmentUnreadable))
             }
         }
         return ContainerResult(documentName: root.name, document: read.document,
                                diagnostics: diagnostics, attachments: attachments)
+    }
+
+    /// SPEC 6.3's `#/entries/` space, which is where a diagnostic about an
+    /// archive ENTRY lives: an entry is not part of the document, so no pointer
+    /// into the document can locate one.
+    ///
+    /// THE MEMBER NAME IS ONE RFC 6901 REFERENCE TOKEN, and the escaping ORDER
+    /// decides the answer: `~` becomes `~0` BEFORE `/` becomes `~1`. Reversed,
+    /// the second pass escapes the `~1` the first pass just wrote, so
+    /// `photos/a~b.jpg` comes out `photos~01a~0b.jpg`. An attachment name is the
+    /// one place in this format where a member name routinely holds a slash.
+    static func entryPointer(_ name: String) -> String {
+        "#/entries/" + name.replacingOccurrences(of: "~", with: "~0")
+            .replacingOccurrences(of: "/", with: "~1")
     }
 
     /// SPEC 7: prefer an entry named `doc.vnx` AT THE ARCHIVE ROOT; where there

@@ -206,9 +206,15 @@ final class DocumentDecoder {
                      "`polygon` carries nested rings; this format expresses one closed ring and cannot express holes, so the item was dropped")
             return nil
         }
+        // One unusable vertex drops the ITEM, for the same reason one unusable
+        // pip drops its arc. Returning here rather than falling through also
+        // stops a second diagnostic: a ring shortened by the dropped vertex is
+        // no longer closed, and `polygonUnclosed` would report a consequence as
+        // though it were a second fault.
         var positions: [Position] = []
         for (i, e) in elements.enumerated() {
-            if let p = position(e, at: "\(polygonPath)/\(i)") { positions.append(p) }
+            guard let p = position(e, at: "\(polygonPath)/\(i)") else { return nil }
+            positions.append(p)
         }
         guard positions.count >= 4, let first = positions.first, let last = positions.last,
               first.isSamePlace(as: last) else {
@@ -343,6 +349,23 @@ final class DocumentDecoder {
             for (field, name) in [("from", from), ("to", to)] where nodes[name] == nil {
                 diagnose(.arcNodeNotInNetwork, at: pointer(arcPath, field),
                          "`\(field)` names the node \"\(name)\", which is not in this network; the arc was kept because its geometry is real")
+            }
+            // SPEC 3.3.2: an arc's pips are its COMPLETE point list, so the
+            // first pip is the position of the node `from` names and the last is
+            // `to`'s. The two are one fact written twice; both are kept, the
+            // pips are authoritative, and the disagreement is reported.
+            //
+            // THE PATH NAMES THE END, NOT THE ARC. SPEC 6.3 names the smallest
+            // element, and the arc's other end and its interior pips are all
+            // usable — while a reader naming the arc emits two diagnostics at
+            // one identical path, and 6.3 forbids telling them apart by their
+            // English.
+            for (field, name, terminal) in [("from", from, pips.first), ("to", to, pips.last)] {
+                guard let node = nodes[name], let terminal,
+                      let metres = Projection.distance(from: node, toPolyline: [terminal]),
+                      !Projection.isWithinTolerance(metres) else { continue }
+                diagnose(.terminalPipOffNode, at: pointer(arcPath, field),
+                         "the node \"\(name)\" is \(Int(metres.rounded())) m from the \(field) pip, beyond the 50 m tolerance; both are kept and the pips are authoritative")
             }
             arcs[key] = NetworkArc(from: from, to: to, pips: pips, data: dataRecords(ao, at: arcPath))
         }
@@ -713,9 +736,15 @@ final class DocumentDecoder {
                      "`pips` is \(raw.typeName); expected an array of positions, so the item was dropped")
             return nil
         }
+        // SPEC 6.2: ONE UNUSABLE PIP DROPS THE CONTAINER, not the pip. Geometry
+        // is continuous and structure is not — a missing vertex leaves a
+        // shorter, plausible, wrong line with nothing to indicate it, while a
+        // missing arc or segment leaves a gap the continuity rule of 3.3.3 can
+        // see and report.
         var out: [Position] = []
         for (i, v) in array.enumerated() {
-            if let p = position(v, at: "\(pipsPath)/\(i)") { out.append(p) }
+            guard let p = position(v, at: "\(pipsPath)/\(i)") else { return nil }
+            out.append(p)
         }
         return out
     }
@@ -744,19 +773,24 @@ final class DocumentDecoder {
                      "a position carries \(channels.count) channel(s); it MUST carry at least lon and lat")
             return nil
         }
+        // THE PATH IS THE POSITION, NOT THE CHANNEL. SPEC 6.3 names the smallest
+        // element no part of which could be used, and a position with a null
+        // longitude is unusable whole — the latitude beside it locates nothing
+        // on its own. The channel index goes in the message, which nothing
+        // compares.
         guard channels[0].numberValue != nil else {
-            diagnose(.positionUnusable, at: "\(path)/0", "longitude is \(channels[0].typeName); expected a number")
+            diagnose(.positionUnusable, at: path, "longitude is \(channels[0].typeName); expected a number")
             return nil
         }
         guard channels[1].numberValue != nil else {
-            diagnose(.positionUnusable, at: "\(path)/1", "latitude is \(channels[1].typeName); expected a number")
+            diagnose(.positionUnusable, at: path, "latitude is \(channels[1].typeName); expected a number")
             return nil
         }
         for i in 2..<channels.count {
             switch channels[i] {
             case .number, .null: continue
             default:
-                diagnose(.positionUnusable, at: "\(path)/\(i)",
+                diagnose(.positionUnusable, at: path,
                          "channel \(i) is \(channels[i].typeName); from index 2 upward a channel is a number or null")
                 return nil
             }

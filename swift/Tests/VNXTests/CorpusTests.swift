@@ -115,7 +115,7 @@ final class CorpusTests: XCTestCase {
             XCTFail("\(name): a diagnose sidecar must list its expected diagnostics, even when the list is empty")
             return
         }
-        let result = try VNX.read(try Data(contentsOf: url))
+        let result = try Corpus.read(url)
         try assertCounts(sidecar, result.document, name)
         try assertPositions(sidecar, result.document, name)
         try assertTracks(sidecar, result.document, name)
@@ -244,8 +244,91 @@ final class CorpusTests: XCTestCase {
         XCTAssertGreaterThan(inputs.count, 0, "the write tier is empty")
 
         for input in inputs {
+            let stem = String(input.dropLast(".in.vnx".count))
+            // A case carrying an attachment manifest writes a CONTAINER, so its
+            // expected output is an archive rather than a document. See
+            // `corpus/write/README.md`.
+            if names.contains("\(stem).attachments.json") {
+                runCase(input) { try self.runWriteContainerCase(directory, stem) }
+                continue
+            }
             runCase(input) { try self.runWriteCase(directory, input) }
         }
+        XCTAssertTrue(names.contains { $0.hasSuffix(".attachments.json") },
+                      "the write tier holds no container case")
+    }
+
+    /// A write case whose expected output is an archive.
+    ///
+    /// The attachments come from a manifest rather than from real files beside
+    /// the sidecar: one name holds U+1F600, and a filename is subject to the
+    /// checkout filesystem's Unicode normalisation and case folding, so a
+    /// checked-out file could arrive under a name that is not the one the case
+    /// means and the fixture would test the filesystem instead of the writer.
+    ///
+    /// THE ATTACHMENTS ARE FED REVERSED, deliberately. SPEC 7.1 makes the writer
+    /// sort its own entries by code point, so a writer that kept the order it
+    /// was handed must fail here.
+    private func runWriteContainerCase(_ directory: URL, _ stem: String) throws {
+        let inputURL = directory.appendingPathComponent("\(stem).in.vnx")
+        let writtenURL = directory.appendingPathComponent("\(stem).written.vnz")
+        let sidecarURL = directory.appendingPathComponent("\(stem).expect.json")
+        guard FileManager.default.fileExists(atPath: writtenURL.path) else {
+            XCTFail("\(stem): the manifest promises \(stem).written.vnz and there is none")
+            return
+        }
+        guard FileManager.default.fileExists(atPath: sidecarURL.path) else {
+            XCTFail("\(stem): a case with no sidecar is a failure, not a skip")
+            return
+        }
+        let sidecar = try Corpus.Sidecar(sidecarURL)
+        XCTAssertEqual(sidecar.kind, "write", "\(stem): sidecar `kind` does not match its directory")
+        XCTAssertEqual(sidecar.rootEntry, "doc.vnx", "\(stem): this runner writes the document as doc.vnx")
+
+        let manifest = try manifestAttachments(directory.appendingPathComponent("\(stem).attachments.json"))
+        let inputBytes = try Data(contentsOf: inputURL)
+        let expected = try Data(contentsOf: writtenURL)
+        XCTAssertNotEqual(inputBytes, expected, "\(stem): the input is already the written form")
+
+        let document = try VNX.read(inputBytes)
+        XCTAssertEqual(document.diagnostics.map(\.message), [], "\(stem): a writer case's input must read cleanly")
+        let produced = VNX.writeContainer(document: document.document, attachments: manifest.reversed())
+        XCTAssertEqual(produced, expected, "\(stem): the writer's archive. \(Self.firstByteDifference(expected, produced))")
+
+        // The written form is a fixed point, reached the way the tier reaches it
+        // everywhere else: read the expected output back and write it again.
+        let back = try VNX.readContainer(expected)
+        XCTAssertEqual(back.diagnostics.map(\.message), [], "\(stem): the written archive must read cleanly")
+        XCTAssertEqual(back.attachments, manifest.sorted { CanonicalWriter.codePointLess($0.path, $1.path) },
+                       "\(stem): the archive does not carry the manifest's attachments")
+        let again = VNX.writeContainer(document: back.document, attachments: back.attachments)
+        XCTAssertEqual(again, expected, "\(stem): the written form is not a fixed point")
+    }
+
+    /// The manifest's attachments, in the order it lists them.
+    private func manifestAttachments(_ url: URL) throws -> [Attachment] {
+        let parsed = try JSONParser.parse(try Data(contentsOf: url))
+        guard let listed = parsed.objectValue?["attachments"]?.arrayValue else {
+            throw Corpus.SidecarError("\(url.lastPathComponent) carries no `attachments` array")
+        }
+        return try listed.map { entry in
+            guard let e = entry.objectValue, let name = e["name"]?.stringValue,
+                  let body = e["body"]?.stringValue else {
+                throw Corpus.SidecarError("\(url.lastPathComponent): an attachment has no `name` and `body`")
+            }
+            return Attachment(path: name, bytes: Data(body.utf8))
+        }
+    }
+
+    /// Where two archives first disagree, which a length comparison cannot say.
+    private static func firstByteDifference(_ want: Data, _ got: Data) -> String {
+        if want == got { return "identical" }
+        let a = [UInt8](want), b = [UInt8](got)
+        for i in 0..<min(a.count, b.count) where a[i] != b[i] {
+            return String(format: "byte %d of %d: expected 0x%02x, produced 0x%02x (%d bytes written)",
+                          i, a.count, Int(a[i]), Int(b[i]), b.count)
+        }
+        return "identical for \(min(a.count, b.count)) bytes; expected \(a.count) and produced \(b.count)"
     }
 
     private func runWriteCase(_ directory: URL, _ input: String) throws {

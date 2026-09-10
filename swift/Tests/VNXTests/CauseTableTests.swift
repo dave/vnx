@@ -35,7 +35,7 @@ final class CauseTableTests: XCTestCase {
 
         for url in try Corpus.cases(in: "diagnose") {
             let sidecar = try Corpus.Sidecar(url.deletingPathExtension().appendingPathExtension("expect.json"))
-            let reported = try VNX.read(try Data(contentsOf: url)).diagnostics
+            let reported = try Corpus.read(url).diagnostics
             var used = [Bool](repeating: false, count: reported.count)
             for e in sidecar.diagnostics ?? [] {
                 var found = false
@@ -166,7 +166,7 @@ final class CauseTableTests: XCTestCase {
             "linkArcNotInNetwork", "linkNodeNotInNetwork", "arcNodeNotInNetwork",
             "inlineEndpointBeyondTolerance", "inlineEndpointOnEmptyArc",
             "chainNotConnected", "folderNotPresent",
-            "attachmentCompressionUnsupported",
+            "attachmentUnreadable", "terminalPipOffNode",
         ])
     }
 }

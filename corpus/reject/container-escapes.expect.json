@@ -1,5 +1,5 @@
 {
   "kind": "reject",
-  "note": "A .vnz with a `..` attachment path (spec 7). kmz.go is safe from zip-slip only because it never extracts to disk; VNZ with attachments will, so the check belongs at READ time rather than being left to whoever extracts later and may forget. The document itself is perfectly good, and the archive is still refused.",
+  "note": "A .vnz with a `..` attachment path (spec 7). A reader that never extracts to disk is safe from zip-slip by accident, but a reader that writes attachments out is not, so the check belongs at READ time rather than being left to whoever extracts later. The document itself is perfectly good, and the archive is still refused.",
   "refusal": "escapes the archive"
 }

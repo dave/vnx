@@ -91,8 +91,8 @@ Each is a place the specification is silent or the corpus answered instead. They
 are listed here so that a disagreement with another implementation has somewhere
 to start.
 
-Dave ruled on all of these on 2026-09-09; `SPEC.md` is being updated separately
-and has not caught up yet. Rows marked **ruled** are the ruling, not a choice.
+Rows marked **ruled** are settled decisions rather than this library's own
+choice.
 
 | Question | What this library does |
 |---|---|

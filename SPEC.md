@@ -269,7 +269,7 @@ prepend or append node positions to it.
 The first pip states the position of the node `from` names, and the last states
 the position of the node `to` names. Where a terminal pip and its node disagree,
 THE PIPS ARE AUTHORITATIVE: the two are one fact written twice, and the geometry
-lives in the pips. That is why Section 6.2 keeps an arc naming an absent node —
+lives in the pips. That is why Section 6.2 keeps an arc naming an absent node:
 its geometry is real without the node.
 
 A reader MUST compare each terminal pip against its node's position and MUST
@@ -475,7 +475,7 @@ Top-level `waypoints` and a network's `points` share one shape.
 `icon-size` is an integer in points. The values 16, 21, 27, 35 and 46 are the
 ones Viatrail emits; that sentence is informative and does not constrain a
 document. NO RANGE IS STATED FOR IT, so a reader does not check it and
-`"icon-size": "large"` passes unremarked — Section 6.2 checks a value only where
+`"icon-size": "large"` passes unremarked. Section 6.2 checks a value only where
 this document states a range or an enumeration. `importance` is an integer from 1 to 5, and that is normative: a value
 outside the range is handled under Section 6.2. Neither is spelled as a word.
 
@@ -740,7 +740,7 @@ by that name wherever strings are ordered:
 > `sorted()` and Go's `sort.Strings` already order by code point.
 
 Every key this format defines is ASCII, where code point, UTF-8 byte and UTF-16
-code unit order all agree — but a data record body may carry any key
+code unit order all agree, but a data record body may carry any key
 (Section 5.1), and an archive entry name may be anything at all (Section 7.1).
 
 The term is defined rather than restated wherever it is used because a section
@@ -807,7 +807,7 @@ consulting a runtime.
 
 A tie is resolved by rounding to even: `1497898211722073.25` renders
 `1497898211722073.2`, not `…073.3`. That is the rule, and it is stated here
-because `Number::toString` does not state it — where the ECMAScript
+because `Number::toString` does not state it. Where the ECMAScript
 specification declines to decide, this one does, and V8 and Go happen to agree
 with it.
 
@@ -902,8 +902,8 @@ A conforming library therefore offers TWO emit paths, named distinctly:
 
 | Path | Applies the emit-boundary rules? |
 |---|---|
-| WRITE — turn a model into a document | yes: round to 6 and 1 places, emit the shortest spelling of a position |
-| RE-RENDER — turn a decoded document back into that document | no: reproduce the arity and the precision it carried |
+| WRITE: turn a model into a document | yes: round to 6 and 1 places, emit the shortest spelling of a position |
+| RE-RENDER: turn a decoded document back into that document | no: reproduce the arity and the precision it carried |
 
 A library with only one of them cannot satisfy this specification. With only a
 writer it cannot pass the accept tier (Section 8.1), because writing what it
@@ -1154,7 +1154,7 @@ A reader is tolerant of damage and silent about nothing.
   The exception is not a special case: dropping a required field would leave a
   waypoint that is nowhere, a link that traverses nothing, or an arc with no
   geometry. Section 5.1's rule for a record with an unusable `@type` is the same
-  rule — the record goes, not the key.
+  rule: the record goes, not the key.
 - A value outside a range this document states normatively — an `importance`
   outside 1 to 5 (Section 3.6) — is an unusable value in an optional key, so the
   reader MUST drop the field and MUST keep the item.
@@ -1197,7 +1197,7 @@ used drops the link and keeps the chain. Those look opposite and are not, and
 the difference is worth stating because the two rules sit next to each other:
 
 GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex changes the shape
-of a line and leaves nothing to indicate it — a shorter, plausible, wrong line.
+of a line and leaves nothing to indicate it: a shorter, plausible, wrong line.
 A missing link leaves a gap between two endpoints that the continuity rule of
 Section 3.3.3 can see and report, so nothing is lost silently.
 
@@ -1208,7 +1208,7 @@ missing one leaves a gap a consumer can see. Dropping the whole track would lose
 geometry the document is not wrong about.
 
 All three take ONE code. The code plus this table already tells a consumer what
-was lost, so the path is free to name the cause — which is why the wrong-typed
+was lost, so the path is free to name the cause. That is why the wrong-typed
 value needs two codes and this needs one: required-ness cannot be derived from a
 path, and the owning container can.
 
@@ -1290,14 +1290,14 @@ There is a THIRD RULE, for a diagnostic that reports a DISAGREEMENT between two
 values that both survive. Neither rule above reaches one: nothing is unusable,
 because both values are kept, and the pair is not ordered, so there is no second
 of it. Such a diagnostic names the value BEING REPORTED rather than the one it is
-measured against — an arc's terminal pip that has drifted from its node names the
+measured against. An arc's terminal pip that has drifted from its node names the
 pip's end, because Section 3.3.2 makes the pips authoritative and the node is the
 reference.
 
 AND ONE INVARIANT ACROSS ALL THREE. No two diagnostics about one document may
 share BOTH a `path` and a `code`. Those are the only two fields a conforming
 runner may compare, so a reader that emits two reports differing in neither has
-emitted two a runner cannot tell apart — and a runner pairing each expectation
+emitted two a runner cannot tell apart, and a runner pairing each expectation
 with one distinct report would then pass a reader that found one of the two
 faults twice.
 
@@ -1313,7 +1313,7 @@ from.
 
 An archive entry is not part of the document, so a diagnostic about one cannot
 be located by a pointer into the document. It uses the separate space
-`#/entries/<name>` — not a path under any document key, because every such
+`#/entries/<name>`, not a path under any document key, because every such
 spelling collides with something: `/attachments/…` is already the name of a
 sidecar expectation field, and an absent `path` would make the field optional
 and grow a null case in every runner comparison, which is the defect the
@@ -1369,7 +1369,7 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
   legal name and escapes nothing.
 - Duplicate entry names MUST be refused, compared case-insensitively. Language
   runtimes resolve a repeated name differently, so one archive would yield
-  different documents in different languages — and that applies to `doc.vnx`
+  different documents in different languages, and that applies to `doc.vnx`
   beside `DOC.VNX` exactly as it applies to an exact repeat, which is why the
   comparison matches the root-document rule above.
 - A reader MUST accept stored and deflate. Other methods are not available in
@@ -1391,7 +1391,7 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
   The scope is deliberate. Requiring every entry to be verified when a container
   is opened makes opening one cost its whole payload, so a library of
   photographs pays that on every read for a metadata field the reader has no use
-  for — a performance contract in a conformance rule's clothes.
+  for. That is a performance contract in a conformance rule's clothes.
 
 Those two are the same point twice: A SIZE FIELD IS NOT THE AUTHORITY ON WHAT AN
 ENTRY CONTAINS, AND THE CHECKSUM IS. An archive written with the deferred-size
@@ -1405,14 +1405,14 @@ Neither rule is diagnosable and neither is fixturable. A committed archive has a
 valid stream and a matching CRC by construction, so no case can reach either, and
 a diagnostic would need a code no case pins. They are stated here because silence
 is what produces the question, and an implementer resolving it alone hardens
-until they refuse — believing they have improved robustness while breaking
+until they refuse, believing they have improved robustness while breaking
 conformance.
 
 This section states what a READER accepts. Section 7.1 states what a writer
 emits, which is narrower in every case: an export stays readable by the widest
 range of tools, while an archive from anywhere else is still readable by every
 conforming implementation. That asymmetry is the shape this format uses
-throughout — canonical form constrains what a library writes and never what it
+throughout: canonical form constrains what a library writes and never what it
 will read.
 
 Note: an implementation matching the root document on the base name alone
@@ -1447,7 +1447,7 @@ the CRC and both sizes in the local header and MUST NOT set general purpose bit
 3. Every one of those is narrower than what Section 7 has a reader accept.
 
 Bit 3 defers the CRC and the sizes to a descriptor after the payload, which
-forces a forward-only reader to scan for the next entry's signature — and for a
+forces a forward-only reader to scan for the next entry's signature, and for a
 STORED entry the payload can itself contain that signature. The always-stored
 rule above therefore turns a theoretical ambiguity into a reachable one, which
 is what decides this. Bit 3 exists for a writer that cannot seek, and a VNX
@@ -1528,9 +1528,9 @@ The `write/` tier is the only one that exercises the emit-boundary rules of
 Section 4.5.4. Every other tier RE-RENDERS, which by definition applies none of
 them, so rounding and position shortening are unreachable without it. A runner
 MUST assert that a case's input is not already the written form, and that the
-written form is a fixed point of the writer — the same two guards `format/`
-carries, for the same reason: without them a writer that echoed its input would
-pass the tier.
+written form is a fixed point of the writer. Those are the same two guards
+`format/` carries, for the same reason: without them a writer that echoed its
+input would pass the tier.
 
 Formatter cases are separate because the accept files cannot catch a formatter
 defect. Accept files are stored in canonical form, so canonicalising one only
@@ -1619,7 +1619,7 @@ legitimately not what was read, because a writer rounds.
 
 Nor may a runner reformat the file's BYTES without decoding them. Reformatting
 bytes into bytes never builds a model, so it cannot observe anything about what
-a model kept — a reader that discarded every data record, every ruleset, every
+a model kept: a reader that discarded every data record, every ruleset, every
 style and every `notes` passes such a check, which is the whole extensibility
 mechanism, all styling and all user prose. Measured 2026-09-09.
 

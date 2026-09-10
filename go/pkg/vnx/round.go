@@ -81,9 +81,10 @@ func RoundPosition(p Position) Position {
 // most that many decimal places. That is the whole mechanism by which the
 // digits actually leave the file.
 //
-// NEGATIVE ZERO IS NORMALISED TO POSITIVE ZERO. -0.0000004 rounds to -0, which
-// is the same value as 0 and carries no information; doing it here means all
-// four writers agree without each remembering to.
+// NEGATIVE ZERO IS NORMALISED TO POSITIVE ZERO, WHICH §4.1 REQUIRES: rounding a
+// value that underflows to zero yields positive zero, and a writer MUST NOT emit
+// a negative zero. Doing it here means all four writers obey it without each
+// remembering to.
 func roundTo(v float64, places int) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return v
@@ -113,12 +114,18 @@ func roundTo(v float64, places int) float64 {
 		panic("vnx: BUG: rounding " + strconv.FormatFloat(v, 'g', -1, 64) + ": " + err.Error())
 	}
 	r := s
-	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
-	// math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one place
-	// yields a zero with its sign bit set — as does -4e-08 to six places. Spec
-	// §4.1 requires rounding to happen in the emit path, so a writer that collapsed
-	// -0 only across the values it was HANDED would emit `-0` for a value it
-	// produced itself.
+	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL, which is
+	// why §4.1 states the rule about the ROUNDED value rather than about the
+	// model's. math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one
+	// place yields a zero with its sign bit set — as does -4e-08 to six places. A
+	// writer that collapsed -0 only across the values it was HANDED would emit
+	// `-0` for a value it produced itself.
+	//
+	// ⚠ NO CORPUS TIER CAN SEE THIS, AND THAT IS CORRECT. §8.1's comparison is
+	// over VALUES and -0 == 0, so the write tier stays green against a writer
+	// that emits [-0,-0,-0]. corpus/numbers/ pins it by bit pattern instead,
+	// with TestRoundingNormalisesNegativeZero beside it. Do not "fix" the tree
+	// comparison to reach it.
 	//
 	// `r == 0` is true for both zeros in Go, so this one comparison catches it.
 	if r == 0 {

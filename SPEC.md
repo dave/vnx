@@ -584,6 +584,12 @@ place where the scaled route gives `0.2`; `0.05` rounds to `0.1` where the
 scaled route gives `0`; `0.45` rounds to `0.5` where the scaled route gives
 `0.4`.
 
+Rounding a value that underflows to zero yields positive zero, and a writer MUST
+NOT emit a negative zero.
+
+`-0` and `0` are the same value, so the tree comparison of Section 8.1 cannot see
+this rule and is not meant to. `corpus/numbers/` pins it.
+
 Rounding MUST happen in the emit path and MUST NOT happen in the model. Arc
 boundary de-duplication, ring winding and endpoint snapping compare positions by
 full value, and rounding ahead of them changes which positions they consider

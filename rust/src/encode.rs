@@ -1,45 +1,32 @@
-//! Turning a model back into a document.
+//! Turning a model back into a document (SPEC 4.1, 8.1).
 //!
-//! SPEC 8.1 names two operations, and the accept tier requires the second:
+//! There is one operation. `encode` applies the emit-boundary rules — round
+//! longitude and latitude to six decimal places and elevation to one, and emit
+//! the shortest spelling of a position — and hands the tree to `serde_json`.
 //!
-//! | Operation | What it does |
-//! |---|---|
-//! | WRITE | applies the emit-boundary rules: round coordinates (4.5.4) and emit the shortest spelling of a position (4.1) |
-//! | RE-RENDER | applies neither, so arity and precision survive |
-//!
-//! Writing what you read is legitimately not what you read, because a writer
-//! rounds. Both go through one tree-builder that differs only in [`Mode`].
+//! ⚠ WRITING WHAT YOU READ IS LEGITIMATELY NOT WHAT YOU READ, because a writer
+//! rounds. The accept tier absorbs that by applying the same two rules to both
+//! sides of its comparison (SPEC 8.1); the write tier does not, because there
+//! they are the rules under test.
 
-use crate::canonical;
-use crate::json::Json;
+use crate::json::{self, Json};
 use crate::model::*;
 
-/// Which of SPEC 8.1's two operations to perform.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    /// Reproduce the document the reader was handed: no rounding, and a
-    /// position keeps the arity it was written with.
-    ReRender,
-    /// Emit a document from a model, applying the emit-boundary rules.
-    Write,
+/// Encode a document.
+///
+/// The bytes are compact. Nothing about a VNX document's whitespace is
+/// constrained (SPEC 8.1), and indenting costs about three times the file.
+pub fn encode(document: &Document) -> String {
+    json::to_string(&to_json(document))
 }
 
-/// Re-render a document: canonical bytes, with precision and position arity as
-/// the document carried them (SPEC 8.1).
-pub fn re_render(document: &Document) -> String {
-    canonical::render(&to_json(document, Mode::ReRender))
-}
-
-/// Write a document: canonical bytes, with coordinates rounded at the emit
-/// boundary and positions shortened (SPEC 4.5.4, 4.1).
-pub fn write(document: &Document) -> String {
-    canonical::render(&to_json(document, Mode::Write))
-}
-
-/// Build the JSON tree for a document. Key ORDER here is irrelevant — the
-/// canonical renderer sorts (SPEC 4.5.1) — so keys are listed in the order
-/// SPEC 3.10 tabulates them, for reading.
-pub fn to_json(document: &Document, mode: Mode) -> Json {
+/// Build the JSON tree for a document.
+///
+/// Key order is not significant (SPEC 4.4), so the keys are listed in the
+/// order SPEC 3.10 tabulates them: identity first, geometry next, opaque
+/// payload last. That is a property of THIS implementation's output and is not
+/// promised to any other.
+pub fn to_json(document: &Document) -> Json {
     let mut o = Obj::new();
     if let Some(version) = &document.vnx {
         // SPEC 2.2: write the version the DOCUMENT declared, not the reader's.
@@ -48,12 +35,12 @@ pub fn to_json(document: &Document, mode: Mode) -> Json {
     o.str("profile", document.profile.as_deref());
     o.str("generator", document.generator.as_deref());
     o.str("created", document.created.as_deref());
-    o.list("folders", &document.folders, |f| folder(f, mode));
-    o.list("networks", &document.networks, |n| network(n, mode));
-    o.list("routes", &document.routes, |r| route(r, mode));
-    o.list("tracks", &document.tracks, |t| track(t, mode));
-    o.list("waypoints", &document.waypoints, |w| waypoint(w, mode));
-    o.list("areas", &document.areas, |a| area(a, mode));
+    o.list("folders", &document.folders, folder);
+    o.list("networks", &document.networks, network);
+    o.list("routes", &document.routes, route);
+    o.list("tracks", &document.tracks, track);
+    o.list("waypoints", &document.waypoints, waypoint);
+    o.list("areas", &document.areas, area);
     if let Some(rulesets) = &document.rulesets {
         o.raw("rulesets", rulesets.clone());
     }
@@ -62,30 +49,30 @@ pub fn to_json(document: &Document, mode: Mode) -> Json {
 
 // ---------------------------------------------------------------------------
 
-fn folder(f: &Folder, mode: Mode) -> Json {
+fn folder(f: &Folder) -> Json {
     let mut o = Obj::new();
     o.str("id", Some(&f.id));
     o.str("parent", f.parent.as_deref());
     o.str("name", f.name.as_deref());
     o.str("notes", f.notes.as_deref());
-    o.hidden(f.hidden, mode);
-    o.records(&f.data, mode);
+    o.hidden(f.hidden);
+    o.records(&f.data);
     o.done()
 }
 
-fn network(n: &Network, mode: Mode) -> Json {
+fn network(n: &Network) -> Json {
     let mut o = Obj::new();
     o.str("name", n.name.as_deref());
     o.str("notes", n.notes.as_deref());
     o.str("folder", n.folder.as_deref());
-    o.hidden(n.hidden, mode);
+    o.hidden(n.hidden);
     if let Some(nodes) = &n.nodes {
         o.raw(
             "nodes",
             Json::Object(
                 nodes
                     .iter()
-                    .map(|(k, p)| (k.clone(), position(p, mode)))
+                    .map(|(k, p)| (k.clone(), position(p)))
                     .collect(),
             ),
         );
@@ -95,84 +82,84 @@ fn network(n: &Network, mode: Mode) -> Json {
             "arcs",
             Json::Object(
                 arcs.iter()
-                    .map(|(k, a)| (k.clone(), network_arc(a, mode)))
+                    .map(|(k, a)| (k.clone(), network_arc(a)))
                     .collect(),
             ),
         );
     }
-    o.list("chains", &n.chains, |c| chain(c, mode));
-    o.list("points", &n.points, |p| waypoint(p, mode));
-    o.list("areas", &n.areas, |a| area(a, mode));
-    o.records(&n.data, mode);
+    o.list("chains", &n.chains, chain);
+    o.list("points", &n.points, waypoint);
+    o.list("areas", &n.areas, area);
+    o.records(&n.data);
     o.done()
 }
 
-fn network_arc(a: &NetworkArc, mode: Mode) -> Json {
+fn network_arc(a: &NetworkArc) -> Json {
     let mut o = Obj::new();
     o.str("from", Some(&a.from));
     o.str("to", Some(&a.to));
-    o.raw("pips", pips(&a.pips, mode));
-    o.records(&a.data, mode);
+    o.raw("pips", pips(&a.pips));
+    o.records(&a.data);
     o.done()
 }
 
-fn chain(c: &Chain, mode: Mode) -> Json {
+fn chain(c: &Chain) -> Json {
     let mut o = Obj::new();
     o.str("name", c.name.as_deref());
     o.str("notes", c.notes.as_deref());
-    o.hidden(c.hidden, mode);
+    o.hidden(c.hidden);
     o.opaque("style", c.style.as_ref());
     o.raw(
         "links",
-        Json::Array(c.links.iter().map(|l| link(l, mode)).collect()),
+        Json::Array(c.links.iter().map(link).collect()),
     );
-    o.records(&c.data, mode);
+    o.records(&c.data);
     o.done()
 }
 
-fn link(l: &Link, mode: Mode) -> Json {
+fn link(l: &Link) -> Json {
     let mut o = Obj::new();
     o.str("arc", Some(&l.arc));
-    o.raw("from", endpoint(&l.from, mode));
-    o.raw("to", endpoint(&l.to, mode));
+    o.raw("from", endpoint(&l.from));
+    o.raw("to", endpoint(&l.to));
     o.done()
 }
 
-fn endpoint(e: &Endpoint, mode: Mode) -> Json {
+fn endpoint(e: &Endpoint) -> Json {
     match e {
         Endpoint::Node(key) => Json::String(key.clone()),
-        Endpoint::Inline(p) => position(p, mode),
+        Endpoint::Inline(p) => position(p),
     }
 }
 
-fn route(r: &Route, mode: Mode) -> Json {
+fn route(r: &Route) -> Json {
     let mut o = Obj::new();
     o.str("name", r.name.as_deref());
     o.str("notes", r.notes.as_deref());
     o.str("folder", r.folder.as_deref());
-    o.hidden(r.hidden, mode);
+    o.hidden(r.hidden);
     o.opaque("style", r.style.as_ref());
     o.raw(
         "arcs",
-        Json::Array(r.arcs.iter().map(|a| route_arc(a, mode)).collect()),
+        Json::Array(r.arcs.iter().map(route_arc).collect()),
     );
-    o.records(&r.data, mode);
+    o.records(&r.data);
     o.done()
 }
 
-fn route_arc(a: &RouteArc, mode: Mode) -> Json {
+fn route_arc(a: &RouteArc) -> Json {
     let mut o = Obj::new();
-    o.raw("pips", pips(&a.pips, mode));
-    o.records(&a.data, mode);
+    o.raw("pips", pips(&a.pips));
+    o.records(&a.data);
     o.done()
 }
 
-fn track(t: &Track, mode: Mode) -> Json {
+fn track(t: &Track) -> Json {
     let mut o = Obj::new();
     o.str("name", t.name.as_deref());
     o.str("notes", t.notes.as_deref());
     o.str("folder", t.folder.as_deref());
-    o.hidden(t.hidden, mode);
+    o.hidden(t.hidden);
     o.str("started", t.started.as_deref());
     o.str("ended", t.ended.as_deref());
     o.opaque("style", t.style.as_ref());
@@ -183,70 +170,67 @@ fn track(t: &Track, mode: Mode) -> Json {
                 .iter()
                 .map(|s| {
                     let mut o = Obj::new();
-                    o.raw("pips", pips(&s.pips, mode));
+                    o.raw("pips", pips(&s.pips));
                     o.done()
                 })
                 .collect(),
         ),
     );
-    o.records(&t.data, mode);
+    o.records(&t.data);
     o.done()
 }
 
-fn waypoint(w: &Waypoint, mode: Mode) -> Json {
+fn waypoint(w: &Waypoint) -> Json {
     let mut o = Obj::new();
     o.str("name", w.name.as_deref());
     o.str("notes", w.notes.as_deref());
     o.str("folder", w.folder.as_deref());
-    o.hidden(w.hidden, mode);
+    o.hidden(w.hidden);
     o.opaque("style", w.style.as_ref());
-    o.raw("at", position(&w.at, mode));
-    o.records(&w.data, mode);
+    o.raw("at", position(&w.at));
+    o.records(&w.data);
     o.done()
 }
 
-fn area(a: &Area, mode: Mode) -> Json {
+fn area(a: &Area) -> Json {
     let mut o = Obj::new();
     o.str("name", a.name.as_deref());
     o.str("notes", a.notes.as_deref());
     o.str("folder", a.folder.as_deref());
-    o.hidden(a.hidden, mode);
+    o.hidden(a.hidden);
     o.opaque("style", a.style.as_ref());
-    o.raw("polygon", pips(&a.polygon, mode));
-    o.records(&a.data, mode);
+    o.raw("polygon", pips(&a.polygon));
+    o.records(&a.data);
     o.done()
 }
 
-fn pips(list: &[Position], mode: Mode) -> Json {
-    Json::Array(list.iter().map(|p| position(p, mode)).collect())
+fn pips(list: &[Position]) -> Json {
+    Json::Array(list.iter().map(position).collect())
 }
 
-/// SPEC 4.5.4: a writer rounds longitude and latitude to 6 decimal places and
-/// elevation to 1, and SPEC 4.1 makes it emit the shortest spelling. Both are
-/// emit-boundary rules and neither is part of canonical form, so a re-render
-/// applies neither.
+/// SPEC 4.1: a writer rounds longitude and latitude to 6 decimal places and
+/// elevation to 1, and emits the shortest spelling of a position. Both are
+/// emit-boundary rules, and this is the only place either is applied.
 ///
 /// Rounding in the MODEL is forbidden: endpoint comparison and de-duplication
 /// compare positions by full value, and rounding ahead of them would change
 /// which positions they consider equal — a change to the geometry rather than
 /// to its spelling.
-fn position(p: &Position, mode: Mode) -> Json {
+fn position(p: &Position) -> Json {
     let mut channels: Vec<Option<f64>> = p.channels().to_vec();
-    if mode == Mode::Write {
-        channels[0] = channels[0].map(|v| round_to(v, 6));
-        channels[1] = channels[1].map(|v| round_to(v, 6));
-        if let Some(slot) = channels.get_mut(2) {
-            *slot = slot.map(|v| round_to(v, 1));
-        }
-        // Time is an integer count of milliseconds and is not rounded.
-        // Channels beyond it are unknown to this reader and are left alone.
+    channels[0] = channels[0].map(|v| round_to(v, 6));
+    channels[1] = channels[1].map(|v| round_to(v, 6));
+    if let Some(slot) = channels.get_mut(2) {
+        *slot = slot.map(|v| round_to(v, 1));
+    }
+    // Time is an integer count of milliseconds and is not rounded. Channels
+    // beyond it are unknown to this reader and are left alone.
 
-        // The shortest spelling: drop TRAILING absences only. An interior
-        // `null` keeps its place, because dropping it would move the time into
-        // the elevation channel.
-        while channels.len() > 2 && channels[channels.len() - 1].is_none() {
-            channels.pop();
-        }
+    // The shortest spelling: drop TRAILING absences only. An interior `null`
+    // keeps its place, because dropping it would move the time into the
+    // elevation channel.
+    while channels.len() > 2 && channels[channels.len() - 1].is_none() {
+        channels.pop();
     }
     Json::Array(
         channels
@@ -259,7 +243,7 @@ fn position(p: &Position, mode: Mode) -> Json {
     )
 }
 
-/// Round to `places` decimal places, ties to EVEN (SPEC 4.5.4).
+/// Round to `places` decimal places, ties to EVEN (SPEC 4.1).
 ///
 /// The obvious spelling — multiply by 10^places, round, divide — is WRONG, and
 /// it is wrong in a way no corpus tier can reach, because no tier ever asks a
@@ -281,31 +265,39 @@ fn position(p: &Position, mode: Mode) -> Json {
 /// Six of ten ordinary elevation-shaped values disagree, in both directions. So
 /// "round to one place, ties to even" is not one rule: it is two, depending on
 /// whether the tie is judged against the double or against the scaled product,
-/// and SPEC 4.5.4 does not say which. Reported.
+/// and SPEC 4.1 does not say which. Reported.
 ///
 /// This crate takes the reading the prose states: the nearest value with that
 /// many decimal places to the double it was handed. Rust's `{:.*}` expands the
 /// double exactly and rounds ties to even, which is that rule, so the rounding
 /// is done by formatting and then parsing back.
 ///
-/// The formatted text is NEVER the emitted bytes — `{:.1}` of 340.0 is `340.0`
-/// and of −0.04 is `-0.0`, both wrong for this format. Only the canonical
-/// renderer decides bytes; this returns a value.
-/// The rounding SPEC 4.5.4 applies at the writer boundary, exposed so the
-/// number-conformance table (`tests/numbers.rs`) can compare it directly. It is
-/// otherwise internal: a caller rounds by calling [`write`].
+/// The formatted text is NEVER the emitted bytes. This returns a VALUE, and
+/// how that value is spelled is `serde_json`'s business (SPEC 4.2).
+///
+/// Exposed so the number-conformance table (`tests/numbers.rs`) can compare it
+/// directly. It is otherwise internal: a caller rounds by calling [`encode`].
 pub fn round_for_test(value: f64, places: usize) -> f64 {
     round_to(value, places)
 }
 
 fn round_to(value: f64, places: usize) -> f64 {
-    format!("{value:.places$}")
+    let rounded: f64 = format!("{value:.places$}")
         .parse()
-        .expect("a fixed-precision formatting of a finite double parses back")
+        .expect("a fixed-precision formatting of a finite double parses back");
+    // ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL. -4e-08
+    // to six places and -0.04 to one both come back with the sign bit set.
+    // Negative zero is the same VALUE as zero and carries no information, and
+    // `corpus/numbers/` gives `0` on all 993 of its rows that reach it, so the
+    // sign is normalised here rather than left for whatever spells the bytes.
+    // `rounded == 0.0` is true for both zeros, so this catches it.
+    if rounded == 0.0 {
+        return 0.0;
+    }
+    rounded
 }
 
-/// A small builder that drops absent keys. Nothing here decides key order —
-/// the canonical renderer does that (SPEC 4.5.1).
+/// A small builder that drops absent keys.
 struct Obj(Vec<(String, Json)>);
 
 impl Obj {
@@ -323,17 +315,12 @@ impl Obj {
         }
     }
 
-    /// SPEC 3.8: a WRITER emits `hidden` only when it is `true`, and a
-    /// document SHOULD NOT carry `"hidden": false`.
-    ///
-    /// A RE-RENDER keeps whatever the document carried, `false` included, or it
-    /// would not reproduce the document it was handed. So this is one of the
-    /// two places the two emit paths differ — the other is a position.
-    fn hidden(&mut self, value: Option<bool>, mode: Mode) {
-        match (value, mode) {
-            (Some(false), Mode::Write) => {}
-            (Some(v), _) => self.raw("hidden", Json::Bool(v)),
-            (None, _) => {}
+    /// SPEC 3.8: a writer emits `hidden` only when it is `true`, and a
+    /// document SHOULD NOT carry `"hidden": false`. An absent `hidden` and a
+    /// false one say the same thing, so dropping it loses nothing.
+    fn hidden(&mut self, value: Option<bool>) {
+        if value == Some(true) {
+            self.raw("hidden", Json::Bool(true));
         }
     }
 
@@ -345,7 +332,7 @@ impl Obj {
         }
     }
 
-    fn records(&mut self, records: &Option<Vec<Record>>, _mode: Mode) {
+    fn records(&mut self, records: &Option<Vec<Record>>) {
         if let Some(list) = records {
             self.raw(
                 "data",
@@ -374,52 +361,48 @@ mod tests {
     use super::*;
     use crate::decode::decode;
 
-    fn round_trip(text: &str) -> String {
+    fn encode_text(text: &str) -> String {
         let reading = decode(text.as_bytes()).expect("accepted");
-        re_render(&reading.document)
+        encode(&reading.document)
     }
 
     #[test]
-    fn a_re_render_keeps_arity_and_a_write_shortens_it() {
-        let text = "{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.6712, 57.118, null]\n    }\n  ]\n}\n";
-        assert_eq!(round_trip(text), text, "the longer spelling survives");
+    fn a_writer_emits_the_shortest_spelling_of_a_position() {
+        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
+        assert!(out.contains("[-3.6712,57.118]"), "{out}");
+    }
 
-        let document = decode(text.as_bytes()).expect("accepted").document;
-        assert!(
-            write(&document).contains("[-3.6712, 57.118]"),
-            "a writer emits the shortest spelling: {}",
-            write(&document)
+    #[test]
+    fn an_interior_null_is_never_dropped() {
+        let out = encode_text(
+            r#"{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
         );
+        assert!(out.contains("[-3.6,57.1,null,1778914991000]"), "{out}");
     }
 
     #[test]
-    fn an_interior_null_is_never_dropped_by_a_write() {
-        let text = r#"{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#;
-        let document = decode(text.as_bytes()).expect("accepted").document;
-        assert!(
-            write(&document).contains("[-3.6, 57.1, null, 1778914991000]"),
-            "{}",
-            write(&document)
+    fn a_writer_rounds_at_the_emit_boundary() {
+        let out = encode_text(
+            r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
         );
+        assert!(out.contains("[-3.671235,57.118123,340.1]"), "{out}");
     }
 
+    /// SPEC 4.1: a reader MUST NOT round, so the full precision the document
+    /// carried survives into the model. Only the emit path rounds.
     #[test]
-    fn a_write_rounds_and_a_re_render_does_not() {
+    fn a_reader_keeps_the_precision_the_document_carried() {
         let text = r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
         let document = decode(text.as_bytes()).expect("accepted").document;
-        assert!(
-            re_render(&document).contains("[-3.6712345678901235, 57.11812345678901, 340.06]"),
-            "{}",
-            re_render(&document)
-        );
-        assert!(
-            write(&document).contains("[-3.671235, 57.118123, 340.1]"),
-            "{}",
-            write(&document)
+        let at = &document.waypoints.as_ref().expect("waypoints")[0].at;
+        assert_eq!(
+            at.channels()[0],
+            Some(-3.6712345678901235),
+            "the model was rounded, and SPEC 4.1 forbids that"
         );
     }
 
-    /// SPEC 4.5.4: a rounding tie goes to even, at the WRITER's boundary.
+    /// SPEC 4.1: a rounding tie goes to even, at the WRITER's boundary.
     ///
     /// BOTH tie values are load-bearing and neither is insurance. Each catches
     /// a different pair of wrong rules, and only the two together identify
@@ -556,7 +539,7 @@ mod tests {
     }
 
     /// The scale-then-round spelling of the same rule, measured against this
-    /// one. Six of these ten disagree, in both directions, so SPEC 4.5.4's
+    /// one. Six of these ten disagree, in both directions, so SPEC 4.1's
     /// "round to one place, ties to even" is two different rules depending on
     /// whether the tie is judged against the double or against the scaled
     /// product. This test is the measurement, and it goes red if either answer
@@ -587,40 +570,43 @@ mod tests {
         }
         assert_eq!(
             disagreements, 6,
-            "the two spellings of SPEC 4.5.4 no longer differ where they did"
+            "the two spellings of SPEC 4.1 no longer differ where they did"
         );
     }
 
-    /// SPEC 4.5.4: rounding can CREATE a negative zero that was never in the
-    /// model, and the renderer is what collapses it. A writer that collapsed
-    /// negative zero only across the values it was handed would emit `-0`.
+    /// SPEC 4.1: rounding can CREATE a negative zero that was never in the
+    /// model, and `round_to` is what collapses it. A writer that collapsed
+    /// negative zero only across the values it was HANDED would emit `-0` for
+    /// one it produced itself.
     #[test]
-    fn a_negative_zero_that_rounding_created_is_still_written_as_zero() {
-        assert_eq!(round_to(-0.00000004, 6).to_bits(), (-0.0f64).to_bits());
-        let text = r#"{"vnx":"0.1.0","waypoints":[{"at":[-0.00000004,57.1,-0.04]}]}"#;
-        let document = decode(text.as_bytes()).expect("accepted").document;
-        assert!(
-            write(&document).contains("[0, 57.1, 0]"),
-            "{}",
-            write(&document)
-        );
+    fn a_negative_zero_that_rounding_created_is_written_as_zero() {
+        assert_eq!(round_to(-0.00000004, 6).to_bits(), 0.0f64.to_bits());
+        assert_eq!(round_to(-0.04, 1).to_bits(), 0.0f64.to_bits());
+        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[-0.00000004,57.1,-0.04]}]}"#);
+        assert!(out.contains("[0,57.1,0]"), "{out}");
     }
 
+    /// SPEC 3.8: `"hidden": false` says what an absent `hidden` says, and a
+    /// writer emits neither. `corpus/write/emit-boundary` pins it.
     #[test]
-    fn an_absent_collection_and_an_empty_one_render_differently() {
-        assert_eq!(
-            round_trip(r#"{"vnx":"0.1.0","waypoints":[]}"#),
-            "{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": []\n}\n"
-        );
-        assert_eq!(
-            round_trip(r#"{"vnx":"0.1.0"}"#),
-            "{\n  \"vnx\": \"0.1.0\"\n}\n"
-        );
+    fn a_false_hidden_is_not_written() {
+        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
+        assert!(!out.contains("hidden"), "{out}");
+        let shown = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
+        assert!(shown.contains(r#""hidden":true"#), "{shown}");
     }
 
     #[test]
     fn the_declared_version_is_written_back_not_the_readers() {
-        assert!(round_trip(r#"{"vnx":"0.1.99"}"#).contains("0.1.99"));
-        assert!(round_trip(r#"{"vnx":"00.01.0000"}"#).contains("00.01.0000"));
+        assert!(encode_text(r#"{"vnx":"0.1.99"}"#).contains("0.1.99"));
+        assert!(encode_text(r#"{"vnx":"00.01.0000"}"#).contains("00.01.0000"));
+    }
+
+    /// The output is compact. Nothing constrains a document's whitespace
+    /// (SPEC 8.1), and this pins the decision rather than the rule.
+    #[test]
+    fn the_output_carries_no_whitespace() {
+        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
+        assert!(!out.contains('\n') && !out.contains("  "), "{out}");
     }
 }

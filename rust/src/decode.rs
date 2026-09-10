@@ -10,7 +10,7 @@
 use crate::diag::{Cause, Diagnostic, Path};
 use crate::error::Refusal;
 use crate::geo::{distance_to_polyline, TOLERANCE_M};
-use crate::json::{self, Json, ParseErrorKind};
+use crate::json::{self, Json};
 use crate::model::*;
 
 /// What a reader returns: the document, and the list of everything it could
@@ -23,12 +23,7 @@ pub struct Reading {
 
 /// Read a `.vnx` document from bytes.
 pub fn decode(bytes: &[u8]) -> Result<Reading, Refusal> {
-    let value = json::parse(bytes).map_err(|e| match e.kind {
-        ParseErrorKind::NotFinite => Refusal::NotFinite { detail: e.detail },
-        _ => Refusal::MalformedJson {
-            detail: e.to_string(),
-        },
-    })?;
+    let value = json::parse(bytes).map_err(|detail| Refusal::MalformedJson { detail })?;
     decode_json(&value)
 }
 
@@ -274,7 +269,7 @@ impl Decoder {
     // -----------------------------------------------------------------------
 
     /// SPEC 4.1. Every channel is kept, including one this reader does not
-    /// know, so that a future channel is additive and a re-render reproduces
+    /// know, so that a future channel is additive and a read-modify-write keeps
     /// the spelling the document carried.
     fn position(&mut self, value: &Json, path: &Path, dropped: &'static str) -> Option<Position> {
         self.position_in(value, path, Slot::Element { dropped })

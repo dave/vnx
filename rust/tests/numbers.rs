@@ -1,18 +1,21 @@
 //! The number-conformance table (`corpus/numbers/numbers.tsv`).
 //!
-//! A fifth conformance tier in everything but its location. It exists because
-//! two rules in `SPEC.md` decide bytes and the corpus can reach neither:
-//! a rendering tie is a value rather than a shape, and rounding happens only
-//! when a WRITER emits a model, while all four corpus tiers re-render an
-//! existing document. An implementation can round every coordinate in the
-//! format the wrong way and pass every corpus tier green.
+//! A fifth conformance tier in everything but its location. Rounding happens
+//! only when a WRITER emits a model, and every other tier re-encodes what it
+//! decoded — which applies rounding to values that already satisfy it. An
+//! implementation can round every coordinate in the format the wrong way and
+//! pass all of them green.
 //!
-//! The answers come from Go's `strconv` and `encoding/json`, which SPEC 4.5.3
-//! names as the reference. This crate's job is to agree with them.
+//! ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
+//! column is not read: how a number is spelled is the writer's own business
+//! (SPEC 4.2), and comparing spellings across implementations is the rule this
+//! format dropped.
+//!
+//! ⚠ AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as
+//! text would put the rendering rule back into the comparison through the side
+//! door, and would then pass or fail on how Rust spells a double.
 
 use std::path::{Path, PathBuf};
-
-use vnx::json::number;
 
 /// The table moved from `number-conformance/` to `corpus/numbers/` on
 /// 2026-09-09. Both are tried, and finding NEITHER is a loud failure naming
@@ -32,8 +35,8 @@ fn table_path() -> PathBuf {
     }
     panic!(
         "the number-conformance table is at neither {} nor {}. It is the only \
-         instrument that reaches SPEC 4.5.3's rendering tie and SPEC 4.5.4's \
-         rounding, so this is a failure rather than a skip.",
+         instrument that reaches SPEC 4.1's rounding, so this is a failure \
+         rather than a skip.",
         current.display(),
         former.display()
     )
@@ -43,9 +46,17 @@ struct Row {
     line: usize,
     bits: u64,
     kind: String,
-    render: String,
-    round6: String,
-    round1: String,
+    /// The reference rounding to six decimal places, as the double the table's
+    /// decimal text names.
+    round6: f64,
+    /// The same, to one decimal place.
+    round1: f64,
+}
+
+impl Row {
+    fn value(&self) -> f64 {
+        f64::from_bits(self.bits)
+    }
 }
 
 fn rows() -> Vec<Row> {
@@ -69,123 +80,118 @@ fn rows() -> Vec<Row> {
         if fields[0] == "bits" {
             continue;
         }
+        let number = |column: usize| -> f64 {
+            fields[column].parse().unwrap_or_else(|e| {
+                panic!(
+                    "line {}: column {column} is {:?}, which is not a number: {e}",
+                    index + 1,
+                    fields[column]
+                )
+            })
+        };
         out.push(Row {
             line: index + 1,
             bits: u64::from_str_radix(fields[0], 16)
                 .unwrap_or_else(|e| panic!("line {}: {:?} is not hex: {e}", index + 1, fields[0])),
             kind: fields[1].to_string(),
-            render: fields[2].to_string(),
-            round6: fields[3].to_string(),
-            round1: fields[4].to_string(),
+            round6: number(3),
+            round1: number(4),
         });
     }
+    // LIVENESS. A table that failed to load, or a loop that skipped every row,
+    // is the same green as agreement on all of them.
     assert!(
-        out.len() > 5000,
-        "the table came back with only {} rows; the committed one is 5,315",
+        out.len() > 1_000,
+        "only {} rows were read; the committed table holds thousands, so this \
+         passed vacuously",
         out.len()
     );
     out
 }
 
-/// SPEC 4.5.3: the canonical spelling of a double.
-#[test]
-fn rendering_agrees_with_the_table() {
-    let mut mismatches = Vec::new();
-    for row in rows() {
-        let value = f64::from_bits(row.bits);
-        let ours = number::render(value);
-        if ours != row.render {
-            mismatches.push(format!(
-                "line {}: {:016x} ({}) renders {ours} and the table says {}",
-                row.line, row.bits, row.kind, row.render
-            ));
-        }
-    }
-    report("render", &mismatches);
-}
-
-/// SPEC 4.5.4: rounded to six places, which is longitude and latitude, then
-/// spelled canonically.
+/// SPEC 4.1: longitude and latitude are rounded to six decimal places.
 #[test]
 fn rounding_to_six_places_agrees_with_the_table() {
-    let mut mismatches = Vec::new();
-    for row in rows() {
-        let value = f64::from_bits(row.bits);
-        let ours = number::render(vnx::render::round_for_test(value, 6));
-        if ours != row.round6 {
-            mismatches.push(format!(
-                "line {}: {:016x} ({}) rounds to {ours} and the table says {}",
-                row.line, row.bits, row.kind, row.round6
-            ));
-        }
-    }
-    report("round6", &mismatches);
+    check(6, |row| row.round6);
 }
 
-/// SPEC 4.5.4: rounded to one place, which is elevation.
+/// SPEC 4.1: elevation is rounded to one decimal place.
 #[test]
 fn rounding_to_one_place_agrees_with_the_table() {
+    check(1, |row| row.round1);
+}
+
+/// Compare one column, BY BIT PATTERN.
+///
+/// -0 and 0 are different bit patterns and the same value. SPEC 4.1 has
+/// rounding normalise the sign, and the table gives `0` on every row that
+/// reaches it, so a mismatch here is real rather than a spelling difference.
+fn check(places: usize, want: fn(&Row) -> f64) {
+    let rows = rows();
     let mut mismatches = Vec::new();
-    for row in rows() {
-        let value = f64::from_bits(row.bits);
-        let ours = number::render(vnx::render::round_for_test(value, 1));
-        if ours != row.round1 {
+    for row in &rows {
+        let got = vnx::encode::round_for_test(row.value(), places);
+        let expected = want(row);
+        if got.to_bits() != expected.to_bits() {
             mismatches.push(format!(
-                "line {}: {:016x} ({}) rounds to {ours} and the table says {}",
-                row.line, row.bits, row.kind, row.round1
+                "line {}: {:016x} ({}) rounds to {got} ({:016x}) and the table says {expected} ({:016x})",
+                row.line,
+                row.bits,
+                row.kind,
+                got.to_bits(),
+                expected.to_bits()
             ));
         }
     }
-    report("round1", &mismatches);
+    if mismatches.is_empty() {
+        return;
+    }
+    let shown: Vec<&str> = mismatches.iter().take(20).map(String::as_str).collect();
+    panic!(
+        "{} of {} rows disagree at {places} decimal place(s):\n  {}{}",
+        mismatches.len(),
+        rows.len(),
+        shown.join("\n  "),
+        if mismatches.len() > shown.len() {
+            format!("\n  … and {} more", mismatches.len() - shown.len())
+        } else {
+            String::new()
+        }
+    );
 }
 
-/// The table has to contain rows that discriminate, or agreeing with it proves
+/// The table has to contain rows that DISCRIMINATE, or agreeing with it proves
 /// nothing. An undiscriminating table is the failure that would not announce
-/// itself, so this asserts the tie categories are present and that they really
-/// do differ from rounding away from zero.
+/// itself.
 #[test]
-fn the_table_discriminates_the_two_tie_rules() {
+fn the_table_discriminates_the_rounding_tie_rule() {
     let rows = rows();
-    for kind in ["render-tie", "round1-tie", "round6-tie"] {
-        let count = rows.iter().filter(|r| r.kind == kind).count();
-        assert!(count > 0, "the table carries no `{kind}` rows");
+    for kind in ["round1-tie", "round6-tie"] {
+        assert!(
+            rows.iter().any(|r| r.kind == kind),
+            "the table carries no `{kind}` rows"
+        );
     }
 
-    // A render tie must be a row where resolving away from zero gives a
-    // different spelling from the one the table asks for.
-    let render_ties = rows
-        .iter()
-        .filter(|r| r.kind == "render-tie")
-        .filter(|r| {
-            let value = f64::from_bits(r.bits);
-            // Rust's own `{}` resolves a tie AWAY from zero.
-            format!("{value}") != r.render
-        })
-        .count();
-    assert!(
-        render_ties > 0,
-        "no `render-tie` row differs from Rust's own away-from-zero spelling, \
-         so agreeing with the render column proves nothing about the tie rule"
-    );
-
-    // A rounding tie must be a row where half-away-from-zero differs.
-    let round1_ties = rows
+    // A rounding tie must be a row where half-away-from-zero — which is what
+    // Rust's own `f64::round` does — gives a different answer from the one the
+    // table asks for.
+    let separating = rows
         .iter()
         .filter(|r| r.kind == "round1-tie")
         .filter(|r| {
-            let value = f64::from_bits(r.bits);
-            let away = (value * 10.0).round() / 10.0;
-            number::render(away) != r.round1
+            let away = (r.value() * 10.0).round() / 10.0;
+            away.to_bits() != r.round1.to_bits()
         })
         .count();
     assert!(
-        round1_ties > 0,
+        separating > 0,
         "no `round1-tie` row differs under half-away-from-zero, so agreeing \
-         with the round1 column proves nothing about the rounding tie rule"
+         with the round1 column proves nothing about the tie rule"
     );
 }
 
-/// The table also settles a question SPEC 4.5.4's prose leaves open, and this
+/// The table also settles a question SPEC 4.1's prose leaves open, and this
 /// records that it does.
 ///
 /// "Round to N decimal places, ties to even" is two different operations:
@@ -194,8 +200,8 @@ fn the_table_discriminates_the_two_tie_rules() {
 /// were never on one — `0.15` is nearest `0.1` and comes out `0.2` that way.
 ///
 /// The table's answers come from Go, so it decides which of the two the format
-/// means. This test measures how many rows discriminate. If that count is ever
-/// zero, the table has stopped being able to see the difference and this crate's
+/// means. This measures how many rows discriminate. If that count is ever zero,
+/// the table has stopped being able to see the difference and this crate's
 /// choice would be unverified again.
 #[test]
 fn the_table_settles_rounding_against_the_double_rather_than_the_scaled_product() {
@@ -204,63 +210,40 @@ fn the_table_settles_rounding_against_the_double_rather_than_the_scaled_product(
     let mut exact_agrees = 0;
     let mut overflowed = 0;
     for row in &rows {
-        let value = f64::from_bits(row.bits);
+        let value = row.value();
         if !(value * 10.0).is_finite() {
             // Scaling overflows near the top of the range, where rounding
-            // against the double does not. A third way the scaled spelling is
-            // a different operation, and one that would panic rather than
+            // against the double does not. A third way the scaled route is a
+            // different operation, and one that would panic rather than
             // disagree.
             overflowed += 1;
             continue;
         }
-        let scaled = number::render((value * 10.0).round_ties_even() / 10.0);
-        let exact = number::render(vnx::render::round_for_test(value, 1));
-        if scaled != exact {
+        let scaled = (value * 10.0).round_ties_even() / 10.0;
+        let exact = vnx::encode::round_for_test(value, 1);
+        if scaled.to_bits() != exact.to_bits() {
             discriminating += 1;
-            if exact == row.round1 {
+            if exact.to_bits() == row.round1.to_bits() {
                 exact_agrees += 1;
             }
         }
     }
     assert!(
         discriminating > 0,
-        "no row separates rounding against the double from scaling first, so the \
-         table cannot settle which SPEC 4.5.4 means"
+        "no row separates rounding against the double from scaling first, so \
+         the table cannot settle which SPEC 4.1 means"
     );
     assert_eq!(
         exact_agrees, discriminating,
-        "{} of {discriminating} discriminating rows side with rounding against \
-         the double; the rest side with scaling first, which would mean SPEC \
-         4.5.4 does not mean what this crate implements",
-        exact_agrees
+        "{exact_agrees} of {discriminating} discriminating rows side with \
+         rounding against the double; the rest side with scaling first, which \
+         would mean SPEC 4.1 does not mean what this crate implements"
     );
     // Reported, so a reader of the test output sees the size of the gap.
     println!(
-        "{discriminating} of {} rows separate the two readings of SPEC 4.5.4, \
-         and all {discriminating} side with rounding against the double; \
+        "{discriminating} of {} rows separate the two readings of SPEC 4.1, and \
+         all {discriminating} side with rounding against the double; \
          {overflowed} more overflow when scaled",
         rows.len()
-    );
-}
-
-fn report(column: &str, mismatches: &[String]) {
-    if mismatches.is_empty() {
-        return;
-    }
-    let shown: Vec<&String> = mismatches.iter().take(20).collect();
-    panic!(
-        "{} of {} rows disagree in the `{column}` column:\n  {}{}",
-        mismatches.len(),
-        rows().len(),
-        shown
-            .iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>()
-            .join("\n  "),
-        if mismatches.len() > shown.len() {
-            format!("\n  … and {} more", mismatches.len() - shown.len())
-        } else {
-            String::new()
-        }
     );
 }

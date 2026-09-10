@@ -58,18 +58,26 @@ pip — was promoted on 2026-09-10 when `8979621` fixed the fixture behind it.
 import io, os, shutil, subprocess, sys, tempfile
 
 ROOT = "/Users/dave/src/vnx/rust"
-FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/json/number.rs",
-         "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "src/geo.rs",
-         "src/diag.rs", "src/zip/inflate.rs", "tests/corpus.rs"]
+FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/encode.rs",
+         "src/zip/mod.rs", "src/geo.rs", "src/diag.rs", "tests/corpus.rs",
+         "tests/support/tree.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
      "        Position { channels }",
      "        let mut channels = channels; channels.swap(0, 1); Position { channels }"),
 
+    # EXPECTED SURVIVOR since 2026-09-10, and it is the spec that changed rather
+    # than a guard that weakened. SPEC 4.1 says `[lon, lat, null]` and
+    # `[lon, lat]` state the same thing and a reader takes either, and SPEC 8.1
+    # then makes "trailing `null` channels dropped" one of the two permitted
+    # normalisations. A reader that shortens on the way IN is therefore
+    # indistinguishable at every boundary the format defines. The accept tier
+    # caught this while it compared bytes; nothing can now, and nothing should.
     ("normalise [lon, lat, null] to [lon, lat]", "src/decode.rs",
      "        Some(Position::new(channels))",
-     "        while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n        Some(Position::new(channels))"),
+     "        while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n        Some(Position::new(channels))",
+     "expect-green"),
 
     ("discard every data record", "src/decode.rs",
      "        let items = self.opt_array(entries, \"data\", path)?;",
@@ -105,32 +113,16 @@ MUTATIONS = [
      "    if (version.major, version.minor) > SUPPORTED {",
      "    if (version.major, version.minor, version.patch) > (SUPPORTED.0, SUPPORTED.1, 0) {"),
 
-    ("resolve a tie away from zero, as Rust does", "src/json/number.rs",
-     "    if last_is_odd {",
-     "    if false && last_is_odd {"),
-
-    ("escape < > and & as Go does by default", "src/json/mod.rs",
-     "            c if (c as u32) < 0x20 => {",
-     "            '<' | '>' | '&' => { out.push_str(\"\\\\u00\"); out.push_str(&format!(\"{:02x}\", ch as u32)); }\n            c if (c as u32) < 0x20 => {"),
-
-    ("render a position over several lines", "src/canonical.rs",
-     "    if inline_worthy(items) {",
-     "    if false && inline_worthy(items) {"),
-
-    ("sort keys plain lexicographically", "src/canonical.rs",
-     "        a_container.cmp(&b_container).then_with(|| a.0.cmp(&b.0))",
-     "        a.0.cmp(&b.0)"),
-
     ("round coordinates while decoding", "src/decode.rs",
      "                Json::Number(n) => channels.push(Some(*n)),",
      "                Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
 
     # The number-conformance table is the only instrument that reaches these
-    # three: SPEC 4.5.3's rendering tie and SPEC 4.5.4's rounding tie decide
-    # bytes, and no corpus tier ever asks a library to write.
-    ("scale before rounding, as the obvious spelling does", "src/render.rs",
-     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
-     "    let s = 10f64.powi(places as i32); (value * s).round_ties_even() / s"),
+    # three: rounding happens only when a WRITER emits a model, and every corpus
+    # tier re-encodes what it decoded.
+    ("scale before rounding, as the obvious spelling does", "src/encode.rs",
+     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
+     "    let scale = 10f64.powi(places as i32); let rounded: f64 = (value * scale).round_ties_even() / scale;"),
 
     # `Math.round(x * 10) / 10` — half-UP, toward positive infinity, which is
     # what JavaScript and Java give you. It agrees with half-to-even on 340.75,
@@ -139,14 +131,14 @@ MUTATIONS = [
     # NOT the same wrong function as the one below: half-up and half-away-from-
     # zero agree on every positive tie and disagree on every negative one, so a
     # suite catching one and not the other has a gap that reads as closed.
-    ("round half UP at the writer boundary", "src/render.rs",
-     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
-     "    let s = 10f64.powi(places as i32); ((value * s) + 0.5).floor() / s"),
+    ("round half UP at the writer boundary", "src/encode.rs",
+     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
+     "    let scale = 10f64.powi(places as i32); let rounded: f64 = ((value * scale) + 0.5).floor() / scale;"),
 
     # Rust's own `f64::round`, and C's `round()`. The other naive route.
-    ("round half away from zero at the writer boundary", "src/render.rs",
-     "    format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\")",
-     "    let s = 10f64.powi(places as i32); (value * s).round() / s"),
+    ("round half away from zero at the writer boundary", "src/encode.rs",
+     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
+     "    let scale = 10f64.powi(places as i32); let rounded: f64 = (value * scale).round() / scale;"),
 
     # This one is caught by the runner's own SELF-TEST, not by any corpus
     # fixture: every diagnose fixture carries at most one diagnostic and its
@@ -217,21 +209,14 @@ MUTATIONS = [
      "    let end = at\n        .checked_add(len)\n        .ok_or_else(|| ZipError(\"an offset in the archive is out of range\".into()))?;",
      "    let end = at + len;"),
 
-    ("trust a declared uncompressed size as a bound", "src/zip/inflate.rs",
-     "        if out.len() > expected {\n            return err(\"the stream produced more bytes than the archive declared\");\n        }",
-     "        if false {\n            return err(\"unreachable\");\n        }"),
+    ("trust a declared uncompressed size as a bound", "src/zip/mod.rs",
+     "        .take(ceiling)",
+     "        .take(u64::MAX)"),
 
     # SPEC 3.3.2's terminal-pip check. Nothing is dropped and nothing is
     # corrected, so `counts` cannot see it and the diagnostics are the whole
     # expectation — which makes skipping the check entirely invisible except to
     # the case that pins it.
-    # A declared size reserved on the writer's word. In Rust this aborts on
-    # allocation failure rather than returning an error, so no caller can
-    # intercept it and `forbid(unsafe_code)` does not help.
-    ("reserve the declared uncompressed size up front", "src/zip/inflate.rs",
-     "    expected.min(MAX_PREALLOCATION)",
-     "    expected"),
-
     # A CRC is a claim the archive makes about its own bytes. Without the check,
     # a corrupt ATTACHMENT is returned as content — the document keeps parsing,
     # so nothing else notices.
@@ -252,6 +237,24 @@ MUTATIONS = [
     ("report a terminal-pip disagreement on every arc", "src/decode.rs",
      "                if metres > TOLERANCE_M {",
      "                if metres >= 0.0 {"),
+
+    # SPEC 4.1: rounding CREATES negative zeros that were never in the model,
+    # and 993 rows of `corpus/numbers/numbers.tsv` reach one.
+    ("leave the negative zero rounding created", "src/encode.rs",
+     "    if rounded == 0.0 {\n        return 0.0;\n    }",
+     "    if false {\n        return 0.0;\n    }"),
+
+    # SPEC 8.1: the accept tier compares against the ORIGINAL FILE. A
+    # comparison that sees nothing passes every reader, including one that threw
+    # away every data record, ruleset, style and `notes`.
+    ("make the tree comparison blind", "tests/support/tree.rs",
+     "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {",
+     "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {\n    if true { return None; }"),
+
+    # SPEC 3.8: a writer emits `hidden` only when it is true.
+    ("write a false `hidden`", "src/encode.rs",
+     "        if value == Some(true) {",
+     "        if let Some(true | false) = value {"),
 
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",

@@ -157,11 +157,13 @@ fn a_zip64_container_reads() {
             .len(),
         1
     );
-    // Re-render, so this proves the document survived rather than merely that
-    // the archive opened.
+    // Encode and compare TREES, so this proves the document survived rather
+    // than merely that the archive opened. Trees, because the bytes of a
+    // document are not constrained (SPEC 8.1).
     assert_eq!(
-        vnx::re_render(&container.reading.document).as_bytes(),
-        DOCUMENT
+        vnx::json::parse(vnx::encode(&container.reading.document).as_bytes())
+            .expect("the encoded document parses"),
+        vnx::json::parse(DOCUMENT).expect("the fixture parses")
     );
 }
 

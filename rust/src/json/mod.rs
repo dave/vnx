@@ -1,19 +1,23 @@
-//! A JSON value, a parser and the pieces of a renderer.
+//! A JSON value, parsed and serialised with `serde_json`.
 //!
-//! Written by hand because the crate takes no dependencies, and because a
-//! stock encoder could not emit VNX canonical form in any case (SPEC 4.5.6).
-
-pub mod number;
-mod parse;
-
-pub use parse::{parse, ParseError, ParseErrorKind};
+//! The format does not constrain a document's bytes (SPEC 8.1): key order,
+//! number spelling and whitespace are the writer's own business. So there is
+//! no hand-written parser, renderer or number formatter here — a stock library
+//! does both halves.
+//!
+//! # Why this type still exists beside `serde_json::Value`
+//!
+//! An object keeps its entries in a `Vec` rather than a map, so it holds the
+//! order the document used. `serde_json::Value` sorts, and the regions this
+//! format carries through untouched — a style, `rulesets`, a data record's body
+//! (SPEC 5.1, 3.9) — are read back out and written again. Keeping the order
+//! costs one conversion and means a third party's object leaves this crate
+//! spelled the way it arrived.
+//!
+//! Duplicate keys are resolved by `serde_json` on the way in, last-wins, which
+//! is SPEC 6.4's rule.
 
 /// A JSON value.
-///
-/// An object keeps its entries in a `Vec` rather than a map. Order is not
-/// significant in this format (SPEC 4.4) and canonical form sorts on render,
-/// but a `Vec` keeps the type free of a hashing dependency and keeps the
-/// parser's last-wins duplicate handling (SPEC 6.4) explicit.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Json {
     Null,
@@ -27,15 +31,6 @@ pub enum Json {
 }
 
 impl Json {
-    /// True for the four scalar kinds, which canonical form sorts ahead of the
-    /// two container kinds (SPEC 4.5.1).
-    pub fn is_scalar(&self) -> bool {
-        matches!(
-            self,
-            Json::Null | Json::Bool(_) | Json::Number(_) | Json::String(_)
-        )
-    }
-
     pub fn as_object(&self) -> Option<&[(String, Json)]> {
         match self {
             Json::Object(entries) => Some(entries),
@@ -92,52 +87,145 @@ impl Json {
     }
 }
 
-/// Set `key` on an object, last-wins: an existing entry is replaced in place.
+/// Parse JSON bytes.
 ///
-/// This is how SPEC 6.4's duplicate-key resolution is applied, and it is
-/// applied in the parser so that no later stage can see two entries with one
-/// name.
-pub(crate) fn object_set(entries: &mut Vec<(String, Json)>, key: String, value: Json) {
-    if let Some(slot) = entries.iter_mut().find(|(k, _)| *k == key) {
-        slot.1 = value;
-        return;
-    }
-    entries.push((key, value));
+/// The error is `serde_json`'s own text. It is the detail of a refusal and
+/// never a diagnostic: bytes that will not parse leave no document to return.
+///
+/// ⚠ THIS IS ALSO WHERE SPEC 4.2's NON-FINITE RULE IS ENFORCED, and it is
+/// enforced by JSON itself rather than by a check of ours. `NaN` and
+/// `Infinity` are not JSON tokens, and a decimal literal too large for a
+/// binary64 is out of range, so all three are refused here. There is no later
+/// stage that could see one.
+pub fn parse(bytes: &[u8]) -> Result<Json, String> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    Ok(from_serde(value))
 }
 
-/// Escape a string for a JSON document under SPEC 4.5.5.
+/// Serialise a value, COMPACT.
 ///
-/// Only `"`, `\` and the control characters below U+0020 are escaped. Every
-/// other character — including non-ASCII, `<`, `>`, `&`, U+2028 and U+2029 —
-/// is written raw.
-///
-/// SPEC 4.5.5 does not say how a control character is spelled, and the two
-/// candidate answers differ byte for byte: ECMAScript `JSON.stringify` uses
-/// the two-character escapes `\b \t \n \f \r` and `\u00XX` for the rest, while
-/// Go's `encoding/json` writes those two as \u0008 and \u000c, not as \b and \f, for backspace and form
-/// feed. This crate follows ECMAScript, because SPEC 4.5.3 already defines
-/// number rendering by reference to ECMAScript. Reported as a spec gap; no
-/// corpus case reaches it.
-pub fn escape_string(s: &str, out: &mut String) {
-    out.push('"');
-    for ch in s.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{09}' => out.push_str("\\t"),
-            '\u{0a}' => out.push_str("\\n"),
-            '\u{0c}' => out.push_str("\\f"),
-            '\u{0d}' => out.push_str("\\r"),
-            c if (c as u32) < 0x20 => {
-                out.push_str("\\u");
-                for shift in [12, 8, 4, 0] {
-                    let nibble = ((c as u32) >> shift) & 0xf;
-                    out.push(char::from_digit(nibble, 16).expect("nibble is below 16"));
-                }
-            }
-            c => out.push(c),
+/// ⚠ THE DOCUMENT IS NOT INDENTED, AND THAT IS A DECISION RATHER THAN AN
+/// OMISSION. Nothing about a VNX document's whitespace is constrained and
+/// indenting costs about three times the file. Pretty-printing belongs to a
+/// tool, not to the format.
+pub fn to_string(value: &Json) -> String {
+    serde_json::to_string(&to_serde(value)).expect("a JSON tree of finite numbers serialises")
+}
+
+fn from_serde(value: serde_json::Value) -> Json {
+    match value {
+        serde_json::Value::Null => Json::Null,
+        serde_json::Value::Bool(b) => Json::Bool(b),
+        serde_json::Value::Number(n) => Json::Number(
+            n.as_f64()
+                .expect("serde_json parses every number to a binary64"),
+        ),
+        serde_json::Value::String(s) => Json::String(s),
+        serde_json::Value::Array(items) => Json::Array(items.into_iter().map(from_serde).collect()),
+        serde_json::Value::Object(members) => {
+            Json::Object(members.into_iter().map(|(k, v)| (k, from_serde(v))).collect())
         }
     }
-    out.push('"');
+}
+
+fn to_serde(value: &Json) -> serde_json::Value {
+    match value {
+        Json::Null => serde_json::Value::Null,
+        Json::Bool(b) => serde_json::Value::Bool(*b),
+        Json::Number(n) => serde_json::Value::Number(number(*n)),
+        Json::String(s) => serde_json::Value::String(s.clone()),
+        Json::Array(items) => serde_json::Value::Array(items.iter().map(to_serde).collect()),
+        Json::Object(entries) => serde_json::Value::Object(
+            entries
+                .iter()
+                .map(|(k, v)| (k.clone(), to_serde(v)))
+                .collect(),
+        ),
+    }
+}
+
+/// Build a JSON number from a double.
+///
+/// A value that is a whole number is spelled as an integer, which is what
+/// `time_ms` is (SPEC 4.2) and what every other implementation of this format
+/// emits. `serde_json` would otherwise write `1778914991000.0`. Both spellings
+/// carry the same value and either is conforming; this one is the one a reader
+/// of the file expects to see.
+///
+/// Negative zero is a whole number and so leaves as `0`. A writer relies on
+/// that: rounding can CREATE a negative zero that was never in the model
+/// (SPEC 4.1).
+///
+/// # Panics
+///
+/// Panics on a non-finite value. JSON cannot spell one, and returning
+/// something else would put a number in the file that no reader accepts.
+fn number(value: f64) -> serde_json::Number {
+    assert!(value.is_finite(), "VNX carries no non-finite number");
+    if value.fract() == 0.0 && value.abs() <= i64::MAX as f64 {
+        return serde_json::Number::from(value as i64);
+    }
+    serde_json::Number::from_f64(value).expect("a finite double is a JSON number")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ⚠ THE `float_roundtrip` FEATURE IS WHAT MAKES THIS PASS. Without it
+    /// `serde_json` returns bits c00d5eb03aa8431d for this literal, one below
+    /// the double `str::parse` gives. The literal is the longitude in
+    /// `corpus/accept/full-precision-coordinate`, whose whole purpose is to
+    /// prove a reader does not lose precision, so the feature is part of the
+    /// implementation rather than a tuning choice.
+    #[test]
+    fn a_full_precision_coordinate_parses_to_the_same_double_the_standard_library_gives() {
+        let text = "-3.6712345678901235";
+        let Json::Number(parsed) = parse(text.as_bytes()).expect("parses") else {
+            panic!("not a number");
+        };
+        assert_eq!(
+            parsed.to_bits(),
+            text.parse::<f64>().expect("parses").to_bits(),
+            "serde_json disagrees with the standard library on the last bit"
+        );
+    }
+
+    /// SPEC 6.4: a repeated key resolves last-wins, and it resolves in the
+    /// parser so that no later stage can see two entries with one name.
+    #[test]
+    fn a_duplicate_key_resolves_to_the_last_one() {
+        let value = parse(br#"{"a":1,"a":2}"#).expect("parses");
+        assert_eq!(value.as_object().expect("an object").len(), 1);
+        assert_eq!(value.get("a").and_then(Json::as_f64), Some(2.0));
+    }
+
+    /// SPEC 4.2: none of the three spellings of a non-finite number is JSON,
+    /// and each is refused here rather than reaching a later stage.
+    #[test]
+    fn a_non_finite_literal_is_refused() {
+        for text in ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"] {
+            assert!(parse(text.as_bytes()).is_err(), "{text} was accepted");
+        }
+    }
+
+    /// A whole number is spelled as an integer, and a negative zero is one.
+    #[test]
+    fn a_whole_number_is_spelled_without_a_fractional_part() {
+        let value = Json::Array(vec![
+            Json::Number(1778914991000.0),
+            Json::Number(340.0),
+            Json::Number(-0.0),
+            Json::Number(57.118123),
+        ]);
+        assert_eq!(to_string(&value), "[1778914991000,340,0,57.118123]");
+    }
+
+    /// Deep nesting is refused rather than overflowing the stack. `serde_json`
+    /// carries its own recursion limit; this pins that the crate inherits it.
+    #[test]
+    fn deep_nesting_is_refused_rather_than_overflowing_the_stack() {
+        let text = "[".repeat(5000) + &"]".repeat(5000);
+        assert!(parse(text.as_bytes()).is_err());
+    }
 }

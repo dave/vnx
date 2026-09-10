@@ -1,12 +1,5 @@
 # vnx — the VNX format in Rust
 
-> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
-> layout, a formatter, a number-rendering rule or a stored-only container, and
-> the corpus compares parsed documents rather than bytes. This library still
-> implements the older rules, and the sections cited below for them are gone
-> from `SPEC.md`. Porting it is its own task.
-
-
 A codec for [VNX](../SPEC.md): it reads and writes `.vnx` and `.vnz` and reports
 diagnostics (SPEC 6.3).
 
@@ -21,98 +14,100 @@ cargo clippy --all-targets
 python3 tools/redproof.py   # break the reader and require the runner to notice
 ```
 
-## Zero dependencies
+## Two dependencies
 
-`Cargo.toml` has an empty `[dependencies]`, deliberately. The crate carries its
-own JSON parser and renderer, ECMAScript number formatter, ZIP reader and
-DEFLATE decompressor. `#![forbid(unsafe_code)]`.
+`serde_json` parses and serialises; `flate2` compresses and decompresses.
+`#![forbid(unsafe_code)]`.
 
-Two of those are not the indulgence they look like. No stock JSON encoder in any
-target language emits the byte layout this crate produces, so a serialiser had to
-be written regardless — and Rust's own float formatting is wrong for that layout
-in two separate ways (see below), so the number path had to be written too.
-DEFLATE was the one genuinely optional piece, and every entry in every corpus
-archive is deflated, so a reader without it cannot open a container at all.
+`serde_json` is taken with **`features = ["float_roundtrip"]`**, and that is
+not a tuning choice. Without it `-3.6712345678901235` parses one bit low —
+`c00d5eb03aa8431d` where `str::parse` gives `…431e`. That literal is the
+longitude in `corpus/accept/full-precision-coordinate`, and the last bit of a
+coordinate is what that case exists to protect.
+
+The parse goes to `serde_json::Value` and a hand-written walk turns that into
+the model. **Not a derive.** A derive stops at the first field it cannot read,
+and SPEC 6.2 requires one diagnostic per bad path with the rest of the document
+kept.
+
+The ZIP READER is still written out. Three of SPEC 7's reader rules are ones a
+general-purpose ZIP library does not offer: an over-declared entry size must be
+ACCEPTED where the CRC agrees, an unusable compression method takes a different
+remedy for the root document than for an attachment, and a duplicate entry name
+must be seen twice rather than resolved.
 
 | Module | What it is |
 |---|---|
-| `json` | a strict RFC 8259 parser, with no permissive mode |
-| `json::number` | ECMAScript `Number::toString`, ties to even |
-| `canonical` | the byte layout this crate emits |
+| `json` | a JSON value, parsed and serialised by `serde_json` |
 | `model` | the decoded document |
 | `decode` | SPEC 6: tolerant of damage, silent about nothing |
-| `render` | the two emit paths, `re_render` and `write` |
+| `encode` | the emit boundary of SPEC 4.1, and the rounding |
 | `geo` | the 50 m projection tolerance of SPEC 3.3.3 |
-| `zip`, `zip::inflate` | a read-only ZIP walker and an inflater |
+| `zip` | a ZIP reader and writer, with `flate2` under both |
 | `vnz` | the container of SPEC 7 |
-| `tests/corpus.rs` | the conformance runner, all five tiers |
+| `tests/corpus.rs` | the conformance runner, all four tiers |
+| `tests/support/tree.rs` | the JSON-tree comparison of SPEC 8.1 |
 | `tests/numbers.rs` | the number-conformance table |
 | `tests/zip64.rs` | a hand-built ZIP64 container, because the corpus has none |
 | `tests/hostile.rs` | truncation and corruption sweeps: refuse, never panic |
 
-## Three operations, not one
+## Two operations
 
 ```text
-decode     bytes  -> a document, plus every diagnostic     SPEC 6
-re_render  model  -> the bytes the document carried         SPEC 8.1
-write      model  -> bytes, rounded and shortened           SPEC 4.5.4, 4.1
+decode  bytes -> a document, plus every diagnostic     SPEC 6
+encode  model -> bytes, rounded and shortened          SPEC 4.1
 ```
 
-`re_render` and `write` are different operations, and a library with only one of
-them cannot conform (SPEC 4.5.4). The `accept/` and `format/` tiers require
-`re_render`; the `write/` tier requires `write`. Writing what you read is
-legitimately not what you read, because a writer rounds.
+**Encoding what you decoded is legitimately not what you read**, because a
+writer rounds coordinates to 6 and 1 decimal places, drops a position's trailing
+absences, and does not write `"hidden": false`.
 
-They differ in exactly three places, all at the emit boundary: a position's
-coordinates are rounded to 6 and 1 decimal places, a position's trailing
-absences are dropped, and `"hidden": false` is not written. `vnz` splits the
-same way, so repackaging a container cannot silently round it.
+Nothing constrains a document's bytes (SPEC 8.1) — key order, number spelling
+and whitespace are the writer's own business — so the corpus compares JSON
+TREES. The accept tier applies those emit-boundary rules to BOTH sides, because
+it compares a document against a re-encoding of itself; the write tier applies
+neither, because there they are the rules under test.
+
+⚠ **And never one model against another.** A reader that discarded every data
+record, every ruleset, every style and every `notes` produces a model that
+compares equal to itself and passes such a tier green — that is the whole
+extensibility mechanism, all styling and all user prose.
+`a_reader_that_discards_what_it_read_is_caught` freezes the proof.
 
 ## Where Rust fights the format
 
-Three things a Rust implementation gets wrong by default. The first two are in
-`json::number` and the third is in `render`.
+One thing a Rust implementation gets wrong by default, and it is in `encode`.
 
-- **Exponent form.** `{}` for `f64` never uses scientific notation — it renders
-  `1e21` as twenty-two digits and `1e-7` as `0.0000001`. `{:e}` always uses it,
-  and spells the exponent `e21` where ECMAScript spells it `e+21`. Neither is
-  the required rendering, so the form rules are applied here over the digits
-  `{:e}` supplies.
-- **A tie.** Rust resolves a shortest-spelling tie AWAY FROM ZERO, and SPEC
-  4.5.3 requires round-to-even. `1497898211722073.25` is `…073.3` from Rust and
-  `…073.2` from this crate. About one double in 4,200 is a tie, concentrated
-  where `time_ms` lives. The detection is exact integer arithmetic on the
-  binary64 mantissa, not a round-trip probe — a probe finds phantoms above
-  2^49, where several one-decimal spellings map to one double.
 - **The writer's rounding.** `f64::round` rounds a tie away from zero and SPEC
-  4.5.4 wants ties to even — but the obvious fix, `(v * 10.0).round_ties_even()
+  4.1 wants ties to even — but the obvious fix, `(v * 10.0).round_ties_even()
   / 10.0`, is a DIFFERENT RULE. Multiplying by the scale is itself a rounding
   step and moves values onto an exact half that were not on one: `0.15` is
   nearest `0.1` and comes out `0.2` that way. Six of ten ordinary
   elevation-shaped values disagree, in both directions. This crate takes the
   reading the prose states — the nearest value with that many decimal places to
   the double it was handed — which is what Rust's `{:.*}` computes, so `round_to`
-  formats and parses back. `render::tests::scale_then_round_is_a_different_rule_
-  and_this_pins_the_difference` measures the gap. Reported as a spec gap: SPEC
-  4.5.4 does not say which of the two it means, and no corpus tier reaches
-  either, because no tier asks a library to write.
+  formats and parses back. `encode::tests::scale_then_round_is_a_different_rule_
+  and_this_pins_the_difference` measures the gap, and
+  `corpus/numbers/numbers.tsv` decides it: 239 of its 5,329 rows separate the
+  two operations at six decimal places, and every one sides with rounding
+  against the double.
 
-Two things Rust makes easier than the other languages: `str` ordering is by
-UTF-8 byte and therefore by code point, so canonical key order needs no custom
-comparator (SPEC 4.5.1 warns JavaScript that it does); and a `String` cannot
-hold a lone surrogate, so `"\ud83d"` alone is refused rather than substituted.
+  `round_to` also collapses a negative zero. Rounding CREATES ones that were
+  never in the model — `-4e-08` to six places, `-0.04` to one — and the table
+  gives `0` on all 993 rows that reach it.
 
 ## What the type system wants, and why it is refused
 
 A `Position` keeps its channels as `Vec<Option<f64>>`, not as a struct with
 `Option<f64>` fields. `[lon, lat, null]` and `[lon, lat]` state the same thing,
-and both must re-render AS WRITTEN, so a position's arity is model state. An
-`Option<f64>` elevation field is the shape Rust pushes you towards and it cannot
-pass the accept tier.
+and a reader must take either, so a position's arity is model state. An
+`Option<f64>` elevation field is the shape Rust pushes you towards, and it
+cannot express the difference the write tier is about.
 
 For the same reason a `data` record body, a `style` object and `rulesets` are
-kept as raw `Json`. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and the only
-thing that proves it is the accept tier's re-render.
+kept as raw `Json`. They are opaque by ruling (SPEC 5.1, 3.10, 3.9), and the
+only thing that proves they survived is the accept tier's tree comparison
+against the ORIGINAL FILE.
 
 ## Geometry is continuous and structure is not
 
@@ -158,10 +153,8 @@ wire commitments.
   Schema draft 2020-12 validator, which is a dependency. The reference
   implementation keeps its schema test out of `pkg/vnx` for the same reason
   (`corpus/schema/README.md`).
-- **No DEFLATE compressor.** `vnz::write` stores its entries, which SPEC 7
-  permits, and writes no ZIP64 records, which SPEC 7 also permits.
-- **No ZIP64 writing.** Reading it is required and is now tested by a
-  hand-built fixture (see below); writing it is optional and not done.
+- **No ZIP64 writing.** Reading it is required and is tested by a hand-built
+  fixture (see below); writing it is optional and not done.
 - **No streaming, and no resource policy.** A document is parsed into memory.
   Nothing bounds the number of items, the depth of the folder tree, or the size
   of an opaque data record, so a ten-million-waypoint document is read in full.
@@ -190,15 +183,20 @@ The corpus decides conformance, and it has three holes that are properties of
 the corpus rather than of any implementation. Each is covered by a test in this
 crate instead.
 
-**Number ties, rendering and rounding.** `tests/numbers.rs` runs
-`corpus/numbers/numbers.tsv` — 5,315 doubles as IEEE 754 hex with Go's
-answers for the canonical spelling and for the spelling after rounding to 6 and
-to 1 places. A rendering tie is a value rather than a shape, so no fixture holds
-one usefully; and rounding happens only when a WRITER emits a model, while all
-four corpus tiers re-render an existing document. An implementation can round
-every coordinate in the format the wrong way and pass every corpus tier green.
-The table also separates the two readings of SPEC 4.5.4's rounding rule, and
-every differing row sides with rounding against the double. `cargo run --example
+**Rounding.** `tests/numbers.rs` runs `corpus/numbers/numbers.tsv` — doubles as
+IEEE 754 hex, with Go's answers after rounding to 6 and to 1 places. Rounding
+happens only when a WRITER emits a model, and every other corpus tier
+re-encodes what it decoded, which applies rounding to values that already
+satisfy it. An implementation can round every coordinate in the format the wrong
+way and pass every corpus tier green.
+
+The comparison is **by bit pattern, never by text**. The table's `render` column
+is not read at all: how a number is spelled is the writer's own business (SPEC
+4.2), and comparing the rounded value as text would put a rendering rule this
+format no longer has back into the measurement through the side door.
+
+The table also separates the two readings of SPEC 4.1's rounding rule, and every
+differing row sides with rounding against the double. `cargo run --example
 provenance` prints the counts and their breakdown by row kind rather than this
 README quoting them — the table grew by fourteen rows between two runs of that
 example while it was being written, so an embedded figure was stale within
@@ -216,7 +214,7 @@ untested.
 must be refused — they are refused for FORMAT reasons rather than for being
 damaged. So no tier asks what happens to a truncated download or a corrupt
 archive. `tests/hostile.rs` sweeps every prefix and every single-byte flip of a
-stored container, a deflated one and a document, and requires a refusal or a
+container, a deflated one and a document, and requires a refusal or a
 clean read — never a panic. `#![forbid(unsafe_code)]` makes the bad case a panic
 rather than memory corruption, which is the good version of getting it wrong and
 is still not a refusal.
@@ -231,8 +229,10 @@ fixture can produce it, because none of them carries a ZIP64 extra field.
 Three hazards in the same family, each with a mutation behind it. **A declared
 uncompressed size is never reserved up front** — in Rust that would abort on
 allocation failure rather than return an error, which no caller can intercept and
-`forbid(unsafe_code)` does not help; it is a hint capped at 1 MiB, and a bound in
-the decompression loop. **A CRC is checked**, because a corrupt ATTACHMENT is
+`forbid(unsafe_code)` does not help. It is used as a CEILING instead: the
+decompressor is given one byte more than the declared size and no more, so a
+stream that over-produces is stopped there rather than run to completion and
+measured afterwards. **A CRC is checked**, because a corrupt ATTACHMENT is
 caught by nothing else: the document keeps parsing, so the archive reads clean.
 **A stored entry's two declared sizes must agree**, or a truncated entry reads as
 whole.

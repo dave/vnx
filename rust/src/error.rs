@@ -12,8 +12,11 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Refusal {
     // ---- SPEC 6.2, the four plain-document causes ----
-    /// The bytes are not JSON, including the `NaN` and `Infinity` literals,
-    /// which are not JSON at all.
+    /// The bytes are not JSON.
+    ///
+    /// This also carries SPEC 4.2's non-finite cause. `NaN` and `Infinity` are
+    /// not JSON tokens and a decimal literal too large for a binary64 is out of
+    /// range, so the parser refuses all three and no later stage can meet one.
     MalformedJson { detail: String },
     /// The top level is not a JSON object, or carries no `vnx` key.
     NotAVnxDocument { detail: String },
@@ -21,9 +24,6 @@ pub enum Refusal {
     VersionMalformed { found: String },
     /// `vnx` names a MAJOR or MINOR above the reader's.
     VersionTooNew { found: String },
-    /// A number in the document is not finite.
-    NotFinite { detail: String },
-
     // ---- SPEC 7, the container causes ----
     /// The bytes are not a ZIP archive this reader can walk.
     ContainerMalformed { detail: String },
@@ -61,9 +61,6 @@ impl std::fmt::Display for Refusal {
                 crate::model::SUPPORTED.0,
                 crate::model::SUPPORTED.1
             ),
-            Refusal::NotFinite { detail } => {
-                write!(f, "a number in the document is not finite: {detail}")
-            }
             Refusal::ContainerMalformed { detail } => {
                 write!(f, "not a readable ZIP archive: {detail}")
             }

@@ -185,10 +185,9 @@ fn has_vnx_extension(name: &str) -> bool {
 /// Write a `.vnz` container: `doc.vnx` at the archive root, then the
 /// attachments in the order given.
 ///
-/// Entries are STORED. SPEC 7 permits stored or deflate, and a compressor is
-/// not needed to produce a conforming archive — so this crate carries an
-/// inflater and no deflater. A caller that wants smaller files compresses the
-/// archive itself.
+/// Entries are DEFLATED. SPEC 7.1 lets a writer choose stored or deflate per
+/// entry, and a container that is larger than the document it holds is not
+/// worth being a container.
 ///
 /// # Errors
 ///
@@ -225,7 +224,7 @@ pub fn write(document_bytes: &[u8], attachments: &[Attachment]) -> Result<Vec<u8
     // UTF-8 byte, which orders by code point.
     names[1..].sort_by(|a, b| a.path.cmp(&b.path));
 
-    Ok(crate::zip::write_stored(&names))
+    Ok(crate::zip::write_archive(&names))
 }
 
 #[cfg(test)]

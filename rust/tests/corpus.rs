@@ -8,11 +8,12 @@
 //! Three things this runner does deliberately, each because doing the obvious
 //! thing instead would make a tier pass vacuously:
 //!
-//! * The accept tier RE-RENDERS the decoded document and requires the original
-//!   bytes back. It does not use the writer — a writer rounds coordinates and
-//!   shortens positions, so writing what you read is legitimately not what you
-//!   read (SPEC 8.1) — and it does not reformat the bytes, which never builds
-//!   a model and so cannot see a reader that discarded what it read.
+//! * The accept tier compares JSON TREES: the tree parsed from the original
+//!   file against the tree parsed from `encode(decode(file))` (SPEC 8.1). It
+//!   does not compare bytes, because nothing constrains them, and it does not
+//!   compare one model against another, because a reader that discarded every
+//!   data record, ruleset, style and `notes` produces a model equal to itself
+//!   and would pass green. See `tests/support/tree.rs`.
 //! * `positions` is resolved against the DECODED MODEL, never against the raw
 //!   JSON. Resolving it against the file compares the file to itself and
 //!   cannot see a decoder that swapped longitude and latitude.
@@ -30,7 +31,11 @@ use std::path::{Path, PathBuf};
 
 use vnx::json::{parse, Json};
 use vnx::model::{Area, Document, Network, Position, Route, Track, Waypoint};
-use vnx::{decode, re_render, vnz};
+use vnx::{decode, encode, vnz};
+
+#[path = "support/tree.rs"]
+mod tree;
+use tree::EmitBoundary;
 
 fn corpus_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -49,7 +54,7 @@ fn accept_tier() {
         let sidecar = case.sidecar();
         expect_kind(&sidecar, "accept", case);
 
-        let (document, diagnostics, canonical_source, attachments) = match case.extension() {
+        let (document, diagnostics, original_bytes, attachments) = match case.extension() {
             "vnz" => {
                 let container = vnz::read(&case.bytes).unwrap_or_else(|e| {
                     panic!("{}: refused, and the corpus says accept: {e}", case.name)
@@ -94,16 +99,20 @@ fn accept_tier() {
         check_tracks(&sidecar, &document, case);
         check_attachments(&sidecar, attachments.as_deref(), case);
 
-        // SPEC 8.1: decode, RE-RENDER, and require the original bytes back.
-        let rendered = re_render(&document);
-        assert_eq!(
-            rendered.as_bytes(),
-            canonical_source.as_slice(),
-            "{}: a re-render does not reproduce the stored canonical bytes.\n\
-             --- expected ---\n{}\n--- got ---\n{rendered}",
-            case.name,
-            String::from_utf8_lossy(&canonical_source)
-        );
+        // SPEC 8.1: decode, encode, and compare the two TREES. The emit
+        // boundary is normalised on both sides, because this compares a
+        // document against a re-encoding of itself and a writer rounds.
+        let encoded = encode(&document);
+        if let Some(difference) = tree::compare(
+            encoded.as_bytes(),
+            &original_bytes,
+            EmitBoundary::Normalise,
+        ) {
+            panic!(
+                "{}: encoding the decoded document does not give the tree the file carries: {difference}",
+                case.name
+            );
+        }
     });
 }
 
@@ -377,49 +386,6 @@ fn a_sidecar_that_pins_less_than_it_looks_is_refused() {
     );
 }
 
-/// SPEC 8: a `format/` case is a pair rather than a sidecar — `X.in.vnx` and
-/// `X.canonical.vnx`. The runner MUST assert that each input is not already
-/// canonical; without that, a formatter that echoed its input would pass.
-#[test]
-fn format_tier() {
-    let dir = corpus_root().join("format");
-    let mut cases = 0;
-    for entry in read_dir_sorted(&dir) {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let Some(stem) = name.strip_suffix(".in.vnx") else {
-            continue;
-        };
-        cases += 1;
-        let input = std::fs::read(entry.path()).expect("the input reads");
-        let expected_path = dir.join(format!("{stem}.canonical.vnx"));
-        let expected = std::fs::read(&expected_path).unwrap_or_else(|_| {
-            panic!("format/{stem}.in.vnx has no {stem}.canonical.vnx beside it")
-        });
-
-        assert_ne!(
-            input, expected,
-            "format/{stem}.in.vnx is already canonical, so this case cannot fail \
-             for a formatter that echoes its input"
-        );
-
-        let (rendered, diagnostics) = vnx::canonicalise(&input)
-            .unwrap_or_else(|e| panic!("format/{stem}.in.vnx was refused: {e}"));
-        assert!(
-            diagnostics.is_empty(),
-            "format/{stem}.in.vnx reported {}",
-            render_diagnostics(&diagnostics)
-        );
-        assert_eq!(
-            rendered.as_bytes(),
-            expected.as_slice(),
-            "format/{stem}: canonicalising the input does not give the expected bytes.\n\
-             --- expected ---\n{}\n--- got ---\n{rendered}",
-            String::from_utf8_lossy(&expected)
-        );
-    }
-    assert!(cases > 0, "the format tier found no cases");
-}
-
 /// A write case whose output is a CONTAINER (`corpus/write/README.md`).
 ///
 /// The attachments come from a manifest rather than from real files, because a
@@ -430,9 +396,7 @@ fn format_tier() {
 ///
 /// The attachments are fed REVERSED. A writer's output must not depend on the
 /// order it was handed, and feeding them in manifest order cannot see one that
-/// does. It is a robustness check and no longer more than that: the rewritten
-/// SPEC 7.1 does not constrain entry order, so what makes the difference
-/// observable today is this case's byte comparison rather than a rule.
+/// does.
 fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     let expected = std::fs::read(dir.join(format!("{stem}.written.vnz")))
         .unwrap_or_else(|_| panic!("write/{stem}: the manifest promises {stem}.written.vnz and there is none"));
@@ -459,8 +423,24 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
         "write/{stem}: this runner writes the document as doc.vnx"
     );
 
-    // Without this, a writer that echoed its input would pass.
-    assert_ne!(input, expected.as_slice(), "write/{stem}: the input is already the written form");
+
+    // ⚠ THE ARCHIVE'S BYTES ARE NOT COMPARED. SPEC 7.1 constrains five rules
+    // and leaves every other field to the writer, so two conforming writers
+    // are not expected to agree byte for byte. What is compared is what 7.1
+    // does constrain: the root document's tree, the entry names, the
+    // attachment bodies, and the document coming first.
+    let want = archive_entries(&expected);
+    assert!(!want.is_empty(), "write/{stem}: the expected archive holds no entries");
+    assert_eq!(
+        want[0].0, "doc.vnx",
+        "write/{stem}: SPEC 7.1 requires the root document first"
+    );
+    // ⚠ NO "the input is not already the written form" GUARD HERE, and that is
+    // deliberate. SPEC 8.1 asks for one because a writer that echoed its input
+    // would otherwise pass — but what a container case tests is the ARCHIVE
+    // this writer builds around the document, not the emit boundary. The
+    // document cases below carry the guard, and they are where the emit rules
+    // live.
 
     let attachments = read_manifest(manifest, stem);
     let reading = decode(input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
@@ -469,30 +449,91 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
         "write/{stem}.in.vnx reported {}",
         render_diagnostics(&reading.diagnostics)
     );
+
+    // The attachments are fed REVERSED. A writer's output must not depend on
+    // the order it was handed, and feeding them in manifest order cannot see
+    // one that does.
     let mut fed: Vec<vnz::Attachment> = attachments.clone();
     fed.reverse();
-    let written = vnz::write(vnx::write(&reading.document).as_bytes(), &fed)
+    let written = vnz::write(encode(&reading.document).as_bytes(), &fed)
         .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
-    assert_eq!(
-        written, expected,
-        "write/{stem}: writing the decoded input does not give the expected archive"
-    );
+    let got = archive_entries(&written);
 
-    // The written form is a fixed point, reached the way the tier reaches it
-    // everywhere else: read the expected output back and write it again.
-    let back = vnz::read(&expected).unwrap_or_else(|e| panic!("write/{stem}.written.vnz: {e}"));
+    assert_eq!(
+        got.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
+        want.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
+        "write/{stem}: the archive does not carry the expected entry names, in order"
+    );
+    if let Some(difference) = tree::compare(&got[0].1, &want[0].1, EmitBoundary::Keep) {
+        panic!("write/{stem}: the archive's root document is not the one the case expects: {difference}");
+    }
+    // An attachment is bytes and is compared as bytes. Nothing in this format
+    // interprets one.
+    for (name, body) in &got[1..] {
+        let listed = attachments
+            .iter()
+            .find(|a| &a.path == name)
+            .unwrap_or_else(|| panic!("write/{stem}: the archive carries `{name}`, which the manifest does not name"));
+        assert_eq!(body, &listed.bytes, "write/{stem}: `{name}` is not the manifest's body");
+    }
+
+    // And the archive reads back through this library's own reader.
+    let back = vnz::read(&written)
+        .unwrap_or_else(|e| panic!("write/{stem}: the archive this library wrote is one it cannot read: {e}"));
     assert!(
         back.reading.diagnostics.is_empty(),
-        "write/{stem}.written.vnz reported {}",
+        "write/{stem}: the archive this library wrote reported {}",
         render_diagnostics(&back.reading.diagnostics)
     );
-    assert_eq!(back.attachments, attachments, "write/{stem}: the archive does not carry the manifest's attachments");
-    let again = vnz::write(
-        vnx::write(&back.reading.document).as_bytes(),
-        &back.attachments,
-    )
-    .unwrap_or_else(|e| panic!("write/{stem}: rewriting the container: {e}"));
-    assert_eq!(again, expected, "write/{stem}: the written form is not a fixed point");
+    assert_eq!(
+        back.attachments, attachments,
+        "write/{stem}: the archive does not carry the manifest's attachments"
+    );
+}
+
+/// A container is worth being one: the archive is smaller than the document it
+/// holds.
+///
+/// ⚠ MEASURED ON A REAL DOCUMENT, NOT ON A CORPUS WRITE CASE. A ZIP entry costs
+/// about a hundred bytes of header and directory whatever it carries, so on a
+/// hundred-byte fixture the overhead wins and the archive is legitimately
+/// larger. Asserting this per write case would have measured the fixture sizes
+/// rather than the compression.
+#[test]
+fn a_container_is_smaller_than_the_document_it_holds() {
+    let path = corpus_root().join("accept").join("example-network.vnx");
+    let bytes = std::fs::read(&path).expect("the worked example reads");
+    let document = decode(&bytes).expect("the worked example is accepted").document;
+    let encoded = encode(&document);
+    let archive = vnz::write(encoded.as_bytes(), &[]).expect("the container is written");
+    assert!(
+        archive.len() < encoded.len(),
+        "the archive is {} bytes and the document alone is {}",
+        archive.len(),
+        encoded.len()
+    );
+
+    // And it reads back through this library's own reader, so the saving is
+    // not a truncation.
+    let back = vnz::read(&archive).expect("the archive this library wrote is one it reads");
+    assert_eq!(back.reading.document, document);
+}
+
+/// Every entry of an archive, in archive order, read through this library's
+/// own ZIP reader.
+fn archive_entries(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let archive = vnx::zip::Archive::open(bytes).expect("the archive opens");
+    archive
+        .entries()
+        .iter()
+        .filter(|e| !e.is_directory())
+        .map(|e| {
+            (
+                e.name.clone(),
+                archive.read(e).unwrap_or_else(|err| panic!("reading `{}`: {err}", e.name)),
+            )
+        })
+        .collect()
 }
 
 /// The manifest's attachments, in the order it lists them.
@@ -522,15 +563,17 @@ fn read_manifest(manifest: &Path, stem: &str) -> Vec<vnz::Attachment> {
         .collect()
 }
 
-/// SPEC 4.5.4's WRITE path, which is the one no other tier reaches.
+/// SPEC 4.1's EMIT BOUNDARY, which is the one no other tier reaches.
 ///
 /// A case is a pair — `X.in.vnx` and `X.written.vnx` — plus a sidecar. The
-/// operation is decode-then-write, which is language-neutral in exactly the way
-/// `format/`'s decode-then-re-render is: the input is a document rather than a
+/// operation is decode-then-encode, and the input is a DOCUMENT rather than a
 /// model, so no language-specific way to express a model is needed.
 ///
-/// A library with no write path fails this tier by name rather than by a
-/// confusing byte diff.
+/// ⚠ IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and drops
+/// a trailing `null` from both, because it compares a document against a
+/// re-encoding of itself. Doing that here would normalise away the two rules
+/// under test. The one normalisation left is the one that is not about the emit
+/// boundary at all: SPEC 3.1's absent-versus-empty.
 #[test]
 fn write_tier() {
     let dir = corpus_root().join("write");
@@ -571,8 +614,11 @@ fn write_tier() {
         );
 
         // Without this, a writer that echoed its input would pass every case.
-        assert_ne!(
-            input, expected,
+        // Compared as TREES: two files that differ only in whitespace or key
+        // order are the same document, so a byte comparison here would report
+        // a case as discriminating when it is not.
+        assert!(
+            tree::compare(&input, &expected, EmitBoundary::Keep).is_some(),
             "write/{stem}.in.vnx is already the written form, so this case \
              cannot fail for a writer that echoes its input"
         );
@@ -583,29 +629,107 @@ fn write_tier() {
             "write/{stem}.in.vnx reported {}",
             render_diagnostics(&reading.diagnostics)
         );
-        let written = vnx::write(&reading.document);
-        assert_eq!(
-            written.as_bytes(),
-            expected.as_slice(),
-            "write/{stem}: writing the decoded input does not give the expected bytes.\n\
-             --- expected ---\n{}\n--- got ---\n{written}",
-            String::from_utf8_lossy(&expected)
-        );
+        let written = encode(&reading.document);
+        if let Some(difference) =
+            tree::compare(written.as_bytes(), &expected, EmitBoundary::Keep)
+        {
+            panic!("write/{stem}: the written document is not the one the case expects: {difference}");
+        }
 
         // The written form is a fixed point: rounding and shortening are both
-        // idempotent, so a case that fails this is a defect in the fixture.
-        let again = vnx::write(
+        // idempotent, so a case that fails this is a defect in the fixture
+        // rather than in the writer.
+        let again = encode(
             &decode(&expected)
                 .unwrap_or_else(|e| panic!("write/{stem}.written.vnx: {e}"))
                 .document,
         );
-        assert_eq!(
-            again.as_bytes(),
-            expected.as_slice(),
-            "write/{stem}: the written form is not a fixed point"
-        );
+        if let Some(difference) = tree::compare(again.as_bytes(), &expected, EmitBoundary::Keep) {
+            panic!("write/{stem}: the expected output is not a fixed point of the writer: {difference}");
+        }
     }
     assert!(cases > 0, "the write tier found no cases");
+}
+
+/// Freezes the proof that the accept tier's check is worth what SPEC 8.1
+/// claims for it.
+///
+/// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
+/// ANOTHER MODEL. A reader that discarded every data record, every ruleset,
+/// every style or every `notes` produces a model that compares equal to itself
+/// and passes a model-versus-model tier GREEN. That is the entire extensibility
+/// mechanism, all styling and all user prose, silently droppable by a
+/// "conforming" implementation.
+///
+/// Each case below is one of those readers, made by spoiling a decoded document
+/// one thing at a time. If any of them stops being caught, the tier has gone
+/// back to proving nothing about the model.
+#[test]
+fn a_reader_that_discards_what_it_read_is_caught() {
+    let path = corpus_root().join("accept").join("example-network.vnx");
+    let bytes = std::fs::read(&path).expect("the worked example reads");
+
+    /// One reader that drops something it read.
+    type Spoiler = (&'static str, fn(&mut Document));
+
+    let spoilers: [Spoiler; 4] = [
+        ("drops every data record", |d| {
+            for w in d.waypoints.iter_mut().flatten() {
+                w.data = None;
+            }
+            for n in d.networks.iter_mut().flatten() {
+                n.data = None;
+                for (_, arc) in n.arcs.iter_mut().flatten() {
+                    arc.data = None;
+                }
+                for c in n.chains.iter_mut().flatten() {
+                    c.data = None;
+                }
+                for p in n.points.iter_mut().flatten() {
+                    p.data = None;
+                }
+            }
+        }),
+        ("drops every ruleset", |d| d.rulesets = None),
+        ("drops every style", |d| {
+            for n in d.networks.iter_mut().flatten() {
+                for c in n.chains.iter_mut().flatten() {
+                    c.style = None;
+                }
+            }
+        }),
+        ("drops every notes", |d| {
+            for n in d.networks.iter_mut().flatten() {
+                n.notes = None;
+                for c in n.chains.iter_mut().flatten() {
+                    c.notes = None;
+                }
+            }
+        }),
+    ];
+
+    for (what, spoil) in spoilers {
+        let mut document = decode(&bytes).expect("the worked example is accepted").document;
+        // LIVENESS. A spoiler that changed nothing would be caught by nothing,
+        // and would look exactly like a check that works.
+        let before = document.clone();
+        spoil(&mut document);
+        assert_ne!(document, before, "the `{what}` spoiler changed nothing");
+
+        let encoded = encode(&document);
+        assert!(
+            tree::compare(encoded.as_bytes(), &bytes, EmitBoundary::Normalise).is_some(),
+            "a reader that {what} reproduced the file — the accept tier cannot see it"
+        );
+    }
+
+    // And the UNSPOILED document passes, or the four assertions above would
+    // hold for a comparison that never agrees with anything.
+    let document = decode(&bytes).expect("accepted").document;
+    assert_eq!(
+        tree::compare(encode(&document).as_bytes(), &bytes, EmitBoundary::Normalise),
+        None
+    );
 }
 
 /// A corpus case with no sidecar is a failure, not a skip. The three sidecar
@@ -632,6 +756,10 @@ fn every_corpus_document_is_reached_by_a_tier() {
                 .and_then(|p| p.file_name())
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            // `format/` is still on disk and no tier reads it any more: the
+            // format stopped constraining bytes (SPEC 8.1) and Phase 4 of the
+            // simplification deletes the directory. It is listed so this guard
+            // reports stray documents rather than that known one.
             if !matches!(
                 tier.as_str(),
                 "accept" | "reject" | "diagnose" | "format" | "write"
@@ -1040,7 +1168,7 @@ fn network_position<'a>(network: &'a Network, tokens: &[String]) -> Option<&'a P
 }
 
 /// Pull the raw bytes of a container's root document, so the accept tier can
-/// compare a re-render against them.
+/// compare its tree against the one this library encodes.
 fn document_bytes_from_container(archive: &[u8], entry_name: &str) -> Vec<u8> {
     let archive = vnx::zip::Archive::open(archive).expect("the archive opens");
     let entry = archive

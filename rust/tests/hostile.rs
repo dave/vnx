@@ -40,16 +40,57 @@ fn container() -> Vec<u8> {
     .expect("written")
 }
 
-/// A real deflated archive, taken from the corpus, so the inflate path is
-/// exercised rather than only the stored path this crate writes.
+/// A real deflated archive, taken from the corpus.
 fn deflated_container() -> Vec<u8> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    corpus_archive("accept/container-root-doc.vnz")
+}
+
+/// An archive whose entries are STORED.
+///
+/// This crate's writer deflates every entry — SPEC 7.1 lets a writer choose
+/// either, per entry — so it can no longer produce one, and the fixture is
+/// where a stored entry now comes from.
+fn stored_container() -> Vec<u8> {
+    corpus_archive("accept/container-over-declared-size.vnz")
+}
+
+fn corpus_archive(relative: &str) -> Vec<u8> {
+    let mut path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("the crate sits inside the repository")
-        .join("corpus")
-        .join("accept")
-        .join("container-root-doc.vnz");
-    std::fs::read(path).expect("the corpus archive reads")
+        .join("corpus");
+    for part in relative.split('/') {
+        path.push(part);
+    }
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{} will not read: {e}", path.display()))
+}
+
+/// Where an entry payload starts.
+///
+/// The local headers are SCANNED for rather than chained through, because an
+/// entry may defer its sizes to a data descriptor and then its local header
+/// does not say where the next one begins. The entry name is checked, so a
+/// signature that happens to appear inside compressed data is not mistaken for
+/// a header.
+///
+/// Test scaffolding rather than a second reader: it chooses a byte to damage
+/// and nothing more.
+fn payload_offset(archive: &[u8], name: &str) -> usize {
+    let u16_at = |at: usize| u16::from_le_bytes([archive[at], archive[at + 1]]) as usize;
+    for at in 0..archive.len().saturating_sub(30) {
+        if archive[at..at + 4] != 0x0403_4b50u32.to_le_bytes() {
+            continue;
+        }
+        let name_len = u16_at(at + 26);
+        let extra_len = u16_at(at + 28);
+        if at + 30 + name_len > archive.len() {
+            continue;
+        }
+        if archive[at + 30..at + 30 + name_len] == *name.as_bytes() {
+            return at + 30 + name_len + extra_len;
+        }
+    }
+    panic!("the archive carries no entry named `{name}`")
 }
 
 /// Every prefix of a valid archive must be refused, not panic.
@@ -110,7 +151,7 @@ fn inflate_refuses_rubbish_and_truncation_without_panicking() {
     stream.extend_from_slice(b"hello");
     for length in 0..stream.len() {
         let outcome =
-            std::panic::catch_unwind(|| zip::inflate::inflate(&stream[..length], 5).is_ok());
+            std::panic::catch_unwind(|| zip::inflate(&stream[..length], 5).is_ok());
         assert_eq!(
             outcome.map_err(|_| "panicked"),
             Ok(false),
@@ -131,7 +172,7 @@ fn inflate_refuses_rubbish_and_truncation_without_panicking() {
             .collect();
         for declared in [0usize, 5, 1024, usize::MAX / 2] {
             let outcome = std::panic::catch_unwind(|| {
-                let _ = zip::inflate::inflate(&noise, declared);
+                let _ = zip::inflate(&noise, declared);
             });
             assert!(
                 outcome.is_ok(),
@@ -148,10 +189,10 @@ fn inflate_refuses_rubbish_and_truncation_without_panicking() {
 /// four gigabytes must fail rather than try.
 #[test]
 fn a_declared_size_is_not_an_allocation() {
-    let outcome = std::panic::catch_unwind(|| zip::inflate::inflate(&[0x01, 0, 0], usize::MAX));
+    let outcome = std::panic::catch_unwind(|| zip::inflate(&[0x01, 0, 0], usize::MAX));
     assert!(outcome.is_ok(), "a huge declared size PANICKED");
     assert!(
-        zip::inflate::inflate(&[0x01, 0x05, 0x00, 0xfa, 0xff, b'h'], 4 << 30).is_err(),
+        zip::inflate(&[0x01, 0x05, 0x00, 0xfa, 0xff, b'h'], 4 << 30).is_err(),
         "a six-byte stream declaring four gigabytes was accepted"
     );
 }
@@ -186,8 +227,7 @@ fn the_declared_size_bounds_the_output_while_it_is_produced() {
     // A stored block carrying five bytes, declared as three.
     let mut stream = vec![0x01, 0x05, 0x00, 0xfa, 0xff];
     stream.extend_from_slice(b"hello");
-    let error = zip::inflate::inflate(&stream, 3).expect_err("must be refused");
-    let text = error.to_string();
+    let text = zip::inflate(&stream, 3).expect_err("must be refused");
     assert!(
         text.contains("more bytes than the archive declared"),
         "the bound has moved to the end of the stream, so a hostile stream is \
@@ -329,17 +369,17 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
 /// ATTACHMENT is caught by nothing but the CRC.
 #[test]
 fn a_corrupt_attachment_is_refused_rather_than_returned() {
-    let good = container();
-    let marker = b"not really a photo\n";
-    let at = good
-        .windows(marker.len())
-        .position(|w| w == marker)
-        .expect("the attachment's bytes are in the archive");
+    // ⚠ A COMMITTED DEFLATED ARCHIVE, NOT ONE THIS CRATE WRITES. The bytes of
+    // a deflate stream depend on the compressor, so a byte chosen inside one
+    // this crate produced would move under a `flate2` upgrade. A corpus
+    // fixture's bytes never move.
+    let good = deflated_container();
+    let at = payload_offset(&good, "attachments/photo.txt");
 
     // The archive is otherwise perfect: the document parses, every header is
     // intact, and only the attachment's content has changed.
     let mut damaged = good.clone();
-    damaged[at] = b'N';
+    damaged[at + 3] ^= 0x01;
     assert!(
         vnz::read(&good).is_ok(),
         "the undamaged archive must read, or this proves nothing"
@@ -357,10 +397,11 @@ fn a_corrupt_attachment_is_refused_rather_than_returned() {
 /// whole.
 #[test]
 fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
-    let good = container();
-    // The local header's uncompressed size sits at offset 22; the first entry
-    // is `doc.vnx` at offset 0 because this writer stores it first.
-    assert_eq!(&good[..4], &0x0403_4b50u32.to_le_bytes());
+    let good = stored_container();
+    assert!(
+        vnz::read(&good).is_ok(),
+        "the undamaged archive must read, or this proves nothing"
+    );
     let mut damaged = good.clone();
     // Change the CENTRAL DIRECTORY's compressed size, which is what this
     // reader takes its lengths from, leaving the uncompressed size alone.

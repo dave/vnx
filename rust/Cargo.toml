@@ -2,14 +2,19 @@
 name = "vnx"
 version = "0.1.0"
 edition = "2021"
-# `f64::round_ties_even`, which SPEC 4.5.4 needs at the writer boundary.
+# `f64::round_ties_even`, which SPEC 4.1 needs at the writer boundary.
 rust-version = "1.77"
 description = "Reader and writer for the VNX trail interchange format"
 license = "MIT"
 
-# Zero dependencies, deliberately. The JSON parser, the JSON renderer, the
-# ECMAScript number formatter, the ZIP reader and the DEFLATE decompressor are
-# all in this crate. See README.md.
 [dependencies]
+# ⚠ `float_roundtrip` IS LOAD-BEARING, NOT A TUNING KNOB. Without it serde_json
+# parses `-3.6712345678901235` to bits c00d5eb03aa8431d where `str::parse`
+# gives …431e — one bit out. That literal is the longitude in
+# `corpus/accept/full-precision-coordinate`, the case that exists to prove a
+# reader does not lose precision, so dropping the feature fails the corpus.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+# DEFLATE, for reading and writing container entries (SPEC 7).
+flate2 = "1"
 
 [dev-dependencies]

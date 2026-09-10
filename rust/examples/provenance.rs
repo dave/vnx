@@ -4,8 +4,10 @@
 //!
 //! A number that does not say which artefact and which constant it was measured
 //! under outlives both, so the measurement is a script rather than a sentence.
-//! It reads the committed table and uses this crate's own `round_for_test` and
-//! `number::render`, so it cannot drift from what the library actually does.
+//! It reads the committed table and uses this crate's own `round_for_test`, so
+//! it cannot drift from what the library actually does. The two roundings are
+//! compared BY BIT PATTERN: comparing spellings would put a rendering rule the
+//! format no longer has back into the measurement.
 //!
 //! **The counts are not written down here.** Run it. The table grew from 5,315
 //! to 5,329 rows between two runs of this example while it was being written —
@@ -49,8 +51,8 @@ fn main() {
                 *overflow.entry(kind).or_default() += 1;
                 continue;
             }
-            let exact = vnx::json::number::render(vnx::render::round_for_test(v, places));
-            let scaled = vnx::json::number::render((v * scale).round_ties_even() / scale);
+            let exact = vnx::encode::round_for_test(v, places).to_bits();
+            let scaled = ((v * scale).round_ties_even() / scale).to_bits();
             if exact != scaled { *differ.entry(kind).or_default() += 1; } else { agree += 1; }
         }
         total = n;

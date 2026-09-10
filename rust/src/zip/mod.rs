@@ -1,13 +1,20 @@
-//! A read-only ZIP walker, enough for SPEC 7.
+//! A ZIP reader and writer, enough for SPEC 7.
 //!
-//! Written out because the crate takes no dependencies. It reads the central
-//! directory rather than scanning local headers, so it sees the archive the
-//! way the format defines it, and it understands the ZIP64 extensions SPEC 7
-//! requires a reader to accept.
+//! ⚠ THE READER IS WRITTEN OUT RATHER THAN TAKEN FROM A CRATE, and SPEC 7 is
+//! why. Three of its reader rules are ones a general-purpose ZIP library does
+//! not offer: an entry whose declared size exceeds the bytes present MUST be
+//! accepted where the CRC agrees, a per-entry unusable-method remedy differs
+//! for the root document and for an attachment, and a duplicate name must be
+//! SEEN twice rather than resolved. It reads the central directory rather than
+//! scanning local headers, so it sees the archive the way the format defines
+//! it, and it understands the ZIP64 extensions SPEC 7 requires a reader to
+//! accept.
+//!
+//! DEFLATE itself is `flate2`, both ways.
 
-pub mod inflate;
-
-use inflate::inflate;
+use flate2::write::DeflateEncoder;
+use flate2::Compression;
+use std::io::Write as _;
 
 /// One entry, in central-directory order.
 #[derive(Debug, Clone)]
@@ -337,23 +344,69 @@ fn crc32(bytes: &[u8]) -> u32 {
 /// Build an archive whose entries are all STORED, with the UTF-8 filename
 /// flag set (SPEC 7).
 ///
-/// STORED for every entry, always. Deflate has no canonical output — Go's
-/// `compress/flate` and zlib disagree on the corpus's own archives, and no
-/// zlib level reproduces the committed bytes — so a deflated archive is
-/// byte-reproducible only by the language that wrote it. A reader must still
-/// accept deflate; a writer never emits it. That asymmetry is why this crate
-/// carries an inflater and no deflater.
+/// Decompress a raw DEFLATE stream, with the declared uncompressed size as a
+/// CEILING on the output rather than as a promise.
 ///
-/// No ZIP64 records are written either. SPEC 7 makes that asymmetry deliberate
-/// too: a reader MUST accept ZIP64, a writer MAY leave it out, so a small
-/// export stays readable by the widest range of tools.
-pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
+/// ⚠ THE BOUND IS APPLIED WHILE THE OUTPUT IS PRODUCED, not after. A declared
+/// size is a number in a hostile file, and inflating first and truncating
+/// afterwards lets an archive name a small entry and expand to any size it
+/// likes. `flate2` cannot see past the ceiling because it is never given more
+/// room than that.
+pub fn inflate(data: &[u8], declared: usize) -> Result<Vec<u8>, String> {
+    use std::io::Read as _;
+    // One byte past the ceiling, so a stream that over-produces is STOPPED
+    // there. `saturating_add`, because a hostile archive may declare
+    // `usize::MAX`.
+    let ceiling = (declared as u64).saturating_add(1);
+    let mut out = Vec::new();
+    flate2::read::DeflateDecoder::new(data)
+        .take(ceiling)
+        .read_to_end(&mut out)
+        .map_err(|e| format!("the deflate stream will not inflate: {e}"))?;
+    // ⚠ THE TWO REFUSALS ARE TOLD APART BY THE CEILING, NOT BY A COMPARISON
+    // WITH `declared`. Reaching the ceiling is the only way this can hold more
+    // than the entry declared, so it is the RUNNING bound that produced this
+    // message and no after-the-fact check could. A reader that inflated first
+    // and measured afterwards would take the second branch instead, which is
+    // what makes the difference visible to a test at all.
+    if out.len() as u64 == ceiling {
+        return Err("the deflate stream produced more bytes than the archive declared".to_string());
+    }
+    if out.len() != declared {
+        return Err(format!(
+            "the deflate stream gives {} bytes and the archive declares {declared}",
+            out.len()
+        ));
+    }
+    Ok(out)
+}
+
+/// Compress to a raw DEFLATE stream.
+fn deflate(data: &[u8]) -> Vec<u8> {
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(data)
+        .expect("writing to a Vec cannot fail");
+    encoder.finish().expect("writing to a Vec cannot fail")
+}
+
+/// DEFLATE for every entry. SPEC 7.1 lets a writer choose stored or deflate
+/// per entry, and a container that is larger than the document it holds is not
+/// worth being a container.
+///
+/// The bytes of an archive are not constrained. SPEC 7.1 names five rules and
+/// leaves every other field to the writer, so two conforming writers are not
+/// expected to agree byte for byte — which is why nothing compares a `.vnz`
+/// against a stored fixture any more.
+///
+/// No ZIP64 records are written. SPEC 7 makes that asymmetry deliberate: a
+/// reader MUST accept ZIP64, a writer MAY leave it out, so a small export stays
+/// readable by the widest range of tools.
+pub(crate) fn write_archive(files: &[crate::vnz::Attachment]) -> Vec<u8> {
     /// Bit 11: the name and comment are UTF-8.
     const UTF8_FLAG: u16 = 1 << 11;
-    /// Version 1.0, which is what STORED requires. 2.0 is the minimum for
-    /// DEFLATE and this writer emits none, so claiming it would ask a reader
-    /// for more than the archive needs.
-    const STORED_VERSION: u16 = 10;
+    /// Version 2.0, the minimum APPNOTE states for DEFLATE.
+    const DEFLATE_VERSION: u16 = 20;
     /// A fixed timestamp, so container output is byte-deterministic: MS-DOS
     /// 1980-01-01 00:00:00, which is what `makevnz` writes. The DOS date packs
     /// as (year - 1980) << 9 | month << 5 | day.
@@ -367,31 +420,33 @@ pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
         let name = file.path.as_bytes();
         let crc = crc32(&file.bytes);
         let size = file.bytes.len() as u32;
+        let compressed = deflate(&file.bytes);
+        let compressed_size = compressed.len() as u32;
         let offset = out.len() as u32;
 
         out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
-        out.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version needed
+        out.extend_from_slice(&DEFLATE_VERSION.to_le_bytes()); // version needed
         out.extend_from_slice(&UTF8_FLAG.to_le_bytes());
-        out.extend_from_slice(&0u16.to_le_bytes()); // method: stored
+        out.extend_from_slice(&8u16.to_le_bytes()); // method: deflate
         out.extend_from_slice(&DOS_TIME.to_le_bytes());
         out.extend_from_slice(&DOS_DATE.to_le_bytes());
         out.extend_from_slice(&crc.to_le_bytes());
-        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&compressed_size.to_le_bytes());
         out.extend_from_slice(&size.to_le_bytes());
         out.extend_from_slice(&(name.len() as u16).to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes()); // extra length
         out.extend_from_slice(name);
-        out.extend_from_slice(&file.bytes);
+        out.extend_from_slice(&compressed);
 
         directory.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
-        directory.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version made by
-        directory.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version needed
+        directory.extend_from_slice(&DEFLATE_VERSION.to_le_bytes()); // version made by
+        directory.extend_from_slice(&DEFLATE_VERSION.to_le_bytes()); // version needed
         directory.extend_from_slice(&UTF8_FLAG.to_le_bytes());
-        directory.extend_from_slice(&0u16.to_le_bytes()); // method: stored
+        directory.extend_from_slice(&8u16.to_le_bytes()); // method: deflate
         directory.extend_from_slice(&DOS_TIME.to_le_bytes());
         directory.extend_from_slice(&DOS_DATE.to_le_bytes());
         directory.extend_from_slice(&crc.to_le_bytes());
-        directory.extend_from_slice(&size.to_le_bytes());
+        directory.extend_from_slice(&compressed_size.to_le_bytes());
         directory.extend_from_slice(&size.to_le_bytes());
         directory.extend_from_slice(&(name.len() as u16).to_le_bytes());
         directory.extend_from_slice(&0u16.to_le_bytes()); // extra length
@@ -428,9 +483,11 @@ mod tests {
         assert_eq!(crc32(b""), 0);
     }
 
-    /// Container output must be byte-deterministic (ruled 2026-09-09), so the
-    /// same input gives the same archive and every entry carries the fixed
-    /// 1980-01-01 timestamp `makevnz` writes.
+    /// Container output is byte-deterministic: the same input gives the same
+    /// archive, and every entry carries the fixed 1980-01-01 timestamp. That
+    /// is no longer a conformance rule — SPEC 7.1 does not constrain the bytes
+    /// — but a writer whose output moved between runs would make every
+    /// container diff unreadable.
     #[test]
     fn container_output_is_byte_deterministic() {
         let files = vec![
@@ -443,10 +500,10 @@ mod tests {
                 bytes: b"not really a photo\n".to_vec(),
             },
         ];
-        assert_eq!(write_stored(&files), write_stored(&files));
+        assert_eq!(write_archive(&files), write_archive(&files));
 
         // 1980-01-01 00:00:00 in the local header of the first entry.
-        let bytes = write_stored(&files);
+        let bytes = write_archive(&files);
         assert_eq!(&bytes[10..12], &0u16.to_le_bytes(), "time");
         assert_eq!(&bytes[12..14], &0x0021u16.to_le_bytes(), "date");
     }

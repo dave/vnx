@@ -3,10 +3,11 @@
 //! Two properties of this model are load-bearing and neither is the shape a
 //! Rust type system pushes you towards:
 //!
-//! * A [`Position`] keeps its channel count. `[lon, lat, null]` and
-//!   `[lon, lat]` state the same thing (SPEC 4.1) and MUST both survive a
-//!   read-modify-write as written, so an `Option<f64>` elevation field — the
-//!   first shape most implementations reach for — cannot re-render the corpus.
+//! * A [`Position`] keeps its channel count, so that an interior absence keeps
+//!   its place: `[lon, lat, null, t]` cannot be shortened without moving the
+//!   time into the elevation channel (SPEC 4.1). An `Option<f64>` elevation
+//!   field — the first shape most implementations reach for — cannot express
+//!   that.
 //! * A [`Record`] body, a `style` object and `rulesets` are kept as raw
 //!   [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and must survive
 //!   a read-modify-write at value level.
@@ -83,8 +84,7 @@ impl Position {
         self.channels.get(3).copied().flatten()
     }
 
-    /// How many channels this position was written with. Load-bearing state:
-    /// a re-render reproduces it.
+    /// How many channels this position was written with.
     pub fn arity(&self) -> usize {
         self.channels.len()
     }
@@ -160,9 +160,10 @@ pub struct Document {
     pub profile: Option<String>,
     pub generator: Option<String>,
     pub created: Option<String>,
-    /// Every collection distinguishes absent from empty: SPEC 3.10 makes an
-    /// empty array distinct from an absent one, so `"waypoints": []` and no
-    /// `waypoints` key re-render differently.
+    /// An absent collection and an empty one carry the same content and a
+    /// reader treats them alike (SPEC 3.1). `Option` keeps the distinction the
+    /// document made anyway, because it costs nothing to and because a writer
+    /// that spells either stays conforming.
     pub folders: Option<Vec<Folder>>,
     pub networks: Option<Vec<Network>>,
     pub routes: Option<Vec<Route>>,
@@ -368,8 +369,8 @@ mod tests {
         assert_eq!(long.arity(), 3);
         assert_eq!(short.ele(), None);
         assert_eq!(long.ele(), None);
-        // The same point, differently spelled — and NOT the same model value,
-        // because the spelling has to survive a re-render.
+        // The same point, differently spelled, and NOT the same model value:
+        // arity is what keeps an interior absence in its own channel.
         assert!(short.same_point(&long));
         assert_ne!(short, long);
     }

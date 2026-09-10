@@ -143,9 +143,13 @@ final class WriterArchiveRulesTests: XCTestCase {
                           "a deflated container holds a document in fewer bytes than the document takes")
     }
 
-    /// This writer's own choice, not a rule of 7.1: attachments SORTED BY ENTRY
-    /// NAME, so that caller order — one exporter iterating a dictionary, another
-    /// a list — is not a property of the archive.
+    /// This writer's own choice, NOT A RULE: 7.1 constrains the root document's
+    /// position and says every other field of the archive is the writer's own
+    /// business, and it was ruled on 2026-09-10 that attachment order is not
+    /// compared anywhere. Sorting is kept for run-to-run determinism, so that
+    /// caller order — one exporter iterating a dictionary, another a list — is
+    /// not a property of the archive. `corpus/write/container-cross-language`
+    /// passes with this writer's attachments emitted in any order; measured.
     ///
     /// Four attachments passed deliberately out of order, because with one
     /// attachment every ordering rule agrees. The question to ask of an ordering

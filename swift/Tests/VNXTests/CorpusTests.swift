@@ -266,12 +266,22 @@ final class CorpusTests: XCTestCase {
         let archive = try VNX.writeContainer(document: input.document, attachments: manifest.reversed())
         let produced = try archiveEntries(archive)
 
-        XCTAssertEqual(produced.map(\.name), expected.map(\.name), "\(stem): entry names, in archive order")
+        // ⚠ THE ATTACHMENTS ARE AN UNORDERED COLLECTION. SPEC 7.1 constrains the
+        // ROOT DOCUMENT's position and nothing else about entry order — "every
+        // other field of the archive is the writer's own business" — so a
+        // comparison that pinned the order of the attachments would enforce a
+        // rule the specification explicitly disclaims. Ruled 2026-09-10, after
+        // the Kotlin lane's tier went red for deleting a comparator it did not
+        // need.
+        XCTAssertEqual(produced.first?.name, "doc.vnx", "\(stem): SPEC 7.1 puts the root document first")
+        XCTAssertEqual(produced.dropFirst().map(\.name).sorted(),
+                       expected.dropFirst().map(\.name).sorted(),
+                       "\(stem): the attachment entries, as a collection")
         if let d = try Tree.difference(got: produced[0].body, want: expected[0].body) {
             XCTFail("\(stem): the archive's root document is not the one the case expects — \(d)")
         }
         if let names = sidecar.attachments {
-            XCTAssertEqual(Array(produced.dropFirst()).map(\.name), names,
+            XCTAssertEqual(produced.dropFirst().map(\.name).sorted(), names.sorted(),
                            "\(stem): the attachments the sidecar names")
         }
         // An attachment is bytes and is compared as bytes. Nothing in this
@@ -285,13 +295,16 @@ final class CorpusTests: XCTestCase {
             }
             XCTAssertEqual(entry.body, want, "\(stem): the body of \(entry.name)")
         }
+        XCTAssertEqual(produced.count - 1, manifest.count, "\(stem): every attachment, and no others")
 
-        // And the archive this library wrote is one it reads.
+        // And the archive this library wrote is one it reads. Sorted on both
+        // sides for the comparison only — what is asserted is which attachments
+        // came back, not the order they came back in.
         let back = try VNX.readContainer(archive)
         XCTAssertEqual(back.diagnostics.map(\.message), [], "\(stem): the archive must read back cleanly")
-        XCTAssertEqual(back.attachments, manifest.sorted { codePointLess($0.path, $1.path) },
+        XCTAssertEqual(back.attachments.sorted { $0.path < $1.path },
+                       manifest.sorted { $0.path < $1.path },
                        "\(stem): the archive does not carry the manifest's attachments")
-
     }
 
     /// Every entry of an archive, in archive order, through this library's own

@@ -292,9 +292,16 @@ internal object Zip {
      * identical files should not lose the property at the container boundary
      * over a clock reading. Raised with Dave rather than assumed.
      *
-     * Deflate, with the UTF-8 filename flag set, and no ZIP64: section 7 requires
-     * a reader to understand ZIP64 and explicitly allows a writer to omit it, so
-     * a small export stays readable by the widest range of tools.
+     * STORED, with the UTF-8 filename flag set, and no ZIP64. Deflate has no
+     * canonical output, so section 7.1 requires a writer to store; the body below
+     * carries the measurement. Section 7 requires a READER to understand ZIP64
+     * and explicitly allows a writer to omit it.
+     *
+     * Entry order is section 7.1's CODE-POINT ORDER and is applied by the caller,
+     * at Vnx.kt, using CodePointOrder.comparator rather than String.compareTo.
+     * Nothing that goes through this function covers that rule: a discriminating
+     * case needs a name above U+FFFF beside one in U+E000..U+FFFF, because an
+     * ASCII-only set passes a UTF-16 code-unit sort too.
      */
     fun write(entries: List<ToWrite>): ByteArray {
         val out = java.io.ByteArrayOutputStream()

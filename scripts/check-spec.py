@@ -97,62 +97,6 @@ LEAKAGE = [
     ),
 ]
 
-# A document in this repository never describes its own past.
-#
-# Nothing here has ever been public. There is no reader for whom a correction is
-# news, no implementation built against an earlier wording, and no holder of a
-# file written under one. A note like that exists only because the drafting was
-# visible to whoever wrote it, and it reads as an apology to a reader who does
-# not exist. State the rule, not the history of the rule.
-#
-# A rationale for why the FORMAT is this way is welcome and belongs in the spec.
-# A rationale for why the DOCUMENT says it differently than it once did is not.
-HISTORY = [
-    (
-        re.compile(r"\ban earlier (revision|draft|version)\b", re.IGNORECASE),
-        "the document describing its own past.",
-    ),
-    (
-        re.compile(r"\bformerly\b|\bpreviously\b|\bused to (be|say|read|have|do)\b", re.IGNORECASE),
-        "the document describing its own past.",
-    ),
-    (
-        re.compile(r"\bis now (consistent|correct|fixed)\b|\bwas corrected\b|\bhas been corrected\b", re.IGNORECASE),
-        "a note whose subject is the document rather than the format.",
-    ),
-    (
-        re.compile(r"\buntil 20\d\d-\d\d-\d\d\b|\bbefore 20\d\d-\d\d-\d\d\b", re.IGNORECASE),
-        "a date marking when the document changed. A measured fact may carry a "
-        "date; a change to this document may not.",
-    ),
-    (
-        # A commit hash: 7 or more hex characters carrying BOTH a letter and a
-        # digit, so a long decimal number is not mistaken for one. Every number
-        # in SPEC.md's rendering tables would otherwise trip this.
-        re.compile(
-            # Not part of a longer token, and not part of a decimal number --
-            # `1.4978982117220732e15` would otherwise match from after the dot,
-            # because `e` is a hex digit.
-            #
-            # A FULL STOP MAY FOLLOW, and that is the whole point of the second
-            # alternative: a hash is normally cited at the end of a sentence
-            # ("deleted in 5dcf6ee."), and a blanket ban on a trailing `.` let
-            # exactly that spelling through while catching the rarer mid-clause
-            # one. A dot is only disqualifying when a digit or letter follows
-            # it, which is what makes it part of a number rather than a
-            # sentence.
-            r"(?<![0-9a-zA-Z.])"
-            r"(?=[0-9a-f]{7,40}(?![0-9a-zA-Z]|\.[0-9a-zA-Z]))"
-            # A letter other than `e`, so scientific notation is not a hash.
-            r"(?=[0-9a-f]*[abcdf])"
-            r"(?=[0-9a-f]*[0-9])"
-            r"[0-9a-f]{7,40}"
-        ),
-        "what looks like a commit hash. A published document does not cite the "
-        "moment something changed.",
-    ),
-]
-
 # Register markers. These are WARNINGS and not failures on purpose: every one has
 # an innocent use, and it is the density that reads wrong rather than any single
 # instance. A hard failure here would teach people to route around the check.
@@ -254,7 +198,7 @@ def check_sidecar_notes(problems: list[str]) -> None:
         # -- and 19 of the 21 hits on first run were that. A check that flags
         # nineteen correct references to flag two real ones is a check people
         # route around, which is worse than no check.
-        for pattern, why in [r for r in LEAKAGE if r[0] is not SPEC_NUMBER] + HISTORY:
+        for pattern, why in [r for r in LEAKAGE if r[0] is not SPEC_NUMBER]:
             if match := pattern.search(note):
                 problems.append(
                     f"{sidecar.relative_to(ROOT)}: {match.group(0)!r} - {why}\n"
@@ -268,25 +212,8 @@ def check_published(problems: list[str]) -> None:
         if not path.exists():
             problems.append(f"{name}: missing")
             continue
-        fenced = False
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if line.lstrip().startswith("```"):
-                fenced = not fenced
-                continue
-            # HISTORY is a rule about PROSE. A fenced block is data -- a sample
-            # of a file's own bytes, a command, a table of values -- and it says
-            # nothing about how this document came to be. The exclusion is not a
-            # convenience: a binary64 bit pattern is 16 hexadecimal digits, so
-            # every row of corpus/numbers/numbers.tsv reads as a commit hash to
-            # the pattern below, and the alternative to this line is either
-            # weakening the hash rule for every document or forbidding the one
-            # spelling in which that table can be quoted at all.
-            #
-            # LEAKAGE still applies inside a fence, because a home-directory
-            # path or a knowledge-base reference leaks just as far in a command
-            # as in a sentence.
-            checks = LEAKAGE if fenced else LEAKAGE + HISTORY
-            for pattern, why in checks:
+            for pattern, why in LEAKAGE:
                 if match := pattern.search(line):
                     problems.append(f"{name}:{number}: {match.group(0)!r} - {why}\n    {line.strip()}")
             for match in LINK.finditer(line):

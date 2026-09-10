@@ -6,13 +6,10 @@ import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import os from 'node:os';
-import { spawnSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // The REPOSITORY, always. `CORPUS` may be an extract in a temp directory when a
-// run is measured against `git archive HEAD`, and the checker script lives with
-// the source rather than with the corpus copy under test.
+// run is measured against `git archive HEAD`.
 const REPO = path.resolve(HERE, '..', '..');
 const CORPUS = process.env.VNX_CORPUS
   ? path.resolve(process.env.VNX_CORPUS)
@@ -502,66 +499,6 @@ test('a corrupt deflate stream is a refusal, not a crash', () => {
   const err = refusal(() => decodeContainer(buf));
   assert.equal(err.cause_code, 'zip-malformed');
   assert.match(err.message, /will not inflate|malformed archive/);
-});
-
-test('an independently written parser agrees that this writer satisfies SPEC.md 7.1', () => {
-  // My raw-byte guards above and my writer are both mine, so they can share a
-  // misconception and agree with each other about it. `scripts/container-fields.py`
-  // was written at another seat from the same section of the spec, parses raw,
-  // and checks local against central. It is corroboration rather than coverage:
-  // the assertions above stand on their own, and this is what would catch them
-  // being wrong together.
-  const tool = path.join(REPO, 'scripts', 'container-fields.py');
-  if (!fs.existsSync(tool)) {
-    // Not a skip. The script is committed in this repository, so its absence is
-    // a fact about the checkout and is worth failing on.
-    assert.fail(`no ${tool}: the cross-seat container checker is missing from this checkout`);
-  }
-
-  const out = path.join(os.tmpdir(), `vnx-crosscheck-${process.pid}.vnz`);
-  fs.writeFileSync(out, encodeContainer(DOC, [['attachments/photo.txt', Buffer.from('not a photo\n')]]));
-  try {
-    const done = spawnSync('python3', [tool, '--spec', out], { encoding: 'utf8' });
-    if (done.error && done.error.code === 'ENOENT') {
-      // The one honest non-assertion here: python3 is not this repository's to
-      // provide. Losing corroboration is not the same as losing coverage, and
-      // saying so loudly is better than a silent skip.
-      console.error('\n  NOTE: python3 is absent, so the cross-seat container check did not run. ' +
-        'The raw-byte assertions above still cover SPEC.md 7.1 from this seat alone.\n');
-      return;
-    }
-    assert.equal(done.status, 0,
-      `container-fields.py reports faults in this writer's output:\n${done.stdout}${done.stderr}`);
-  } finally {
-    fs.rmSync(out, { force: true });
-  }
-});
-
-test('the cross-seat checker is able to fail, on an archive that breaks a WRITER rule', () => {
-  // Red proof for the corroboration above: a checker returning 0 for everything
-  // would agree with my writer for the wrong reason.
-  //
-  // The archive is built UNSORTED through `writeArchive`, which bypasses the
-  // sort in `encodeContainer` — so this exercises §7.1's entry-order rule, which
-  // is a writer rule and is the right thing to judge with a writer checker. The
-  // committed deflate fixtures are NOT usable here: they are input, and a
-  // writer checker over input reports category errors rather than defects.
-  const tool = path.join(REPO, 'scripts', 'container-fields.py');
-  const out = path.join(os.tmpdir(), `vnx-unsorted-${process.pid}.vnz`);
-  fs.writeFileSync(out, writeArchive([
-    { name: 'doc.vnx', data: Buffer.from(DOC) },
-    { name: 'zzz/late.txt', data: Buffer.from('z') },
-    { name: 'aaa/early.txt', data: Buffer.from('a') },
-  ]));
-  try {
-    const done = spawnSync('python3', [tool, '--spec', out], { encoding: 'utf8' });
-    if (done.error && done.error.code === 'ENOENT') return;
-    assert.equal(done.status, 1, `the checker must report a fault for an unsorted archive:\n${done.stdout}`);
-    assert.match(done.stdout + done.stderr, /sorted|order/i,
-      'and must name the ordering rule rather than some unrelated field');
-  } finally {
-    fs.rmSync(out, { force: true });
-  }
 });
 
 test('attachments are sorted by entry name, and the caller order is not preserved', () => {

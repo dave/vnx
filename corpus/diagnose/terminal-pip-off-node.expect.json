@@ -1,0 +1,24 @@
+{
+  "kind": "diagnose",
+  "note": "Section 3.3.2's terminal-pip check, which was a MUST with no fixture and no code. An arc's pips are its complete point list, so the first pip states the position of the node `from` names and the last states `to`'s: the two are one fact written twice, the pips are authoritative, and a reader MUST compare them and MUST record a diagnostic beyond section 3.3.3's 50 m, keeping both. Nothing is corrected and nothing is dropped, so `counts` cannot see this rule at all and the diagnostics are the entire expectation. The `sound` arc is what stops a reader that diagnoses every arc from passing: its terminals coincide with its nodes exactly, so the case pins a relationship rather than a count, and deleting it or drifting its nodes removes the discrimination while leaving the file green. Both terminals of `drifted` are off, by 100 m each, and that is deliberate rather than symmetry: it is what separates the two candidate paths. This sidecar pins `/networks/0/arcs/drifted/from` and `.../to`, naming the key that holds the losing copy, which is the field a person edits to fix the document. A reader naming the ARC instead emits two diagnostics at one identical path, distinguishable only by their English - and section 6.3 says the English MUST NOT be compared, so that reader has produced two reports a runner cannot tell apart. That is measured, not argued: the reference implementation does exactly this today. The path is a reading rather than a quotation - section 6.3's smallest-element rule is about a value that could not be used, and here both values are kept - so it is flagged for ruling rather than settled by this file. The code is `terminal-pip-off-node`, named here because no implementation had one: two libraries implement the rule and both deliberately emitted no code, on section 6.3's rule that a code belongs to a diagnostic some case pins. It is named to pair with `endpoint-off-arc`, which is the same question about a different pair of objects and shares the same 50 m for that reason.",
+  "schema": "valid",
+  "counts": {
+    "networks": 1
+  },
+  "positions": [
+    { "at": "/networks/0/arcs/drifted/pips/0", "lon": -3.68, "lat": 57.12 },
+    { "at": "/networks/0/nodes/start-drifted", "lon": -3.68, "lat": 57.1209 }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/arcs/drifted/from",
+      "code": "terminal-pip-off-node",
+      "message_advisory": "node `start-drifted` is 100 m from the first pip, beyond the 50 m tolerance"
+    },
+    {
+      "path": "/networks/0/arcs/drifted/to",
+      "code": "terminal-pip-off-node",
+      "message_advisory": "node `end-drifted` is 100 m from the last pip, beyond the 50 m tolerance"
+    }
+  ]
+}

@@ -420,6 +420,107 @@ fn format_tier() {
     assert!(cases > 0, "the format tier found no cases");
 }
 
+/// A write case whose output is a CONTAINER (`corpus/write/README.md`).
+///
+/// The attachments come from a manifest rather than from real files, because a
+/// name holding U+1F600 is subject to the checkout filesystem's Unicode
+/// normalisation: a checked-out file could arrive under a name that is not the
+/// one the case means, and the fixture would test the filesystem instead of the
+/// writer.
+///
+/// ⚠ THE ATTACHMENTS ARE FED REVERSED, deliberately. SPEC 7.1 requires the
+/// writer to sort its own entries by code point, so a writer that preserved the
+/// order it was handed must fail. Feeding them in manifest order would let it
+/// pass.
+fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
+    let expected = std::fs::read(dir.join(format!("{stem}.written.vnz")))
+        .unwrap_or_else(|_| panic!("write/{stem}: the manifest promises {stem}.written.vnz and there is none"));
+
+    // A case with no sidecar is a failure, not a skip, as everywhere else.
+    let sidecar_bytes = std::fs::read(dir.join(format!("{stem}.expect.json")))
+        .unwrap_or_else(|_| panic!("write/{stem} has no sidecar"));
+    let sidecar = parse(&sidecar_bytes).expect("the sidecar parses");
+    assert_eq!(
+        sidecar.get("kind").and_then(Json::as_str),
+        Some("write"),
+        "write/{stem}: the sidecar's `kind` must match its directory"
+    );
+    assert!(
+        sidecar
+            .get("note")
+            .and_then(Json::as_str)
+            .is_some_and(|n| !n.is_empty()),
+        "write/{stem}: the sidecar carries no `note`"
+    );
+    assert_eq!(
+        sidecar.get("root").and_then(Json::as_str),
+        Some("doc.vnx"),
+        "write/{stem}: this runner writes the document as doc.vnx"
+    );
+
+    // Without this, a writer that echoed its input would pass.
+    assert_ne!(input, expected.as_slice(), "write/{stem}: the input is already the written form");
+
+    let attachments = read_manifest(manifest, stem);
+    let reading = decode(input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
+    assert!(
+        reading.diagnostics.is_empty(),
+        "write/{stem}.in.vnx reported {}",
+        render_diagnostics(&reading.diagnostics)
+    );
+    let mut fed: Vec<vnz::Attachment> = attachments.clone();
+    fed.reverse();
+    let written = vnz::write(vnx::write(&reading.document).as_bytes(), &fed)
+        .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
+    assert_eq!(
+        written, expected,
+        "write/{stem}: writing the decoded input does not give the expected archive"
+    );
+
+    // The written form is a fixed point, reached the way the tier reaches it
+    // everywhere else: read the expected output back and write it again.
+    let back = vnz::read(&expected).unwrap_or_else(|e| panic!("write/{stem}.written.vnz: {e}"));
+    assert!(
+        back.reading.diagnostics.is_empty(),
+        "write/{stem}.written.vnz reported {}",
+        render_diagnostics(&back.reading.diagnostics)
+    );
+    assert_eq!(back.attachments, attachments, "write/{stem}: the archive does not carry the manifest's attachments");
+    let again = vnz::write(
+        vnx::write(&back.reading.document).as_bytes(),
+        &back.attachments,
+    )
+    .unwrap_or_else(|e| panic!("write/{stem}: rewriting the container: {e}"));
+    assert_eq!(again, expected, "write/{stem}: the written form is not a fixed point");
+}
+
+/// The manifest's attachments, in the order it lists them.
+fn read_manifest(manifest: &Path, stem: &str) -> Vec<vnz::Attachment> {
+    let bytes = std::fs::read(manifest).expect("the manifest reads");
+    let json = parse(&bytes).expect("the manifest parses");
+    let listed = json
+        .get("attachments")
+        .and_then(Json::as_array)
+        .unwrap_or_else(|| panic!("write/{stem}: the manifest carries no `attachments` array"));
+    listed
+        .iter()
+        .map(|a| {
+            let name = a
+                .get("name")
+                .and_then(Json::as_str)
+                .unwrap_or_else(|| panic!("write/{stem}: an attachment has no `name`"));
+            let body = a
+                .get("body")
+                .and_then(Json::as_str)
+                .unwrap_or_else(|| panic!("write/{stem}: attachment {name} has no `body`"));
+            vnz::Attachment {
+                path: name.to_string(),
+                bytes: body.as_bytes().to_vec(),
+            }
+        })
+        .collect()
+}
+
 /// SPEC 4.5.4's WRITE path, which is the one no other tier reaches.
 ///
 /// A case is a pair — `X.in.vnx` and `X.written.vnx` — plus a sidecar. The
@@ -440,6 +541,14 @@ fn write_tier() {
         };
         cases += 1;
         let input = std::fs::read(entry.path()).expect("the input reads");
+        // A case carrying an attachment manifest writes a CONTAINER, so its
+        // expected output is an archive rather than a document. See
+        // `corpus/write/README.md`.
+        let manifest = dir.join(format!("{stem}.attachments.json"));
+        if manifest.exists() {
+            write_container_case(&dir, stem, &input, &manifest);
+            continue;
+        }
         let expected = std::fs::read(dir.join(format!("{stem}.written.vnx")))
             .unwrap_or_else(|_| panic!("write/{stem}.in.vnx has no {stem}.written.vnx beside it"));
 

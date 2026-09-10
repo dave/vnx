@@ -57,7 +57,7 @@ pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
         if !entry.method_is_readable() {
             reading.diagnostics.push(Diagnostic::new(
                 attachment_pointer(&entry.name),
-                Cause::AttachmentMethodUnreadable {
+                Cause::AttachmentUnreadable {
                     method: entry.method,
                 },
             ));
@@ -83,12 +83,15 @@ pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
     })
 }
 
-/// SPEC 6.3 defines a diagnostic's `path` as a JSON Pointer into the document,
-/// and an archive entry is not in the document. This crate points at
-/// `/attachments/<name>`, which no document key can collide with because a VNX
-/// document has no top-level `attachments`. Reported as a spec gap.
+/// SPEC 6.3 puts a container diagnostic in the separate `#/entries/` pointer
+/// space, because an archive entry is not part of the document and no pointer
+/// into the document can locate one.
+///
+/// ⚠ THE MEMBER NAME IS ONE REFERENCE TOKEN, so a `/` inside it is escaped as
+/// `~1` and a `~` as `~0`, `~` first. An attachment name is the one place in
+/// this format where a member name routinely holds a slash.
 fn attachment_pointer(name: &str) -> String {
-    format!("/attachments/{}", escape_token(name))
+    format!("#/entries/{}", escape_token(name))
 }
 
 /// SPEC 7. A path must be relative and forward-slash separated; an absolute
@@ -208,10 +211,19 @@ pub fn write(document_bytes: &[u8], attachments: &[Attachment]) -> Result<Vec<u8
             compressed_size: 0,
             uncompressed_size: 0,
             local_header_offset: 0,
+            payload_bound: 0,
         })
         .collect();
     check_paths(&as_entries)?;
     check_duplicates(&as_entries)?;
+
+    // SPEC 7.1: the root document first, then the attachments sorted by entry
+    // name by Unicode CODE POINT. Caller order is not a property of the
+    // content, so two exporters over one library — one iterating a hash map,
+    // one a sorted list — must not emit two different archives for one
+    // document. Rust compares `String` by UTF-8 byte, which orders by code
+    // point, so the comparator needs nothing further here.
+    names[1..].sort_by(|a, b| a.path.cmp(&b.path));
 
     Ok(crate::zip::write_stored(&names))
 }
@@ -228,6 +240,7 @@ mod tests {
             compressed_size: 0,
             uncompressed_size: 0,
             local_header_offset: 0,
+            payload_bound: 0,
         }
     }
 

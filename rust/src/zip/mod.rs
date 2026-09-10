@@ -22,6 +22,16 @@ pub struct Entry {
     pub(crate) compressed_size: u64,
     pub(crate) uncompressed_size: u64,
     pub(crate) local_header_offset: u64,
+    /// Where this entry's payload cannot extend past: the nearest following
+    /// local header, or the central directory.
+    ///
+    /// ⚠ IT IS THE BOUND, AND THE DECLARED SIZE IS A CEILING. SPEC 7 forbids
+    /// refusing an entry that declares more bytes than it holds where the CRC
+    /// over the bytes present agrees, so the payload is read as the bytes that
+    /// are there and the checksum decides whether that was all of it. Reading
+    /// the declared count instead runs into the next local header and produces
+    /// a CRC failure on a conforming archive.
+    pub(crate) payload_bound: u64,
 }
 
 impl Entry {
@@ -120,8 +130,22 @@ impl<'a> Archive<'a> {
                 compressed_size,
                 uncompressed_size,
                 local_header_offset,
+                payload_bound: 0,
             });
             at = name_at + name_len + extra_len + comment_len;
+        }
+
+        // The bound on each payload takes every entry to know, and every entry
+        // needs it, so it is computed here once the directory is complete.
+        for i in 0..entries.len() {
+            let mine = entries[i].local_header_offset;
+            let mut bound = cd_offset;
+            for other in &entries {
+                if other.local_header_offset > mine && other.local_header_offset < bound {
+                    bound = other.local_header_offset;
+                }
+            }
+            entries[i].payload_bound = bound;
         }
 
         Ok(Archive { bytes, entries })
@@ -138,7 +162,13 @@ impl<'a> Archive<'a> {
         let name_len = u16(self.bytes, at + 26)? as usize;
         let extra_len = u16(self.bytes, at + 28)? as usize;
         let data_at = at + 30 + name_len + extra_len;
-        let data = slice(self.bytes, data_at, entry.compressed_size as usize)?;
+        if data_at as u64 > entry.payload_bound {
+            return bad(format!("`{}` starts past where its payload must end", entry.name));
+        }
+        // The declared size is a CEILING. See `Entry::payload_bound`.
+        let available = entry.payload_bound - data_at as u64;
+        let take = entry.compressed_size.min(available);
+        let data = slice(self.bytes, data_at, take as usize)?;
 
         let out = match entry.method {
             0 => {
@@ -320,6 +350,10 @@ fn crc32(bytes: &[u8]) -> u32 {
 pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
     /// Bit 11: the name and comment are UTF-8.
     const UTF8_FLAG: u16 = 1 << 11;
+    /// Version 1.0, which is what STORED requires. 2.0 is the minimum for
+    /// DEFLATE and this writer emits none, so claiming it would ask a reader
+    /// for more than the archive needs.
+    const STORED_VERSION: u16 = 10;
     /// A fixed timestamp, so container output is byte-deterministic: MS-DOS
     /// 1980-01-01 00:00:00, which is what `makevnz` writes. The DOS date packs
     /// as (year - 1980) << 9 | month << 5 | day.
@@ -336,7 +370,7 @@ pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
         let offset = out.len() as u32;
 
         out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
-        out.extend_from_slice(&20u16.to_le_bytes()); // version needed
+        out.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version needed
         out.extend_from_slice(&UTF8_FLAG.to_le_bytes());
         out.extend_from_slice(&0u16.to_le_bytes()); // method: stored
         out.extend_from_slice(&DOS_TIME.to_le_bytes());
@@ -350,8 +384,8 @@ pub(crate) fn write_stored(files: &[crate::vnz::Attachment]) -> Vec<u8> {
         out.extend_from_slice(&file.bytes);
 
         directory.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
-        directory.extend_from_slice(&20u16.to_le_bytes()); // version made by
-        directory.extend_from_slice(&20u16.to_le_bytes()); // version needed
+        directory.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version made by
+        directory.extend_from_slice(&STORED_VERSION.to_le_bytes()); // version needed
         directory.extend_from_slice(&UTF8_FLAG.to_le_bytes());
         directory.extend_from_slice(&0u16.to_le_bytes()); // method: stored
         directory.extend_from_slice(&DOS_TIME.to_le_bytes());

@@ -96,7 +96,7 @@ pub enum Cause {
     /// SPEC 7: an ATTACHMENT compressed by a method other than stored or
     /// deflate. The attachment is dropped and the document is returned;
     /// refusing a whole library over one photograph would be disproportionate.
-    AttachmentMethodUnreadable { method: u16 },
+    AttachmentUnreadable { method: u16 },
 }
 
 impl Cause {
@@ -105,7 +105,7 @@ impl Cause {
     /// compared: a corpus matching prose across implementations would be
     /// pinning translations of a rule rather than the rule.
     ///
-    /// Six of these are pinned by `corpus/diagnose/` today and are wire
+    /// Seven of these are pinned by `corpus/diagnose/` today and are wire
     /// commitments. The rest are this crate's own, offered because a caller
     /// switching on a cause is better served by a token than by a string
     /// search, and SPEC 6.3 permits a code on any diagnostic.
@@ -118,6 +118,7 @@ impl Cause {
             Cause::PolygonNestedRings => "polygon-nested-rings",
             Cause::TimestampNotUtc => "timestamp-not-utc",
             Cause::InlineEndpointBeyondTolerance { .. } => "endpoint-off-arc",
+            Cause::AttachmentUnreadable { .. } => "attachment-unreadable",
             // Not pinned anywhere; this crate's own tokens.
             Cause::WrongTypeOptional { .. } => "wrong-type-optional",
             Cause::WrongTypeRequired { .. } => "wrong-type-required",
@@ -131,7 +132,6 @@ impl Cause {
             Cause::TerminalPipOffNode { .. } => "terminal-pip-off-node",
             Cause::RecordTypeMissing => "record-type-missing",
             Cause::ImportanceOutOfRange => "importance-out-of-range",
-            Cause::AttachmentMethodUnreadable { .. } => "attachment-method-unreadable",
         }
     }
 }
@@ -215,7 +215,7 @@ impl std::fmt::Display for Cause {
                 f,
                 "`importance` is an integer from 1 to 5, so the field is dropped"
             ),
-            Cause::AttachmentMethodUnreadable { method } => write!(
+            Cause::AttachmentUnreadable { method } => write!(
                 f,
                 "the attachment uses compression method {method}, which is neither \
                  stored nor deflate, so it is dropped"
@@ -393,7 +393,7 @@ mod tests {
             },
             Cause::RecordTypeMissing,
             Cause::ImportanceOutOfRange,
-            Cause::AttachmentMethodUnreadable { method: 99 },
+            Cause::AttachmentUnreadable { method: 99 },
         ];
         let mut codes: Vec<&str> = all.iter().map(Cause::code).collect();
         let total = codes.len();

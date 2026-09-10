@@ -153,9 +153,21 @@ fn a_declared_size_is_not_an_allocation() {
 /// A stream that over-produces must be stopped by the running bound and say so,
 /// not run to completion and be measured at the end.
 ///
-/// Pinning a message is normally a bad guard. Here it is the only observable
-/// difference between a bounded and an unbounded decompressor, and the
-/// alternative is measuring memory, which is fragile in a test suite.
+/// Pinning a message is normally a bad guard, so the reasoning is here rather
+/// than left to be rediscovered as the bad practice it usually is. Ratified
+/// 2026-09-10.
+///
+/// **The guard is real; only its effect is invisible.** Marking this mutation as
+/// an expected survivor would have been wrong, and deleting the guard because
+/// nothing could observe it would have been worse — that is removing a real
+/// defence because the thing it prevents cannot be seen in a return value. The
+/// only alternative instrument is measuring memory inside a test suite, which is
+/// a worse instrument than a message assertion, not a better one.
+///
+/// Note what this is NOT: it is not an `||` over two messages. Where two guards
+/// can both refuse an input, an assertion naming either tests neither — see
+/// `a_stored_entry_whose_two_sizes_disagree_is_refused`, which came back green
+/// on its first red-proof for exactly that reason.
 #[test]
 fn the_declared_size_bounds_the_output_while_it_is_produced() {
     // A stored block carrying five bytes, declared as three.

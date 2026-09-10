@@ -200,7 +200,7 @@ implementations fixed the `message`/`code` failure above by hand, and the corpus
 could not have told any of them whether they had succeeded.
 
 **A path and a code together must identify one report.** No two diagnostics
-about a single document may share a path unless they also share a code, because
+about a single document may share both a path and a code, because
 `path` and `code` are the only two fields a conforming runner may compare — so
 two reports agreeing on both are, to a runner, the same report twice. A reader
 that can emit two it cannot distinguish has a pointer that is not doing its job.

@@ -1295,7 +1295,7 @@ pip's end, because Section 3.3.2 makes the pips authoritative and the node is th
 reference.
 
 AND ONE INVARIANT ACROSS ALL THREE. No two diagnostics about one document may
-share a `path` unless they also share a `code`. A `path` and a `code` are the
+share BOTH a `path` and a `code`. A `path` and a `code` are the
 only two fields a conforming runner may compare, so a reader that emits two
 reports differing in neither has emitted two a runner cannot tell apart — and a
 runner pairing each expectation with one distinct report would then pass a reader

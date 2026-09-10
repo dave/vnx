@@ -407,9 +407,11 @@ function runWriteCases(dir, api) {
  * under a name that is not the one the case means and the fixture would test
  * the filesystem instead of the writer.
  *
- * ⚠ THE ATTACHMENTS ARE FED REVERSED, deliberately. SPEC.md 7.1 requires the
- * writer to sort its own entries by code point, so a writer that kept the order
- * it was handed must fail here. Feeding them in manifest order lets it pass.
+ * The attachments are fed REVERSED. A writer's output must not depend on the
+ * order it was handed, and feeding them in manifest order cannot see one that
+ * does. It is a robustness check and no longer more than that: the rewritten
+ * SPEC.md 7.1 does not constrain entry order, so what makes the difference
+ * observable today is this case's byte comparison rather than a rule.
  */
 function runWriteContainerCase(dir, base, api) {
   const { decodeText, decodeContainer, write, encodeContainer } = api;

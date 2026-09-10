@@ -217,12 +217,12 @@ pub fn write(document_bytes: &[u8], attachments: &[Attachment]) -> Result<Vec<u8
     check_paths(&as_entries)?;
     check_duplicates(&as_entries)?;
 
-    // SPEC 7.1: the root document first, then the attachments sorted by entry
-    // name by Unicode CODE POINT. Caller order is not a property of the
-    // content, so two exporters over one library — one iterating a hash map,
-    // one a sorted list — must not emit two different archives for one
-    // document. Rust compares `String` by UTF-8 byte, which orders by code
-    // point, so the comparator needs nothing further here.
+    // The root document first, which SPEC 7.1 requires, then the attachments in
+    // a fixed order of this writer's own choosing. 7.1 no longer constrains the
+    // order of the entries after the first, so this is not conformance: it is so
+    // that two exporters over one library — one iterating a hash map, one a
+    // sorted list — emit one archive for one document. Rust compares `String` by
+    // UTF-8 byte, which orders by code point.
     names[1..].sort_by(|a, b| a.path.cmp(&b.path));
 
     Ok(crate::zip::write_stored(&names))

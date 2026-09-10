@@ -428,10 +428,11 @@ fn format_tier() {
 /// one the case means, and the fixture would test the filesystem instead of the
 /// writer.
 ///
-/// ⚠ THE ATTACHMENTS ARE FED REVERSED, deliberately. SPEC 7.1 requires the
-/// writer to sort its own entries by code point, so a writer that preserved the
-/// order it was handed must fail. Feeding them in manifest order would let it
-/// pass.
+/// The attachments are fed REVERSED. A writer's output must not depend on the
+/// order it was handed, and feeding them in manifest order cannot see one that
+/// does. It is a robustness check and no longer more than that: the rewritten
+/// SPEC 7.1 does not constrain entry order, so what makes the difference
+/// observable today is this case's byte comparison rather than a rule.
 fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     let expected = std::fs::read(dir.join(format!("{stem}.written.vnz")))
         .unwrap_or_else(|_| panic!("write/{stem}: the manifest promises {stem}.written.vnz and there is none"));

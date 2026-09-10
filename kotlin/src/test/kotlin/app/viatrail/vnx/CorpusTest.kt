@@ -320,9 +320,12 @@ class CorpusTest {
     /**
      * A write case whose expected output is an archive.
      *
-     * THE ATTACHMENTS ARE FED REVERSED, deliberately. Section 7.1 makes the
-     * writer sort its own entries by code point, so a writer that kept the order
-     * it was handed must fail here. Feeding them in manifest order lets it pass.
+     * The attachments are fed REVERSED. A writer's output must not depend on
+     * the order it was handed, and feeding them in manifest order cannot see one
+     * that does. It is a robustness check and no longer more than that: the
+     * rewritten section 7.1 does not constrain entry order, so what makes the
+     * difference observable today is this case's byte comparison rather than a
+     * rule.
      */
     @Test
     fun `write container`() {

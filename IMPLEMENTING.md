@@ -1034,6 +1034,15 @@ regression rather than a validator. And it rests on a measurement with a date on
 it. If the corpus deliberately reintroduces what the guard refuses, the answer is
 to change the rule rather than loosen the guard back into a fallback.
 
+One note on what a guard's comment is for. Where a check's shape looks arbitrary
+without the argument that produced it, the comment earns that argument: a reader
+who finds a rule and its check agreeing should still be able to see why the check
+is spelled as it is, and the alternative is somebody simplifying it back. That is
+not licence for a published document to narrate its own past, since a reader of
+the prose has no stake in which draft came first. The two get confused because
+both look like history. **The test is whether a reader needs it to avoid
+undoing the check.**
+
 ---
 
 ## 8. Where each language falls in

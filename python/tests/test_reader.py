@@ -1055,7 +1055,10 @@ class ContainerWriterDeflates(unittest.TestCase):
                     self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
 
     def test_attachments_are_sorted_by_entry_name(self) -> None:
-        """SPEC 7.1: the root document first, then attachments sorted.
+        """A library CHOICE, pinned so it does not drift -- not a rule.
+
+        SPEC 7.1 requires the root document first and leaves attachment order
+        to the writer. Sorting is what makes one input give one archive here.
 
         The names are supplied in REVERSE order on purpose. Two names already in
         sorted order cannot separate a writer that sorts from one that iterates
@@ -1076,23 +1079,9 @@ class ContainerWriterDeflates(unittest.TestCase):
                 ["doc.vnx", "alpha.txt", "middle.txt", "zebra.txt"],
             )
 
-    def test_the_sort_is_by_code_point_not_by_utf16(self) -> None:
-        """CPython's `sorted` is already code-point order, so this holds by
-        default. Asserted anyway: a default that happens to be right gives no
-        signal if the names are later routed through something that is not."""
-        import zipfile
-
-        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
-        # U+FFFD sorts BEFORE U+1F600 by code point and after it by UTF-16 code
-        # unit, because an astral character begins with a surrogate in D800..DBFF.
-        names = {"\U0001F600.txt": b"a", "�.txt": b"b"}
-        data = vnx.encode_container_bytes(document, names)
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            self.assertEqual(
-                archive.namelist(), ["doc.vnx", "�.txt", "\U0001F600.txt"]
-            )
-
     def test_the_document_comes_first_whatever_it_sorts_as(self) -> None:
+        """This one IS a rule: SPEC 7.1 requires the root document first, so
+        the fallback of SPEC 7 and the preferred-name rule agree."""
         import zipfile
 
         document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document

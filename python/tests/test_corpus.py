@@ -508,9 +508,15 @@ class WriteTier(unittest.TestCase):
 
         The archive's BYTES are not compared: SPEC 7.1 constrains five rules and
         leaves every other field to the writer, so two conforming writers are
-        not expected to agree byte for byte.  What is compared is what SPEC 7.1
-        does constrain -- the root document's tree, the entry names, the
-        attachment bodies, and the document being first.
+        not expected to agree byte for byte.
+
+        ⚠ AND ATTACHMENT ORDER IS ONE OF THE FIELDS IT LEAVES.  The root
+        document being FIRST is a rule; where the attachments fall after it is
+        not, and "Every other field of the archive is the writer's own
+        business" says so.  So the attachments are compared as an
+        ORDER-INSENSITIVE collection -- every name present, every body correct
+        -- and a comparison of the entry list in archive order would enforce a
+        rule the specification disclaims.
         """
         import zipfile
 
@@ -529,11 +535,11 @@ class WriteTier(unittest.TestCase):
                 with zipfile.ZipFile(io.BytesIO(written.read_bytes())) as archive:
                     want_names = archive.namelist()
                     want_root = archive.read(want_names[0])
-                self.assertEqual(names, want_names)
                 self.assertEqual(
                     names[0], "doc.vnx",
                     "SPEC 7.1 requires the root document first",
                 )
+                self.assertEqual(sorted(names[1:]), sorted(want_names[1:]))
                 self.assertEqual(
                     tree.compare_documents(bodies[names[0]], want_root, _WRITE_TIER),
                     "",
@@ -555,11 +561,13 @@ class WriteTier(unittest.TestCase):
             with self.subTest(case=written.name):
                 read = vnx.read_container_bytes(written.read_bytes())
                 self.assertEqual(read.diagnostics, [])
-                self.assertEqual(read.attachments, sorted(self._manifest(manifest)))
+                self.assertEqual(
+                    sorted(read.attachments), sorted(self._manifest(manifest))
+                )
                 again = vnx.read_container_bytes(
                     vnx.encode_container_bytes(read.document, self._manifest(manifest))
                 )
-                self.assertEqual(again.attachments, read.attachments)
+                self.assertEqual(sorted(again.attachments), sorted(read.attachments))
                 self.assertEqual(
                     tree.compare_documents(
                         vnx.encode_bytes(again.document),

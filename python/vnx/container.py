@@ -277,17 +277,13 @@ def _container(
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(_zip_info(_ROOT_DOCUMENT), body)
-        # SPEC 7.1 requires the root document first and says nothing about the
-        # rest, so the attachments are SORTED by entry name, compared by Unicode
-        # code point.  Caller order is not a property of the content: two
-        # exporters using one library, one iterating a hash map and one a sorted
-        # list, would otherwise emit different archives for the same document.
-        #
-        # CPython's `sorted` already compares by code point, so this needs no
-        # comparator where JavaScript and Kotlin do.  It is written out anyway,
-        # because a default that happens to be right gives no signal if the names
-        # are later routed through something that is not.
-        for name in sorted((attachments or {}), key=_code_points):
+        # SPEC 7.1 requires the root document FIRST and leaves every other
+        # field of the archive to the writer, attachment order included.  So
+        # the sort below is this library's own choice, not conformance: caller
+        # order is not a property of the content, and two exporters using this
+        # library -- one iterating a hash map, one a sorted list -- would
+        # otherwise emit different archives for the same document.
+        for name in sorted(attachments or {}):
             archive.writestr(_zip_info(name), (attachments or {})[name])
     return buffer.getvalue()
 
@@ -324,11 +320,6 @@ class _UTF8Info(zipfile.ZipInfo):
     @external_attr.setter
     def external_attr(self, value: int) -> None:
         self._external_attr = value
-
-
-def _code_points(name: str) -> tuple[int, ...]:
-    """Sort key by Unicode code point."""
-    return tuple(ord(character) for character in name)
 
 
 def _zip_info(name: str) -> zipfile.ZipInfo:

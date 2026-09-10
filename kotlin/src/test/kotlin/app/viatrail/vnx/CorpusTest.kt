@@ -156,9 +156,22 @@ class CorpusTest {
         }
     }
 
+    /**
+     * The sidecar's `attachments`, as a COLLECTION.
+     *
+     * Section 7 states one rule about archive order, and it is about selecting
+     * the ROOT DOCUMENT: where there is no `doc.vnx`, the reader takes the first
+     * `.vnx` entry in archive order. Nothing states the order a reader reports
+     * the attachments in, and this sidecar is read by six implementations, so
+     * comparing the list in order would make every one of them agree on
+     * something the format does not ask them to agree on.
+     */
     private fun checkAttachments(case: File, sidecar: Sidecar, result: ReadResult) {
         val expected = sidecar.attachments() ?: return
-        assertEquals(expected, result.attachments ?: emptyList(), "${case.name}: attachments")
+        assertEquals(
+            expected.sorted(), (result.attachments ?: emptyList()).sorted(),
+            "${case.name}: attachments",
+        )
     }
 
     // ---------------------------------------------------------------- reject

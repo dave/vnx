@@ -45,6 +45,10 @@ class ContainerTest {
 
     @Test
     fun `with no doc-vnx the FIRST vnx entry in archive order wins`() {
+        // ARCHIVE ORDER IS A RULE HERE, and this is the only place section 7
+        // makes it one: "Where there is none, the reader takes the first entry
+        // with a `.vnx` extension in archive order." `second.vnx` being the
+        // attachment is what says `first.vnx` was taken.
         val r = Vnx.readContainer(zip("first.vnx" to doc, "second.vnx" to """{"vnx":"0.1.0"}"""))
         assertEquals("In a container", r.document.waypoints!![0].name)
         assertEquals(listOf("second.vnx"), r.attachments)
@@ -120,7 +124,9 @@ class ContainerTest {
         // Section 7 in as many words: `a..b/photo.jpg` is a legal name and escapes
         // nothing. A reader checking for the substring refuses a valid archive.
         val r = Vnx.readContainer(zip("doc.vnx" to doc, "a..b/photo.jpg" to "x", "..hidden" to "y"))
-        assertEquals(listOf("a..b/photo.jpg", "..hidden"), r.attachments)
+        // A COLLECTION. The subject here is which names are accepted, and section
+        // 7 states no rule about the order a reader reports them in.
+        assertEquals(listOf("..hidden", "a..b/photo.jpg"), r.attachments!!.sorted())
     }
 
     @Test

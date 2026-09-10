@@ -32,6 +32,12 @@ object Vnx {
      *
      * The returned [ReadResult.attachments] holds every entry that is not the
      * root document, in archive order.
+     *
+     * THE ORDER IS THIS LIBRARY'S CHOICE, not a rule. Section 7 states archive
+     * order once, and it is about selecting the root document: where there is no
+     * `doc.vnx`, the reader takes the first `.vnx` entry in archive order.
+     * Nothing states the order the attachments come back in. Archive order is
+     * what a caller listing an archive expects, so it is what this returns.
      */
     fun readContainer(bytes: ByteArray): ReadResult {
         val entries = Zip.read(bytes)

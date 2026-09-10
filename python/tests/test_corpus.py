@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+import struct
 import unittest
 from typing import Any
 
@@ -30,6 +31,11 @@ CASE_SUFFIXES = (".vnx", ".vnz")
 # under test.  The one normalisation left is the one that is not about the emit
 # boundary at all: SPEC 3.1's absent-versus-empty.
 _WRITE_TIER = tree.Options(emit_boundary=False)
+
+
+def _bits(value: float) -> str:
+    """A double's IEEE 754 encoding, as 16 hexadecimal digits."""
+    return struct.pack(">d", value).hex()
 COLLECTIONS = ("folders", "networks", "routes", "tracks", "waypoints", "areas")
 
 
@@ -78,16 +84,6 @@ class CorpusStructure(unittest.TestCase):
     # that is in neither set fails the test below rather than being ignored:
     # an unasserted expectation is how a fixture quietly becomes the format.
     UNCHECKED = {
-        # The JSON Schema moved to corpus/schema/ on 2026-09-09 so that every
-        # implementation could reach it.  This runner still does not compare
-        # the verdict, and the reason changed rather than went away: validating
-        # draft 2020-12 needs a JSON Schema validator, and no target language
-        # ships one in its standard library.  Checking it here would cost this
-        # library its only real adoption property.  A schema verdict is about
-        # the schema rather than about a reader, so nothing else here is weaker
-        # for it -- but it is an expectation this runner does not compare, and
-        # saying so is the whole point of this set.
-        "schema",
         # A prose record of a limitation (SPEC 6.4), paired with an empty
         # `diagnostics` list which IS checked.
         "cannot_detect",
@@ -100,14 +96,6 @@ class CorpusStructure(unittest.TestCase):
         does the opposite: it makes the mechanism look more thorough than it is,
         and it is invisible because nothing goes red when the field goes away.
         Same shape as the finding this whole set was built for.
-
-        `schema` is due to leave the sidecars -- ruled 2026-09-09, since moving
-        the JSON Schema into corpus/ made it reachable but not checkable, and a
-        field most runners can only record as unchecked reads as an assertion
-        and is not one.  When that lands, THIS TEST GOES RED, and the fix is to
-        delete `schema` from UNCHECKED above.  That is the intended behaviour,
-        not a break: it is how the follow-up announces itself rather than
-        waiting to be remembered.
         """
         used: set[str] = set()
         for kind in ("accept", "reject", "diagnose"):
@@ -197,13 +185,41 @@ class _CorpusCase(unittest.TestCase):
                 )
 
     def _check_positions(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
+        """SPEC 8.1's `positions`, compared BY BIT PATTERN.
+
+        A value comparison cannot see a one-ulp move between the parse and the
+        model, and when it fails it prints two numbers that look identical, so
+        the failure reads as a broken test rather than as a broken reader.
+
+        It also cannot tell `-0.0` from `0.0`, because `-0.0 == 0.0` is True.
+        Every tree comparison in this suite is by value, so negative zero has
+        only one other instrument in the whole corpus -- the number table.
+
+        ⚠ AND NO FIXTURE REACHES THAT HALF TODAY. Not one of the 19 pinned
+        positions in accept/ and diagnose/ carries a zero longitude or latitude,
+        so a reader flipping every `0.0` to `-0.0` passes this check green.
+        Measured, not assumed. The comparison is bit-exact and would catch it;
+        the corpus is what does not ask. Said here so the reach is not assumed
+        by the next reader of this method.
+
+        ⚠ IT CANNOT SEE A PARSER THAT IS ONE ULP OUT. The sidecar's expected
+        value is read by the same parser, so such a parser is wrong on both
+        sides and the two agree. This check is about anything that moves a value
+        BETWEEN the parse and the model; a parser's own accuracy is a separate
+        test's job.
+        """
         for pinned in expect.get("positions") or []:
             position = resolve(document, pinned["at"])
             self.assertIsInstance(
                 position, vnx.Position, f"{name}: {pinned['at']} is not a position"
             )
-            self.assertEqual(position.lon, pinned["lon"], f"{name}: {pinned['at']} lon")
-            self.assertEqual(position.lat, pinned["lat"], f"{name}: {pinned['at']} lat")
+            for channel, got in (("lon", position.lon), ("lat", position.lat)):
+                want = float(pinned[channel])
+                self.assertEqual(
+                    _bits(got), _bits(want),
+                    f"{name}: {pinned['at']} {channel} is {got!r} "
+                    f"({_bits(got)}), the sidecar says {want!r} ({_bits(want)})",
+                )
 
     def _check_tracks(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
         for pinned in expect.get("tracks") or []:
@@ -645,19 +661,13 @@ class NumbersTier(unittest.TestCase):
                 # -0 and 0 are DIFFERENT bit patterns and the same value;
                 # SPEC 4.1 has rounding normalise the sign, so the table and the
                 # library agree on +0 and a mismatch here is real.
-                if self._bits(got) != self._bits(float(want)):
+                if _bits(got) != _bits(float(want)):
                     failures.append(
                         f"{bits} ({kind}) {label}: got {got!r} "
-                        f"({self._bits(got)}), table says {want} "
-                        f"({self._bits(float(want))})"
+                        f"({_bits(got)}), table says {want} "
+                        f"({_bits(float(want))})"
                     )
         self.assertEqual(failures[:10], [], f"{len(failures)} of {len(self.rows())} rows differ")
-
-    @staticmethod
-    def _bits(value: float) -> str:
-        import struct
-
-        return struct.pack(">d", value).hex()
 
     def test_the_table_reaches_the_rounding_tie(self) -> None:
         """The table is only worth running if reverting a rule reddens it.

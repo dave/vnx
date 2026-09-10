@@ -290,7 +290,17 @@ class _Reader:
                 )
                 return None
             channels.append(float(channel))
-        return Position(tuple(channels))
+        # SPEC 4.1: a channel this version does not define is ignored.  The
+        # loop above still checks it, because an array holding a string is not
+        # a position whichever index the string sits at.
+        lon, lat = channels[0], channels[1]
+        assert lon is not None and lat is not None
+        return Position(
+            lon,
+            lat,
+            channels[2] if len(channels) > 2 else None,
+            channels[3] if len(channels) > 3 else None,
+        )
 
     def _positions(
         self, obj: dict[str, JSONValue], key: str, path: str

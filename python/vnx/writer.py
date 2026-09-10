@@ -1,53 +1,46 @@
-"""The writer emit path (SPEC 4.5.4 and 4.1).
+"""The writer emit path (SPEC 4.1).
 
-The format has two emit paths and a library owes both.
+A writer emits a model as a document and applies the emit-boundary rules on the
+way: longitude and latitude to 6 decimal places, elevation to 1, and the
+shortest spelling of every position.  The shortest spelling is ``encode.py``'s,
+because it is a property of the tree; the rounding is here.
 
-* A **formatter** reproduces what a document carried: it does not round and it
-  does not re-spell a position.  ``reformat_bytes``.  SPEC 4.5.4 is explicit --
-  "A reader MUST NOT round, and neither MUST a formatter" -- and
-  ``corpus/accept/full-precision-coordinate.vnx`` round-trips byte for byte
-  only because of it.
-* A **writer** emits a model as a document, applying the writer-boundary rules:
-  longitude and latitude to 6 decimal places, elevation to 1, and the shortest
-  spelling of every position.  ``encode_bytes``.
-
-The same file cannot come out of both unchanged, and that is the point:
-``full-precision-coordinate.vnx`` reformats to itself and encodes to
-``-3.671235``, which its own sidecar says is correct.
-
-SPEC 4.5.4 also says rounding MUST NOT happen in the model.  So this builds a
-NEW model and renders that; the caller's document is never touched.  Rounding in
+SPEC 4.1 says rounding MUST NOT happen in the model.  So this builds a NEW
+model and encodes that; the caller's document is never touched.  Rounding in
 place would change which positions an arc de-duplication or a ring winding
 considers equal, which is a change to the geometry rather than to its spelling.
 
-Two traps live here rather than in the renderer, and neither is reachable by any
-corpus tier, because every tier re-renders a document that already exists:
+Two traps live here, and neither is reachable by any corpus tier, because every
+tier re-encodes a document that already satisfies the rules:
 
-* **Rounding can CREATE a negative zero.** ``round(-0.04, 1)`` is ``-0.0`` with
-  the sign bit set.  SPEC 4.5.3's negative-zero rule therefore applies to what
-  rounding produced, not only to what the document carried.  It is applied by
-  the renderer, which is the only thing here that decides what a number looks
-  like -- never a formatting primitive: ``format(-0.04, '.1f')`` is ``-0.0`` and
-  ``format(340.0, '.1f')`` is ``340.0``, and both are wrong bytes.
-* **Ties round to even** (SPEC 4.5.3).  Python's ``round`` does this on the true
-  binary value, measured rather than assumed; see ``tests/test_numbers.py``.
+* **Round by FORMATTING, never by scaling.**  ``round(v * 1e6) / 1e6`` is a
+  different operation: the scaled product is itself a binary64 and is not
+  always the exact scaled value, so the multiplication manufactures ties the
+  true decimal never had and destroys ones it did.  Go took that route and
+  disagreed with ``corpus/numbers/`` on 175 of 5,329 rows.
+* **Rounding can CREATE a negative zero.**  ``-0.04`` at one place is a zero
+  with its sign bit set.  It is the same value as ``0`` and carries no
+  information, so it is normalised here, where rounding produced it.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from typing import Union
 
-from .canonical import render_document
 from .encode import encode_document
 from .model import (
     Area, Arc, Chain, Document, Endpoint, Link, Network, Position, Route,
     RouteArc, Segment, Track, Waypoint,
 )
 
-__all__ = ["encode_bytes", "rounded_document", "LONLAT_PLACES", "ELEVATION_PLACES"]
+__all__ = [
+    "encode_bytes", "round_position", "rounded_document", "LONLAT_PLACES",
+    "ELEVATION_PLACES",
+]
 
-# SPEC 4.5.4.  Six places of latitude is about 11 cm, and a consumer GPS
+# SPEC 4.1.  Six places of latitude is about 11 cm, and a consumer GPS
 # receiver is accurate to 3 to 5 m, so digits below the sixth are the
 # arithmetic's noise rather than the instrument's reading.
 LONLAT_PLACES = 6
@@ -55,42 +48,54 @@ ELEVATION_PLACES = 1
 
 
 def encode_bytes(document: Document) -> bytes:
-    """Emit *document* as a writer: rounded, shortest-spelled, canonical."""
-    return render_document(encode_document(rounded_document(document)))
+    """Emit *document*: rounded, shortest-spelled, compact JSON.
+
+    ``separators`` makes it compact.  Whitespace and key order are the writer's
+    own business (SPEC 8.1), and the smallest spelling is the useful one.
+    ``allow_nan`` is off because ``NaN`` and ``Infinity`` are not JSON and
+    SPEC 4.2 forbids them throughout a document.
+    """
+    tree = encode_document(rounded_document(document))
+    text = json.dumps(
+        tree, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+    return text.encode("utf-8")
+
+
+def round_to(value: float, places: int) -> float:
+    """The value with at most *places* decimals nearest to *value* (SPEC 4.1).
+
+    By formatting and parsing back, which is the operation SPEC 4.1 defines.
+    Python's formatting is correctly rounded and breaks a tie to even.
+    """
+    rounded = float(f"{value:.{places}f}")
+    if rounded == 0.0:
+        # Catches both zeros: rounding a small negative value produces a zero
+        # with its sign bit set, which no document ever carried.
+        return 0.0
+    return rounded
 
 
 def round_position(position: Position) -> Position:
-    """Apply the writer-boundary rules to one position (SPEC 4.5.4, 4.1).
+    """Apply SPEC 4.1's precision to one position.
 
-    Time is a count of milliseconds and is never rounded.  A channel beyond the
-    fourth is carried through untouched: this format does not define one, and
-    inventing a rounding rule for a channel whose units are unknown would be a
-    guess.
+    Time is a count of milliseconds and is never rounded: there is nothing
+    below its last digit to round away.  An absent elevation stays absent --
+    rounding a missing elevation into 0.0 would put every unknown point at sea
+    level.
     """
-    channels: list[Union[float, None]] = list(position.channels)
-    for index in (0, 1):
-        value = channels[index]
-        if value is not None:
-            channels[index] = round(value, LONLAT_PLACES)
-    if len(channels) > 2 and channels[2] is not None:
-        channels[2] = round(channels[2], ELEVATION_PLACES)
-
-    # SPEC 4.1: a writer emits the shortest spelling.  Only TRAILING absences
-    # go: an interior `null` cannot be dropped, because doing so would move the
-    # time into the elevation channel.
-    while len(channels) > 2 and channels[-1] is None:
-        channels.pop()
-    return Position(tuple(channels))
+    return Position(
+        round_to(position.lon, LONLAT_PLACES),
+        round_to(position.lat, LONLAT_PLACES),
+        None if position.ele is None else round_to(position.ele, ELEVATION_PLACES),
+        position.time_ms,
+    )
 
 
 def _unhidden(item: object) -> None:
     """SPEC 3.8: a writer emits `hidden` only when it is true.
 
-    A document that carries `"hidden": false` round-trips through the FORMATTER
-    unchanged, because a formatter reproduces what the document said. A writer
-    emitting a model omits it, because absence already means visible and the
-    explicit false carries nothing. The two paths differ here exactly as they
-    differ over rounding.
+    Absence already means visible, so an explicit false carries nothing.
     """
     if getattr(item, "hidden", None) is False:
         setattr(item, "hidden", None)
@@ -111,7 +116,7 @@ def _endpoint(value: Union[Endpoint, None]) -> Union[Endpoint, None]:
 def rounded_document(document: Document) -> Document:
     """A copy of *document* with every position at writer precision.
 
-    The original is not modified: SPEC 4.5.4 keeps rounding out of the model.
+    The original is not modified: SPEC 4.1 keeps rounding out of the model.
     Everything that is not a position -- data records, styles, rulesets -- is
     shared rather than copied, because nothing here mutates it.
     """

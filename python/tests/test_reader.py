@@ -10,6 +10,12 @@ import io
 import unittest
 
 import vnx
+
+from . import tree
+
+# A round trip through the model applies SPEC 4.1's emit-boundary rules, so a
+# comparison against the source applies them to both sides.
+_ROUND_TRIP = tree.Options(emit_boundary=True)
 from vnx.decode import read_bytes
 from vnx.errors import VNXRefusal
 
@@ -65,7 +71,7 @@ class Versions(unittest.TestCase):
     def test_the_declared_version_is_written_back(self) -> None:
         # SPEC 2.2: a 0.1.0 reader that reads a 0.1.3 document writes `0.1.3`.
         document = read('{"vnx": "0.1.3"}').document
-        self.assertIn(b'"vnx": "0.1.3"', vnx.reformat_bytes(document))
+        self.assertIn(b'"vnx":"0.1.3"', vnx.encode_bytes(document))
 
     def test_the_top_level_must_be_an_object(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -124,14 +130,14 @@ class UnknownKeys(unittest.TestCase):
         )
 
     def test_an_unrecognised_style_key_survives_a_round_trip(self) -> None:
-        source = (
-            '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n'
-            '      "at": [0, 0],\n'
-            '      "style": {\n        "future-key": "value"\n      }\n'
-            '    }\n  ]\n}\n'
-        )
+        source = '{"vnx":"0.1.0","waypoints":[{"at":[0,0],"style":{"future-key":"value"}}]}'
         document = read(source).document
-        self.assertEqual(vnx.reformat_bytes(document).decode(), source)
+        self.assertEqual(
+            tree.compare_documents(
+                vnx.encode_bytes(document), source.encode(), _ROUND_TRIP
+            ),
+            "",
+        )
 
     def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
         result = read('{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "style": 3}]}')
@@ -216,14 +222,16 @@ class Positions(unittest.TestCase):
         )
         self.assertEqual(messages(result), [])
 
-    def test_a_fifth_channel_is_ignored_but_kept(self) -> None:
-        # SPEC 4.1: a reader MUST ignore channels beyond those it knows, so
-        # that a future channel is additive.  Ignoring is not discarding: the
-        # document has to survive a read-modify-write.
-        source = '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [-3.6, 57.1, 3, 5, 7]\n    }\n  ]\n}\n'
-        result = read(source)
+    def test_a_fifth_channel_is_ignored_and_not_written_back(self) -> None:
+        """SPEC 4.1: a reader MUST ignore a channel this version does not
+        define, and MUST NOT report a diagnostic for it.
+
+        Ignoring is what the rule says.  No rule asks a writer to reproduce
+        one, so this library does not carry it in the model.
+        """
+        result = read('{"vnx": "0.1.0", "waypoints": [{"at": [-3.6, 57.1, 3, 5, 7]}]}')
         self.assertEqual(messages(result), [])
-        self.assertEqual(vnx.reformat_bytes(result.document).decode(), source)
+        self.assertIn(b'"at":[-3.6,57.1,3.0,5.0]', vnx.encode_bytes(result.document))
 
 
 class Polygons(unittest.TestCase):
@@ -440,17 +448,26 @@ class MovingTime(unittest.TestCase):
 class HiddenAndAbsence(unittest.TestCase):
     """SPEC 3.1, 3.6 and 3.8.  Absence is not a default."""
 
-    def test_hidden_false_survives(self) -> None:
+    def test_hidden_false_survives_the_model(self) -> None:
+        """A reader keeps the false it was given.
+
+        A WRITER omits it, because absence already means visible (SPEC 3.8),
+        and `test_the_writer_omits_a_false_hidden` below pins that half.
+        """
         source = (
-            '{\n  "vnx": "0.1.0",\n  "areas": [\n    {\n      "hidden": false,\n'
-            '      "polygon": [\n        [0, 0],\n        [1, 0],\n        [1, 1],\n'
-            '        [0, 0]\n      ]\n    }\n  ]\n}\n'
+            '{"vnx":"0.1.0","areas":[{"hidden":false,'
+            '"polygon":[[0,0],[1,0],[1,1],[0,0]]}]}'
         )
-        self.assertEqual(vnx.canonicalise(doc(source)).decode(), source)
         document = read(source).document
         assert document.areas is not None
         self.assertIs(document.areas[0].hidden, False)
-        self.assertEqual(vnx.reformat_bytes(document).decode(), source)
+
+    def test_the_writer_omits_a_false_hidden(self) -> None:
+        source = (
+            '{"vnx":"0.1.0","areas":[{"hidden":false,'
+            '"polygon":[[0,0],[1,0],[1,1],[0,0]]}]}'
+        )
+        self.assertNotIn(b"hidden", vnx.encode_bytes(read(source).document))
 
     def test_an_absent_hidden_is_not_false(self) -> None:
         document = read(RING).document
@@ -462,11 +479,11 @@ class HiddenAndAbsence(unittest.TestCase):
         assert document.waypoints is not None
         self.assertNotIn("label-visible", document.waypoints[0].style or {})
 
-    def test_an_empty_collection_is_not_an_absent_one(self) -> None:
-        for source in ('{\n  "vnx": "0.1.0",\n  "areas": []\n}\n', '{\n  "vnx": "0.1.0"\n}\n'):
-            with self.subTest(source=source):
-                document = read(source).document
-                self.assertEqual(vnx.reformat_bytes(document).decode(), source)
+    def test_an_empty_collection_is_not_an_absent_one_in_the_model(self) -> None:
+        """SPEC 3.1 has a reader treat the two alike, and the model still tells
+        them apart: `None` is absent, `[]` is present and empty."""
+        self.assertEqual(read('{"vnx": "0.1.0", "areas": []}').document.areas, [])
+        self.assertIsNone(read('{"vnx": "0.1.0"}').document.areas)
 
     def test_a_non_boolean_hidden_is_dropped(self) -> None:
         result = read(RING.replace('{"polygon"', '{"hidden": "yes", "polygon"'))
@@ -613,22 +630,6 @@ class Containers(unittest.TestCase):
         assert at is not None
         self.assertEqual(at.lon, 1.0)
 
-    def test_the_container_paths_differ_exactly_as_the_plain_ones_do(self) -> None:
-        """Ruled 2026-09-09: repackaging must not silently lose precision."""
-        import zipfile
-
-        document = vnx.read_bytes(
-            b'{"vnx": "0.1.0", "waypoints": [{"at": [-3.6712345678901235, 57.118]}]}'
-        ).document
-        def doc_of(data: bytes) -> bytes:
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                return archive.read("doc.vnx")
-        kept = doc_of(vnx.reformat_container_bytes(document))
-        rounded = doc_of(vnx.encode_container_bytes(document))
-        self.assertIn(b"-3.6712345678901235", kept)
-        self.assertIn(b"-3.671235", rounded)
-        self.assertNotEqual(kept, rounded)
-
     def test_a_written_container_sets_the_utf8_flag(self) -> None:
         import io
         import zipfile
@@ -637,77 +638,6 @@ class Containers(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(vnx.encode_container_bytes(document))) as archive:
             for info in archive.infolist():
                 self.assertTrue(info.flag_bits & 0x800, info.filename)
-
-
-class CanonicalLayout(unittest.TestCase):
-    """SPEC 4.5.  Shapes the corpus does not contain."""
-
-    def round(self, source: str) -> str:
-        return vnx.canonicalise(doc(source)).decode()
-
-    def test_an_empty_array_and_object_stay_on_one_line(self) -> None:
-        # SPEC 4.5.2 does not say what an empty array does; it holds only
-        # numbers and null vacuously, so it takes the inline form.
-        self.assertEqual(
-            self.round('{"vnx":"0.1.0","waypoints":[],"folders":[{}]}'),
-            '{\n  "vnx": "0.1.0",\n  "folders": [\n    {}\n  ],\n  "waypoints": []\n}\n',
-        )
-
-    def test_a_string_array_is_not_inlined(self) -> None:
-        self.assertEqual(
-            self.round('{"vnx":"0.1.0","rulesets":["a","b"]}'),
-            '{\n  "vnx": "0.1.0",\n  "rulesets": [\n    "a",\n    "b"\n  ]\n}\n',
-        )
-
-    def test_a_boolean_array_is_not_inlined(self) -> None:
-        # SPEC 4.5.2 says numbers and null.  A boolean is neither, even though
-        # Python calls it an int.
-        self.assertIn(
-            '"rulesets": [\n    true,\n    false\n  ]',
-            self.round('{"vnx":"0.1.0","rulesets":[true,false]}'),
-        )
-
-    def test_a_number_array_nested_in_a_record_is_inlined(self) -> None:
-        self.assertIn(
-            '"xs": [1, 2, 3]',
-            self.round('{"vnx":"0.1.0","waypoints":[{"data":[{"@type":"x","xs":[1,2,3]}]}]}'),
-        )
-
-    def test_a_control_character_is_escaped(self) -> None:
-        self.assertIn(
-            r'"\u0001\n"', self.round('{"vnx":"0.1.0","generator":"\\u0001\\n"}')
-        )
-
-    def test_non_ascii_is_emitted_as_utf8(self) -> None:
-        # SPEC 4.5.5 gives the encoding and names no further escaping.  This is
-        # unspecified: Go's encoding/json would also escape < > & U+2028 U+2029.
-        self.assertIn("Bràigh", self.round('{"vnx":"0.1.0","generator":"Bràigh"}'))
-        self.assertIn("<a>", self.round('{"vnx":"0.1.0","generator":"<a>"}'))
-
-    def test_a_solidus_is_not_escaped(self) -> None:
-        self.assertIn('"a/b"', self.round('{"vnx":"0.1.0","generator":"a/b"}'))
-
-    def test_canonicalise_keeps_an_unknown_key(self) -> None:
-        # A formatter renders bytes.  It is not a reader, so it does not skip
-        # what a reader would diagnose, and it does not round (SPEC 4.5.4).
-        self.assertIn(
-            '"nmae"',
-            self.round('{"vnx":"0.1.0","waypoints":[{"nmae":"typo"}]}'),
-        )
-
-    def test_canonicalise_does_not_round(self) -> None:
-        self.assertIn(
-            "-3.6712345678901235",
-            self.round('{"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.1]}]}'),
-        )
-
-    def test_canonicalise_refuses_a_non_finite_number(self) -> None:
-        with self.assertRaises(VNXRefusal):
-            self.round('{"vnx":"0.1.0","waypoints":[{"at":[NaN,57.1]}]}')
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RuledStyleValues(unittest.TestCase):
@@ -899,67 +829,6 @@ class DanglingFolder(unittest.TestCase):
         self.assertIsNone(result.document.tracks[0].folder)
 
 
-class EscapingTable(unittest.TestCase):
-    """SPEC 4.5.5's escaping rule, which no corpus file reaches.
-
-    Five control characters take their short escape; every other control
-    character is \\u00xx with LOWERCASE hex; nothing else is escaped at all,
-    including the five that Go's encoding/json escapes by default.
-    """
-
-    def test_the_five_short_escapes(self) -> None:
-        from vnx.canonical import render_string
-
-        for raw, want in (
-            ("\b", '"\\b"'),
-            ("\f", '"\\f"'),
-            ("\n", '"\\n"'),
-            ("\r", '"\\r"'),
-            ("\t", '"\\t"'),
-        ):
-            with self.subTest(char=repr(raw)):
-                self.assertEqual(render_string(raw), want)
-
-    def test_every_other_control_character_is_lower_case_u00xx(self) -> None:
-        from vnx.canonical import render_string
-
-        for code, want in ((0x00, '"\\u0000"'), (0x07, '"\\u0007"'),
-                           (0x0B, '"\\u000b"'), (0x1F, '"\\u001f"')):
-            with self.subTest(code=hex(code)):
-                self.assertEqual(render_string(chr(code)), want)
-
-    def test_upper_case_hex_would_be_wrong(self) -> None:
-        from vnx.canonical import render_string
-
-        self.assertEqual(render_string(chr(0x1F)), '"\\u001f"')
-        self.assertNotEqual(render_string(chr(0x1F)), '"\\u001F"')
-
-    def test_the_two_characters_json_itself_requires(self) -> None:
-        from vnx.canonical import render_string
-
-        self.assertEqual(render_string('"'), '"\\""')
-        self.assertEqual(render_string("\\"), '"\\\\"')
-
-    def test_the_five_go_escapes_by_default_are_written_raw(self) -> None:
-        from vnx.canonical import render_string
-
-        for char in ("<", ">", "&", " ", " "):
-            with self.subTest(char=repr(char)):
-                self.assertEqual(render_string(char), f'"{char}"')
-
-    def test_nothing_above_007f_is_ever_escaped(self) -> None:
-        from vnx.canonical import render_string
-
-        for code in (0x80, 0xE0, 0x2028, 0xFFFD, 0x1F600):
-            with self.subTest(code=hex(code)):
-                self.assertNotIn("\\u", render_string(chr(code)))
-
-    def test_a_solidus_is_not_escaped(self) -> None:
-        from vnx.canonical import render_string
-
-        self.assertEqual(render_string("a/b"), '"a/b"')
-
-
 class ContainerPathRules(unittest.TestCase):
     """SPEC 7's path and duplicate rules, at the edges no archive reaches.
 
@@ -1114,28 +983,50 @@ class ContainerCompression(unittest.TestCase):
         self.assertIsNotNone(result.document)
 
 
-class ContainerWriterUsesStored(unittest.TestCase):
-    """A writer emits STORED for every entry; a reader still accepts deflate.
+class ContainerWriterDeflates(unittest.TestCase):
+    """SPEC 7.1: every entry is stored or deflated, and a writer picks.
 
-    Ruled 2026-09-09 because deflate has no canonical output: for one corpus
-    document Go's `compress/flate` emits 116 bytes and zlib emits 108, and no
-    zlib level from 0 to 9 reproduces the committed bytes. A deflated archive is
-    byte-reproducible only by the language that wrote it.
-
-    Python is the seat least likely to notice the rule is needed, because
-    `zipfile` defaults to stored: this library satisfied the rule by accident
-    before it existed, in the same way its number rendering satisfies others.
+    This one deflates, so an archive costs less than the bytes it carries.  The
+    bytes of an archive are not otherwise constrained: two conforming writers
+    are not expected to produce the same archive for one document.
     """
 
-    def test_every_entry_is_stored(self) -> None:
+    def document(self) -> vnx.Document:
+        path = vnx.__file__.rsplit("/vnx/", 1)[0]
+        with open(f"{path}/../corpus/accept/example-network.vnx", "rb") as handle:
+            return vnx.read_bytes(handle.read()).document
+
+    def test_every_entry_is_deflated(self) -> None:
         import zipfile
 
-        document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
-        data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
+        data = vnx.encode_container_bytes(
+            self.document(), {"attachments/p.txt": b"x" * 200}
+        )
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             for info in archive.infolist():
                 with self.subTest(entry=info.filename):
-                    self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+                    self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
+
+    def test_the_archive_is_smaller_than_the_document_it_holds(self) -> None:
+        document = self.document()
+        self.assertLess(
+            len(vnx.encode_container_bytes(document)),
+            len(vnx.encode_bytes(document)),
+        )
+
+    def test_the_archive_reads_back_through_this_library(self) -> None:
+        document = self.document()
+        data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x" * 200})
+        result = vnx.read_container_bytes(data)
+        self.assertEqual(result.diagnostics, [])
+        self.assertEqual(result.attachments, ["attachments/p.txt"])
+        self.assertEqual(
+            tree.compare_documents(
+                vnx.encode_bytes(result.document), vnx.encode_bytes(document),
+                tree.Options(),
+            ),
+            "",
+        )
 
     def test_the_archive_is_byte_reproducible(self) -> None:
         document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
@@ -1143,35 +1034,15 @@ class ContainerWriterUsesStored(unittest.TestCase):
         second = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         self.assertEqual(first, second)
 
-    def test_the_archive_matches_another_language_byte_for_byte(self) -> None:
-        """Cross-language byte identity, measured against the Kotlin seat.
-
-        The agreed input, its document re-rendered rather than written so the
-        number rules cannot muddy the comparison. This hash was produced
-        independently by two implementations that share no code.
-
-        Getting here needed three header fields pinned beyond compression and
-        the timestamp, and two of them encode the writing MACHINE rather than
-        the content: `create_system` is 3 on macOS and Linux and 0 on Windows,
-        and `writestr` stamps file mode 0o600 into the external attributes. The
-        same Python on two platforms emitted two different archives for one
-        document until this was fixed.
-        """
-        import hashlib
-
-        document = vnx.read_bytes(
-            b'{"vnx":"0.1.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}'
-        ).document
-        data = vnx.reformat_container_bytes(
-            document, {"attachments/photo.txt": b"not a photo\n"}
-        )
-        self.assertEqual(len(data), 350)
-        self.assertEqual(
-            hashlib.sha256(data).hexdigest(),
-            "43f7071245e04ad302ac7f92162015de010ef283936bf6abbd3787c9c3992f47",
-        )
-
     def test_no_header_field_carries_the_writing_platform(self) -> None:
+        """Nothing in SPEC 7.1 requires this; it is what makes one input give
+        one output wherever it is written.
+
+        `create_system` is 3 on macOS and Linux and 0 on Windows, and
+        `writestr` stamps file mode 0o600 into the external attributes, so the
+        same Python on two platforms emitted two different archives for one
+        document until this was pinned.
+        """
         import zipfile
 
         document = vnx.read_bytes(b'{"vnx": "0.1.0"}').document
@@ -1181,8 +1052,6 @@ class ContainerWriterUsesStored(unittest.TestCase):
                 with self.subTest(entry=info.filename):
                     self.assertEqual(info.create_system, 0, "the writing OS leaked")
                     self.assertEqual(info.external_attr, 0, "a file mode leaked")
-                    self.assertEqual(info.create_version, 10)
-                    self.assertEqual(info.extract_version, 10)
                     self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0))
 
     def test_attachments_are_sorted_by_entry_name(self) -> None:
@@ -1314,9 +1183,9 @@ class ContainerHeadersAgree(unittest.TestCase):
 
         for header in local_headers(self.archive()):
             with self.subTest(entry=header.name):
-                self.assertEqual(header.version, 10)
+                self.assertEqual(header.version, 20, "deflate needs 2.0")
                 self.assertEqual(header.flags, 0x0800, "UTF-8 set, bit 3 clear")
-                self.assertEqual(header.method, 0, "stored")
+                self.assertEqual(header.method, 8, "deflated")
                 self.assertEqual(header.extra_len, 0)
                 self.assertNotEqual(header.crc, 0, "written, not deferred")
 
@@ -1331,13 +1200,13 @@ class ContainerHeadersAgree(unittest.TestCase):
         from .zipbytes import central_headers, local_headers
 
         data = bytearray(self.archive())
-        struct.pack_into("<H", data, 4, 20)   # local version 10 -> 20
+        struct.pack_into("<H", data, 4, 10)   # local version 20 -> 10
         struct.pack_into("<I", data, 14, 0)   # local CRC -> 0
         corrupted = bytes(data)
 
         with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:
             self.assertTrue(
-                all(info.extract_version == 10 for info in archive.infolist()),
+                all(info.extract_version == 20 for info in archive.infolist()),
                 "the library saw the corruption; this test is no longer needed",
             )
 

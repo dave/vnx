@@ -2,14 +2,11 @@
 
 Two properties of this model are load-bearing and neither is obvious.
 
-**A position keeps its arity.**  ``[lon, lat]`` and ``[lon, lat, null]`` state
-the same thing (SPEC 4.1) but they are different bytes, and every file in
-``corpus/accept/`` is asserted to survive a decode and re-encode byte for byte
-(SPEC 8.1).  ``accept/absent-elevation-and-time.vnx`` is stored canonical
-carrying a trailing ``null``, so a model that normalised the two spellings
-could not reproduce it.  Shortening is a rule for a *writer* at the
-serialisation boundary, alongside rounding (SPEC 4.5.4), not a rule for a
-formatter.
+**A position does not keep the arity the document spelled.**  ``[lon, lat]``
+and ``[lon, lat, null]`` state the same thing (SPEC 4.1), so they are one
+model, and the encoder writes the shortest spelling of it.  The bytes of a
+document are not a rule, and a comparison of two documents applies the same
+normalisation (SPEC 8.1).
 
 **Absent is not empty and not false.**  ``None`` means the key was not present.
 An empty ``data`` array, a ``hidden`` written as ``false``, and an omitted key
@@ -33,35 +30,18 @@ Style = dict[str, JSONValue]
 
 @dataclass(frozen=True, slots=True)
 class Position:
-    """A fixed-channel coordinate array: ``[lon, lat, ele, time_ms]``.
+    """A coordinate: longitude, latitude, an optional elevation and time.
 
-    Channels from index 2 upward may be ``None``.  ``channels`` holds exactly
-    what the document carried, including a trailing ``None`` and including any
-    channel beyond index 3, which a reader must ignore but must not lose
-    (SPEC 4.1).
+    On the wire this is a fixed-channel array ``[lon, lat, ele, time_ms]``
+    (SPEC 4.1), where a channel from index 2 upward may be ``null`` and a
+    trailing channel may be left out.  A channel the format does not define is
+    ignored on the way in and is not written back out.
     """
 
-    channels: tuple[Union[float, None], ...]
-
-    @property
-    def lon(self) -> float:
-        value = self.channels[0]
-        assert value is not None
-        return value
-
-    @property
-    def lat(self) -> float:
-        value = self.channels[1]
-        assert value is not None
-        return value
-
-    @property
-    def ele(self) -> Union[float, None]:
-        return self.channels[2] if len(self.channels) > 2 else None
-
-    @property
-    def time_ms(self) -> Union[float, None]:
-        return self.channels[3] if len(self.channels) > 3 else None
+    lon: float
+    lat: float
+    ele: Union[float, None] = None
+    time_ms: Union[float, None] = None
 
     def same_point(self, other: "Position") -> bool:
         """Value equality in longitude and latitude (SPEC 3.3.3)."""

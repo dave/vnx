@@ -1,36 +1,38 @@
-"""Writing a VNX document.
+"""Turning the model into a JSON value tree.
 
-The model is turned into a JSON value tree here; ``canonical.py`` turns that
-tree into bytes.  Key order is the serialiser's business (SPEC 4.5.1), so
-nothing in this module orders anything.
+``writer.py`` hands that tree to ``json`` for the bytes.  Key order is the key
+order of each object built here, and it carries no meaning: SPEC 4.4 says a
+reader MUST accept any order.
 
 A key absent from the model is absent from the output.  Nothing is written as a
-default, and in particular ``hidden`` is written only when the model carries it
-(SPEC 3.8), an empty ``data`` array is written only when the document had one,
-and a position keeps the arity it was read with (SPEC 4.1, and see model.py).
+default: ``hidden`` is written only when the model carries it (SPEC 3.8), and an
+empty ``data`` array only when the document had one.
 """
 
 from __future__ import annotations
 
 from typing import Any, Union
 
-from .canonical import render_document
 from .model import (
     Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
     Network, Position, Route, RouteArc, Segment, Track, Waypoint,
 )
 
-__all__ = ["reformat_bytes", "encode_document"]
+__all__ = ["encode_document"]
 
 
-def reformat_bytes(document: Document) -> bytes:
-    """Render *document* in canonical form, preserving its values (SPEC 4.5).
+def _position(position: Position) -> list[JSONValue]:
+    """The shortest spelling of *position* (SPEC 4.1).
 
-    This is the FORMATTER: it does not round and it does not re-spell a
-    position.  For the writer path, which applies the boundary rules of
-    SPEC 4.5.4 and 4.1, use `vnx.encode_bytes`.
+    Only TRAILING absences go.  An interior ``null`` stays, because dropping it
+    would move the time into the elevation channel.
     """
-    return render_document(encode_document(document))
+    channels: list[Union[float, None]] = [
+        position.lon, position.lat, position.ele, position.time_ms
+    ]
+    while len(channels) > 2 and channels[-1] is None:
+        channels.pop()
+    return channels
 
 
 def _put(obj: dict[str, JSONValue], key: str, value: Any) -> None:
@@ -41,7 +43,7 @@ def _put(obj: dict[str, JSONValue], key: str, value: Any) -> None:
 def _positions(items: Union[list[Position], None]) -> Union[list[JSONValue], None]:
     if items is None:
         return None
-    return [list(item.channels) for item in items]
+    return [_position(item) for item in items]
 
 
 def _records(items: Union[list[DataRecord], None]) -> Union[list[JSONValue], None]:
@@ -55,7 +57,7 @@ def _endpoint(value: Union[Endpoint, None]) -> Union[JSONValue, None]:
         return None
     if isinstance(value, str):
         return value
-    return list(value.channels)
+    return _position(value)
 
 
 def _common(obj: dict[str, JSONValue], item: Any) -> None:
@@ -80,7 +82,7 @@ def _folder(folder: Folder) -> JSONValue:
 def _waypoint(point: Waypoint) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, point)
-    _put(obj, "at", list(point.at.channels) if point.at is not None else None)
+    _put(obj, "at", _position(point.at) if point.at is not None else None)
     _put(obj, "style", point.style)
     _put(obj, "data", _records(point.data))
     return obj
@@ -129,7 +131,7 @@ def _network(network: Network) -> JSONValue:
     _common(obj, network)
     if network.nodes is not None:
         obj["nodes"] = {
-            key: list(position.channels) for key, position in network.nodes.items()
+            key: _position(position) for key, position in network.nodes.items()
         }
     if network.arcs is not None:
         obj["arcs"] = {key: _arc(arc) for key, arc in network.arcs.items()}

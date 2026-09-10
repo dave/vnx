@@ -1,9 +1,10 @@
-"""The writer emit path (SPEC 4.5.4 and 4.1).
+"""The writer emit path (SPEC 4.1).
 
-Nothing here is reachable by any corpus tier. Every tier re-renders a document
-that already exists, so a writer is only ever asked what a value should look
-like when it is emitted from a model with no text behind it. That is why
-SPEC 4.5.3's tie rule and the rounding rules are per-implementation tests.
+Nothing here is reachable by the accept, reject or diagnose tiers. Each of them
+re-encodes a document that already satisfies the emit-boundary rules, so a
+writer is only ever asked what a value should look like when it is emitted from
+a model with no text behind it. That is why the rounding rules are
+per-implementation tests as well as a corpus tier.
 """
 
 from __future__ import annotations
@@ -12,39 +13,44 @@ import math
 import unittest
 
 import vnx
+from vnx.encode import _position
 from vnx.model import Document, Position, Waypoint
-from vnx.writer import encode_bytes, round_position, rounded_document
+from vnx.writer import encode_bytes, round_position, round_to, rounded_document
 
 
-def waypoint_at(*channels: float | None) -> Document:
-    return Document(vnx="0.1.0", waypoints=[Waypoint(at=Position(tuple(channels)))])
+def waypoint_at(
+    lon: float,
+    lat: float,
+    ele: float | None = None,
+    time_ms: float | None = None,
+) -> Document:
+    return Document(
+        vnx="0.1.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
+    )
 
 
-class TwoEmitPaths(unittest.TestCase):
-    """The formatter and the writer must NOT agree, and the corpus says so."""
-
-    def test_the_full_precision_case_reformats_to_itself(self) -> None:
+class TheEmitBoundary(unittest.TestCase):
+    def source(self) -> bytes:
         path = vnx.__file__.rsplit("/vnx/", 1)[0]
-        source = open(
-            f"{path}/../corpus/accept/full-precision-coordinate.vnx", "rb"
-        ).read()
-        document = vnx.read_bytes(source).document
-        self.assertEqual(vnx.reformat_bytes(document), source)
+        with open(f"{path}/../corpus/accept/full-precision-coordinate.vnx", "rb") as f:
+            return f.read()
 
-    def test_the_same_case_encodes_to_the_rounded_value(self) -> None:
+    def test_the_full_precision_case_encodes_to_the_rounded_value(self) -> None:
         """Its sidecar: "Encoding this document through a writer gives
         -3.671235, and that is correct." """
-        path = vnx.__file__.rsplit("/vnx/", 1)[0]
-        source = open(
-            f"{path}/../corpus/accept/full-precision-coordinate.vnx", "rb"
-        ).read()
-        document = vnx.read_bytes(source).document
-        encoded = encode_bytes(document)
-        self.assertIn(b"[-3.671235, 57.118123]", encoded)
-        self.assertNotEqual(encoded, source)
+        document = vnx.read_bytes(self.source()).document
+        self.assertIn(b"[-3.671235,57.118123]", encode_bytes(document))
+
+    def test_the_reader_keeps_the_full_precision_value(self) -> None:
+        """SPEC 4.1: a reader MUST NOT round. Rounding is the writer's."""
+        document = vnx.read_bytes(self.source()).document
+        assert document.waypoints is not None
+        at = document.waypoints[0].at
+        assert at is not None
+        self.assertEqual(at.lon, -3.6712345678901235)
 
     def test_the_writer_does_not_touch_the_caller_s_model(self) -> None:
-        """SPEC 4.5.4: rounding MUST NOT happen in the model."""
+        """SPEC 4.1: rounding MUST NOT happen in the model."""
         document = waypoint_at(-3.6712345678901235, 57.118)
         encode_bytes(document)
         assert document.waypoints is not None
@@ -52,54 +58,60 @@ class TwoEmitPaths(unittest.TestCase):
         assert at is not None
         self.assertEqual(at.lon, -3.6712345678901235)
 
+    def test_the_rounded_copy_is_a_different_document(self) -> None:
+        document = waypoint_at(-3.6712345678901235, 57.118)
+        self.assertIsNot(rounded_document(document), document)
+
 
 class Rounding(unittest.TestCase):
     def test_places(self) -> None:
-        p = round_position(Position((-3.6712345678901235, 57.11812345678901, 340.26)))
-        self.assertEqual(p.channels, (-3.671235, 57.118123, 340.3))
+        p = round_position(Position(-3.6712345678901235, 57.11812345678901, 340.26))
+        self.assertEqual((p.lon, p.lat, p.ele), (-3.671235, 57.118123, 340.3))
 
     def test_time_is_never_rounded(self) -> None:
-        p = round_position(Position((1.0, 2.0, 3.0, 1778914991000.0)))
+        p = round_position(Position(1.0, 2.0, 3.0, 1778914991000.0))
         self.assertEqual(p.time_ms, 1778914991000.0)
 
-    def test_a_channel_beyond_the_fourth_is_carried_through(self) -> None:
-        """The fifth channel keeps full precision; this format defines none.
+    def test_an_absent_elevation_stays_absent(self) -> None:
+        """Rounding a missing elevation into 0.0 would put every unknown point
+        at sea level."""
+        self.assertIsNone(round_position(Position(1.0, 2.0)).ele)
 
-        `3.05` rounds DOWN to `3.0`, and that is correct: the literal is really
-        3.04999999999999982..., so it is below the midpoint and not a tie at
-        all. A rounding test written from decimal intuition asserts 3.1 here
-        and calls a correct writer broken.
+    def test_rounding_is_by_formatting_and_not_by_scaling(self) -> None:
+        """SPEC 4.1 names the scaled route as non-conforming, and these are the
+        three values it argues from.
+
+        The scaled route gives 0.2, 0 and 0.4, because the scaled product is
+        itself a binary64 and is not always the exact scaled value.
         """
-        p = round_position(Position((1.0, 2.0, 3.05, 4.0, 5.6789)))
-        self.assertEqual(p.channels, (1.0, 2.0, 3.0, 4.0, 5.6789))
+        for value, want in ((0.15, 0.1), (0.05, 0.1), (0.45, 0.5)):
+            with self.subTest(value=value):
+                self.assertEqual(round_to(value, 1), want)
 
 
 class ShortestSpelling(unittest.TestCase):
     """SPEC 4.1: a writer emits the shortest spelling of a position."""
 
-    def test_a_trailing_null_goes(self) -> None:
-        self.assertEqual(round_position(Position((1.0, 2.0, None))).channels, (1.0, 2.0))
+    def test_an_absent_elevation_and_time_leave_two_channels(self) -> None:
+        self.assertEqual(_position(Position(1.0, 2.0)), [1.0, 2.0])
 
-    def test_several_trailing_nulls_go(self) -> None:
-        self.assertEqual(
-            round_position(Position((1.0, 2.0, None, None))).channels, (1.0, 2.0)
-        )
+    def test_an_absent_time_leaves_three(self) -> None:
+        self.assertEqual(_position(Position(1.0, 2.0, 3.0)), [1.0, 2.0, 3.0])
 
     def test_an_interior_null_stays(self) -> None:
         """Dropping it would move the time into the elevation channel."""
         self.assertEqual(
-            round_position(Position((1.0, 2.0, None, 5.0))).channels,
-            (1.0, 2.0, None, 5.0),
+            _position(Position(1.0, 2.0, None, 5.0)), [1.0, 2.0, None, 5.0]
         )
 
-    def test_the_formatter_keeps_the_spelling_the_writer_would_shorten(self) -> None:
-        document = waypoint_at(1.0, 2.0, None)
-        self.assertIn(b"[1, 2, null]", vnx.reformat_bytes(document))
-        self.assertIn(b"[1, 2]", encode_bytes(document))
+    def test_the_document_carries_the_short_spelling(self) -> None:
+        """`1.0` rather than `1` is a spelling, and a spelling is the writer's
+        own business: SPEC 4.2 defines the round trip at value level."""
+        self.assertIn(b'"at":[1.0,2.0]', encode_bytes(waypoint_at(1.0, 2.0)))
 
 
 class RoundingTies(unittest.TestCase):
-    """SPEC 4.5.3: a tie rounds to even, in the ROUNDING path as well.
+    """SPEC 4.1: a rounding tie goes to even.
 
     The JavaScript seat's case: `340.25` to one place is `340.2` in Go and
     Python and `340.3` from JS `toFixed`, and `340.25` is an exact double
@@ -107,7 +119,7 @@ class RoundingTies(unittest.TestCase):
     """
 
     def elevation(self, value: float) -> float:
-        rounded = round_position(Position((0.0, 0.0, value))).ele
+        rounded = round_position(Position(0.0, 0.0, value)).ele
         assert rounded is not None
         return rounded
 
@@ -146,62 +158,57 @@ class RoundingTies(unittest.TestCase):
                 self.assertEqual(
                     str(Decimal(value))[-1], "5", "not an exact six-place tie"
                 )
-                got = round_position(Position((value, 2.0))).lon
+                got = round_position(Position(value, 2.0)).lon
                 self.assertEqual(got, want)
                 self.assertEqual(int(f"{got:.6f}"[-1]) % 2, 0, "chose the odd digit")
 
 
 class RoundingCreatesNegativeZero(unittest.TestCase):
-    """Rounding can CREATE a negative zero, which the renderer must collapse.
+    """Rounding can CREATE a negative zero, which the writer must collapse.
 
-    `format/messy-spellings.in.vnx` carries `-0.0` as an input LITERAL, so the
-    corpus tests a renderer collapsing a negative zero it was GIVEN. Nothing
-    anywhere tests one a writer produced, and that is a different code path
-    which only exists once a writer does.
+    No document carries one, so nothing but the writer's own arithmetic can
+    produce it, and only once a writer exists.
     """
 
-    def test_rounding_really_does_produce_a_signed_zero(self) -> None:
-        rounded = self.rounded(-0.04)
-        self.assertEqual(rounded, 0.0)
-        self.assertTrue(math.copysign(1.0, rounded) < 0, "not a negative zero")
+    def test_the_formatting_primitive_really_does_produce_a_signed_zero(self) -> None:
+        self.assertEqual(format(-0.04, ".1f"), "-0.0")
+        self.assertTrue(math.copysign(1.0, float(format(-0.04, ".1f"))) < 0)
 
-    @staticmethod
-    def rounded(value: float) -> float:
-        ele = round_position(Position((0.0, 0.0, value))).ele
-        assert ele is not None
-        return ele
+    def test_the_rounding_collapses_it(self) -> None:
+        rounded = round_to(-0.04, 1)
+        self.assertEqual(rounded, 0.0)
+        self.assertTrue(math.copysign(1.0, rounded) > 0, "still a negative zero")
 
     def test_a_created_negative_zero_never_reaches_the_bytes(self) -> None:
         # -0.04 is a legitimate longitude at six places and must KEEP its sign;
         # only the elevation, at one place, becomes a negative zero.  Asserting
         # "no minus anywhere" would pass for the wrong reason and fail for a
         # correct writer, so the whole array is pinned.
-        self.assertIn(b'"at": [-0.04, -0.04, 0]', encode_bytes(waypoint_at(-0.04, -0.04, -0.04)))
+        self.assertIn(
+            b'"at":[-0.04,-0.04,0.0]', encode_bytes(waypoint_at(-0.04, -0.04, -0.04))
+        )
         # Below half a microdegree every channel collapses, signs and all.
-        self.assertIn(b'"at": [0, 0, 0]', encode_bytes(waypoint_at(-4e-7, -4e-7, -0.04)))
+        self.assertIn(
+            b'"at":[0.0,0.0,0.0]', encode_bytes(waypoint_at(-4e-7, -4e-7, -0.04))
+        )
 
     def test_a_negative_longitude_that_rounds_to_zero(self) -> None:
-        self.assertIn(b"[0, 0]", encode_bytes(waypoint_at(-0.0000004, -0.0000004)))
-
-    def test_a_formatting_primitive_would_get_both_wrong(self) -> None:
-        """Why the renderer, not `format()`, decides the bytes."""
-        self.assertEqual(format(-0.04, ".1f"), "-0.0")
-        self.assertEqual(format(340.0, ".1f"), "340.0")
-        self.assertEqual(vnx.render_number(round(-0.04, 1)), "0")
-        self.assertEqual(vnx.render_number(round(340.0, 1)), "340")
+        self.assertIn(b"[0.0,0.0]", encode_bytes(waypoint_at(-0.0000004, -0.0000004)))
 
 
-class WriterOutputIsCanonical(unittest.TestCase):
-    def test_encoding_is_a_fixed_point_under_the_formatter(self) -> None:
-        document = waypoint_at(-3.6712345678901235, 57.11812345678901, 340.26)
-        encoded = encode_bytes(document)
-        self.assertEqual(vnx.canonicalise(encoded), encoded)
-
+class WriterOutputIsStable(unittest.TestCase):
     def test_encoding_twice_is_stable(self) -> None:
         document = waypoint_at(-3.6712345678901235, 57.11812345678901, 340.26)
         once = encode_bytes(document)
         twice = encode_bytes(vnx.read_bytes(once).document)
         self.assertEqual(once, twice)
+
+    def test_the_output_carries_no_whitespace(self) -> None:
+        """Whitespace is the writer's own business, and the smallest spelling
+        is the useful one."""
+        encoded = encode_bytes(waypoint_at(1.0, 2.0))
+        self.assertNotIn(b" ", encoded)
+        self.assertNotIn(b"\n", encoded)
 
 
 if __name__ == "__main__":

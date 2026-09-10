@@ -12,18 +12,18 @@ catch, plus the ones this implementation had to decide for itself.
 from __future__ import annotations
 
 import io
+import pathlib
 import unittest
 from typing import Any, Callable
 from unittest import mock
 
 import vnx
-from vnx import decode, geo, model, numbers
+from vnx import decode, geo, model
 from vnx.model import Position
 
-from . import test_corpus, test_numbers, test_reader, test_writer
+from . import test_corpus, test_reader, test_writer, tree
 
-_MODULES = {"reader:": test_reader, "numbers:": test_numbers,
-            "writer:": test_writer}
+_MODULES = {"reader:": test_reader, "writer:": test_writer}
 
 
 def _run(name: str) -> unittest.TestResult:
@@ -155,38 +155,6 @@ class RedProof(unittest.TestCase):
             "track that sums first-to-last across the whole track",
         )
 
-    def test_a_tie_rounded_away_from_zero_is_caught(self) -> None:
-        """The defect Kotlin shipped: a rendering tie taken away from zero.
-
-        No corpus tier can reach this.  Every tier re-renders a document that
-        already spells its numbers one way, so a renderer only ever confirms a
-        spelling it was handed; a tie is only decided when a value is rendered
-        from a double with no text behind it.  That is why SPEC 4.5.3 makes it a
-        per-implementation test rather than a fixture.
-        """
-        original = numbers.render_number
-
-        def away_from_zero(value: float) -> str:
-            from decimal import Decimal
-
-            pair = test_numbers.TiesRoundToEven._tie(float(value))
-            if pair is None:
-                return original(value)
-            # Kotlin's shape: of the two equidistant spellings, take the one
-            # further from zero.
-            return max(pair, key=lambda spelling: abs(Decimal(spelling)))
-
-        # `test_numbers` binds render_number at import, so patching only
-        # `vnx.numbers` leaves the assertion calling the real one and the proof
-        # reports a blind test that is not blind.  Patch the reference the
-        # assertion actually reaches, and the library's, together.
-        with mock.patch.object(numbers, "render_number", away_from_zero):
-            self.assertGoesRed(
-                mock.patch.object(test_numbers, "render_number", away_from_zero),
-                "numbers:TiesRoundToEven.test_the_case_kotlin_got_wrong",
-                "renderer taking a tie away from zero",
-            )
-
     # -- the number-conformance table ------------------------------------
 
     def test_the_numbers_table_catches_a_half_up_rounder(self) -> None:
@@ -203,27 +171,26 @@ class RedProof(unittest.TestCase):
             )
 
         self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round", half_up, create=True),
-            "NumbersTier.test_every_row_renders_and_rounds_as_the_table_says",
+            mock.patch.object(vnx.writer, "round_to", half_up),
+            "NumbersTier.test_every_row_rounds_as_the_table_says",
             "writer rounding ties half up",
         )
 
-    def test_the_numbers_table_catches_an_away_from_zero_renderer(self) -> None:
-        from decimal import Decimal
+    def test_the_numbers_table_catches_a_scaling_rounder(self) -> None:
+        """SPEC 4.1 names scale-round-unscale as non-conforming.
 
-        def away(value: float) -> str:
-            pair = test_numbers.TiesRoundToEven._tie(float(value))
-            if pair is None:
-                return numbers.render_number(value)
-            return max(pair, key=lambda spelling: abs(Decimal(spelling)))
+        It is the defect the shared table exists for: the two routes agree on
+        the easy cases, and Go's scaling route disagreed with the table on 175
+        of its 5,329 rows.
+        """
+        def scaled(value: float, places: int) -> float:
+            scale = 10.0 ** places
+            return round(value * scale) / scale
 
-        # The tier imports `render_number` from `vnx.numbers` inside the test,
-        # so one patch reaches it. Patching `vnx.canonical` as well would leave
-        # the second patch active during assertGoesRed's come-back-green run.
         self.assertGoesRed(
-            mock.patch.object(numbers, "render_number", away),
-            "NumbersTier.test_every_row_renders_and_rounds_as_the_table_says",
-            "renderer taking a tie away from zero",
+            mock.patch.object(vnx.writer, "round_to", scaled),
+            "NumbersTier.test_every_row_rounds_as_the_table_says",
+            "writer rounding by scaling instead of by formatting",
         )
 
     # -- the writer emit path -------------------------------------------
@@ -242,121 +209,52 @@ class RedProof(unittest.TestCase):
             )
 
         self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round", half_up, create=True),
+            mock.patch.object(vnx.writer, "round_to", half_up),
             "writer:RoundingTies.test_the_javascript_case",
             "writer rounding ties away from zero",
         )
 
     def test_a_writer_that_does_not_round_at_all_is_caught(self) -> None:
         self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round", lambda v, places=0: v, create=True),
+            mock.patch.object(vnx.writer, "round_to", lambda v, places=0: v),
             "writer:Rounding.test_places",
             "writer that does not round",
         )
 
     def test_a_created_negative_zero_reaching_the_bytes_is_caught(self) -> None:
-        """If the renderer stopped collapsing negative zero, the writer would
-        emit one that no document ever contained."""
-        original = numbers.render_number
-
-        def keep_the_sign(value: float) -> str:
-            import math
-
-            if float(value) == 0.0 and math.copysign(1.0, float(value)) < 0:
-                return "-0"
-            return original(value)
+        """Rounding a small negative value makes a zero with its sign bit set,
+        and no document ever carried one."""
+        def keep_the_sign(value: float, places: int) -> float:
+            return float(f"{value:.{places}f}")
 
         self.assertGoesRed(
-            mock.patch.object(vnx.canonical, "render_number", keep_the_sign),
+            mock.patch.object(vnx.writer, "round_to", keep_the_sign),
             "writer:RoundingCreatesNegativeZero"
             ".test_a_created_negative_zero_never_reaches_the_bytes",
-            "renderer that keeps a created negative zero",
+            "rounding that keeps a created negative zero",
         )
 
-    def test_shortening_in_the_FORMATTER_is_caught(self) -> None:
-        """The two emit paths must not converge.
-
-        SPEC 4.1's shortest-spelling rule belongs to the writer; a formatter
-        that also shortened would fail the accept tier, because
-        `absent-elevation-and-time.vnx` is stored canonical with trailing nulls.
-        """
-        self.assertGoesRed(
-            mock.patch.object(
-                vnx.encode, "_positions",
-                lambda items: None if items is None
-                else [list(vnx.writer.round_position(p).channels) for p in items],
-            ),
-            "AcceptTier.test_accept_files_survive_the_model",
-            "formatter that applies the writer's rules",
-        )
-
-    # -- canonical form -------------------------------------------------
-
-    def test_python_number_rendering_is_caught(self) -> None:
-        """Python's own rendering disagrees on both exponent boundaries."""
-        self.assertGoesRed(
-            mock.patch.object(vnx.canonical, "render_number", lambda v: repr(float(v))),
-            "FormatTier.test_formatter_emits_the_canonical_bytes",
-            "number renderer using Python's repr",
-        )
-
-    def test_negative_zero_is_caught(self) -> None:
-        """SPEC 4.5.3: negative zero MUST render as `0`."""
-        original = numbers.render_number
-
-        def signed_zero(value: float) -> str:
-            if float(value) == 0.0 and str(float(value))[0] == "-":
-                return "-0"
-            return original(value)
+    def test_the_write_tier_catches_a_scaling_rounder(self) -> None:
+        """The tier normalises almost nothing, so the rule under test is
+        reachable from a fixture as well as from the table."""
+        def scaled(value: float, places: int) -> float:
+            scale = 10.0 ** places
+            return round(value * scale) / scale
 
         self.assertGoesRed(
-            mock.patch.object(vnx.canonical, "render_number", signed_zero),
-            "FormatTier.test_formatter_emits_the_canonical_bytes",
-            "renderer that keeps the sign of negative zero",
-        )
-
-    def test_plain_lexicographic_key_order_is_caught(self) -> None:
-        """Scalars sort before containers; `sort_keys` puts `networks` first."""
-        original = vnx.canonical.is_scalar
-        self.assertGoesRed(
-            mock.patch.object(vnx.canonical, "is_scalar", lambda value: True),
-            "AcceptTier.test_accept_files_are_canonical",
-            "serialiser using plain lexicographic key order",
-        )
-        self.assertIs(vnx.canonical.is_scalar, original)
-
-    def test_multi_line_positions_are_caught(self) -> None:
-        """SPEC 4.5.2: a number-and-null array is written on one line."""
-        self.assertGoesRed(
-            mock.patch.object(vnx.canonical, "_is_number_or_null", lambda value: False),
-            "AcceptTier.test_accept_files_are_canonical",
-            "serialiser that spreads positions over several lines",
-        )
-
-    def test_a_normalised_position_arity_is_caught(self) -> None:
-        """A trailing `null` is not noise: dropping it changes the bytes."""
-        original = decode._Reader._position
-
-        def shortening(self: Any, value: Any, path: str) -> Any:
-            got = original(self, value, path)
-            if got is None:
-                return None
-            channels = list(got.channels)
-            while len(channels) > 2 and channels[-1] is None:
-                channels.pop()
-            return Position(tuple(channels))
-
-        self.assertGoesRed(
-            mock.patch.object(decode._Reader, "_position", shortening),
-            "AcceptTier.test_accept_files_survive_the_model",
-            "model that shortens a position on the way in",
+            mock.patch.object(vnx.writer, "round_to", scaled),
+            "WriteTier.test_the_writer_emits_the_written_document",
+            "writer rounding by scaling instead of by formatting",
         )
 
     def test_a_dropped_ruleset_is_caught(self) -> None:
         """SPEC 3.9: a ruleset is opaque and MUST survive read-modify-write."""
+        # Patched where the WRITER reaches it: `writer.py` imported the name,
+        # so patching `vnx.encode` would leave the writer calling the original
+        # and report a blind test that is not blind.
         self.assertGoesRed(
-            mock.patch.object(vnx.encode, "encode_document", _without("rulesets")),
-            "AcceptTier.test_accept_files_survive_the_model",
+            mock.patch.object(vnx.writer, "encode_document", _without("rulesets")),
+            "AcceptTier.test_accept_files_survive_a_read_and_a_write",
             "encoder that drops rulesets",
         )
 
@@ -372,36 +270,68 @@ class RedProof(unittest.TestCase):
 
         self.assertGoesRed(
             mock.patch.object(vnx.encode, "_records", emptied),
-            "AcceptTier.test_accept_files_survive_the_model",
+            "AcceptTier.test_accept_files_survive_a_read_and_a_write",
             "encoder that keeps a record's type but not its body",
         )
 
-    def test_only_the_model_check_defends_a_data_record(self) -> None:
-        """The two readings of SPEC 8.1's canonical check are not equivalent.
+    def test_the_accept_tier_catches_a_reader_that_discards_what_it_read(
+        self,
+    ) -> None:
+        """⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE.
 
-        SPEC 8.1 defines the accept-tier check as "canonicalising it reproduces
-        it byte for byte", and `corpus/README.md` says canonicalise() is "bytes
-        in and bytes out".  Taken literally that check never builds a model, so
-        it cannot see a reader that discards what it read -- yet SPEC 8.1 also
-        claims the check "proves that the whole document -- including data
-        records of types no implementation recognises, whose bodies nothing
-        else inspects -- survives parse and re-render at value level".
+        A reader that discarded every data record, every ruleset, every style or
+        every `notes` produces a model that compares equal to itself.  That is
+        the whole extensibility mechanism, all styling and all user prose,
+        silently droppable by a "conforming" implementation.
 
-        It does not.  With every data record discarded on the way in, the
-        literal check stays green and only the decode-and-re-encode check goes
-        red.  Frozen here so that if SPEC 8.1 is corrected to require the model
-        round-trip, this test goes red and stops describing a hole that is
-        closed.
+        Each case below is one of those readers.  If any of them stops being
+        caught, the tier has gone back to proving nothing about the model.
         """
-        defect = mock.patch.object(decode._Reader, "_data", lambda self, o, p: None)
-        with defect:
-            self.assertTrue(
-                _run("AcceptTier.test_accept_files_are_canonical").wasSuccessful(),
-                "the literal SPEC 8.1 check has gained reach; revisit the note above",
-            )
-            self.assertFalse(
-                _run("AcceptTier.test_accept_files_survive_the_model").wasSuccessful()
-            )
+        for name, defect in _SPOILED_READERS:
+            with self.subTest(reader=name):
+                self.assertGoesRed(
+                    defect(),
+                    "AcceptTier.test_accept_files_survive_a_read_and_a_write",
+                    f"reader that {name}",
+                )
+
+    def test_a_model_versus_model_comparison_would_see_none_of_them(self) -> None:
+        """The other half, and the finding the check is built on.
+
+        Repointed at a comparison of one decoded model against another, every
+        spoiled reader above passes GREEN: it drops the same thing on both
+        sides.  Measured here rather than argued, because the check that looks
+        equivalent is the one an implementation reaches for.
+        """
+        files = sorted(CORPUS_ACCEPT.glob("*.vnx"))
+        self.assertTrue(files, "the walk found no accept files")
+        for name, defect in _SPOILED_READERS:
+            with self.subTest(reader=name):
+                blind = 0
+                seen = 0
+                for path in files:
+                    source = path.read_bytes()
+                    with defect():
+                        document = vnx.read_bytes(source).document
+                        once = vnx.encode_bytes(document)
+                        twice = vnx.encode_bytes(vnx.read_bytes(once).document)
+                        if tree.compare_documents(twice, once, tree.Options()) == "":
+                            blind += 1
+                        if tree.compare_documents(
+                            once, source, tree.Options(emit_boundary=True)
+                        ) != "":
+                            seen += 1
+                self.assertEqual(
+                    blind, len(files),
+                    "a model-versus-model comparison saw this reader on "
+                    f"{len(files) - blind} file(s); if it can, say so and "
+                    "revisit the note above",
+                )
+                self.assertGreater(
+                    seen, 0,
+                    "no accept file carries what this reader drops, so the "
+                    "comparison against the file proves nothing about it",
+                )
 
     # -- refusals -------------------------------------------------------
 
@@ -707,6 +637,51 @@ class RedProof(unittest.TestCase):
             "test_every_corpus_document_reports_distinguishable_diagnostics",
             "walk that reaches no documents",
         )
+
+
+CORPUS_ACCEPT = pathlib.Path(vnx.__file__).resolve().parents[2] / "corpus" / "accept"
+
+
+def _drops_data() -> Any:
+    """A reader that discards every data record (SPEC 5)."""
+    return mock.patch.object(decode._Reader, "_data", lambda self, obj, path: None)
+
+
+def _drops_rulesets() -> Any:
+    """A reader that discards every ruleset (SPEC 3.9)."""
+    original = decode._Reader.document
+
+    def forgetful(self: Any, value: Any) -> Any:
+        got = original(self, value)
+        got.rulesets = None
+        return got
+
+    return mock.patch.object(decode._Reader, "document", forgetful)
+
+
+def _drops_styles() -> Any:
+    """A reader that discards every style (SPEC 3.6)."""
+    return mock.patch.object(decode._Reader, "_style", lambda self, obj, path: None)
+
+
+def _drops_notes() -> Any:
+    """A reader that discards every `notes` field (SPEC 3.2)."""
+    original = decode._Reader._string
+
+    def forgetful(self: Any, obj: Any, key: str, path: str, *args: Any) -> Any:
+        if key == "notes":
+            return None
+        return original(self, obj, key, path, *args)
+
+    return mock.patch.object(decode._Reader, "_string", forgetful)
+
+
+_SPOILED_READERS = (
+    ("discards every data record", _drops_data),
+    ("discards every ruleset", _drops_rulesets),
+    ("discards every style", _drops_styles),
+    ("discards every `notes`", _drops_notes),
+)
 
 
 def _without(key: str) -> Callable[[Any], Any]:

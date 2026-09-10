@@ -42,9 +42,9 @@ def parse_json(data: bytes) -> Any:
     except UnicodeDecodeError as exc:
         raise VNXRefusal(f"malformed JSON: not valid UTF-8 ({exc})") from exc
     # A byte order mark is left to fail as malformed JSON.  RFC 8259 forbids
-    # one at the start of a JSON text and SPEC 4.5.5 forbids one in canonical
-    # form, but no VNX rule says a reader strips it -- and stripping would be a
-    # fallback that hides a writer whose encoding is not what it claims.
+    # one at the start of a JSON text, and no VNX rule says a reader strips it
+    # -- stripping would be a fallback that hides a writer whose encoding is
+    # not what it claims.
     try:
         return json.loads(
             text,

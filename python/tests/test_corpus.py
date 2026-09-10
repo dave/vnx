@@ -8,22 +8,28 @@ is covered is otherwise exactly the one that is not.
 
 from __future__ import annotations
 
+import io
 import json
 import pathlib
 import unittest
 from typing import Any
 
 import vnx
-from vnx.canonical import render_document
-from vnx.jsonio import parse_json
 
-from . import matching
+from . import matching, tree
 from .matching import match_diagnostics
 from .resolve import resolve
 
 CORPUS = pathlib.Path(__file__).resolve().parents[2] / "corpus"
 
 CASE_SUFFIXES = (".vnx", ".vnz")
+
+# The write tier normalises ALMOST NOTHING.  The accept tier rounds both sides
+# and drops a trailing `null` from both, because it compares a document against
+# a re-encoding of itself.  Doing that here would normalise away the two rules
+# under test.  The one normalisation left is the one that is not about the emit
+# boundary at all: SPEC 3.1's absent-versus-empty.
+_WRITE_TIER = tree.Options(emit_boundary=False)
 COLLECTIONS = ("folders", "networks", "routes", "tracks", "waypoints", "areas")
 
 
@@ -41,7 +47,7 @@ class CorpusStructure(unittest.TestCase):
 
     def test_corpus_is_present(self) -> None:
         self.assertTrue(CORPUS.is_dir(), f"no corpus at {CORPUS}")
-        for kind in ("accept", "reject", "diagnose", "format"):
+        for kind in ("accept", "reject", "diagnose", "write"):
             self.assertTrue((CORPUS / kind).is_dir(), f"no {kind}/ directory")
 
     def test_every_case_has_a_sidecar(self) -> None:
@@ -235,23 +241,21 @@ class AcceptTier(_CorpusCase):
                         f"{path.name}: attachments",
                     )
 
-    def test_accept_files_are_canonical(self) -> None:
-        """SPEC 8.1: canonicalising an accept file reproduces it byte for byte."""
-        for path in _cases("accept"):
-            if path.suffix != ".vnx":
-                continue
-            with self.subTest(case=path.name):
-                original = path.read_bytes()
-                self.assertEqual(
-                    vnx.canonicalise(original), original, f"{path.name}: not canonical"
-                )
+    def test_accept_files_survive_a_read_and_a_write(self) -> None:
+        """SPEC 8.1's check: DECODE the file, ENCODE the model, and require the
+        two JSON TREES equal.
 
-    def test_accept_files_survive_the_model(self) -> None:
-        """Decode and re-encode reproduces the file byte for byte.
+        ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER.  A reader that
+        discarded every data record, every ruleset, every style and every
+        `notes` produces a model that compares equal to itself and passes such a
+        tier green -- that is the whole extensibility mechanism, all styling and
+        all user prose.  Comparing against the tree parsed from the ORIGINAL
+        FILE is what proves a reader kept what it read, and
+        `test_red_proof.py` freezes the proof.
 
-        Stronger than the canonicalise check above, which never leaves the JSON
-        tree.  This is what proves an opaque data record body, a ruleset, a
-        `hidden` and a position's arity all survive a read-modify-write.
+        ⚠ AND IT IS NOT A COMPARISON OF BYTES.  Key order, number spelling and
+        whitespace are the writer's own business, so the two sides are parsed
+        and compared as trees, with the normalisations SPEC 8.1 permits.
         """
         for path in _cases("accept"):
             if path.suffix != ".vnx":
@@ -259,7 +263,17 @@ class AcceptTier(_CorpusCase):
             with self.subTest(case=path.name):
                 original = path.read_bytes()
                 document = vnx.read_bytes(original).document
-                self.assertEqual(vnx.reformat_bytes(document), original, path.name)
+                difference = tree.compare_documents(
+                    vnx.encode_bytes(document),
+                    original,
+                    tree.Options(emit_boundary=True),
+                )
+                self.assertEqual(
+                    difference, "",
+                    f"{path.name}: encoding the decoded document did not "
+                    "reproduce the file. Either the reader dropped something it "
+                    "read, or the writer invented something",
+                )
 
 
 class RejectTier(_CorpusCase):
@@ -314,7 +328,7 @@ class DiagnosticsAreDistinguishable(unittest.TestCase):
 
     def documents(self) -> list[tuple[str, list[Any]]]:
         out: list[tuple[str, list[Any]]] = []
-        for tier in ("accept", "diagnose", "reject", "format", "write"):
+        for tier in ("accept", "diagnose", "reject", "write"):
             if not (CORPUS / tier).is_dir():
                 continue
             for path in _cases(tier):
@@ -355,10 +369,11 @@ class DiagnosticsAreDistinguishable(unittest.TestCase):
 
 
 class WriteTier(unittest.TestCase):
-    """Decode an input and call the WRITE path (SPEC 4.5.4).
+    """Decode an input and call the WRITE path (SPEC 4.1).
 
-    The only tier that reaches the writer boundary. The other four re-render, and
-    a re-render neither rounds nor re-spells, so rounding, the shortest-spelling
+    The only tier that reaches the emit boundary. The others re-encode what they
+    decoded, which applies rounding to values that already satisfy it and
+    shortening to positions already short, so rounding, the shortest-spelling
     rule, both tie directions and a negative zero the writer created are all
     invisible to them.
 
@@ -422,7 +437,7 @@ class WriteTier(unittest.TestCase):
             self.assertTrue(sidecar.is_file(), f"{source.name} has no sidecar")
             self.assertEqual(json.loads(sidecar.read_text()).get("kind"), "write")
 
-    def test_the_writer_emits_the_written_bytes(self) -> None:
+    def test_the_writer_emits_the_written_document(self) -> None:
         for source, written in self._pairs():
             with self.subTest(case=source.name):
                 # `subTest` already contains a refusal to this case, so the
@@ -435,19 +450,38 @@ class WriteTier(unittest.TestCase):
                     got = vnx.encode_bytes(document)
                 except vnx.VNXRefusal as refusal:
                     self.fail(f"{source.name} was refused: {refusal}")
-                self.assertEqual(got, written.read_bytes())
+                self.assertEqual(
+                    tree.compare_documents(got, written.read_bytes(), _WRITE_TIER),
+                    "",
+                    f"{source.name}: the written document is not the one the "
+                    "case expects",
+                )
 
     def test_the_input_is_not_already_the_written_form(self) -> None:
         """Otherwise a library that echoed its input would pass."""
         for source, written in self._pairs():
             with self.subTest(case=source.name):
-                self.assertNotEqual(source.read_bytes(), written.read_bytes())
+                self.assertNotEqual(
+                    tree.compare_documents(
+                        source.read_bytes(), written.read_bytes(), _WRITE_TIER
+                    ),
+                    "",
+                    f"{source.name} is already the written form; this case "
+                    "would pass vacuously",
+                )
 
     def test_the_written_form_is_a_fixed_point(self) -> None:
+        """Rounding and shortening are both idempotent, so a case that fails
+        this is a defect in the fixture rather than in the writer."""
         for _, written in self._pairs():
             with self.subTest(case=written.name):
                 document = vnx.read_bytes(written.read_bytes()).document
-                self.assertEqual(vnx.encode_bytes(document), written.read_bytes())
+                self.assertEqual(
+                    tree.compare_documents(
+                        vnx.encode_bytes(document), written.read_bytes(), _WRITE_TIER
+                    ),
+                    "",
+                )
 
     def test_every_container_case_has_its_archive_and_sidecar(self) -> None:
         cases = self._container_cases()
@@ -470,11 +504,16 @@ class WriteTier(unittest.TestCase):
         """The attachments are fed REVERSED.
 
         A writer's output must not depend on the order it was handed, and
-        feeding them in manifest order cannot see one that does.  It is a
-        robustness check and no longer more than that: the rewritten SPEC 7.1
-        does not constrain entry order, so what makes the difference observable
-        today is this case's byte comparison rather than a rule.
+        feeding them in manifest order cannot see one that does.
+
+        The archive's BYTES are not compared: SPEC 7.1 constrains five rules and
+        leaves every other field to the writer, so two conforming writers are
+        not expected to agree byte for byte.  What is compared is what SPEC 7.1
+        does constrain -- the root document's tree, the entry names, the
+        attachment bodies, and the document being first.
         """
+        import zipfile
+
         for source, manifest, written in self._container_cases():
             with self.subTest(case=source.name):
                 attachments = self._manifest(manifest)
@@ -484,7 +523,27 @@ class WriteTier(unittest.TestCase):
                     got = vnx.encode_container_bytes(document, reversed_order)
                 except vnx.VNXRefusal as refusal:
                     self.fail(f"{source.name} was refused: {refusal}")
-                self.assertEqual(got, written.read_bytes())
+                with zipfile.ZipFile(io.BytesIO(got)) as archive:
+                    names = archive.namelist()
+                    bodies = {name: archive.read(name) for name in names}
+                with zipfile.ZipFile(io.BytesIO(written.read_bytes())) as archive:
+                    want_names = archive.namelist()
+                    want_root = archive.read(want_names[0])
+                self.assertEqual(names, want_names)
+                self.assertEqual(
+                    names[0], "doc.vnx",
+                    "SPEC 7.1 requires the root document first",
+                )
+                self.assertEqual(
+                    tree.compare_documents(bodies[names[0]], want_root, _WRITE_TIER),
+                    "",
+                    f"{source.name}: the archive's root document is not the one "
+                    "the case expects",
+                )
+                # An attachment is bytes and is compared as bytes.  Nothing in
+                # this format interprets one.
+                for name, body in attachments.items():
+                    self.assertEqual(bodies[name], body, name)
 
     def test_the_container_input_is_not_already_the_written_form(self) -> None:
         for source, _, written in self._container_cases():
@@ -496,63 +555,19 @@ class WriteTier(unittest.TestCase):
             with self.subTest(case=written.name):
                 read = vnx.read_container_bytes(written.read_bytes())
                 self.assertEqual(read.diagnostics, [])
+                self.assertEqual(read.attachments, sorted(self._manifest(manifest)))
+                again = vnx.read_container_bytes(
+                    vnx.encode_container_bytes(read.document, self._manifest(manifest))
+                )
+                self.assertEqual(again.attachments, read.attachments)
                 self.assertEqual(
-                    read.attachments, sorted(self._manifest(manifest)),
+                    tree.compare_documents(
+                        vnx.encode_bytes(again.document),
+                        vnx.encode_bytes(read.document),
+                        _WRITE_TIER,
+                    ),
+                    "",
                 )
-                again = vnx.encode_container_bytes(
-                    read.document, self._manifest(manifest)
-                )
-                self.assertEqual(again, written.read_bytes())
-
-
-class FormatTier(unittest.TestCase):
-    """Non-canonical input, and exactly the bytes a formatter MUST emit for it.
-
-    These cases carry no `.expect.json`: the pairing of `X.in.vnx` with
-    `X.canonical.vnx` is the expectation.  SPEC 8.1's rule that a file with no
-    sidecar is a failure is written without an exception for this directory.
-    """
-
-    def _pairs(self) -> list[tuple[pathlib.Path, pathlib.Path]]:
-        directory = CORPUS / "format"
-        pairs = []
-        for source in sorted(directory.glob("*.in.vnx")):
-            stem = source.name[: -len(".in.vnx")]
-            pairs.append((source, directory / f"{stem}.canonical.vnx"))
-        return pairs
-
-    def test_every_input_has_its_canonical_bytes(self) -> None:
-        pairs = self._pairs()
-        self.assertTrue(pairs, "format/ holds no cases")
-        for source, expected in pairs:
-            self.assertTrue(expected.is_file(), f"{source.name} has no canonical form")
-        stems = {p.name[: -len(".in.vnx")] for p, _ in pairs}
-        for other in sorted((CORPUS / "format").glob("*.canonical.vnx")):
-            stem = other.name[: -len(".canonical.vnx")]
-            self.assertIn(stem, stems, f"{other.name} pairs with no input")
-
-    def test_input_is_not_already_canonical(self) -> None:
-        """Otherwise a formatter that echoed its input would pass."""
-        for source, expected in self._pairs():
-            with self.subTest(case=source.name):
-                self.assertNotEqual(
-                    source.read_bytes(),
-                    expected.read_bytes(),
-                    f"{source.name} is already canonical and tests nothing",
-                )
-
-    def test_formatter_emits_the_canonical_bytes(self) -> None:
-        for source, expected in self._pairs():
-            with self.subTest(case=source.name):
-                self.assertEqual(
-                    vnx.canonicalise(source.read_bytes()), expected.read_bytes()
-                )
-
-    def test_canonical_form_is_a_fixed_point(self) -> None:
-        for _, expected in self._pairs():
-            with self.subTest(case=expected.name):
-                original = expected.read_bytes()
-                self.assertEqual(vnx.canonicalise(original), original)
 
 
 if __name__ == "__main__":
@@ -560,15 +575,15 @@ if __name__ == "__main__":
 
 
 class NumbersTier(unittest.TestCase):
-    """`corpus/numbers/numbers.tsv`: what every implementation must emit for a
-    given double (SPEC 4.5.3 and 4.5.4).
+    """`corpus/numbers/numbers.tsv`: the rounding every implementation must
+    perform on a given double (SPEC 4.1).
 
-    A tier in standing and not in shape. A case in the four document tiers is a
-    document; a row here is a value, and its three answer columns are the
+    A tier in standing and not in shape. A case in the document tiers is a
+    document; a row here is a value, and its answer columns are the
     expectation, so there is no sidecar.
 
-    It reaches the rounding of 4.5.4 for the same reason `write/` does, and it
-    reaches it per value rather than per document, which is what makes it the
+    It reaches the rounding of SPEC 4.1 for the same reason `write/` does, and
+    it reaches it per value rather than per document, which is what makes it the
     instrument for a rule that only fails on particular doubles.
     """
 
@@ -590,34 +605,51 @@ class NumbersTier(unittest.TestCase):
         self.assertTrue(rows, f"no table at {self.TABLE}")
         self.assertGreater(len(rows), 1000, "a short table pins little")
 
-    def test_every_row_renders_and_rounds_as_the_table_says(self) -> None:
+    def test_every_row_rounds_as_the_table_says(self) -> None:
+        """⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING.
+
+        The table's `render` column is not read: how a number is spelled is the
+        writer's own business (SPEC 4.2), and comparing spellings across
+        implementations is the rule this format dropped.  What is compared is
+        the rounded VALUE, by BIT PATTERN -- comparing it as text would put the
+        rendering rule back into the comparison through the side door, and would
+        then pass or fail on how Python spells a double.
+        """
         import struct
 
         from vnx.model import Position
-        from vnx.numbers import render_number
         from vnx.writer import round_position
 
         failures: list[str] = []
-        for bits, kind, render, round6, round1 in self.rows():
+        for bits, kind, _render, round6, round1 in self.rows():
             value = struct.unpack(">d", bytes.fromhex(bits))[0]
-            got_render = render_number(value)
             # Rounding is defined at the emit boundary, so it is exercised
             # through the writer rather than through a private helper: a test
             # calling something the writer does not call proves nothing about
             # what this library emits.
-            lonlat = round_position(Position((value, 0.0)))
-            elevation = round_position(Position((0.0, 0.0, value)))
-            got6 = render_number(lonlat.lon)
-            ele = elevation.ele
-            got1 = "0" if ele is None else render_number(ele)
+            got6 = round_position(Position(value, 0.0)).lon
+            ele = round_position(Position(0.0, 0.0, value)).ele
+            got1 = 0.0 if ele is None else ele
             for label, got, want in (
-                ("render", got_render, render),
                 ("round6", got6, round6),
                 ("round1", got1, round1),
             ):
-                if got != want:
-                    failures.append(f"{bits} ({kind}) {label}: got {got}, want {want}")
+                # -0 and 0 are DIFFERENT bit patterns and the same value;
+                # SPEC 4.1 has rounding normalise the sign, so the table and the
+                # library agree on +0 and a mismatch here is real.
+                if self._bits(got) != self._bits(float(want)):
+                    failures.append(
+                        f"{bits} ({kind}) {label}: got {got!r} "
+                        f"({self._bits(got)}), table says {want} "
+                        f"({self._bits(float(want))})"
+                    )
         self.assertEqual(failures[:10], [], f"{len(failures)} of {len(self.rows())} rows differ")
+
+    @staticmethod
+    def _bits(value: float) -> str:
+        import struct
+
+        return struct.pack(">d", value).hex()
 
     def test_the_table_reaches_the_rounding_tie(self) -> None:
         """The table is only worth running if reverting a rule reddens it.

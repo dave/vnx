@@ -18,14 +18,12 @@ from typing import Union
 
 from .decode import ReadResult, read_bytes
 from .pointer import escape as escape_token
-from .encode import reformat_bytes
 from .writer import encode_bytes
 from .errors import Diagnostic, VNXRefusal
 from .model import Document
 
 __all__ = [
-    "ContainerReadResult", "read_container_bytes",
-    "reformat_container_bytes", "encode_container_bytes",
+    "ContainerReadResult", "read_container_bytes", "encode_container_bytes",
 ]
 
 _ROOT_DOCUMENT = "doc.vnx"
@@ -257,25 +255,13 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
     )
 
 
-def reformat_container_bytes(
-    document: Document, attachments: Union[dict[str, bytes], None] = None
-) -> bytes:
-    """A ``.vnz`` whose document PRESERVES the values it carried.
-
-    Repackaging a document must not silently lose precision, so a container
-    gets the same two paths as a plain document (ruled 2026-09-09).  A
-    container is not a special case; it is the same document inside a zip.
-    """
-    return _container(reformat_bytes(document), attachments)
-
-
 def encode_container_bytes(
     document: Document, attachments: Union[dict[str, bytes], None] = None
 ) -> bytes:
-    """A ``.vnz`` whose document is emitted at WRITER precision.
+    """A ``.vnz`` holding *document* and *attachments*.
 
-    Rounded to 6 and 1 places with the shortest spelling of every position,
-    exactly as `encode_bytes`.
+    The document is emitted exactly as `encode_bytes` emits it: rounded to 6
+    and 1 places, with the shortest spelling of every position.
     """
     return _container(encode_bytes(document), attachments)
 
@@ -289,14 +275,13 @@ def _container(
         if name.lower() == _ROOT_DOCUMENT:
             raise VNXRefusal(f"an attachment may not be named {name!r}")
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(_zip_info(_ROOT_DOCUMENT), body)
-        # SPEC 7.1: the root document first, then attachments SORTED by entry
-        # name, compared by Unicode code point as in SPEC 4.5.1.  Caller order is
-        # not a property of the content: two exporters using one library, one
-        # iterating a hash map and one a sorted list, would otherwise emit
-        # different archives for the same document while satisfying every other
-        # field in that table.
+        # SPEC 7.1 requires the root document first and says nothing about the
+        # rest, so the attachments are SORTED by entry name, compared by Unicode
+        # code point.  Caller order is not a property of the content: two
+        # exporters using one library, one iterating a hash map and one a sorted
+        # list, would otherwise emit different archives for the same document.
         #
         # CPython's `sorted` already compares by code point, so this needs no
         # comparator where JavaScript and Kotlin do.  It is written out anyway,
@@ -342,37 +327,21 @@ class _UTF8Info(zipfile.ZipInfo):
 
 
 def _code_points(name: str) -> tuple[int, ...]:
-    """Sort key by Unicode code point (SPEC 4.5.1)."""
+    """Sort key by Unicode code point."""
     return tuple(ord(character) for character in name)
 
 
 def _zip_info(name: str) -> zipfile.ZipInfo:
     info = _UTF8Info(name, date_time=(1980, 1, 1, 0, 0, 0))
-    # A writer emits STORED for every entry; a reader still accepts deflate.
-    # Ruled 2026-09-09 because deflate has no canonical output: for one corpus
-    # document Go's compress/flate emits 116 bytes and zlib emits 108, and no
-    # zlib level from 0 to 9 reproduces the committed bytes.  A deflated archive
-    # is byte-reproducible only by the language that wrote it, whatever it pins
-    # in its headers, so fixing the timestamps was necessary and not sufficient.
-    # The asymmetry matches canonical form: required of what a library writes,
-    # never of what it will read.
-    info.compress_type = zipfile.ZIP_STORED
+    info.compress_type = zipfile.ZIP_DEFLATED
 
-    # Pin every header field that `zipfile` would otherwise fill from the
-    # platform, so one document produces one archive everywhere.  Two of these
+    # Pin the header fields `zipfile` would otherwise fill from the platform, so
+    # one document produces one archive wherever it is written.  Two of them
     # encode the writing MACHINE rather than the content: `create_system` is 3
     # (Unix) on macOS and Linux and 0 (MS-DOS) on Windows, and `writestr` sets
-    # external attributes to file mode 0o600, so the same Python on two
-    # platforms emitted two different archives for one document.  Fixing the
-    # timestamp was necessary and not sufficient.
-    #
-    # The VALUES follow the only other implementation to have stated its
-    # choices: version 1.0, which is what STORED requires, MS-DOS as the
-    # creating system, and no external attributes.  Which values is not yet
-    # ruled; that they must not come from the platform is not in doubt.
+    # external attributes to file mode 0o600.  Nothing in SPEC 7.1 requires
+    # this; it is what makes one input give one output.
     info.create_system = 0
-    info.create_version = 10
-    info.extract_version = 10
     info.internal_attr = 0
     info.volume = 0
     return info

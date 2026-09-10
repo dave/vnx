@@ -514,10 +514,13 @@ test('a corrupt deflate stream is a refusal, not a crash', () => {
 });
 
 test('attachments are sorted by entry name, and the caller order is not preserved', () => {
-  // SPEC.md 7.1: the root document first, then attachments sorted by entry
-  // name. Caller order is not a property of the content, so two exporters over
-  // one library would otherwise emit different archives while satisfying every
-  // other field in the table.
+  // ⚠ THIS PINS THIS LIBRARY'S OWN CHOICE, NOT A RULE. SPEC.md 7.1 requires the
+  // root document first and leaves every other field of the archive to the
+  // writer, so attachment ORDER is not conformance and no corpus case may check
+  // it (ruled 2026-09-10). Sorting is kept for run-to-run determinism: caller
+  // order is not a property of the content, so two exporters over one library —
+  // one iterating a hash map, one a sorted list — would otherwise write
+  // different archives from one input.
   //
   // Supplied out of order ON PURPOSE. Two names already in sorted order would
   // be decoration: the case only discriminates when the supplied order and the

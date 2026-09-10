@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from typing import Union
 
@@ -128,7 +129,19 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
             )
         unreadable.add(info.filename)
 
-    result: ReadResult = read_bytes(archive.read(document_name))
+    # Decompressing is where a hostile archive bites: a corrupt deflate stream
+    # raises `zlib.error`, and a wrong CRC or a short entry raises
+    # `zipfile.BadZipFile` -- from the READ, not from the constructor this
+    # function already guards.  Neither is a VNXRefusal, so both escaped every
+    # caller as a crash.  A malformed container is refused, like every other
+    # malformed input; it does not take the process down.
+    try:
+        body = archive.read(document_name)
+    except (zipfile.BadZipFile, zlib.error, EOFError, ValueError) as exc:
+        raise VNXRefusal(
+            f"the root document {document_name!r} will not decompress: {exc}"
+        ) from exc
+    result: ReadResult = read_bytes(body)
     diagnostics = list(result.diagnostics)
     for name in sorted(unreadable):
         # SPEC 6.3 shapes a diagnostic's path as a JSON Pointer into the

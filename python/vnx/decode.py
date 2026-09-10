@@ -712,14 +712,16 @@ class _Reader:
                 continue
             distance = distance_between((pip.lon, pip.lat), (node.lon, node.lat))
             if distance > PROJECTION_TOLERANCE_M:
-                # No corpus case pins this diagnostic, so it carries no code.
-                # SPEC 6.3 permits that, and a spelling invented here would
-                # collide with whatever a future fixture pins.
+                # `diagnose/terminal-pip-off-node.vnx` pins the code, so the
+                # spelling is the corpus's rather than this reader's.  The
+                # metres are NOT pinned: what a reader reports depends on its
+                # distance model, and only the code and the path are compared.
                 self.note(
                     join(path, field_name),
                     f"node `{node_key}` is {distance:.0f} m from the "
                     f"{which} pip, beyond the "
                     f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
+                    "terminal-pip-off-node",
                 )
 
     def _chains(

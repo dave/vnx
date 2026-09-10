@@ -322,11 +322,10 @@ class Chains(unittest.TestCase):
 class TerminalPips(unittest.TestCase):
     """SPEC 3.3.2: a terminal pip and its node are one fact written twice.
 
-    No corpus case reaches this rule, so these are the only tests of it
-    anywhere in this implementation.  The rule is a MUST and it carries no
-    reason code, because SPEC 6.3 gives a code only to a diagnostic some case
-    pins -- inventing a spelling here would collide with whatever a future
-    fixture chooses.
+    This was a MUST with no fixture and no code when it went in, and the
+    corpus gained `diagnose/terminal-pip-off-node.vnx` shortly after, which is
+    where the code comes from.  These tests stay: the fixture pins one arc at
+    one distance, and the boundary cases below are not in it.
     """
 
     def network(self, arc: str) -> vnx.ReadResult:
@@ -344,6 +343,7 @@ class TerminalPips(unittest.TestCase):
             [d.path for d in result.diagnostics], ["/networks/0/arcs/ab/from"]
         )
         self.assertIn("beyond the 50 m tolerance", result.diagnostics[0].message)
+        self.assertEqual(result.diagnostics[0].code, "terminal-pip-off-node")
 
     def test_the_pips_stay_authoritative_and_both_are_kept(self) -> None:
         """Nothing is corrected: the arc survives with the geometry it wrote."""

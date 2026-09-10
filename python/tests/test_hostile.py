@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import struct
+import tracemalloc
 import unittest
 import zipfile
 import zlib
@@ -27,7 +28,16 @@ from vnx import decode, model
 
 from . import test_corpus
 
-_DOCUMENT = b'{\n  "vnx": "0.1.0",\n  "notes": "' + b"x" * 400 + b'"\n}\n'
+# Long enough that deflate has something to compress and a flipped byte lands
+# inside the payload rather than in a header.  The bulk lives on a waypoint's
+# `notes`, which is a key this format defines: at the document level it would be
+# an unknown key, and every archive here would then carry a diagnostic that has
+# nothing to do with what these tests are about.
+_NOTES = "x" * 400
+_DOCUMENT = (
+    b'{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [-3.6, 57.1],\n'
+    b'      "notes": "' + _NOTES.encode() + b'"\n    }\n  ]\n}\n'
+)
 
 
 def _deflated() -> bytes:
@@ -63,6 +73,11 @@ class DamagedStreams(unittest.TestCase):
         """
         result = vnx.read_container_bytes(self.good)
         self.assertEqual(result.document_name, "doc.vnx")
+        self.assertEqual(
+            [(d.path, d.message) for d in result.diagnostics], [],
+            "the fixture document must be clean, or every test here carries a "
+            "diagnostic that has nothing to do with the damage",
+        )
         with zipfile.ZipFile(io.BytesIO(self.good)) as archive:
             methods = {i.compress_type for i in archive.infolist()}
         self.assertEqual(methods, {zipfile.ZIP_DEFLATED})
@@ -130,6 +145,104 @@ class DamagedStreams(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(damaged)) as archive:
             with self.assertRaises(zlib.error):
                 archive.read("doc.vnx")
+
+
+class LyingHeaders(unittest.TestCase):
+    """Header fields that disagree with the bytes behind them.
+
+    The Kotlin implementation found three hazards here and warned the others.
+    All three are the same CLASS -- a header field trusted before the data that
+    would justify it -- and none of the three MECHANISMS transferred to this
+    language, which is the point worth keeping: take the class and find your own
+    mechanism by building the inputs, because a warning about somebody else's
+    call site is not a measurement of yours.
+
+    These are absence-proofs, and an absence-proof goes stale the day the
+    implementation underneath it changes.  They are here so that it fails.
+    """
+
+    LIE = 2_000_000_000
+
+    def setUp(self) -> None:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+            archive.writestr("doc.vnx", _DOCUMENT)
+        self.good = buffer.getvalue()
+
+    def rewritten(
+        self, compressed: int | None = None, uncompressed: int | None = None
+    ) -> bytes:
+        """The same archive with a size field rewritten in BOTH headers.
+
+        Rewriting one only would be a different test: SPEC 7 makes the central
+        directory authoritative, so a lie told in the local header alone is a
+        lie this reader is REQUIRED not to read.
+        """
+        out = bytearray(self.good)
+        central = self.good.find(b"PK\x01\x02")
+        for target, offset in ((compressed, 18), (uncompressed, 22)):
+            if target is None:
+                continue
+            out[offset:offset + 4] = struct.pack("<I", target)
+            here = central + (offset + 2)
+            out[here:here + 4] = struct.pack("<I", target)
+        return bytes(out)
+
+    def test_a_two_gigabyte_claim_allocates_nothing_like_it(self) -> None:
+        """The hazard: sizing a buffer from a header before reading the data.
+
+        An `OutOfMemoryError` is not an exception a caller catches -- it takes
+        the process rather than the document -- so the measurement is the peak
+        allocation, not the outcome.  Measured against a claim 100 million times
+        the real size.
+        """
+        lying = self.rewritten(uncompressed=self.LIE)
+        tracemalloc.start()
+        try:
+            result = vnx.read_container_bytes(lying)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(result.document_name, "doc.vnx")
+        self.assertLess(peak, 8 * 1024 * 1024, "a header field sized a buffer")
+        self.assertGreater(self.LIE, 8 * 1024 * 1024 * 100, "the lie is too small to prove anything")
+
+    def test_a_lying_compressed_size_is_refused(self) -> None:
+        with self.assertRaises(vnx.VNXRefusal):
+            vnx.read_container_bytes(self.rewritten(compressed=self.LIE))
+
+    def test_a_short_declared_size_is_refused(self) -> None:
+        with self.assertRaises(vnx.VNXRefusal):
+            vnx.read_container_bytes(self.rewritten(uncompressed=4))
+
+    def test_the_crc_is_verified_on_a_STORED_entry(self) -> None:
+        """The corpus cannot show this: every committed archive is well formed.
+
+        Stored is what this format's writers emit, so an unverified CRC here
+        would mean silent corruption on the ordinary path rather than the
+        unusual one.
+        """
+        name_length, extra_length = struct.unpack("<HH", self.good[26:30])
+        index = 30 + name_length + extra_length + 40
+        corrupt = (
+            self.good[:index]
+            + bytes([self.good[index] ^ 0x01])
+            + self.good[index + 1 :]
+        )
+        with self.assertRaises(vnx.VNXRefusal):
+            vnx.read_container_bytes(corrupt)
+
+    def test_a_declared_size_LARGER_than_the_data_is_accepted(self) -> None:
+        """Pinned as behaviour, not endorsed as a rule.
+
+        The bytes returned are the real bytes and the CRC over them agrees, so
+        nothing about the document is wrong -- but the size field provably is,
+        and SPEC 7 does not say to refuse it.  Awaiting a ruling; this test
+        records what this reader does so a change to it is deliberate.
+        """
+        result = vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
+        assert result.document.waypoints is not None
+        self.assertEqual(result.document.waypoints[0].notes, _NOTES)
 
 
 class RunnerContainment(unittest.TestCase):

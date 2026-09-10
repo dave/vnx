@@ -252,6 +252,39 @@ test('rounding in the reader is caught by the full-precision case', async () => 
   assert.ok(red.includes('accept/full-precision-coordinate.vnx'), red.join(', '));
 });
 
+test('a value moved between the parse and the model is caught, bit-exactly', async () => {
+  // `positions` compares BIT PATTERNS. A value comparison cannot see a one-ulp
+  // move, and when it fails it prints two numbers that look identical, so it
+  // reads as a broken test rather than a broken decoder.
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '  return new Position(v.slice());',
+    to: "  const s = v.slice();\n  if (typeof s[0] === 'number' && s[0] !== 0) s[0] = nextAfter(s[0]);\n  return new Position(s);\nfunction nextAfter(x) { const dv = new DataView(new ArrayBuffer(8)); dv.setFloat64(0, x); dv.setBigUint64(0, dv.getBigUint64(0) + 1n); return dv.getFloat64(0); }\n",
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('accept/absent-elevation-and-time.vnx'), red.join(', '));
+  assert.ok(red.length >= 5, `only ${red.length} case(s) pin a position: ${red.join(', ')}`);
+});
+
+test('a coordinate turned into NEGATIVE zero is NOT caught; no fixture pins a zero', async () => {
+  // ⚠ THIS RECORDS A GAP, and the gap is worth naming. `JSON.stringify(-0)` is
+  // `"0"` and the accept tier compares trees by VALUE, so no document tier can
+  // see a negative zero at all; `corpus/numbers/` is the only instrument that
+  // can, over a table of literals. The bit-exact `positions` check was meant to
+  // be the second, on real documents.
+  //
+  // It cannot be, yet. Measured 2026-09-10: every coordinate any sidecar pins
+  // lies between -3.74 and -2.99, so no `positions` expectation reaches a zero
+  // and this decoder passes every tier.
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '  return new Position(v.slice());',
+    to: '  const s = v.slice();\n  if (s[0] === 0) s[0] = -0;\n  if (s[1] === 0) s[1] = -0;\n  return new Position(s);',
+  }]);
+  assert.deepEqual(await failingDelta(cases), [],
+    'a fixture now pins a zero coordinate; assert the failure instead of the gap');
+});
+
 test('a reader with no continuity check is caught by the diagnose tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',

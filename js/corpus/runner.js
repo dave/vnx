@@ -197,16 +197,60 @@ function checkCounts(c, doc, counts) {
 
 /**
  * `positions` pins which number reached which channel, resolved against the
- * DECODED MODEL. Resolving against the raw JSON would compare the file to
- * itself and could not see a decoder that swapped two channels.
+ * DECODED MODEL. Resolving against the raw JSON would compare the file to itself
+ * and could not see a decoder that swapped two channels.
+ *
+ * ⚠ THE COMPARISON IS BY BIT PATTERN, NOT BY VALUE, for two reasons.
+ *
+ * A value comparison cannot see a one-ulp move between the parse and the model,
+ * and when it does fail it prints two numbers that look identical, so it reads
+ * as a broken test rather than a broken decoder. Both spellings go in the
+ * message below for that reason.
+ *
+ * And `-0 === 0` is true in JavaScript, so a value comparison cannot tell them
+ * apart. That matters here more than it looks: `JSON.stringify(-0)` is `"0"` and
+ * the accept tier compares trees by value, so NO DOCUMENT TIER can see a
+ * negative zero, and `corpus/numbers/` is the only instrument that can — over a
+ * table of literals.
+ *
+ * ⚠ THE NEGATIVE-ZERO HALF IS LATENT, MEASURED 2026-09-10. Every coordinate any
+ * sidecar pins is between -3.74 and -2.99, so no `positions` expectation reaches
+ * a zero and a decoder that turned one negative passes this check. The machinery
+ * is right and the corpus does not exercise it. A fixture carrying a zero
+ * coordinate would close the gap; see test/redproof.test.js, which asserts the
+ * absence so it cannot be mistaken for coverage.
+ *
+ * ⚠ WHAT IT DOES NOT CATCH: a PARSER one ulp out. The sidecar's expected value is
+ * read by the same JSON parser as the file, so a parser that lost a bit would
+ * lose it on both sides and this check would agree with itself. That is a
+ * different test's job — `accept/full-precision-coordinate.vnx` is where the
+ * parser is pinned. This one is about anything that moves a value BETWEEN the
+ * parse and the model.
  */
 function checkPositions(c, positions, expected) {
   for (const e of expected) {
     const p = positions.get(e.at);
     if (!c.check(p !== undefined, `no position at ${JSON.stringify(e.at)}`)) continue;
-    c.check(p.lon === e.lon, `${e.at}: lon is ${p.lon}, expected ${e.lon}`);
-    c.check(p.lat === e.lat, `${e.at}: lat is ${p.lat}, expected ${e.lat}`);
+    for (const channel of ['lon', 'lat']) {
+      const got = p[channel];
+      const want = e[channel];
+      c.check(sameBits(got, want),
+        `${e.at}: ${channel} is ${got} (${bitsOf(got)}), expected ${want} (${bitsOf(want)})`);
+    }
   }
+}
+
+const BITS_VIEW = new DataView(new ArrayBuffer(8));
+
+/** The IEEE 754 encoding of a double, as 16 hexadecimal digits. */
+function bitsOf(n) {
+  if (typeof n !== 'number') return 'not a number';
+  BITS_VIEW.setFloat64(0, n);
+  return BITS_VIEW.getBigUint64(0).toString(16).padStart(16, '0');
+}
+
+function sameBits(a, b) {
+  return typeof a === 'number' && typeof b === 'number' && bitsOf(a) === bitsOf(b);
 }
 
 function checkTracks(c, doc, expected) {

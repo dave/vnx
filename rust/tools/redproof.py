@@ -55,9 +55,13 @@ rather than in this crate and fails the script if it ever goes red. None does
 today: the one that did — reaching inward to a segment's first and last TIMED
 pip — was promoted on 2026-09-10 when `8979621` fixed the fixture behind it.
 """
-import io, os, shutil, subprocess, sys, tempfile
+import atexit, datetime, io, os, shutil, subprocess, sys, tempfile
 
-ROOT = "/Users/dave/src/vnx/rust"
+# Derived from this script's own location, NOT hardcoded. A hardcoded path
+# means "run it in a detached scratch worktree" — the practice this script's
+# own hazard notes recommend — silently mutates the shared tree instead, which
+# is the opposite of what the reader was trying to do.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/encode.rs",
          "src/zip/mod.rs", "src/geo.rs", "src/diag.rs", "src/vnz.rs",
          "tests/corpus.rs", "tests/support/tree.rs"]
@@ -277,6 +281,62 @@ MUTATIONS = [
 ]
 
 
+MARKER = os.path.join(ROOT, ".redproof-running")
+
+
+def write_marker(name, rel):
+    """Say in the TREE that a run is in progress, and which mutation is live.
+
+    ⚠ THIS IS FOR EVERYONE ELSE, NOT FOR THE RUNNER. While this script runs,
+    any other lane sharing the worktree sees a red suite and a violated source
+    file — and nothing distinguishes that from a red proof somebody abandoned
+    without reverting. The two look identical. On 2026-09-10 that cost two
+    lanes a measurement each: one built a detached worktree to prove HEAD was
+    clean, the other found the same files dirty and left them alone, and the
+    change they were both reasoning about was this script's own
+    `refuse on a newer PATCH too` mutation, held for about twenty seconds.
+
+    Chat cannot fix that. The observer is a different agent who arrives
+    mid-run, reads `git status`, and finds an untracked file — which is why
+    this is deliberately NOT gitignored.
+    """
+    io.open(MARKER, "w", encoding="utf-8").write(f"""\
+redproof.py is running in this tree.
+
+The mutation below is DELIBERATE and TRANSIENT. Do not revert it, do not
+commit it, and do not trust a test result from this tree until the run ends.
+
+  pid       {os.getpid()}
+  started   {STARTED}
+  updated   {datetime.datetime.now().isoformat(timespec="seconds")}
+  mutation  {name}
+  file      {rel}
+
+Is the run still alive?
+
+  kill -0 {os.getpid()}      # exit 0 = alive, "No such process" = STALE
+
+⚠ A STALE MARKER IS THE DANGEROUS CASE. If the process is gone, this script
+was killed while holding the mutation, so the file above is still violated and
+nothing is going to put it back. That is the one state that really is an
+abandoned red proof:
+
+  git -C {ROOT} checkout -- {rel}
+  rm {MARKER}
+""")
+
+
+def remove_marker():
+    try:
+        os.remove(MARKER)
+    except FileNotFoundError:
+        pass
+
+
+STARTED = datetime.datetime.now().isoformat(timespec="seconds")
+atexit.register(remove_marker)
+
+
 def snapshot():
     """Copy every file this script may mutate, and return the copy's directory.
 
@@ -351,7 +411,9 @@ def main():
         return 1
     print("baseline: GREEN\n")
     print(f"  (holding a write lock on {len(FILES)} files for this run — "
-          "do not edit them until it finishes)\n")
+          "do not edit them until it finishes)")
+    print(f"  (a marker at {MARKER} names the live mutation, "
+          "so another lane can read the tree rather than guess)\n")
     survivors = []
     for name, rel, old, new, *rest in MUTATIONS:
         count = -1 if "all" in rest else 1
@@ -361,6 +423,7 @@ def main():
         want_green = "expect-green" in rest
         # The snapshot is per-mutation. See `snapshot`.
         backup = snapshot()
+        write_marker(name, rel)
         path = os.path.join(ROOT, rel)
         s = io.open(path, encoding="utf-8").read()
         if old not in s:

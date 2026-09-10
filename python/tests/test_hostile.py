@@ -26,7 +26,7 @@ from unittest import mock
 import vnx
 from vnx import decode, model
 
-from . import test_corpus
+from . import test_corpus, zipbytes
 
 # Long enough that deflate has something to compress and a flipped byte lands
 # inside the payload rather than in a header.  The bulk lives on a waypoint's
@@ -193,19 +193,23 @@ class LyingHeaders(unittest.TestCase):
 
         An `OutOfMemoryError` is not an exception a caller catches -- it takes
         the process rather than the document -- so the measurement is the peak
-        allocation, not the outcome.  Measured against a claim 100 million times
-        the real size.
+        allocation, and NOT the outcome.  The outcome is a refusal now, and a
+        refusal is also what an allocation failure would look like from
+        outside, which is exactly why the peak is what this asserts.
         """
         lying = self.rewritten(uncompressed=self.LIE)
         tracemalloc.start()
         try:
-            result = vnx.read_container_bytes(lying)
+            with self.assertRaises(vnx.VNXRefusal):
+                vnx.read_container_bytes(lying)
             peak = tracemalloc.get_traced_memory()[1]
         finally:
             tracemalloc.stop()
-        self.assertEqual(result.document_name, "doc.vnx")
         self.assertLess(peak, 8 * 1024 * 1024, "a header field sized a buffer")
-        self.assertGreater(self.LIE, 8 * 1024 * 1024 * 100, "the lie is too small to prove anything")
+        self.assertGreater(
+            self.LIE, 8 * 1024 * 1024 * 100,
+            "the lie is too small to prove anything",
+        )
 
     def test_a_lying_compressed_size_is_refused(self) -> None:
         with self.assertRaises(vnx.VNXRefusal):
@@ -232,15 +236,36 @@ class LyingHeaders(unittest.TestCase):
         with self.assertRaises(vnx.VNXRefusal):
             vnx.read_container_bytes(corrupt)
 
-    def test_a_declared_size_LARGER_than_the_data_is_accepted(self) -> None:
-        """Pinned as behaviour, not endorsed as a rule.
+    def test_a_declared_size_LARGER_than_the_data_is_refused(self) -> None:
+        """Ruled 2026-09-10, on consistency rather than on harm.
 
-        The bytes returned are the real bytes and the CRC over them agrees, so
-        nothing about the document is wrong -- but the size field provably is,
-        and SPEC 7 does not say to refuse it.  Awaiting a ruling; this test
-        records what this reader does so a change to it is deliberate.
+        A size shorter than the data was already fatal, inside the library's
+        own checks.  Refusing short and accepting long is an asymmetry with no
+        basis in the format: both are the same lie in the same field.  The
+        message names both numbers, because "malformed" without them leaves a
+        holder unable to tell a truncated archive from a mislabelled one.
         """
-        result = vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
+        with self.assertRaises(vnx.VNXRefusal) as caught:
+            vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
+        self.assertIn(str(self.LIE), str(caught.exception))
+        self.assertIn(str(len(_DOCUMENT)), str(caught.exception))
+
+    def test_the_check_reads_the_CENTRAL_size(self) -> None:
+        """The counterweight, and the reason this is not simply `!=`.
+
+        SPEC 7 makes the central directory authoritative and REQUIRES an
+        archive whose local header defers its sizes to read -- that is what
+        general purpose bit 3 carries.  A size check written against the local
+        header would refuse a conforming archive.
+        """
+        local_only = self.good[:18] + b"\x00" * 8 + self.good[26:]
+        # Read the two headers as bytes, because the whole point is that they
+        # disagree and no ZIP library will show you the local one.
+        self.assertEqual(zipbytes.local_headers(local_only)[0].uncompressed, 0)
+        self.assertEqual(
+            zipbytes.central_headers(local_only)[0].uncompressed, len(_DOCUMENT)
+        )
+        result = vnx.read_container_bytes(local_only)
         assert result.document.waypoints is not None
         self.assertEqual(result.document.waypoints[0].notes, _NOTES)
 

@@ -141,6 +141,24 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
         raise VNXRefusal(
             f"the root document {document_name!r} will not decompress: {exc}"
         ) from exc
+
+    # SPEC 7: a size that provably disagrees with the content it describes is
+    # refused (ruled 2026-09-10).  A size SHORTER than the data already failed
+    # above, inside the library's own CRC and size checks; refusing short and
+    # accepting long would be an asymmetry the format has not asked for, since
+    # both are the same lie in the same field.  This is determinable rather
+    # than ambiguous: the stream ended and the CRC over what arrived agrees, so
+    # the payload is complete and the size field is simply wrong.
+    #
+    # The comparison is against the CENTRAL directory's size, which SPEC 7
+    # makes authoritative -- a local size of zero is what an archive written
+    # with general purpose bit 3 carries, and MUST still read.
+    declared = archive.getinfo(document_name).file_size
+    if declared != len(body):
+        raise VNXRefusal(
+            f"the root document {document_name!r} declares {declared} bytes "
+            f"and holds {len(body)}"
+        )
     result: ReadResult = read_bytes(body)
     diagnostics = list(result.diagnostics)
     for name in sorted(unreadable):

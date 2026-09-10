@@ -65,10 +65,6 @@ class CorpusTest {
         assertTrue(cases("accept").size >= 14, "the accept tier has shrunk: ${cases("accept").size} cases")
         assertTrue(cases("reject").size >= 7, "the reject tier has shrunk: ${cases("reject").size} cases")
         assertTrue(cases("diagnose").size >= 6, "the diagnose tier has shrunk: ${cases("diagnose").size} cases")
-        // Three format cases as of 2026-09-09: messy-spellings, escaping and
-        // number-tie. A count rather than "not empty", because a tier losing a
-        // case is exactly the shrinkage that passes quietly.
-        assertTrue(formatPairs().size >= 3, "the format tier has shrunk to ${formatPairs().size} cases")
         assertTrue(writePairs().isNotEmpty(), "the write tier is empty")
         assertTrue(writeContainerCases().isNotEmpty(), "the write tier holds no container case")
     }
@@ -92,24 +88,28 @@ class CorpusTest {
             checkPositions(case, sidecar, result)
             checkTracks(case, sidecar, result)
             checkAttachments(case, sidecar, result)
-            if (case.name.endsWith(".vnx")) checkReRender(case, result)
+            if (case.name.endsWith(".vnx")) checkTree(case, result)
         }
     }
 
     /**
-     * SPEC.md section 8.1: the runner decodes the file, RE-RENDERS the decoded
-     * document, and requires the original bytes back.
+     * SPEC.md section 8.1: the runner decodes the file, ENCODES the decoded
+     * document, and compares the tree parsed from the original file against the
+     * tree parsed from the output.
      *
-     * Re-render, not write: a writer rounds coordinates and emits the shortest
-     * spelling of a position, so writing what you read is legitimately not what
-     * you read. And not reformat-the-bytes: reformatting never builds a model, so
-     * it cannot see a reader that threw away what it read.
+     * TREES, not bytes: key order, number spelling and whitespace are the
+     * writer's own business. Rounding and the shortest spelling of a position are
+     * applied to BOTH sides, because this tier compares a document against a
+     * re-encoding of itself and would otherwise require the file to have been
+     * written by this library.
+     *
+     * And against the FILE, never against another model. AcceptTierTest holds
+     * that distinction, and it is the whole worth of this check.
      */
-    private fun checkReRender(case: File, result: ReadResult) {
-        val original = case.readText()
-        val rendered = Vnx.render(result.document)
-        if (rendered != original) {
-            fail("${case.name}: re-rendering the decoded document did not reproduce the file.\n${diff(original, rendered)}")
+    private fun checkTree(case: File, result: ReadResult) {
+        val written = Vnx.write(result.document)
+        Tree.compare(written, case.readText(), Tree.Options(emitBoundary = true))?.let {
+            fail("${case.name}: what this library wrote is not what it read: $it")
         }
     }
 
@@ -254,18 +254,6 @@ class CorpusTest {
             }
     }
 
-    /** Where two archives first disagree, which a length comparison alone cannot say. */
-    private fun firstByteDifference(want: ByteArray, got: ByteArray): String {
-        if (want.contentEquals(got)) return "identical"
-        for (i in 0 until minOf(want.size, got.size)) {
-            if (want[i] != got[i]) {
-                return "byte $i of ${want.size}: expected 0x%02x, produced 0x%02x (${got.size} bytes written)"
-                    .format(want[i], got[i])
-            }
-        }
-        return "identical for ${minOf(want.size, got.size)} bytes; expected ${want.size} and produced ${got.size}"
-    }
-
     /** The manifest's attachments, in the order it lists them. */
     private fun manifestAttachments(manifest: File): Map<String, ByteArray> {
         val parsed = JsonParser.parse(manifest.readText()) as JsonObject
@@ -281,59 +269,80 @@ class CorpusTest {
     }
 
     /**
-     * The emit boundary (SPEC.md section 4.5.4).
+     * The emit boundary (SPEC.md section 4.1).
      *
-     * This tier is the only one that calls WRITE. Every other tier re-renders,
-     * and a re-render applies neither rounding nor shortening — so until this
-     * directory existed, the whole of 4.5.4 was reachable only by an
-     * implementation's own tests.
+     * This tier is the only one that reaches it. Every other tier compares a
+     * document against a re-encoding of itself, which applies rounding to values
+     * that already satisfy it and shortening to positions already short, so a
+     * defect in either rule is invisible outside this directory and
+     * `corpus/numbers/`.
+     *
+     * AND SO IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and
+     * drops a trailing `null` from both. Doing that here would normalise away the
+     * two rules under test. The one normalisation left is the one that is not
+     * about the emit boundary at all: section 3.1's absent-versus-empty.
      */
     @Test
     fun write() {
+        val opt = Tree.Options(emitBoundary = false)
         eachCase("write", writePairs(), { it.first.name }) { (input, written) ->
             val expected = written.readText()
             // Without this a writer that echoed its input would pass every case.
             assertTrue(
-                input.readText() != expected,
-                "${input.name} is already in written form, so it cannot fail for a writer that echoes its input",
+                Tree.compare(input.readText(), expected, opt) != null,
+                "${input.name} is already the written form, so this case would pass vacuously",
             )
-            val document = try {
-                Vnx.readDocument(input.readText())
-            } catch (e: VnxRefusal) {
-                fail("${input.name} must be read before it can be written, and was refused: $e")
+            val actual = writeThrough(input.readText(), input.name)
+            Tree.compare(actual, expected, opt)?.let {
+                fail("${input.name}: the written document is not the one the case expects: $it")
             }
-            assertEquals(
-                emptyList(), document.diagnostics,
-                "${input.name}: a writer case's input must read cleanly",
-            )
-            val actual = Vnx.write(document.document)
-            assertEquals(expected, actual, "${input.name}: the writer's bytes.\n${diff(expected, actual)}")
             // Rounding and shortening are both idempotent, so the written form is
             // a fixed point. A case that fails this is a defect in the fixture.
-            assertEquals(
-                expected, Vnx.write(Vnx.readDocument(expected).document),
-                "${written.name} is not a fixed point of the writer",
-            )
+            Tree.compare(writeThrough(expected, written.name), expected, opt)?.let {
+                fail("${written.name} is not a fixed point of the writer: $it")
+            }
         }
+    }
+
+    /**
+     * Decodes a document and writes it back — the operation the tier tests. A
+     * diagnostic is a failure here: a writer case's input is a document the
+     * reader reads cleanly.
+     */
+    private fun writeThrough(text: String, name: String): String {
+        val read = try {
+            Vnx.readDocument(text)
+        } catch (e: VnxRefusal) {
+            fail("$name must be read before it can be written, and was refused: $e")
+        }
+        assertEquals(emptyList(), read.diagnostics, "$name: a writer case's input must read cleanly")
+        return Vnx.write(read.document)
     }
 
     /**
      * A write case whose expected output is an archive.
      *
-     * The attachments are fed REVERSED. A writer's output must not depend on
-     * the order it was handed, and feeding them in manifest order cannot see one
-     * that does. It is a robustness check and no longer more than that: the
-     * rewritten section 7.1 does not constrain entry order, so what makes the
-     * difference observable today is this case's byte comparison rather than a
-     * rule.
+     * THE BYTES ARE NOT COMPARED. Section 7.1 constrains the UTF-8 filename
+     * flag, the root document being first, and duplicate names, and leaves every
+     * other field to the writer, so two conforming writers are not expected to
+     * agree byte for byte — deflate alone makes that impossible, since no two
+     * languages emit the same deflate stream. What is compared is what 7.1 does
+     * constrain, plus the root document's tree and the attachment bodies.
+     *
+     * The attachments are fed REVERSED. A writer's output must not depend on the
+     * order it was handed, and feeding them in manifest order cannot see one that
+     * does.
      */
     @Test
     fun `write container`() {
         val cases = writeContainerCases()
         assertTrue(cases.isNotEmpty(), "the write tier holds no container case")
         eachCase("write", cases, { it.first.name }) { (input, manifest, written) ->
-            val expected = written.readBytes()
             val attachments = manifestAttachments(manifest)
+            val want = Zip.read(written.readBytes())
+            assertTrue(want.isNotEmpty(), "${written.name} holds no entries")
+            assertEquals("doc.vnx", want[0].name, "${written.name}: section 7.1 requires the root document first")
+
             val document = try {
                 Vnx.readDocument(input.readText())
             } catch (e: VnxRefusal) {
@@ -345,67 +354,30 @@ class CorpusTest {
             )
             val reversed = LinkedHashMap<String, ByteArray>()
             for (name in attachments.keys.reversed()) reversed[name] = attachments.getValue(name)
-            val actual = Vnx.writeContainer(document.document, reversed)
-            assertTrue(
-                expected.contentEquals(actual),
-                "${input.name}: the writer's archive bytes. ${firstByteDifference(expected, actual)}",
-            )
-            // The written form is a fixed point, reached the way the tier reaches
-            // it everywhere else: read the expected output back and write again.
-            val back = Vnx.readContainer(expected)
-            assertEquals(emptyList(), back.diagnostics, "${written.name} must read cleanly")
+            val bytes = Vnx.writeContainer(document.document, reversed)
+
+            val got = Zip.read(bytes)
+            assertEquals(want.map { it.name }, got.map { it.name }, "${input.name}: the archive's entry names, in order")
+            Tree.compare(String(got[0].bytes(), Charsets.UTF_8), String(want[0].bytes(), Charsets.UTF_8), Tree.Options(emitBoundary = false))?.let {
+                fail("${input.name}: the archive's root document is not the one the case expects: $it")
+            }
+            // An attachment is bytes and is compared as bytes. Nothing in this
+            // format interprets one.
+            for (entry in got.drop(1)) {
+                val body = attachments[entry.name] ?: fail("${input.name}: ${entry.name} is not in the manifest")
+                assertTrue(body.contentEquals(entry.bytes()), "${input.name}: the body of ${entry.name}")
+            }
+
+            // And the archive reads back through this library's own reader.
+            val back = Vnx.readContainer(bytes)
+            assertEquals(emptyList(), back.diagnostics, "${input.name}: the archive this library wrote must read cleanly")
             // The comparator is required and is not decoration: Kotlin's default
             // String order is by UTF-16 code unit, which puts U+1F600 before
-            // U+FF3A because its high surrogate begins at U+D800. Section 7.1
-            // requires code-point order, and this case is chosen to separate the
-            // two.
+            // U+FF3A because its high surrogate begins at U+D800. This case is
+            // chosen to separate the two.
             assertEquals(
-                attachments.keys.sortedWith(CodePointOrder.comparator), back.attachments,
-                "${written.name} does not carry the manifest's attachments",
-            )
-            val again = Vnx.writeContainer(back.document, attachments)
-            assertTrue(
-                expected.contentEquals(again),
-                "${written.name} is not a fixed point of the writer. ${firstByteDifference(expected, again)}",
-            )
-        }
-    }
-
-    // ---------------------------------------------------------------- format
-
-    private fun formatPairs(): List<Pair<File, File>> {
-        val dir = File(corpus, "format")
-        assertTrue(dir.isDirectory, "the corpus tier format is missing at ${dir.absolutePath}")
-        return dir.listFiles()!!
-            .filter { it.name.endsWith(".in.vnx") }
-            .sortedBy { it.name }
-            .map { input ->
-                val canonical = File(dir, input.name.removeSuffix(".in.vnx") + ".canonical.vnx")
-                assertTrue(canonical.isFile, "${input.name} has no ${canonical.name}")
-                input to canonical
-            }
-    }
-
-    @Test
-    fun format() {
-        eachCase("format", formatPairs(), { it.first.name }) { (input, canonical) ->
-            val messy = input.readText()
-            val expected = canonical.readText()
-            // SPEC.md section 8.1: a runner MUST assert that each format input is
-            // not already canonical. Without that a formatter that echoed its
-            // input would pass every case in the tier.
-            assertTrue(
-                messy != expected,
-                "${input.name} is already canonical, so this case cannot fail for a formatter that echoes its input",
-            )
-            assertEquals(
-                expected, Vnx.canonicalise(messy),
-                "${input.name}: the formatter's bytes.\n${diff(expected, Vnx.canonicalise(messy))}",
-            )
-            // The stated canonical form must itself be a fixed point.
-            assertEquals(
-                expected, Vnx.canonicalise(expected),
-                "${canonical.name} is not a fixed point of the formatter",
+                attachments.keys.sortedWith(entryNameOrder), back.attachments,
+                "${input.name} does not carry the manifest's attachments",
             )
         }
     }
@@ -438,23 +410,5 @@ class CorpusTest {
         if (failures.isNotEmpty()) {
             fail("$tier: ${failures.size} of ${cases.size} case(s) failed\n\n" + failures.joinToString("\n\n"))
         }
-    }
-
-    private fun diff(expected: String, actual: String): String {
-        val e = expected.lines()
-        val a = actual.lines()
-        val sb = StringBuilder()
-        for (i in 0 until maxOf(e.size, a.size)) {
-            val left = e.getOrNull(i)
-            val right = a.getOrNull(i)
-            if (left != right) {
-                sb.append("  line ${i + 1}\n    expected: ${left ?: "<end of file>"}\n    actual:   ${right ?: "<end of file>"}\n")
-                if (sb.count { it == '\n' } > 30) {
-                    sb.append("  ...\n")
-                    break
-                }
-            }
-        }
-        return sb.toString()
     }
 }

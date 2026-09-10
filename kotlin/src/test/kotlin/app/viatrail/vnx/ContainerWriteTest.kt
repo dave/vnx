@@ -1,6 +1,7 @@
 package app.viatrail.vnx
 
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.util.zip.ZipInputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -10,11 +11,6 @@ import kotlin.test.assertTrue
 
 /**
  * Writing a `.vnz` container (SPEC.md section 7).
- *
- * The container has the same two emit paths as a plain document, for the reason
- * that matters most at this boundary: repackaging an archive — adding a
- * photograph, renaming a folder — must not silently round every coordinate in
- * the document it carries.
  */
 class ContainerWriteTest {
 
@@ -24,22 +20,21 @@ class ContainerWriteTest {
 
     @Test
     fun `attachments are sorted by entry name, by code point and not by UTF-16 code unit`() {
-        // Section 7.1. Caller order is not a property of the content, so two
-        // exporters using this one library — one iterating a hash map, one a
-        // sorted list — must not emit different archives for the same document.
+        // Caller order is not a property of the content, so two exporters using
+        // this one library — one iterating a hash map, one a sorted list — must
+        // not emit different archives for the same document. Section 7.1 no
+        // longer states this; it is a property of this writer.
         //
         // The astral pair is the case that separates the two comparators, and it
-        // is the case where an implementer is most certain their sort is right:
-        // section 4.5.1 states the rule for object KEYS, and a cross-reference is
-        // easy to satisfy with a default sort and a clear conscience. Kotlin's
-        // `String.compareTo` is the wrong one — U+1F600 is a surrogate pair
+        // is the case where an implementer is most certain their sort is right.
+        // Kotlin's `String.compareTo` is the wrong one — U+1F600 is a surrogate pair
         // beginning at U+D800, which sorts BELOW U+FFFD by code unit and ABOVE it
         // by code point.
         val emoji = "\uD83D\uDE00.txt"
         val replacement = "\uFFFD.txt"
         assertTrue(emoji < replacement, "by UTF-16 code unit the emoji sorts first, which is the trap")
 
-        val bytes = Vnx.renderContainer(
+        val bytes = Vnx.writeContainer(
             documentOf("""{"vnx":"0.1.0"}"""),
             // Supplied deliberately OUT of sorted order. Two names already in
             // order would be decoration: they separate no implementations.
@@ -66,7 +61,7 @@ class ContainerWriteTest {
     @Test
     fun `a container round-trips through this library's own reader`() {
         val document = documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
-        val bytes = Vnx.renderContainer(document, linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()))
+        val bytes = Vnx.writeContainer(document, linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()))
         val back = Vnx.readContainer(bytes)
         assertEquals(emptyList(), back.diagnostics)
         assertEquals("Bothy", back.document.waypoints!![0].name)
@@ -81,7 +76,7 @@ class ContainerWriteTest {
      */
     @Test
     fun `the archive is a valid ZIP to a reader that is not mine`() {
-        val bytes = Vnx.renderContainer(
+        val bytes = Vnx.writeContainer(
             documentOf("""{"vnx":"0.1.0"}"""),
             linkedMapOf("a.txt" to "hello".toByteArray(), "deep/b.bin" to ByteArray(5000) { it.toByte() }),
         )
@@ -99,17 +94,23 @@ class ContainerWriteTest {
     }
 
     @Test
-    fun `rendering a container preserves precision and writing one rounds it`() {
+    fun `the document inside the archive is the document this library writes`() {
         val document = documentOf(fullPrecision)
-        val rendered = String(inner(Vnx.renderContainer(document)))
         val written = String(inner(Vnx.writeContainer(document)))
-        assertTrue(
-            rendered.contains("[-3.6712345678901235, 57.11812345678901]"),
-            "repackaging must not round the document it carries: $rendered",
-        )
-        assertTrue(written.contains("[-3.671235, 57.118123]"), "a writer rounds: $written")
-        assertEquals(Vnx.render(document), rendered)
+        assertTrue(written.contains("[-3.671235,57.118123]"), "a writer rounds: $written")
         assertEquals(Vnx.write(document), written)
+    }
+
+    @Test
+    fun `an archive is smaller than the document it holds`() {
+        // Section 7.1 lets a writer deflate, and this is the whole reason to.
+        val document = documentOf(File(System.getProperty("vnx.corpus")!!, "accept/example-network.vnx").readText())
+        val plain = Vnx.write(document).toByteArray(Charsets.UTF_8)
+        val archive = Vnx.writeContainer(document)
+        assertTrue(
+            archive.size < plain.size,
+            "the archive is ${archive.size} bytes and the document it holds is ${plain.size}",
+        )
     }
 
     @Test
@@ -118,9 +119,9 @@ class ContainerWriteTest {
         // should not lose that at the container boundary over a clock reading.
         // SPEC.md does not require this; it is raised rather than assumed.
         val document = documentOf(fullPrecision)
-        val once = Vnx.renderContainer(document, linkedMapOf("a.txt" to "hello".toByteArray()))
+        val once = Vnx.writeContainer(document, linkedMapOf("a.txt" to "hello".toByteArray()))
         Thread.sleep(5)
-        val twice = Vnx.renderContainer(document, linkedMapOf("a.txt" to "hello".toByteArray()))
+        val twice = Vnx.writeContainer(document, linkedMapOf("a.txt" to "hello".toByteArray()))
         assertContentEquals(once, twice)
     }
 
@@ -136,7 +137,7 @@ class ContainerWriteTest {
             "a\\b", "..\\x", "dir\\file.jpg",
         )) {
             val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
-                Vnx.renderContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+                Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
             }
             assertEquals(RefusalCause.CONTAINER_PATH_ESCAPES, e.refusal, "for \"$name\"")
         }
@@ -146,7 +147,7 @@ class ContainerWriteTest {
     fun `an attachment may not collide with the root document, case-insensitively`() {
         for (name in listOf("doc.vnx", "DOC.VNX", "Doc.Vnx")) {
             val e = assertFailsWith<VnxRefusal>("\"$name\" must collide") {
-                Vnx.renderContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+                Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
             }
             assertEquals(RefusalCause.CONTAINER_DUPLICATE_ENTRY, e.refusal, "for \"$name\"")
         }
@@ -158,14 +159,14 @@ class ContainerWriteTest {
         // flag, rather than guessing between UTF-8 and CP437 — so this round trip
         // failing is exactly how a missing flag would announce itself.
         val name = "photos/caf\u00e9-\u5c71.jpg"
-        val bytes = Vnx.renderContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+        val bytes = Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
         assertEquals(listOf(name), Vnx.readContainer(bytes).attachments)
     }
 
     @Test
     fun `an empty attachment and a large one both survive`() {
         val big = ByteArray(300_000) { (it * 31).toByte() }
-        val bytes = Vnx.renderContainer(
+        val bytes = Vnx.writeContainer(
             documentOf("""{"vnx":"0.1.0"}"""),
             linkedMapOf("empty.bin" to ByteArray(0), "big.bin" to big),
         )
@@ -190,7 +191,7 @@ class ContainerWriteTest {
     }
 
     /**
-     * Every field SPEC.md section 7.1 fixes, read RAW out of both headers.
+     * What SPEC.md section 7.1 still fixes, read RAW out of both headers.
      *
      * Not through `java.util.zip`, and this is the point rather than a
      * preference: every ZIP library in every language resolves an entry from the
@@ -201,47 +202,39 @@ class ContainerWriteTest {
      * to pin its known gaps could not see it, because that test read the output
      * back through a ZIP reader.
      *
-     * My own container tests had the same blindness until this one: they went
-     * through `ZipInputStream`, which is at least a local-header reader, but
-     * nothing here compared the two headers against each other.
+     * Section 7.1 is now three rules — the UTF-8 filename flag, the root document
+     * first, and no duplicate names — so most of what this test used to assert
+     * has gone with the rules it was checking. Deflate brings the data-descriptor
+     * bit with it, which 7.1 permits and which is why the crc and the two sizes
+     * are read from the CENTRAL directory alone.
      */
     @Test
-    fun `every field section 7-1 fixes, read raw from both headers`() {
-        val bytes = Vnx.renderContainer(
+    fun `what section 7-1 still fixes, read raw from both headers`() {
+        val bytes = Vnx.writeContainer(
             documentOf(fullPrecision),
             linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()),
         )
         val entries = rawEntries(bytes)
         assertEquals(2, entries.size)
         for (entry in entries) {
-            // The values section 7.1 fixes.
-            assertEquals(10, entry.local["version_needed"], "${entry.name}: local version needed")
-            assertEquals(10, entry.central["version_needed"], "${entry.name}: central version needed")
-            assertEquals(10, entry.central["version_made_by_low"], "${entry.name}: version made by")
-            assertEquals(0, entry.central["create_system"], "${entry.name}: create system encodes the machine")
-            assertEquals(0x0800, entry.local["flags"], "${entry.name}: UTF-8 name flag only")
-            assertEquals(0, entry.local["flags"]!! and 0x0008, "${entry.name}: the data-descriptor bit")
-            assertEquals(0, entry.local["method"], "${entry.name}: STORED")
+            assertEquals(
+                0x0800, entry.local["flags"]!! and 0x0800,
+                "${entry.name}: section 7.1 requires the UTF-8 filename flag",
+            )
+            assertEquals(8, entry.local["method"], "${entry.name}: DEFLATED")
+            assertEquals(8, entry.central["method"], "${entry.name}: DEFLATED")
             assertEquals(0x0000, entry.local["dos_time"], "${entry.name}: 1980-01-01 00:00:00")
             assertEquals(0x0021, entry.local["dos_date"], "${entry.name}: 1980-01-01 00:00:00")
-            assertEquals(0, entry.local["extra_len"], "${entry.name}: no extra field")
-            assertEquals(0, entry.central["comment_len"], "${entry.name}: no comment")
-            assertEquals(0, entry.central["disk_start"])
-            assertEquals(0, entry.central["internal_attr"])
-            assertEquals(0, entry.central["external_attr"], "${entry.name}: external attributes encode the machine")
 
             // The assertion no ZIP library can make.
-            for (field in listOf("version_needed", "flags", "method", "dos_time", "dos_date", "crc", "csize", "usize")) {
+            for (field in listOf("flags", "method", "dos_time", "dos_date")) {
                 assertEquals(
                     entry.local[field], entry.central[field],
                     "${entry.name}: local and central disagree on $field",
                 )
             }
-            // A stored entry's payload can itself contain PK\x03\x04, so the sizes
-            // being real in the local header is what keeps forward-only parsing
-            // unambiguous.
-            assertTrue(entry.local["csize"]!! > 0 || entry.name.endsWith("empty.bin"))
-            assertEquals(entry.local["csize"], entry.local["usize"], "${entry.name}: stored, so the sizes match")
+            assertTrue(entry.central["crc"]!! != 0, "${entry.name}: the central directory carries a real CRC")
+            assertTrue(entry.central["usize"]!! > 0, "${entry.name}: the central directory carries a real size")
         }
         assertEquals("doc.vnx", entries[0].name, "the document goes first, so section 7's fallback finds it")
     }
@@ -292,7 +285,7 @@ class ContainerWriteTest {
         val out = java.io.ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(out).use { zo ->
             zo.putNextEntry(java.util.zip.ZipEntry("doc.vnx"))
-            zo.write(Vnx.render(documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
+            zo.write(Vnx.write(documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
             zo.closeEntry()
         }
         val result = Vnx.readContainer(out.toByteArray())

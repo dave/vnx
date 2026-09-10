@@ -302,9 +302,9 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     /**
      * Section 4.1. A position carries at least lon and lat; `null` marks an
-     * absent value from index 2 upward; trailing channels may be omitted; and
-     * channels beyond those this reader knows are ignored but kept, so that a
-     * future channel is additive and a re-render reproduces the spelling.
+     * absent value from index 2 upward; trailing channels may be omitted; and a
+     * channel beyond those this version names is read, checked and dropped, with
+     * no diagnostic, so that a future channel is additive.
      */
     private fun position(value: JsonValue, at: Pointer): Position? {
         if (value !is JsonArray) {
@@ -348,7 +348,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 }
             }
         }
-        return Position(channels)
+        // Every channel is CHECKED, and then the ones this version names are
+        // kept. Checking first and keeping second is what makes a fifth channel
+        // of the wrong type a diagnostic rather than something nobody looked at.
+        return Position(channels[0]!!, channels[1]!!, channels.getOrNull(2), channels.getOrNull(3))
     }
 
     /** A required `pips` array. Returns null when the host item must be dropped. */

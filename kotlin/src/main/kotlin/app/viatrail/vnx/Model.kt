@@ -3,17 +3,12 @@ package app.viatrail.vnx
 /**
  * The decoded VNX document model.
  *
- * Two properties of this model are load-bearing and easy to lose.
- *
- * **A position keeps its arity.** SPEC.md section 4.1 makes `[lon, lat, null]`
- * and `[lon, lat]` the same statement but not the same spelling, and says
- * shortening happens in the writer rather than in the model. A model with a
- * nullable elevation field — the shape most implementations reach for first —
- * cannot re-render `accept/absent-elevation-and-time.vnx`.
+ * One property of this model is load-bearing and easy to lose.
  *
  * **Absent is not empty.** Every optional collection is nullable, because
- * section 3.10 says an empty array is distinct from an absent one and a
- * re-render has to reproduce whichever the document carried.
+ * section 3.10 says an empty array is distinct from an absent one, and a
+ * document that carried an empty one is not the same document as one that
+ * carried none.
  */
 data class VnxDocument(
     val vnx: String,
@@ -37,20 +32,22 @@ data class VnxDocument(
 /**
  * A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC.md section 4.1).
  *
- * Channels from index 2 upward may be `null` or omitted; the list holds exactly
- * what the document held, so arity survives a read-modify-write.
+ * [ele] and [timeMs] are null when the channel is absent, which section 4.1
+ * makes a first-class state rather than an error. HOW MANY CHANNELS THE
+ * DOCUMENT SPELLED IS NOT KEPT: `[lon, lat, null]` and `[lon, lat]` state the
+ * same thing, a writer emits the shortest spelling of either, and a model that
+ * remembered the difference would be remembering the text rather than the
+ * value.
+ *
+ * A channel beyond those this version names is read and dropped, which section
+ * 4.1 requires of a reader and reports no diagnostic for.
  */
-data class Position(val channels: List<Double?>) {
-    init {
-        require(channels.size >= 2) { "a position carries at least lon and lat" }
-        require(channels[0] != null && channels[1] != null) { "lon and lat are never null" }
-    }
-
-    val lon: Double get() = channels[0]!!
-    val lat: Double get() = channels[1]!!
-    val ele: Double? get() = channels.getOrNull(2)
-    val timeMs: Double? get() = channels.getOrNull(3)
-    val arity: Int get() = channels.size
+data class Position(
+    val lon: Double,
+    val lat: Double,
+    val ele: Double? = null,
+    val timeMs: Double? = null,
+) {
 
     /**
      * Equality for the continuity rule of SPEC.md section 6.2 and the shared
@@ -64,7 +61,7 @@ data class Position(val channels: List<Double?>) {
     fun meets(other: Position): Boolean = lon == other.lon && lat == other.lat
 
     companion object {
-        fun of(lon: Double, lat: Double) = Position(listOf(lon, lat))
+        fun of(lon: Double, lat: Double) = Position(lon, lat)
     }
 }
 

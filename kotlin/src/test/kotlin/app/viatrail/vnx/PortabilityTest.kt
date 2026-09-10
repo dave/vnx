@@ -37,10 +37,12 @@ class PortabilityTest {
                 val corpus = File(System.getProperty("vnx.corpus")!!)
                 val r = Vnx.readContainer(File(corpus, "accept/container-root-doc.vnz").readBytes())
                 assertEquals("In a container", r.document.waypoints!![0].name, "container reading broke under $locale")
-                // And the renderer's numbers must not pick up a locale's decimal
-                // separator: a comma there would be a byte incompatibility.
-                assertEquals("-3.6712", EcmaNumber.render(-3.6712), "number rendering broke under $locale")
-                assertEquals("1e+21", EcmaNumber.render(1e21), "number rendering broke under $locale")
+                // And the writer's numbers must not pick up a locale's decimal
+                // separator: a comma there would not be JSON at all.
+                val written = Vnx.write(
+                    Vnx.readDocument("""{"vnx":"0.1.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
+                )
+                assertEquals("""{"vnx":"0.1.0","waypoints":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
             }
         } finally {
             Locale.setDefault(original)
@@ -48,37 +50,51 @@ class PortabilityTest {
     }
 
     /**
-     * The library imports the standard library and nothing else.
+     * The library imports the standard library and ONE named dependency.
      *
-     * A codec with dependencies is a codec people cannot adopt, and this is the
-     * property everyone reimplementing the format relies on. The build declares
-     * no dependencies, so this guards against one arriving transitively and being
-     * used without anyone noticing.
+     * A codec with dependencies is a codec people cannot adopt, so the list is
+     * short and is written down here rather than left to whatever the build
+     * happens to resolve. kotlinx-serialization-json is on it because the JVM
+     * standard library has no JSON API at all; anything else arriving
+     * transitively and being used without a decision is what this catches.
+     *
+     * The dependency is also confined to ONE FILE, which is the property that
+     * keeps it replaceable.
      */
     @Test
-    fun `the library imports nothing outside the standard library`() {
+    fun `the library imports the standard library and one named dependency`() {
         val main = File("src/main/kotlin")
         assertTrue(main.isDirectory, "the source tree moved: ${main.absolutePath}")
         val offenders = ArrayList<String>()
+        val serialisationImports = ArrayList<String>()
         main.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
             for ((number, line) in file.readLines().withIndex()) {
                 val trimmed = line.trim()
                 if (!trimmed.startsWith("import ")) continue
                 val target = trimmed.removePrefix("import ").substringBefore(' ')
+                if (target.startsWith("kotlinx.serialization.json.")) {
+                    serialisationImports.add(file.name)
+                    continue
+                }
                 val allowed = target.startsWith("java.") || target.startsWith("javax.") ||
                     target.startsWith("kotlin.") || target.startsWith("app.viatrail.vnx.")
                 if (!allowed) offenders.add("${file.name}:${number + 1}: $target")
             }
         }
         assertTrue(offenders.isEmpty(), "the library has grown a dependency:\n${offenders.joinToString("\n")}")
+        assertTrue(serialisationImports.isNotEmpty(), "nothing imports the JSON library, so this test is dead")
+        assertEquals(
+            setOf("Serialise.kt"), serialisationImports.toSet(),
+            "the JSON library has spread beyond the one file that renders a document",
+        )
     }
 
     @Test
     fun `a byte order mark on the way in does not become one on the way out`() {
-        // Section 4.5.5 forbids a writer emitting one. A reader still meets one.
+        // This writer emits none. A reader still meets one.
         val bytes = "﻿{\"vnx\":\"0.1.0\"}".toByteArray(Charsets.UTF_8)
         val r = Vnx.readDocument(bytes)
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals("{\n  \"vnx\": \"0.1.0\"\n}\n", Vnx.render(r.document))
+        assertEquals("{\"vnx\":\"0.1.0\"}\n", Vnx.write(r.document))
     }
 }

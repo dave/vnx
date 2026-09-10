@@ -6,18 +6,13 @@ import java.math.RoundingMode
 /**
  * Turns a decoded model back into a JSON value tree.
  *
- * SPEC.md section 8.1 distinguishes two operations that both produce a document,
- * and this class is both of them, selected by [rounding]:
- *
- * | Operation | What it does |
- * |---|---|
- * | WRITE | applies the emit-boundary rules: rounds coordinates (4.5.4) and emits the shortest spelling of a position (4.1) |
- * | RE-RENDER | applies neither, so arity and precision survive |
- *
- * The accept tier of the corpus requires the second. Writing what was read is
- * legitimately not what was read, because a writer rounds.
+ * There is one operation, and it is WRITE: SPEC.md section 4.1's emit-boundary
+ * rules always apply — coordinates rounded, and the shortest spelling of a
+ * position. Writing what was read is legitimately not what was read, byte for
+ * byte, because a writer rounds; section 8.1 makes the comparison a comparison
+ * of JSON trees for exactly that reason.
  */
-internal class Encoder(private val rounding: Boolean) {
+internal class Encoder {
 
     fun encode(doc: VnxDocument): JsonValue = JsonObject.Builder()
         .putString("vnx", doc.vnx)
@@ -38,35 +33,28 @@ internal class Encoder(private val rounding: Boolean) {
     // ------------------------------------------------------------ positions
 
     /**
-     * Section 4.5.4: a writer rounds at the serialisation boundary, longitude and
+     * Section 4.1: a writer rounds at the serialisation boundary, longitude and
      * latitude to 6 decimal places and elevation to 1. Time is an integer count
      * of milliseconds and is not rounded. Rounding MUST NOT happen in the model,
      * because endpoint comparison and de-duplication compare positions by full
      * value.
      *
-     * Section 4.1: a writer emits the SHORTEST spelling of a position, which
-     * means dropping trailing nulls. An interior absence keeps its `null` —
+     * Section 4.1 again: a writer emits the SHORTEST spelling of a position,
+     * which means dropping trailing nulls. An interior absence keeps its `null` —
      * dropping it would move the time into the elevation channel.
      */
     fun position(p: Position): JsonArray {
-        var channels: List<Double?> = p.channels
-        if (rounding) {
-            channels = channels.mapIndexed { index, value ->
-                when {
-                    value == null -> null
-                    index < 2 -> round(value, 6)
-                    index == 2 -> round(value, 1)
-                    else -> value
-                }
-            }
-            while (channels.size > 2 && channels.last() == null) {
-                channels = channels.dropLast(1)
-            }
+        var channels: List<Double?> = listOf(
+            Rounding.toPlaces(p.lon, 6),
+            Rounding.toPlaces(p.lat, 6),
+            p.ele?.let { Rounding.toPlaces(it, 1) },
+            p.timeMs,
+        )
+        while (channels.size > 2 && channels.last() == null) {
+            channels = channels.dropLast(1)
         }
         return JsonArray(channels.map { if (it == null) JsonNull else JsonNumber(it) })
     }
-
-    private fun round(value: Double, places: Int): Double = Rounding.toPlaces(value, places)
 
     private fun positions(list: List<Position>) = JsonArray(list.map(::position))
 
@@ -183,25 +171,26 @@ internal class Encoder(private val rounding: Boolean) {
 
     /**
      * Section 3.8: a writer emits `hidden` only when its value is true, and a
-     * document SHOULD NOT contain `"hidden": false`. A re-render reproduces what
-     * the document carried, false included, because it reproduces the document
-     * rather than deciding what a writer would have said.
+     * document SHOULD NOT contain `"hidden": false`. So a document that carried
+     * one loses it here, which is the writer obeying the rule rather than
+     * copying its input.
      */
-    private fun hidden(value: Boolean?): Boolean? = when {
-        value == null -> null
-        rounding && !value -> null
-        else -> value
-    }
+    private fun hidden(value: Boolean?): Boolean? = if (value == true) true else null
 }
 
 /**
- * The emit-boundary rounding of SPEC.md section 4.5.4: longitude and latitude to
- * 6 decimal places, elevation to 1, over the exact binary value of the double.
+ * The emit-boundary rounding of SPEC.md section 4.1: longitude and latitude to 6
+ * decimal places, elevation to 1, over the exact binary value of the double.
  * Time is an integer count of milliseconds and is not rounded.
  *
- * A separate object because it is a separate code path from number RENDERING and
- * needs its own guard: the two need the same tie rule and share no code, so
- * getting one right says nothing about the other.
+ * ROUNDING IS BY FORMATTING, NEVER BY SCALING, which is what section 4.1
+ * requires in as many words. `BigDecimal(value)` is the EXACT binary value, so
+ * `setScale` is the correctly rounded decimal of the number the writer was
+ * handed — the same operation as formatting to that many places and parsing the
+ * text back. Scaling by a power of ten first rounds a product that is itself a
+ * binary64, which manufactures ties the true decimal never had and destroys ties
+ * it did: measured in Go, the scaling route disagreed with the shared reference
+ * table on 175 of 5,329 rows.
  *
  * Ties round to EVEN. Measured 2026-09-09: Go's `strconv.FormatFloat` and
  * Python's `%.1f` both write 340.25 to one place as `340.2`, where JavaScript's

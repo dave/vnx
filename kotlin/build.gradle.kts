@@ -6,14 +6,16 @@ repositories {
     mavenCentral()
 }
 
-// No third-party dependencies, on purpose. The JSON parser, the serialiser and
-// the ECMAScript number renderer in this library are written here because a
-// codec with dependencies is a codec people cannot adopt, and because no stock
-// JSON library emits the canonical form SPEC.md section 4.5 requires.
+// One dependency: kotlinx-serialization-json.
 //
-// The only test dependency is the Kotlin test library, which is part of the
-// Kotlin distribution this build already uses.
+// The JVM standard library has no JSON API at all, so a JVM implementation
+// either takes a JSON library or writes one. The bytes of a document are no
+// longer a rule (SPEC.md section 4.2 and section 8.1), so writing one buys
+// nothing that a library does not give.
+//
+// The READER is still this library's own. See JsonParser.kt for why.
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
     testImplementation(kotlin("test"))
 }
 
@@ -27,7 +29,7 @@ tasks.test {
     // build rather than inside it. Passing its location explicitly means the
     // runner never has to guess a working directory.
     systemProperty("vnx.corpus", layout.projectDirectory.dir("../corpus").asFile.absolutePath)
-    // The number-conformance table (SPEC 4.5.3 and 4.5.4), now a corpus tier.
+    // The number-conformance table of SPEC 4.1, a corpus tier of its own.
     systemProperty("vnx.numbers", layout.projectDirectory.file("../corpus/numbers/numbers.tsv").asFile.absolutePath)
     testLogging {
         events("passed", "failed", "skipped")

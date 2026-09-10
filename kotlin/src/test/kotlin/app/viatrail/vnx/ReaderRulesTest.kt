@@ -235,7 +235,7 @@ class ReaderRulesTest {
     fun `a reader writes the version the document declared, not its own`() {
         // Section 2.2: a 0.1.0 reader that reads a 0.1.3 document writes 0.1.3.
         val r = read("""{"vnx":"0.1.99","waypoints":[{"at":[-3,57]}]}""")
-        assertTrue(Vnx.render(r.document).contains("\"vnx\": \"0.1.99\""))
+        assertTrue(Vnx.write(r.document).contains("\"vnx\":\"0.1.99\""))
     }
 
     @Test
@@ -273,28 +273,31 @@ class ReaderRulesTest {
     // ------------------------------------------------------- absent vs empty
 
     @Test
-    fun `an empty collection is distinct from an absent one, and both survive a re-render`() {
+    fun `an empty collection is distinct from an absent one in the model`() {
         // Section 3.10: requiring a key does not require a non-empty value, and an
-        // empty array is distinct from an absent one.
+        // empty array is distinct from an absent one IN THE MODEL. Section 3.1
+        // then requires a reader to treat the two alike, which is why section
+        // 8.1's tree comparison normalises them together and why a writer may
+        // emit either.
         val withEmpty = read("""{"vnx":"0.1.0","waypoints":[],"networks":[]}""")
         assertNotNull(withEmpty.document.waypoints)
+        assertEquals(0, withEmpty.document.waypoints!!.size)
         assertNull(withEmpty.document.tracks)
         assertEquals(
-            "{\n  \"vnx\": \"0.1.0\",\n  \"networks\": [],\n  \"waypoints\": []\n}\n",
-            Vnx.render(withEmpty.document),
+            """{"vnx":"0.1.0","networks":[],"waypoints":[]}""" + "\n",
+            Vnx.write(withEmpty.document),
         )
-        assertEquals("{\n  \"vnx\": \"0.1.0\"\n}\n", Vnx.render(read("""{"vnx":"0.1.0"}""").document))
+        assertEquals("""{"vnx":"0.1.0"}""" + "\n", Vnx.write(read("""{"vnx":"0.1.0"}""").document))
     }
 
     @Test
     fun `rulesets are opaque and survive a read-modify-write untouched`() {
         // Section 3.9: a 0.1.x reader treats the contents as opaque and preserves
         // them, under the same rules as an unknown data record.
-        val json = "{\n  \"vnx\": \"0.1.0\",\n  \"rulesets\": [\n    {\n      \"anything\": true,\n" +
-            "      \"nested\": {\n        \"deep\": [1, 2, 3]\n      }\n    }\n  ]\n}\n"
+        val json = """{"vnx":"0.1.0","rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}]}"""
         val r = read(json)
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals(json, Vnx.render(r.document))
+        assertEquals(json + "\n", Vnx.write(r.document))
     }
 
     // ------------------------------------------------------------ positions
@@ -302,22 +305,23 @@ class ReaderRulesTest {
     @Test
     fun `positions of differing arity may appear in one pips array`() {
         // Section 4.1: a reader MUST read each position independently of its
-        // neighbours. Forcing one arity would mean inventing elevations or
+        // neighbours. Forcing one shape would mean inventing elevations or
         // discarding them.
         val r = read("""{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,57,340],[-3,57,null,1]]}]}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals(listOf(2, 3, 4), r.document.tracks!![0].segments[0].pips.map { it.arity })
+        val pips = r.document.tracks!![0].segments[0].pips
+        assertEquals(listOf<Double?>(null, 340.0, null), pips.map { it.ele })
+        assertEquals(listOf<Double?>(null, null, 1.0), pips.map { it.timeMs })
     }
 
     @Test
-    fun `a channel beyond those this reader knows is kept, not dropped`() {
-        // Section 4.1: a reader MUST ignore channels beyond those it knows, so
-        // that a future channel is additive. Ignoring is not discarding — a
-        // discarded channel could not survive a re-render.
-        val json = "{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3, 57, 340, 1, 99]\n    }\n  ]\n}\n"
-        val r = read(json)
+    fun `a channel beyond those this reader knows is read and dropped, with no diagnostic`() {
+        // Section 4.1: a reader MUST ignore a channel beyond those it knows and
+        // MUST NOT report a diagnostic for it, so that a future channel is
+        // additive. Nothing asks a writer to reproduce it.
+        val r = read("""{"vnx":"0.1.0","waypoints":[{"at":[-3,57,340,1,99]}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals(json, Vnx.render(r.document))
+        assertEquals("""{"vnx":"0.1.0","waypoints":[{"at":[-3,57,340,1]}]}""" + "\n", Vnx.write(r.document))
     }
 
     @Test

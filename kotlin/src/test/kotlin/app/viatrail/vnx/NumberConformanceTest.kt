@@ -7,30 +7,21 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * The number-conformance table: what every implementation must emit for a given
- * double, generated from the reference SPEC.md section 4.5.3 names.
- *
- * The number-conformance table, now `corpus/numbers/`.
+ * The number-conformance table, `corpus/numbers/`.
  *
  * It gives BREADTH that fixtures cannot: five thousand doubles across the whole
- * binary64 range, each with its canonical spelling and its spelling rounded to
- * six places and to one, generated from the reference SPEC.md section 4.5.3
- * names. A handful of hand-written cases can pin a rule; only a table can say
- * the rule holds everywhere.
+ * binary64 range, each with its value rounded to six decimal places and to one.
+ * A handful of hand-written cases can pin a rule; only a table can say the rule
+ * holds everywhere.
  *
- * I built it arguing that the corpus could reach neither tie rule, and I was
- * wrong about both, in the same way, twice. `format/number-tie` reaches the
- * rendering tie by spelling one value two ways; the `write/` tier reaches the
- * rounding tie by calling the writer, which no tier used to do. The rule worth
- * keeping is the corpus's own:
+ * IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render` column
+ * is not read: how a number is spelled is the writer's own business (section
+ * 4.2), and comparing spellings across implementations is the rule this format
+ * dropped.
  *
- *   An unreachability claim is a claim about the current state of someone's
- *   ingenuity, not about the format.
- *
- * So nothing here asserts what the corpus cannot do. The two tests that used to
- * are now presence assertions — `the formatter tier reaches the rendering tie`
- * and `CorpusTest.write` — which go red if those cases are ever removed, rather
- * than going quietly stale.
+ * AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as text
+ * would put the rendering rule back into the comparison through the side door,
+ * and would then pass or fail on how the JVM spells a double.
  */
 class NumberConformanceTest {
 
@@ -39,7 +30,7 @@ class NumberConformanceTest {
             ?: error("the number table's location must be passed as -Dvnx.numbers; see build.gradle.kts"),
     )
 
-    private class Row(val line: Int, val bits: Long, val kind: String, val render: String, val round6: String, val round1: String) {
+    private class Row(val line: Int, val bits: Long, val kind: String, val round6: String, val round1: String) {
         val value: Double get() = Double.fromBits(bits)
     }
 
@@ -50,7 +41,7 @@ class NumberConformanceTest {
             if (line.isBlank() || line.startsWith("#")) continue
             val f = line.split("\t")
             check(f.size == 5) { "${table.name}:${index + 1}: expected 5 tab-separated fields, got ${f.size}" }
-            out.add(Row(index + 1, java.lang.Long.parseUnsignedLong(f[0], 16), f[1], f[2], f[3], f[4]))
+            out.add(Row(index + 1, java.lang.Long.parseUnsignedLong(f[0], 16), f[1], f[3], f[4]))
         }
         return out
     }
@@ -64,13 +55,8 @@ class NumberConformanceTest {
         for (kind in listOf("named", "boundary", "negative-zero", "render-tie", "round1-tie", "round6-tie", "uniform", "in-range")) {
             assertTrue(rows.any { it.kind == kind }, "the table carries no `$kind` rows any more")
         }
-        // And the tie rows must really be ties: a second, equally short spelling
-        // that also round-trips for render, and an exact halfway value for the
-        // two rounding columns.
-        assertTrue(
-            rows.filter { it.kind == "render-tie" }.all { tieRuleIsVisible(it.value) },
-            "a `render-tie` row does not discriminate the tie rule, so the render column proves nothing",
-        )
+        // And the tie rows must really be ties: an exact halfway value for each
+        // of the two rounding columns.
         assertTrue(
             rows.filter { it.kind == "round1-tie" }.all { isExactHalfway(it.value, 1) },
             "a `round1-tie` row is not an exact halfway value",
@@ -82,71 +68,33 @@ class NumberConformanceTest {
     }
 
     @Test
-    fun `every canonical rendering matches the reference`() {
+    fun `every rounded value matches the reference, by bit pattern`() {
+        val rows = rows()
         val failures = ArrayList<String>()
-        for (row in rows()) {
-            val mine = EcmaNumber.render(row.value)
-            if (mine != row.render) failures.add("line ${row.line} [${row.kind}]: expected ${row.render}, rendered $mine")
+        for (row in rows) {
+            for ((what, got, want) in listOf(
+                Triple("round6", Rounding.toPlaces(row.value, 6), row.round6.toDouble()),
+                Triple("round1", Rounding.toPlaces(row.value, 1), row.round1.toDouble()),
+            )) {
+                // Bit patterns, so the comparison is over the value and not over
+                // how either side spells it. -0 and 0 are DIFFERENT bit patterns
+                // and the same value; section 4.1 has rounding normalise the
+                // sign, so the table and this library agree on +0 and a mismatch
+                // here is real.
+                if (got.toRawBits() != want.toRawBits()) {
+                    failures.add("line ${row.line} [${row.kind}] $what: got $got, table says $want")
+                }
+            }
         }
-        report("render", failures)
+        report("rounding", failures)
+        // LIVENESS. A table that failed to load, or a loop that skipped every
+        // row, is the same green as agreement on all of them.
+        assertTrue(rows.size >= 1000, "only ${rows.size} rows compared; this passed vacuously")
     }
-
-    @Test
-    fun `every coordinate rounded to six places matches the reference`() {
-        val failures = ArrayList<String>()
-        for (row in rows()) {
-            val mine = EcmaNumber.render(Rounding.toPlaces(row.value, 6))
-            if (mine != row.round6) failures.add("line ${row.line} [${row.kind}]: expected ${row.round6}, got $mine")
-        }
-        report("round6", failures)
-    }
-
-    @Test
-    fun `every elevation rounded to one place matches the reference`() {
-        val failures = ArrayList<String>()
-        for (row in rows()) {
-            val mine = EcmaNumber.render(Rounding.toPlaces(row.value, 1))
-            if (mine != row.round1) failures.add("line ${row.line} [${row.kind}]: expected ${row.round1}, got $mine")
-        }
-        report("round1", failures)
-    }
-
-    @Test
-    fun `the formatter tier reaches the rendering tie, which I said it could not`() {
-        // Re-pointed from an absence to a presence. If `format/number-tie` is ever
-        // removed, this goes red and the claim gets revisited, rather than the
-        // suite quietly going on asserting something that stopped being true.
-        val format = File(System.getProperty("vnx.corpus")!!, "format")
-        val discriminating = format.listFiles()!!
-            .filter { it.name.endsWith(".in.vnx") }
-            .filter { input -> numbersIn(input.readText()).any { tieRuleIsVisible(it) } }
-        assertTrue(
-            discriminating.isNotEmpty(),
-            "no format case carries a number whose tie rule is visible, so the formatter tier no longer " +
-                "reaches the rendering tie — which it did on 2026-09-09 via format/number-tie",
-        )
-        // And the case must actually distinguish the two spellings in its BYTES,
-        // or it would pass for a formatter that echoed its input.
-        for (input in discriminating) {
-            val canonical = File(format, input.name.removeSuffix(".in.vnx") + ".canonical.vnx")
-            assertTrue(
-                input.readText() != canonical.readText(),
-                "${input.name} is already canonical, so it cannot decide anything",
-            )
-        }
-    }
-
-    /** Every JSON number literal in a document, as doubles. */
-    private fun numbersIn(text: String): List<Double> =
-        Regex("-?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?").findAll(text)
-            .mapNotNull { it.value.toDoubleOrNull() }
-            .filter { it.isFinite() }
-            .toList()
 
     @Test
     fun `the two traps that make a tie test lie, both directions`() {
-        // From the Python seat, 2026-09-09, and both are traps about DECIMAL
-        // INTUITION rather than about rounding.
+        // Both are traps about DECIMAL INTUITION rather than about rounding.
         //
         // First: `0.0000005` is not a binary64 value. The nearest double is
         // 4.99999999999999977...e-7, which is BELOW the halfway point, so it
@@ -154,38 +102,59 @@ class NumberConformanceTest {
         // tie test asserts nothing at all. The smallest real six-place tie is
         // 1/128, because 5e-7 is not a dyadic rational and j/128 is the only
         // family whose exact expansion ends in a 5 at the seventh place.
-        assertEquals("0", EcmaNumber.render(Rounding.toPlaces(0.0000005, 6)))
+        assertEquals(0.0, Rounding.toPlaces(0.0000005, 6))
         assertTrue(!isExactHalfway(0.0000005, 6), "0.0000005 is not a tie, which is the trap")
         assertTrue(isExactHalfway(0.0078125, 6), "1/128 is the smallest real six-place tie")
-        assertEquals("0.007812", EcmaNumber.render(Rounding.toPlaces(0.0078125, 6)))
+        assertEquals(0.007812, Rounding.toPlaces(0.0078125, 6))
 
         // Second, and the more dangerous direction: `3.05` correctly rounds DOWN
         // to 3, because the literal is 3.04999999999999982. A test written from
         // decimal intuition expects 3.1 and calls a correct writer broken.
         assertTrue(!isExactHalfway(3.05, 1), "3.05 is not a tie either")
-        assertEquals("3", EcmaNumber.render(Rounding.toPlaces(3.05, 1)))
+        assertEquals(3.0, Rounding.toPlaces(3.05, 1))
         // Its neighbour in intuition, which IS above the halfway point.
-        assertEquals("2.7", EcmaNumber.render(Rounding.toPlaces(2.675, 1)))
+        assertEquals(2.7, Rounding.toPlaces(2.675, 1))
         // And the real one-place tie, where the rule finally shows.
         assertTrue(isExactHalfway(340.25, 1))
-        assertEquals("340.2", EcmaNumber.render(Rounding.toPlaces(340.25, 1)))
+        assertEquals(340.2, Rounding.toPlaces(340.25, 1))
+    }
+
+    @Test
+    fun `rounding is by formatting and never by scaling`() {
+        // Section 4.1 states this as a rule and gives these three values. The
+        // scaled product is itself a binary64 and is not always the exact scaled
+        // value, so multiplying manufactures a tie the true decimal never had and
+        // destroys one it did. Measured in Go: the scaling route disagreed with
+        // this table on 175 of its 5,329 rows.
+        //
+        // The contrast is `Math.rint`, which is the SAME TIE RULE — half to even
+        // — applied to the product instead of to the value. That is what makes
+        // these three rows about scaling and nothing else. `Math.round` is a
+        // different rule as well as a different operation, and the test below it
+        // is the one that separates that.
+        for ((value, want, scaled) in listOf(
+            Triple(0.15, 0.1, 0.2),
+            Triple(0.05, 0.1, 0.0),
+            Triple(0.45, 0.5, 0.4),
+        )) {
+            assertEquals(want, Rounding.toPlaces(value, 1), "rounding $value by formatting")
+            assertEquals(scaled, Math.rint(value * 10) / 10.0, "the scaling route on $value, for contrast")
+        }
     }
 
     @Test
     fun `Math dot round is half toward positive infinity, and parity decides where it differs`() {
-        // Measured in Java and in JavaScript, and both give these four. I claimed
-        // this differed by SIGN — "agrees on every negative tie, disagrees on
-        // every positive one" — from two data points that were both true and a
-        // generalisation that was not. Sign does not decide it. The parity of the
-        // LOWER candidate does: `Math.round(x * 10) / 10` differs from this rule
-        // exactly where the rule rounds towards negative infinity.
-        val roundedHere = mapOf(340.25 to "340.2", 340.75 to "340.8", -340.25 to "-340.2", -340.75 to "-340.8")
+        // Measured in Java and in JavaScript, and both give these four. Sign does
+        // not decide where they part. The parity of the LOWER candidate does:
+        // `Math.round(x * 10) / 10` differs from this rule exactly where the rule
+        // rounds towards negative infinity.
+        val roundedHere = mapOf(340.25 to 340.2, 340.75 to 340.8, -340.25 to -340.2, -340.75 to -340.8)
         val differs = setOf(340.25, -340.75)
         for ((value, expected) in roundedHere) {
-            assertEquals(expected, EcmaNumber.render(Rounding.toPlaces(value, 1)), "rounding $value")
+            assertEquals(expected, Rounding.toPlaces(value, 1), "rounding $value")
             val viaMathRound = Math.round(value * 10) / 10.0
             assertEquals(
-                value in differs, viaMathRound != expected.toDouble(),
+                value in differs, viaMathRound != expected,
                 "Math.round(x*10)/10 on $value: expected it to " +
                     (if (value in differs) "differ" else "agree") + ", and it gave $viaMathRound",
             )
@@ -206,56 +175,33 @@ class NumberConformanceTest {
         // mode, and a different one from any single wrong tie rule.
         for (places in listOf(1, 6)) {
             for (magnitude in listOf(0.25, 0.75, 340.25, 340.75, 1296.75, 0.0078125, 3.0 + 1.0 / 128)) {
-                val positive = EcmaNumber.render(Rounding.toPlaces(magnitude, places))
-                val negative = EcmaNumber.render(Rounding.toPlaces(-magnitude, places))
-                assertEquals(
-                    if (positive == "0") "0" else "-$positive", negative,
-                    "rounding must be symmetric about zero: $magnitude at $places places",
+                val positive = Rounding.toPlaces(magnitude, places)
+                val negative = Rounding.toPlaces(-magnitude, places)
+                assertTrue(
+                    negative == -positive,
+                    "rounding must be symmetric about zero: $magnitude at $places places gave " +
+                        "$positive and $negative",
                 )
             }
         }
     }
 
     @Test
-    fun `a rounded negative value that collapses to zero renders as zero`() {
-        // The only way a writer meets negative zero is by rounding towards it,
-        // which is a path no fixture takes — the corpus's format tier can only
-        // hand a formatter a `-0` that was already written down.
-        assertEquals("0", EcmaNumber.render(Rounding.toPlaces(-1e-9, 6)))
-        assertEquals("0", EcmaNumber.render(Rounding.toPlaces(-0.04, 1)))
-        assertTrue(!Vnx.write(Vnx.readDocument("""{"vnx":"0.1.0","waypoints":[{"at":[-1e-9,-1e-9,-0.04]}]}""").document).contains("-0"))
+    fun `a rounded negative value that collapses to zero is written as zero`() {
+        // The only way a writer meets negative zero is by rounding towards it.
+        assertEquals(0.0.toRawBits(), Rounding.toPlaces(-1e-9, 6).toRawBits())
+        assertEquals(0.0.toRawBits(), Rounding.toPlaces(-0.04, 1).toRawBits())
+        val written = Vnx.write(Vnx.readDocument("""{"vnx":"0.1.0","waypoints":[{"at":[-1e-9,-1e-9,-0.04]}]}""").document)
+        assertTrue(!written.contains("-0"), written)
     }
 
     private fun report(column: String, failures: List<String>) {
         if (failures.isEmpty()) return
         fail(
-            "the $column column disagrees with the reference on ${failures.size} value(s):\n" +
+            "the $column columns disagree with the reference on ${failures.size} value(s):\n" +
                 failures.take(15).joinToString("\n") +
                 if (failures.size > 15) "\n  ... and ${failures.size - 15} more" else "",
         )
-    }
-
-    /**
-     * Whether the choice of tie rule is VISIBLE for this value: whether the
-     * shortest round-tripping decimal differs between ties-to-even and
-     * ties-away-from-zero.
-     *
-     * Computed here independently of [EcmaNumber], because a row that cannot
-     * discriminate is worse than no row. The generator's first version asked the
-     * weaker question "does a second, equally short spelling round-trip" — true
-     * whenever the rounding interval spans two candidates, not only at a tie —
-     * and produced 60 rows that all stayed green when the tie rule was reverted.
-     */
-    private fun tieRuleIsVisible(v: Double): Boolean =
-        shortestDigits(v, java.math.RoundingMode.HALF_EVEN) != shortestDigits(v, java.math.RoundingMode.HALF_UP)
-
-    private fun shortestDigits(v: Double, mode: java.math.RoundingMode): String {
-        val exact = java.math.BigDecimal(Math.abs(v))
-        for (p in 1..17) {
-            val candidate = exact.round(java.math.MathContext(p, mode))
-            if (candidate.toDouble() == Math.abs(v)) return candidate.stripTrailingZeros().toString()
-        }
-        return "?"
     }
 
     /** Whether the exact binary value sits exactly on the halfway point at [places]. */

@@ -10,9 +10,8 @@ package app.viatrail.vnx
  * into the typed model in Model.kt.
  *
  * A number is held as a `Double` and nothing else. SPEC.md section 4.2 defines
- * round-trip at value level rather than at byte level, and canonical form
- * (section 4.5.3) fixes the spelling of every number regardless of how the
- * document spelled it.
+ * round-trip at value level rather than at byte level: a reader is not required
+ * to preserve the text of a number, only its value.
  */
 sealed interface JsonValue
 
@@ -31,9 +30,9 @@ class JsonArray(val elements: List<JsonValue>) : JsonValue {
 }
 
 /**
- * A JSON object. Entry order is the document's order; canonical form reorders it
- * at render time (SPEC.md section 4.5.1), and SPEC.md section 4.4 says key order
- * is not significant anywhere, so nothing in this library reads it.
+ * A JSON object. Entry order is the document's order. SPEC.md section 4.4 says
+ * key order is not significant anywhere, so nothing in this library reads it,
+ * and the writer emits the order it built rather than an order it chose.
  *
  * A repeated key resolves last-wins, which is what every mainstream parser does
  * and what SPEC.md section 6.4 documents as a limitation of the format.

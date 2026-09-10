@@ -3,8 +3,7 @@ package app.viatrail.vnx
 import java.io.File
 
 /**
- * The VNX codec: reads and writes `.vnx` and `.vnz`, produces canonical form,
- * and reports diagnostics.
+ * The VNX codec: reads and writes `.vnx` and `.vnz`, and reports diagnostics.
  *
  * That is the whole of what SPEC.md and its conformance corpus call a VNX
  * library. The GPX, KML and GeoJSON writers that live beside the reference
@@ -98,45 +97,23 @@ object Vnx {
     // -------------------------------------------------------------- writing
 
     /**
-     * RE-RENDERS a document in canonical form: the bytes for the document as it
-     * was read, applying neither rounding nor position shortening, so arity and
-     * precision survive (SPEC.md section 8.1).
+     * WRITES a document: JSON with SPEC.md section 4.1's emit-boundary rules
+     * applied — coordinates rounded to 6 places and elevations to 1, and the
+     * shortest spelling of every position.
      *
-     * This is what the accept tier of the corpus requires, and it is not
-     * [write].
+     * A writer rounds, so writing what you read is not byte for byte what you
+     * read. Section 8.1 compares documents as JSON TREES for that reason, and
+     * nothing about a document's bytes is constrained.
      */
-    fun render(document: VnxDocument): String = Canonical.render(Encoder(rounding = false).encode(document))
+    fun write(document: VnxDocument): String = Serialise.render(Encoder().encode(document))
 
     /**
-     * WRITES a document: canonical form with the emit-boundary rules applied —
-     * coordinates rounded to 6 places and elevations to 1 (section 4.5.4), and
-     * the shortest spelling of every position (section 4.1).
+     * WRITES a document and its attachments as a `.vnz` container.
      *
-     * A writer rounds, so writing what you read is legitimately not what you
-     * read. Use [render] to reproduce a document you were handed.
-     */
-    fun write(document: VnxDocument): String = Canonical.render(Encoder(rounding = true).encode(document))
-
-    /**
-     * RE-RENDERS a document and its attachments as a `.vnz` container: the same
-     * operation as [render], at the container boundary.
-     *
-     * The split matters here more than anywhere. Repackaging a container —
-     * adding a photograph, renaming a folder — must not silently round every
-     * coordinate in the document it is carrying, and a single container emit
-     * path would do exactly that with nothing to show for it.
-     *
-     * The document is written as `doc.vnx`, the conventional name section 7 tells
-     * a reader to prefer. Attachment paths are checked with the same rules a
-     * reader applies, because a writer that can emit an archive its own reader
+     * The document is written as `doc.vnx`, the conventional name section 7
+     * tells a reader to prefer. Attachment paths are checked with the same rules
+     * a reader applies, because a writer that can emit an archive its own reader
      * refuses is a writer with a hole in it.
-     */
-    fun renderContainer(document: VnxDocument, attachments: Map<String, ByteArray> = emptyMap()): ByteArray =
-        container(render(document), attachments)
-
-    /**
-     * WRITES a document and its attachments as a `.vnz` container: coordinates
-     * rounded and positions shortened, as [write] does.
      */
     fun writeContainer(document: VnxDocument, attachments: Map<String, ByteArray> = emptyMap()): ByteArray =
         container(write(document), attachments)
@@ -146,13 +123,14 @@ object Vnx {
         entries.add(Zip.ToWrite(ROOT_DOCUMENT, documentText.toByteArray(Charsets.UTF_8)))
         val seen = HashMap<String, String>()
         seen[foldAscii(ROOT_DOCUMENT)] = ROOT_DOCUMENT
-        // Section 7.1: the root document first, then attachments SORTED by entry
-        // name under section 4.5.1's comparator — not in the order the caller
-        // supplied them, because caller order is not a property of the content.
-        // Two exporters using this one library, one iterating a hash map and one a
+        // The root document first, which section 7.1 requires. Then the
+        // attachments SORTED by entry name — not in the order the caller supplied
+        // them, because caller order is not a property of the content. Two
+        // exporters using this one library, one iterating a hash map and one a
         // sorted list, would otherwise emit different archives for the same
-        // document while satisfying every other field in that table.
-        val sorted = attachments.entries.sortedWith(compareBy(CodePointOrder.comparator) { it.key })
+        // document. Section 7.1 no longer states this; it is a property of this
+        // writer, and `write container` in the corpus runner is what holds it.
+        val sorted = attachments.entries.sortedWith(compareBy(entryNameOrder) { it.key })
         for ((name, body) in sorted) {
             checkPath(name)
             if (name.isEmpty() || name.endsWith("/")) {
@@ -173,14 +151,6 @@ object Vnx {
         }
         return Zip.write(entries)
     }
-
-    /**
-     * Canonicalises a document's bytes: decode, then re-render. This is the
-     * `fmt` operation, and it never rounds — canonicalising re-renders the bytes
-     * another program wrote, and canonical form constrains key order and number
-     * spelling, not precision (section 4.5.4).
-     */
-    fun canonicalise(text: String): String = render(readDocument(text).document)
 
     // ------------------------------------------------------------- internals
 
@@ -238,9 +208,38 @@ object Vnx {
         return sb.toString()
     }
 
-    /** SPEC.md section 4.5.5 forbids a writer emitting a BOM; a reader still meets one. */
+    /** This writer emits no BOM; a reader still meets one. */
     private fun decodeUtf8(bytes: ByteArray): String {
         val text = String(bytes, Charsets.UTF_8)
         return if (text.startsWith('\uFEFF')) text.substring(1) else text
     }
+}
+
+/**
+ * Lexicographic by Unicode code point, for a container's entry names.
+ *
+ * Kotlin's own `String.compareTo` is NOT this. It orders by UTF-16 code unit,
+ * and the two disagree above U+FFFF: an astral character is a surrogate pair
+ * beginning at U+D800, which sorts BELOW a BMP character in U+E000..U+FFFF by
+ * code unit and ABOVE it by code point. `"\uD83D\uDE00".compareTo("\uFFFD")` is
+ * -10176 on the JVM, which is 0xD83D minus 0xFFFD: the high surrogate, not the
+ * code point.
+ *
+ * Comparing UTF-8 bytes gives code point order exactly, which is why that is
+ * what this does rather than decoding to code points and comparing those.
+ *
+ * The reach is not theoretical: an attachment name is whatever a user called a
+ * photograph, and `corpus/write/container.attachments.json` carries one named
+ * with U+1F600 beside one named with U+FF3A to separate the two orders.
+ */
+internal val entryNameOrder: Comparator<String> = Comparator { a, b ->
+    val x = a.toByteArray(Charsets.UTF_8)
+    val y = b.toByteArray(Charsets.UTF_8)
+    var i = 0
+    while (i < x.size && i < y.size) {
+        val d = (x[i].toInt() and 0xff) - (y[i].toInt() and 0xff)
+        if (d != 0) return@Comparator d
+        i++
+    }
+    x.size - y.size
 }

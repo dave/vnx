@@ -4,7 +4,8 @@ import java.util.zip.CRC32
 import java.util.zip.Inflater
 
 /**
- * A minimal ZIP reader, written here rather than taken from `java.util.zip`.
+ * A minimal ZIP READER, written here rather than taken from `java.util.zip`.
+ * The writer below is `java.util.zip`; only the reader needs its own.
  *
  * SPEC.md section 7 asks questions of an archive that the JDK's own reader
  * answers on its own terms rather than the format's: it must see BOTH entries of
@@ -312,120 +313,43 @@ internal object Zip {
     class ToWrite(val name: String, val body: ByteArray)
 
     /**
-     * Writes a ZIP archive: local headers, then the central directory, then the
-     * end-of-central-directory record.
+     * Writes a ZIP archive with `java.util.zip`.
      *
-     * Deterministic. Every entry gets the same fixed timestamp, so the same
-     * document and attachments produce the same bytes every time. SPEC.md does
-     * not require that of a container the way section 4.5 requires it of a
-     * document, but a format whose entire purpose is that two libraries emit
-     * identical files should not lose the property at the container boundary
-     * over a clock reading. Raised with Dave rather than assumed.
+     * DEFLATED. SPEC.md section 7.1 no longer constrains the bytes of an
+     * archive, so the reason a writer had to store — that deflate has no
+     * reproducible output and no two languages produce the same bytes for the same
+     * input — is gone with the rule it served. What is left is that attachments
+     * are photographs and a document is JSON, and JSON compresses.
      *
-     * STORED, with the UTF-8 filename flag set, and no ZIP64. Deflate has no
-     * canonical output, so section 7.1 requires a writer to store; the body below
-     * carries the measurement. Section 7 requires a READER to understand ZIP64
-     * and explicitly allows a writer to omit it.
+     * Deterministic. Every entry gets the same fixed local timestamp, so the
+     * same document and attachments produce the same bytes every time. Nothing
+     * requires that; it is cheap, and a writer whose output depends on the clock
+     * is a writer nobody can diff. `setTimeLocal` rather than `setTime`, because
+     * `setTime` converts through the default time zone and would put the machine
+     * back into the bytes by another route.
      *
-     * Entry order is section 7.1's CODE-POINT ORDER and is applied by the caller,
-     * at Vnx.kt, using CodePointOrder.comparator rather than String.compareTo.
-     * Nothing that goes through this function covers that rule: a discriminating
-     * case needs a name above U+FFFF beside one in U+E000..U+FFFF, because an
-     * ASCII-only set passes a UTF-16 code-unit sort too.
+     * The name is UTF-8 and `ZipOutputStream` sets section 7.1's UTF-8 filename
+     * flag for it. A deflated entry gets a data descriptor, which section 7.1
+     * permits and which this library's reader never consults: sizes come from
+     * the central directory, which is authoritative.
+     *
+     * Entry ORDER is the caller's, at Vnx.kt. Nothing here reorders anything.
      */
     fun write(entries: List<ToWrite>): ByteArray {
         val out = java.io.ByteArrayOutputStream()
-        val directory = java.io.ByteArrayOutputStream()
-        var count = 0
-
-        for (entry in entries) {
-            val name = entry.name.toByteArray(Charsets.UTF_8)
-            val crc = CRC32().apply { update(entry.body) }.value
-            // STORED, always. Not a size heuristic and not deflate.
-            //
-            // Deflate has no canonical output. Measured 2026-09-09: for the very
-            // document inside `corpus/accept/container-root-doc.vnz`, Go's
-            // compress/flate emits 116 bytes and zlib emits 108, and NO zlib
-            // level from 0 to 9 reproduces the committed bytes. Java and Python
-            // agree with each other because both are zlib; Go is a clean-room
-            // implementation and agrees with neither. So a deflated archive is
-            // byte-reproducible only by the language that wrote it, whatever a
-            // writer pins in its headers — which would make a container case in
-            // the `format/` tier impossible, since that tier compares bytes.
-            //
-            // Stored has no freedom at all. It also costs an export almost
-            // nothing in practice: attachments are photographs, which are already
-            // compressed.
-            //
-            // A reader still accepts deflate; section 7 requires that, and this is
-            // the same asymmetry canonical form has for a document — required of
-            // what this library writes, not of what it will read.
-            val payload = entry.body
-            val method = METHOD_STORED
-            val localOffset = out.size()
-
-            out.writeLE32(LOCAL_SIGNATURE)
-            out.writeLE16(10) // version needed: 1.0, stored
-            out.writeLE16(0x800) // the UTF-8 filename flag of section 7
-            out.writeLE16(method)
-            out.writeLE16(FIXED_TIME)
-            out.writeLE16(FIXED_DATE)
-            out.writeLE32(crc.toInt())
-            out.writeLE32(payload.size)
-            out.writeLE32(entry.body.size)
-            out.writeLE16(name.size)
-            out.writeLE16(0) // no extra field
-            out.write(name)
-            out.write(payload)
-
-            directory.writeLE32(CENTRAL_SIGNATURE)
-            directory.writeLE16(10) // version made by
-            directory.writeLE16(10) // version needed
-            directory.writeLE16(0x800)
-            directory.writeLE16(method)
-            directory.writeLE16(FIXED_TIME)
-            directory.writeLE16(FIXED_DATE)
-            directory.writeLE32(crc.toInt())
-            directory.writeLE32(payload.size)
-            directory.writeLE32(entry.body.size)
-            directory.writeLE16(name.size)
-            directory.writeLE16(0) // extra
-            directory.writeLE16(0) // comment
-            directory.writeLE16(0) // disk number
-            directory.writeLE16(0) // internal attributes
-            directory.writeLE32(0) // external attributes
-            directory.writeLE32(localOffset)
-            directory.write(name)
-            count++
+        java.util.zip.ZipOutputStream(out, Charsets.UTF_8).use { zip ->
+            zip.setMethod(java.util.zip.ZipOutputStream.DEFLATED)
+            for (entry in entries) {
+                val e = java.util.zip.ZipEntry(entry.name)
+                e.setTimeLocal(FIXED_TIME)
+                zip.putNextEntry(e)
+                zip.write(entry.body)
+                zip.closeEntry()
+            }
         }
-
-        val directoryOffset = out.size()
-        val directoryBytes = directory.toByteArray()
-        out.write(directoryBytes)
-        out.writeLE32(EOCD_SIGNATURE)
-        out.writeLE16(0) // this disk
-        out.writeLE16(0) // disk with the central directory
-        out.writeLE16(count)
-        out.writeLE16(count)
-        out.writeLE32(directoryBytes.size)
-        out.writeLE32(directoryOffset)
-        out.writeLE16(0) // no archive comment
         return out.toByteArray()
     }
 
-    /** MS-DOS 1980-01-01 00:00:00, so the bytes do not depend on when they were written. */
-    private const val FIXED_TIME = 0
-    private const val FIXED_DATE = 0x21
-
-    private fun java.io.ByteArrayOutputStream.writeLE16(v: Int) {
-        write(v and 0xff)
-        write((v ushr 8) and 0xff)
-    }
-
-    private fun java.io.ByteArrayOutputStream.writeLE32(v: Int) {
-        write(v and 0xff)
-        write((v ushr 8) and 0xff)
-        write((v ushr 16) and 0xff)
-        write((v ushr 24) and 0xff)
-    }
+    /** 1980-01-01 00:00:00, the earliest an MS-DOS timestamp can state. */
+    private val FIXED_TIME: java.time.LocalDateTime = java.time.LocalDateTime.of(1980, 1, 1, 0, 0, 0)
 }

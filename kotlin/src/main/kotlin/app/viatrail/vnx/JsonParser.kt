@@ -3,11 +3,19 @@ package app.viatrail.vnx
 /**
  * A strict [RFC 8259] JSON parser.
  *
- * It is written here rather than taken from a library for two reasons. The
- * library has no third-party dependencies, and the permissive modes stock
- * parsers offer are exactly what SPEC.md section 4.2 forbids: `NaN` and
+ * The RENDERER is kotlinx-serialization-json (Serialise.kt) and the PARSER is
+ * this. The two are not symmetric, and the asymmetry is deliberate.
+ *
+ * What a reader does with a bad document is specified in detail — SPEC.md
+ * section 6.2 names the four causes a refusal may have and section 6.3 requires
+ * a diagnostic to carry a JSON Pointer to the thing it is about — and a stock
+ * parser answers on its own terms instead. It reports the first syntax error and
+ * stops, it decides for itself what a number that overflows binary64 becomes,
+ * and its permissive modes accept exactly what section 4.2 forbids: `NaN` and
  * `Infinity` are not JSON, and a coordinate of `NaN` poisons every distance and
- * every bounding box computed downstream without ever failing.
+ * every bounding box computed downstream without ever failing. Nothing about the
+ * bytes a WRITER emits is constrained at all, which is why the renderer could go
+ * and this could not.
  *
  * Anything this parser refuses is refused as [RefusalCause.MALFORMED_JSON].
  */

@@ -1,40 +1,35 @@
 # VNX for Kotlin
 
-> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
-> layout, a formatter, a number-rendering rule or a stored-only container, and
-> the corpus compares parsed documents rather than bytes. This library still
-> implements the older rules, and the sections cited below for them are gone
-> from `SPEC.md`. Porting it is its own task.
-
-
 A VNX codec on the JVM: reads and writes `.vnx` and `.vnz`, and reports
-diagnostics. It was written from [`SPEC.md`](../SPEC.md) and
-validated against [`corpus/`](../corpus/), without reference to any other
-implementation.
+diagnostics. It was written from [`SPEC.md`](../SPEC.md) and validated against
+[`corpus/`](../corpus/), without reference to any other implementation.
 
 ```sh
 ./gradlew test
 ```
 
-That runs the whole conformance corpus — accept, reject, diagnose, format,
-write and numbers — plus this library's own guards. It is a standalone Gradle
-build and is not wired into any application.
+That runs the whole conformance corpus — accept, reject, diagnose, write and
+numbers — plus this library's own guards. It is a standalone Gradle build and is
+not wired into any application.
 
-## No dependencies
+## One dependency
 
-The library imports the standard library and nothing else. There is no JSON
-library behind it: the parser, the serialiser and the ECMAScript number renderer
-are all here, because the byte layout this library emits is one no stock
-encoder in any target language produces, and because a codec with
-dependencies is a codec people cannot adopt. `PortabilityTest` asserts the
-property rather than trusting the build file.
+The library imports the JVM standard library and
+[`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization),
+and nothing else. `PortabilityTest` asserts the property rather than trusting
+the build file, and also asserts that the JSON library is confined to
+[`Serialise.kt`](src/main/kotlin/app/viatrail/vnx/Serialise.kt).
 
-The one place this costs something visible is
-[`EcmaNumber.kt`](src/main/kotlin/app/viatrail/vnx/EcmaNumber.kt). Kotlin's
-`Double.toString` renders `340.0`, `1.0E21` and `1.0E-7` where this library
-emits `340`, `1e+21` and `1e-7`, and Java only guarantees the SHORTEST
-round-tripping decimal from JDK 19 — this build targets 17 — so the shortest
-form is searched for directly over the exact value of the double.
+The JVM standard library has no JSON API at all, so a JVM implementation either
+takes a JSON library or writes one. Nothing about the bytes of a document is a
+rule any more — `SPEC.md` section 4.2 defines round-trip at value level and
+section 8.1 compares parsed documents — so writing one buys nothing.
+
+**The reader is still this library's own.** Only the renderer went. What a
+reader does with a bad document is specified in detail, and a stock parser
+answers on its own terms instead: it stops at the first syntax error, decides
+for itself what a number that overflows binary64 becomes, and offers permissive
+modes that accept exactly what section 4.2 forbids.
 
 ## Using it
 
@@ -43,20 +38,15 @@ val result = Vnx.read(File("trip.vnx"))
 result.document.tracks?.forEach { println("${it.name}: ${it.movingTimeMs()} ms") }
 result.diagnostics.forEach { println("${it.path}: ${it.code} ${it.message}") }   // never ignore these
 
-Vnx.render(result.document)   // the bytes this document had: no rounding, arity kept
-Vnx.write(result.document)    // a writer's bytes: coordinates rounded, positions shortened
-Vnx.canonicalise(text)        // decode and re-render — the `fmt` operation
-
-Vnx.readContainer(bytes)                          // a .vnz and its attachments
-Vnx.renderContainer(document, attachments)        // repackage without rounding
-Vnx.writeContainer(document, attachments)         // a writer's container
+Vnx.write(result.document)                       // the document, compact JSON
+Vnx.readContainer(bytes)                         // a .vnz and its attachments
+Vnx.writeContainer(document, attachments)        // a .vnz, deflated
 ```
 
-**`render` and `write` are two operations, not one**, and the split runs all the
-way to the container. Section 8.1 requires a RE-RENDER for the accept tier
-because a writer rounds; and repackaging an archive — adding a photograph,
-renaming a folder — must not silently round every coordinate in the document it
-is carrying.
+There is ONE emit operation, and it is a write: coordinates rounded to six
+decimal places and elevations to one, and the shortest spelling of every
+position (section 4.1). So the bytes a writer produces are legitimately not the
+bytes it read, which is why section 8.1 compares documents as JSON trees.
 
 A refusal arrives as `VnxRefusal`, separately from the diagnostics, so a caller
 can tell a document that was refused from one that was read with elements
@@ -74,10 +64,6 @@ still matched as substrings until typed errors land.
   contributes zero rather than making a track's moving time unknown, and no
   corpus case carries one — the rule is defended here by a local test only. It is
   offered rather than assumed: say the word and it is a two-line accept fixture.
-- **No JSON Schema validation.** Each corpus case carries a `schema` verdict; the
-  runner checks the field's shape and does not act on it, because a draft 2020-12
-  validator is a third-party dependency. The reference implementation keeps its
-  schema test in a separate package for the same reason.
 - **No duplicate-object-key detection.** `SPEC.md` section 6.4 documents this as
   a limitation of the format rather than a rule.
 - **No resource bounds.** Section 9 says a reader taking documents from an
@@ -89,11 +75,10 @@ still matched as substrings until typed errors land.
 | File | What it holds |
 |---|---|
 | `Json.kt`, `JsonParser.kt` | the value model, and a strict RFC 8259 parser that refuses `NaN` and `Infinity` |
-| `EcmaNumber.kt` | ECMAScript `Number::toString` for a binary64 |
-| `Canonical.kt` | the canonical-form serialiser (section 4.5) |
-| `Model.kt` | the decoded document; positions keep their arity, collections distinguish absent from empty |
+| `Serialise.kt` | the value model to bytes, through `kotlinx-serialization-json` |
+| `Model.kt` | the decoded document; collections distinguish absent from empty |
 | `Decoder.kt` | the reader of section 6 — tolerant of damage, silent about nothing |
-| `Encoder.kt` | model to JSON, as either a RE-RENDER or a WRITE |
+| `Encoder.kt` | model to JSON, applying section 4.1's emit-boundary rules |
 | `Geo.kt` | the 50 m projection tolerance of section 3.3.3 |
 | `Zip.kt`, `Vnx.kt` | the VNZ container of section 7, and the public API |
 | `Errors.kt`, `Diagnostics.kt` | the closed cause lists, and the table mapping each to the wording the corpus expects |

@@ -290,6 +290,27 @@ direction disagrees only on exact halves; the operation disagrees on most values
 A library can have the tie rule right and still be wrong on almost every elevation
 it writes.
 
+The reference implementation shipped the scaling route, and 175 of the number
+table's 5,329 rows disagreed with it: 166 at six places, 9 at one, rendering clean
+throughout. So the operation was wrong and the spelling never was, and coordinates
+carried about eighteen times the exposure of elevations, six places being
+longitude and latitude.
+
+Two details there matter more than the count. The table's `kind` column names those
+rows `scaling-route`. Somebody mined rows specifically to catch a library that
+rounds by scaling, and **the library that generated the table never read it.** The
+instrument and the defect sat in one repository and never met. And the guard that
+did exist used `340.25` and `340.35`: the last row of the table above, which agrees
+under both operations. `0.15` would have caught it the day that test was written.
+So the repair was two repairs: the operation, and running every row of the
+published table through the encoder, which is the comparison the other five
+libraries were already making. *(Reported by the Go implementation, which wrote
+both the defect and the test.)*
+
+A magnitude bound guarding the scaled product against overflow went with it. Such
+a bound is not a rule of the format; it is an artefact of the operation, and it
+stops existing when the operation changes.
+
 Formatting to a decimal string and parsing it back is one correct implementation,
 because the formatter expands the double exactly and rounds ties to even. The
 caveat is 1.9: the formatted text must never become the emitted bytes, since a

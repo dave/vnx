@@ -193,18 +193,19 @@ class LyingHeaders(unittest.TestCase):
 
         An `OutOfMemoryError` is not an exception a caller catches -- it takes
         the process rather than the document -- so the measurement is the peak
-        allocation, and NOT the outcome.  The outcome is a refusal now, and a
-        refusal is also what an allocation failure would look like from
-        outside, which is exactly why the peak is what this asserts.
+        allocation, and NOT the outcome.  Either outcome would satisfy an
+        outcome-shaped test: a refusal is what an allocation failure looks like
+        from outside, and a successful read is what no allocation looks like.
+        Only the peak separates them.
         """
         lying = self.rewritten(uncompressed=self.LIE)
         tracemalloc.start()
         try:
-            with self.assertRaises(vnx.VNXRefusal):
-                vnx.read_container_bytes(lying)
+            result = vnx.read_container_bytes(lying)
             peak = tracemalloc.get_traced_memory()[1]
         finally:
             tracemalloc.stop()
+        self.assertEqual(result.document_name, "doc.vnx")
         self.assertLess(peak, 8 * 1024 * 1024, "a header field sized a buffer")
         self.assertGreater(
             self.LIE, 8 * 1024 * 1024 * 100,
@@ -236,27 +237,30 @@ class LyingHeaders(unittest.TestCase):
         with self.assertRaises(vnx.VNXRefusal):
             vnx.read_container_bytes(corrupt)
 
-    def test_a_declared_size_LARGER_than_the_data_is_refused(self) -> None:
-        """Ruled 2026-09-10, on consistency rather than on harm.
+    def test_a_declared_size_LARGER_than_the_data_is_ACCEPTED(self) -> None:
+        """Ruled 2026-09-10, and SPEC 7 says so rather than staying silent.
 
-        A size shorter than the data was already fatal, inside the library's
-        own checks.  Refusing short and accepting long is an asymmetry with no
-        basis in the format: both are the same lie in the same field.  The
-        message names both numbers, because "malformed" without them leaves a
-        holder unable to tell a truncated archive from a mislabelled one.
+        The CRC is the check with teeth: the stream ended, the checksum over
+        what arrived agrees, so the bytes are complete and a size field that
+        disagrees adds nothing the CRC has not established.  Nor is there a
+        size rule to be consistent with -- a size SHORTER than the data is
+        refused by the CRC, not by any comparison of sizes.
+
+        This test exists because silence is what produced the question. The
+        next reader to harden this file will refuse it, believing robustness
+        has improved while conformance has broken.
         """
-        with self.assertRaises(vnx.VNXRefusal) as caught:
-            vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
-        self.assertIn(str(self.LIE), str(caught.exception))
-        self.assertIn(str(len(_DOCUMENT)), str(caught.exception))
+        result = vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
+        assert result.document.waypoints is not None
+        self.assertEqual(result.document.waypoints[0].notes, _NOTES)
 
-    def test_the_check_reads_the_CENTRAL_size(self) -> None:
-        """The counterweight, and the reason this is not simply `!=`.
+    def test_an_archive_deferring_its_sizes_still_reads(self) -> None:
+        """SPEC 7: the CENTRAL directory is authoritative, not a local header.
 
-        SPEC 7 makes the central directory authoritative and REQUIRES an
-        archive whose local header defers its sizes to read -- that is what
-        general purpose bit 3 carries.  A size check written against the local
-        header would refuse a conforming archive.
+        General purpose bit 3 produces exactly this shape, and a reader MUST
+        accept it.  Any size check written against the local header refuses a
+        conforming archive, which is the trap the previous test guards from the
+        other side.
         """
         local_only = self.good[:18] + b"\x00" * 8 + self.good[26:]
         # Read the two headers as bytes, because the whole point is that they

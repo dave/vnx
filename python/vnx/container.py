@@ -142,23 +142,18 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
             f"the root document {document_name!r} will not decompress: {exc}"
         ) from exc
 
-    # SPEC 7: a size that provably disagrees with the content it describes is
-    # refused (ruled 2026-09-10).  A size SHORTER than the data already failed
-    # above, inside the library's own CRC and size checks; refusing short and
-    # accepting long would be an asymmetry the format has not asked for, since
-    # both are the same lie in the same field.  This is determinable rather
-    # than ambiguous: the stream ended and the CRC over what arrived agrees, so
-    # the payload is complete and the size field is simply wrong.
+    # SPEC 7 ACCEPTS an entry whose declared size exceeds what it holds, and
+    # this reader deliberately does not check it (ruled 2026-09-10).  The CRC is
+    # the check with teeth: the stream ended, the checksum over what arrived
+    # agrees, so the bytes are complete and a size field that disagrees adds
+    # nothing the CRC has not already established.
     #
-    # The comparison is against the CENTRAL directory's size, which SPEC 7
-    # makes authoritative -- a local size of zero is what an archive written
-    # with general purpose bit 3 carries, and MUST still read.
-    declared = archive.getinfo(document_name).file_size
-    if declared != len(body):
-        raise VNXRefusal(
-            f"the root document {document_name!r} declares {declared} bytes "
-            f"and holds {len(body)}"
-        )
+    # Nor is there a size rule to be consistent with.  A size SHORTER than the
+    # data is refused above -- but by the CRC, not by any comparison of sizes,
+    # so refusing short while accepting long is not the asymmetry it looks.
+    # And a diagnostic is not available either: SPEC 6.3 gives a code to a
+    # diagnostic some case pins, and no fixture can reach this, because a
+    # committed archive has a valid stream and a matching CRC.
     result: ReadResult = read_bytes(body)
     diagnostics = list(result.diagnostics)
     for name in sorted(unreadable):

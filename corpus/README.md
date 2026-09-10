@@ -199,6 +199,28 @@ one.** Change one reported `code` and require the run to fail. Four
 implementations fixed the `message`/`code` failure above by hand, and the corpus
 could not have told any of them whether they had succeeded.
 
+**A path and a code together must identify one report.** No two diagnostics
+about a single document may share a path unless they also share a code, because
+`path` and `code` are the only two fields a conforming runner may compare — so
+two reports agreeing on both are, to a runner, the same report twice. A reader
+that can emit two it cannot distinguish has a pointer that is not doing its job.
+
+Check it: group a run's reports by `path`, and fail where one path carries more
+than one distinct `code`. That is mechanical, it works over any document, and it
+does not need a fixture.
+
+**Which is fortunate, because no case here exercises it.** Measured over every
+sidecar in the corpus: not one expects two diagnostics at a single path, so a
+runner that skipped this check would never notice. The rule is a property of a
+reader rather than of any document, and this is the second thing in this file
+the corpus cannot check on a runner's behalf.
+
+`diagnose/terminal-pip-off-node.vnx` is the case that comes closest, from the
+wrong side: an arc with both terminals drifted produces two diagnostics, and a
+reader naming the arc rather than the `from` and `to` keys emits them at one
+identical path, separable only by their English — which nothing may compare. It
+is why that case pins the field-level path.
+
 Two more, from the same family:
 
 - **Pair each expected diagnostic with one DISTINCT reported diagnostic.** A

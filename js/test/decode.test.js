@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 import { decodeText } from '../src/decode.js';
 import { VnxRefusal } from '../src/errors.js';
-import { rerender } from '../src/index.js';
+import { encode } from '../src/index.js';
 
 const doc = (extra) => JSON.stringify({ vnx: '0.1.0', ...extra });
 
@@ -89,9 +89,13 @@ test('a position keeps its arity, including a trailing null', () => {
   assert.equal(document.waypoints[0].at.time, undefined);
 });
 
-test('a re-render reproduces the spelling the document carried', () => {
-  const text = '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [1, 2, null]\n    }\n  ]\n}\n';
-  assert.equal(rerender(decodeText(text).document), text);
+test('a trailing null survives into the model and is shortened on the way out', () => {
+  // The model keeps the arity the document spelled; SPEC.md 4.1 puts the
+  // shortest spelling at the emit boundary, so the two answers differ and both
+  // are right.
+  const { document } = decodeText('{"vnx":"0.1.0","waypoints":[{"at":[1,2,null]}]}');
+  assert.equal(document.waypoints[0].at.arity, 3);
+  assert.equal(encode(document), '{"vnx":"0.1.0","waypoints":[{"at":[1,2]}]}');
 });
 
 test('an interior absence keeps its null', () => {
@@ -103,12 +107,12 @@ test('an interior absence keeps its null', () => {
   assert.equal(pip.time, 5);
 });
 
-test('a channel beyond those the reader knows survives a re-render', () => {
+test('a channel beyond those the reader knows survives the round trip', () => {
   // SPEC.md 4.1 says a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding: the position is
   // kept whole, so the unknown channel comes back out.
-  const text = '{\n  "vnx": "0.1.0",\n  "waypoints": [\n    {\n      "at": [1, 2, 3, 4, 5]\n    }\n  ]\n}\n';
-  assert.equal(rerender(decodeText(text).document), text);
+  const text = '{"vnx":"0.1.0","waypoints":[{"at":[1,2,3,4,5]}]}';
+  assert.equal(encode(decodeText(text).document), text);
 });
 
 test('an unusable position drops its element and diagnoses', () => {
@@ -352,13 +356,13 @@ test('an absent label-visible is neither true nor false', () => {
 test('an absent collection stays absent and does not become empty', () => {
   const { document } = decodeText('{"vnx": "0.1.0"}');
   assert.equal(document.waypoints, undefined);
-  assert.equal(rerender(document), '{\n  "vnx": "0.1.0"\n}\n');
+  assert.equal(encode(document), '{"vnx":"0.1.0"}');
 });
 
 test('an empty collection is distinct from an absent one', () => {
   const { document } = decodeText('{"vnx": "0.1.0", "waypoints": []}');
   assert.deepEqual(document.waypoints, []);
-  assert.equal(rerender(document), '{\n  "vnx": "0.1.0",\n  "waypoints": []\n}\n');
+  assert.equal(encode(document), '{"vnx":"0.1.0","waypoints":[]}');
 });
 
 // --- continuity: SPEC.md 6.2 -----------------------------------------------

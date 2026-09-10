@@ -250,8 +250,9 @@ function data(path, kv, ctx) {
 
 /**
  * A position (SPEC.md 4.1). The channel array is kept WHOLE, at the arity the
- * document carried, because `[lon, lat, null]` and `[lon, lat]` are different
- * spellings that canonical form does not unify (SPEC.md 4.1, 8.1).
+ * document carried. A reader MUST NOT round and MUST NOT shorten: both are emit
+ * rules, and endpoint snapping and ring winding compare positions by full
+ * value.
  */
 /**
  * @param {string} [code] the diagnostic code to report a failure under.

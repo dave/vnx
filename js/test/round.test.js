@@ -1,10 +1,9 @@
-// Decimal rounding on the write path (SPEC.md 4.5.4).
+// Decimal rounding at the emit boundary (SPEC.md 4.1).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { roundToPlaces } from '../src/round.js';
-import { renderNumber } from '../src/number.js';
 
 test('an exact tie rounds to even, matching Go and Python', () => {
   // 340.25 and 340.75 are exact doubles, so these are real ties and not an
@@ -62,10 +61,10 @@ test('rounding to 6 places then again is stable', () => {
 
 // --- red-proof ---------------------------------------------------------------
 //
-// SPEC.md 4.5.4 requires this rule and no corpus tier can reach it: rounding
-// happens only when a WRITER emits a model, and every tier re-renders
-// (corpus/format/README.md). The guard above is therefore the only thing
-// defending it in this library, so it has to have been seen to fail.
+// The corpus reaches the tie rule in two tiers only — `write/emit-boundary` and
+// `numbers/` — because every other tier encodes what it decoded, which rounds
+// values that already satisfy the rule. These guards are local and are the
+// fastest thing that can fail, so they have to have been seen to fail.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -131,13 +130,14 @@ test('0.0000005 is not a six-place tie, and is not even close to being one', () 
 });
 
 test('rounding creates no negative zero on the wire', () => {
-  // SPEC.md 4.5.4: rounding CREATES negative zeros that were never in the
-  // model. A writer collapsing negative zero only across the values it was
-  // HANDED would emit `-0` for one it produced itself. Guarded twice: once in
-  // the arithmetic here, once by the renderer.
+  // SPEC.md 4.1: rounding CREATES negative zeros that were never in the model.
+  // A writer collapsing negative zero only across the values it was HANDED
+  // would carry one out for a value it produced itself. `JSON.stringify` spells
+  // -0 as `0`, so the document cannot show it: the number tier compares BIT
+  // PATTERNS and is where it becomes visible.
   assert.ok(!Object.is(roundToPlaces(-0.04, 1), -0));
   assert.ok(!Object.is(roundToPlaces(-0.00000004, 6), -0));
-  assert.equal(renderNumber(roundToPlaces(-0.04, 1)), '0');
+  assert.ok(!Object.is(roundToPlaces(-0, 6), -0));
 });
 
 test('the tie rule is separated from all five wrong ones, and it takes both signs of value', () => {

@@ -64,9 +64,7 @@ async function runMutated(edits) {
     decodeText: api.decodeText,
     decodeContainer: api.decodeContainer,
     encodeContainer: api.encodeContainer,
-    rerender: api.rerender,
-    write: api.write,
-    renderNumber: api.renderNumber,
+    encode: api.encode,
     roundToPlaces: api.roundToPlaces,
   });
 }
@@ -116,10 +114,10 @@ test('the corpus baseline is recorded, and any pre-existing failure is named', a
   await baselineFailures();
 });
 
-test('transposing lon and lat, invisibly to the byte check, is caught by positions', async () => {
-  // The transposition is undone on the way out, so re-render still reproduces
-  // the file. Only `positions`, resolved against the model, can see it — which
-  // is the claim corpus/README.md makes for that field.
+test('transposing lon and lat, invisibly to the tree check, is caught by positions', async () => {
+  // The transposition is undone on the way out, so the re-encoded tree still
+  // equals the file's. Only `positions`, resolved against the model, can see
+  // it — which is the claim corpus/README.md makes for that field.
   const cases = await runMutated([
     {
       file: 'decode.js',
@@ -128,8 +126,8 @@ test('transposing lon and lat, invisibly to the byte check, is caught by positio
     },
     {
       file: 'emit.js',
-      from: '  const c = position.channels;',
-      to: '  const c = position.channels.slice(); [c[0], c[1]] = [c[1], c[0]];',
+      from: '  const out = position.channels.slice();',
+      to: '  const out = position.channels.slice(); [out[0], out[1]] = [out[1], out[0]];',
     },
   ]);
   const red = await failingDelta(cases);
@@ -137,43 +135,40 @@ test('transposing lon and lat, invisibly to the byte check, is caught by positio
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
 });
 
-test('normalising [lon, lat, null] to [lon, lat] in the model breaks the accept tier', async () => {
-  const cases = await runMutated([{
+test('dropping a TRAILING null in the model is permitted; dropping an INTERIOR one is not', async () => {
+  // SPEC.md 8.1 permits exactly two normalisations, and one of them is this:
+  // trailing `null` channels are dropped on both sides of the accept-tier
+  // comparison. `[lon, lat, null]` and `[lon, lat]` state the same thing
+  // (SPEC.md 4.1), so a reader that keeps neither spelling is still conforming
+  // and the tier must NOT redden. Recorded, because this used to be caught and
+  // the rule is what changed.
+  const trailing = await runMutated([{
     file: 'decode.js',
     from: '  return new Position(v.slice());',
     to: '  const s = v.slice();\n  while (s.length > 2 && s[s.length - 1] === null) s.pop();\n  return new Position(s);',
   }]);
-  assert.deepEqual(await failingDelta(cases), [
-    'accept/absent-elevation-and-time.vnx',
-    'accept/compute-failed-arc.vnx',
-  ]);
-});
+  assert.deepEqual(await failingDelta(trailing), []);
 
-test('plain lexicographic key order, without the scalar/container split, is caught', async () => {
-  const cases = await runMutated([{
-    file: 'render.js',
-    from: '    (v !== null && typeof v === \'object\' ? containers : scalars).push(k);',
-    to: '    scalars.push(k);',
+  // An INTERIOR absence is a different matter: dropping it moves the time into
+  // the elevation channel, and no normalisation touches it. Only
+  // `write/emit-boundary` carries one — measured, every `null` in accept/ is a
+  // trailing channel — so that one case is the whole of the corpus's coverage
+  // for the rule, in both tiers at once.
+  const interior = await runMutated([{
+    file: 'decode.js',
+    from: '  return new Position(v.slice());',
+    to: '  return new Position(v.filter((channel) => channel !== null));',
   }]);
-  const red = await failingDelta(cases);
-  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
-  // The turnaround file is the one where classification-by-value is visible on
-  // its own: its second link spells `arc, to, from` because `from` holds an
-  // array in that object and `to` holds a string.
-  assert.ok(red.includes('accept/shared-turnaround-handle.vnx'), red.join(', '));
+  assert.deepEqual(await failingDelta(interior), ['write/emit-boundary']);
 });
 
-test('rendering negative zero as -0 is caught by the format tier alone', async () => {
-  const cases = await runMutated([{
-    file: 'number.js',
-    from: "  if (n === 0) return '0'; // collapses -0 as well as 0",
-    to: "  if (n === 0) return Object.is(n, -0) ? '-0' : '0';",
-  }]);
-  // The number tier catches it too, in its `render` column: a rendering rule and
-  // a rounding rule are different code paths and it checks both.
-  assert.deepEqual(await failingDelta(cases), ['format/messy-spellings', 'numbers/numbers.tsv']);
-});
-
+// ⚠ THE FOUR SPOILED READERS. Each of the next four cases is a reader that
+// silently drops one thing it read: every data record, every ruleset, every
+// style, every `notes`. That is the entire extensibility mechanism, all styling
+// and all user prose. Every one of them produces a MODEL EQUAL TO ITSELF and
+// passes a model-versus-model accept tier green — measured in Python, re-proved
+// in Go. Comparing against the tree parsed from the ORIGINAL FILE is what
+// catches them, and these four cases are the proof that it does.
 test('a reader that discards data records is caught by the accept tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
@@ -190,6 +185,26 @@ test('a reader that discards rulesets is caught by the accept tier', async () =>
     file: 'decode.js',
     from: "  doc.rulesets = arr('rulesets', '', kv, false, ctx);",
     to: '  doc.rulesets = undefined;',
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
+});
+
+test('a reader that discards every style is caught by the accept tier', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: "  const s = objField('style', path, kv, false, ctx);\n  if (s === undefined) return undefined;",
+    to: "  const s = objField('style', path, kv, false, ctx);\n  return undefined;\n  if (s === undefined) return undefined;",
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
+});
+
+test('a reader that discards every notes is caught by the accept tier', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: "const str = (k, path, kv, req, ctx) => field(k, path, kv, 'a string', isString, req, ctx);",
+    to: "const str = (k, path, kv, req, ctx) => (k === 'notes' ? undefined : field(k, path, kv, 'a string', isString, req, ctx));",
   }]);
   const red = await failingDelta(cases);
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
@@ -432,28 +447,24 @@ test('using Web Mercator for the projection IS caught', async () => {
   assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
 });
 
-test('the WRITE path is exercised by the write tier and by nothing else', async () => {
+test('breaking rounding reddens the accept tier as well as the write tier', async () => {
   // Until write/ existed this asserted GREEN, and it was right to: every tier
-  // re-rendered, so breaking rounding and shortening outright changed nothing.
-  // That was never a property of the format, only of which tiers had been
-  // built. Inverted when write/emit-boundary landed.
-  const cases = await runMutated([
-    {
-      file: 'emit.js',
-      from: '  return roundToPlaces(v, places);',
-      to: '  return 0;',
-    },
-    {
-      file: 'emit.js',
-      from: '  while (n > 2 && out[n - 1] === null) n--;',
-      to: '  n = 2;',
-    },
-  ]);
-  // The write tier and nothing else, which is the point: the writer is reached,
-  // and no re-rendering tier is disturbed by breaking it. Both write cases go
-  // red because both call WRITE — the container case writes its document
-  // through the same path before packing it.
-  assert.deepEqual(await failingDelta(cases), ['write/container-cross-language', 'write/emit-boundary']);
+  // re-rendered, so breaking rounding outright changed nothing. It inverted
+  // when write/emit-boundary landed, and it has inverted again — there is now
+  // ONE emit path, so every tier that encodes reaches the rounder.
+  //
+  // The accept tier still cannot be the whole guard: it applies rounding to
+  // BOTH sides, so it sees a rounder that answers wrongly and not one that
+  // rounds to the wrong PLACES. `write/emit-boundary` is what covers that, and
+  // the next two cases are where the separation is measured.
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  return roundToPlaces(v, places);',
+    to: '  return 0;',
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('write/emit-boundary'), red.join(', '));
+  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
 });
 
 test('shortening a position is caught by the write tier', async () => {
@@ -475,20 +486,22 @@ test('shortening past an interior null is caught by the write tier', async () =>
   assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
-test('a negative zero the writer CREATED is caught by the write tier', async () => {
-  // format/ can only ever supply -0.0 as an input LITERAL, so it tests a
-  // renderer collapsing one it was handed. This is the one the writer makes.
+test('a negative zero the writer CREATED is caught by the number tier alone', async () => {
+  // ⚠ NO DOCUMENT TIER CAN SEE THIS ONE. `JSON.stringify(-0)` is `"0"`, and a
+  // tree comparison is over VALUES, where -0 and 0 are equal. So the rule is
+  // real — rounding creates negative zeros the model never held — and the only
+  // instrument that reaches it is the number tier's BIT-PATTERN comparison.
+  // Recorded rather than assumed: this is why that tier compares bits.
   const cases = await runMutated([{
-    file: 'number.js',
-    from: "  if (n === 0) return '0'; // collapses -0 as well as 0",
-    to: "  if (n === 0) return Object.is(n, -0) ? '-0' : '0';",
+    file: 'round.js',
+    from: '  if (v === 0) return 0;',
+    to: '  if (v === 0) return v;',
   }, {
     file: 'round.js',
     from: '  return Number(decimalText(q, places, negative));',
     to: '  return negative ? -Number(decimalText(q, places, false)) : Number(decimalText(q, places, false));',
   }]);
-  assert.deepEqual(await failingDelta(cases),
-    ['format/messy-spellings', 'numbers/numbers.tsv', 'write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv']);
 });
 
 test('rounding half away from zero instead of half to even is caught by the write tier', async () => {
@@ -522,73 +535,6 @@ test('comparing node keys instead of their positions is NOT caught', async () =>
   }]);
   assert.deepEqual(await failingDelta(cases), [],
     'the corpus now covers two distinct node keys at one position; assert the failure instead');
-});
-
-// An away-from-zero renderer for SPEC.md 4.5.3's tie, deciding the tie on the
-// double's EXACT value. The naive version — "prefer the larger last digit
-// whenever that spelling still parses back to the same double" — is the phantom
-// detector this repo keeps warning about: near 3.67 the double spacing is about
-// 4.4e-16 while the 17th significant digit steps by 1e-16, so THREE spellings
-// round-trip and only one is nearest. That version reddens
-// accept/full-precision-coordinate.vnx and accept/number-rendering.vnx as well,
-// for a different defect (emitting a non-nearest spelling), and would have
-// proved the wrong thing.
-const AWAY_FROM_ZERO_TIE = `  const sign = n < 0 ? '-' : '';
-  const mag = Math.abs(n);
-  const text = String(mag);
-  const parts = /^(\\d+)\\.(\\d*)(\\d)$/.exec(text);
-  if (parts && parts[3] !== '9') {
-    const view = new DataView(new ArrayBuffer(8));
-    view.setFloat64(0, mag);
-    const hi = view.getUint32(0);
-    const lo = view.getUint32(4);
-    const biased = (hi >>> 20) & 0x7ff;
-    let mantissa = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
-    let exponent = -1074;
-    if (biased !== 0) {
-      mantissa |= 1n << 52n;
-      exponent = biased - 1075;
-    }
-    const places = BigInt(parts[2].length + 1);
-    const lower = BigInt(parts[1] + parts[2] + parts[3]);
-    const midpointTimesTwo = 2n * lower + 1n;
-    const shift = BigInt(exponent) + 1n + places;
-    const scaled = mantissa * 5n ** places;
-    const tie = shift >= 0n
-      ? (scaled << shift) === midpointTimesTwo
-      : scaled === (midpointTimesTwo << -shift);
-    if (tie) return sign + parts[1] + '.' + parts[2] + String(Number(parts[3]) + 1);
-  }
-  return sign + text;`;
-
-test('rendering a tie away from zero is caught by the formatter tier', async () => {
-  // SPEC.md 4.5.3's rendering tie IS reachable by a re-render, because a
-  // re-render always re-spells: format/number-tie carries one spelling in and
-  // the other out. The rule is free in this seat — V8's Number::toString
-  // already rounds to even — and this proves the case would still catch a
-  // hand-written renderer HERE, rather than only catching other languages.
-  //
-  // I had this backwards in a note to the Python seat: I read the case passing
-  // as the case not reaching JavaScript. Passing is what a correct library
-  // does. Whether a case DISCRIMINATES is a separate question, and this is how
-  // it gets answered.
-  const cases = await runMutated([{
-    file: 'number.js',
-    from: '  return String(n);',
-    to: AWAY_FROM_ZERO_TIE,
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['format/number-tie', 'numbers/numbers.tsv']);
-});
-
-test('the full-precision coordinates are NOT rendering ties', async () => {
-  // Three 17-digit spellings of -3.6712345678901235 round-trip to one double
-  // and only one is nearest, so it is a phantom rather than a tie. If it were a
-  // tie, the mutation above would have reddened the two accept files that carry
-  // it, and the case above could not have attributed its failure to the tie
-  // rule. Frozen because this is the distinction the whole section rests on.
-  assert.equal(-3.6712345678901235, -3.6712345678901236);
-  assert.equal(-3.6712345678901235, -3.6712345678901234);
-  assert.equal((-3.6712345678901235).toPrecision(21), '-3.67123456789012347912');
 });
 
 test('accepting a backslash in an entry name is NOT caught', async () => {
@@ -652,30 +598,10 @@ test('rounding by scaling first, rather than on the exact expansion, is caught b
   assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
 });
 
-test('the scaling route reddens the ROUND columns of the number tier and not the render column', async () => {
-  // The number tier's README requires this separation: a tie mutation reaches
-  // `render` and the two round columns; a ROUTE mutation reaches only the round
-  // columns, because rendering does not round. A single "the table went red"
-  // would not distinguish them.
-  const cases = await runMutated([{
-    file: 'emit.js',
-    from: '  return roundToPlaces(v, places);',
-    to: `  const scaled = v * 10 ** places;
-  const floor = Math.floor(scaled);
-  const diff = scaled - floor;
-  let n;
-  if (diff > 0.5) n = floor + 1;
-  else if (diff < 0.5) n = floor;
-  else n = floor % 2 === 0 ? floor : floor + 1;
-  return n / 10 ** places;`,
-  }]);
-  // emit.js is the WRITE path only, so the number tier is untouched by this
-  // mutation and `write/emit-boundary` carries it alone — which is exactly why
-  // the 0.15 value had to be added to that fixture.
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
-});
-
 test('the scaling route in the ROUNDER itself reddens the number tier too', async () => {
+  // The tier separation the case above cannot show on its own: a mutation in
+  // emit.js reaches the write tier alone, because the number tier calls the
+  // rounder directly. Mutating the rounder reaches both.
   const cases = await runMutated([{
     file: 'round.js',
     from: '  return Number(decimalText(q, places, negative));',
@@ -707,5 +633,9 @@ test('a crash inside a tier fails its own case rather than the run', async () =>
   // completed, so the rest of the corpus was still measured.
   assert.ok(red.length > 0, 'the mutation must break something');
   assert.ok(cases.length >= 39, `the run must complete: only ${cases.length} cases reported`);
-  assert.ok(red.every((n) => n.endsWith('.vnz')), `only container cases: ${red.join(', ')}`);
+  // Container cases only: an archive entry is the one thing that inflates. The
+  // write tier's container case is one of them, and is named rather than
+  // matched on an extension because its case name has none.
+  assert.ok(red.every((n) => n.endsWith('.vnz') || n === 'write/container-cross-language'),
+    `only container cases: ${red.join(', ')}`);
 });

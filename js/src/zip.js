@@ -207,20 +207,14 @@ function readU64(buf, off) {
 /**
  * Write a plain (non-ZIP64) archive with the UTF-8 filename flag set.
  *
- * Every entry is STORED. Ruled 2026-09-09, and the reason is that DEFLATE HAS NO
- * CANONICAL OUTPUT: measured by the Kotlin seat, Go's `compress/flate` and zlib
- * emit different bytes for one input and no zlib level reproduces the other's,
- * so a deflated archive is byte-reproducible only by the language that wrote it.
- * Fixing the timestamps is necessary and not sufficient.
+ * Every entry is DEFLATED unless the caller names a method. SPEC.md 7.1 lets a
+ * writer choose either per entry and constrains no other field of the archive,
+ * so a container is now smaller than the document it holds rather than the same
+ * size.
  *
- * The asymmetry is the same one canonical form has for a document: required of
- * what you write, never of what you read. `readEntryData` still inflates.
- *
- * Version-needed is 10 rather than 20 because 2.0 is the minimum for DEFLATE and
- * a stored-only archive does not need it. Sizes and the CRC go in the LOCAL
- * header and bit 3 is not set: a writer that knows the sizes has no reason to
- * defer them, and the 16-byte data descriptor per entry is a byte difference
- * carrying no information.
+ * Sizes and the CRC go in the LOCAL header and bit 3 is not set: a writer that
+ * knows the sizes has no reason to defer them, and the 16-byte data descriptor
+ * per entry carries no information.
  *
  * @param {Array<{name: string, data: Buffer, method?: number}>} files
  * @returns {Buffer}
@@ -231,7 +225,7 @@ export function writeArchive(files) {
   let offset = 0;
   for (const f of files) {
     const name = Buffer.from(f.name, 'utf8');
-    const method = f.method ?? METHOD_STORE;
+    const method = f.method ?? METHOD_DEFLATE;
     const body = method === METHOD_STORE ? f.data : zlib.deflateRawSync(f.data, { level: 9 });
     const crc = crc32(f.data);
 

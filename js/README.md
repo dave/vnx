@@ -1,12 +1,5 @@
 # VNX for JavaScript
 
-> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
-> layout, a formatter, a number-rendering rule or a stored-only container, and
-> the corpus compares parsed documents rather than bytes. This library still
-> implements the older rules, and the sections cited below for them are gone
-> from `SPEC.md`. Porting it is its own task.
-
-
 A codec for the VNX format: read and write `.vnx` and `.vnz`, and report
 diagnostics. Implemented from [`SPEC.md`](../SPEC.md) and
 validated by [`corpus/`](../corpus).
@@ -17,50 +10,70 @@ rather than imported: the format restricts compression to store and deflate, and
 
 ```js
 import {
-  decodeText, rerender, write, canonicalise,
-  decodeContainer, rerenderContainer, writeContainer,
+  decodeText, encode,
+  decodeContainer, encodeContainer, writeContainer,
 } from '@viatrail/vnx';
 
 const { document, diagnostics, positions } = decodeText(text);
 for (const d of diagnostics) console.log(d.path, d.message);
 
-rerender(document);      // the document as it was handed to the reader
-write(document);         // a document written from the model: rounded, shortened
-canonicalise(text).text; // decode, then re-render
+encode(document); // a document written from the model: rounded, shortened
 ```
 
-## The two operations that both produce a document
+## One emit path
 
-`SPEC.md` 8.1 names them, and they are not interchangeable.
+`encode` is `JSON.stringify` over a plain JSON value built from the model. The
+bytes of a document are not constrained (`SPEC.md` 8.1) — key order, number
+spelling and whitespace are this library's own business — so there is no
+formatter and no canonical form. The output is compact: a document is mostly
+coordinates, and indentation would be size for no reader.
 
-| | Rounding | Shortest spelling | Used for |
-|---|---|---|---|
-| `rerender(doc)` | no | no | canonical form, the accept tier |
-| `write(doc)` | lon/lat to 6 places, elevation to 1 | yes | exporting a model |
+Two rules ARE applied at the emit boundary (`SPEC.md` 4.1):
 
-A conforming library offers both (`SPEC.md` 4.5.4). The container path splits the
-same way — `rerenderContainer` and `writeContainer` — so repackaging a container
-unchanged cannot silently round it. `encodeContainer` takes document text the
-caller has already produced, so the choice is the caller's.
+- longitude and latitude rounded to 6 decimal places, elevation to 1;
+- the shortest spelling of a position — trailing `null` channels dropped, an
+  interior `null` kept.
 
-The `write/` corpus tier exercises the first path and is the only document tier
+Neither happens in the model. `writeContainer` takes a decoded container back
+out through the same path; `encodeContainer` takes document text the caller has
+already produced.
+
+The `write/` corpus tier exercises those two rules and is the only document tier
 that does; see `corpus/write/README.md`. `corpus/numbers/` reaches the same
-boundary at value level, pinning what every implementation must emit for a given
-double before and after rounding to 6 and to 1 places.
+boundary at value level, pinning the rounded value for a given double by BIT
+PATTERN — never as text, which would put a spelling rule back into the
+comparison through the side door.
 
-A rounding TIE rounds to even (`SPEC.md` 4.5.4): `340.25` to one place is `340.2`,
-where JavaScript's `toFixed` gives `340.3`. `src/round.js` decides the tie on the
-double's exact value in BigInt, because the obvious round-trip check finds
-phantoms. `write/emit-boundary` now catches a wrong tie direction; the local
-guard in `test/round.test.js` predates that tier and stays, red-proofed against a
-mutated copy of `src/round.js`.
-`SPEC.md` 4.5.3's rendering TIE is free here (V8 rounds to even) but IS reachable
-by a re-render, because a re-render always re-spells, so `format/number-tie`
-catches it and a red-proof shows it would still catch a hand-written renderer in
-this seat.
+A rounding TIE rounds to even (`SPEC.md` 4.1): `340.25` to one place is `340.2`,
+where JavaScript's `toFixed` gives `340.3`. Rounding is by FORMATTING, never by
+scaling: `src/round.js` decides the tie on the double's exact value in BigInt and
+reaches the result through decimal text, because scaling by a power of ten
+manufactures ties the true decimal never had. The obvious round-trip tie check
+finds phantoms and is not used.
 
-The corpus's accept tier is `rerender(decode(file)) === file`. A writer rounds,
-so writing what you read is legitimately not what you read.
+## The container deflates
+
+`SPEC.md` 7.1 lets a writer store or deflate per entry and constrains no other
+field of the archive. This one deflates, so a `.vnz` is smaller than the document
+it holds. The reader still takes both.
+
+Archives written by two conforming implementations are not expected to agree byte
+for byte, so the corpus's container case compares entry names, attachment bodies
+and the root document's tree — not bytes.
+
+## The accept tier compares TREES
+
+`SPEC.md` 8.1: decode the file, encode the result, and compare the tree parsed
+from the ORIGINAL FILE against the tree parsed from the encoded output. Exactly
+two normalisations are permitted and no others — on a position, trailing `null`
+channels dropped and §4.1's precision applied to both sides; and an absent
+container reading the same as an empty one.
+
+⚠ It is never model-versus-model. A reader that discarded every data record,
+every ruleset, every style and every `notes` produces a model equal to ITSELF and
+passes a tier built that way green — that is the whole extensibility mechanism,
+all styling and all user prose. `test/redproof.test.js` runs all four of those
+readers and asserts each one is caught.
 
 ## Reading fails loudly or not at all
 
@@ -115,17 +128,15 @@ bare inequality.
 code. A file with no sidecar is a failure, not a skip.
 
 `test/redproof.test.js` runs the corpus against deliberately broken copies of
-this library, one defect at a time, and asserts which tier catches each. Three
+this library, one defect at a time, and asserts which tier catches each. Several
 of its cases assert that a defect is **not** caught, which records a gap in the
 corpus rather than assuming there is none.
 
 ## What this library does not do
 
 - **No GPX, KML or GeoJSON.** Those are conversion tools, not part of the format.
-- **No JSON Schema validation.** Every sidecar carries a `schema` verdict, but
-  checking it needs a draft 2020-12 validator, which would be a dependency. The
-  runner ignores the field; `corpus/schema/README.md` says the reference
-  implementation checks it from a separate package for the same reason.
+- **No JSON Schema validation.** Some sidecars still carry a `schema` verdict.
+  The corpus's schema directory is gone and no runner reads the field.
 - **No vocabulary layer.** `app.viatrail.*` record bodies are carried, not
   interpreted, so nothing here knows that a `settlement`'s `size` is an
   enumeration.

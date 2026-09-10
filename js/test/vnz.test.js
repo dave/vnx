@@ -15,7 +15,7 @@ const CORPUS = process.env.VNX_CORPUS
   ? path.resolve(process.env.VNX_CORPUS)
   : path.join(REPO, 'corpus');
 
-import { decodeContainer, encodeContainer, rerenderContainer, writeContainer } from '../src/vnz.js';
+import { decodeContainer, encodeContainer, writeContainer } from '../src/vnz.js';
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
 import { VnxRefusal } from '../src/errors.js';
 
@@ -273,18 +273,30 @@ test('the writer refuses to pack a name it would refuse to read', () => {
     /backslash/);
 });
 
-test('the writer STORES every entry, and the reader still inflates', () => {
-  // Ruled 2026-09-09: deflate has no canonical output, so a deflated archive is
-  // byte-reproducible only by the language that wrote it. Required of what you
-  // write, never of what you read — the four committed .vnz fixtures are all
-  // deflate and are what tests the reader side.
+test('the writer DEFLATES every entry, and the reader still reads stored ones', () => {
+  // SPEC.md 7.1 lets a writer choose stored or deflate per entry, and nothing
+  // else about the archive is constrained. This one deflates, so a container is
+  // smaller than what it holds.
   const buf = encodeContainer(DOC, [['attachments/photo.txt', Buffer.from('not a photo\n')]]);
   for (const e of readEntries(buf)) {
-    assert.equal(e.method, METHOD_STORE, e.name);
+    assert.equal(e.method, METHOD_DEFLATE, e.name);
     assert.equal(e.flags, 0x0800, `${e.name}: UTF-8 flag only, no data descriptor`);
   }
   // and it still round-trips
   assert.equal(decodeContainer(buf).attachments.get('attachments/photo.txt').toString(), 'not a photo\n');
+});
+
+test('a container is smaller than the document it holds', () => {
+  // The whole point of deflating. Measured over a document large enough that a
+  // ZIP header — about 100 bytes an entry — cannot decide the answer: a writer
+  // switched back to stored fails this and satisfies every other rule in 7.1.
+  const pips = [];
+  for (let i = 0; i < 2000; i++) pips.push([-3.671235 + i / 1e6, 57.118123 + i / 1e6, 340.3]);
+  const text = JSON.stringify({ vnx: '0.1.0', tracks: [{ segments: [{ pips }] }] });
+  const buf = encodeContainer(text);
+  assert.ok(buf.length < Buffer.byteLength(text, 'utf8') / 2,
+    `the archive is ${buf.length} bytes and the document is ${Buffer.byteLength(text, 'utf8')}`);
+  assert.equal(decodeContainer(buf).document.tracks[0].segments[0].pips.length, 2000);
 });
 
 test('a writer does not defer sizes it already knows', () => {
@@ -389,12 +401,12 @@ const ARCHIVE = () => encodeContainer(DOC, [['attachments/photo.txt', Buffer.fro
 
 test('RAW: every local header carries SPEC.md 7.1 fields', () => {
   for (const h of localHeaders(ARCHIVE())) {
-    assert.equal(h.method, 0, `${h.name}: stored`);
+    assert.equal(h.method, 8, `${h.name}: deflated`);
     assert.equal(h.flags, 0x0800, `${h.name}: UTF-8 name flag only, bit 3 clear`);
-    assert.equal(h.versionNeeded, 10, `${h.name}: 2.0 is the DEFLATE minimum and is not needed`);
+    assert.equal(h.versionNeeded, 20, `${h.name}: 2.0 is the DEFLATE minimum`);
     assert.equal(h.extraLen, 0, `${h.name}: no extra field`);
     assert.notEqual(h.crc, 0, `${h.name}: CRC is present, not deferred`);
-    assert.equal(h.compressedSize, h.uncompressedSize, `${h.name}: stored, so the sizes match`);
+    assert.notEqual(h.compressedSize, 0, `${h.name}: size is present, not deferred`);
     assert.notEqual(h.uncompressedSize, 0, `${h.name}: size is present, not deferred`);
   }
 });
@@ -519,8 +531,8 @@ test('attachments are sorted by entry name, and the caller order is not preserve
 });
 
 test('the sort is by CODE POINT, which the default comparator is not', () => {
-  // The same divergence SPEC.md 4.5.1 names for object keys, in a place the
-  // spec does not repeat the warning. U+1F600 is above U+FFFD by code point and
+  // Sorting is this library's own choice, not a rule of SPEC.md 7.1, but the
+  // comparator still has to be right. U+1F600 is above U+FFFD by code point and
   // below it by UTF-16 code unit, because its first unit is a high surrogate.
   const names = ['\u{1F600}.txt', '�.txt'];
   const buf = encodeContainer(DOC, names.map((n) => [n, Buffer.from('x')]));
@@ -538,10 +550,8 @@ test('repackaging a container sorts too, so a read-modify-write cannot reorder',
     { name: 'a/first.txt', data: Buffer.from('a') },
   ]);
   const container = decodeContainer(messy);
-  for (const packed of [rerenderContainer(container), writeContainer(container)]) {
-    assert.deepEqual(readEntries(packed).map((e) => e.name),
-      ['doc.vnx', 'a/first.txt', 'z/last.txt']);
-  }
+  assert.deepEqual(readEntries(writeContainer(container)).map((e) => e.name),
+    ['doc.vnx', 'a/first.txt', 'z/last.txt']);
 });
 
 test('RAW: the order check fires when the two sequences disagree', () => {

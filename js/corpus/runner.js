@@ -4,11 +4,20 @@
 // FAILURE, not a skip: the file everyone assumes is covered is otherwise
 // exactly the one that is not.
 //
-// The runner never uses the writer. The accept tier is
-// `re-render(decode(file)) == file`, and a writer rounds.
+// The accept tier is a JSON-TREE comparison between the tree parsed from the
+// original file and the tree parsed from `encode(decode(file))` (SPEC.md 8.1).
+// The bytes of a document are not constrained, so comparing them would require
+// every conforming file to have been written by this library.
 
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { compareDocuments } from './tree.js';
+// The harness's own ZIP reader, for opening a fixture archive and the archive a
+// case just wrote. It is not the implementation under test: a write case must
+// measure what was WRITTEN, not also how this library reads somebody else's
+// archive, which the accept and diagnose tiers already cover.
+import { readEntries, readEntryData } from '../src/zip.js';
 
 const COLLECTIONS = ['folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas', 'rulesets'];
 
@@ -32,11 +41,11 @@ export class Case {
  * seen fail is not a guard.
  *
  * @param {string} CORPUS path to the corpus directory
- * @param {{decodeText: Function, decodeContainer: Function, rerender: Function}} api
+ * @param {{decodeText: Function, decodeContainer: Function, encode: Function,
+ *          encodeContainer: Function, roundToPlaces: Function}} api
  * @returns {Case[]}
  */
 export function runCorpus(CORPUS, api) {
-  const { decodeText, decodeContainer, rerender } = api;
   const cases = [];
   for (const kind of ['accept', 'reject', 'diagnose']) {
     const dir = path.join(CORPUS, kind);
@@ -45,14 +54,13 @@ export function runCorpus(CORPUS, api) {
       cases.push(runSidecarCase(kind, dir, file, api));
     }
   }
-  cases.push(...runFormatCases(path.join(CORPUS, 'format'), api));
   cases.push(...runWriteCases(path.join(CORPUS, 'write'), api));
   cases.push(...runNumberCases(path.join(CORPUS, 'numbers'), api));
   return cases;
 }
 
 function runSidecarCase(kind, dir, file, api) {
-  const { decodeText, decodeContainer, rerender } = api;
+  const { decodeText, decodeContainer, encode } = api;
   const c = new Case(`${kind}/${file}`);
   const full = path.join(dir, file);
   const sidecarPath = full.replace(/\.vn[xz]$/, '.expect.json');
@@ -105,9 +113,22 @@ function runSidecarCase(kind, dir, file, api) {
   if (isContainer) checkAttachments(c, result.attachments, expect.attachments);
 
   if (kind === 'accept' && !isContainer) {
-    // SPEC.md 8.1: decode, RE-RENDER, and require the original bytes back.
-    const again = rerender(result.document);
-    c.check(again === bytes.toString('utf8'), firstDifference(bytes.toString('utf8'), again));
+    // SPEC.md 8.1: decode, ENCODE, and compare the two JSON TREES, with the
+    // emit-boundary rules applied to both sides.
+    //
+    // ⚠ AGAINST THE ORIGINAL FILE, never against another model. A reader that
+    // discarded every data record, ruleset, style and `notes` produces a model
+    // equal to itself and would pass a model-versus-model tier green.
+    let encoded = null;
+    try {
+      encoded = encode(result.document);
+    } catch (err) {
+      c.failures.push(`threw rather than encoding: ${err && err.message}`);
+    }
+    if (encoded !== null) {
+      const diff = compareDocuments(encoded, bytes.toString('utf8'), { emitBoundary: true });
+      c.check(diff === '', `the re-encoded document is not the one the file carries: ${diff}`);
+    }
   }
   return c;
 }
@@ -209,63 +230,27 @@ function checkAttachments(c, attachments, expected) {
     `attachments are ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
 }
 
-function runFormatCases(dir, api) {
-  const { decodeText, rerender } = api;
-  const cases = [];
-  for (const file of fs.readdirSync(dir).sort()) {
-    if (!file.endsWith('.in.vnx')) continue;
-    const base = file.slice(0, -'.in.vnx'.length);
-    const c = new Case(`format/${base}`);
-    const inputPath = path.join(dir, file);
-    const canonicalPath = path.join(dir, `${base}.canonical.vnx`);
-    if (!fs.existsSync(canonicalPath)) {
-      c.failures.push(`no ${base}.canonical.vnx beside the input`);
-      cases.push(c);
-      continue;
-    }
-    const input = fs.readFileSync(inputPath, 'utf8');
-    const want = fs.readFileSync(canonicalPath, 'utf8');
-    // SPEC.md 8.1: a runner MUST assert that the input is not already
-    // canonical. Without it a formatter that echoed its input would pass.
-    c.check(input !== want, 'the input is already canonical, so this case cannot fail');
-    try {
-      const got = rerender(decodeText(input).document);
-      c.check(got === want, firstDifference(want, got));
-      // The canonical file must be a fixed point of the formatter.
-      const again = rerender(decodeText(want).document);
-      c.check(again === want, `re-rendering the canonical file changed it: ${firstDifference(want, again)}`);
-    } catch (err) {
-      c.failures.push(`threw rather than formatting: ${err && err.message}`);
-    }
-    cases.push(c);
-  }
-  // Every .vnx in format/ belongs to a pair.
-  for (const file of fs.readdirSync(dir)) {
-    if (!file.endsWith('.vnx')) continue;
-    if (file.endsWith('.in.vnx') || file.endsWith('.canonical.vnx')) continue;
-    const c = new Case(`format/${file}`);
-    c.failures.push('not part of an .in.vnx / .canonical.vnx pair');
-    cases.push(c);
-  }
-  return cases;
-}
-
 /**
- * The NUMBER tier: `numbers.tsv` fixes what every implementation must emit for a
- * given double, as three columns — the canonical spelling, and the spelling after
- * rounding to 6 and to 1 decimal places.
+ * The NUMBER tier: `numbers.tsv` fixes the result of rounding a given double to
+ * 6 and to 1 decimal places.
  *
- * A row is a value rather than a document, so there is no sidecar: the three
- * answer columns ARE the expectation. It is the only tier that reaches past the
- * writer boundary at value level, and it separates two independent choices the
- * document tiers cannot — the tie direction, and whether rounding is done on the
- * exact decimal expansion or by scaling first.
+ * ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
+ * column is not read: how a number is spelled is the writer's own business
+ * (SPEC.md 4.2). What is compared is the rounded VALUE, BY BIT PATTERN —
+ * comparing it as text would put a rendering rule back in through the side door
+ * and would then pass or fail on how this runtime spells a double.
  *
- * The double arrives as 16 hexadecimal digits of its IEEE 754 encoding. A decimal
- * literal would beg the question the table exists to answer.
+ * A row is a value rather than a document, so there is no sidecar: the answer
+ * columns ARE the expectation. It is the only tier that reaches past the emit
+ * boundary at value level, and it separates two independent choices the document
+ * tiers cannot — the tie direction, and whether rounding is done on the exact
+ * decimal expansion or by scaling first.
+ *
+ * The double arrives as 16 hexadecimal digits of its IEEE 754 encoding. A
+ * decimal literal would beg the question the table exists to answer.
  */
 function runNumberCases(dir, api) {
-  const { renderNumber, roundToPlaces } = api;
+  const { roundToPlaces } = api;
   if (!fs.existsSync(dir)) return [];
   const c = new Case('numbers/numbers.tsv');
   const file = path.join(dir, 'numbers.tsv');
@@ -273,8 +258,8 @@ function runNumberCases(dir, api) {
     c.failures.push('no numbers.tsv in the numbers tier');
     return [c];
   }
-  if (typeof renderNumber !== 'function' || typeof roundToPlaces !== 'function') {
-    c.failures.push('the implementation exposes no number renderer or no rounder');
+  if (typeof roundToPlaces !== 'function') {
+    c.failures.push('the implementation exposes no rounder');
     return [c];
   }
 
@@ -283,12 +268,16 @@ function runNumberCases(dir, api) {
     view.setBigUint64(0, BigInt(`0x${hex}`));
     return view.getFloat64(0);
   };
+  const bitsOf = (n) => {
+    view.setFloat64(0, n);
+    return view.getBigUint64(0).toString(16).padStart(16, '0');
+  };
 
   let rows = 0;
   let failedRows = 0;
   const kinds = new Set();
   const sample = [];
-  const COLUMNS = ['render', 'round6', 'round1'];
+  const COLUMNS = ['round6', 'round1'];
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   for (const [index, line] of lines.entries()) {
     if (line === '' || line.startsWith('#')) continue;
@@ -297,17 +286,21 @@ function runNumberCases(dir, api) {
       c.failures.push(`line ${index + 1}: expected five tab-separated columns, found ${columns.length}`);
       continue;
     }
-    const [bits, kind, ...want] = columns;
+    const [bits, kind] = columns;
+    const want = [Number(columns[3]), Number(columns[4])];
     rows++;
     kinds.add(kind);
     const v = toDouble(bits);
-    const got = [renderNumber(v), renderNumber(roundToPlaces(v, 6)), renderNumber(roundToPlaces(v, 1))];
-    if (got.every((g, i) => g === want[i])) continue;
+    const got = [roundToPlaces(v, 6), roundToPlaces(v, 1)];
+    // ⚠ BY BIT PATTERN. -0 and 0 are the same value and DIFFERENT bit patterns;
+    // SPEC.md 4.1 has rounding normalise the sign, so the table says 0 and a
+    // mismatch here is real rather than a spelling.
+    if (got.every((g, i) => bitsOf(g) === bitsOf(want[i]))) continue;
     failedRows++;
     // A bounded sample: five thousand identical failures are one defect, and a
     // report nobody reads is not a report. The count above it is the scale.
     if (sample.length < 12) {
-      const wrong = COLUMNS.filter((_, i) => got[i] !== want[i]).join(' and ');
+      const wrong = COLUMNS.filter((_, i) => bitsOf(got[i]) !== bitsOf(want[i])).join(' and ');
       sample.push(`line ${index + 1}  ${bits} (${kind})  ${wrong}: expected [${want}], produced [${got}]`);
     }
   }
@@ -321,17 +314,25 @@ function runNumberCases(dir, api) {
 }
 
 /**
- * The WRITE tier (SPEC.md 4.5.4): decode the input, call the WRITER, and require
- * the expected bytes. This is the only tier that applies the emit-boundary
- * rules, because every other tier re-renders.
+ * The WRITE tier (SPEC.md 4.1): decode the input, ENCODE, and compare the two
+ * documents as JSON trees. This is the only tier that reaches the emit-boundary
+ * rules, because every other tier encodes what it decoded — which applies
+ * rounding to values that already satisfy it and shortening to positions already
+ * short.
+ *
+ * ⚠ AND SO IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and
+ * drops a trailing `null` from both, because it compares a document against a
+ * re-encoding of itself. Doing that here would normalise away the two rules
+ * under test. The one normalisation left is the one that is not about the emit
+ * boundary at all: SPEC.md 3.1's absent-versus-empty.
  */
 function runWriteCases(dir, api) {
-  const { decodeText, write } = api;
+  const { decodeText, encode } = api;
   const cases = [];
   if (!fs.existsSync(dir)) return cases;
-  if (typeof write !== 'function') {
+  if (typeof encode !== 'function') {
     const c = new Case('write/');
-    c.failures.push('the implementation exposes no WRITE path; SPEC.md 4.5.4 requires both');
+    c.failures.push('the implementation exposes no encoder');
     return [c];
   }
   const seen = new Set();
@@ -369,7 +370,8 @@ function runWriteCases(dir, api) {
     const input = fs.readFileSync(path.join(dir, file), 'utf8');
     const want = fs.readFileSync(writtenPath, 'utf8');
     // Without this a writer that echoed its input would pass every case here.
-    c.check(input !== want, 'the input is already the written form, so this case cannot fail');
+    c.check(compareDocuments(input, want, {}) !== '',
+      'the input is already the written form, so this case cannot fail');
 
     // A refusal fails THIS case. Letting it propagate would take down every
     // other case in the run, which is a runner that reports one defect as a
@@ -378,12 +380,12 @@ function runWriteCases(dir, api) {
       const decoded = decodeText(input);
       c.check(decoded.diagnostics.length === 0,
         `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
-      const got = write(decoded.document);
-      c.check(got === want, firstDifference(want, got));
+      const diff = compareDocuments(encode(decoded.document), want, {});
+      c.check(diff === '', `the written document is not the one the case expects: ${diff}`);
       // Rounding and shortening are both idempotent, so the written form must be
       // a fixed point. A case that fails this is a defect in the fixture.
-      const again = write(decodeText(want).document);
-      c.check(again === want, `writing the written form changed it: ${firstDifference(want, again)}`);
+      const again = compareDocuments(encode(decodeText(want).document), want, {});
+      c.check(again === '', `the expected output is not a fixed point of the writer: ${again}`);
     } catch (err) {
       c.failures.push(`threw rather than writing: ${err && err.message}`);
     }
@@ -399,22 +401,28 @@ function runWriteCases(dir, api) {
 }
 
 /**
- * A write case whose output is a CONTAINER (`corpus/write/README.md`).
+ * A write case whose output is a CONTAINER (`corpus/write/README.md`). It is the
+ * only case proving attachments survive a round trip through an archive.
+ *
+ * ⚠ THE ARCHIVE'S BYTES ARE NOT COMPARED. SPEC.md 7.1 constrains five rules and
+ * leaves every other field of the archive to the writer, so two conforming
+ * writers are not expected to agree byte for byte — and DEFLATE has no canonical
+ * output, so two zlib builds would not agree either. What is compared is what
+ * 7.1 does constrain: the root document's tree, the entry names, the attachment
+ * bodies, and the document being first.
  *
  * The attachments come from a manifest rather than from real files beside the
  * sidecar: a name holding U+1F600 is subject to the checkout filesystem's
  * Unicode normalisation and case folding, so a checked-out file could arrive
- * under a name that is not the one the case means and the fixture would test
- * the filesystem instead of the writer.
+ * under a name that is not the one the case means and the fixture would test the
+ * filesystem instead of the writer.
  *
  * The attachments are fed REVERSED. A writer's output must not depend on the
  * order it was handed, and feeding them in manifest order cannot see one that
- * does. It is a robustness check and no longer more than that: the rewritten
- * SPEC.md 7.1 does not constrain entry order, so what makes the difference
- * observable today is this case's byte comparison rather than a rule.
+ * does.
  */
 function runWriteContainerCase(dir, base, api) {
-  const { decodeText, decodeContainer, write, encodeContainer } = api;
+  const { decodeText, decodeContainer, encode, encodeContainer } = api;
   const c = new Case(`write/${base}`);
   if (typeof encodeContainer !== 'function') {
     c.failures.push('the implementation exposes no container WRITE path; SPEC.md 7 requires one');
@@ -436,53 +444,93 @@ function runWriteContainerCase(dir, base, api) {
   c.check(expect.root === 'doc.vnx', `this runner writes the document as doc.vnx, and the sidecar names ${JSON.stringify(expect.root)}`);
 
   const input = fs.readFileSync(path.join(dir, `${base}.in.vnx`), 'utf8');
-  const want = fs.readFileSync(writtenPath);
+  const wantBytes = fs.readFileSync(writtenPath);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${base}.attachments.json`), 'utf8'));
   const listed = manifest.attachments.map((a) => [a.name, Buffer.from(a.body, 'utf8')]);
-  c.check(Buffer.from(input, 'utf8').compare(want) !== 0, 'the input is already the written form, so this case cannot fail');
+
+  // The expected archive is FIXTURE, and is opened with the harness's own ZIP
+  // reader rather than the implementation's, so that a case measures what the
+  // implementation WROTE and not also how it reads someone else's archive.
+  let wanted;
+  try {
+    wanted = archiveEntries(wantBytes);
+  } catch (err) {
+    c.failures.push(`the expected archive will not open: ${err && err.message}`);
+    return c;
+  }
+  if (!c.check(wanted.length > 0, 'the expected archive holds no entries')) return c;
+  c.check(wanted[0].name === manifest.root,
+    `the expected archive's first entry is ${JSON.stringify(wanted[0].name)}, and SPEC.md 7.1 requires the root document ${JSON.stringify(manifest.root)}`);
 
   try {
     const decoded = decodeText(input);
     c.check(decoded.diagnostics.length === 0,
       `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
-    const got = encodeContainer(write(decoded.document), [...listed].reverse());
-    c.check(got.compare(want) === 0, firstByteDifference(want, got));
+    const packed = encodeContainer(encode(decoded.document), [...listed].reverse());
+    checkArchive(c, packed, wanted, manifest);
+    // This case does NOT check that the archive is smaller than the document it
+    // holds. Its document is 109 bytes and a ZIP header is about 100, so the
+    // overhead decides the answer whatever the writer does. The compression
+    // guard lives in test/vnz.test.js, over a document large enough to see it.
+
+    // And the archive reads back through the implementation's own reader.
+    const back = decodeContainer(packed);
+    c.check(back.diagnostics.length === 0,
+      `the archive this library wrote must read cleanly; got ${JSON.stringify(back.diagnostics.map((d) => d.code))}`);
+    c.check(back.attachments.size === listed.length,
+      `the archive reads back with ${back.attachments.size} attachments and the manifest lists ${listed.length}`);
 
     // The written form is a fixed point, reached the way every other write case
     // reaches it: read the expected output back and write it again.
-    const back = decodeContainer(want);
-    c.check(back.diagnostics.length === 0,
-      `the written archive must read cleanly; got ${JSON.stringify(back.diagnostics.map((d) => d.code))}`);
-    c.check([...back.attachments.keys()].length === listed.length,
-      `the archive carries ${back.attachments.size} attachments and the manifest lists ${listed.length}`);
-    const again = encodeContainer(write(back.document), back.attachments);
-    c.check(again.compare(want) === 0, `writing the written form changed it: ${firstByteDifference(want, again)}`);
+    const again = encodeContainer(encode(back.document), back.attachments);
+    checkArchive(c, again, wanted, manifest);
   } catch (err) {
     c.failures.push(`threw rather than writing: ${err && err.message}`);
   }
   return c;
 }
 
-/** Where two archives first disagree, which a length comparison alone cannot say. */
-function firstByteDifference(want, got) {
-  if (want.compare(got) === 0) return 'identical';
-  const n = Math.min(want.length, got.length);
-  for (let i = 0; i < n; i++) {
-    if (want[i] !== got[i]) {
-      return `byte ${i} of ${want.length}: expected 0x${want[i].toString(16).padStart(2, '0')}, produced 0x${got[i].toString(16).padStart(2, '0')} (${got.length} bytes written)`;
-    }
+/**
+ * What SPEC.md 7.1 constrains about an archive: the root document first and
+ * under the name the manifest gives, the same entry names, and the same
+ * attachment bodies. An attachment is bytes and is compared as bytes — nothing
+ * in this format interprets one.
+ */
+function checkArchive(c, gotBytes, wanted, manifest) {
+  let got;
+  try {
+    got = archiveEntries(gotBytes);
+  } catch (err) {
+    c.failures.push(`the archive written here will not open: ${err && err.message}`);
+    return;
   }
-  return `identical for ${n} bytes; expected ${want.length} and produced ${got.length}`;
+  if (!c.check(got.length === wanted.length,
+    `the archive holds ${got.length} entries, want ${wanted.length}`)) return;
+  c.check(got[0].name === manifest.root,
+    `the first entry is ${JSON.stringify(got[0].name)}; SPEC.md 7.1 requires the root document first`);
+  const names = got.map((e) => e.name);
+  const wantNames = wanted.map((e) => e.name);
+  c.check(JSON.stringify(names) === JSON.stringify(wantNames),
+    `the entry names are ${JSON.stringify(names)}, want ${JSON.stringify(wantNames)}`);
+
+  const diff = compareDocuments(got[0].body.toString('utf8'), wanted[0].body.toString('utf8'), {});
+  c.check(diff === '', `the archive's root document is not the one the case expects: ${diff}`);
+
+  const bodies = new Map(manifest.attachments.map((a) => [a.name, a.body]));
+  for (const e of got.slice(1)) {
+    const body = bodies.get(e.name);
+    if (body === undefined) {
+      c.failures.push(`the archive carries ${JSON.stringify(e.name)}, which the manifest does not name`);
+      continue;
+    }
+    c.check(e.body.toString('utf8') === body,
+      `${e.name}: body is ${JSON.stringify(e.body.toString('utf8'))}, want ${JSON.stringify(body)}`);
+  }
 }
 
-function firstDifference(want, got) {
-  if (want === got) return 'identical';
-  const a = want.split('\n');
-  const b = got.split('\n');
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if (a[i] !== b[i]) {
-      return `line ${i + 1}: expected ${JSON.stringify(a[i] ?? '<end of file>')}, produced ${JSON.stringify(b[i] ?? '<end of file>')}`;
-    }
-  }
-  return 'differ only in trailing bytes';
+/** Every file entry of an archive, in archive order, read as bytes. */
+function archiveEntries(buf) {
+  return readEntries(buf)
+    .filter((e) => !e.name.endsWith('/'))
+    .map((e) => ({ name: e.name, body: readEntryData(buf, e) }));
 }

@@ -41,6 +41,7 @@ archive is deflated, so a reader without it cannot open a container at all.
 | `tests/corpus.rs` | the conformance runner, all five tiers |
 | `tests/numbers.rs` | the number-conformance table |
 | `tests/zip64.rs` | a hand-built ZIP64 container, because the corpus has none |
+| `tests/hostile.rs` | truncation and corruption sweeps: refuse, never panic |
 
 ## Three operations, not one
 
@@ -186,6 +187,22 @@ the end record can, so the locator has to be followed. A fixture built with
 Python's `force_zip64` masks the local header only and would leave the parser
 untested.
 
+**Hostile input.** Every corpus fixture is well-formed, including the ones that
+must be refused — they are refused for FORMAT reasons rather than for being
+damaged. So no tier asks what happens to a truncated download or a corrupt
+archive. `tests/hostile.rs` sweeps every prefix and every single-byte flip of a
+stored container, a deflated one and a document, and requires a refusal or a
+clean read — never a panic. `#![forbid(unsafe_code)]` makes the bad case a panic
+rather than memory corruption, which is the good version of getting it wrong and
+is still not a refusal.
+
+That sweep found a real defect, and it took a hand-built archive to reach it: a
+ZIP64 extended information field can name a local-header offset anywhere in a
+`u64`, so `at + len` overflowed a `usize` before any bounds check ran. In a
+release build it wrapped and the archive was refused, so nobody would have
+noticed; in a debug build it panicked. No truncation or bit-flip of a committed
+fixture can produce it, because none of them carries a ZIP64 extra field.
+
 **A diagnostic's `code`.** Every `diagnose/` fixture carries at most one
 diagnostic and its path identifies it, so no case can separate a matcher that
 compares the code from one that ignores it — measured: weakening the matcher to
@@ -196,7 +213,7 @@ field must fail rather than be silently ignored.
 
 ## Every runner has been seen to fail
 
-`tools/redproof.py` breaks the reader twenty-eight ways and requires each to reach
+`tools/redproof.py` breaks the reader thirty-two ways and requires each to reach
 the verdict it should. Measured 2026-09-10; the script's own docstring carries the
 table.
 

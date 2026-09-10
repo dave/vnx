@@ -652,25 +652,64 @@ impl Decoder {
         Some(network)
     }
 
-    /// SPEC 6.2: an arc naming a node that is not in its network keeps the
-    /// arc — its geometry is real — but the unresolved reference is still a
-    /// relationship the reader could not resolve, so it is reported. No corpus
-    /// case pins this; reported as a spec gap.
+    /// Two checks on an arc's endpoints, both of which KEEP the arc.
+    ///
+    /// SPEC 6.2: an arc naming a node that is not in its network keeps the arc,
+    /// because its geometry is real without the node — but the unresolved
+    /// reference is a relationship the reader could not resolve, so it is
+    /// reported.
+    ///
+    /// SPEC 3.3.2: the first pip states the position of the node `from` names
+    /// and the last states `to`'s. Where they disagree by more than SPEC
+    /// 3.3.3's 50 m, a reader MUST record a diagnostic and keep both. Nothing
+    /// is corrected and nothing is dropped, so `counts` cannot see this rule at
+    /// all and the diagnostics are the entire expectation.
+    ///
+    /// The distance is measured with SPEC 3.3.3's own projection, about the
+    /// NODE's latitude: the pips are authoritative, so the pip is the reference
+    /// geometry and the node is the query point — the same roles the projection
+    /// gives an arc and an inline endpoint.
     fn check_arc_endpoints(&mut self, network: &Network, path: &Path) {
         let Some(arcs) = network.arcs.as_ref() else {
             return;
         };
         let arcs_path = path.key("arcs");
-        let mut missing = Vec::new();
+        let mut found = Vec::new();
         for (key, arc) in arcs {
-            for (field, node) in [("from", &arc.from), ("to", &arc.to)] {
-                if network.node(node).is_none() {
-                    missing.push((arcs_path.key(key).key(field), node.clone()));
+            for (field, which, node_key, pip) in [
+                ("from", "first", &arc.from, arc.pips.first()),
+                ("to", "last", &arc.to, arc.pips.last()),
+            ] {
+                let at = arcs_path.key(key).key(field);
+                let Some(node) = network.node(node_key) else {
+                    found.push((
+                        at,
+                        Cause::ArcNodeAbsent {
+                            node: node_key.clone(),
+                        },
+                    ));
+                    continue;
+                };
+                // An arc with no pips states no terminal position, so there is
+                // nothing to disagree with.
+                let Some(pip) = pip else { continue };
+                let Some(metres) = distance_to_polyline(node, std::slice::from_ref(pip)) else {
+                    continue;
+                };
+                if metres > TOLERANCE_M {
+                    found.push((
+                        at,
+                        Cause::TerminalPipOffNode {
+                            node: node_key.clone(),
+                            which,
+                            metres,
+                        },
+                    ));
                 }
             }
         }
-        for (where_, node) in missing {
-            self.report(&where_, Cause::ArcNodeAbsent { node });
+        for (at, cause) in found {
+            self.report(&at, cause);
         }
     }
 

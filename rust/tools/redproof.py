@@ -42,6 +42,10 @@ Measured 2026-09-09, all sixteen caught:
     round half away from zero            numbers (Rust/C; differs from half-up on NEGATIVE ties)
     conflate the two wrong-type codes    diagnose
     keep the good pips, drop one         unit tests only — NO corpus case reaches it
+    add an offset without checking       hostile (a real defect, found this way)
+    trust a declared uncompressed size   hostile
+    skip the terminal-pip check          diagnose
+    report it on every arc               diagnose (the sound arc is what catches this)
 
 A mutation may carry "expect-green", meaning it documents a hole in the CORPUS
 rather than in this crate and fails the script if it ever goes red. None does
@@ -53,7 +57,7 @@ import io, os, shutil, subprocess, sys, tempfile
 ROOT = "/Users/dave/src/vnx/rust"
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/json/number.rs",
          "src/render.rs", "src/canonical.rs", "src/zip/mod.rs", "src/geo.rs",
-         "src/diag.rs", "tests/corpus.rs"]
+         "src/diag.rs", "src/zip/inflate.rs", "tests/corpus.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
@@ -204,6 +208,30 @@ MUTATIONS = [
      '            Cause::WrongTypeRequired { .. } => "wrong-type-required",',
      '            Cause::WrongTypeRequired { .. } => "wrong-type-optional",'),
 
+    # Hostile input, which no corpus tier reaches: every fixture is well-formed,
+    # including the ones that must be refused. A panic is not a refusal.
+    ("add without checking, so a ZIP64 offset overflows a usize", "src/zip/mod.rs",
+     "    let end = at\n        .checked_add(len)\n        .ok_or_else(|| ZipError(\"an offset in the archive is out of range\".into()))?;",
+     "    let end = at + len;"),
+
+    ("trust a declared uncompressed size as a bound", "src/zip/inflate.rs",
+     "        if out.len() > expected {\n            return err(\"the stream produced more bytes than the archive declared\");\n        }",
+     "        if false {\n            return err(\"unreachable\");\n        }"),
+
+    # SPEC 3.3.2's terminal-pip check. Nothing is dropped and nothing is
+    # corrected, so `counts` cannot see it and the diagnostics are the whole
+    # expectation — which makes skipping the check entirely invisible except to
+    # the case that pins it.
+    ("skip the terminal-pip check", "src/decode.rs",
+     "                if metres > TOLERANCE_M {",
+     "                if false && metres > TOLERANCE_M {"),
+
+    # And the other direction: diagnosing every arc rather than the drifted one.
+    # `diagnose/terminal-pip-off-node.vnx` carries a sound arc for exactly this.
+    ("report a terminal-pip disagreement on every arc", "src/decode.rs",
+     "                if metres > TOLERANCE_M {",
+     "                if metres >= 0.0 {"),
+
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
      "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), \"the item\")).collect());"),
@@ -231,7 +259,7 @@ def run_corpus():
     # detail line names which tests reddened, so corpus and unit coverage stay
     # distinguishable.
     out = subprocess.run(["cargo", "test", "--no-fail-fast", "--lib", "--test", "corpus",
-                          "--test", "numbers", "--test", "zip64"],
+                          "--test", "numbers", "--test", "zip64", "--test", "hostile"],
                          cwd=ROOT, capture_output=True, text=True)
     text = out.stdout + out.stderr
     if "test result: ok." in text and "FAILED" not in text:

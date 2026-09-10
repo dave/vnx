@@ -173,9 +173,24 @@ impl<'a> Archive<'a> {
 
 // ---------------------------------------------------------------------------
 
+/// Every read of the archive goes through here, and the addition is CHECKED.
+///
+/// `at` comes from the file: a ZIP64 extended information field can name a
+/// local-header offset anywhere in a `u64`, so `at + len` can overflow a
+/// `usize` before the bounds check ever runs. In a release build it wraps and
+/// `get` returns `None`, so the archive is refused and nobody notices; in a
+/// debug build it panics. "Correct in release" is not an answer for a library,
+/// and a panic is not a refusal.
+///
+/// Found 2026-09-10 by `tests/hostile.rs`, which had to build a ZIP64 archive
+/// to reach it — no truncation or bit-flip of a committed fixture can, because
+/// none of them carries a ZIP64 extra field.
 fn slice(bytes: &[u8], at: usize, len: usize) -> Result<&[u8], ZipError> {
+    let end = at
+        .checked_add(len)
+        .ok_or_else(|| ZipError("an offset in the archive is out of range".into()))?;
     bytes
-        .get(at..at + len)
+        .get(at..end)
         .ok_or_else(|| ZipError("the archive is truncated".into()))
 }
 

@@ -75,6 +75,20 @@ pub enum Cause {
     /// SPEC 6.2: an arc naming a node absent from its network. The arc is
     /// kept; its geometry is real.
     ArcNodeAbsent { node: String },
+    /// SPEC 3.3.2: a terminal pip and the node it states disagree by more than
+    /// SPEC 3.3.3's 50 m. BOTH are kept and nothing is corrected — the pips
+    /// are authoritative, so there is nothing to fix, only something to say.
+    ///
+    /// The same 50 metres as the projection tolerance, deliberately: the same
+    /// question about a different pair of objects, and two thresholds for one
+    /// question is worse than one slightly loose one.
+    TerminalPipOffNode {
+        node: String,
+        /// `"first"` or `"last"`, which is also which of `from` and `to` the
+        /// pointer addresses.
+        which: &'static str,
+        metres: f64,
+    },
     /// SPEC 5: a data record with no `@type`, or one that is not a string.
     RecordTypeMissing,
     /// SPEC 3.6: an `importance` outside the range 1 to 5, or not an integer.
@@ -114,6 +128,7 @@ impl Cause {
             Cause::PolygonNotARing { .. } => "polygon-not-a-ring",
             Cause::FolderAbsent { .. } => "folder-absent",
             Cause::ArcNodeAbsent { .. } => "arc-node-absent",
+            Cause::TerminalPipOffNode { .. } => "terminal-pip-off-node",
             Cause::RecordTypeMissing => "record-type-missing",
             Cause::ImportanceOutOfRange => "importance-out-of-range",
             Cause::AttachmentMethodUnreadable { .. } => "attachment-method-unreadable",
@@ -183,6 +198,15 @@ impl std::fmt::Display for Cause {
             Cause::ArcNodeAbsent { node } => {
                 write!(f, "the node `{node}` is not in this network; the arc is kept")
             }
+            Cause::TerminalPipOffNode {
+                node,
+                which,
+                metres,
+            } => write!(
+                f,
+                "node `{node}` is {metres:.0} m from the {which} pip, beyond the 50 m \
+                 tolerance; both are kept and the pips are authoritative"
+            ),
             Cause::RecordTypeMissing => write!(
                 f,
                 "a data record needs a string `@type`, so the record is dropped"
@@ -362,6 +386,11 @@ mod tests {
             Cause::TimestampNotUtc,
             Cause::FolderAbsent { id: String::new() },
             Cause::ArcNodeAbsent { node: String::new() },
+            Cause::TerminalPipOffNode {
+                node: String::new(),
+                which: "first",
+                metres: 0.0,
+            },
             Cause::RecordTypeMissing,
             Cause::ImportanceOutOfRange,
             Cause::AttachmentMethodUnreadable { method: 99 },

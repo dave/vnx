@@ -61,8 +61,16 @@ enum class DiagnosticCause(
     /** A value outside a range or enumeration this format states. (6.2) */
     OUT_OF_RANGE(null, null),
 
-    /** A position that will not parse. (4.1, 6.2) */
-    POSITION_MALFORMED(null, null),
+    /**
+     * A position that will not parse. (4.1, 6.2)
+     *
+     * The remedy drops the CONTAINER rather than the position: an arc, a segment
+     * or an area, not the pip or the vertex. Geometry is continuous and structure
+     * is not — a missing vertex leaves a shorter, plausible, wrong line with
+     * nothing to indicate it, where a missing link leaves a gap the continuity
+     * rule of 3.3.3 can see and report.
+     */
+    POSITION_UNUSABLE("position-unusable", null),
 
     /** A record-level timestamp carrying an offset other than `Z`. (4.3, 6.2) */
     TIMESTAMP_NOT_UTC("timestamp-not-utc", "must be UTC with a Z suffix"),

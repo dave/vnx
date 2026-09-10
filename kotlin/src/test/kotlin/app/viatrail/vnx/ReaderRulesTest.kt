@@ -321,10 +321,63 @@ class ReaderRulesTest {
     }
 
     @Test
+    fun `a pip that will not parse drops the ARC, not the pip`() {
+        // Section 6.2, and it is the opposite of the link rule two lines above it
+        // in the same table. Geometry is continuous and structure is not: a
+        // missing vertex leaves a shorter, plausible, wrong line with nothing to
+        // indicate it, where a missing link leaves a gap the continuity rule can
+        // see. Dropping the pip is the reading that looks obviously right.
+        val r = read(
+            """{"vnx":"0.1.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+               "arcs":{"broken":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[null,57.11],[-3.66,57.1]]},
+                       "sound":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[-3.66,57.1]]}},
+               "chains":[{"links":[{"arc":"broken","from":"n1","to":"n2"}]}]}]}""",
+        )
+        val network = r.document.networks!![0]
+        assertEquals(listOf("sound"), network.arcs!!.keys.toList(), "the whole arc goes, and only it")
+        // The cascade is what proves the arc left rather than the pip: the link
+        // now names an arc that is not there.
+        assertEquals(
+            listOf("position-unusable", "link-arc-absent"),
+            r.diagnostics.map { it.code },
+        )
+    }
+
+    @Test
+    fun `a pip that will not parse drops the SEGMENT, and moving time is what shows it`() {
+        // counts cannot see this — the track is 1 either way — and neither can the
+        // diagnostics, because an element-dropping reader emits the same code at
+        // the same pointer. Only the derived number separates the two readings.
+        val r = read(
+            """{"vnx":"0.1.0","tracks":[{"segments":[
+               {"pips":[[-3.6712,57.118,341,1778569391000],[-3.6699,"57.1158",352.4,1778569442000],
+                        [-3.6681,57.1139,366.9,1778569591000]]},
+               {"pips":[[-3.6644,57.1085,452,1778571280000],[-3.6605,57.1042,513.1,1778571344000]]}]}]}""",
+        )
+        val track = r.document.tracks!![0]
+        assertEquals(1, track.segments.size, "the segment goes whole")
+        assertEquals(64000L, track.movingTimeMs(), "a reader that dropped the PIP would answer 264000")
+        assertEquals(listOf("position-unusable"), r.diagnostics.map { it.code })
+    }
+
+    @Test
+    fun `a vertex that will not parse drops the area, and reports once`() {
+        val r = read(
+            """{"vnx":"0.1.0","areas":[
+               {"name":"Dropped","polygon":[[-3.74,57.09],[-3.72],[-3.72,57.075],[-3.74,57.09]]},
+               {"name":"Kept","polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.075],[-3.7,57.09]]}]}""",
+        )
+        assertEquals(listOf("Kept"), r.document.areas!!.map { it.name }, "the drop is scoped to the item")
+        // One defect, one diagnostic: a second "not a ring" report would say the
+        // ring failed to close, which it did not — a vertex was unusable.
+        assertEquals(listOf("position-unusable"), r.diagnostics.map { it.code })
+    }
+
+    @Test
     fun `a position of one channel is unusable`() {
         val r = read("""{"vnx":"0.1.0","waypoints":[{"at":[-3]}]}""")
         assertEquals(0, r.document.waypoints!!.size)
-        assertEquals(DiagnosticCause.POSITION_MALFORMED, r.diagnostics.single().cause)
+        assertEquals(DiagnosticCause.POSITION_UNUSABLE, r.diagnostics.single().cause)
     }
 
     @Test

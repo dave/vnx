@@ -91,7 +91,7 @@ internal object Zip {
                 extra.localOffset?.let { localOffset = it }
             }
 
-            entries.add(readEntry(data, name, method, localOffset, compressedSize, uncompressedSize))
+            entries.add(readEntry(data, name, method, localOffset, compressedSize, uncompressedSize, u32(data, p + 16)))
             p += 46 + nameLength + extraLength + commentLength
         }
         return entries
@@ -104,6 +104,7 @@ internal object Zip {
         localOffset: Long,
         compressedSize: Long,
         uncompressedSize: Long,
+        crc: Long,
     ): Entry {
         if (method != METHOD_STORED && method != METHOD_DEFLATE) {
             // Section 7: compression MUST be stored or deflate, because other
@@ -123,22 +124,67 @@ internal object Zip {
         if (dataStart < 0 || dataEnd > data.size) malformed("the data for \"$name\" runs past the end of the archive")
 
         val raw = data.copyOfRange(dataStart, dataEnd)
-        if (method == METHOD_STORED) return Entry(name, method, raw, null)
+        val body = if (method == METHOD_STORED) {
+            // A stored entry's two sizes are the same quantity by definition, so a
+            // header claiming otherwise is lying about one of them.
+            if (compressedSize != uncompressedSize) {
+                malformed("\"$name\" is stored but declares different compressed and uncompressed sizes")
+            }
+            raw
+        } else {
+            inflate(name, raw, uncompressedSize)
+        }
 
+        // Verify the CRC. Nothing in section 7 requires this, and a reader that
+        // skips it accepts corrupt data in silence — which for a format whose
+        // whole argument is that two libraries must agree byte for byte is the
+        // wrong way to be lenient. It also catches a header lying about a size
+        // that happens to survive the checks above.
+        val actual = CRC32().apply { update(body) }.value
+        if (actual != crc) {
+            malformed(
+                "\"$name\" fails its CRC: the archive says ${"%08x".format(crc)} " +
+                    "and the bytes are ${"%08x".format(actual)}",
+            )
+        }
+        return Entry(name, method, body, null)
+    }
+
+    /**
+     * Inflates into a growing buffer rather than into one sized from the header.
+     *
+     * The declared uncompressed size comes from the archive, and an archive that
+     * is malformed or hostile can declare any size it likes. Allocating it up
+     * front turns a twenty-byte file claiming two gigabytes into an
+     * OutOfMemoryError — an `Error`, so it escapes every `catch` a caller is
+     * likely to have written, and it takes the process rather than the document.
+     * Measured 2026-09-10 against exactly that archive.
+     *
+     * So the declared size is used as a LIMIT rather than as an allocation, and
+     * a stream that exceeds it or falls short of it is refused. Section 9's
+     * resource bound for a merely large HONEST archive is a separate matter and
+     * this library still does not implement one.
+     */
+    private fun inflate(name: String, raw: ByteArray, declaredSize: Long): ByteArray {
         val inflater = Inflater(true)
         try {
             inflater.setInput(raw)
-            val out = ByteArray(uncompressedSize.toInt())
-            var written = 0
-            while (written < out.size) {
-                val n = inflater.inflate(out, written, out.size - written)
-                if (n == 0) {
-                    if (inflater.finished() || inflater.needsInput()) break
-                }
+            val out = java.io.ByteArrayOutputStream(minOf(declaredSize, raw.size.toLong() * 4 + 1024).toInt())
+            val chunk = ByteArray(16 * 1024)
+            var written = 0L
+            while (!inflater.finished()) {
+                val n = inflater.inflate(chunk)
+                if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
                 written += n
+                if (written > declaredSize) {
+                    malformed("\"$name\" inflates to more than the $declaredSize bytes its header declares")
+                }
+                out.write(chunk, 0, n)
             }
-            if (written != out.size) malformed("\"$name\" did not inflate to its declared size")
-            return Entry(name, method, out, null)
+            if (written != declaredSize) {
+                malformed("\"$name\" inflated to $written bytes and its header declares $declaredSize")
+            }
+            return out.toByteArray()
         } catch (e: java.util.zip.DataFormatException) {
             malformed("\"$name\" is not valid deflate data: ${e.message}")
         } finally {

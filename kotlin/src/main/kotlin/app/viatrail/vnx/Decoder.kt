@@ -325,7 +325,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             report(
                 at,
                 "a position must carry at least lon and lat, and this one has ${value.elements.size} channels",
-                DiagnosticCause.POSITION_MALFORMED,
+                DiagnosticCause.POSITION_UNUSABLE,
             )
             return null
         }
@@ -335,14 +335,14 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 channel is JsonNumber -> channels.add(channel.value)
                 channel is JsonNull && index >= 2 -> channels.add(null)
                 index < 2 -> {
-                    report(at, "lon and lat must both be numbers", DiagnosticCause.POSITION_MALFORMED)
+                    report(at, "lon and lat must both be numbers", DiagnosticCause.POSITION_UNUSABLE)
                     return null
                 }
                 else -> {
                     report(
                         at,
                         "channel $index of a position must be a number or null",
-                        DiagnosticCause.POSITION_MALFORMED,
+                        DiagnosticCause.POSITION_UNUSABLE,
                     )
                     return null
                 }
@@ -365,7 +365,13 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val here = at.child("pips")
         val out = ArrayList<Position>()
         for ((index, element) in v.elements.withIndex()) {
-            position(element, here.child(index))?.let(out::add)
+            // Section 6.2: a position inside `pips` that will not parse drops the
+            // ARC — or the segment — and not the pip. This is not the required-key
+            // rule: `pips` is an array and is perfectly usable; one element in it
+            // is not, and dropping just that element leaves a shorter, plausible,
+            // wrong line that nothing downstream can notice.
+            val p = position(element, here.child(index)) ?: return null
+            out.add(p)
         }
         return out
     }
@@ -828,15 +834,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         }
         val ring = ArrayList<Position>()
         for ((index, element) in v.elements.withIndex()) {
-            val p = position(element, here.child(index))
-            if (p == null) {
-                report(
-                    here,
-                    "`polygon` holds a vertex that is not a position, so it is not a ring; the item is dropped",
-                    DiagnosticCause.POLYGON_NOT_A_CLOSED_RING,
-                )
-                return null
-            }
+            // The position diagnostic IS the report: the vertex is the unusable
+            // value and the item is what goes. Adding a second "not a ring"
+            // diagnostic would turn one defect into two.
+            val p = position(element, here.child(index)) ?: return null
             ring.add(p)
         }
         if (ring.size < 4) {

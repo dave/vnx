@@ -129,6 +129,106 @@ class ContainerTest {
         assertEquals(RefusalCause.CONTAINER_NO_DOCUMENT, e.refusal)
     }
 
+    /**
+     * A ZIP header that lies, in the four ways it can.
+     *
+     * None of these is reachable from a corpus fixture — every committed archive
+     * is well-formed — so they are built here. A malformed archive must be
+     * REFUSED, and in particular must not crash the library: the sizes and the
+     * CRC come from the archive, so an archive that is hostile or merely broken
+     * can declare anything it likes about them.
+     */
+    private fun lying(
+        name: String = "doc.vnx",
+        body: ByteArray,
+        method: Int,
+        payload: ByteArray = body,
+        declaredCompressed: Long = payload.size.toLong(),
+        declaredUncompressed: Long = body.size.toLong(),
+        crc: Long = java.util.zip.CRC32().apply { update(body) }.value,
+    ): ByteArray {
+        val n = name.toByteArray(Charsets.UTF_8)
+        val out = java.io.ByteArrayOutputStream()
+        fun le16(v: Int) { out.write(v and 0xff); out.write((v ushr 8) and 0xff) }
+        fun le32(v: Long) { le16((v and 0xffff).toInt()); le16(((v ushr 16) and 0xffff).toInt()) }
+        le32(0x04034b50); le16(10); le16(0x800); le16(method); le16(0); le16(0x21)
+        le32(crc); le32(declaredCompressed); le32(declaredUncompressed); le16(n.size); le16(0)
+        out.write(n); out.write(payload)
+        val central = java.io.ByteArrayOutputStream()
+        fun c16(v: Int) { central.write(v and 0xff); central.write((v ushr 8) and 0xff) }
+        fun c32(v: Long) { c16((v and 0xffff).toInt()); c16(((v ushr 16) and 0xffff).toInt()) }
+        c32(0x02014b50); c16(10); c16(10); c16(0x800); c16(method); c16(0); c16(0x21)
+        c32(crc); c32(declaredCompressed); c32(declaredUncompressed)
+        c16(n.size); c16(0); c16(0); c16(0); c16(0); c32(0); c32(0)
+        central.write(n)
+        val directoryOffset = out.size().toLong()
+        val cd = central.toByteArray()
+        out.write(cd)
+        le32(0x06054b50); le16(0); le16(0); le16(1); le16(1); le32(cd.size.toLong()); le32(directoryOffset); le16(0)
+        return out.toByteArray()
+    }
+
+    private fun deflated(body: ByteArray): ByteArray {
+        val d = java.util.zip.Deflater(java.util.zip.Deflater.DEFAULT_COMPRESSION, true)
+        d.setInput(body); d.finish()
+        val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(4096)
+        while (!d.finished()) { val k = d.deflate(buf); if (k == 0 && d.needsInput()) break; out.write(buf, 0, k) }
+        d.end()
+        return out.toByteArray()
+    }
+
+    @Test
+    fun `a header declaring a huge uncompressed size is refused, and does not exhaust the heap`() {
+        // Measured 2026-09-10: allocating the DECLARED size up front turns a
+        // twenty-byte archive claiming two gigabytes into an OutOfMemoryError —
+        // an Error, so it escapes every catch a caller is likely to have written,
+        // and it takes the process rather than the document. The declared size is
+        // a limit, not an allocation.
+        val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
+        val e = assertFailsWith<VnxRefusal> {
+            Vnx.readContainer(
+                lying(body = doc, method = 8, payload = deflated(doc), declaredUncompressed = 0x7FFFFFF0L),
+            )
+        }
+        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+    }
+
+    @Test
+    fun `a stored entry whose two declared sizes differ is refused`() {
+        // They are the same quantity by definition, so a header claiming
+        // otherwise is lying about one of them. Left unchecked this read
+        // SILENTLY, which is worse than the crash above.
+        val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
+        val e = assertFailsWith<VnxRefusal> {
+            Vnx.readContainer(lying(body = doc, method = 0, declaredUncompressed = 0xFFFFFFFEL))
+        }
+        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+    }
+
+    @Test
+    fun `a truncated deflate stream is refused rather than throwing`() {
+        val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
+        val full = deflated(doc)
+        val half = full.copyOfRange(0, full.size / 2)
+        val e = assertFailsWith<VnxRefusal> {
+            Vnx.readContainer(lying(body = doc, method = 8, payload = half, declaredCompressed = half.size.toLong()))
+        }
+        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+    }
+
+    @Test
+    fun `an entry whose bytes fail their CRC is refused`() {
+        // Nothing in section 7 requires this, and a reader that skips it accepts
+        // corrupt data in silence — which for a format whose whole argument is
+        // that two libraries agree byte for byte is the wrong way to be lenient.
+        val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
+        val e = assertFailsWith<VnxRefusal> {
+            Vnx.readContainer(lying(body = doc, method = 0, crc = 0xDEADBEEFL))
+        }
+        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+        assertTrue(e.message.contains("CRC"), "the refusal must name what failed: ${e.message}")
+    }
+
     @Test
     fun `bytes that are not a ZIP archive are refused, not read`() {
         val e = assertFailsWith<VnxRefusal> { Vnx.readContainer("not a zip at all".toByteArray()) }

@@ -51,6 +51,10 @@ class WordingTest {
                 """{"vnx":"0.1.0","waypoints":[{"at":"beside the burn"}]}""",
                 DiagnosticCause.WRONG_TYPE_REQUIRED,
             ),
+            DiagnosticCause.POSITION_UNUSABLE to causeOf(
+                """{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3,57],[null,57]]}]}]}""",
+                DiagnosticCause.POSITION_UNUSABLE,
+            ),
             DiagnosticCause.UNKNOWN_KEY to causeOf(
                 """{"vnx":"0.1.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
                 DiagnosticCause.UNKNOWN_KEY,
@@ -156,8 +160,8 @@ class WordingTest {
             "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
         )
         assertEquals(
-            8, corpusCodes.size,
-            "the corpus pinned eight codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
+            9, corpusCodes.size,
+            "the corpus pinned nine codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
                 "A new one is a deliberate edit here, not a silent widening.",
         )
     }

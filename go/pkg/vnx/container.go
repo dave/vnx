@@ -106,13 +106,14 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 		//
 		// ⚠ THE PATH IS IN THE SEPARATE `#/entries/` SPACE OF §6.3, because an
 		// archive entry is not part of the document and no pointer into the
-		// document can locate one. Code is empty: §6.3 lets a reader leave it
-		// absent on any diagnostic no corpus case pins, and no case pins this
-		// one yet. Minting a token is a wire commitment and not a reader's
-		// decision to take alone.
+		// document can locate one. The escaping ORDER matters and the corpus case
+		// exercises it: `~` becomes `~0` before `/` becomes `~1`. Reversed, the
+		// second pass escapes the `~1` the first pass just wrote, so
+		// `photos/a~b.jpg` comes out as `photos~01a~0b.jpg`.
 		if !e.usableMethod() {
 			diags = append(diags, Diagnostic{
 				Severity: Warning,
+				Code:     CodeAttachmentUnreadable,
 				Path:     "#/entries/" + escapePointerToken(e.name),
 				Message: fmt.Sprintf("attachment %q uses compression method %d, which is neither stored nor deflate, so it was dropped",
 					e.name, e.method),

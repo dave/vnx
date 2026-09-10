@@ -254,4 +254,14 @@ var (
 	// kept: the pips are authoritative for geometry, and the node position and
 	// the terminal pip are one fact written twice.
 	CodeTerminalPipOffNode = decodeCode("terminal-pip-off-node")
+	// CodeAttachmentUnreadable: a VNZ attachment compressed by a method that is
+	// neither stored nor deflate (§7). The attachment is dropped and the document
+	// is returned.
+	//
+	// ⚠ ITS PATH IS NOT A POINTER INTO THE DOCUMENT. An archive entry is not part
+	// of the document, so this is the one code whose `path` lives in §6.3's
+	// separate `#/entries/<name>` space, with the entry name escaped per RFC 6901.
+	// It is also the only code here about the CONTAINER rather than about the JSON
+	// inside it.
+	CodeAttachmentUnreadable = decodeCode("attachment-unreadable")
 )

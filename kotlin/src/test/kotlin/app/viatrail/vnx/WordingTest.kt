@@ -84,6 +84,23 @@ class WordingTest {
                    "chains":[{"links":[{"arc":"ab","from":"a","to":"b"},{"arc":"cd","from":"c","to":"d"}]}]}]}""",
                 DiagnosticCause.CHAIN_NOT_CONNECTED,
             ),
+            // The node sits 100 m north of the pip the arc's `from` end names,
+            // and the arc's other end coincides exactly — so this provokes the
+            // cause once rather than twice.
+            DiagnosticCause.TERMINAL_PIP_OFF_NODE to causeOf(
+                """{"vnx":"0.1.0","networks":[{"nodes":{"a":[-3.68,57.1209],"b":[-3.67,57.11]},
+                   "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.68,57.12],[-3.67,57.11]]}}}]}""",
+                DiagnosticCause.TERMINAL_PIP_OFF_NODE,
+            ),
+            // The one cause that needs a CONTAINER rather than a document: an
+            // archive entry compressed by a method neither stored nor deflate.
+            // The corpus case is the provocation because no ZIP writer here can
+            // produce a method it has no compressor for.
+            DiagnosticCause.ATTACHMENT_UNREADABLE to
+                Vnx.readContainer(File(corpus, "diagnose/container-unusable-method.vnz").readBytes())
+                    .diagnostics
+                    .firstOrNull { it.cause == DiagnosticCause.ATTACHMENT_UNREADABLE }
+                    .let { it ?: fail("the corpus case provoked no ATTACHMENT_UNREADABLE diagnostic") },
         )
         for (cause in DiagnosticCause.entries) {
             val code = cause.corpusCode ?: continue
@@ -160,8 +177,8 @@ class WordingTest {
             "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
         )
         assertEquals(
-            9, corpusCodes.size,
-            "the corpus pinned nine codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
+            11, corpusCodes.size,
+            "the corpus pinned eleven codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
                 "A new one is a deliberate edit here, not a silent widening.",
         )
     }

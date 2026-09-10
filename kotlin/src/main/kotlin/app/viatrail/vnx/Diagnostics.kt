@@ -105,8 +105,24 @@ enum class DiagnosticCause(
     /** A data record with no `@type`, or one that is not a string. (5, 6.2) */
     DATA_RECORD_TYPE_MISSING(null, null),
 
-    /** An attachment compressed by a method other than stored or deflate. (7) */
-    ATTACHMENT_COMPRESSION_UNSUPPORTED(null, null),
+    /**
+     * An arc terminal pip further than 50 m from the node that end names. (3.3.2)
+     *
+     * An arc's pips are its COMPLETE point list, so the first pip states the
+     * position of the node `from` names and the last states `to`'s: the two are
+     * one fact written twice. Both are kept — the pips are authoritative for
+     * geometry — and the disagreement is reported.
+     */
+    TERMINAL_PIP_OFF_NODE("terminal-pip-off-node", "beyond the 50 m tolerance"),
+
+    /**
+     * An attachment compressed by a method other than stored or deflate. (7)
+     *
+     * The one cause here whose `path` is not a pointer into the document: an
+     * archive entry is not part of the document, so it lives in section 6.3's
+     * separate `#/entries/<name>` space.
+     */
+    ATTACHMENT_UNREADABLE("attachment-unreadable", "neither stored nor deflate"),
     ;
 }
 
@@ -161,3 +177,17 @@ internal class Pointer private constructor(private val text: String) {
     fun child(index: Int) = Pointer("$text/$index")
     override fun toString() = text
 }
+
+/**
+ * Section 6.3's `#/entries/` space, which is where a diagnostic about an archive
+ * ENTRY lives: an entry is not part of the document, so no pointer into the
+ * document can locate one.
+ *
+ * THE MEMBER NAME IS ONE RFC 6901 REFERENCE TOKEN, and the escaping ORDER
+ * decides the answer: `~` becomes `~0` BEFORE `/` becomes `~1`. Reversed, the
+ * second pass escapes the `~1` the first pass just wrote, so `photos/a~b.jpg`
+ * comes out `photos~01a~0b.jpg`. An attachment name is the one place in this
+ * format where a member name routinely holds a slash.
+ */
+internal fun entryPointer(name: String): String =
+    "#/entries/" + name.replace("~", "~0").replace("/", "~1")

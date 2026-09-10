@@ -70,6 +70,7 @@ class CorpusTest {
         // case is exactly the shrinkage that passes quietly.
         assertTrue(formatPairs().size >= 3, "the format tier has shrunk to ${formatPairs().size} cases")
         assertTrue(writePairs().isNotEmpty(), "the write tier is empty")
+        assertTrue(writeContainerCases().isNotEmpty(), "the write tier holds no container case")
     }
 
     // ---------------------------------------------------------------- accept
@@ -210,6 +211,7 @@ class CorpusTest {
         assertTrue(dir.isDirectory, "the corpus tier write is missing at ${dir.absolutePath}")
         return dir.listFiles()!!
             .filter { it.name.endsWith(".in.vnx") }
+            .filter { !File(dir, it.name.removeSuffix(".in.vnx") + ".attachments.json").isFile }
             .sortedBy { it.name }
             .map { input ->
                 val written = File(dir, input.name.removeSuffix(".in.vnx") + ".written.vnx")
@@ -219,6 +221,63 @@ class CorpusTest {
                 assertEquals("write", Sidecar.read(sidecar).kind, "${sidecar.name}: `kind` must match the directory")
                 input to written
             }
+    }
+
+    /**
+     * The write cases whose output is a CONTAINER rather than a document.
+     *
+     * A case carrying an attachment manifest expects an ARCHIVE, and the
+     * manifest is its third input file — see `corpus/write/README.md`. The
+     * attachments live in JSON rather than in real files beside the sidecar
+     * because one name holds U+1F600: a filename is subject to the checkout
+     * filesystem's Unicode normalisation and case folding, so a checked-out file
+     * could arrive under a name that is not the one the case means and the
+     * fixture would test the filesystem instead of the writer.
+     */
+    private fun writeContainerCases(): List<Triple<File, File, File>> {
+        val dir = File(corpus, "write")
+        return dir.listFiles()!!
+            .filter { it.name.endsWith(".attachments.json") }
+            .sortedBy { it.name }
+            .map { manifest ->
+                val stem = manifest.name.removeSuffix(".attachments.json")
+                val input = File(dir, "$stem.in.vnx")
+                val written = File(dir, "$stem.written.vnz")
+                assertTrue(input.isFile, "${manifest.name} has no ${input.name}")
+                assertTrue(written.isFile, "${manifest.name} promises ${written.name} and there is none")
+                val sidecar = File(dir, "$stem.expect.json")
+                assertTrue(sidecar.isFile, "${input.name} has no sidecar: that is a failure, not a skip")
+                val read = Sidecar.read(sidecar)
+                assertEquals("write", read.kind, "${sidecar.name}: `kind` must match the directory")
+                assertEquals("doc.vnx", read.rootEntry, "${sidecar.name}: this runner writes the document as doc.vnx")
+                Triple(input, manifest, written)
+            }
+    }
+
+    /** Where two archives first disagree, which a length comparison alone cannot say. */
+    private fun firstByteDifference(want: ByteArray, got: ByteArray): String {
+        if (want.contentEquals(got)) return "identical"
+        for (i in 0 until minOf(want.size, got.size)) {
+            if (want[i] != got[i]) {
+                return "byte $i of ${want.size}: expected 0x%02x, produced 0x%02x (${got.size} bytes written)"
+                    .format(want[i], got[i])
+            }
+        }
+        return "identical for ${minOf(want.size, got.size)} bytes; expected ${want.size} and produced ${got.size}"
+    }
+
+    /** The manifest's attachments, in the order it lists them. */
+    private fun manifestAttachments(manifest: File): Map<String, ByteArray> {
+        val parsed = JsonParser.parse(manifest.readText()) as JsonObject
+        val listed = parsed["attachments"] as JsonArray
+        val out = LinkedHashMap<String, ByteArray>()
+        for (item in listed.elements) {
+            val entry = item as JsonObject
+            val name = (entry["name"] as JsonString).value
+            val body = (entry["body"] as JsonString).value
+            out[name] = body.toByteArray(Charsets.UTF_8)
+        }
+        return out
     }
 
     /**
@@ -254,6 +313,57 @@ class CorpusTest {
             assertEquals(
                 expected, Vnx.write(Vnx.readDocument(expected).document),
                 "${written.name} is not a fixed point of the writer",
+            )
+        }
+    }
+
+    /**
+     * A write case whose expected output is an archive.
+     *
+     * THE ATTACHMENTS ARE FED REVERSED, deliberately. Section 7.1 makes the
+     * writer sort its own entries by code point, so a writer that kept the order
+     * it was handed must fail here. Feeding them in manifest order lets it pass.
+     */
+    @Test
+    fun `write container`() {
+        val cases = writeContainerCases()
+        assertTrue(cases.isNotEmpty(), "the write tier holds no container case")
+        eachCase("write", cases, { it.first.name }) { (input, manifest, written) ->
+            val expected = written.readBytes()
+            val attachments = manifestAttachments(manifest)
+            val document = try {
+                Vnx.readDocument(input.readText())
+            } catch (e: VnxRefusal) {
+                fail("${input.name} must be read before it can be written, and was refused: $e")
+            }
+            assertEquals(
+                emptyList(), document.diagnostics,
+                "${input.name}: a writer case's input must read cleanly",
+            )
+            val reversed = LinkedHashMap<String, ByteArray>()
+            for (name in attachments.keys.reversed()) reversed[name] = attachments.getValue(name)
+            val actual = Vnx.writeContainer(document.document, reversed)
+            assertTrue(
+                expected.contentEquals(actual),
+                "${input.name}: the writer's archive bytes. ${firstByteDifference(expected, actual)}",
+            )
+            // The written form is a fixed point, reached the way the tier reaches
+            // it everywhere else: read the expected output back and write again.
+            val back = Vnx.readContainer(expected)
+            assertEquals(emptyList(), back.diagnostics, "${written.name} must read cleanly")
+            // The comparator is required and is not decoration: Kotlin's default
+            // String order is by UTF-16 code unit, which puts U+1F600 before
+            // U+FF3A because its high surrogate begins at U+D800. Section 7.1
+            // requires code-point order, and this case is chosen to separate the
+            // two.
+            assertEquals(
+                attachments.keys.sortedWith(CodePointOrder.comparator), back.attachments,
+                "${written.name} does not carry the manifest's attachments",
+            )
+            val again = Vnx.writeContainer(back.document, attachments)
+            assertTrue(
+                expected.contentEquals(again),
+                "${written.name} is not a fixed point of the writer. ${firstByteDifference(expected, again)}",
             )
         }
     }

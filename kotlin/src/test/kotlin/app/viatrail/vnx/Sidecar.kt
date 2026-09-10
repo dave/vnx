@@ -22,6 +22,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
             // claim and is not one, and naming it advisory is what stops a runner
             // quietly going on matching English.
             "code", "message_advisory",
+            // The write tier's container shape, 2026-09-10: `root` names the
+            // entry the document is written as, and the attachment list beside
+            // it repeats what the manifest carries.
+            "root",
         )
 
         /** The seven top-level collections `counts` may name (SPEC.md section 3.1). */
@@ -37,6 +41,9 @@ class Sidecar(val file: File, private val root: JsonObject) {
     val kind: String get() = string("kind") ?: error("${file.name}: a sidecar requires `kind`")
     val note: String get() = string("note") ?: error("${file.name}: a sidecar requires `note`")
     val refusal: String? get() = string("refusal")
+
+    /** The entry name a container write case expects its document under. */
+    val rootEntry: String? get() = string("root")
 
     /**
      * The case's JSON Schema verdict, or null where it states none.

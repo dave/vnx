@@ -63,7 +63,7 @@ internal object Zip {
             directoryOffset = u64(data, zip64 + 48)
         }
 
-        val entries = ArrayList<Entry>()
+        val headers = ArrayList<Header>()
         var p = directoryOffset.toInt()
         for (i in 0 until entryCount) {
             if (p + 46 > data.size || u32(data, p) != CENTRAL_SIGNATURE.toLong()) {
@@ -91,21 +91,45 @@ internal object Zip {
                 extra.localOffset?.let { localOffset = it }
             }
 
-            entries.add(readEntry(data, name, method, localOffset, compressedSize, uncompressedSize, u32(data, p + 16)))
+            headers.add(Header(name, method, localOffset, compressedSize, uncompressedSize, u32(data, p + 16)))
             p += 46 + nameLength + extraLength + commentLength
         }
-        return entries
+
+        // The bound on each payload takes every entry to know and every entry
+        // needs it, so it is computed once the directory is complete.
+        return headers.map { header ->
+            val following = headers.map { it.localOffset }.filter { it > header.localOffset }.minOrNull()
+            readEntry(data, header, following ?: directoryOffset)
+        }
     }
 
-    private fun readEntry(
-        data: ByteArray,
-        name: String,
-        method: Int,
-        localOffset: Long,
-        compressedSize: Long,
-        uncompressedSize: Long,
-        crc: Long,
-    ): Entry {
+    /** One entry as the central directory states it, before its payload is read. */
+    private data class Header(
+        val name: String,
+        val method: Int,
+        val localOffset: Long,
+        val compressedSize: Long,
+        val uncompressedSize: Long,
+        val crc: Long,
+    )
+
+    /**
+     * One entry's bytes, verified against its CRC.
+     *
+     * [payloadBound] is where the payload cannot extend past: the nearest
+     * following local header, or the central directory where there is none.
+     *
+     * THE DECLARED SIZE IS A CEILING, NOT A LENGTH, which is section 7's size
+     * rule. An entry declaring more bytes than it holds is read as the bytes
+     * that are there and the CHECKSUM decides whether that was the whole
+     * payload; reading the declared count instead runs into the next local
+     * header and fails the CRC on a conforming archive. A SHORT declaration
+     * needs nothing of its own — the same CRC catches it.
+     */
+    private fun readEntry(data: ByteArray, header: Header, payloadBound: Long): Entry {
+        val name = header.name
+        val method = header.method
+        val uncompressedSize = header.uncompressedSize
         if (method != METHOD_STORED && method != METHOD_DEFLATE) {
             // Section 7: compression MUST be stored or deflate, because other
             // methods are not available in every target language. Whether that
@@ -113,21 +137,27 @@ internal object Zip {
             // it is, so the decision is not taken here.
             return Entry(name, method, null, "compression method $method is neither stored nor deflate")
         }
-        val start = localOffset.toInt()
+        val start = header.localOffset.toInt()
         if (start < 0 || start + 30 > data.size || u32(data, start) != LOCAL_SIGNATURE.toLong()) {
             malformed("the local header for \"$name\" is missing or truncated")
         }
         val nameLength = u16(data, start + 26)
         val extraLength = u16(data, start + 28)
         val dataStart = start + 30 + nameLength + extraLength
+        if (dataStart < 0 || dataStart > payloadBound) {
+            malformed("the data for \"$name\" starts past where its payload must end")
+        }
+        val compressedSize = minOf(header.compressedSize, payloadBound - dataStart)
         val dataEnd = dataStart + compressedSize.toInt()
-        if (dataStart < 0 || dataEnd > data.size) malformed("the data for \"$name\" runs past the end of the archive")
+        if (dataEnd > data.size) malformed("the data for \"$name\" runs past the end of the archive")
 
         val raw = data.copyOfRange(dataStart, dataEnd)
         val body = if (method == METHOD_STORED) {
             // A stored entry's two sizes are the same quantity by definition, so a
-            // header claiming otherwise is lying about one of them.
-            if (compressedSize != uncompressedSize) {
+            // header claiming otherwise is lying about one of them. Over-declaring
+            // BOTH is the case section 7 accepts and is not this: the bound above
+            // has already brought the compressed size down to what is present.
+            if (header.compressedSize != uncompressedSize) {
                 malformed("\"$name\" is stored but declares different compressed and uncompressed sizes")
             }
             raw
@@ -141,9 +171,9 @@ internal object Zip {
         // wrong way to be lenient. It also catches a header lying about a size
         // that happens to survive the checks above.
         val actual = CRC32().apply { update(body) }.value
-        if (actual != crc) {
+        if (actual != header.crc) {
             malformed(
-                "\"$name\" fails its CRC: the archive says ${"%08x".format(crc)} " +
+                "\"$name\" fails its CRC: the archive says ${"%08x".format(header.crc)} " +
                     "and the bytes are ${"%08x".format(actual)}",
             )
         }

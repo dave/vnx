@@ -465,13 +465,43 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             // Section 6.2: an arc naming a node that is not in its network keeps
             // the arc — its geometry is real — and reports the fact.
             if (nodes != null) {
-                for ((endpointKey, endpointName) in listOf(from.value to "from", to.value to "to")) {
-                    if (endpointKey !in nodes) {
+                // An arc with no pips has no terminal to compare, so the
+                // section 3.3.2 check below simply has nothing to say about it.
+                // Section 3.3.3 already reports the empty polyline where it
+                // matters, at the link that could not be projected onto it.
+                val terminals = listOf(
+                    Triple(from.value, "from", pips.firstOrNull()),
+                    Triple(to.value, "to", pips.lastOrNull()),
+                )
+                for ((endpointKey, endpointName, terminal) in terminals) {
+                    val node = nodes[endpointKey]
+                    if (node == null) {
                         report(
                             arcAt.child(endpointName),
                             "`$endpointName` names node \"$endpointKey\", which is not in this network; " +
                                 "the arc is kept because its geometry is real",
                             DiagnosticCause.ARC_NODE_ABSENT,
+                        )
+                        continue
+                    }
+                    // Section 3.3.2: an arc's pips are its COMPLETE point list,
+                    // so its first pip is the position of the node `from` names
+                    // and its last is `to`'s. The two are one fact written
+                    // twice; the pips are authoritative and both are kept.
+                    //
+                    // The path names the END rather than the arc, which is what
+                    // the corpus case pins: the arc's other end and its interior
+                    // pips are all usable, and a reader naming the arc emits two
+                    // diagnostics at one identical path that a runner cannot
+                    // tell apart, since section 6.3 forbids comparing English.
+                    if (terminal == null) continue
+                    val metres = Geo.distanceToPolyline(node, listOf(terminal)) ?: continue
+                    if (metres > Geo.TOLERANCE_M) {
+                        report(
+                            arcAt.child(endpointName),
+                            "node \"$endpointKey\" is ${Math.round(metres)} m from the $endpointName pip, " +
+                                "beyond the 50 m tolerance; both are kept and the pips are authoritative",
+                            DiagnosticCause.TERMINAL_PIP_OFF_NODE,
                         )
                     }
                 }

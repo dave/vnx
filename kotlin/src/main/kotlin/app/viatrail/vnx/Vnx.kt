@@ -78,9 +78,9 @@ object Vnx {
                 // method would be disproportionate (section 7).
                 diagnostics.add(
                     Diagnostic(
-                        "",
+                        entryPointer(entry.name),
                         "the attachment \"${entry.name}\" is dropped: ${entry.unusableBecause}",
-                        DiagnosticCause.ATTACHMENT_COMPRESSION_UNSUPPORTED,
+                        DiagnosticCause.ATTACHMENT_UNREADABLE,
                     ),
                 )
                 continue

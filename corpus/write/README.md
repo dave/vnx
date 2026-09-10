@@ -29,6 +29,32 @@ The input is a document rather than a model, which is what makes the tier
 language-neutral: the operation is decode-then-write, exactly as `format/`'s is
 decode-then-re-render. No language-specific way to express a model is needed.
 
+## A container case, and the one shape extension it needs
+
+`container-cross-language` is a writer case whose output is an archive rather
+than a document, so it carries a third input file:
+
+```
+container-cross-language.in.vnx              the document
+container-cross-language.attachments.json    {root, attachments: [{name, body}]}
+container-cross-language.written.vnz         exactly the bytes a writer emits
+```
+
+The manifest exists because a container write takes something no other tier's
+input shape carries: a set of named attachments. Bodies are ASCII text so the
+case holds no binary blob.
+
+**They are in a manifest rather than in real files beside the sidecar, and that
+is not tidiness.** One attachment is named with U+1F600, and a filename is
+subject to the checkout filesystem's Unicode normalisation and case folding — so
+a real file could arrive under a name that is not the one the case means, and the
+fixture would test the filesystem instead of the writer. Inside JSON the name is
+escaped text that nothing can alter.
+
+A runner feeds the manifest's attachments in ANY order. The writer sorts them,
+which section 7.1 requires and which this case verifies by construction: the same
+562 bytes come back when the three are supplied reversed.
+
 ## What a runner must assert
 
 - The input is NOT already the written form. Without it, a writer that echoed its

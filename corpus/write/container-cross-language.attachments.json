@@ -1,0 +1,17 @@
+{
+  "root": "doc.vnx",
+  "attachments": [
+    {
+      "name": "a/photo.jpg",
+      "body": "jpeg-ish"
+    },
+    {
+      "name": "Ｚ.txt",
+      "body": "bmp"
+    },
+    {
+      "name": "😀.txt",
+      "body": "astral"
+    }
+  ]
+}

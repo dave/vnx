@@ -12,7 +12,9 @@ package vnx_test
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"io"
 	"strings"
 	"testing"
@@ -257,5 +259,86 @@ func TestContainerFieldsArchiveZipOverrides(t *testing.T) {
 	if got := f.Modified.UTC().Format("2006-01-02"); got != "1979-11-30" {
 		t.Errorf("date is now %s rather than 1979-11-30; if it is 1980-01-01 this "+
 			"writer has become conforming and this test should be deleted", got)
+	}
+}
+
+// overDeclaringArchive builds a stored archive whose declared sizes exceed the
+// payload, with a CRC that agrees over the bytes actually present. Hand-built,
+// because no committed fixture can carry this: a file in the corpus has a valid
+// stream and a matching CRC by construction.
+func overDeclaringArchive(doc []byte, name string) []byte {
+	crc := crc32.ChecksumIEEE(doc)
+	over := uint32(len(doc)) + 7
+
+	var b bytes.Buffer
+	le := func(v any) { _ = binary.Write(&b, binary.LittleEndian, v) }
+	le(uint32(0x04034b50))
+	le(uint16(10))
+	le(uint16(0x0800))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint16(0x0021))
+	le(crc)
+	le(over)
+	le(over)
+	le(uint16(len(name)))
+	le(uint16(0))
+	b.WriteString(name)
+	b.Write(doc)
+	off := b.Len()
+	le(uint32(0x02014b50))
+	le(uint16(10))
+	le(uint16(10))
+	le(uint16(0x0800))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint16(0x0021))
+	le(crc)
+	le(over)
+	le(over)
+	le(uint16(len(name)))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint32(0))
+	le(uint32(0))
+	b.WriteString(name)
+	end := b.Len()
+	le(uint32(0x06054b50))
+	le(uint16(0))
+	le(uint16(0))
+	le(uint16(1))
+	le(uint16(1))
+	le(uint32(end - off))
+	le(uint32(off))
+	le(uint16(0))
+	return b.Bytes()
+}
+
+// TestOverDeclaredSizeIsRefusedAndSpecSaysAccept pins a gap between this reader
+// and spec §7, deliberately asserting the NON-CONFORMING behaviour so that
+// fixing it turns this red and tells whoever did it to delete the test.
+//
+// ⚠ §7 REQUIRES ACCEPTANCE: a reader MUST NOT refuse an entry whose declared
+// size exceeds the bytes it holds where the CRC over those bytes agrees, because
+// a size field is not the authority on what an entry contains and the checksum
+// is. This reader refuses, with "zip: checksum error", because archive/zip reads
+// the DECLARED number of bytes and then checksums what it read — so it consumes
+// past the payload and the CRC disagrees.
+//
+// That makes archive/zip unable to meet §7 on the READ side as well as §7.1 on
+// the write side, which is a stronger claim than the one already recorded, and
+// it exposes a question the rule does not answer: a reader that trusts the
+// declared size has no other way to know where an entry ends, so "the bytes it
+// holds" is not derivable from the archive alone. Raised rather than resolved.
+//
+// No corpus case can reach any of this, which is why it is a unit test.
+func TestOverDeclaredSizeIsRefusedAndSpecSaysAccept(t *testing.T) {
+	raw := overDeclaringArchive([]byte("{\n  \"vnx\": \"0.1.0\"\n}\n"), "doc.vnx")
+	_, _, err := vnx.DecodeContainer(bytes.NewReader(raw), int64(len(raw)))
+	if err == nil {
+		t.Error("this reader now ACCEPTS an over-declared size, which is what §7 requires — " +
+			"delete this test, it exists only to pin the gap")
 	}
 }

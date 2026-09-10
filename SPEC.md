@@ -1295,11 +1295,11 @@ pip's end, because Section 3.3.2 makes the pips authoritative and the node is th
 reference.
 
 AND ONE INVARIANT ACROSS ALL THREE. No two diagnostics about one document may
-share BOTH a `path` and a `code`. A `path` and a `code` are the
-only two fields a conforming runner may compare, so a reader that emits two
-reports differing in neither has emitted two a runner cannot tell apart — and a
-runner pairing each expectation with one distinct report would then pass a reader
-that found one of the two faults twice.
+share BOTH a `path` and a `code`. Those are the only two fields a conforming
+runner may compare, so a reader that emits two reports differing in neither has
+emitted two a runner cannot tell apart — and a runner pairing each expectation
+with one distinct report would then pass a reader that found one of the two
+faults twice.
 
 Unlike a judgement about where each new diagnostic points, that is checkable
 mechanically, over any document, by any runner.
@@ -1384,6 +1384,23 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - A reader MUST accept an archive whose entries defer their sizes to a data
   descriptor, and MUST take the sizes from the CENTRAL DIRECTORY rather than
   from a local header.
+- A reader MUST NOT refuse an entry whose declared size exceeds the bytes it
+  holds, where the CRC over those bytes agrees.
+
+Those two are the same point twice: A SIZE FIELD IS NOT THE AUTHORITY ON WHAT AN
+ENTRY CONTAINS, AND THE CHECKSUM IS. An archive written with the deferred-size
+bit declares zero, so a reader hardened until it rejects a surprising size
+rejects a legitimate input; and for a stored entry whose stream ends early with
+the checksum agreeing over the bytes present, the payload is complete and
+verified, so the size adds nothing the CRC has not already established. A short
+size is caught by the CRC rather than by comparing sizes at all.
+
+Neither rule is diagnosable and neither is fixturable. A committed archive has a
+valid stream and a matching CRC by construction, so no case can reach either, and
+a diagnostic would need a code no case pins. They are stated here because silence
+is what produces the question, and an implementer resolving it alone hardens
+until they refuse — believing they have improved robustness while breaking
+conformance.
 
 This section states what a READER accepts. Section 7.1 states what a writer
 emits, which is narrower in every case: an export stays readable by the widest

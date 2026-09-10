@@ -149,23 +149,49 @@ class UnknownKeys(unittest.TestCase):
 class Positions(unittest.TestCase):
     """SPEC 4.1.  The corpus has no malformed position anywhere."""
 
-    def test_a_short_position_is_dropped_and_diagnosed(self) -> None:
+    def test_a_short_position_drops_the_segment_not_the_pip(self) -> None:
+        """SPEC 6.2: the container that holds the geometry goes.
+
+        Dropping the pip would leave a one-pip segment that is shorter,
+        plausible and wrong, with nothing in the document to say so.  The
+        surviving segment is what proves the drop is scoped rather than total.
+        """
         result = read(
-            '{"vnx": "0.1.0", "tracks": [{"segments": [{"pips":'
-            ' [[-3.6, 57.1], [-3.6]]}]}]}'
+            '{"vnx": "0.1.0", "tracks": [{"segments": ['
+            '{"pips": [[-3.6, 57.1], [-3.6]]},'
+            ' {"pips": [[-3.5, 57.2], [-3.4, 57.3]]}]}]}'
         )
-        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(len(result.diagnostics), 1, messages(result))
+        self.assertEqual(
+            result.diagnostics[0].path, "/tracks/0/segments/0/pips/1"
+        )
+        self.assertEqual(result.diagnostics[0].code, "position-unusable")
         assert result.document.tracks is not None
         segments = result.document.tracks[0].segments
-        assert segments is not None and segments[0].pips is not None
-        self.assertEqual(len(segments[0].pips), 1)
+        assert segments is not None
+        self.assertEqual(len(segments), 1)
+        assert segments[0].pips is not None
+        self.assertEqual(len(segments[0].pips), 2)
 
-    def test_a_null_longitude_is_dropped(self) -> None:
+    def test_a_null_longitude_drops_the_segment(self) -> None:
         result = read(
             '{"vnx": "0.1.0", "tracks": [{"segments": [{"pips":'
             ' [[null, 57.1, 3]]}]}]}'
         )
         self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].code, "position-unusable")
+        assert result.document.tracks is not None
+        self.assertEqual(result.document.tracks[0].segments, [])
+
+    def test_the_channel_index_is_named_but_the_path_is_the_positions(self) -> None:
+        """A pointer no other reader reports is a pointer no case can pin.
+
+        SPEC 6.2's offending element is the position, so the path stops there
+        and the channel is named in the English, which nothing compares.
+        """
+        result = read('{"vnx": "0.1.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
+        self.assertEqual(result.diagnostics[0].path, "/waypoints/0/at")
+        self.assertIn("channel 1", result.diagnostics[0].message)
 
     def test_a_string_channel_drops_the_whole_waypoint(self) -> None:
         """SPEC 6.2: an unusable value in a REQUIRED key drops the ITEM.
@@ -222,13 +248,14 @@ class Chains(unittest.TestCase):
 
     NETWORK = """
     {"vnx": "0.1.0", "networks": [{
-      "nodes": {"a": [-3.68, 57.12], "b": [-3.66, 57.10]},
+      "nodes": {"a": [-3.68, 57.12], "b": [-3.66, 57.10],
+                "c": [-3.20, 56.10], "d": [-3.19, 56.09]},
       "arcs": {
         "ab": {"from": "a", "to": "b",
                "pips": [[-3.68, 57.12], [-3.67, 57.11], [-3.66, 57.10]]},
         "ba": {"from": "b", "to": "a",
                "pips": [[-3.66, 57.10], [-3.67, 57.11], [-3.68, 57.12]]},
-        "cd": {"from": "a", "to": "b",
+        "cd": {"from": "c", "to": "d",
                "pips": [[-3.20, 56.10], [-3.19, 56.09]]}
       },
       "chains": [{"links": %s}]
@@ -252,7 +279,7 @@ class Chains(unittest.TestCase):
         result = self.chain(
             '[{"arc": "ab", "from": "a", "to": "b"},'
             ' {"arc": "ghost", "from": "b", "to": "a"},'
-            ' {"arc": "cd", "from": "a", "to": "b"}]'
+            ' {"arc": "cd", "from": "c", "to": "d"}]'
         )
         self.assertEqual(len(result.diagnostics), 1, messages(result))
         self.assertIn("not in this network", result.diagnostics[0].message)
@@ -260,7 +287,7 @@ class Chains(unittest.TestCase):
     def test_a_break_is_reported_on_the_second_of_the_pair(self) -> None:
         result = self.chain(
             '[{"arc": "ab", "from": "a", "to": "b"},'
-            ' {"arc": "cd", "from": "a", "to": "b"}]'
+            ' {"arc": "cd", "from": "c", "to": "d"}]'
         )
         paths = [d.path for d in result.diagnostics if "connected walk" in d.message]
         self.assertEqual(paths, ["/networks/0/chains/0/links/1"])
@@ -289,6 +316,64 @@ class Chains(unittest.TestCase):
         self.assertEqual(
             messages(result),
             [("/networks/0/chains/0/links/0/to", "not a node in this network")],
+        )
+
+
+class TerminalPips(unittest.TestCase):
+    """SPEC 3.3.2: a terminal pip and its node are one fact written twice.
+
+    No corpus case reaches this rule, so these are the only tests of it
+    anywhere in this implementation.  The rule is a MUST and it carries no
+    reason code, because SPEC 6.3 gives a code only to a diagnostic some case
+    pins -- inventing a spelling here would collide with whatever a future
+    fixture chooses.
+    """
+
+    def network(self, arc: str) -> vnx.ReadResult:
+        return read(
+            '{"vnx": "0.1.0", "networks": [{"nodes":'
+            ' {"a": [-3.68, 57.12], "b": [-3.66, 57.10]},'
+            ' "arcs": {"ab": %s}}]}' % arc
+        )
+
+    def test_a_node_far_from_its_terminal_pip_is_diagnosed(self) -> None:
+        result = self.network(
+            '{"from": "a", "to": "b", "pips": [[-3.2, 56.1], [-3.66, 57.10]]}'
+        )
+        self.assertEqual(
+            [d.path for d in result.diagnostics], ["/networks/0/arcs/ab/from"]
+        )
+        self.assertIn("beyond the 50 m tolerance", result.diagnostics[0].message)
+
+    def test_the_pips_stay_authoritative_and_both_are_kept(self) -> None:
+        """Nothing is corrected: the arc survives with the geometry it wrote."""
+        result = self.network(
+            '{"from": "a", "to": "b", "pips": [[-3.2, 56.1], [-3.66, 57.10]]}'
+        )
+        networks = result.document.networks
+        assert networks is not None
+        arcs, nodes = networks[0].arcs, networks[0].nodes
+        assert arcs is not None and nodes is not None
+        assert arcs["ab"].pips is not None
+        self.assertEqual(arcs["ab"].pips[0].lon, -3.2)
+        self.assertEqual(nodes["a"].lon, -3.68)
+
+    def test_a_node_within_tolerance_is_silent(self) -> None:
+        # About 30 m south of node `a`, inside the tolerance SPEC 3.3.2 shares
+        # with SPEC 3.3.3 -- deliberately the same 50 metres.
+        result = self.network(
+            '{"from": "a", "to": "b", "pips": [[-3.68, 57.11973], [-3.66, 57.10]]}'
+        )
+        self.assertEqual(messages(result), [])
+
+    def test_an_absent_node_reports_once_not_twice(self) -> None:
+        """There is no second position to compare against, so no second note."""
+        result = self.network(
+            '{"from": "ghost", "to": "b", "pips": [[-3.2, 56.1], [-3.66, 57.10]]}'
+        )
+        self.assertEqual(
+            messages(result),
+            [("/networks/0/arcs/ab/from", "not a node in this network")],
         )
 
 
@@ -432,9 +517,9 @@ class Identifiers(unittest.TestCase):
         result = read(
             '{"vnx": "0.1.0", "networks": ['
             '{"nodes": {"n1": [0,0]}, "arcs": {"a": {"from": "n1", "to": "n1",'
-            ' "pips": [[0,0],[1,1]]}}},'
+            ' "pips": [[0,0],[1,1],[0,0]]}}},'
             '{"nodes": {"n1": [9,9]}, "arcs": {"a": {"from": "n1", "to": "n1",'
-            ' "pips": [[9,9],[8,8]]}}}]}'
+            ' "pips": [[9,9],[8,8],[9,9]]}}}]}'
         )
         self.assertEqual(messages(result), [])
         networks = result.document.networks
@@ -448,7 +533,7 @@ class Identifiers(unittest.TestCase):
         result = read(
             '{"vnx": "0.1.0", "networks": ['
             '{"nodes": {"n1": [0,0]}, "arcs": {"only-here": {"from": "n1",'
-            ' "to": "n1", "pips": [[0,0],[1,1]]}}},'
+            ' "to": "n1", "pips": [[0,0],[1,1],[0,0]]}}},'
             '{"chains": [{"links": [{"arc": "only-here"}]}]}]}'
         )
         self.assertEqual(

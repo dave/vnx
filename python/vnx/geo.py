@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 
-__all__ = ["EARTH_RADIUS_M", "distance_to_polyline"]
+__all__ = ["EARTH_RADIUS_M", "distance_between", "distance_to_polyline"]
 
 EARTH_RADIUS_M = 6_371_008.8
 
@@ -60,3 +60,16 @@ def distance_to_polyline(
         _point_to_segment(p, projected[i], projected[i + 1])
         for i in range(len(projected) - 1)
     )
+
+
+def distance_between(
+    first: tuple[float, float], second: tuple[float, float]
+) -> float:
+    """Distance in metres between two ``(lon, lat)`` points.
+
+    SPEC 3.3.2 measures a terminal pip against its node with the same tolerance
+    SPEC 3.3.3 uses, so it is measured with the same projection: the pair are
+    one question about two kinds of object, and two distance models for one
+    question would be worse than one approximate one.
+    """
+    return distance_to_polyline(first, [second])

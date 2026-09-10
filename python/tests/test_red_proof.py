@@ -607,6 +607,62 @@ class RedProof(unittest.TestCase):
         )
 
 
+    # -- rules no corpus case reaches ------------------------------------
+
+    def test_a_reader_that_skips_the_terminal_pip_check_is_caught(self) -> None:
+        """SPEC 3.3.2 is a MUST that no fixture exercises.
+
+        Which makes these unit tests the only guard, so they are the ones that
+        have to be red-proofed: a rule with no fixture and no red proof is a
+        rule nothing is holding.
+        """
+        self.assertGoesRed(
+            mock.patch.object(
+                decode._Reader, "_check_terminal_pips",
+                lambda self, arc, path, nodes: None,
+            ),
+            "reader:TerminalPips.test_a_node_far_from_its_terminal_pip_is_diagnosed",
+            "reader that never compares a terminal pip against its node",
+        )
+
+    def test_a_terminal_pip_check_that_always_fires_is_caught(self) -> None:
+        """The other half: a check that reports everything guards nothing."""
+        self.assertGoesRed(
+            mock.patch.object(
+                vnx.decode, "PROJECTION_TOLERANCE_M", 0.0
+            ),
+            "reader:TerminalPips.test_a_node_within_tolerance_is_silent",
+            "tolerance of zero metres",
+        )
+
+    def test_a_reader_that_drops_the_pip_instead_of_the_container_is_caught(
+        self,
+    ) -> None:
+        """SPEC 6.2: an unusable position drops the container, not the element.
+
+        The element-dropping reader is the one that looks right -- it leaves a
+        shorter, plausible line -- so it is the one worth proving against.
+        """
+        original = decode._Reader._positions
+
+        def element_dropping(self: Any, obj: Any, key: str, path: str) -> Any:
+            items = obj.get(key)
+            if not isinstance(items, list):
+                return original(self, obj, key, path)
+            out = []
+            for index, item in enumerate(items):
+                got = self._position(item, f"{path}/{key}/{index}")
+                if got is not None:
+                    out.append(got)
+            return out
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_positions", element_dropping),
+            "DiagnoseTier.test_diagnose",
+            "reader that drops the offending pip instead of its container",
+        )
+
+
 def _without(key: str) -> Callable[[Any], Any]:
     original = vnx.encode.encode_document
 

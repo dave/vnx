@@ -20,7 +20,7 @@ from typing import Any, Union
 
 from . import keys as K
 from .errors import Diagnostic, VNXRefusal
-from .geo import distance_to_polyline
+from .geo import distance_between, distance_to_polyline
 from .jsonio import parse_json
 from .model import (
     Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
@@ -247,23 +247,47 @@ class _Reader:
     def _position(
         self, value: JSONValue, path: str, code: Union[str, None] = None
     ) -> Union[Position, None]:
-        """SPEC 4.1.  Returns None for a position that will not parse."""
+        """SPEC 4.1.  Returns None for a position that will not parse.
+
+        Every way of failing is the same reason -- this is not a position --
+        so they share one code.  A caller passes ``code`` only where the value
+        fails as a TYPE before it fails as a position: SPEC 6.2's two clauses
+        divide at IS IT AN ARRAY AT ALL, and the diagnostic follows the clause.
+        The path is the position's, never a channel's: a reader that pointed at
+        the channel would report a pointer no other reader reports, and the
+        offending element under SPEC 6.2 is the position.
+        """
+        unusable = code or "position-unusable"
         if not isinstance(value, list):
             self.note(path, "a position must be an array of numbers", code)
             return None
         if len(value) < 2:
-            self.note(path, "a position must carry at least longitude and latitude")
+            self.note(
+                path,
+                f"found {len(value)} channel{'' if len(value) == 1 else 's'}, "
+                "needs at least 2 (longitude and latitude)",
+                unusable,
+            )
             return None
         channels: list[Union[float, None]] = []
         for index, channel in enumerate(value):
             if channel is None:
                 if index < 2:
-                    self.note(path, "longitude and latitude must not be null")
+                    self.note(
+                        path,
+                        f"channel {index} is null, expected a number",
+                        unusable,
+                    )
                     return None
                 channels.append(None)
                 continue
             if isinstance(channel, bool) or not isinstance(channel, (int, float)):
-                self.note(join(path, index), "a position channel must be a number")
+                self.note(
+                    path,
+                    f"channel {index} is {_json_type(channel)}, "
+                    "expected a number",
+                    unusable,
+                )
                 return None
             channels.append(float(channel))
         return Position(tuple(channels))
@@ -277,8 +301,12 @@ class _Reader:
         out: list[Position] = []
         for index, item in enumerate(items):
             position = self._position(item, join(path, key, index))
-            if position is not None:
-                out.append(position)
+            if position is None:
+                # SPEC 6.2: the container goes, not the position.  Geometry is
+                # continuous -- dropping one vertex leaves a shorter line that
+                # is plausible, wrong, and carries nothing to say so.
+                return None
+            out.append(position)
         return out
 
     # -- document ------------------------------------------------------
@@ -499,6 +527,12 @@ class _Reader:
                 if seg is None:
                     continue
                 pips = self._positions(seg, "pips", at)
+                if pips is None and "pips" in seg:
+                    # SPEC 6.2: an unusable position drops the container that
+                    # holds the geometry, and the diagnostic is already
+                    # reported at the position.  Reporting `pips` absent here
+                    # too would turn one defect into two.
+                    continue
                 if not self._complete(seg, at, "a segment", {"pips": pips}):
                     continue
                 segments.append(Segment(pips=pips))
@@ -530,6 +564,12 @@ class _Reader:
                 if arc is None:
                     continue
                 pips = self._positions(arc, "pips", at)
+                if pips is None and "pips" in arc:
+                    # SPEC 6.2: an unusable position drops the container that
+                    # holds the geometry, and the diagnostic is already
+                    # reported at the position.  Reporting `pips` absent here
+                    # too would turn one defect into two.
+                    continue
                 if not self._complete(arc, at, "a route arc", {"pips": pips}):
                     continue
                 arcs.append(RouteArc(pips=pips, data=self._data(arc, at)))
@@ -617,10 +657,17 @@ class _Reader:
             entry = self._object(item, here, K.ARC, "an arc")
             if entry is None:
                 continue
+            pips = self._positions(entry, "pips", here)
+            if pips is None and "pips" in entry:
+                # SPEC 6.2: an unusable pip drops the ARC.  The arc then leaves
+                # the network, and a link naming it reports `link-arc-absent` --
+                # a gap the continuity rule can see, where a shorter polyline
+                # would have looked right.
+                continue
             arc = Arc(
                 from_=self._string(entry, "from", here),
                 to=self._string(entry, "to", here),
-                pips=self._positions(entry, "pips", here),
+                pips=pips,
                 data=self._data(entry, here),
             )
             # An arc's endpoints name nodes in the same network (SPEC 3.3.2).
@@ -631,6 +678,7 @@ class _Reader:
                     self.note(
                         join(here, field_name), "not a node in this network"
                     )
+            self._check_terminal_pips(arc, here, nodes)
             if not self._complete(
                 entry, here, "an arc",
                 {"from": arc.from_, "to": arc.to, "pips": arc.pips},
@@ -638,6 +686,41 @@ class _Reader:
                 continue
             arcs[key] = arc
         return arcs
+
+    def _check_terminal_pips(
+        self, arc: Arc, path: str, nodes: dict[str, Position]
+    ) -> None:
+        """SPEC 3.3.2: a terminal pip and its node are one fact written twice.
+
+        The pips are authoritative, so nothing is corrected and both are kept --
+        but a reader MUST compare them and MUST record a diagnostic where they
+        are further apart than SPEC 3.3.3's tolerance.
+        """
+        pips = arc.pips
+        if not pips:
+            return
+        for field_name, node_key, pip, which in (
+            ("from", arc.from_, pips[0], "first"),
+            ("to", arc.to, pips[-1], "last"),
+        ):
+            if node_key is None:
+                continue
+            node = nodes.get(node_key)
+            if node is None:
+                # An absent node is already reported as an unusable value, and
+                # there is no second position to compare against.
+                continue
+            distance = distance_between((pip.lon, pip.lat), (node.lon, node.lat))
+            if distance > PROJECTION_TOLERANCE_M:
+                # No corpus case pins this diagnostic, so it carries no code.
+                # SPEC 6.3 permits that, and a spelling invented here would
+                # collide with whatever a future fixture pins.
+                self.note(
+                    join(path, field_name),
+                    f"node `{node_key}` is {distance:.0f} m from the "
+                    f"{which} pip, beyond the "
+                    f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
+                )
 
     def _chains(
         self, obj: dict[str, JSONValue], path: str, network: Network
@@ -797,6 +880,21 @@ class _Reader:
         if isinstance(endpoint, Position):
             return endpoint
         return (network.nodes or {}).get(endpoint)
+
+
+def _json_type(value: JSONValue) -> str:
+    """The JSON type name for a value, for a diagnostic that names what it saw."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "a boolean"
+    if isinstance(value, (int, float)):
+        return "a number"
+    if isinstance(value, str):
+        return "a string"
+    if isinstance(value, list):
+        return "an array"
+    return "an object"
 
 
 def _is_importance(value: JSONValue) -> bool:

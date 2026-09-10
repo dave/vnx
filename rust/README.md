@@ -203,6 +203,15 @@ release build it wrapped and the archive was refused, so nobody would have
 noticed; in a debug build it panicked. No truncation or bit-flip of a committed
 fixture can produce it, because none of them carries a ZIP64 extra field.
 
+Three hazards in the same family, each with a mutation behind it. **A declared
+uncompressed size is never reserved up front** — in Rust that would abort on
+allocation failure rather than return an error, which no caller can intercept and
+`forbid(unsafe_code)` does not help; it is a hint capped at 1 MiB, and a bound in
+the decompression loop. **A CRC is checked**, because a corrupt ATTACHMENT is
+caught by nothing else: the document keeps parsing, so the archive reads clean.
+**A stored entry's two declared sizes must agree**, or a truncated entry reads as
+whole.
+
 **A diagnostic's `code`.** Every `diagnose/` fixture carries at most one
 diagnostic and its path identifies it, so no case can separate a matcher that
 compares the code from one that ignores it — measured: weakening the matcher to
@@ -213,7 +222,7 @@ field must fail rather than be silently ignored.
 
 ## Every runner has been seen to fail
 
-`tools/redproof.py` breaks the reader thirty-two ways and requires each to reach
+`tools/redproof.py` breaks the reader thirty-five ways and requires each to reach
 the verdict it should. Measured 2026-09-10; the script's own docstring carries the
 table.
 

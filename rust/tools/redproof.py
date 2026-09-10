@@ -44,6 +44,9 @@ Measured 2026-09-09, all sixteen caught:
     keep the good pips, drop one         unit tests only — NO corpus case reaches it
     add an offset without checking       hostile (a real defect, found this way)
     trust a declared uncompressed size   hostile
+    reserve the declared size up front   unit test (would ABORT, not error)
+    skip the CRC check                   hostile (a corrupt attachment reads clean)
+    ignore a stored entry's second size  hostile
     skip the terminal-pip check          diagnose
     report it on every arc               diagnose (the sound arc is what catches this)
 
@@ -222,6 +225,24 @@ MUTATIONS = [
     # corrected, so `counts` cannot see it and the diagnostics are the whole
     # expectation — which makes skipping the check entirely invisible except to
     # the case that pins it.
+    # A declared size reserved on the writer's word. In Rust this aborts on
+    # allocation failure rather than returning an error, so no caller can
+    # intercept it and `forbid(unsafe_code)` does not help.
+    ("reserve the declared uncompressed size up front", "src/zip/inflate.rs",
+     "    expected.min(MAX_PREALLOCATION)",
+     "    expected"),
+
+    # A CRC is a claim the archive makes about its own bytes. Without the check,
+    # a corrupt ATTACHMENT is returned as content — the document keeps parsing,
+    # so nothing else notices.
+    ("skip the CRC check", "src/zip/mod.rs",
+     "        if crc != entry.crc32 {",
+     "        if false && crc != entry.crc32 {"),
+
+    ("take a stored entry's compressed size and ignore the other", "src/zip/mod.rs",
+     "                if entry.compressed_size != entry.uncompressed_size {",
+     "                if false {"),
+
     ("skip the terminal-pip check", "src/decode.rs",
      "                if metres > TOLERANCE_M {",
      "                if false && metres > TOLERANCE_M {"),

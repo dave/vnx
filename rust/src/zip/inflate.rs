@@ -22,13 +22,34 @@ fn err<T>(what: &str) -> Result<T, InflateError> {
     Err(InflateError(what.to_string()))
 }
 
+/// The most this will reserve up front, however large a size the archive
+/// declares.
+const MAX_PREALLOCATION: usize = 1 << 20;
+
+/// How much to reserve before any byte has been decompressed.
+///
+/// **A declared size is an assertion by whoever wrote the file, not a fact.** A
+/// twenty-byte archive may claim two gigabytes, and reserving that much on its
+/// word is a denial of service that arrives as an allocation failure rather than
+/// as a refusal — in Rust an abort, which no `Result` and no `catch_unwind`ing
+/// caller can intercept, and which `#![forbid(unsafe_code)]` does nothing about.
+/// The Kotlin seat hit exactly this as an `OutOfMemoryError` escaping every
+/// handler it had.
+///
+/// So the declared size is a HINT here and a BOUND in the decompression loop:
+/// the output grows as bytes actually arrive, and stops the moment it exceeds
+/// what the archive claimed.
+fn initial_capacity(expected: usize) -> usize {
+    expected.min(MAX_PREALLOCATION)
+}
+
 /// Decompress a raw deflate stream. `expected` is the uncompressed size the
 /// archive declared, used as an allocation hint and as a bound: a stream that
 /// produces more than it declared is corrupt, and treating it as valid is how
 /// a decompression bomb gets its room (SPEC 9).
 pub fn inflate(input: &[u8], expected: usize) -> Result<Vec<u8>, InflateError> {
     let mut bits = BitReader::new(input);
-    let mut out: Vec<u8> = Vec::with_capacity(expected.min(1 << 20));
+    let mut out: Vec<u8> = Vec::with_capacity(initial_capacity(expected));
 
     loop {
         let is_final = bits.take(1)? == 1;
@@ -341,6 +362,17 @@ mod tests {
     fn a_truncated_stream_is_an_error_not_a_short_answer() {
         let stream = [0x01, 0x05, 0x00, 0xfa, 0xff, b'h'];
         assert!(inflate(&stream, 5).is_err());
+    }
+
+    /// A declared size is never reserved on the writer's word.
+    #[test]
+    fn a_declared_size_is_a_hint_and_not_a_reservation() {
+        assert_eq!(initial_capacity(0), 0);
+        assert_eq!(initial_capacity(64), 64);
+        assert_eq!(initial_capacity(MAX_PREALLOCATION), MAX_PREALLOCATION);
+        // The cases that matter: a header claiming far more than it can hold.
+        assert_eq!(initial_capacity(2 << 30), MAX_PREALLOCATION);
+        assert_eq!(initial_capacity(usize::MAX), MAX_PREALLOCATION);
     }
 
     #[test]

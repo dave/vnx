@@ -293,3 +293,74 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
         Ok(false)
     );
 }
+
+/// A CRC is a claim the archive makes about its own bytes, and a reader that
+/// never checks it reads a corrupt file clean.
+///
+/// This cannot be reached by any corpus container — they are all well-formed —
+/// and it cannot be reached by the bit-flip sweep above either, because that
+/// sweep only requires "no panic". Corrupting a byte of the DOCUMENT is caught
+/// incidentally, since the JSON stops parsing; corrupting a byte of an
+/// ATTACHMENT is caught by nothing but the CRC.
+#[test]
+fn a_corrupt_attachment_is_refused_rather_than_returned() {
+    let good = container();
+    let marker = b"not really a photo\n";
+    let at = good
+        .windows(marker.len())
+        .position(|w| w == marker)
+        .expect("the attachment's bytes are in the archive");
+
+    // The archive is otherwise perfect: the document parses, every header is
+    // intact, and only the attachment's content has changed.
+    let mut damaged = good.clone();
+    damaged[at] = b'N';
+    assert!(
+        vnz::read(&good).is_ok(),
+        "the undamaged archive must read, or this proves nothing"
+    );
+    let refusal = vnz::read(&damaged)
+        .err()
+        .expect("a corrupt attachment must be refused, not returned");
+    assert!(
+        refusal.to_string().contains("CRC"),
+        "refused for the wrong reason: {refusal}"
+    );
+}
+
+/// A stored entry declares its size twice, and the two must agree. A reader
+/// that takes one and ignores the other reads a truncated or padded entry as
+/// whole.
+#[test]
+fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
+    let good = container();
+    // The local header's uncompressed size sits at offset 22; the first entry
+    // is `doc.vnx` at offset 0 because this writer stores it first.
+    assert_eq!(&good[..4], &0x0403_4b50u32.to_le_bytes());
+    let mut damaged = good.clone();
+    // Change the CENTRAL DIRECTORY's compressed size, which is what this
+    // reader takes its lengths from, leaving the uncompressed size alone.
+    let cd = damaged
+        .windows(4)
+        .position(|w| w == 0x0201_4b50u32.to_le_bytes())
+        .expect("a central directory entry");
+    let declared = u32::from_le_bytes([
+        damaged[cd + 24],
+        damaged[cd + 25],
+        damaged[cd + 26],
+        damaged[cd + 27],
+    ]);
+    damaged[cd + 20..cd + 24].copy_from_slice(&(declared - 1).to_le_bytes());
+    let refusal = vnz::read(&damaged)
+        .err()
+        .expect("a stored entry with disagreeing sizes must be refused");
+    // NOT an `||` with the CRC message. Removing the size check leaves the CRC
+    // check to refuse this archive anyway, so an assertion that accepted either
+    // message passed with the size check deleted — measured 2026-09-10, and it
+    // is the same "too broad to attribute" failure as a mutation that changes
+    // two things, in an assertion instead of a mutation.
+    assert!(
+        refusal.to_string().contains("two sizes disagree"),
+        "refused for the wrong reason, so this does not test the size check: {refusal}"
+    );
+}

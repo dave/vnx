@@ -364,14 +364,24 @@ func checkPositions(t *testing.T, doc *Document, e expectation) {
 		// a broken test rather than a broken decoder. Both values and both
 		// patterns are printed below for the same reason.
 		//
-		// And `-0.0 == 0.0` in every language here, so a value comparison
-		// cannot tell them apart at all.
+		// ⚠ TWO THINGS IT CANNOT SEE, BOTH MEASURED RATHER THAN REASONED,
+		// because each is easy to assume it covers.
 		//
-		// ⚠ WHAT IT DOES NOT CATCH: a parser that is one ulp out. The
-		// sidecar's expected value is read by the SAME parser, so such a
-		// parser is wrong on both sides and they agree. That is what
-		// TestFullPrecisionSurvivesRoundTrip is for. This check is about
-		// anything that moves a value between the parse and the model.
+		// A SIGN-OF-ZERO FLIP. `-0.0 == 0.0`, so a value comparison cannot tell
+		// the two apart and a bit comparison can — but of the 19 positions
+		// pinned across accept/ and diagnose/, not one carries a zero longitude
+		// or latitude, so there is nothing here to bite on. A reader that
+		// flipped every decoded 0.0 to -0.0 passes this GREEN. Negative zero has
+		// exactly one instrument in the corpus, corpus/numbers/'s bit-pattern
+		// comparison, and this is not a second one. Do not add a fixture to give
+		// it a reach: a fixture placed to make a test reach is the wrong shape.
+		//
+		// A PARSER ONE ULP OUT. The sidecar's expected value is read by the
+		// SAME parser, so such a parser is wrong on both sides and the two
+		// agree. TestFullPrecisionSurvivesRoundTrip is the check for that.
+		//
+		// What it does see is anything that moves a value BETWEEN the parse and
+		// the model: a reader shifted one ulp reddens 8 of these cases.
 		if math.Float64bits(got.Lon) != math.Float64bits(want.Lon) ||
 			math.Float64bits(got.Lat) != math.Float64bits(want.Lat) {
 			t.Errorf("%s:\n  got  lon=%v lat=%v  (%016x %016x)\n  want lon=%v lat=%v  (%016x %016x)",

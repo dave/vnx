@@ -125,7 +125,9 @@ test('an unreadable ATTACHMENT is dropped with a diagnostic; the document surviv
   const c = decodeContainer(buf);
   assert.equal(c.document.waypoints.length, 1);
   assert.deepEqual([...c.attachments.keys()], []);
-  assert.equal(c.diagnostics[0].code, 'attachment-compression');
+  assert.equal(c.diagnostics[0].code, 'attachment-unreadable');
+  // SPEC.md 6.3's separate pointer space: an archive entry is not in the document.
+  assert.equal(c.diagnostics[0].path, '#/entries/photo.bin');
 });
 
 test('a corrupt entry fails its CRC rather than yielding wrong bytes', () => {

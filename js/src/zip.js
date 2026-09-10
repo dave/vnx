@@ -43,9 +43,20 @@ export function crc32(buf) {
 }
 
 /**
+ * `payloadBound` is where an entry's payload cannot extend past: the nearest
+ * following local header, or the central directory.
+ *
+ * ⚠ IT IS THE BOUND, AND THE DECLARED SIZE IS A CEILING. SPEC.md 7 forbids
+ * refusing an entry that declares more bytes than it holds where the CRC over
+ * the bytes present agrees, so the payload is read as the bytes that are there
+ * and the checksum decides whether that was all of them. Reading the declared
+ * count instead runs into the next local header and fails the CRC on a
+ * conforming archive. A SHORT declaration needs nothing of its own: the same
+ * CRC catches it.
+ *
  * @typedef {{name: string, method: number, compressedSize: number,
  *            uncompressedSize: number, crc: number, flags: number,
- *            localOffset: number}} ZipEntry
+ *            localOffset: number, payloadBound: number}} ZipEntry
  */
 
 /**
@@ -93,8 +104,17 @@ export function readEntries(buf) {
       if (localOffset === MAX32) { localOffset = readU64(z, q); q += 8; }
     }
 
-    entries.push({ name, method, crc, compressedSize, uncompressedSize, flags, localOffset });
+    entries.push({ name, method, crc, compressedSize, uncompressedSize, flags, localOffset, payloadBound: 0 });
     p += 46 + nameLen + extraLen + commentLen;
+  }
+  // The bound takes every entry to know and every entry needs it, so it is
+  // computed once the directory is complete.
+  for (const e of entries) {
+    let bound = cdOffset;
+    for (const other of entries) {
+      if (other.localOffset > e.localOffset && other.localOffset < bound) bound = other.localOffset;
+    }
+    e.payloadBound = bound;
   }
   return entries;
 }
@@ -115,7 +135,11 @@ export function readEntryData(buf, entry) {
   const nameLen = buf.readUInt16LE(p + 26);
   const extraLen = buf.readUInt16LE(p + 28);
   const start = p + 30 + nameLen + extraLen;
-  const raw = buf.subarray(start, start + entry.compressedSize);
+  if (start > entry.payloadBound) {
+    throw new ZipError(`entry ${JSON.stringify(entry.name)} starts past where its payload must end`);
+  }
+  // The declared size is a CEILING — see the ZipEntry typedef.
+  const raw = buf.subarray(start, Math.min(start + entry.compressedSize, entry.payloadBound));
   let out;
   if (entry.method === METHOD_STORE) {
     out = Buffer.from(raw);

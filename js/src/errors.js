@@ -57,6 +57,7 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'endpoint-off-arc',
   'link-arc-absent',
   'polygon-nested-rings',
+  'attachment-unreadable',
   'position-unusable',
   'terminal-pip-off-node',
   'timestamp-not-utc',
@@ -65,8 +66,6 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'wrong-type-required',
   // not pinned: this library's own tokens, and not wire commitments
   'arc-node-absent',
-  'attachment-compression',
-  'attachment-unreadable',
   'folder-absent',
   'importance-out-of-range',
   'inline-endpoint-empty-arc',
@@ -89,6 +88,7 @@ export const DIAGNOSTIC_CODES = Object.freeze([
  * too.
  */
 export const PINNED_CODES = Object.freeze([
+  'attachment-unreadable',
   'chain-discontinuity',
   'endpoint-off-arc',
   'link-arc-absent',

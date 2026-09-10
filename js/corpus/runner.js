@@ -341,6 +341,15 @@ function runWriteCases(dir, api) {
     seen.add(`${base}.in.vnx`);
     seen.add(`${base}.written.vnx`);
     const c = new Case(`write/${base}`);
+    const manifestPath = path.join(dir, `${base}.attachments.json`);
+    if (fs.existsSync(manifestPath)) {
+      // A case carrying an attachment manifest writes a CONTAINER, so its
+      // expected output is an archive rather than a document — see
+      // `corpus/write/README.md`.
+      seen.add(`${base}.written.vnz`);
+      cases.push(runWriteContainerCase(dir, base, api));
+      continue;
+    }
     const writtenPath = path.join(dir, `${base}.written.vnx`);
     const sidecarPath = path.join(dir, `${base}.expect.json`);
     if (!fs.existsSync(writtenPath)) {
@@ -381,12 +390,87 @@ function runWriteCases(dir, api) {
     cases.push(c);
   }
   for (const file of fs.readdirSync(dir)) {
-    if (!file.endsWith('.vnx') || seen.has(file)) continue;
+    if ((!file.endsWith('.vnx') && !file.endsWith('.vnz')) || seen.has(file)) continue;
     const c = new Case(`write/${file}`);
     c.failures.push('not part of an .in.vnx / .written.vnx pair');
     cases.push(c);
   }
   return cases;
+}
+
+/**
+ * A write case whose output is a CONTAINER (`corpus/write/README.md`).
+ *
+ * The attachments come from a manifest rather than from real files beside the
+ * sidecar: a name holding U+1F600 is subject to the checkout filesystem's
+ * Unicode normalisation and case folding, so a checked-out file could arrive
+ * under a name that is not the one the case means and the fixture would test
+ * the filesystem instead of the writer.
+ *
+ * ⚠ THE ATTACHMENTS ARE FED REVERSED, deliberately. SPEC.md 7.1 requires the
+ * writer to sort its own entries by code point, so a writer that kept the order
+ * it was handed must fail here. Feeding them in manifest order lets it pass.
+ */
+function runWriteContainerCase(dir, base, api) {
+  const { decodeText, decodeContainer, write, encodeContainer } = api;
+  const c = new Case(`write/${base}`);
+  if (typeof encodeContainer !== 'function') {
+    c.failures.push('the implementation exposes no container WRITE path; SPEC.md 7 requires one');
+    return c;
+  }
+  const writtenPath = path.join(dir, `${base}.written.vnz`);
+  const sidecarPath = path.join(dir, `${base}.expect.json`);
+  if (!fs.existsSync(writtenPath)) {
+    c.failures.push(`the manifest promises ${base}.written.vnz and there is none`);
+    return c;
+  }
+  if (!fs.existsSync(sidecarPath)) {
+    c.failures.push(`no ${base}.expect.json: a file with no sidecar is a failure, not a skip`);
+    return c;
+  }
+  const expect = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+  c.check(expect.kind === 'write', `sidecar kind is ${JSON.stringify(expect.kind)}, directory is write`);
+  c.check(typeof expect.note === 'string' && expect.note.length > 0, 'sidecar carries no note');
+  c.check(expect.root === 'doc.vnx', `this runner writes the document as doc.vnx, and the sidecar names ${JSON.stringify(expect.root)}`);
+
+  const input = fs.readFileSync(path.join(dir, `${base}.in.vnx`), 'utf8');
+  const want = fs.readFileSync(writtenPath);
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, `${base}.attachments.json`), 'utf8'));
+  const listed = manifest.attachments.map((a) => [a.name, Buffer.from(a.body, 'utf8')]);
+  c.check(Buffer.from(input, 'utf8').compare(want) !== 0, 'the input is already the written form, so this case cannot fail');
+
+  try {
+    const decoded = decodeText(input);
+    c.check(decoded.diagnostics.length === 0,
+      `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
+    const got = encodeContainer(write(decoded.document), [...listed].reverse());
+    c.check(got.compare(want) === 0, firstByteDifference(want, got));
+
+    // The written form is a fixed point, reached the way every other write case
+    // reaches it: read the expected output back and write it again.
+    const back = decodeContainer(want);
+    c.check(back.diagnostics.length === 0,
+      `the written archive must read cleanly; got ${JSON.stringify(back.diagnostics.map((d) => d.code))}`);
+    c.check([...back.attachments.keys()].length === listed.length,
+      `the archive carries ${back.attachments.size} attachments and the manifest lists ${listed.length}`);
+    const again = encodeContainer(write(back.document), back.attachments);
+    c.check(again.compare(want) === 0, `writing the written form changed it: ${firstByteDifference(want, again)}`);
+  } catch (err) {
+    c.failures.push(`threw rather than writing: ${err && err.message}`);
+  }
+  return c;
+}
+
+/** Where two archives first disagree, which a length comparison alone cannot say. */
+function firstByteDifference(want, got) {
+  if (want.compare(got) === 0) return 'identical';
+  const n = Math.min(want.length, got.length);
+  for (let i = 0; i < n; i++) {
+    if (want[i] !== got[i]) {
+      return `byte ${i} of ${want.length}: expected 0x${want[i].toString(16).padStart(2, '0')}, produced 0x${got[i].toString(16).padStart(2, '0')} (${got.length} bytes written)`;
+    }
+  }
+  return `identical for ${n} bytes; expected ${want.length} and produced ${got.length}`;
 }
 
 function firstDifference(want, got) {

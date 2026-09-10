@@ -63,6 +63,7 @@ async function runMutated(edits) {
   return runCorpus(CORPUS, {
     decodeText: api.decodeText,
     decodeContainer: api.decodeContainer,
+    encodeContainer: api.encodeContainer,
     rerender: api.rerender,
     write: api.write,
     renderNumber: api.renderNumber,
@@ -448,9 +449,11 @@ test('the WRITE path is exercised by the write tier and by nothing else', async 
       to: '  n = 2;',
     },
   ]);
-  // Exactly one case, which is the point: the writer is reached, and no
-  // re-rendering tier is disturbed by breaking it.
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
+  // The write tier and nothing else, which is the point: the writer is reached,
+  // and no re-rendering tier is disturbed by breaking it. Both write cases go
+  // red because both call WRITE — the container case writes its document
+  // through the same path before packing it.
+  assert.deepEqual(await failingDelta(cases), ['write/container-cross-language', 'write/emit-boundary']);
 });
 
 test('shortening a position is caught by the write tier', async () => {

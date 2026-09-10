@@ -90,9 +90,9 @@ export function decodeContainer(buf) {
       // An attachment the reader cannot decompress is dropped with a
       // diagnostic; the document is still returned.
       result.diagnostics.push(new Diagnostic(
-        `/attachments/${e.name}`,
+        entryPointer(e.name),
         `attachment uses compression method ${e.method}; only store and deflate are available`,
-        'attachment-compression',
+        'attachment-unreadable',
       ));
       continue;
     }
@@ -101,12 +101,27 @@ export function decodeContainer(buf) {
     } catch (err) {
       if (!(err instanceof ZipError)) throw err;
       result.diagnostics.push(new Diagnostic(
-        `/attachments/${e.name}`, `attachment could not be read: ${err.message}`, 'attachment-unreadable',
+        entryPointer(e.name), `attachment could not be read: ${err.message}`, 'attachment-unreadable',
       ));
     }
   }
 
   return { ...result, documentEntry: root.name, attachments };
+}
+
+/**
+ * SPEC.md 6.3's `#/entries/` pointer space, which is where a diagnostic about
+ * an archive ENTRY lives: an archive entry is not part of the document, so no
+ * pointer into the document can locate one.
+ *
+ * ⚠ THE MEMBER NAME IS ONE RFC 6901 REFERENCE TOKEN, and the escaping ORDER
+ * decides the answer: `~` becomes `~0` BEFORE `/` becomes `~1`. Reversed, the
+ * second pass escapes the `~1` the first pass just wrote, so `photos/a~b.jpg`
+ * comes out `photos~01a~0b.jpg`. An attachment name is the one place in this
+ * format where a member name routinely holds a slash.
+ */
+function entryPointer(name) {
+  return `#/entries/${name.replace(/~/g, '~0').replace(/\//g, '~1')}`;
 }
 
 /**

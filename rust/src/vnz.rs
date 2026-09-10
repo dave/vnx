@@ -183,7 +183,7 @@ fn has_vnx_extension(name: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Write a `.vnz` container: `doc.vnx` at the archive root, then the
-/// attachments in the order given.
+/// attachments.
 ///
 /// Entries are DEFLATED. SPEC 7.1 lets a writer choose stored or deflate per
 /// entry, and a container that is larger than the document it holds is not

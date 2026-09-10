@@ -25,7 +25,7 @@
 //!   `message_advisory` is NOT compared — SPEC 6.3 forbids it, and the field is
 //!   named that way so a runner cannot half-couple to English by accident.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -427,8 +427,16 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     // ⚠ THE ARCHIVE'S BYTES ARE NOT COMPARED. SPEC 7.1 constrains five rules
     // and leaves every other field to the writer, so two conforming writers
     // are not expected to agree byte for byte. What is compared is what 7.1
-    // does constrain: the root document's tree, the entry names, the
-    // attachment bodies, and the document coming first.
+    // does constrain: the root document's tree, the attachment names and
+    // bodies, and the document coming first.
+    //
+    // ⚠ AND THE ATTACHMENTS ARE AN ORDER-INSENSITIVE COLLECTION. Ruled
+    // 2026-09-10 across all six implementations: 7.1 pins the FIRST entry and
+    // then says "every other field of the archive is the writer's own
+    // business", so comparing a name list in order enforces a rule the
+    // specification explicitly disclaims. A test that fails on REORDERING but
+    // not on LOSS is the signature — this one is measured both ways in
+    // `redproof.py`.
     let want = archive_entries(&expected);
     assert!(!want.is_empty(), "write/{stem}: the expected archive holds no entries");
     assert_eq!(
@@ -459,23 +467,30 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
         .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
     let got = archive_entries(&written);
 
+    assert!(!got.is_empty(), "write/{stem}: the archive holds no entries");
     assert_eq!(
-        got.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
-        want.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
-        "write/{stem}: the archive does not carry the expected entry names, in order"
+        got[0].0, "doc.vnx",
+        "write/{stem}: SPEC 7.1 requires the root document first, and this is {:?}",
+        got[0].0
     );
     if let Some(difference) = tree::compare(&got[0].1, &want[0].1, EmitBoundary::Keep) {
         panic!("write/{stem}: the archive's root document is not the one the case expects: {difference}");
     }
+    assert_eq!(
+        by_name(&got[1..]),
+        by_name(&want[1..]),
+        "write/{stem}: the archive does not carry the expected attachments"
+    );
     // An attachment is bytes and is compared as bytes. Nothing in this format
     // interprets one.
-    for (name, body) in &got[1..] {
-        let listed = attachments
+    assert_eq!(
+        by_name(&got[1..]),
+        attachments
             .iter()
-            .find(|a| &a.path == name)
-            .unwrap_or_else(|| panic!("write/{stem}: the archive carries `{name}`, which the manifest does not name"));
-        assert_eq!(body, &listed.bytes, "write/{stem}: `{name}` is not the manifest's body");
-    }
+            .map(|a| (a.path.clone(), a.bytes.clone()))
+            .collect(),
+        "write/{stem}: the archive does not carry the manifest's attachments"
+    );
 
     // And the archive reads back through this library's own reader.
     let back = vnz::read(&written)
@@ -486,8 +501,15 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
         render_diagnostics(&back.reading.diagnostics)
     );
     assert_eq!(
-        back.attachments, attachments,
-        "write/{stem}: the archive does not carry the manifest's attachments"
+        back.attachments
+            .iter()
+            .map(|a| (a.path.clone(), a.bytes.clone()))
+            .collect::<BTreeMap<_, _>>(),
+        attachments
+            .iter()
+            .map(|a| (a.path.clone(), a.bytes.clone()))
+            .collect(),
+        "write/{stem}: reading the archive back does not give the manifest's attachments"
     );
 }
 
@@ -517,6 +539,22 @@ fn a_container_is_smaller_than_the_document_it_holds() {
     // not a truncation.
     let back = vnz::read(&archive).expect("the archive this library wrote is one it reads");
     assert_eq!(back.reading.document, document);
+}
+
+/// The entries under `entries`, keyed by name.
+///
+/// A map rather than a list, because SPEC 7.1 makes entry names unique
+/// case-insensitively and leaves their ORDER to the writer. Comparing two of
+/// these compares presence and content and says nothing about order.
+fn by_name(entries: &[(String, Vec<u8>)]) -> BTreeMap<String, Vec<u8>> {
+    let mut out = BTreeMap::new();
+    for (name, body) in entries {
+        assert!(
+            out.insert(name.clone(), body.clone()).is_none(),
+            "the archive repeats the entry `{name}`, which SPEC 7 refuses"
+        );
+    }
+    out
 }
 
 /// Every entry of an archive, in archive order, read through this library's
@@ -730,6 +768,32 @@ fn a_reader_that_discards_what_it_read_is_caught() {
         tree::compare(encode(&document).as_bytes(), &bytes, EmitBoundary::Normalise),
         None
     );
+}
+
+/// The tree comparison compares numbers BY VALUE, never by spelling.
+///
+/// ⚠ THIS IS THE ONE THAT BITES RUST HARDEST. `serde_json::Value` remembers
+/// whether a literal parsed as an integer or a float and compares the two as
+/// unequal, so a comparator built on its own `PartialEq` reports a difference
+/// that does not exist. SPEC 4.2 makes the round trip value-level, and Go
+/// spells an integral elevation `340` where Python's `json.dumps` spells it
+/// `340.0`. Ruled across all six implementations on 2026-09-10, ahead of the
+/// task that has each of them read every other's output.
+#[test]
+fn a_number_compares_by_value_and_not_by_spelling() {
+    let integers = br#"{"vnx":"0.1.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
+    let floats = br#"{"vnx":"0.1.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
+    for emit in [EmitBoundary::Normalise, EmitBoundary::Keep] {
+        assert_eq!(
+            tree::compare(integers, floats, emit),
+            None,
+            "the two spellings of one document compared unequal under {emit:?}"
+        );
+    }
+
+    // And a real difference is still seen, or the above passes vacuously.
+    let different = br#"{"vnx":"0.1.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
+    assert!(tree::compare(integers, different, EmitBoundary::Keep).is_some());
 }
 
 /// A corpus case with no sidecar is a failure, not a skip. The three sidecar

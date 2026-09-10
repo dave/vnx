@@ -59,8 +59,8 @@ import io, os, shutil, subprocess, sys, tempfile
 
 ROOT = "/Users/dave/src/vnx/rust"
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/encode.rs",
-         "src/zip/mod.rs", "src/geo.rs", "src/diag.rs", "tests/corpus.rs",
-         "tests/support/tree.rs"]
+         "src/zip/mod.rs", "src/geo.rs", "src/diag.rs", "src/vnz.rs",
+         "tests/corpus.rs", "tests/support/tree.rs"]
 
 MUTATIONS = [
     ("transpose lon and lat everywhere", "src/model.rs",
@@ -255,6 +255,21 @@ MUTATIONS = [
     ("write a false `hidden`", "src/encode.rs",
      "        if value == Some(true) {",
      "        if let Some(true | false) = value {"),
+
+    # ⚠ THE PAIR BELOW IS ONE INSTRUMENT AND MUST BE READ TOGETHER. A test that
+    # fails on REORDERING but not on LOSS is asserting an order SPEC 7.1
+    # explicitly leaves to the writer. Running only the loss direction cannot
+    # see it, because such a test is already red there — for the right reason,
+    # which is what makes it invisible. Kotlin found one this way on
+    # 2026-09-10: reorder reddened one test, loss reddened nine.
+    ("emit the attachments in descending name order", "src/vnz.rs",
+     "    names[1..].sort_by(|a, b| a.path.cmp(&b.path));",
+     "    names[1..].sort_by(|a, b| b.path.cmp(&a.path));",
+     "expect-green"),
+
+    ("drop the last attachment", "src/vnz.rs",
+     "    Ok(crate::zip::write_archive(&names))",
+     "    if names.len() > 1 { names.pop(); }\n    Ok(crate::zip::write_archive(&names))"),
 
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",

@@ -191,6 +191,43 @@ mod tests {
         );
     }
 
+    /// ⚠ `serde_json` DISTINGUISHES `1` FROM `1.0` AND THIS CRATE MUST NOT.
+    ///
+    /// `Value::Number` remembers whether a literal parsed as an integer or as a
+    /// float, so `json!(1) == json!(1.0)` is FALSE. SPEC 4.2 makes the round
+    /// trip value-level and the format states no rule about spelling, so two
+    /// conforming writers legitimately spell an integral coordinate,
+    /// elevation or timestamp differently — Go writes `1`, Python's
+    /// `json.dumps` writes `1.0`.
+    ///
+    /// Every number is collapsed to a binary64 here, at the parse, so nothing
+    /// downstream can compare a type tag by accident. The first half of this
+    /// test measures that `serde_json` really does distinguish them, or the
+    /// second half would be guarding against nothing.
+    #[test]
+    fn a_number_is_a_value_and_not_a_spelling() {
+        let integer: serde_json::Value = serde_json::from_str("1").expect("parses");
+        let float: serde_json::Value = serde_json::from_str("1.0").expect("parses");
+        assert_ne!(
+            integer, float,
+            "serde_json no longer distinguishes the two spellings, so this \
+             crate's normalisation is guarding against nothing"
+        );
+
+        for pair in [("1", "1.0"), ("340", "340.0"), ("1e3", "1000")] {
+            assert_eq!(
+                parse(pair.0.as_bytes()).expect("parses"),
+                parse(pair.1.as_bytes()).expect("parses"),
+                "{} and {} are the same value", pair.0, pair.1
+            );
+        }
+        // And two different values still differ, or the above passes vacuously.
+        assert_ne!(
+            parse(b"1").expect("parses"),
+            parse(b"2").expect("parses")
+        );
+    }
+
     /// SPEC 6.4: a repeated key resolves last-wins, and it resolves in the
     /// parser so that no later stage can see two entries with one name.
     #[test]

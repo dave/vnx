@@ -62,7 +62,6 @@ PUBLISHED = [
     "corpus/README.md",
     "corpus/format/README.md",
     "corpus/numbers/README.md",
-    "corpus/schema/README.md",
     "corpus/write/README.md",
 ]
 

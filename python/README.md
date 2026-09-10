@@ -1,8 +1,15 @@
 # vnx — a Python implementation of the VNX format
 
-A codec: it reads and writes `.vnx` and `.vnz`, renders canonical form
-(`SPEC.md` §4.5), and reports diagnostics (§6.3). That is what `SPEC.md` calls a
-VNX library, and it passes the whole conformance corpus.
+> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
+> layout, a formatter, a number-rendering rule or a stored-only container, and
+> the corpus compares parsed documents rather than bytes. This library still
+> implements the older rules, and the sections cited below for them are gone
+> from `SPEC.md`. Porting it is its own task.
+
+
+A codec: it reads and writes `.vnx` and `.vnz` and reports diagnostics (§6.3).
+That is what `SPEC.md` calls a VNX library, and it passes the whole conformance
+corpus.
 
 Python 3.11+. Standard library only — no dependencies, at all, by design.
 
@@ -20,7 +27,7 @@ container = vnx.read_container_file("trip.vnz")
 print(container.document_name, container.attachments)
 ```
 
-**There are two emit paths and they are not interchangeable** (§4.5.4). A
+**There are two emit paths and they are not interchangeable.** A
 *formatter* reproduces what a document carried — it does not round and does not
 re-spell a position, which is why `accept/full-precision-coordinate.vnx`
 round-trips byte for byte. A *writer* emits a model as a document, rounding

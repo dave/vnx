@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 # `f64::round_ties_even`, which SPEC 4.5.4 needs at the writer boundary.
 rust-version = "1.77"
-description = "Reader, writer and canonical formatter for the VNX trail interchange format"
+description = "Reader and writer for the VNX trail interchange format"
 license = "MIT"
 
 # Zero dependencies, deliberately. The JSON parser, the JSON renderer, the

@@ -40,10 +40,9 @@ corpus/
   accept/     files a reader must read, with expected results
   reject/     files a reader must refuse, with the reason
   diagnose/   files a reader must read while reporting something
-  format/     non-canonical input, and the canonical bytes it must render as
-  write/      a document, and the bytes a writer must emit for it
-  numbers/    reference renderings and roundings for 5,315 doubles
-  schema/     the JSON Schema, and what it cannot check
+  format/     retired; no runner reads it
+  write/      a document, and the document a writer must produce from it
+  numbers/    reference roundings to 6 and to 1 decimal places
   tools/      the generator for the .vnz archives
 ```
 
@@ -58,36 +57,24 @@ the corpus cannot check.
 
 ## What a library implements
 
-A VNX library reads and writes `.vnx` and `.vnz`, produces canonical form, and
-reports diagnostics. That is what the corpus tests and what "a VNX library"
-means here.
+A VNX library reads and writes `.vnx` and `.vnz` and reports diagnostics. That
+is what the corpus tests and what "a VNX library" means here.
 
 ### What it costs, before you start
 
-VNX pins its bytes: two conforming writers emit the same file for the same
-document, and the corpus enforces that by byte comparison. Everything below
-follows from it, and it is the part worth knowing before choosing this format.
+The bytes of a document are not pinned. Key order, number spelling and
+whitespace are the writer's own business, and the corpus compares parsed
+documents rather than bytes. So an implementation encodes with its language's
+standard JSON library and writes containers with its standard ZIP library, and
+what it writes by hand is the walk from a parsed JSON tree into the model, which
+is where the diagnostics come from.
 
-A conforming implementation writes its own JSON string renderer and its own ZIP
-writer. Not configures one — writes one. No stock JSON encoder in any of the
-target languages can emit canonical form: the key ordering alone rules them all
-out, and Go's cannot be configured to leave U+2028 and U+2029 unescaped at any
-setting. No stock ZIP writer can meet the container rules either, and Go's is
-the measured case — it overrides the version fields, writes the wrong date, and
-adds an extra field the format forbids the moment you correct the date.
-
-You will also write your own number rendering unless you are in Go or
-JavaScript, and your own rounding: rounding to six decimal places is defined as
-a result rather than a procedure, and multiply-round-divide gets six of ten
-ordinary elevations wrong.
-
-The reference serialiser is about 170 lines. A stored-only ZIP writer with fixed
-fields is a couple of hundred more. That is the price, and it is charged once.
-
-The alternative was to drop byte-identity, and byte-identity is the point: it is
-what lets two applications compare exports, what makes the formatter and writer
-tiers of the corpus possible at all, and what the whole corpus exists to
-enforce. Somebody chose to pay this deliberately.
+Two things do have to be written carefully. Rounding to six decimal places is
+defined as a result rather than a procedure: round by formatting the value and
+parsing the text back, because multiply-round-divide gets six of ten ordinary
+elevations wrong. And a reader has to report every fault it finds rather than
+stopping at the first, which rules out decoding straight into typed structures
+through a derive macro.
 
 The GPX, KML and GeoJSON writers under `go/` are conversion tools, not part of
 the format. They are deliberately lossy exports for handing a file to another
@@ -114,7 +101,6 @@ reference implementation writes.
 | Command | What it does |
 |---|---|
 | `validate` | reads a document and reports its diagnostics |
-| `fmt` | renders a document in canonical form |
 | `outline` | prints a document's structure — names, folders, counts, topology — without coordinates |
 | `convert` | converts to and from GPX, KML and GeoJSON |
 
@@ -126,5 +112,4 @@ otherwise read.
 
 ```sh
 cd go && go run ./cmd/vnx validate ../corpus/accept/example-network.vnx
-cd go && go run ./cmd/vnx fmt --write ../corpus/accept/example-network.vnx
 ```

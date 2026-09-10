@@ -1,7 +1,14 @@
 # VNX for JavaScript
 
-A codec for the VNX format: read and write `.vnx` and `.vnz`, produce canonical
-form, and report diagnostics. Implemented from [`SPEC.md`](../SPEC.md) and
+> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
+> layout, a formatter, a number-rendering rule or a stored-only container, and
+> the corpus compares parsed documents rather than bytes. This library still
+> implements the older rules, and the sections cited below for them are gone
+> from `SPEC.md`. Porting it is its own task.
+
+
+A codec for the VNX format: read and write `.vnx` and `.vnz`, and report
+diagnostics. Implemented from [`SPEC.md`](../SPEC.md) and
 validated by [`corpus/`](../corpus).
 
 Node 22+, ESM, **no runtime dependencies**. The ZIP container is written here

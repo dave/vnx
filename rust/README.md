@@ -1,7 +1,14 @@
 # vnx — the VNX format in Rust
 
-A codec for [VNX](../SPEC.md): it reads and writes `.vnx` and `.vnz`, produces
-canonical form (SPEC 4.5) and reports diagnostics (SPEC 6.3).
+> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
+> layout, a formatter, a number-rendering rule or a stored-only container, and
+> the corpus compares parsed documents rather than bytes. This library still
+> implements the older rules, and the sections cited below for them are gone
+> from `SPEC.md`. Porting it is its own task.
+
+
+A codec for [VNX](../SPEC.md): it reads and writes `.vnx` and `.vnz` and reports
+diagnostics (SPEC 6.3).
 
 Written from `SPEC.md` alone and validated against [`corpus/`](../corpus), with
 no reference to any other implementation. Where the two disagreed, or the spec
@@ -21,8 +28,8 @@ own JSON parser and renderer, ECMAScript number formatter, ZIP reader and
 DEFLATE decompressor. `#![forbid(unsafe_code)]`.
 
 Two of those are not the indulgence they look like. No stock JSON encoder in any
-target language can emit VNX canonical form (SPEC 4.5.6), so a serialiser had to
-be written regardless — and Rust's own float formatting is wrong for this format
+target language emits the byte layout this crate produces, so a serialiser had to
+be written regardless — and Rust's own float formatting is wrong for that layout
 in two separate ways (see below), so the number path had to be written too.
 DEFLATE was the one genuinely optional piece, and every entry in every corpus
 archive is deflated, so a reader without it cannot open a container at all.
@@ -31,7 +38,7 @@ archive is deflated, so a reader without it cannot open a container at all.
 |---|---|
 | `json` | a strict RFC 8259 parser, with no permissive mode |
 | `json::number` | ECMAScript `Number::toString`, ties to even |
-| `canonical` | the byte layout of SPEC 4.5 |
+| `canonical` | the byte layout this crate emits |
 | `model` | the decoded document |
 | `decode` | SPEC 6: tolerant of damage, silent about nothing |
 | `render` | the two emit paths, `re_render` and `write` |

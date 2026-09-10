@@ -1,7 +1,13 @@
 # VNX for Swift
 
-A VNX codec: read and write `.vnx` and `.vnz`, render canonical form, report
-diagnostics. Swift 5.9+, Foundation only, no package dependencies.
+> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
+> layout, a formatter, a number-rendering rule or a stored-only container, and
+> the corpus compares parsed documents rather than bytes. This library still
+> implements the older rules, and the sections cited below for them are gone
+> from `SPEC.md`. Porting it is its own task.
+
+
+A VNX codec: read and write `.vnx` and `.vnz`, report diagnostics. Swift 5.9+, Foundation only, no package dependencies.
 
 ```sh
 cd swift && swift test

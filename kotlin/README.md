@@ -1,7 +1,14 @@
 # VNX for Kotlin
 
-A VNX codec on the JVM: reads and writes `.vnx` and `.vnz`, produces canonical
-form, and reports diagnostics. It was written from [`SPEC.md`](../SPEC.md) and
+> **Status: not yet ported.** `SPEC.md` no longer defines a canonical byte
+> layout, a formatter, a number-rendering rule or a stored-only container, and
+> the corpus compares parsed documents rather than bytes. This library still
+> implements the older rules, and the sections cited below for them are gone
+> from `SPEC.md`. Porting it is its own task.
+
+
+A VNX codec on the JVM: reads and writes `.vnx` and `.vnz`, and reports
+diagnostics. It was written from [`SPEC.md`](../SPEC.md) and
 validated against [`corpus/`](../corpus/), without reference to any other
 implementation.
 
@@ -17,15 +24,15 @@ build and is not wired into any application.
 
 The library imports the standard library and nothing else. There is no JSON
 library behind it: the parser, the serialiser and the ECMAScript number renderer
-are all here, because the format's canonical form (`SPEC.md` section 4.5) is a
-layout no stock encoder in any target language emits, and because a codec with
+are all here, because the byte layout this library emits is one no stock
+encoder in any target language produces, and because a codec with
 dependencies is a codec people cannot adopt. `PortabilityTest` asserts the
 property rather than trusting the build file.
 
 The one place this costs something visible is
 [`EcmaNumber.kt`](src/main/kotlin/app/viatrail/vnx/EcmaNumber.kt). Kotlin's
-`Double.toString` renders `340.0`, `1.0E21` and `1.0E-7` where canonical form
-requires `340`, `1e+21` and `1e-7`, and Java only guarantees the SHORTEST
+`Double.toString` renders `340.0`, `1.0E21` and `1.0E-7` where this library
+emits `340`, `1e+21` and `1e-7`, and Java only guarantees the SHORTEST
 round-tripping decimal from JDK 19 — this build targets 17 — so the shortest
 form is searched for directly over the exact value of the double.
 

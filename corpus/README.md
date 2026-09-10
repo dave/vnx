@@ -12,29 +12,22 @@ work retroactively, which is why it exists before the second library does.
 accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
 diagnose/  must be read, reporting exactly the listed diagnostics
-format/    a messy document, plus the bytes a formatter must emit for it
-write/     a document with a model to write, plus the bytes a writer must emit
-numbers/   what every implementation must emit for a given double
-schema/    the JSON Schema, and what it can and cannot check
+format/    retired; `SPEC.md` defines no formatter, and no runner reads it
+write/     a document with a model to write, plus the document a writer produces
+numbers/   the reference rounding of a given double to 6 and to 1 places
 tools/     the generator for the .vnz archives
 ```
 
-Six tiers, and the last two of the six are not directories of documents.
-
-The first four hold documents and share the sidecar described below. `write/` is
-a pair like `format/` — `X.in.vnx` and `X.written.vnx` — but its operation is
-decode-then-WRITE rather than decode-then-re-render, so it is the only document
-tier that applies the emit-boundary rules of section 4.5.4. `numbers/` is a
-table rather than a directory, because the properties it pins are per-value; it
-has its own README and no sidecars.
+The first three hold documents and share the sidecar described below. `write/`
+is a pair — `X.in.vnx` and `X.written.vnx` — and its operation is
+decode-then-write, so it is the only document tier that applies the emit-boundary
+rules of section 4.1: rounding, and the shortest spelling of a position.
+`numbers/` is a table rather than a directory, because the properties it pins are
+per-value; it has its own README and no sidecars.
 
 This list, the one in the repository root README, and section 8 of `SPEC.md`
 have to agree with the tree and with each other. They have disagreed before,
 three ways at once, and nothing checks them.
-
-The schema lives here rather than beside the Go implementation because every
-case carries a `schema` verdict in its sidecar. A sidecar field that only one
-implementation can check is a corpus that cannot be run.
 
 Each `foo.vnx` or `foo.vnz` has a `foo.expect.json` beside it. A file with no
 sidecar is a failure, not a skip: the file everyone assumes is covered is
@@ -245,8 +238,9 @@ Two more, from the same family:
 - **Pair each expected diagnostic with one DISTINCT reported diagnostic.** A
   runner that lets one report satisfy two expectations passes a reader that
   found half the defects.
-- **Assert that each `format/` input is not already canonical.** Without it a
-  formatter that echoed its input passes the whole tier.
+- **Assert that each `write/` input is not already the written form, and that
+  the written form is a fixed point of the writer.** Without both, a writer that
+  echoed its input passes the whole tier.
 
 Red-proof the runner itself before trusting a green: break the library
 deliberately and confirm the case you expect goes red, and that it is the ONLY
@@ -254,64 +248,31 @@ one. A mutation that reddens three cases cannot tell you which rule you broke �
 `accept/track-partly-timed.expect.json` records a proof that had to be narrowed
 twice before it meant anything.
 
-## Accept files are canonical
+## The accept tier's round-trip check
 
-Every `accept/*.vnx` is stored in canonical form (`SPEC.md` section 4.5). The
-runner decodes it, RE-RENDERS the decoded document, and requires the original
-bytes back.
+For every `accept/*.vnx` the runner decodes the file, encodes the decoded
+document, and compares the two as JSON trees: the tree parsed from the original
+file against the tree parsed from the encoded output. Only positions are
+normalised before the comparison — trailing `null` channels dropped, and the
+precision rules of section 4.1 applied to both sides. Nothing else may be
+normalised away.
 
-Re-render, not write, and not reformat-the-bytes. A writer rounds coordinates at
-the emit boundary and emits the shortest spelling of a position, so writing what
-you read is legitimately not what you read. And reformatting bytes into bytes
-never builds a model, so it cannot see a reader that threw away what it read:
-measured 2026-09-09, a reader discarding every data record, every ruleset, every
-style and every `notes` passed this tier green under a bytes-only check. Your
-model has to keep a position's arity for this to work — see section 4.1.
+The comparison is over trees rather than bytes because the bytes of a document
+are not constrained. Key order, number spelling and whitespace are each the
+writer's own business, and two implementations using their own standard JSON
+libraries will differ in all three while carrying the same document.
 
-That check is the byte-compatibility guarantee between the libraries. Every
-conforming writer, in every language, emits these exact bytes for a given
-document, so a Go export, a Swift export and a Python export of one library are
-identical files or one of them is wrong. An implementation whose formatter
-differs in any respect fails here, which means nobody has to trust anyone's
-reading of the specification's prose.
+Compare against the tree parsed from the FILE, never one decoded model against
+another. A reader that discarded every data record, every ruleset, every style
+and every `notes` produces a model that compares equal to itself: measured
+2026-09-09, such a reader passed this tier green on the sidecar assertions alone.
+The tree comparison is what proves a reader kept what it read, including data
+records of types no implementation recognises, whose bodies nothing else
+inspects.
 
-The layout, in one place:
-
-- Two-space indent, UTF-8, no BOM, newline at end of file.
-- Object keys: scalars first in lexicographic order, then containers in
-  lexicographic order, classified by the value in this object.
-- Arrays are never reordered.
-- An array holding only numbers and `null` is written on one line, elements
-  separated by `, `. That is every position in the format. `null` counts, so a
-  position does not change shape when an elevation goes missing. Six lines per
-  position would make a day's recorded track fifty thousand lines; this makes it
-  ten.
-- Numbers render with ECMAScript `Number::toString` semantics — what
-  `JSON.stringify` emits and what Go's `encoding/json` reproduces — with
-  negative zero collapsed to `0`.
-
-No stock JSON encoder can emit this layout in any of the target languages,
-measured 2026-09-01, so every implementation writes its own serialiser. The key
-ordering alone rules the stock encoders out: `sort_keys` and `.sortedKeys` give
-plain lexicographic order, which puts `networks` before `vnx`. The
-inline-position rule therefore costs nothing extra. Numbers are the other trap:
-Python and Swift both emit `340.0`, `1e-06` and `1e-07` where the reference emits
-`340`, `0.000001` and `1e-7`, and Apple's `JSONSerialization` renders `-3.67` as
-`-3.6699999999999999` and must not be used. Only Go and JavaScript can lean on
-their built-in number formatting. `SPEC.md` section 4.5.6 has the table.
-
-The canonical check does more than police layout. It is what proves that a whole
-document — including data records of types no implementation recognises, whose
-bodies nothing else inspects — survives parse and re-render at value level.
-
-Regenerate a file after editing it:
-
-```sh
-cd go && go run ./cmd/vnx fmt --write ../corpus/accept/<file>.vnx
-```
-
-That command is run from the repository root and needs Go. The corpus itself
-does not, which is the point of it.
+Do not reformat the file's bytes instead of decoding them. Reformatting bytes
+into bytes never builds a model, so it cannot observe anything about what a model
+kept.
 
 ## Rebuilding the archives
 
@@ -327,38 +288,24 @@ It writes its output relative to the working directory, so that directory has to
 be `corpus/`. The `go.mod` beside this file exists only so the go tool will run
 it at all; see the comment in it.
 
-**Reviewable, not reproducible in any language.** The four deflated archives can
-be reproduced only by Go. Deflate has no canonical output: for the document in
-`accept/container-root-doc.vnz`, Go's `compress/flate` emits 116 bytes and zlib
-emits 108, and no zlib level from 0 to 9 reproduces the committed bytes. Java
-and Python agree with each other because both are zlib; Go is a clean-room
-implementation and agrees with neither. That is the measurement behind section
-7.1's rule that a writer emits stored — a deterministic container is not
-achievable with deflate at all, whatever a writer pins in its headers.
+**Reviewable, not reproducible byte for byte.** Deflate has no canonical
+output: for the document in `accept/container-root-doc.vnz`, Go's
+`compress/flate` emits 116 bytes and zlib emits 108, and no zlib level from 0 to
+9 reproduces the committed bytes. Two conforming writers are not expected to
+produce the same archive for the same document, so review these files by reading
+`tools/makevnz` rather than by regenerating them and diffing.
 
-An archive built by hand, like `accept/container-zip64.vnz`, is stored and is
-therefore reproducible anywhere.
+These archives are input, and section 7 requires a reader to accept deflate, to
+accept the data-descriptor bit, and to take its sizes from the central directory.
+They are the only cases that test those rules. Regenerating them would delete
+the corpus's only deflate coverage and its only data-descriptor coverage, and
+every implementation would still pass.
 
-**Those four archives do not satisfy section 7.1, and that is correct.** They
-are deflated, they set the data-descriptor bit, and they carry a version-needed
-of 20 — none of which a conforming writer emits. Section 7.1 constrains what a
-library WRITES; these files are input, and section 7 requires a reader to accept
-deflate and to accept bit 3. They are the only cases that test those two rules.
-Regenerating them to match the writer table would delete the corpus's only
-deflate coverage and its only data-descriptor coverage, and every implementation
-would still pass. The writer table is the `write/` tier's business, not theirs.
+## `format/` is retired
 
-## Why `format/` exists separately
-
-The accept files cannot catch a formatter defect. They are stored canonical, so
-canonicalising one only ever asks the renderer about values already spelled
-correctly. A writer that renders negative zero as `-0`, or `0.000001` as
-`1e-06`, is never asked the question. The reference implementation had exactly
-the negative-zero defect and its own corpus was blind to it.
-
-The `format/` inputs are therefore written in the wrong spellings on purpose, and
-each case asserts that its input is not already canonical, so it cannot pass
-vacuously.
+The tier tested decode-then-re-render byte for byte. `SPEC.md` defines no
+formatter and no byte layout, so the tier has no subject. Its files are still on
+disk and no runner reads them.
 
 ## The tolerance cases
 
@@ -403,9 +350,9 @@ limitation gets revisited instead of quietly outliving its cause.
 
 The corpus also cannot check a field it does not look at. Its expectations are
 `counts`, `positions`, `tracks`, `attachments`, `refusal` and `diagnostics`;
-everything else in a document is compared only through the canonical-form check,
-which compares bytes to bytes and therefore agrees with whatever the fixture
-already says. Two consequences are live today:
+everything else in a document reaches the runner only through the accept tier's
+tree comparison, which asks whether a value survived the round trip and never
+whether it is the right value. Two consequences are live today:
 
 - A `data` record body is opaque to the decoder, so a record's fields are
   compared against nothing at all. `accept/example-network.vnx` writes
@@ -435,10 +382,10 @@ the format.
 > An unreachability claim is a claim about the current state of someone's
 > ingenuity.
 
-The working rule that survives is narrower and more useful: **a value-level
-property is reachable by a re-render whenever the two readings produce different
-TEXT for the same value.** Rounding is not, because a re-render never rounds.
-A rendering tie is, because a re-render always re-spells.
+The working rule that survives is narrower and more useful: **a property is
+reachable by the accept tier whenever the two readings put a different value in
+the tree.** Rounding is not, because the accept tier's normalisation rounds both
+sides alike; it needs the `write/` tier and `numbers/`.
 
 So if a test in an implementation concludes that something is unreachable, that
 test asserts nothing the moment the corpus grows, and nothing will tell it. Re-run

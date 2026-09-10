@@ -404,6 +404,32 @@ That is not a defect in a fixture. It is a field the corpus does not look at,
 and a second implementation reading a fixture infers its shape as though it were
 the format.
 
+### Where the coordinates are, and what that leaves untested
+
+Measured over every sidecar at commit `c755069`: 19 pinned positions, longitude
+-3.74 to -2.998942483187279, latitude 57.0704 to 67.5. Not one channel of one
+pinned position is zero, every longitude is negative, and every latitude is
+northern. So three things are outside this corpus. A decoder that turned `0.0`
+into `-0.0` passes every tier, and negative zero has exactly one instrument
+here, the number table in `numbers/`. A sign error that only shows on a positive
+longitude or a southern latitude is untested. Nothing goes near the
+antimeridian.
+
+Recorded rather than closed, and deliberately. A coordinate moved or added to
+give a test something to bite on is the failure this corpus keeps catching: a
+case earns its place by what it separates, and none of these three has a
+document behind it yet. One of them is also load-bearing where it stands.
+`accept/lonlat-transposition.vnx` works because at 57 degrees north and 3
+degrees west both numbers are in range for both channels, which is what makes
+the transposition invisible to a range check. Move that fixture and the case
+stops testing what it was built for.
+
+The absence is frozen: the JavaScript suite asserts that the set of pinned zero
+coordinates is empty, and fails with "a fixture now pins a zero coordinate;
+assert the failure instead of the gap". So a later phase that closes this gap
+with a real document is told to convert the absence into an assertion, rather
+than leaving a green test that passes because something is missing.
+
 ### Saying that carefully
 
 "No tier catches this" is a green-asserting claim, and it stops being true

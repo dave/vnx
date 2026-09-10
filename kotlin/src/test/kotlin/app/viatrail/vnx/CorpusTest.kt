@@ -322,16 +322,20 @@ class CorpusTest {
     /**
      * A write case whose expected output is an archive.
      *
-     * THE BYTES ARE NOT COMPARED. Section 7.1 constrains the UTF-8 filename
-     * flag, the root document being first, and duplicate names, and leaves every
-     * other field to the writer, so two conforming writers are not expected to
-     * agree byte for byte — deflate alone makes that impossible, since no two
-     * languages emit the same deflate stream. What is compared is what 7.1 does
-     * constrain, plus the root document's tree and the attachment bodies.
+     * THE BYTES ARE NOT COMPARED. Section 7.1 states five rules and then says
+     * every other field of the archive is the writer's own business, so two
+     * conforming writers are not expected to agree byte for byte — deflate alone
+     * makes that impossible, since no two languages emit the same deflate stream.
      *
-     * The attachments are fed REVERSED. A writer's output must not depend on the
-     * order it was handed, and feeding them in manifest order cannot see one that
-     * does.
+     * AND NEITHER IS THE ORDER OF THE ATTACHMENTS. Only the root document's
+     * place is a rule: 7.1 requires it first. Beyond that, comparing entry order
+     * would enforce a rule the specification explicitly disclaims — so the
+     * attachments are compared as a collection, by name and by body, and where
+     * they sit in the archive is not checked.
+     *
+     * The attachments are fed REVERSED. Now that no sort rule is under test, that
+     * proves what it claims and nothing else: a writer's output must not depend
+     * on the order it was handed.
      */
     @Test
     fun `write container`() {
@@ -357,7 +361,11 @@ class CorpusTest {
             val bytes = Vnx.writeContainer(document.document, reversed)
 
             val got = Zip.read(bytes)
-            assertEquals(want.map { it.name }, got.map { it.name }, "${input.name}: the archive's entry names, in order")
+            assertEquals("doc.vnx", got[0].name, "${input.name}: section 7.1 requires the root document first")
+            assertEquals(
+                want.map { it.name }.sorted(), got.map { it.name }.sorted(),
+                "${input.name}: the archive's entry names, as a collection",
+            )
             Tree.compare(String(got[0].bytes(), Charsets.UTF_8), String(want[0].bytes(), Charsets.UTF_8), Tree.Options(emitBoundary = false))?.let {
                 fail("${input.name}: the archive's root document is not the one the case expects: $it")
             }
@@ -368,15 +376,12 @@ class CorpusTest {
                 assertTrue(body.contentEquals(entry.bytes()), "${input.name}: the body of ${entry.name}")
             }
 
-            // And the archive reads back through this library's own reader.
+            // And the archive reads back through this library's own reader,
+            // carrying every attachment the manifest names and no other.
             val back = Vnx.readContainer(bytes)
             assertEquals(emptyList(), back.diagnostics, "${input.name}: the archive this library wrote must read cleanly")
-            // The comparator is required and is not decoration: Kotlin's default
-            // String order is by UTF-16 code unit, which puts U+1F600 before
-            // U+FF3A because its high surrogate begins at U+D800. This case is
-            // chosen to separate the two.
             assertEquals(
-                attachments.keys.sortedWith(entryNameOrder), back.attachments,
+                attachments.keys.sorted(), (back.attachments ?: emptyList()).sorted(),
                 "${input.name} does not carry the manifest's attachments",
             )
         }

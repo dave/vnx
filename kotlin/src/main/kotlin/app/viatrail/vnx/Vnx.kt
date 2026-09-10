@@ -124,13 +124,16 @@ object Vnx {
         val seen = HashMap<String, String>()
         seen[foldAscii(ROOT_DOCUMENT)] = ROOT_DOCUMENT
         // The root document first, which section 7.1 requires. Then the
-        // attachments SORTED by entry name — not in the order the caller supplied
-        // them, because caller order is not a property of the content. Two
-        // exporters using this one library, one iterating a hash map and one a
-        // sorted list, would otherwise emit different archives for the same
-        // document. Section 7.1 no longer states this; it is a property of this
-        // writer, and `write container` in the corpus runner is what holds it.
-        val sorted = attachments.entries.sortedWith(compareBy(entryNameOrder) { it.key })
+        // attachments, sorted by entry name.
+        //
+        // THE SORT IS NOT CONFORMANCE. Section 7.1 states five rules and then
+        // says every other field of the archive is the writer's own business, so
+        // entry order beyond the root document being first is not a rule and
+        // nothing may test it as one. This is here so that two exporters using
+        // this library — one iterating a hash map, one a sorted list — get the
+        // same bytes for the same document, which makes an archive diffable. Any
+        // total order would do, and this one is Kotlin's own.
+        val sorted = attachments.entries.sortedBy { it.key }
         for ((name, body) in sorted) {
             checkPath(name)
             if (name.isEmpty() || name.endsWith("/")) {
@@ -213,33 +216,4 @@ object Vnx {
         val text = String(bytes, Charsets.UTF_8)
         return if (text.startsWith('\uFEFF')) text.substring(1) else text
     }
-}
-
-/**
- * Lexicographic by Unicode code point, for a container's entry names.
- *
- * Kotlin's own `String.compareTo` is NOT this. It orders by UTF-16 code unit,
- * and the two disagree above U+FFFF: an astral character is a surrogate pair
- * beginning at U+D800, which sorts BELOW a BMP character in U+E000..U+FFFF by
- * code unit and ABOVE it by code point. `"\uD83D\uDE00".compareTo("\uFFFD")` is
- * -10176 on the JVM, which is 0xD83D minus 0xFFFD: the high surrogate, not the
- * code point.
- *
- * Comparing UTF-8 bytes gives code point order exactly, which is why that is
- * what this does rather than decoding to code points and comparing those.
- *
- * The reach is not theoretical: an attachment name is whatever a user called a
- * photograph, and `corpus/write/container.attachments.json` carries one named
- * with U+1F600 beside one named with U+FF3A to separate the two orders.
- */
-internal val entryNameOrder: Comparator<String> = Comparator { a, b ->
-    val x = a.toByteArray(Charsets.UTF_8)
-    val y = b.toByteArray(Charsets.UTF_8)
-    var i = 0
-    while (i < x.size && i < y.size) {
-        val d = (x[i].toInt() and 0xff) - (y[i].toInt() and 0xff)
-        if (d != 0) return@Comparator d
-        i++
-    }
-    x.size - y.size
 }

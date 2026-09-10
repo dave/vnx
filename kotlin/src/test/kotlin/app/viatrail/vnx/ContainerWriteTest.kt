@@ -19,42 +19,33 @@ class ContainerWriteTest {
     private fun documentOf(json: String) = Vnx.readDocument(json).document
 
     @Test
-    fun `attachments are sorted by entry name, by code point and not by UTF-16 code unit`() {
-        // Caller order is not a property of the content, so two exporters using
-        // this one library — one iterating a hash map, one a sorted list — must
-        // not emit different archives for the same document. Section 7.1 no
-        // longer states this; it is a property of this writer.
-        //
-        // The astral pair is the case that separates the two comparators, and it
-        // is the case where an implementer is most certain their sort is right.
-        // Kotlin's `String.compareTo` is the wrong one — U+1F600 is a surrogate pair
-        // beginning at U+D800, which sorts BELOW U+FFFD by code unit and ABOVE it
-        // by code point.
+    fun `the archive does not depend on the order the attachments were handed over`() {
+        // ENTRY ORDER IS NOT A RULE. Section 7.1 states five rules and then says
+        // every other field of the archive is the writer's own business, so only
+        // the root document's place is fixed. What is asserted here is that the
+        // SAME archive comes out whichever order a caller iterated its
+        // attachments in — a property of this writer, so that an export is
+        // diffable, and not a claim about conformance.
         val emoji = "\uD83D\uDE00.txt"
         val replacement = "\uFFFD.txt"
-        assertTrue(emoji < replacement, "by UTF-16 code unit the emoji sorts first, which is the trap")
+        val bodies = mapOf(
+            "zzz/last.txt" to "z", emoji to "e", replacement to "r", "aaa/first.txt" to "a",
+        )
+        val one = LinkedHashMap<String, ByteArray>()
+        for (name in bodies.keys) one[name] = bodies.getValue(name).toByteArray()
+        val other = LinkedHashMap<String, ByteArray>()
+        for (name in bodies.keys.reversed()) other[name] = bodies.getValue(name).toByteArray()
 
-        val bytes = Vnx.writeContainer(
-            documentOf("""{"vnx":"0.1.0"}"""),
-            // Supplied deliberately OUT of sorted order. Two names already in
-            // order would be decoration: they separate no implementations.
-            linkedMapOf(
-                "zzz/last.txt" to "z".toByteArray(),
-                emoji to "e".toByteArray(),
-                replacement to "r".toByteArray(),
-                "aaa/first.txt" to "a".toByteArray(),
-            ),
+        val document = documentOf("""{"vnx":"0.1.0"}""")
+        assertContentEquals(
+            Vnx.writeContainer(document, one), Vnx.writeContainer(document, other),
+            "the archive changed when the caller iterated its attachments the other way",
         )
-        assertEquals(
-            listOf("aaa/first.txt", "zzz/last.txt", replacement, emoji),
-            Vnx.readContainer(bytes).attachments,
-        )
+        val bytes = Vnx.writeContainer(document, one)
         assertEquals("doc.vnx", rawEntries(bytes).first().name, "the root document goes first")
-        // And the order in the local headers must match the central directory,
-        // which is a separate fact from either being right.
         assertEquals(
-            rawEntries(bytes).map { it.name },
-            listOf("doc.vnx", "aaa/first.txt", "zzz/last.txt", replacement, emoji),
+            bodies.keys.sorted(), Vnx.readContainer(bytes).attachments!!.sorted(),
+            "every attachment must survive, whatever order it sits in",
         )
     }
 
@@ -170,8 +161,7 @@ class ContainerWriteTest {
             documentOf("""{"vnx":"0.1.0"}"""),
             linkedMapOf("empty.bin" to ByteArray(0), "big.bin" to big),
         )
-        // Sorted, not supplied order — section 7.1.
-        assertEquals(listOf("big.bin", "empty.bin"), Vnx.readContainer(bytes).attachments)
+        assertEquals(listOf("big.bin", "empty.bin"), Vnx.readContainer(bytes).attachments!!.sorted())
         ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->
             var checked = 0
             while (true) {

@@ -1286,6 +1286,24 @@ named; when the endpoint misses the arc, the arc and the other endpoint are
 still fine, so only `to` is. Without that phrase an implementer pins the first at
 `/links/1/arc` to match the second, and is wrong.
 
+There is a THIRD RULE, for a diagnostic that reports a DISAGREEMENT between two
+values that both survive. Neither rule above reaches one: nothing is unusable,
+because both values are kept, and the pair is not ordered, so there is no second
+of it. Such a diagnostic names the value BEING REPORTED rather than the one it is
+measured against — an arc's terminal pip that has drifted from its node names the
+pip's end, because Section 3.3.2 makes the pips authoritative and the node is the
+reference.
+
+AND ONE INVARIANT ACROSS ALL THREE. No two diagnostics about one document may
+share a `path` unless they also share a `code`. A `path` and a `code` are the
+only two fields a conforming runner may compare, so a reader that emits two
+reports differing in neither has emitted two a runner cannot tell apart — and a
+runner pairing each expectation with one distinct report would then pass a reader
+that found one of the two faults twice.
+
+Unlike a judgement about where each new diagnostic points, that is checkable
+mechanically, over any document, by any runner.
+
 There is a SECOND RULE, for a different kind of diagnostic rather than an
 exception to the one above. Where a diagnostic is about a relationship, nothing
 is unusable at all — a chain whose links do not meet keeps both links — so the

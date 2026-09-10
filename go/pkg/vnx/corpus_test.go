@@ -216,6 +216,25 @@ func runDiagnose(t *testing.T, c corpusCase) {
 	// The limitation is accepted and recorded: a set comparison cannot catch a
 	// reader that emits in an absurd order. There is no rule to catch it
 	// against, which is the point.
+	// ⚠ SPEC §6.3's INVARIANT, checked over the reader's OWN output rather than
+	// against the sidecar. A path and a code are the only two fields a runner
+	// may compare, so two reports sharing both are two a runner cannot tell
+	// apart — and the set matcher below would then pass a reader that found one
+	// of the two faults twice.
+	//
+	// Go emitted exactly that: with both terminals of one arc drifted, §3.3.2's
+	// two diagnostics landed on one path and were separable only by their
+	// English, which §6.3 says MUST NOT be compared.
+	seen := map[string]bool{}
+	for _, d := range diags {
+		key := d.Path + "\x00" + d.Code
+		if seen[key] {
+			t.Errorf("two diagnostics share path %q and code %q; §6.3 requires the pair to "+
+				"identify a report, and these two are indistinguishable to any runner", d.Path, d.Code)
+		}
+		seen[key] = true
+	}
+
 	want := c.expect.Diagnostics
 	unmatched, extra := matchDiagnostics(diags, want)
 	if len(unmatched) > 0 || len(extra) > 0 {

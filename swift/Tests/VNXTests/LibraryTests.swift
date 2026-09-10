@@ -526,6 +526,43 @@ final class LibraryTests: XCTestCase {
         }
     }
 
+    /// ⚠ THE PARSER'S CONVERSION IS CORRECTLY ROUNDED, AND NO CORPUS CASE CAN
+    /// SEE THAT ANY MORE.
+    ///
+    /// `accept/full-precision-coordinate.vnx` was the guard while the tier
+    /// compared bytes. It is not one now: the accept tier applies §4.1's
+    /// precision to both sides before comparing, so `-3.6712345678901235`
+    /// becomes `-3.671235` on each side and a one-bit parse error is normalised
+    /// away before anything looks at it. Its sidecar cannot close the hole
+    /// either — the expected `lon` is a JSON number in a file THIS PARSER reads,
+    /// so that check compares the parser against itself.
+    ///
+    /// The exposure is narrow and this seat is in it: Go, Python and JavaScript
+    /// convert through standard libraries that are correctly rounded by
+    /// specification, and the two seats that reach for a conversion of their own
+    /// are this one and Kotlin. The Rust lane would have shipped a reader one
+    /// bit out with a green suite — `serde_json` without `float_roundtrip` gives
+    /// `c00d5eb03aa8431d` where the standard library gives `…431e`.
+    ///
+    /// BIT PATTERNS, not values: two doubles one bit apart print identically, so
+    /// a value comparison that failed would read as a broken test rather than a
+    /// broken parser. The hex constant is here as a third opinion — comparing
+    /// only against `Double(String)` would agree with itself if the platform's
+    /// conversion were the thing that broke.
+    func testTheParserConvertsAFullPrecisionLiteralCorrectly() throws {
+        let document = try read(minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901]}]")).document
+        let at = try XCTUnwrap(document.waypoints?[0].at)
+        XCTAssertEqual(at.lon.bitPattern, Double("-3.6712345678901235")!.bitPattern)
+        XCTAssertEqual(at.lon.bitPattern, 0xc00d_5eb0_3aa8_431e)
+        XCTAssertEqual(at.lat.bitPattern, Double("57.11812345678901")!.bitPattern)
+        XCTAssertEqual(at.lat.bitPattern, 0x404c_8f1e_ab5f_e64e)
+
+        // The shorter spelling is the SAME double, which is why the corpus
+        // sidecar can carry either and why no comparison of values could ever
+        // have caught a one-bit error here.
+        XCTAssertEqual(Double("-3.6712345678901234")!.bitPattern, at.lon.bitPattern)
+    }
+
     func testTheParserAcceptsWhatJSONAllows() throws {
         let result = try read("{\"vnx\":\"0.1.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
         XCTAssertEqual(result.document.generator, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")

@@ -15,17 +15,12 @@ package vnx
 // standard library is a general-purpose writer and the format wants one
 // particular archive.
 //
-// The reader is still archive/zip (container.go), and that is a KNOWN GAP rather
-// than a deliberate asymmetry. It refuses an archive §7 requires it to accept:
-// an entry declaring more bytes than it holds, where the CRC over the bytes
-// present agrees. It reads the declared count, checksums what it read, and so
-// consumes past the payload — detecting the discrepancy and refusing on it,
-// which is exactly what §7 forbids. Pinned by
-// TestOverDeclaredSizeIsRefusedAndSpecSaysAccept, which asserts the
-// non-conforming behaviour on purpose so that a fix goes red and says to delete
-// it. So the hand-written component wants to grow a reader; this file is half of
-// it, and the local-header walk in zipwrite_test.go is the other half already
-// written.
+// The read side is zipread.go, and it is here for a stronger reason than this
+// one: archive/zip cannot READ a conforming archive either. §7 forbids refusing
+// an entry that declares more bytes than it holds where the CRC over the bytes
+// present agrees, and archive/zip reads the declared count, checksums what it
+// read, and refuses. So the pair is ours, and the asymmetry §7 and §7.1 describe
+// lives in the two files rather than in one of them being borrowed.
 //
 // This writer buffers each entry whole. It cannot do otherwise: §7.1 requires
 // the CRC and both sizes IN THE LOCAL HEADER and forbids general purpose bit 3,
@@ -44,12 +39,14 @@ import (
 )
 
 const (
-	sigLocalHeader     = 0x04034b50
-	sigCentralHeader   = 0x02014b50
-	sigEndOfDirectory  = 0x06054b50
-	localHeaderSize    = 30
-	centralHeaderSize  = 46
-	endOfDirectorySize = 22
+	sigLocalHeader         = 0x04034b50
+	sigCentralHeader       = 0x02014b50
+	sigEndOfDirectory      = 0x06054b50
+	sigZip64EndOfDirectory = 0x06064b50
+	sigZip64Locator        = 0x07064b50
+	localHeaderSize        = 30
+	centralHeaderSize      = 46
+	endOfDirectorySize     = 22
 
 	// §7.1's fixed fields, named rather than repeated as literals at the two
 	// places each one is written. A field written twice from one constant cannot

@@ -12,9 +12,7 @@ package vnx_test
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/binary"
 	"errors"
-	"hash/crc32"
 	"io"
 	"strings"
 	"testing"
@@ -177,90 +175,5 @@ func TestAProducerRefusalComesBackUnwrapped(t *testing.T) {
 	err := vnx.WriteContainer(&buf, vnx.RootDocumentName, func(io.Writer) error { return sentinel })
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("WriteContainer returned %v; the producer's own error must survive errors.Is", err)
-	}
-}
-
-// overDeclaringArchive builds a stored archive whose declared sizes exceed the
-// payload, with a CRC that agrees over the bytes actually present. Hand-built,
-// because no committed fixture can carry this: a file in the corpus has a valid
-// stream and a matching CRC by construction.
-func overDeclaringArchive(doc []byte, name string) []byte {
-	crc := crc32.ChecksumIEEE(doc)
-	over := uint32(len(doc)) + 7
-
-	var b bytes.Buffer
-	le := func(v any) { _ = binary.Write(&b, binary.LittleEndian, v) }
-	le(uint32(0x04034b50))
-	le(uint16(10))
-	le(uint16(0x0800))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint16(0x0021))
-	le(crc)
-	le(over)
-	le(over)
-	le(uint16(len(name)))
-	le(uint16(0))
-	b.WriteString(name)
-	b.Write(doc)
-	off := b.Len()
-	le(uint32(0x02014b50))
-	le(uint16(10))
-	le(uint16(10))
-	le(uint16(0x0800))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint16(0x0021))
-	le(crc)
-	le(over)
-	le(over)
-	le(uint16(len(name)))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint32(0))
-	le(uint32(0))
-	b.WriteString(name)
-	end := b.Len()
-	le(uint32(0x06054b50))
-	le(uint16(0))
-	le(uint16(0))
-	le(uint16(1))
-	le(uint16(1))
-	le(uint32(end - off))
-	le(uint32(off))
-	le(uint16(0))
-	return b.Bytes()
-}
-
-// TestOverDeclaredSizeIsRefusedAndSpecSaysAccept pins a gap between this reader
-// and spec §7, deliberately asserting the NON-CONFORMING behaviour so that
-// fixing it turns this red and tells whoever did it to delete the test.
-//
-// ⚠ §7 FORBIDS THE REFUSAL, AND THAT IS THE WHOLE OF WHAT IT ASKS. A reader MUST
-// NOT refuse an entry on the ground that its declared size exceeds the bytes
-// present where the CRC over those bytes agrees, because a size field is not the
-// authority on what an entry contains and the checksum is. It is a prohibition,
-// not an obligation: a reader is not required to DETECT the discrepancy, so one
-// that trusts the declared size and never notices complies with nothing to do,
-// and "the bytes present" never has to be derivable from the archive alone.
-//
-// archive/zip notices and refuses, which is exactly and only what the rule
-// forbids: it reads the DECLARED number of bytes, checksums what it read, and so
-// consumes past the payload and reports "zip: checksum error". That makes it
-// unable to meet §7 on the READ side as well as §7.1 on the write side — it
-// cannot read a conforming archive, which is a stronger claim than the one about
-// writing and the reason the hand-written component wants to be a reader as well
-// as a writer.
-//
-// A conforming WRITER cannot produce this archive, which is why it is hand-built
-// here; a corpus case could carry one, and none does yet.
-func TestOverDeclaredSizeIsRefusedAndSpecSaysAccept(t *testing.T) {
-	raw := overDeclaringArchive([]byte("{\n  \"vnx\": \"0.1.0\"\n}\n"), "doc.vnx")
-	_, _, err := vnx.DecodeContainer(bytes.NewReader(raw), int64(len(raw)))
-	if err == nil {
-		t.Error("this reader now ACCEPTS an over-declared size, which is what §7 requires — " +
-			"delete this test, it exists only to pin the gap")
 	}
 }

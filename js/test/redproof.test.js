@@ -122,8 +122,8 @@ test('transposing lon and lat, invisibly to the byte check, is caught by positio
   const cases = await runMutated([
     {
       file: 'decode.js',
-      from: '  return ctx.position(path, new Position(v.slice()));',
-      to: '  const s = v.slice(); [s[0], s[1]] = [s[1], s[0]];\n  return ctx.position(path, new Position(s));',
+      from: '  return new Position(v.slice());',
+      to: '  const s = v.slice(); [s[0], s[1]] = [s[1], s[0]];\n  return new Position(s);',
     },
     {
       file: 'emit.js',
@@ -139,8 +139,8 @@ test('transposing lon and lat, invisibly to the byte check, is caught by positio
 test('normalising [lon, lat, null] to [lon, lat] in the model breaks the accept tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
-    from: '  return ctx.position(path, new Position(v.slice()));',
-    to: '  const s = v.slice();\n  while (s.length > 2 && s[s.length - 1] === null) s.pop();\n  return ctx.position(path, new Position(s));',
+    from: '  return new Position(v.slice());',
+    to: '  const s = v.slice();\n  while (s.length > 2 && s[s.length - 1] === null) s.pop();\n  return new Position(s);',
   }]);
   assert.deepEqual(await failingDelta(cases), [
     'accept/absent-elevation-and-time.vnx',
@@ -219,15 +219,18 @@ test('answering 0 for an unknown moving time is caught', async () => {
     'accept/absent-elevation-and-time.vnx',
     'accept/track-partly-timed.vnx',
     'accept/track-without-times.vnx',
-    'diagnose/position-unusable.vnx',
   ]);
+  // diagnose/position-unusable.vnx also carries a `tracks` expectation, and is
+  // deliberately NOT here: its moving time is a KNOWN 64000, so a reader that
+  // answers zero for an unknown one still gets it right. It pins the container
+  // rule, not this one.
 });
 
 test('rounding in the reader is caught by the full-precision case', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
-    from: '  return ctx.position(path, new Position(v.slice()));',
-    to: '  const s = v.slice().map((c, i) => (typeof c === \'number\' && i < 2 ? Number(c.toFixed(6)) : c));\n  return ctx.position(path, new Position(s));',
+    from: '  return new Position(v.slice());',
+    to: '  const s = v.slice().map((c, i) => (typeof c === \'number\' && i < 2 ? Number(c.toFixed(6)) : c));\n  return new Position(s);',
   }]);
   const red = await failingDelta(cases);
   assert.ok(red.includes('accept/full-precision-coordinate.vnx'), red.join(', '));

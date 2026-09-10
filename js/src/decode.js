@@ -266,37 +266,42 @@ function data(path, kv, ctx) {
  * wrong would otherwise have to re-derive required-ness from 3.10's table to
  * find out which happened, which is the lookup a code exists to save.
  */
-function position(v, path, ctx, code = 'position-unusable') {
-  if (!Array.isArray(v)) {
-    ctx.diag(path, `a position must be an array, not ${typeName(v)}`, code);
+function position(v, path, ctx, code = 'position-unusable', consequence = 'so it is dropped') {
+  const bad = (why) => {
+    ctx.diag(path, `${why}, ${consequence}`, code);
     return DROP;
-  }
-  if (v.length < 2) {
-    ctx.diag(path, 'a position must carry at least lon and lat', code);
-    return DROP;
-  }
-  if (typeof v[0] !== 'number' || typeof v[1] !== 'number') {
-    ctx.diag(path, 'lon and lat must both be numbers', code);
-    return DROP;
-  }
+  };
+  if (!Array.isArray(v)) return bad(`a position must be an array, not ${typeName(v)}`);
+  if (v.length < 2) return bad(`found ${v.length} channel(s), a position needs at least lon and lat`);
+  if (typeof v[0] !== 'number') return bad(`channel 0 is ${typeName(v[0])}, expected a number`);
+  if (typeof v[1] !== 'number') return bad(`channel 1 is ${typeName(v[1])}, expected a number`);
   for (let i = 2; i < v.length; i++) {
     if (v[i] !== null && typeof v[i] !== 'number') {
-      ctx.diag(path, `channel ${i} must be a number or null`, code);
-      return DROP;
+      return bad(`channel ${i} is ${typeName(v[i])}, expected a number or null`);
     }
   }
-  return ctx.position(path, new Position(v.slice()));
+  return new Position(v.slice());
 }
 
-/** An ordered pip list. A pip that will not parse is dropped, the rest survive. */
+/**
+ * An ordered pip list. A pip that will not parse drops the CONTAINER holding it
+ * — the arc, or the segment — and not the pip (SPEC.md 6.2).
+ *
+ * Geometry is continuous and structure is not. A missing vertex leaves a
+ * shorter, plausible, wrong line with nothing to indicate it, while a missing
+ * arc leaves a gap the continuity rule of 3.3.3 can see and report. The loss is
+ * moved to where something downstream will notice it.
+ */
 function pips(kv, path, ctx) {
   const a = arr('pips', path, kv, true, ctx);
   if (a === DROP) return DROP;
   const out = [];
-  a.forEach((v, i) => {
-    const p = position(v, `${path}/pips/${i}`, ctx);
-    if (p !== DROP) out.push(p);
-  });
+  for (const [i, v] of a.entries()) {
+    const p = position(v, `${path}/pips/${i}`, ctx, 'position-unusable',
+      'so the geometry holding it is dropped');
+    if (p === DROP) return DROP;
+    out.push(p);
+  }
   return out;
 }
 
@@ -369,7 +374,7 @@ function readNetwork(raw, path, ctx) {
   if (nodes !== undefined) {
     n.nodes = new Map();
     for (const key of Object.keys(nodes)) {
-      const p = position(nodes[key], `${path}/nodes/${esc(key)}`, ctx);
+      const p = position(nodes[key], `${path}/nodes/${esc(key)}`, ctx, 'position-unusable', 'so the node is dropped');
       if (p !== DROP) n.nodes.set(key, p);
     }
   }
@@ -459,7 +464,7 @@ function endpoint(k, path, kv, ctx) {
   }
   if (typeof v === 'string') return new Endpoint('node', v);
   if (Array.isArray(v)) {
-    const p = position(v, `${path}/${esc(k)}`, ctx, 'wrong-type-required');
+    const p = position(v, `${path}/${esc(k)}`, ctx, 'wrong-type-required', 'so the link is dropped');
     if (p === DROP) return DROP;
     return new Endpoint('inline', p);
   }
@@ -539,7 +544,7 @@ function readPointLike(raw, path, ctx, topLevel) {
     ctx.diag(path, 'missing required key "at"', 'missing-required-key');
     return DROP;
   }
-  const at = position(kv.at, `${path}/at`, ctx, 'wrong-type-required');
+  const at = position(kv.at, `${path}/at`, ctx, 'wrong-type-required', 'so the item is dropped');
   if (at === DROP) return DROP;
   w.at = at;
   w.name = str('name', path, kv, false, ctx);
@@ -573,7 +578,7 @@ function readArea(raw, path, ctx, topLevel) {
   }
   const vertices = [];
   for (let i = 0; i < ring.length; i++) {
-    const v = position(ring[i], `${p}/${i}`, ctx);
+    const v = position(ring[i], `${p}/${i}`, ctx, 'position-unusable', 'so the item is dropped');
     if (v === DROP) return DROP;
     vertices.push(v);
   }
@@ -630,12 +635,28 @@ function resolveNetwork(network, ctx) {
 
   // SPEC.md 6.2: an arc naming a node that is not in its network keeps the arc.
   // Its geometry is real.
+  //
+  // SPEC.md 3.3.2: the first pip states the position of the node `from` names
+  // and the last states `to`'s, so the two are one fact written twice. Where
+  // they disagree THE PIPS ARE AUTHORITATIVE, and the reader keeps both and
+  // reports it — beyond the same 50 m of Section 3.3.3, deliberately the same
+  // threshold, because it is the same question about a different pair.
   for (const [key, arc] of arcs) {
-    for (const which of ['from', 'to']) {
-      if (!nodes.has(arc[which])) {
+    for (const [which, pip] of [['from', arc.pips[0]], ['to', arc.pips[arc.pips.length - 1]]]) {
+      const node = nodes.get(arc[which]);
+      if (node === undefined) {
         ctx.diag(`${ctx.paths.get(arc)}/${which}`,
           `"${which}" names node ${JSON.stringify(arc[which])}, which is not in this network`,
           'arc-node-absent');
+        continue;
+      }
+      if (pip === undefined) continue;
+      const distance = distanceToPolylineM(pip, [node]);
+      if (distance !== null && distance > PROJECTION_TOLERANCE_M) {
+        ctx.diag(`${ctx.paths.get(arc)}/${which}`,
+          `node ${JSON.stringify(arc[which])} is ${distance.toFixed(0)} m from the ` +
+          `${which === 'from' ? 'first' : 'last'} pip, beyond the 50 m tolerance`,
+          'terminal-pip-off-node');
       }
     }
   }

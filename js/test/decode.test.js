@@ -118,12 +118,42 @@ test('an unusable position drops its element and diagnoses', () => {
   assert.equal(diagnostics[0].path, '/waypoints/0/at');
 });
 
-test('a pip that will not parse is dropped and the rest of the list survives', () => {
+test('a pip that will not parse drops the SEGMENT, not the pip', () => {
+  // SPEC.md 6.2: geometry is continuous and structure is not. Dropping the pip
+  // would leave a shorter, plausible, wrong line with nothing to indicate it;
+  // dropping the segment moves the loss somewhere a consumer can see.
   const { document, diagnostics } = decodeText(doc({
-    tracks: [{ segments: [{ pips: [[1, 2], ['x', 2], [3, 4]] }] }],
+    tracks: [{
+      name: 't',
+      segments: [
+        { pips: [[1, 2, 0, 1000], ['x', 2], [3, 4, 0, 9000]] },
+        { pips: [[1, 2, 0, 1000], [3, 4, 0, 4000]] },
+      ],
+    }],
   }));
-  assert.equal(document.tracks[0].segments[0].pips.length, 2);
-  assert.equal(diagnostics[0].path, '/tracks/0/segments/0/pips/1');
+  assert.equal(document.tracks.length, 1, 'the track survives');
+  assert.equal(document.tracks[0].segments.length, 1, 'the bad segment is gone');
+  // Moving time is the only thing that separates the two readings: dropping the
+  // pip would keep segment 0 and answer 11000.
+  assert.equal(document.tracks[0].movingTimeMs(), 3000);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
+    [['/tracks/0/segments/0/pips/1', 'position-unusable']]);
+});
+
+test('a pip that will not parse drops the ARC, and the link naming it then goes too', () => {
+  // The cascade is the second discriminator: no sidecar field counts a
+  // network's arcs, so `link-arc-absent` is what proves the arc left.
+  const { document, diagnostics } = decodeText(doc({
+    networks: [{
+      nodes: { n1: [1, 2], n2: [3, 4] },
+      arcs: { broken: { from: 'n1', to: 'n2', pips: [[1, 2], [null, 3], [3, 4]] } },
+      chains: [{ links: [{ arc: 'broken', from: 'n1', to: 'n2' }] }],
+    }],
+  }));
+  assert.equal(document.networks[0].arcs.size, 0, 'the arc is gone');
+  assert.equal(document.networks[0].chains[0].links.length, 0, 'and the link with it');
+  assert.deepEqual(diagnostics.map((d) => d.code).sort(),
+    ['link-arc-absent', 'position-unusable']);
 });
 
 // --- SPEC.md 6.2 ------------------------------------------------------------
@@ -336,7 +366,16 @@ test('an empty collection is distinct from an absent one', () => {
 const chainDoc = (nodes, links) => doc({
   networks: [{
     nodes,
-    arcs: { a: { from: Object.keys(nodes)[0], to: Object.keys(nodes)[0], pips: Object.values(nodes) } },
+    // `from` and `to` must match the first and last pip: SPEC.md 3.3.2 makes an
+    // arc's terminal pips the positions of its nodes, and a disagreement beyond
+    // 50 m is a diagnostic these cases are not about.
+    arcs: {
+      a: {
+        from: Object.keys(nodes)[0],
+        to: Object.keys(nodes)[Object.keys(nodes).length - 1],
+        pips: Object.values(nodes),
+      },
+    },
     chains: [{ links: links.map((l) => ({ arc: 'a', ...l })) }],
   }],
 });
@@ -420,22 +459,53 @@ test('a wrong-typed position distinguishes a lost field from a lost item', () =>
   ]);
 });
 
-test('a position that is an ELEMENT keeps position-unusable, because the item lives', () => {
-  // The distinction is about a required KEY, not about any position that will
-  // not parse. A bad pip leaves the arc alive, so it is a different fact.
+test('a position that is an ELEMENT keeps position-unusable even though its container goes', () => {
+  // The code distinguishes a WRONG-TYPED KEY from an unusable position, and
+  // that boundary is unchanged by the container rule: `at` is a key, a pip is
+  // an element. What changed is which thing is dropped, not which fact is
+  // reported — the code names the fault, the remedy is SPEC.md 6.2's.
   const { document, diagnostics } = decodeText(doc({
     tracks: [{ name: 't', segments: [{ pips: [[1, 2], 'nope', [3, 4]] }] }],
   }));
-  assert.equal(document.tracks[0].segments[0].pips.length, 2);
+  assert.equal(document.tracks[0].segments.length, 0);
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
     [['/tracks/0/segments/0/pips/1', 'position-unusable']]);
 });
 
-test('a link endpoint that will not parse drops the link, and says so', () => {
+test('a terminal pip further than 50 m from its node is reported, and both are kept', () => {
+  // SPEC.md 3.3.2: the two are one fact written twice and THE PIPS ARE
+  // AUTHORITATIVE, so the arc and the node both survive and the disagreement is
+  // reported. Same 50 m as 3.3.3, deliberately.
   const { document, diagnostics } = decodeText(doc({
     networks: [{
-      nodes: { a: [1, 2] },
-      arcs: { x: { from: 'a', to: 'a', pips: [[1, 2], [3, 4]] } },
+      nodes: { n1: [-3.68, 57.1209], n2: [-3.66, 57.1] },
+      arcs: { drifted: { from: 'n1', to: 'n2', pips: [[-3.68, 57.12], [-3.66, 57.1]] } },
+    }],
+  }));
+  assert.equal(document.networks[0].arcs.size, 1, 'the arc is kept');
+  assert.equal(document.networks[0].nodes.size, 2, 'and so is the node');
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
+    [['/networks/0/arcs/drifted/from', 'terminal-pip-off-node']]);
+});
+
+test('a terminal pip within the tolerance is silent', () => {
+  const { diagnostics } = decodeText(doc({
+    networks: [{
+      nodes: { n1: [-3.68, 57.1203], n2: [-3.66, 57.1] },
+      arcs: { close: { from: 'n1', to: 'n2', pips: [[-3.68, 57.12], [-3.66, 57.1]] } },
+    }],
+  }));
+  assert.deepEqual(diagnostics, []);
+});
+
+test('a link endpoint that will not parse drops the link, and says so', () => {
+  // The arc's `to` is `b` rather than `a`: with both ends naming one node the
+  // last pip is 314 km from it, and SPEC.md 3.3.2's terminal-pip check fires —
+  // a real diagnostic about a defect this case is not about.
+  const { document, diagnostics } = decodeText(doc({
+    networks: [{
+      nodes: { a: [1, 2], b: [3, 4] },
+      arcs: { x: { from: 'a', to: 'b', pips: [[1, 2], [3, 4]] } },
       chains: [{ links: [{ arc: 'x', from: 'a', to: [1] }] }],
     }],
   }));

@@ -1105,8 +1105,11 @@ class ContainerCompression(unittest.TestCase):
         self.assertEqual(result.attachments, [])
         self.assertEqual(len(result.diagnostics), 1)
         self.assertIn("attachments/photo.txt", result.diagnostics[0].message)
-        self.assertIsNone(
-            result.diagnostics[0].code, "no corpus case pins this diagnostic"
+        self.assertEqual(result.diagnostics[0].code, "attachment-unreadable")
+        # SPEC 6.3's separate `#/entries/` space, with the entry name as ONE
+        # reference token -- so the slash inside it is escaped.
+        self.assertEqual(
+            result.diagnostics[0].path, "#/entries/attachments~1photo.txt"
         )
         self.assertIsNotNone(result.document)
 

@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from .decode import ReadResult, read_bytes
+from .pointer import escape as escape_token
 from .encode import reformat_bytes
 from .writer import encode_bytes
 from .errors import Diagnostic, VNXRefusal
@@ -65,12 +66,98 @@ def _check_path(name: str) -> None:
         raise VNXRefusal(f"{name!r} escapes the archive: a `..` path segment")
 
 
+def _entry_pointer(name: str) -> str:
+    """SPEC 6.3's `#/entries/` space, where a diagnostic about an ENTRY lives.
+
+    An archive entry is not part of the document, so no pointer into the
+    document can locate one.
+
+    The member name is ONE RFC 6901 reference token, and the escaping ORDER
+    decides the answer: ``~`` becomes ``~0`` before ``/`` becomes ``~1``.
+    Reversed, the second pass escapes the ``~1`` the first pass just wrote, so
+    ``photos/a~b.jpg`` comes out ``photos~01a~0b.jpg``.  An attachment name is
+    the one place in this format where a member name routinely holds a slash.
+    """
+    return "#/entries/" + escape_token(name)
+
+
+def _bound_declared_sizes(data: bytes, archive: zipfile.ZipFile) -> None:
+    """Hold every declared size down to the bytes that are actually there.
+
+    SPEC 7 makes an entry's declared size a CEILING rather than a length: a
+    reader MUST NOT refuse an entry that declares more bytes than it holds where
+    the CRC over the bytes present agrees.  ``zipfile`` reads the declared count
+    and refuses the overrun as ``Overlapped entries (possible zip bomb)`` -- it
+    detects the discrepancy and refuses on it, which is what the rule forbids.
+
+    The bound on a payload is the nearest FOLLOWING local header, or the central
+    directory where there is none.  Both come from the archive itself, so the
+    correction needs nothing from ``zipfile``'s internals.
+
+    A size declared SHORT is left alone: the CRC over too few bytes disagrees,
+    so the same check catches it and no size comparison is needed either way.
+    """
+    directory_at = _central_directory_offset(data)
+    starts = sorted(info.header_offset for info in archive.infolist())
+    for info in archive.infolist():
+        payload_at = _payload_offset(data, info)
+        if payload_at is None:
+            continue
+        following = [start for start in starts if start > info.header_offset]
+        bound = following[0] if following else directory_at
+        if bound is None or payload_at > bound:
+            continue
+        available = bound - payload_at
+        if info.compress_size <= available:
+            continue
+        info.compress_size = available
+        if info.compress_type == zipfile.ZIP_STORED:
+            # A stored entry's two sizes are one quantity by definition.
+            info.file_size = available
+
+
+def _payload_offset(data: bytes, info: zipfile.ZipInfo) -> Union[int, None]:
+    """Where an entry's payload starts, from its LOCAL header.
+
+    The local header carries its own name and extra lengths, which are different
+    fields from the central directory's and may legitimately disagree with them.
+    """
+    at = info.header_offset
+    if len(data) < at + 30 or data[at:at + 4] != b"PK\x03\x04":
+        return None
+    name_len = int.from_bytes(data[at + 26:at + 28], "little")
+    extra_len = int.from_bytes(data[at + 28:at + 30], "little")
+    return at + 30 + name_len + extra_len
+
+
+def _central_directory_offset(data: bytes) -> Union[int, None]:
+    """The end-of-central-directory record's offset field.
+
+    Found by scanning backwards for the signature and requiring the comment
+    length to account for exactly the bytes after the record -- which is what
+    tells a real record from the same four bytes inside a stored payload.
+    """
+    end = len(data) - 22
+    earliest = max(0, len(data) - 22 - 0xFFFF)
+    while end >= earliest:
+        if data[end:end + 4] == b"PK\x05\x06":
+            comment_len = int.from_bytes(data[end + 20:end + 22], "little")
+            if end + 22 + comment_len == len(data):
+                offset = int.from_bytes(data[end + 16:end + 20], "little")
+                if offset != 0xFFFFFFFF:
+                    return offset
+                return None
+        end -= 1
+    return None
+
+
 def read_container_bytes(data: bytes) -> ContainerReadResult:
     """Read a ``.vnz``.  Raises :class:`VNXRefusal`."""
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile as exc:
         raise VNXRefusal(f"not a readable VNZ container: {exc}") from exc
+    _bound_declared_sizes(data, archive)
 
     names = [info.filename for info in archive.infolist()]
 
@@ -142,32 +229,21 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
             f"the root document {document_name!r} will not decompress: {exc}"
         ) from exc
 
-    # SPEC 7 ACCEPTS an entry whose declared size exceeds what it holds, and
-    # this reader deliberately does not check it (ruled 2026-09-10).  The CRC is
-    # the check with teeth: the stream ended, the checksum over what arrived
-    # agrees, so the bytes are complete and a size field that disagrees adds
-    # nothing the CRC has not already established.
-    #
-    # Nor is there a size rule to be consistent with.  A size SHORTER than the
-    # data is refused above -- but by the CRC, not by any comparison of sizes,
-    # so refusing short while accepting long is not the asymmetry it looks.
-    # And a diagnostic is not available either: SPEC 6.3 gives a code to a
-    # diagnostic some case pins, and no fixture can reach this, because a
-    # committed archive has a valid stream and a matching CRC.
+    # SPEC 7 ACCEPTS an entry whose declared size exceeds what it holds.  The
+    # declared size is bounded to what is there by `_bound_declared_sizes`
+    # above, before any entry is read, and the CRC is left as the check with
+    # teeth: the stream ended, the checksum over what arrived agrees, so the
+    # bytes are complete.  A size declared SHORT needs nothing of its own --
+    # the same CRC catches it.
     result: ReadResult = read_bytes(body)
     diagnostics = list(result.diagnostics)
     for name in sorted(unreadable):
-        # SPEC 6.3 shapes a diagnostic's path as a JSON Pointer into the
-        # document, and an archive entry is not in the document, so the pointer
-        # addresses the document as a whole and the message names the entry.
-        # No corpus case pins this diagnostic, so it carries no code: SPEC 6.3
-        # permits that, and inventing a token no case pins would commit the wire
-        # to one this format has not chosen.
         diagnostics.append(
             Diagnostic(
-                "",
+                _entry_pointer(name),
                 f"attachment {name!r} uses a compression method that is not "
                 "stored or deflate, and was dropped",
+                "attachment-unreadable",
             )
         )
     attachments = [

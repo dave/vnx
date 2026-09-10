@@ -212,9 +212,19 @@ class LyingHeaders(unittest.TestCase):
             "the lie is too small to prove anything",
         )
 
-    def test_a_lying_compressed_size_is_refused(self) -> None:
-        with self.assertRaises(vnx.VNXRefusal):
-            vnx.read_container_bytes(self.rewritten(compressed=self.LIE))
+    def test_an_over_declared_compressed_size_is_READ(self) -> None:
+        """SPEC 7 FORBIDS refusing this, and this test used to require it.
+
+        The declared size is a ceiling, not a length: an entry declaring more
+        bytes than it holds is read as the bytes that are there, bounded by the
+        next local header or the central directory, and the CRC decides whether
+        that was the whole payload.  `corpus/accept/container-over-declared-size`
+        pins the rule; this pins the extreme of it, which no committed archive
+        can carry.
+        """
+        result = vnx.read_container_bytes(self.rewritten(compressed=self.LIE))
+        self.assertEqual(result.document_name, "doc.vnx")
+        self.assertEqual(result.diagnostics, [])
 
     def test_a_short_declared_size_is_refused(self) -> None:
         with self.assertRaises(vnx.VNXRefusal):

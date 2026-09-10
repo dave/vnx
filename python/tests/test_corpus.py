@@ -373,8 +373,44 @@ class WriteTier(unittest.TestCase):
         pairs = []
         for source in sorted(directory.glob("*.in.vnx")):
             stem = source.name[: -len(".in.vnx")]
+            if (directory / f"{stem}.attachments.json").is_file():
+                # A case carrying an attachment manifest writes a CONTAINER, so
+                # its expected output is an archive.  See
+                # `corpus/write/README.md`.
+                continue
             pairs.append((source, directory / f"{stem}.written.vnx"))
         return pairs
+
+    def _container_cases(
+        self,
+    ) -> list[tuple[pathlib.Path, pathlib.Path, pathlib.Path]]:
+        directory = CORPUS / "write"
+        if not directory.is_dir():
+            return []
+        cases = []
+        for manifest in sorted(directory.glob("*.attachments.json")):
+            stem = manifest.name[: -len(".attachments.json")]
+            cases.append(
+                (
+                    directory / f"{stem}.in.vnx",
+                    manifest,
+                    directory / f"{stem}.written.vnz",
+                )
+            )
+        return cases
+
+    @staticmethod
+    def _manifest(path: pathlib.Path) -> dict[str, bytes]:
+        """The manifest's attachments, in the order it lists them.
+
+        They are in a manifest rather than in real files beside the sidecar
+        because one name holds U+1F600, and a filename is subject to the
+        checkout filesystem's Unicode normalisation and case folding -- so a
+        checked-out file could arrive under a name that is not the one the case
+        means, and the fixture would test the filesystem.
+        """
+        listed = json.loads(path.read_text())["attachments"]
+        return {a["name"]: a["body"].encode("utf-8") for a in listed}
 
     def test_every_input_has_its_written_bytes_and_sidecar(self) -> None:
         pairs = self._pairs()
@@ -412,6 +448,59 @@ class WriteTier(unittest.TestCase):
             with self.subTest(case=written.name):
                 document = vnx.read_bytes(written.read_bytes()).document
                 self.assertEqual(vnx.encode_bytes(document), written.read_bytes())
+
+    def test_every_container_case_has_its_archive_and_sidecar(self) -> None:
+        cases = self._container_cases()
+        self.assertTrue(cases, "write/ holds no container case")
+        for source, manifest, written in cases:
+            stem = source.name[: -len(".in.vnx")]
+            self.assertTrue(source.is_file(), f"{manifest.name} has no input")
+            self.assertTrue(written.is_file(), f"{source.name} has no written archive")
+            sidecar = CORPUS / "write" / f"{stem}.expect.json"
+            self.assertTrue(sidecar.is_file(), f"{source.name} has no sidecar")
+            expect = json.loads(sidecar.read_text())
+            self.assertEqual(expect.get("kind"), "write")
+            self.assertEqual(
+                expect.get("root"),
+                "doc.vnx",
+                "this runner writes the document as doc.vnx",
+            )
+
+    def test_the_writer_emits_the_written_archive(self) -> None:
+        """The attachments are fed REVERSED, deliberately.
+
+        SPEC 7.1 makes the writer sort its own entries by code point, so a
+        writer that kept the order it was handed must fail here.  Feeding them
+        in manifest order lets it pass.
+        """
+        for source, manifest, written in self._container_cases():
+            with self.subTest(case=source.name):
+                attachments = self._manifest(manifest)
+                reversed_order = dict(reversed(list(attachments.items())))
+                try:
+                    document = vnx.read_bytes(source.read_bytes()).document
+                    got = vnx.encode_container_bytes(document, reversed_order)
+                except vnx.VNXRefusal as refusal:
+                    self.fail(f"{source.name} was refused: {refusal}")
+                self.assertEqual(got, written.read_bytes())
+
+    def test_the_container_input_is_not_already_the_written_form(self) -> None:
+        for source, _, written in self._container_cases():
+            with self.subTest(case=source.name):
+                self.assertNotEqual(source.read_bytes(), written.read_bytes())
+
+    def test_the_written_archive_is_a_fixed_point(self) -> None:
+        for _, manifest, written in self._container_cases():
+            with self.subTest(case=written.name):
+                read = vnx.read_container_bytes(written.read_bytes())
+                self.assertEqual(read.diagnostics, [])
+                self.assertEqual(
+                    read.attachments, sorted(self._manifest(manifest)),
+                )
+                again = vnx.encode_container_bytes(
+                    read.document, self._manifest(manifest)
+                )
+                self.assertEqual(again, written.read_bytes())
 
 
 class FormatTier(unittest.TestCase):

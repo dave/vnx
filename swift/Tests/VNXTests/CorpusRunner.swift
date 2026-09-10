@@ -46,11 +46,9 @@ enum Corpus {
         return names.sorted()
             .filter { $0.hasSuffix(".vnx") || $0.hasSuffix(".vnz") }
             // `write/` is a pair tier: its halves are named `X.in.vnx` and
-            // `X.written.vnx`, and neither half is a case on its own. The
-            // `format/` tier is no longer read, and its fixtures stay on disk
-            // until the corpus itself drops them.
-            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".canonical.vnx")
-                      && !$0.hasSuffix(".written.vnx") && !$0.hasSuffix(".written.vnz") }
+            // `X.written.vnx`, and neither half is a case on its own.
+            .filter { !$0.hasSuffix(".in.vnx") && !$0.hasSuffix(".written.vnx")
+                      && !$0.hasSuffix(".written.vnz") }
             .map { directory.appendingPathComponent($0) }
     }
 
@@ -58,10 +56,6 @@ enum Corpus {
     struct Sidecar {
         let kind: String
         let note: String
-        /// SPEC 8.2's per-case schema verdict. Recorded, and used only for
-        /// the one direction a reader can check (`not-json`); this library
-        /// carries no JSON Schema validator.
-        let schema: String?
         let counts: [String: Int]?
         let positions: [(pointer: String, lon: Double, lat: Double)]
         let tracks: [(name: String, movingTimeMilliseconds: Double?)]
@@ -96,7 +90,6 @@ enum Corpus {
             guard let note = o["note"]?.stringValue else { throw SidecarError("no `note` in \(url.lastPathComponent)") }
             self.kind = kind
             self.note = note
-            self.schema = o["schema"]?.stringValue
             if let c = o["counts"]?.objectValue {
                 self.counts = c.compactMapValues { $0.numberValue.map(Int.init) }
             } else {

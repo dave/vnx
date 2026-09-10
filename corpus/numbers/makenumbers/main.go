@@ -1,41 +1,34 @@
 // Command makenumbers generates numbers.tsv, the number-conformance table.
 //
-// The table answers three questions per double, and every VNX implementation
-// must give the same three answers:
+// The table answers two questions per double, and every VNX implementation must
+// give the same two answers:
 //
-//	render  the canonical spelling of the value            (SPEC 4.5.3)
-//	round6  the canonical spelling after rounding to 6 dp  (SPEC 4.5.4, lon/lat)
-//	round1  the canonical spelling after rounding to 1 dp  (SPEC 4.5.4, elevation)
+//	round6  the value after rounding to 6 decimal places  (SPEC 4.1, lon/lat)
+//	round1  the value after rounding to 1 decimal place   (SPEC 4.1, elevation)
 //
-// The answers come from Go's encoding/json and strconv, which SPEC 4.5.3 names
-// as the reference alongside JavaScript. Generating them from anything else
-// would be an implementation marking its own homework.
+// The answers come from Go's strconv, which rounds correctly and breaks a tie
+// to even. Generating them from anything else would be an implementation
+// marking its own homework.
 //
-// # Why a table and not more fixtures
+// # What the table is for
 //
-// A fixture pins a rule at one value. format/number-tie does that for the
-// rendering tie and write/emit-boundary does it for the rounding tie. This table
-// says the rules hold across the whole binary64 range: every exponent boundary
-// of SPEC 4.5.3, both tie families, and a negative zero a writer creates by
-// rounding towards it. A fixture says what the answer is; a table says the
-// answer is not a coincidence.
+// It tests an OPERATION, not a spelling. How a number is written is the
+// writer's own business, so the answer columns are read as values: a runner
+// parses each column and compares bit patterns.
 //
-// Measured 2026-09-09, both rules are live disagreements between real
-// implementations:
+// A fixture pins a rule at one value; write/emit-boundary does that for the
+// rounding tie. This table pins the rule over a chosen set of values, each of
+// which separates a wrong rule from the right one:
 //
-//	render: 1.4978982117220732e15 is 1497898211722073.2 in V8 and Go,
-//	        and ...73.3 if a tie rounds away from zero.
-//	round1: 340.25 is 340.2 in Go and Python, and 340.3 in JavaScript's
-//	        toFixed. Any quarter-metre elevation is such a value.
+//   - the two directions of a tie, at one place and at six;
+//   - rounding against the double against scaling by a power of ten first;
+//   - a negative zero a writer CREATES by rounding towards it, which no
+//     document fixture can hand it.
 //
-// Usage, from this directory:
+// Every value here is chosen, and the guards below refuse to write a table in
+// which a category stops discriminating. Usage, from this directory:
 //
-//	go run ./makenumbers            # the committed table
-//	go run ./makenumbers -sample 300000 -out deep.tsv
-//
-// The committed table is deliberately small enough to read and to diff. The
-// -sample flag is the deep check: 460,007 doubles were compared this way on
-// 2026-09-09 to settle the rendering rule.
+//	go run ./makenumbers
 package main
 
 import (
@@ -46,7 +39,6 @@ import (
 	"log"
 	"math"
 	"math/big"
-	"math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -54,8 +46,6 @@ import (
 )
 
 func main() {
-	sample := flag.Int("sample", 2000, "uniform random doubles to include")
-	seed := flag.Int64("seed", 20260909, "seed, so the table is reproducible")
 	out := flag.String("out", "numbers.tsv", "output path")
 	flag.Parse()
 
@@ -64,132 +54,90 @@ func main() {
 	add := func(kind string, values ...float64) {
 		for _, v := range values {
 			if math.IsNaN(v) || math.IsInf(v, 0) {
-				continue
+				log.Fatalf("%v has no rounding to state", v)
 			}
 			rows = append(rows, makeRow(v, kind))
 			counts[kind]++
 		}
 	}
 
-	// 1. Every value SPEC 4.5.3, SPEC 4.5.6 and the corpus name.
+	// 1. Real coordinates and elevations, of the shape the format carries.
 	add("named",
-		340, 0.000001, 1e-7, 1778914991000, 1e21, -3.6712345678901235,
-		57.118, -3.6712, 57.1201, -3.675, 0.9, 0.25, 512.5, 352.4,
+		-3.6712345678901235, 57.11812345678901, -3.6712, 57.1201, -3.675,
+		340, 512.5, 352.4,
 	)
 
-	// 1b. Values that separate the two ways of rounding to a decimal place, at
-	//     the magnitudes the format actually carries.
-	//
-	// SPEC 4.5.4 defines the rounded value as a RESULT — the value with that
-	// many places nearest the double — and says that multiplying by 10^n,
-	// rounding, and dividing back is a different operation. The scaled product
-	// is itself a binary64, so the multiplication can manufacture a tie the true
-	// decimal never had and destroy one it did.
-	//
-	// ⚠ WITHOUT THIS CATEGORY THE TABLE MISSES THAT ENTIRELY BELOW 1e9.
-	// Measured over the committed table: 161 rows separate the two routes and
-	// EVERY ONE of them is above 1e9, while the argument SPEC 4.5.4 makes is
-	// about quarter-metre elevations and six-place coordinates. An
-	// implementation whose scaling route was guarded at large magnitudes — a
-	// plausible thing to write — passed the whole table and still emitted 0.2
-	// for an elevation of 0.15. The instrument caught the defect only where
-	// nobody meets it.
-	//
-	// The elevations are the seven SPEC 4.5.4 names plus two the format's own
-	// fixtures use; the coordinates are valid longitudes and latitudes found by
-	// search, since no round number of degrees separates the routes.
-	add("scaling-route",
-		0.15, 0.05, 1.05, 0.45, 1.85, 0.95, 340.15, 512.45,
-		-154.8520475, 27.7570615, -125.2855675, 28.7622735, -9.3245985, 23.8828405,
-	)
-
-	// 2. Boundaries: the exponent switch points of SPEC 4.5.3, the extremes of
-	//    binary64, and the powers of ten either side of both.
+	// 2. The ends of each range, and zero. A coordinate runs to 180 and 90; an
+	//    elevation runs from the lowest dry land to the highest summit. 1e-6 is
+	//    the smallest coordinate the six-place rule keeps and 1e-7 the largest
+	//    it discards.
 	add("boundary",
-		1e20, 1e21, 1e22, 1e-5, 1e-6, 1e-7, 1e-8,
-		math.MaxFloat64, math.SmallestNonzeroFloat64, 2.2250738585072014e-308,
-		math.Float64frombits(0x0010000000000000), math.Float64frombits(0x000fffffffffffff),
-		9007199254740991, 9007199254740992, 9007199254740993,
+		0, 180, -180, 90, -90, 8848.9, -430.5, 0.000001, 1e-7,
 	)
-	for e := -30; e <= 30; e++ {
-		add("boundary", math.Pow(10, float64(e)))
-	}
 
-	// 3. Negative values that collapse to zero once rounded. SPEC 4.5.3 requires
-	//    negative zero to render as `0`, and a writer reaches it by ROUNDING
-	//    rather than by being handed one — which is a path no fixture takes.
+	// 3. Negative values that collapse to zero once rounded. A writer reaches
+	//    negative zero by ROUNDING towards it, which is a path no document
+	//    fixture takes, and 4.1 requires the sign to be normalised away.
+	//
+	// ⚠ THE LAST ROW IS THE ONLY INSTRUMENT LEFT FOR THAT RULE. A tree
+	// comparison is by value, and -0 and 0 are the same value, so no document
+	// tier can see a negative zero at all. This table compares bit patterns.
 	add("negative-zero", -1e-9, -4e-7, -0.04, -0.0000004999, math.Copysign(0, -1))
 
-	// 4. Rendering ties: values with two equally short spellings that both
-	//    round-trip. This is the discriminating set for SPEC 4.5.3.
-	r := rand.New(rand.NewSource(*seed))
-	for found := 0; found < 60; {
-		v := math.Float64frombits(r.Uint64())
-		if math.IsNaN(v) || math.IsInf(v, 0) || v == 0 {
-			continue
-		}
-		if isRenderTie(v) {
-			add("render-tie", v)
-			found++
-		}
-	}
+	// 4. Rounding ties at 1 decimal place, in both directions. The exact
+	//    halfway values are the odd quarters, so any quarter-metre elevation.
+	//    340.25 rounds down and 340.75 rounds up, and it takes the pair: a
+	//    table carrying one of them leaves two wrong rules passing.
+	add("round1-tie", 0.25, -0.25, 340.25, 340.75, -340.75, 1296.75)
 
-	// 5. Rounding ties at 1 decimal place: the exact halfway values are the odd
-	//    quarters, which is every quarter-metre elevation.
-	for i := 1; i <= 40; i += 2 {
-		add("round1-tie", float64(i)/4, -float64(i)/4, 340+float64(i)/4, 1296+float64(i)/4)
-	}
+	// 5. Rounding ties at 6 decimal places, in both directions. The exact
+	//    halfway values are the odd multiples of 1/128, because 5e-7 is not a
+	//    dyadic rational and j/128 is the only family whose exact expansion
+	//    ends in a 5 at the seventh place.
+	add("round6-tie",
+		1.0/128, -1.0/128, 3.0/128, -3.0/128, 5.0/128,
+		57+1.0/128, -3+1.0/128, 340+3.0/128,
+	)
 
-	// 6. Rounding ties at 6 decimal places: the exact halfway values are the odd
-	//    multiples of 1/128, since 5e-7 is not a dyadic rational and j/128 is the
-	//    only family whose exact expansion ends in a 5 at the seventh place.
-	for i := 1; i <= 40; i += 2 {
-		add("round6-tie", float64(i)/128, -float64(i)/128, -3+float64(i)/128, 57+float64(i)/128)
-	}
-
-	// 7. A uniform random sample over the whole double range, as the safety net
-	//    for whatever the categories above did not think of.
-	for found := 0; found < *sample; {
-		v := math.Float64frombits(r.Uint64())
-		if math.IsNaN(v) || math.IsInf(v, 0) || v == 0 {
-			continue
-		}
-		add("uniform", v)
-		found++
-	}
-
-	// 8. A sample from the ranges this format actually carries, where a defect
-	//    reaches a user rather than a test.
-	for i := 0; i < 750; i++ {
-		add("in-range",
-			r.Float64()*360-180,               // longitude
-			r.Float64()*180-90,                // latitude
-			r.Float64()*9500-500,              // elevation
-			math.Trunc(r.Float64()*2e12+1e12), // epoch milliseconds
-		)
-	}
+	// 6. Values that separate the two ways of rounding to a decimal place, at
+	//    the magnitudes the format carries.
+	//
+	// SPEC 4.1 defines the rounded value as a RESULT — the value with that many
+	// places nearest the double — and multiplying by 10^n, rounding, and
+	// dividing back is a different operation. The scaled product is itself a
+	// binary64, so the multiplication can manufacture a tie the true decimal
+	// never had and destroy one it did. 0.15 is the value to put in front of
+	// anyone who thinks this is a corner case: it is nearest 0.1, the scaling
+	// route gives 0.2, and it is a tie under neither.
+	//
+	// The elevations are the seven values 4.1 argues from plus two the format's
+	// own fixtures use; the coordinates are valid longitudes and latitudes
+	// found by search, since no round number of degrees separates the routes.
+	add("scaling-route",
+		0.15, 0.05, 1.05, 0.45, 1.85, 0.95, 340.15, 512.45,
+		-154.8520475, 27.7570615, -125.2855675, 28.7622735,
+	)
 
 	// The table is worthless if a category came out empty, and an empty category
 	// is exactly the failure that would not announce itself.
-	for _, kind := range []string{"named", "boundary", "negative-zero", "render-tie", "round1-tie", "round6-tie", "scaling-route", "uniform", "in-range"} {
+	for _, kind := range []string{"named", "boundary", "negative-zero", "round1-tie", "round6-tie", "scaling-route"} {
 		if counts[kind] == 0 {
 			log.Fatalf("category %q is empty, so the table does not discriminate what it claims to", kind)
 		}
 	}
-	// And a tie category that does not actually differ from rounding away from
-	// zero would be a category in name only.
 	assertDiscriminates(rows)
 	assertCatchesScalingRoute(rows)
+	assertReachesNegativeZero(rows)
 
-	write(*out, rows, counts, *seed, *sample)
+	write(*out, rows, counts)
 	log.Printf("wrote %s: %d rows %v", *out, len(rows), counts)
 }
 
 type row struct {
-	bits                   uint64
-	value                  float64
-	kind                   string
-	render, round6, round1 string
+	bits           uint64
+	value          float64
+	kind           string
+	round6, round1 string
 }
 
 func makeRow(v float64, kind string) row {
@@ -197,16 +145,16 @@ func makeRow(v float64, kind string) row {
 		bits:   math.Float64bits(v),
 		value:  v,
 		kind:   kind,
-		render: canonical(v),
-		round6: canonical(roundHalfEven(v, 6)),
-		round1: canonical(roundHalfEven(v, 1)),
+		round6: spell(roundHalfEven(v, 6)),
+		round1: spell(roundHalfEven(v, 1)),
 	}
 }
 
-// canonical renders a double as SPEC 4.5.3 requires: ECMAScript
-// Number::toString, which is what encoding/json emits, with negative zero
-// collapsed to `0` — the one correction the spec names against Go.
-func canonical(v float64) string {
+// spell writes the answer as decimal text a runner parses back to a double. The
+// text is a carrier and not an expectation: the comparison is over the value.
+// Negative zero is written as `0` because 4.1 normalises the sign away, and a
+// runner comparing bit patterns is what checks that it did.
+func spell(v float64) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		log.Fatalf("marshalling %v: %v", v, err)
@@ -248,102 +196,20 @@ func roundHalfAwayFromZero(v float64, places int) string {
 	n := new(big.Int).Quo(scaled.Num(), scaled.Denom())
 	result := new(big.Rat).SetFrac(n, scale.Num())
 	f, _ := result.Float64()
-	return canonical(f)
+	return spell(f)
 }
 
-// isRenderTie reports whether the choice of tie rule is VISIBLE for v: whether
-// the shortest round-tripping decimal computed with ties-to-even differs from
-// the one computed with ties-away-from-zero.
+// assertDiscriminates refuses to write a table whose tie categories agree with
+// rounding away from zero. A category that names a defect and does not catch it
+// is worse than no category, because it reads as coverage.
 //
-// The test is defined AS the thing under test, not approximated by it. The
-// tempting proxy — "does a second, equally short spelling also round-trip" — is
-// true whenever the double's rounding interval spans two candidates, which is
-// far commoner than an exact tie. A category mined that way discriminates
-// nothing while looking exactly as though it does, and assertDiscriminates below
-// is what refuses to let one be written.
-func isRenderTie(v float64) bool {
-	even, ok1 := shortest(v, false)
-	away, ok2 := shortest(v, true)
-	return ok1 && ok2 && even != away
-}
-
-// shortest returns the shortest decimal digit string that round-trips to v,
-// rounded either to even or away from zero, as "digits@exponent". Exact
-// rational arithmetic throughout: the point is to be right about the halfway
-// case, which is the only case where the two answers differ.
-func shortest(v float64, awayFromZero bool) (string, bool) {
-	if v == 0 {
-		return "0@1", true
-	}
-	exact := new(big.Rat).SetFloat64(math.Abs(v))
-	if exact == nil {
-		return "", false
-	}
-	// n is the decimal exponent: 10^(n-1) <= |v| < 10^n. Derived from a log and
-	// then corrected, because a log is not exact near a power of ten.
-	n := int(math.Floor(math.Log10(math.Abs(v)))) + 1
-	for i := 0; i < 4; i++ {
-		if exact.Cmp(pow10(n)) >= 0 {
-			n++
-		} else if exact.Cmp(pow10(n-1)) < 0 {
-			n--
-		} else {
-			break
-		}
-	}
-	for p := 1; p <= 17; p++ {
-		scaled := new(big.Rat).Mul(exact, pow10(p-n))
-		digits := roundRat(scaled, awayFromZero)
-		back := new(big.Rat).Quo(new(big.Rat).SetInt(digits), pow10(p-n))
-		f, _ := back.Float64()
-		if math.Signbit(v) {
-			f = -f
-		}
-		if f == v {
-			return digits.String() + "@" + strconv.Itoa(n), true
-		}
-	}
-	return "", false
-}
-
-func pow10(e int) *big.Rat {
-	magnitude := e
-	if magnitude < 0 {
-		magnitude = -magnitude
-	}
-	p := new(big.Rat).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(magnitude)), nil))
-	if e < 0 {
-		return p.Inv(p)
-	}
-	return p
-}
-
-// roundRat rounds a non-negative rational to an integer, half to even or half
-// away from zero.
-func roundRat(r *big.Rat, awayFromZero bool) *big.Int {
-	floor := new(big.Int).Div(r.Num(), r.Denom())
-	remainder := new(big.Rat).Sub(r, new(big.Rat).SetInt(floor))
-	switch remainder.Cmp(big.NewRat(1, 2)) {
-	case -1:
-		return floor
-	case 1:
-		return new(big.Int).Add(floor, big.NewInt(1))
-	default:
-		if awayFromZero || floor.Bit(0) == 1 {
-			return new(big.Int).Add(floor, big.NewInt(1))
-		}
-		return floor
-	}
-}
-
+// ⚠ EVERY GUARD IN THIS FILE EXISTS BECAUSE THAT HAPPENED. A tie category once
+// mined with a round-trip proxy held sixty rows, every one of which stayed green
+// when the tie rule was reverted.
 func assertDiscriminates(rows []row) {
-	var render, round1, round6 int
+	var round1, round6 int
 	for _, r := range rows {
 		switch r.kind {
-		case "render-tie":
-			if isRenderTie(r.value) {
-				render++
-			}
 		case "round1-tie":
 			if roundHalfAwayFromZero(r.value, 1) != r.round1 {
 				round1++
@@ -354,27 +220,21 @@ func assertDiscriminates(rows []row) {
 			}
 		}
 	}
-	if render == 0 || round1 == 0 || round6 == 0 {
-		log.Fatalf("a tie category does not discriminate: render=%d round1=%d round6=%d", render, round1, round6)
+	if round1 == 0 || round6 == 0 {
+		log.Fatalf("a tie category does not discriminate: round1=%d round6=%d", round1, round6)
 	}
-	log.Printf("discriminating rows: render-tie=%d round1-tie=%d round6-tie=%d", render, round1, round6)
+	log.Printf("discriminating rows: round1-tie=%d round6-tie=%d", round1, round6)
 }
 
 // assertCatchesScalingRoute is assertDiscriminates for the OTHER rounding
 // disagreement: not which way a tie goes, but whether the value was a tie at
 // all.
 //
-// ⚠ A CATEGORY THAT NAMES A DEFECT AND DOES NOT CATCH IT IS WORSE THAN NO
-// CATEGORY, because it reads as coverage. Every guard in this file exists
-// because that happened: the render-tie category was mined with a round-trip
-// proxy and produced sixty rows that all stayed green when the tie rule was
-// reverted.
-//
 // The scaled route is written here the way an implementer would write it —
 // multiply, round half-to-even, divide — and every row of the category must
-// disagree with the reference answer at one place or at six. A value that
-// agrees under both routes tests nothing and must not sit in this category
-// wearing its name.
+// disagree with the reference answer at one place or at six. A value that agrees
+// under both routes tests nothing and must not sit in this category wearing its
+// name.
 func assertCatchesScalingRoute(rows []row) {
 	caught := 0
 	for _, r := range rows {
@@ -393,19 +253,41 @@ func assertCatchesScalingRoute(rows []row) {
 	log.Printf("discriminating rows: scaling-route=%d", caught)
 }
 
-// scaledRoute is the non-conforming route SPEC 4.5.4 names: multiply by a power
-// of ten, round the product to even, and divide back. It exists only so the
-// guard above can prove the category catches it.
+// scaledRoute is the non-conforming route SPEC 4.1 rules out: multiply by a
+// power of ten, round the product to even, and divide back. It exists only so
+// the guard above can prove the category catches it.
 func scaledRoute(v float64, places int) string {
 	scale := math.Pow(10, float64(places))
 	p := v * scale
 	if math.IsInf(p, 0) || math.IsNaN(p) {
-		return canonical(v)
+		return spell(v)
 	}
-	return canonical(math.RoundToEven(p) / scale)
+	return spell(math.RoundToEven(p) / scale)
 }
 
-func write(path string, rows []row, counts map[string]int, seed int64, sample int) {
+// assertReachesNegativeZero refuses to write a table that cannot see a writer
+// which leaves the sign on a rounded zero.
+//
+// ⚠ THIS TABLE IS THE WHOLE OF THE CORPUS'S COVERAGE FOR THAT RULE. Every
+// document tier compares trees by value, and -0 equals 0, so a negative zero a
+// writer created is invisible there. Here the answer column is `0` and a runner
+// compares bit patterns, so -0 fails.
+func assertReachesNegativeZero(rows []row) {
+	reached := 0
+	for _, r := range rows {
+		for _, places := range []int{1, 6} {
+			if v := roundHalfEven(r.value, places); v == 0 && math.Signbit(v) {
+				reached++
+			}
+		}
+	}
+	if reached == 0 {
+		log.Fatal("no row rounds to a negative zero, so the sign rule of SPEC 4.1 is unreachable from this table")
+	}
+	log.Printf("rows rounding to a negative zero: %d", reached)
+}
+
+func write(path string, rows []row, counts map[string]int) {
 	f, err := os.Create(path)
 	if err != nil {
 		log.Fatal(err)
@@ -415,29 +297,23 @@ func write(path string, rows []row, counts map[string]int, seed int64, sample in
 	defer w.Flush()
 
 	fmt.Fprintln(w, "# VNX number conformance table. Generated by makenumbers; do not edit by hand.")
-	fmt.Fprintln(w, "# Columns, tab separated:  bits  kind  render  round6  round1")
+	fmt.Fprintln(w, "# Columns, tab separated:  bits  kind  round6  round1")
 	fmt.Fprintln(w, "#   bits    the double, as 16 hexadecimal digits of its IEEE 754 binary64 encoding")
 	fmt.Fprintln(w, "#   kind    which part of the sample this row is, for diagnosis only")
-	fmt.Fprintln(w, "#   render  its canonical spelling                     (SPEC 4.5.3)")
-	fmt.Fprintln(w, "#   round6  its canonical spelling rounded to 6 places (SPEC 4.5.4, lon and lat)")
-	fmt.Fprintln(w, "#   round1  its canonical spelling rounded to 1 place  (SPEC 4.5.4, elevation)")
-	fmt.Fprintln(w, "# Answers are from Go's encoding/json and strconv, which SPEC 4.5.3 names as")
-	fmt.Fprintln(w, "# the reference. Ties round to even in both columns.")
-	// ⚠ THE NEXT TWO LINES ARE A CONTRACT, NOT A COMMENT. A runner is required
-	// to parse `rows=` and the `counts:` line and to assert that what it
-	// observed matches what they declare. That is the only completeness check
-	// that survives a new category: five hand-written lists of "the categories
-	// I depend on" age exactly as badly as a hardcoded path did when this
-	// directory moved, and the newest category is always the one nothing pins.
-	//
-	// Measured: the Swift runner asserted five categories by name, none of them
-	// `scaling-route`, and `rows.count > 5000` — so the table could have lost
-	// all 14 of its most discriminating rows, or 300 rows of any kind, and that
-	// suite would have stayed green.
+	fmt.Fprintln(w, "#   round6  the value rounded to 6 places (SPEC 4.1, lon and lat)")
+	fmt.Fprintln(w, "#   round1  the value rounded to 1 place  (SPEC 4.1, elevation)")
+	fmt.Fprintln(w, "# The answer columns are decimal text carrying a VALUE. Parse them and compare")
+	fmt.Fprintln(w, "# bit patterns; comparing the text would test a spelling, which is not a rule.")
+	fmt.Fprintln(w, "# Ties round to even in both columns.")
+	// ⚠ THE NEXT TWO LINES ARE A CONTRACT, NOT A COMMENT. A runner parses
+	// `rows=` and the `counts:` line and asserts that what it observed matches
+	// what they declare. That is the only completeness check that survives a
+	// new category: a hand-written list of "the categories I depend on" ages
+	// badly, and the newest category is always the one nothing pins.
 	//
 	// `counts:` carries its own label so a parser can find it without counting
 	// header lines or matching on which keys it happens to contain.
-	fmt.Fprintf(w, "# seed=%d sample=%d rows=%d\n", seed, sample, len(rows))
+	fmt.Fprintf(w, "# rows=%d\n", len(rows))
 	// Sorted, because Go randomises map iteration and this file must be
 	// byte-reproducible — a table whose header changes on every run is a table
 	// nobody can diff, which is most of what it is for.
@@ -456,6 +332,6 @@ func write(path string, rows []row, counts map[string]int, seed int64, sample in
 	fmt.Fprintf(w, "# counts: %s\n", strings.Join(kinds, " "))
 
 	for _, r := range rows {
-		fmt.Fprintf(w, "%016x\t%s\t%s\t%s\t%s\n", r.bits, r.kind, r.render, r.round6, r.round1)
+		fmt.Fprintf(w, "%016x\t%s\t%s\t%s\n", r.bits, r.kind, r.round6, r.round1)
 	}
 }

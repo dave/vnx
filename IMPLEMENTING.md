@@ -128,10 +128,9 @@ direction disagrees only on exact halves; the operation disagrees on most values
 A library can have the tie rule right and still be wrong on almost every elevation
 it writes.
 
-The reference implementation shipped the scaling route, and 175 of the number
-table's 5,329 rows disagreed with it: 166 at six places, 9 at one. Coordinates
-carried about eighteen times the exposure of elevations, six places being
-longitude and latitude.
+The reference implementation shipped the scaling route, and the number table
+disagreed with it on ordinary values at both places. Coordinates carry far more
+of that exposure than elevations, six places being longitude and latitude.
 
 Two details there matter more than the count. The table's `kind` column names those
 rows `scaling-route`. Somebody mined rows specifically to catch a library that

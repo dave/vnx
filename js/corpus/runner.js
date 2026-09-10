@@ -278,11 +278,11 @@ function checkAttachments(c, attachments, expected) {
  * The NUMBER tier: `numbers.tsv` fixes the result of rounding a given double to
  * 6 and to 1 decimal places.
  *
- * ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
- * column is not read: how a number is spelled is the writer's own business
- * (SPEC.md 4.2). What is compared is the rounded VALUE, BY BIT PATTERN —
- * comparing it as text would put a rendering rule back in through the side door
- * and would then pass or fail on how this runtime spells a double.
+ * ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled is
+ * the writer's own business (SPEC.md 4.2). What is compared is the rounded
+ * VALUE, BY BIT PATTERN — comparing it as text would put a rendering rule back
+ * in through the side door and would then pass or fail on how this runtime
+ * spells a double.
  *
  * A row is a value rather than a document, so there is no sidecar: the answer
  * columns ARE the expectation. It is the only tier that reaches past the emit
@@ -319,21 +319,39 @@ function runNumberCases(dir, api) {
 
   let rows = 0;
   let failedRows = 0;
-  const kinds = new Set();
+  const seen = new Map();
   const sample = [];
   const COLUMNS = ['round6', 'round1'];
   const lines = fs.readFileSync(file, 'utf8').split('\n');
+  // The header declares the row count and the count per kind, and the generator
+  // refuses to write a header that disagrees with its body. Reading it is what
+  // makes a table that lost a whole category a failure here rather than a
+  // silence: a hardcoded list of the categories this runner depends on would go
+  // stale the moment one is added, and the newest category is always the one
+  // nothing pins.
+  let declaredRows = -1;
+  const declaredCounts = new Map();
+  for (const line of lines) {
+    if (!line.startsWith('#')) break;
+    if (line.startsWith('# rows=')) declaredRows = Number(line.slice('# rows='.length).trim());
+    if (line.startsWith('# counts:')) {
+      for (const pair of line.slice('# counts:'.length).trim().split(/\s+/)) {
+        const [kind, n] = pair.split('=');
+        declaredCounts.set(kind, Number(n));
+      }
+    }
+  }
   for (const [index, line] of lines.entries()) {
     if (line === '' || line.startsWith('#')) continue;
     const columns = line.split('\t');
-    if (columns.length !== 5) {
-      c.failures.push(`line ${index + 1}: expected five tab-separated columns, found ${columns.length}`);
+    if (columns.length !== 4) {
+      c.failures.push(`line ${index + 1}: expected four tab-separated columns, found ${columns.length}`);
       continue;
     }
     const [bits, kind] = columns;
-    const want = [Number(columns[3]), Number(columns[4])];
+    const want = [Number(columns[2]), Number(columns[3])];
     rows++;
-    kinds.add(kind);
+    seen.set(kind, (seen.get(kind) ?? 0) + 1);
     const v = toDouble(bits);
     const got = [roundToPlaces(v, 6), roundToPlaces(v, 1)];
     // ⚠ BY BIT PATTERN. -0 and 0 are the same value and DIFFERENT bit patterns;
@@ -352,8 +370,15 @@ function runNumberCases(dir, api) {
     c.failures.push(`${failedRows} of ${rows} rows disagree; first ${sample.length}:`, ...sample);
   }
   // A table read as zero rows would satisfy every comparison in it.
-  c.check(rows > 100, `only ${rows} rows read from numbers.tsv`);
-  c.check(kinds.size >= 5, `only ${kinds.size} kinds present, so the sample is narrower than the table claims`);
+  c.check(declaredRows > 0, 'the table header declares no row count');
+  c.check(rows === declaredRows, `${rows} rows read and the header declares ${declaredRows}`);
+  c.check(declaredCounts.size > 0, 'the table header declares no per-kind counts');
+  for (const [kind, want] of declaredCounts) {
+    c.check(seen.get(kind) === want, `the header declares ${want} ${kind} rows and the body holds ${seen.get(kind) ?? 0}`);
+  }
+  for (const kind of seen.keys()) {
+    c.check(declaredCounts.has(kind), `the body holds ${kind} rows the header does not declare`);
+  }
   return [c];
 }
 

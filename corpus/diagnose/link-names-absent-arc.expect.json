@@ -1,7 +1,6 @@
 {
   "kind": "diagnose",
   "note": "A link naming an arc that is not in the document (SPEC 6.2). The link's whole meaning is the arc it traverses, so there is no geometry to keep and the link is dropped, while the chain and the links that are fine survive. Exactly one diagnostic is expected: dropping the middle link must not also report the chain as broken, or one defect becomes two and a reader cannot tell how much is actually wrong. Three links, and survivors that do not meet, are both required for the file to test that. With two links, dropping one leaves no consecutive pair, so no reader could report a break and the expectation is guaranteed by arity rather than by care. With three links whose survivors happen to meet, a reader that renumbers them and compares across the hole still finds them continuous. So link 0 ends at n2 and link 2 starts at n3, 60 km away. Do not simplify this chain and do not move n3 nearer n2.",
-  "schema": "valid",
   "counts": {
     "networks": 1
   },

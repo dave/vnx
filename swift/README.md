@@ -16,10 +16,9 @@ cd swift && swift test
 | `VNX.write(_:)` | writes a document, applying the emit-boundary rules of SPEC 4.1 |
 | `VNX.writeContainer(document:attachments:)` | writes a `.vnz` with every entry deflated |
 
-There is one emit path. There used to be two, because a formatter had to
-reproduce the spelling of the document it was handed; SPEC 4.5 is gone and the
-corpus compares parsed documents rather than bytes, so the only remaining
-operation is the one that turns a model into a file.
+There is one emit path. The format defines no byte layout and the corpus
+compares parsed documents rather than bytes, so the only operation a writer
+performs is the one that turns a model into a file.
 
 `write` throws where the model holds a number JSON cannot spell (SPEC 4.2).
 
@@ -27,9 +26,6 @@ operation is the one that turns a model into a file.
 
 - **No GPX, KML or GeoJSON.** The repository README calls those "conversion
   tools, not part of the format ... no library is expected to implement them".
-- **No JSON Schema validation.** The corpus runner reads each case's `schema`
-  verdict and asserts the one direction a reader can check without a validator:
-  a case marked `not-json` must be refused.
 - **No hand-written JSON serialiser.** `JSONEncoder` renders the tree.
   `JSONSerialization` would not do: it spells `-3.67` as `-3.6699999999999999`.
   The PARSER is still hand-written, because a reader has rules a stock parser

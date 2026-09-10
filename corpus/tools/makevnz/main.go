@@ -22,7 +22,7 @@ type entry struct {
 	method uint16
 }
 
-// The document inside the archives is stored in canonical form (spec §4.5),
+// The document inside the archives is a plain accept-tier document,
 // like every other accept file in the corpus.
 const doc = `{
   "profile": "full",

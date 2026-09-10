@@ -232,8 +232,8 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     /**
      * Decodes an optional collection. Returns null when the key is absent, which
-     * section 3.10 distinguishes from an empty array — a distinction a re-render
-     * has to reproduce.
+     * section 3.10 distinguishes from an empty array — a distinction the accept
+     * tier's round trip has to reproduce.
      */
     private fun <T> optionalItems(
         obj: JsonObject,

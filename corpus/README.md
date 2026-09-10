@@ -12,7 +12,6 @@ work retroactively, which is why it exists before the second library does.
 accept/    must be read, with zero diagnostics
 reject/    must be refused, and the refusal must name its cause
 diagnose/  must be read, reporting exactly the listed diagnostics
-format/    retired; `SPEC.md` defines no formatter, and no runner reads it
 write/     a document with a model to write, plus the document a writer produces
 numbers/   the reference rounding of a given double to 6 and to 1 places
 tools/     the generator for the .vnz archives
@@ -301,11 +300,52 @@ They are the only cases that test those rules. Regenerating them would delete
 the corpus's only deflate coverage and its only data-descriptor coverage, and
 every implementation would still pass.
 
-## `format/` is retired
+## The ZIP64 case
 
-The tier tested decode-then-re-render byte for byte. `SPEC.md` defines no
-formatter and no byte layout, so the tier has no subject. Its files are still on
-disk and no runner reads them.
+`accept/container-zip64.vnz` is hand-built, and four of its properties look like
+things to tidy. Each is the reason the case works.
+
+Where the masking is applied. Python's `force_zip64` masks the local header only
+and leaves the central directory holding real 32-bit values. Almost every reader
+takes sizes and offsets from the central directory, so a fixture built that way
+never asks the extra-field parser anything, and it stays green with that parser
+disabled — which is how this gap was found, by red-proofing a ZIP64 test and
+watching it pass. This archive does the reverse. Its local headers carry true
+values, and its central directory masks compressed size, uncompressed size and
+local-header offset to `0xFFFFFFFF`, moving all three into a ZIP64
+extended-information extra field.
+
+So do not simplify it by masking the local header instead, and do not regenerate
+it with a stock zip library, which declines to emit ZIP64 for a 519-byte archive
+and quietly hands back a plain one.
+
+It catches two independent gaps and a red does not say which, so red-proof them
+separately: disable the central-directory extra-field parser, and separately
+ignore the ZIP64 end-of-central-directory record. That record's locator is the
+only way to find the directory here, because the plain end record masks its
+offset, its size and its entry counts.
+
+Entries are stored rather than deflated. Deflate output differs between
+compressors, and this archive is written by hand, so a deflated entry would make
+its bytes reproducible in one language only. The archive was verified against
+three independent readers — Python's `zipfile`, Go's `archive/zip` and `unzip` —
+because a hand-built archive only its own author can read proves nothing.
+
+This archive is input, not an example of what section 7.1 asks a writer to
+produce. Section 7.1 says a conforming writer does not write ZIP64 records at
+all, and section 7 says a reader must read them anyway. That asymmetry is why
+the file has to be hand-built rather than produced by any library here.
+
+The root document is deliberately not the first entry, and the reason is sharper
+than "a lost value that happens to be correct is not a test". It is about which
+defect survives review. A reader that never implements the extra field gets
+`0xFFFFFFFF` and dies loudly, so it was never the risk. The dangerous reader is
+the one that implements the extra field wrongly and produces `0` — and with the
+document at local-header offset 0, that reader finds it anyway and looks
+correct. `attachments/first.txt` exists only to push `doc.vnx` off zero, and
+moving it after the document, or deleting it, removes the property. Measured:
+with the extra field ignored and a lost offset defaulting to zero, `doc.vnx`
+reads as 0 bytes rather than as itself.
 
 ## The tolerance cases
 
@@ -367,14 +407,12 @@ the format.
 ### Saying that carefully
 
 "No tier catches this" is a green-asserting claim, and it stops being true
-without anything going red. Three such claims about this corpus were retired in
-a single day, each by somebody building the thing the claim said was impossible:
-that no fixture could carry a number tie, retired by `format/number-tie`, whose
-input spells a value one way and whose expected output spells it the other; that
-nothing past the writer boundary was reachable by a tier, retired by a tier that
-decodes and then writes; and that a ZIP64 archive small enough to commit could
-not exercise an extra-field parser, retired by masking the central directory
-instead of the local header.
+without anything going red. Two such claims about this corpus were retired in a
+single day, each by somebody building the thing the claim said was impossible:
+that nothing past the writer boundary was reachable by a tier, retired by a tier
+that decodes and then writes; and that a ZIP64 archive small enough to commit
+could not exercise an extra-field parser, retired by masking the central
+directory instead of the local header.
 
 Every one of those was true of the corpus as it stood. None was a property of
 the format.

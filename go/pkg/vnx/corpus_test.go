@@ -62,16 +62,6 @@ type expectation struct {
 	Kind string `json:"kind"`
 	Note string `json:"note"`
 
-	// Schema is what the JSON Schema (corpus/schema) makes of this file:
-	// "valid", "invalid", or "not-json" when it is not JSON at all and no
-	// validator can reach it. It is recorded per case rather than derived,
-	// because the interesting entries are the ones where the schema and the
-	// reader DISAGREE — reject/version-too-new.vnx is schema-valid and refused,
-	// and every must-diagnose file bar two is schema-valid and diagnosed. A
-	// green schema is not a valid document, and this column is where that stops
-	// being a claim in prose. Required for .vnx, meaningless for .vnz.
-	Schema string `json:"schema"`
-
 	// Counts is exact, and it is what stops an accept file passing vacuously:
 	// a decoder that returned an empty document for everything would otherwise
 	// satisfy "no error, no diagnostics" on every file here.
@@ -541,14 +531,6 @@ func loadCorpus(t *testing.T) []corpusCase {
 			}
 			if strings.TrimSpace(exp.Note) == "" {
 				t.Fatalf("%s has no note; a corpus case that does not say why it exists cannot be maintained", sidecar)
-			}
-			switch {
-			case strings.HasSuffix(path, ".vnz"):
-				if exp.Schema != "" {
-					t.Fatalf("%s declares a schema verdict, but the schema applies to a DOCUMENT, not an archive", sidecar)
-				}
-			case exp.Schema != "valid" && exp.Schema != "invalid" && exp.Schema != "not-json":
-				t.Fatalf("%s: schema verdict is %q, want valid, invalid or not-json", sidecar, exp.Schema)
 			}
 			cases = append(cases, corpusCase{
 				name:   fmt.Sprintf("%s/%s", kind, name),

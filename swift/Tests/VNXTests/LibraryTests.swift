@@ -128,10 +128,8 @@ final class LibraryTests: XCTestCase {
     /// SPEC 4.1: "A position MAY carry more channels than this version defines.
     /// A reader MUST ignore them and MUST NOT report a diagnostic for them."
     ///
-    /// Ignored, and not carried through a read-modify-write. The rule that asked
-    /// a writer to preserve a channel it did not understand was dropped in
-    /// September 2026: it was a formatter-era rule, and the reference
-    /// implementation never satisfied it.
+    /// Ignored, and not carried through a read-modify-write. No rule asks a
+    /// writer to preserve a channel it does not understand.
     func testChannelsAboveIndexThreeAreIgnoredWithoutADiagnostic() throws {
         let result = try read(minimal("\"waypoints\":[{\"at\":[1,2,3,4,5,null]}]"))
         XCTAssertEqual(result.diagnostics, [], "an unknown channel is not a diagnostic")

@@ -8,8 +8,8 @@ import (
 
 // §3.7: rulesets are DEFERRED, not designed. The subsystem is being redesigned
 // around selection over data elements, so a 0.1 reader treats the block as
-// opaque and preserves it. F10 byte-compares a corpus file containing one, so
-// without this the canonical formatter depends on behaviour nothing tested.
+// opaque and preserves it. The accept tier round-trips a corpus file holding
+// one, so without this that round trip rests on behaviour nothing tested.
 func TestRulesetsArePreservedOpaquely(t *testing.T) {
 	const src = `{"vnx":"0.1.0","rulesets":[{"name":"Hide minor","enabled":true,
 	  "rules":[{"name":"r","priority":10,"applies-to":["waypoints"],

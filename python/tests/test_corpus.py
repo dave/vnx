@@ -613,31 +613,58 @@ class NumbersTier(unittest.TestCase):
 
     TABLE = CORPUS / "numbers" / "numbers.tsv"
 
-    def rows(self) -> list[tuple[str, str, str, str, str]]:
+    def rows(self) -> list[tuple[str, str, str, str]]:
         if not self.TABLE.is_file():
             return []
         out = []
         for line in self.TABLE.read_text().splitlines():
             if not line or line.startswith("#"):
                 continue
-            bits, kind, render, round6, round1 = line.split("\t")
-            out.append((bits, kind, render, round6, round1))
+            bits, kind, round6, round1 = line.split("\t")
+            out.append((bits, kind, round6, round1))
         return out
 
-    def test_the_table_is_present_and_substantial(self) -> None:
+    def header(self) -> tuple[int, dict[str, int]]:
+        """The declared row count and the declared count per kind.
+
+        The generator refuses to write a header that disagrees with its body, so
+        reading it is what makes a table that lost a category a failure here
+        rather than a silence.  A hardcoded list of the categories this test
+        depends on would go stale the moment one is added, and the newest
+        category is always the one nothing pins.
+        """
+        rows, counts = -1, {}
+        for line in self.TABLE.read_text().splitlines():
+            if not line.startswith("#"):
+                break
+            if line.startswith("# rows="):
+                rows = int(line[len("# rows="):].strip())
+            if line.startswith("# counts:"):
+                for pair in line[len("# counts:"):].split():
+                    kind, _, n = pair.partition("=")
+                    counts[kind] = int(n)
+        return rows, counts
+
+    def test_the_table_matches_the_header_it_declares(self) -> None:
         rows = self.rows()
         self.assertTrue(rows, f"no table at {self.TABLE}")
-        self.assertGreater(len(rows), 1000, "a short table pins little")
+        declared_rows, declared_counts = self.header()
+        self.assertEqual(len(rows), declared_rows, "the body and the header disagree on the row count")
+        self.assertTrue(declared_counts, "the header declares no per-kind counts")
+        seen: dict[str, int] = {}
+        for _bits, kind, _round6, _round1 in rows:
+            seen[kind] = seen.get(kind, 0) + 1
+        self.assertEqual(seen, declared_counts, "the body and the header disagree on which kinds are present")
 
     def test_every_row_rounds_as_the_table_says(self) -> None:
         """⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING.
 
-        The table's `render` column is not read: how a number is spelled is the
-        writer's own business (SPEC 4.2), and comparing spellings across
-        implementations is the rule this format dropped.  What is compared is
-        the rounded VALUE, by BIT PATTERN -- comparing it as text would put the
-        rendering rule back into the comparison through the side door, and would
-        then pass or fail on how Python spells a double.
+        How a number is spelled is the writer's own business (SPEC 4.2), and
+        comparing spellings across implementations is the rule this format
+        dropped.  What is compared is the rounded VALUE, by BIT PATTERN --
+        comparing it as text would put a rendering rule back into the comparison
+        through the side door, and would then pass or fail on how Python spells
+        a double.
         """
         import struct
 
@@ -645,7 +672,7 @@ class NumbersTier(unittest.TestCase):
         from vnx.writer import round_position
 
         failures: list[str] = []
-        for bits, kind, _render, round6, round1 in self.rows():
+        for bits, kind, round6, round1 in self.rows():
             value = struct.unpack(">d", bytes.fromhex(bits))[0]
             # Rounding is defined at the emit boundary, so it is exercised
             # through the writer rather than through a private helper: a test

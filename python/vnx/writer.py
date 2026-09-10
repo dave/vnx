@@ -17,7 +17,8 @@ tier re-encodes a document that already satisfies the rules:
   different operation: the scaled product is itself a binary64 and is not
   always the exact scaled value, so the multiplication manufactures ties the
   true decimal never had and destroys ones it did.  Go took that route and
-  disagreed with ``corpus/numbers/`` on 175 of 5,329 rows.
+  disagreed with ``corpus/numbers/`` on every row of its ``scaling-route``
+  category.
 * **Rounding can CREATE a negative zero.**  ``-0.04`` at one place is a zero
   with its sign bit set.  It is the same value as ``0`` and carries no
   information, so it is normalised here, where rounding produced it.

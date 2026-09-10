@@ -88,8 +88,8 @@ One thing a Rust implementation gets wrong by default, and it is in `encode`.
   the double it was handed — which is what Rust's `{:.*}` computes, so `round_to`
   formats and parses back. `encode::tests::scale_then_round_is_a_different_rule_
   and_this_pins_the_difference` measures the gap, and
-  `corpus/numbers/numbers.tsv` decides it: 239 of its 5,329 rows separate the
-  two operations at six decimal places, and every one sides with rounding
+  `corpus/numbers/numbers.tsv` decides it: its `scaling-route` rows separate
+  the two operations at one place and at six, and every one sides with rounding
   against the double.
 
   `round_to` also collapses a negative zero. Rounding CREATES ones that were
@@ -149,10 +149,6 @@ wire commitments.
 
 - **No GPX, KML or GeoJSON.** Those are lossy conversions, not part of the
   format.
-- **No `schema` verdict in the runner.** A sidecar's `schema` field needs a JSON
-  Schema draft 2020-12 validator, which is a dependency. The reference
-  implementation keeps its schema test out of `pkg/vnx` for the same reason
-  (`corpus/schema/README.md`).
 - **No ZIP64 writing.** Reading it is required and is tested by a hand-built
   fixture (see below); writing it is optional and not done.
 - **No streaming, and no resource policy.** A document is parsed into memory.

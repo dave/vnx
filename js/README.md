@@ -135,8 +135,6 @@ corpus rather than assuming there is none.
 ## What this library does not do
 
 - **No GPX, KML or GeoJSON.** Those are conversion tools, not part of the format.
-- **No JSON Schema validation.** Some sidecars still carry a `schema` verdict.
-  The corpus's schema directory is gone and no runner reads the field.
 - **No vocabulary layer.** `app.viatrail.*` record bodies are carried, not
   interpreted, so nothing here knows that a `settlement`'s `size` is an
   enumeration.

@@ -169,8 +169,7 @@ func TestConvertRefusesAnUnknownFormatAndWritesNothing(t *testing.T) {
 
 // ⚠ "vnx" IS IN THAT REFUSED LIST DELIBERATELY. `convert` converts a VNX file
 // into something else; `vnx fmt` is what rewrites a VNX file as VNX. Accepting
-// --to vnx would give the CLI two commands that do the same job and differ in
-// which one canonicalises.
+// --to vnx would give the CLI two commands that do the same job.
 
 // TestConvertOfAnUndecodableFileRefusesAndLeavesTheDestinationAsItWas is the
 // only refusal a decodable input can never reach — and the destination check

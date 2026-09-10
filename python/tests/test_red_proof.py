@@ -180,8 +180,8 @@ class RedProof(unittest.TestCase):
         """SPEC 4.1 names scale-round-unscale as non-conforming.
 
         It is the defect the shared table exists for: the two routes agree on
-        the easy cases, and Go's scaling route disagreed with the table on 175
-        of its 5,329 rows.
+        the easy cases, and Go's scaling route disagreed with the table on every
+        row of its ``scaling-route`` category.
         """
         def scaled(value: float, places: int) -> float:
             scale = 10.0 ** places
@@ -198,8 +198,8 @@ class RedProof(unittest.TestCase):
     def test_rounding_away_from_zero_is_caught(self) -> None:
         """The JavaScript seat's defect: `toFixed`-style away-from-zero.
 
-        Unreachable by any corpus tier -- rounding only happens when a model is
-        emitted, and every tier re-renders a document that already exists.
+        Reached by the write tier and by the number table, both of which put a
+        model through the emit path.  A tier that only decodes cannot see it.
         """
         from decimal import Decimal, ROUND_HALF_UP
 

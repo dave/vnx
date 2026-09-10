@@ -1,6 +1,5 @@
 {
   "kind": "reject",
   "note": "A version with only two components (spec 2.1). The version is MAJOR.MINOR.PATCH; a two-component spelling is refused, not read as patch 0. Coercing it would be a guess about which patch the file was written against, and the guess is unnecessary: no VNX file exists outside the Viatrail repository and its author's own test exports, so anyone holding one re-exports. Because the refusal is the only thing that tells the holder what to produce instead, it must name the SHAPE it expected, which is what this file's expected message checks.",
-  "schema": "invalid",
   "refusal": "MAJOR.MINOR.PATCH"
 }

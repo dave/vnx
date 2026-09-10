@@ -190,7 +190,7 @@ internal class Encoder {
  * text back. Scaling by a power of ten first rounds a product that is itself a
  * binary64, which manufactures ties the true decimal never had and destroys ties
  * it did: measured in Go, the scaling route disagreed with the shared reference
- * table on 175 of 5,329 rows.
+ * table on every row of its `scaling-route` category.
  *
  * Ties round to EVEN. Measured 2026-09-09: Go's `strconv.FormatFloat` and
  * Python's `%.1f` both write 340.25 to one place as `340.2`, where JavaScript's

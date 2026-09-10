@@ -10,7 +10,7 @@ person reading, after this script passed the same files clean:
 
   * A CONTRADICTION BETWEEN TWO DOCUMENTS. The guide said no tier reaches the
     writer while corpus/write/README.md said the opposite, at one commit.
-  * A MISQUOTATION OF SPEC.md. The guide quoted section 4.5.3 as naming two
+  * A MISQUOTATION OF SPEC.md. The guide quoted a section as naming two
     normative anchors where it names one.
   * A PATH THAT DOES NOT EXIST in the tree.
   * A COUNT THAT DISAGREES WITH ITSELF. Three documents gave three different
@@ -60,7 +60,6 @@ PUBLISHED = [
     "IMPLEMENTING.md",
     "README.md",
     "corpus/README.md",
-    "corpus/format/README.md",
     "corpus/numbers/README.md",
     "corpus/write/README.md",
 ]

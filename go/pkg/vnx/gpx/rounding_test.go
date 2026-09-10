@@ -93,7 +93,7 @@ func TestRoundingNeverInventsAnElevation(t *testing.T) {
 func TestTheArcBoundaryDedupStillComparesFullValues(t *testing.T) {
 	// ⚠ THESE COORDINATES MUST STILL COLLIDE AT SIX PLACES, and checking that
 	// is part of running this test. They were -3.6712345 and -3.67123452 until
-	// 2026-09-09, when rounding moved to half-to-even (§4.5.4) and the first
+	// 2026-09-09, when rounding moved to half-to-even (§4.1) and the first
 	// began rounding DOWN to -3.671234 while the second stayed at -3.671235.
 	// The pair stopped colliding, so the test stopped setting up its own
 	// scenario and passed for the wrong reason — it was asserting that a dedup

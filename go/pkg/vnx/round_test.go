@@ -72,7 +72,7 @@ func TestRoundingNeverManufacturesAnInfinity(t *testing.T) {
 	}
 }
 
-// ⚠ NEGATIVE ZERO. canonical.go spells -0 as `0`; the helper normalises so all
+// ⚠ NEGATIVE ZERO. A writer spells -0 as `0`; the helper normalises so all
 // four writers agree without each remembering to, and so that a tiny negative
 // coordinate does not become `-0` in one format and `0` in another.
 func TestRoundingNormalisesNegativeZero(t *testing.T) {
@@ -272,7 +272,7 @@ func TestRoundingTiesGoToEven(t *testing.T) {
 		// by scaling and disagreed with corpus/numbers/ on 175 rows while this
 		// stayed green.
 		//
-		// These six are the values spec §4.5.4 argues from, and each one the
+		// These six are the values spec §4.1 argues from, and each one the
 		// scaling route gets wrong.
 		{0.15, 0.1, "the scaling route gives 0.2"},
 		{0.05, 0.1, "the scaling route gives 0"},
@@ -293,11 +293,12 @@ func TestRoundingTiesGoToEven(t *testing.T) {
 			t.Errorf("RoundElevation(%v) = %v, want %v %s", c.in, got, c.want, c.note)
 		}
 	}
-	// A tie that rounding CREATES a negative zero from, which is the case the
-	// corpus cannot see either: format/ carries -0.0 as an input literal, so it
-	// only ever tests a renderer collapsing a negative zero it was GIVEN.
+	// A tie that rounding CREATES a negative zero from. No document fixture can
+	// hand a writer one, because a tree comparison is by value and -0 equals 0;
+	// corpus/numbers/ compares bit patterns and is the corpus's whole coverage
+	// for this rule.
 	if got := RoundElevation(-0.04); math.Signbit(got) {
-		t.Errorf("RoundElevation(-0.04) = %v with the sign bit set; §4.5.4 applies the "+
+		t.Errorf("RoundElevation(-0.04) = %v with the sign bit set; §4.1 applies the "+
 			"negative-zero rule AFTER rounding, because rounding is what creates this one", got)
 	}
 }

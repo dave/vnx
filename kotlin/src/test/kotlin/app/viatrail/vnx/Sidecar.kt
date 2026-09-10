@@ -15,7 +15,7 @@ class Sidecar(val file: File, private val root: JsonObject) {
     companion object {
         /** Every field the sidecar schema defines. An unknown one is a runner that is out of date. */
         val KNOWN_FIELDS = setOf(
-            "kind", "note", "schema", "counts", "positions", "tracks",
+            "kind", "note", "counts", "positions", "tracks",
             "attachments", "refusal", "diagnostics", "cannot_detect",
             // Reason codes, 2026-09-09. `message_advisory` is read by nothing on
             // purpose: a field named `message` that nothing compares reads as a
@@ -45,18 +45,6 @@ class Sidecar(val file: File, private val root: JsonObject) {
     /** The entry name a container write case expects its document under. */
     val rootEntry: String? get() = string("root")
 
-    /**
-     * The case's JSON Schema verdict, or null where it states none.
-     *
-     * This runner reads the field and checks its shape but does not act on it.
-     * Validating a document against a draft 2020-12 schema needs a schema
-     * validator, which is a third-party dependency, and this library imports the
-     * standard library and nothing else — the same reason the reference
-     * implementation keeps its schema test in a separate package. The gap is
-     * reported rather than papered over; the four container cases carry no
-     * verdict at all, which is its own question for the corpus.
-     */
-    val schemaVerdict: String? get() = string("schema")
     val cannotDetect: String? get() = string("cannot_detect")
 
     val unknownFields: Set<String> get() = root.keys - KNOWN_FIELDS

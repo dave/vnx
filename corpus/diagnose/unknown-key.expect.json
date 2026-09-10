@@ -1,7 +1,6 @@
 {
   "kind": "diagnose",
   "note": "An unknown key on a core object (spec 6.2): diagnose it, skip the key, KEEP the item. An unknown key is unrecognised, not unusable - and the waypoint's position is still perfectly good. The precedent is importer/gpx.go:210-214, where a coordinate that will not parse is counted and skipped rather than killing the file.",
-  "schema": "valid",
   "counts": {
     "waypoints": 1
   },

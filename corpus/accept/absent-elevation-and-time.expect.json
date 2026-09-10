@@ -1,7 +1,6 @@
 {
   "kind": "accept",
-  "note": "Absent elevation and absent time, spelled `null` (spec 4.1). Absence is a first-class state, not a zero: a pip at sea level and a pip whose height nobody knows are different facts. The canonical round-trip in this runner is what proves the nulls survive re-encoding rather than becoming 0.",
-  "schema": "valid",
+  "note": "Absent elevation and absent time, spelled `null` (spec 4.1). Absence is a first-class state, not a zero: a pip at sea level and a pip whose height nobody knows are different facts. The round trip in this runner is what proves the nulls survive re-encoding rather than becoming 0.",
   "counts": {
     "waypoints": 1,
     "tracks": 1

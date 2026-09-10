@@ -11,17 +11,16 @@ import (
 
 // TestNumberConformanceTable runs this library against corpus/numbers/.
 //
-// ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
-// column is not read: how a number is spelled is the writer's own business
-// (§4.2), and comparing spellings across implementations is the rule this
-// format dropped. What is compared is the rounded VALUE, by bit pattern, which
-// is where the one real defect was — the library disagreed with its own table
-// on 175 of its rows, 0.15 rounding to 0.2 where the table says 0.1, because
-// round.go rounded by SCALING and the generator rounds by FORMATTING. Two
-// operations that agree on the easy cases.
+// ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled is
+// the writer's own business (§4.2), and comparing spellings across
+// implementations is the rule this format dropped. What is compared is the
+// rounded VALUE, by bit pattern, which is where the one real defect was — the
+// library disagreed with its own table on 0.15, rounding it to 0.2 where the
+// table says 0.1, because round.go rounded by SCALING and the generator rounds
+// by FORMATTING. Two operations that agree on the easy cases.
 //
 // ⚠ AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as
-// text would put the rendering rule back into the comparison through the side
+// text would put a rendering rule back into the comparison through the side
 // door, and would then pass or fail on how Go spells a double.
 func TestNumberConformanceTable(t *testing.T) {
 	f, err := os.Open("../../../corpus/numbers/numbers.tsv")
@@ -31,15 +30,45 @@ func TestNumberConformanceTable(t *testing.T) {
 	defer f.Close()
 
 	var rows, bad int
+	declaredRows := -1
+	declaredCounts := map[string]int{}
+	seen := map[string]int{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := sc.Text()
-		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+		if strings.HasPrefix(line, "#") {
+			// The header declares how many rows and how many of each kind, and
+			// the generator refuses to write a header that disagrees with its
+			// body. Reading it is what makes a table that lost a whole category
+			// a failure here rather than a silence: a hardcoded list of the
+			// categories this test depends on would go stale the moment one is
+			// added, and the newest category is always the one nothing pins.
+			if rest, ok := strings.CutPrefix(line, "# rows="); ok {
+				declaredRows, err = strconv.Atoi(strings.TrimSpace(rest))
+				if err != nil {
+					t.Fatalf("the header's row count is %q: %v", rest, err)
+				}
+			}
+			if rest, ok := strings.CutPrefix(line, "# counts:"); ok {
+				for _, pair := range strings.Fields(rest) {
+					kind, n, found := strings.Cut(pair, "=")
+					if !found {
+						t.Fatalf("the header's counts line has %q, which is not kind=count", pair)
+					}
+					declaredCounts[kind], err = strconv.Atoi(n)
+					if err != nil {
+						t.Fatalf("the header declares %q for %s: %v", n, kind, err)
+					}
+				}
+			}
+			continue
+		}
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		col := strings.Split(line, "\t")
-		if len(col) != 5 {
-			t.Fatalf("row %q has %d columns, want 5", line, len(col))
+		if len(col) != 4 {
+			t.Fatalf("row %q has %d columns, want 4", line, len(col))
 		}
 		bits, err := strconv.ParseUint(col[0], 16, 64)
 		if err != nil {
@@ -47,14 +76,15 @@ func TestNumberConformanceTable(t *testing.T) {
 		}
 		v := math.Float64frombits(bits)
 		rows++
+		seen[col[1]]++
 
 		for _, c := range []struct {
 			what string
 			got  float64
 			want string
 		}{
-			{"round6", RoundCoordinate(v), col[3]},
-			{"round1", RoundElevation(v), col[4]},
+			{"round6", RoundCoordinate(v), col[2]},
+			{"round1", RoundElevation(v), col[3]},
 		} {
 			want, err := strconv.ParseFloat(c.want, 64)
 			if err != nil {
@@ -81,8 +111,24 @@ func TestNumberConformanceTable(t *testing.T) {
 	}
 	// LIVENESS. A table that failed to load, or a loop that skipped every row,
 	// is the same green as agreement on all of them.
-	if rows < 1000 {
-		t.Fatalf("only %d rows compared; the table holds thousands, so this passed vacuously", rows)
+	if declaredRows < 1 {
+		t.Fatal("the table's header declares no row count, so nothing here can tell a short table from a whole one")
+	}
+	if rows != declaredRows {
+		t.Fatalf("%d rows read and the header declares %d", rows, declaredRows)
+	}
+	if len(declaredCounts) == 0 {
+		t.Fatal("the table's header declares no per-kind counts")
+	}
+	for kind, want := range declaredCounts {
+		if seen[kind] != want {
+			t.Errorf("the header declares %d %s rows and the body holds %d", want, kind, seen[kind])
+		}
+	}
+	for kind := range seen {
+		if _, ok := declaredCounts[kind]; !ok {
+			t.Errorf("the body holds %s rows the header does not declare", kind)
+		}
 	}
 	t.Logf("%d rows compared, two rounding columns each", rows)
 }

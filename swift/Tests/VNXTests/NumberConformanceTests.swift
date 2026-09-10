@@ -2,18 +2,16 @@ import Foundation
 import XCTest
 @testable import VNX
 
-/// The shared number-conformance table at `corpus/numbers/`: thousands of
-/// doubles as IEEE 754 hex, with the value after rounding to 6 places and after
-/// rounding to 1.
+/// The shared number-conformance table at `corpus/numbers/`: doubles as IEEE
+/// 754 hex, with the value after rounding to 6 places and after rounding to 1.
 ///
 /// A conformance tier in everything but its name. `corpus/write/` reaches SPEC
-/// 4.1's precision rule as a rule — one fixture's two elevation ties — and this
-/// table reaches it as a population.
+/// 4.1's precision rule inside a document, and this table reaches it per value,
+/// on a set of values each chosen to separate a wrong rule from the right one.
 ///
-/// ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
-/// column is deliberately not read: how a number is spelled is the writer's own
-/// business (SPEC 4.2), and comparing spellings across implementations is the
-/// rule this format dropped.
+/// ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled
+/// is the writer's own business (SPEC 4.2), and comparing spellings across
+/// implementations is the rule this format dropped.
 ///
 /// ⚠ AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as
 /// text would put the rendering rule back into the comparison through the side
@@ -53,8 +51,8 @@ final class NumberConformanceTests: XCTestCase {
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
             if line.hasPrefix("#") { continue }
             let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-            guard f.count >= 5 else {
-                XCTFail("a row of the number table has \(f.count) columns, not 5: \(line)")
+            guard f.count == 4 else {
+                XCTFail("a row of the number table has \(f.count) columns, not 4: \(line)")
                 continue
             }
             if f[0] == "bits" { continue } // the header row, if the table gains one
@@ -62,8 +60,8 @@ final class NumberConformanceTests: XCTestCase {
                 XCTFail("`\(f[0])` is not 16 hexadecimal digits")
                 continue
             }
-            guard let round6 = Double(f[3]), let round1 = Double(f[4]) else {
-                XCTFail("row \(f[0]): the rounding columns are \(f[3]) and \(f[4]), which are not both numbers")
+            guard let round6 = Double(f[2]), let round1 = Double(f[3]) else {
+                XCTFail("row \(f[0]): the rounding columns are \(f[2]) and \(f[3]), which are not both numbers")
                 continue
             }
             out.append(Row(bits: bits, kind: f[1], round6: round6, round1: round1))
@@ -71,11 +69,39 @@ final class NumberConformanceTests: XCTestCase {
         return out
     }
 
+    /// The row count and the per-kind counts the header declares.
+    ///
+    /// The generator refuses to write a header that disagrees with its body, so
+    /// reading it is what makes a table that lost a whole category a failure
+    /// here rather than a silence. A hardcoded list of the categories this
+    /// suite depends on ages badly, and the newest category is always the one
+    /// nothing pins.
+    private func header() throws -> (rows: Int, counts: [String: Int]) {
+        guard let url = Self.locate() else { return (-1, [:]) }
+        let text = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        var rows = -1
+        var counts: [String: Int] = [:]
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard line.hasPrefix("#") else { break }
+            if line.hasPrefix("# rows=") {
+                rows = Int(line.dropFirst("# rows=".count).trimmingCharacters(in: .whitespaces)) ?? -1
+            }
+            if line.hasPrefix("# counts:") {
+                for pair in line.dropFirst("# counts:".count).split(separator: " ", omittingEmptySubsequences: true) {
+                    let parts = pair.split(separator: "=")
+                    if parts.count == 2, let n = Int(parts[1]) { counts[String(parts[0])] = n }
+                }
+            }
+        }
+        return (rows, counts)
+    }
+
     /// Both rounding columns, over the whole table.
     func testBothRoundingColumnsOfTheSharedTable() throws {
         let rows = try rows()
-        XCTAssertGreaterThan(rows.count, 1000,
-                             "only \(rows.count) rows loaded; the table holds thousands, so this would pass vacuously")
+        let declared = try header()
+        XCTAssertEqual(rows.count, declared.rows,
+                       "the body and the header disagree on the row count")
         var kinds: Set<String> = []
         var reported = 0
         for row in rows {
@@ -97,12 +123,12 @@ final class NumberConformanceTests: XCTestCase {
         if reported > 10 {
             XCTFail("... and \(reported - 10) further disagreements")
         }
-        // The README names the categories the generator refuses to leave empty.
-        // Asserting them here is what stops a table that lost its discriminating
-        // rows from passing as a full one.
-        for required in ["round6-tie", "round1-tie", "negative-zero", "boundary"] {
-            XCTAssertTrue(kinds.contains(required), "the table carries no `\(required)` rows any more")
-        }
+        // The header names every category the table carries. Asserting against
+        // it is what stops a table that lost its discriminating rows from
+        // passing as a full one.
+        XCTAssertFalse(declared.counts.isEmpty, "the header declares no per-kind counts")
+        XCTAssertEqual(kinds, Set(declared.counts.keys),
+                       "the body and the header disagree on the kinds present")
     }
 
     /// The tie rows alone, so a failure names the rule rather than a bit

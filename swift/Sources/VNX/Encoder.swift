@@ -9,9 +9,9 @@ import Foundation
 /// every `notes` passes such a check". Everything below therefore has to come
 /// out of the model or it is gone.
 ///
-/// There is ONE emit path. There used to be two, because a formatter had to
-/// reproduce the spelling of the document it was handed; SPEC 4.5 is gone and
-/// with it the only caller that wanted an unrounded, unshortened emit.
+/// There is ONE emit path. The format defines no byte layout, so nothing here
+/// wants an unrounded, unshortened emit: every caller turns a model into a
+/// file, and SPEC 4.1's rules apply on the way out.
 enum DocumentEncoder {
     static func encode(_ d: Document) -> JSONValue {
         var o: [String: JSONValue] = ["vnx": .string(d.vnx)]

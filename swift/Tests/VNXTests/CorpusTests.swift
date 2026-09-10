@@ -148,30 +148,6 @@ final class CorpusTests: XCTestCase {
         }
     }
 
-    /// The one direction of the sidecar's `schema` verdict that a reader can
-    /// check without a JSON Schema validator: `not-json` means no validator
-    /// ever sees the document, and neither can this reader, so it must refuse.
-    ///
-    /// This library does NOT validate against `corpus/schema/vnx-0.1.schema.json`.
-    /// SPEC 8.2 publishes the schema so a document can be checked with no VNX
-    /// implementation present, and records a verdict per case so that
-    /// schema/reader disagreements are visible; it does not ask a library to
-    /// carry a validator, and this one does not.
-    func testNotJSONCasesAreRefused() throws {
-        var checked = 0
-        for tier in ["accept", "reject", "diagnose"] {
-            for url in try Corpus.cases(in: tier) {
-                let sidecar = try Corpus.Sidecar(url.deletingPathExtension().appendingPathExtension("expect.json"))
-                guard sidecar.schema == "not-json" else { continue }
-                checked += 1
-                XCTAssertThrowsError(try VNX.read(try Data(contentsOf: url)), url.lastPathComponent) {
-                    XCTAssertEqual(($0 as? Refusal)?.cause, .malformedJSON, url.lastPathComponent)
-                }
-            }
-        }
-        XCTAssertGreaterThan(checked, 0, "no case is marked `not-json` any more; this check has stopped checking anything")
-    }
-
     // MARK: - write/
 
     /// SPEC 4.1's emit boundary, which only this tier reaches: every other tier

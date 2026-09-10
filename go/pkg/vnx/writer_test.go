@@ -227,7 +227,7 @@ func TestStickyWriterTreatsAShortWriteAsAnError(t *testing.T) {
 	}
 }
 
-// TestStickIsIdempotent pins the re-entrancy the canonical writers depend on:
+// TestStickIsIdempotent pins the re-entrancy the encoders depend on:
 // they recurse and every level calls Stick, so a second wrapper would latch its
 // errors into an object the level above never reads.
 func TestStickIsIdempotent(t *testing.T) {

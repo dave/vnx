@@ -6,22 +6,21 @@
 //! implementation can round every coordinate in the format the wrong way and
 //! pass all of them green.
 //!
-//! ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
-//! column is not read: how a number is spelled is the writer's own business
-//! (SPEC 4.2), and comparing spellings across implementations is the rule this
-//! format dropped.
+//! ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled
+//! is the writer's own business (SPEC 4.2), and comparing spellings across
+//! implementations is the rule this format dropped.
 //!
 //! ⚠ AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as
 //! text would put the rendering rule back into the comparison through the side
 //! door, and would then pass or fail on how Rust spells a double.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// The table moved from `number-conformance/` to `corpus/numbers/` on
-/// 2026-09-09. Both are tried, and finding NEITHER is a loud failure naming
-/// both rather than a skip: a number-table test that skips when the file moves
-/// is a green light with no bulb in it, and a move is exactly the event that
-/// would switch it off.
+/// Two locations are tried, and finding NEITHER is a loud failure naming both
+/// rather than a skip: a number-table test that skips when the file moves is a
+/// green light with no bulb in it, and a move is exactly the event that would
+/// switch it off.
 fn table_path() -> PathBuf {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -71,8 +70,8 @@ fn rows() -> Vec<Row> {
         let fields: Vec<&str> = line.split('\t').collect();
         assert_eq!(
             fields.len(),
-            5,
-            "line {} has {} fields, not five: {line:?}",
+            4,
+            "line {} has {} fields, not four: {line:?}",
             index + 1,
             fields.len()
         );
@@ -94,19 +93,64 @@ fn rows() -> Vec<Row> {
             bits: u64::from_str_radix(fields[0], 16)
                 .unwrap_or_else(|e| panic!("line {}: {:?} is not hex: {e}", index + 1, fields[0])),
             kind: fields[1].to_string(),
-            round6: number(3),
-            round1: number(4),
+            round6: number(2),
+            round1: number(3),
         });
     }
     // LIVENESS. A table that failed to load, or a loop that skipped every row,
-    // is the same green as agreement on all of them.
+    // is the same green as agreement on all of them. The header declares what
+    // the body must hold, and the generator refuses to write one that disagrees
+    // with it.
+    let (declared_rows, declared_counts) = header();
+    assert_eq!(
+        out.len(),
+        declared_rows,
+        "the body and the header disagree on the row count"
+    );
     assert!(
-        out.len() > 1_000,
-        "only {} rows were read; the committed table holds thousands, so this \
-         passed vacuously",
-        out.len()
+        !declared_counts.is_empty(),
+        "the header declares no per-kind counts"
+    );
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    for row in &out {
+        *seen.entry(row.kind.clone()).or_default() += 1;
+    }
+    assert_eq!(
+        seen, declared_counts,
+        "the body and the header disagree on the kinds present"
     );
     out
+}
+
+/// The row count and the per-kind counts the header declares.
+///
+/// A hardcoded list of the categories this file depends on ages badly, and the
+/// newest category is always the one nothing pins. Reading the header instead
+/// means a category that vanishes is a failure rather than a silence.
+fn header() -> (usize, BTreeMap<String, usize>) {
+    let path = table_path();
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{} will not read: {e}", path.display()));
+    let mut rows = 0;
+    let mut counts = BTreeMap::new();
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix('#') else {
+            break;
+        };
+        if let Some(n) = rest.trim_start().strip_prefix("rows=") {
+            rows = n.trim().parse().expect("the header's row count is a number");
+        }
+        if let Some(list) = rest.trim_start().strip_prefix("counts:") {
+            for pair in list.split_whitespace() {
+                let (kind, n) = pair.split_once('=').expect("a counts entry is kind=count");
+                counts.insert(
+                    kind.to_string(),
+                    n.parse().expect("a counts entry holds a number"),
+                );
+            }
+        }
+    }
+    (rows, counts)
 }
 
 /// SPEC 4.1: longitude and latitude are rounded to six decimal places.

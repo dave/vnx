@@ -1,6 +1,5 @@
 {
   "kind": "reject",
   "note": "An Infinity literal. Same reasoning as the NaN case, and listed separately because a permissive parser may accept one and not the other.",
-  "schema": "not-json",
   "refusal": "malformed JSON"
 }

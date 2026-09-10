@@ -376,8 +376,8 @@ func checkName(s string, nonASCII, rtl *regexp.Regexp, unicode, isRTL *bool) {
 
 // The negative-zero guard, with its own liveness assertion.
 //
-// canonical.go:92-103 records that -0 was found by writing a corpus case and
-// not by reading the encoder, so it may be in neither golden. Two halves:
+// -0 was found by writing a corpus case and not by reading the encoder, so it
+// may be in neither golden. Two halves:
 // Go WOULD emit `-0` here (the premise — checked, so the guard cannot pass
 // because the hazard evaporated), and the frozen bytes carry `0`.
 func TestNegativeZeroCaseIsFrozenAsPlainZero(t *testing.T) {
@@ -576,7 +576,7 @@ func oracleNegativeZero() *Document {
 
 func oracleExtremeNumbers() *Document {
 	// The four spellings the reference implementations disagree about, plus the
-	// 2^53 boundary. canonical.go:79-83 records Python as the outlier.
+	// 2^53 boundary. Python is the outlier on these.
 	vals := []float64{
 		1e-7,
 		0.000001,
@@ -608,7 +608,7 @@ func oracleExtremeNumbers() *Document {
 }
 
 // A pip time above 2^53 is NOT representable as a float64, and today's encoder
-// takes every number through Float64() (canonical.go:85). Whatever it does with
+// takes every number through Float64(). Whatever it does with
 // this is frozen here rather than assumed — position.go:20-25 warns that the
 // internal MinInt64 sentinel must never reach the wire for exactly this reason.
 func oracleBigInt64() *Document {
@@ -681,8 +681,8 @@ func oracleDegenerateArrays() *Document {
 }
 
 func oracleRulesets() *Document {
-	// Carried VERBATIM and uninspected (vnx.go:57-63), but canonical ordering
-	// still recurses into it — so every writer rule applies inside a block this
+	// Carried VERBATIM and uninspected (vnx.go:57-63), but the encoder still
+	// recurses into it — so every writer rule applies inside a block this
 	// package refuses to understand. NEITHER GOLDEN HAS ONE.
 	return &Document{
 		Generator: "rulesets",

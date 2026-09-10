@@ -1,7 +1,6 @@
 {
   "kind": "diagnose",
   "note": "A value of the wrong JSON type in an optional key and in a required key, in one document, because with only one of them the case decides nothing. Section 6.2 gives the two different remedies: an optional key is dropped and the item kept, a required key drops the item, because dropping a required field would leave a waypoint that is nowhere. A library that drops the item every time and a library that drops the field every time each pass a document carrying only one of the two, and this format has had both readings shipped at once. The first waypoint carries a string `hidden` and survives with that field gone; the second carries a string `at` and is dropped entire, which is what `counts` proves - one waypoint read, not two, and not two with one of them positionless. The two codes are separate for the same reason the remedies are: `a field is gone` and `the item is gone` differ in whether the rest of the item survives, and a consumer told only that a type was wrong has to re-derive required-ness from section 3.10's table to find out which happened, which is the lookup a code exists to save. Note for an implementer whose reader conflates them: a missing required key and a wrong-typed required key take the same remedy but are not the same fact, and only the second is this case.",
-  "schema": "invalid",
   "counts": {
     "waypoints": 1
   },

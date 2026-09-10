@@ -512,10 +512,7 @@ test('using Web Mercator for the projection IS caught', async () => {
 });
 
 test('breaking rounding reddens the accept tier as well as the write tier', async () => {
-  // Until write/ existed this asserted GREEN, and it was right to: every tier
-  // re-rendered, so breaking rounding outright changed nothing. It inverted
-  // when write/emit-boundary landed, and it has inverted again — there is now
-  // ONE emit path, so every tier that encodes reaches the rounder.
+  // There is ONE emit path, so every tier that encodes reaches the rounder.
   //
   // The accept tier still cannot be the whole guard: it applies rounding to
   // BOTH sides, so it sees a rounder that answers wrongly and not one that
@@ -575,8 +572,7 @@ test('rounding half away from zero instead of half to even is caught by the writ
     'it needs the write tier, whose fixture carries the 340.25 tie',
   );
   // Measured 2026-09-09: Go and Python give 340.2 for 340.25 to one place,
-  // JavaScript `toFixed` gives 340.3. This asserted GREEN until write/ existed,
-  // because every tier re-rendered and a re-render never rounds.
+  // JavaScript `toFixed` gives 340.3.
   const cases = await runMutated([{
     file: 'round.js',
     from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',

@@ -9,19 +9,18 @@
 //! compared BY BIT PATTERN: comparing spellings would put a rendering rule the
 //! format no longer has back into the measurement.
 //!
-//! **The counts are not written down here.** Run it. The table grew from 5,315
-//! to 5,329 rows between two runs of this example while it was being written —
-//! a `scaling-route` category was added — so a figure embedded in this comment
-//! was stale within minutes of being correct. A measurement belongs in the
-//! thing that measures.
+//! **The counts are not written down here.** Run it. The table's contents are
+//! chosen and are changed by editing `makenumbers`, so a figure embedded in
+//! this comment is stale the next time somebody adds a row. A measurement
+//! belongs in the thing that measures.
 //!
 //! What IS stable is the structure, and it is the part worth quoting:
 //!
 //! * "differ" counts exact-decimal rounding against scale-by-10^n-then-round-
 //!   ties-even. Rows whose scaled product overflows to infinity are counted
 //!   BESIDE that, not inside it: there is no spelling to compare.
-//! * At one decimal place the differing rows are `uniform`, `render-tie`,
-//!   `boundary` and `scaling-route` — and **not one `round1-tie`**. The
+//! * At one decimal place the differing rows are `scaling-route`,
+//!   `negative-zero` and `round6-tie` — and **not one `round1-tie`**. The
 //!   deliberately-constructed tie rows separate a tie DIRECTION and do not
 //!   separate the choice of OPERATION at all. Ordinary values do that.
 //!

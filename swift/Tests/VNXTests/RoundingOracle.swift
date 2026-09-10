@@ -1,6 +1,6 @@
 import Foundation
 
-/// An oracle for SPEC 4.5.4's rounding: 4,082 (value, places, expected) triples
+/// An oracle for SPEC 4.1's rounding: 4,082 (value, places, expected) triples
 /// as IEEE 754 bit patterns, generated with Python's `Fraction`, which computes
 /// the exact decimal expansion with no floating point anywhere in the answer.
 ///

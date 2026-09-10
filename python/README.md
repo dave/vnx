@@ -64,12 +64,6 @@ catches all four.
 
 - **No GPX, KML or GeoJSON.** Those are conversion tools rather than part of the
   format, Go-only by ruling.
-- **No JSON Schema validation.** The schema is at `corpus/schema/` (§8.2), so
-  it is reachable — but validating draft 2020-12 needs a validator, and Python
-  has none in its standard library. Checking the sidecar `schema` verdict would
-  cost this library its only real adoption property, so it does not;
-  `CorpusStructure.UNCHECKED` records that rather than letting it pass
-  silently.
 - **No writer-side vocabulary rules.** §5.2's rule for `app.viatrail.routing` —
   that a writer verifies the arc kind against the source before writing — is
   stated in terms of Viatrail's internal model, which this library does not

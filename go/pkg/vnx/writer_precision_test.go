@@ -19,7 +19,7 @@ import (
 	"github.com/dave/vnx/go/pkg/vnx/kml"
 )
 
-// The WRITER OBLIGATION (spec §4.5): a document this library writes carries no
+// The WRITER OBLIGATION (spec §4.1): a document this library writes carries no
 // coordinate finer than vnx.CoordinateDecimals and no elevation finer than
 // vnx.ElevationDecimals. round.go states the rule and the four encoders each
 // call it; nothing until this file asserted the RESULT.
@@ -31,11 +31,11 @@ import (
 // the EMITTED BYTES of every accept corpus fixture through all four writers and
 // asks the question directly.
 //
-// ⚠ IT IS THE COUNTERPART OF TestCanonicalPreservesFullPrecision below. A
-// writer rounds at the boundary; a reader, and the byte-in/byte-out formatter
-// vnx.Canonical, preserve whatever they are handed. The two halves are stated
-// together on purpose, because reading either alone suggests the other is a
-// bug.
+// ⚠ IT IS THE COUNTERPART OF
+// TestTheReaderPreservesFullPrecisionAndTheWriterRounds below. A writer rounds
+// at the boundary; a reader preserves whatever it was handed. The two halves
+// are stated together on purpose, because reading either alone suggests the
+// other is a bug.
 
 // maxCoordinateDecimals and maxElevationDecimals are the constants restated as
 // this test's expectation, deliberately NOT read from vnx. A test that imports
@@ -48,7 +48,7 @@ const (
 
 // foundPos is one position as a writer SPELLED it. The literals are the exact
 // text from the output, not parsed doubles: the obligation is about how many
-// digits leave the file, so re-parsing and re-rendering them would ask a
+// digits leave the file, so parsing them and spelling them again would ask a
 // different question.
 type foundPos struct {
 	channel string // which geometry channel it came from, for the vacuity guard
@@ -252,9 +252,8 @@ func writersUnderTest() []writerUnderTest {
 // vnxPositions navigates to each position channel by name rather than
 // collecting every number in the file. That distinction is load-bearing:
 // unknown `data` records are opaque passthrough and carry whatever numbers
-// their author wrote — corpus/accept/number-rendering.vnx holds 1e-7 in one —
-// and a blind number sweep would demand a writer round a payload it must
-// preserve byte for byte.
+// their author wrote, and a blind number sweep would demand a writer round a
+// payload it must preserve.
 func vnxPositions(t *testing.T, out []byte) []foundPos {
 	t.Helper()
 	dec := json.NewDecoder(bytes.NewReader(out))
@@ -501,8 +500,9 @@ func kmlPositions(t *testing.T, out []byte) []foundPos {
 // The reader half of the rule
 // ---------------------------------------------------------------------------
 
-// TestCanonicalPreservesFullPrecision pins the SURPRISING half of §4.5's
-// rounding rule, and it is deliberate rather than an inconsistency.
+// TestTheReaderPreservesFullPrecisionAndTheWriterRounds pins the SURPRISING
+// half of §4.1's rounding rule, and it is deliberate rather than an
+// inconsistency.
 //
 // A READER preserves what it was handed; a WRITER rounds what it emits. The two
 // halves are asserted on one number in one fixture so the distinction cannot be

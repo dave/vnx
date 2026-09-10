@@ -9,15 +9,14 @@ import kotlin.test.fail
 /**
  * The number-conformance table, `corpus/numbers/`.
  *
- * It gives BREADTH that fixtures cannot: five thousand doubles across the whole
- * binary64 range, each with its value rounded to six decimal places and to one.
- * A handful of hand-written cases can pin a rule; only a table can say the rule
- * holds everywhere.
+ * Each row is a double, with its value rounded to six decimal places and to
+ * one. Every row is chosen to separate a wrong rule from the right one: the two
+ * directions of a tie, rounding against the double against scaling first, and a
+ * negative zero a writer creates by rounding towards it.
  *
- * IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render` column
- * is not read: how a number is spelled is the writer's own business (section
- * 4.2), and comparing spellings across implementations is the rule this format
- * dropped.
+ * IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled is
+ * the writer's own business (section 4.2), and comparing spellings across
+ * implementations is the rule this format dropped.
  *
  * AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as text
  * would put the rendering rule back into the comparison through the side door,
@@ -40,21 +39,44 @@ class NumberConformanceTest {
         for ((index, line) in table.readLines().withIndex()) {
             if (line.isBlank() || line.startsWith("#")) continue
             val f = line.split("\t")
-            check(f.size == 5) { "${table.name}:${index + 1}: expected 5 tab-separated fields, got ${f.size}" }
-            out.add(Row(index + 1, java.lang.Long.parseUnsignedLong(f[0], 16), f[1], f[3], f[4]))
+            check(f.size == 4) { "${table.name}:${index + 1}: expected 4 tab-separated fields, got ${f.size}" }
+            out.add(Row(index + 1, java.lang.Long.parseUnsignedLong(f[0], 16), f[1], f[2], f[3]))
         }
         return out
+    }
+
+    /**
+     * The row count and the per-kind counts the header declares.
+     *
+     * The generator refuses to write a header that disagrees with its body, so
+     * reading it is what makes a table that lost a whole category a failure
+     * here rather than a silence. A hardcoded list of the categories this test
+     * depends on ages badly, and the newest category is always the one nothing
+     * pins.
+     */
+    private fun header(): Pair<Int, Map<String, Int>> {
+        var rows = -1
+        val counts = LinkedHashMap<String, Int>()
+        for (line in table.readLines()) {
+            if (!line.startsWith("#")) break
+            if (line.startsWith("# rows=")) rows = line.removePrefix("# rows=").trim().toInt()
+            if (line.startsWith("# counts:")) {
+                for (pair in line.removePrefix("# counts:").trim().split(Regex("\\s+"))) {
+                    val (kind, n) = pair.split("=")
+                    counts[kind] = n.toInt()
+                }
+            }
+        }
+        return rows to counts
     }
 
     @Test
     fun `the table is present, complete, and discriminating`() {
         val rows = rows()
-        assertTrue(rows.size > 2000, "the table has shrunk to ${rows.size} rows")
-        // The categories that do the discriminating. If one is gone the tier
-        // still passes, which is the failure that would not announce itself.
-        for (kind in listOf("named", "boundary", "negative-zero", "render-tie", "round1-tie", "round6-tie", "uniform", "in-range")) {
-            assertTrue(rows.any { it.kind == kind }, "the table carries no `$kind` rows any more")
-        }
+        val (declaredRows, declaredCounts) = header()
+        assertEquals(declaredRows, rows.size, "the body and the header disagree on the row count")
+        assertTrue(declaredCounts.isNotEmpty(), "the header declares no per-kind counts")
+        assertEquals(declaredCounts, rows.groupingBy { it.kind }.eachCount(), "the body and the header disagree on the kinds present")
         // And the tie rows must really be ties: an exact halfway value for each
         // of the two rounding columns.
         assertTrue(
@@ -89,7 +111,7 @@ class NumberConformanceTest {
         report("rounding", failures)
         // LIVENESS. A table that failed to load, or a loop that skipped every
         // row, is the same green as agreement on all of them.
-        assertTrue(rows.size >= 1000, "only ${rows.size} rows compared; this passed vacuously")
+        assertEquals(header().first, rows.size, "the header and the body disagree on how many rows were compared")
     }
 
     @Test
@@ -124,8 +146,8 @@ class NumberConformanceTest {
         // Section 4.1 states this as a rule and gives these three values. The
         // scaled product is itself a binary64 and is not always the exact scaled
         // value, so multiplying manufactures a tie the true decimal never had and
-        // destroys one it did. Measured in Go: the scaling route disagreed with
-        // this table on 175 of its 5,329 rows.
+        // destroys one it did. The table carries a `scaling-route` category of
+        // values that separate the two.
         //
         // The contrast is `Math.rint`, which is the SAME TIE RULE — half to even
         // — applied to the product instead of to the value. That is what makes

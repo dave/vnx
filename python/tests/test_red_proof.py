@@ -17,7 +17,7 @@ from typing import Any, Callable
 from unittest import mock
 
 import vnx
-from vnx import decode, model, numbers
+from vnx import decode, geo, model, numbers
 from vnx.model import Position
 
 from . import test_corpus, test_numbers, test_reader, test_writer
@@ -660,6 +660,52 @@ class RedProof(unittest.TestCase):
             mock.patch.object(decode._Reader, "_positions", element_dropping),
             "DiagnoseTier.test_diagnose",
             "reader that drops the offending pip instead of its container",
+        )
+
+
+    def test_two_reports_a_runner_cannot_tell_apart_are_caught(self) -> None:
+        """SPEC 6.3's invariant, red-proofed by restoring the arc-level path.
+
+        `diagnose/terminal-pip-off-node.vnx` has BOTH terminals of one arc
+        drifted, so a reader reporting at the arc rather than at the end emits
+        two diagnostics with one path and one code -- and the set matcher would
+        pass a reader that found one of the two faults twice.
+        """
+        def arc_level(
+            self: Any, arc: Any, path: str, nodes: Any
+        ) -> None:
+            pips = arc.pips
+            if not pips:
+                return
+            for node_key, pip in ((arc.from_, pips[0]), (arc.to, pips[-1])):
+                if node_key is None:
+                    continue
+                node = nodes.get(node_key)
+                if node is None:
+                    continue
+                far = geo.distance_between(
+                    (pip.lon, pip.lat), (node.lon, node.lat)
+                )
+                if far > decode.PROJECTION_TOLERANCE_M:
+                    self.note(path, "drifted", "terminal-pip-off-node")
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_check_terminal_pips", arc_level),
+            "DiagnosticsAreDistinguishable."
+            "test_every_corpus_document_reports_distinguishable_diagnostics",
+            "reader reporting a drifted pip at the arc instead of at the end",
+        )
+
+    def test_a_walk_that_finds_nothing_is_caught(self) -> None:
+        """The liveness half: an empty walk would satisfy the invariant."""
+        self.assertGoesRed(
+            mock.patch.object(
+                test_corpus.DiagnosticsAreDistinguishable, "documents",
+                lambda self: [],
+            ),
+            "DiagnosticsAreDistinguishable."
+            "test_every_corpus_document_reports_distinguishable_diagnostics",
+            "walk that reaches no documents",
         )
 
 

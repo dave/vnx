@@ -293,6 +293,67 @@ class DiagnoseTier(_CorpusCase):
                 self._check_tracks(expect, result.document, path.name)
 
 
+class DiagnosticsAreDistinguishable(unittest.TestCase):
+    """SPEC 6.3: no two diagnostics may share both a `path` and a `code`.
+
+    A different kind of assertion from every other check in this file. The rest
+    compare a reader against an expectation; this one asks whether the reader's
+    own output is well formed at all, so it runs over every corpus document
+    rather than against a sidecar, and no sidecar can turn it off.
+
+    The hazard it names is specific. A path and a code are the only two fields a
+    conforming runner may compare, so two reports differing in neither are two a
+    runner cannot tell apart -- and a set matcher pairing each expectation with
+    one report would pass a reader that found ONE of two faults twice.
+
+    Note that SPEC 6.3 states this the other way round: "may share a `path`
+    unless they also share a `code`", which permits exactly the duplicate its
+    own next sentence forbids. This test implements the reason, not the
+    sentence, and the discrepancy is reported.
+    """
+
+    def documents(self) -> list[tuple[str, list[Any]]]:
+        out: list[tuple[str, list[Any]]] = []
+        for tier in ("accept", "diagnose", "reject", "format", "write"):
+            if not (CORPUS / tier).is_dir():
+                continue
+            for path in _cases(tier):
+                data = path.read_bytes()
+                try:
+                    if path.suffix == ".vnz":
+                        out.append(
+                            (f"{tier}/{path.name}",
+                             list(vnx.read_container_bytes(data).diagnostics))
+                        )
+                    else:
+                        out.append(
+                            (f"{tier}/{path.name}",
+                             list(vnx.read_bytes(data).diagnostics))
+                        )
+                except vnx.VNXRefusal:
+                    # A refused document has no diagnostic set to be well
+                    # formed.  The reject tier already pins the refusal.
+                    continue
+        return out
+
+    def test_every_corpus_document_reports_distinguishable_diagnostics(self) -> None:
+        documents = self.documents()
+        # Liveness: a check that walked nothing would pass silently, and the
+        # corpus grows by files this test never names.
+        self.assertGreater(len(documents), 20, "the walk found almost nothing")
+        for name, diagnostics in documents:
+            with self.subTest(case=name):
+                seen: dict[tuple[str, Any], int] = {}
+                for diagnostic in diagnostics:
+                    key = (diagnostic.path, diagnostic.code)
+                    seen[key] = seen.get(key, 0) + 1
+                repeated = {key: n for key, n in seen.items() if n > 1}
+                self.assertEqual(
+                    repeated, {},
+                    f"{name}: two reports a runner cannot tell apart",
+                )
+
+
 class WriteTier(unittest.TestCase):
     """Decode an input and call the WRITE path (SPEC 4.5.4).
 

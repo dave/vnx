@@ -504,19 +504,16 @@ func kmlPositions(t *testing.T, out []byte) []foundPos {
 // TestCanonicalPreservesFullPrecision pins the SURPRISING half of §4.5's
 // rounding rule, and it is deliberate rather than an inconsistency.
 //
-// [vnx.Canonical] is a formatter: bytes in, bytes out. It re-renders a document
-// SOMEBODY ELSE WROTE, and canonical form constrains key order and the spelling
-// of a number — not its precision. Rounding here would silently destroy data
-// belonging to whoever handed us the file, on an operation whose whole promise
-// is that only the layout changes. `vnx fmt` (cmd/vnx/main.go) is its only
-// caller and it rewrites the user's own file in place.
+// A READER preserves what it was handed; a WRITER rounds what it emits. The two
+// halves are asserted on one number in one fixture so the distinction cannot be
+// read as an accident.
 //
-// The obligation to round is the WRITER's, and it is asserted by
+// The writer's obligation is asserted corpus-wide by
 // TestWritersRoundEveryCoordinateTheyEmit above: everything this library
-// ORIGINATES goes out at 6/1 because every encoder rounds at its boundary.
-// Reader preserves, writer rounds. Do not "fix" this into agreement — deleting
-// either half breaks the other's guarantee.
-func TestCanonicalPreservesFullPrecision(t *testing.T) {
+// ORIGINATES goes out at 6/1 because every encoder rounds at its boundary. Do
+// not "fix" this into agreement — deleting either half breaks the other's
+// guarantee.
+func TestTheReaderPreservesFullPrecisionAndTheWriterRounds(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "corpus", "accept", "full-precision-coordinate.vnx")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -527,17 +524,6 @@ func TestCanonicalPreservesFullPrecision(t *testing.T) {
 		t.Fatalf("%s no longer holds %s; this test would pass vacuously", path, fullPrecision)
 	}
 
-	got, err := vnx.Canonical(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(got, []byte(fullPrecision)) {
-		t.Errorf("Canonical dropped precision it was handed; want %s in:\n%s", fullPrecision, got)
-	}
-
-	// And the counterpart, on the same number: decode that file and ENCODE it,
-	// and the writer's obligation applies. One fixture, both rules, so the
-	// distinction cannot be read as an accident.
 	doc, _, err := vnx.Decode(data)
 	if err != nil {
 		t.Fatal(err)

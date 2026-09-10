@@ -44,15 +44,24 @@ func TestRulesetContentsAreNotValidated(t *testing.T) {
 	}
 }
 
-// Canonical ordering DOES recurse into the block — the corpus example's ruleset
-// keys are sorted, so a formatter that skipped them would fail F10.
-func TestCanonicalRecursesIntoRulesets(t *testing.T) {
-	got, err := Canonical([]byte(`{"vnx":"0.1.0","rulesets":[{"zebra":1,"apple":2}]}`))
+// A ruleset survives a read-modify-write untouched. The block is opaque, so
+// the encoder hands it to encoding/json exactly as it was read rather than
+// walking into it.
+func TestRulesetsSurviveAReadModifyWrite(t *testing.T) {
+	const src = `{"vnx":"0.1.0","rulesets":[{"zebra":1,"apple":[2,{"nested":true}]}]}`
+	doc, _, err := Decode([]byte(src))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"vnx\": \"0.1.0\",\n  \"rulesets\": [\n    {\n      \"apple\": 2,\n      \"zebra\": 1\n    }\n  ]\n}\n"
-	if string(got) != want {
-		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	got, err := Encode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff, err := compareDocuments(got, []byte(src), treeOptions{emitBoundary: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != "" {
+		t.Fatalf("the ruleset did not survive: %s", diff)
 	}
 }

@@ -66,10 +66,9 @@ func (f *features) str(s string) {
 	f.sw.WriteBytes(b)
 }
 
-// number renders with the same ECMAScript semantics as vnx's canonical writer,
-// including its negative-zero rule: JSON.stringify(-0) is "0", and two writers
-// disagreeing about a sign that carries no information is byte-incompatibility
-// bought for nothing.
+// number renders with ECMAScript semantics, including the negative-zero rule:
+// JSON.stringify(-0) is "0", and a sign that carries no information is not worth
+// two writers disagreeing about.
 //
 // ⚠ A NON-FINITE COORDINATE CANNOT REACH HERE FROM Decode — decodePosition
 // refuses NaN and ±Inf — but a hand-built Document can carry one, and

@@ -8,8 +8,10 @@ import (
 	"time"
 )
 
+const examplePath = "../../../corpus/accept/example-network.vnx"
+
 // The round trip that matters: read the corpus example, write it back, and
-// compare BYTES.
+// compare the two as JSON TREES.
 //
 // This is the strongest test in the package, and it is strong for a specific
 // reason — it fails if the encoder forgets a single field the decoder read.
@@ -17,10 +19,7 @@ import (
 // what was decoded) passes happily while silently dropping whatever neither
 // side happens to touch, which is the exact defect that let network arcs lose
 // their `from` and `to` for four commits.
-//
-// The example is canonical, and Encode always emits canonical form, so byte
-// equality is the right comparison rather than an unreasonably strict one.
-func TestExampleRoundTripsByteForByte(t *testing.T) {
+func TestExampleRoundTripsAsATree(t *testing.T) {
 	want, err := os.ReadFile(examplePath)
 	if err != nil {
 		t.Fatal(err)
@@ -36,10 +35,12 @@ func TestExampleRoundTripsByteForByte(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	if !bytes.Equal(got, want) {
-		i := firstDiff(got, want)
-		t.Fatalf("round trip changed the document at byte %d\n got: %s\nwant: %s",
-			i, excerpt(got, i), excerpt(want, i))
+	diff, err := compareDocuments(got, want, treeOptions{emitBoundary: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != "" {
+		t.Fatalf("the round trip changed the document: %s", diff)
 	}
 }
 
@@ -64,9 +65,9 @@ func TestEncodeRefusesANetworkArcWithNoNodes(t *testing.T) {
 }
 
 // Trailing absence is omitted; interior absence keeps its null. [lon, lat,
-// null, null] and [lon, lat] say the same thing and the short spelling is
-// canonical — but [lon, lat, null, t] cannot lose its null without moving the
-// time into the elevation channel.
+// null, null] and [lon, lat] say the same thing and §4.1 has a writer emit the
+// short spelling — but [lon, lat, null, t] cannot lose its null without moving
+// the time into the elevation channel.
 func TestPositionTrailingNullsAreTrimmedButInteriorOnesKept(t *testing.T) {
 	ms := int64(1778569391000)
 	for _, c := range []struct {
@@ -81,7 +82,7 @@ func TestPositionTrailingNullsAreTrimmedButInteriorOnesKept(t *testing.T) {
 		{"ele and time", Position{Lon: 1, Lat: 2, Ele: ptrF(340), Time: &ms}, 4},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := emitter{}.positionTree(c.p)
+			got, err := positionWire(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -97,6 +98,17 @@ func TestPositionTrailingNullsAreTrimmedButInteriorOnesKept(t *testing.T) {
 
 func ptrF(f float64) *float64 { return &f }
 
+// firstDiff is the index of the first byte two slices disagree on, or the
+// length of the shorter where one is a prefix of the other.
+func firstDiff(a, b []byte) int {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] != b[i] {
+			return i
+		}
+	}
+	return min(len(a), len(b))
+}
+
 func excerpt(b []byte, i int) string {
 	lo := max(0, i-40)
 	hi := min(len(b), i+40)
@@ -107,11 +119,8 @@ func excerpt(b []byte, i int) string {
 //
 // [lon, lat, null] and [lon, lat] both say "no elevation". A READER accepts
 // either — corpus/accept/absent-elevation-and-time.vnx is stored in the long
-// spelling on purpose to keep that tolerance under test — but a WRITER emits
-// the short one, for the same reason numbers use their shortest round-trip
-// spelling: canonical form exists so that two exports of the same library are
-// byte-identical, and it can only do that if every fact has exactly one
-// spelling on the way out.
+// spelling on purpose to keep that tolerance under test — and §4.1 has a WRITER
+// emit the short one.
 func TestTrailingNullDecodesAndReEncodesShort(t *testing.T) {
 	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
 	if err != nil {
@@ -199,17 +208,14 @@ func ring() []Position {
 	}
 }
 
-// TestAnEmptyDataBagIsPresent extends spec §3.1's absent-versus-empty rule to
-// the place §3.10 generalises it to: "requiring a key does not require a
-// non-empty value ... an empty array is distinct from an absent one".
+// TestAnEmptyDataBagIsWrittenAsAnAbsentOne pins §3.1 at the `data` bag.
 //
-// ⚠ THE SEVEN COLLECTIONS WERE A SAMPLE, NOT A CENSUS. `data` was the second
-// surface with the same defect and it was found by a cold reader, not by the
-// change that fixed the first. The remaining one is `style`, which needs a model
-// change rather than a guard change: PointStyle and ChainStyle are structs with
-// named fields, so an empty style and an absent one are the same value
-// everywhere in this package.
-func TestAnEmptyDataBagIsPresent(t *testing.T) {
+// §3.1 makes an absent container and an empty one the same content, and a
+// reader must treat them alike. The MODEL still tells them apart — an absent
+// `data` decodes to nil and `[]` decodes to a non-nil empty bag — because that
+// is what a caller reading the document sees. The WRITER spells both as
+// absence, which is what `omitempty` does and what §3.1 permits.
+func TestAnEmptyDataBagIsWrittenAsAnAbsentOne(t *testing.T) {
 	const src = `{"vnx":"0.1.0","waypoints":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"data":[]}]}`
@@ -224,13 +230,22 @@ func TestAnEmptyDataBagIsPresent(t *testing.T) {
 		t.Error("an absent `data` decoded to a non-nil bag")
 	}
 	if doc.Waypoints[1].Data == nil {
-		t.Error("an empty `data` decoded to nil, so the two are already one value in the model")
+		t.Error("an empty `data` decoded to nil, so a caller cannot tell the two apart")
 	}
-	got, err := Reformat(doc)
+	got, err := Encode(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := bytes.Count(got, []byte(`"data": []`)); n != 1 {
-		t.Errorf("got %d empty data bags in the re-render, want exactly 1:\n%s", n, got)
+	if bytes.Contains(got, []byte(`"data"`)) {
+		t.Errorf("an empty data bag was written out; §3.1 lets a writer omit it:\n%s", got)
+	}
+	// And the file still round-trips, which is the half that says the omission
+	// lost nothing a reader needed.
+	diff, err := compareDocuments(got, []byte(src), treeOptions{emitBoundary: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != "" {
+		t.Errorf("omitting the empty bag changed the document: %s", diff)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// Rounding at the serialisation boundary (Dave's ruling, 2026-09-03).
+// Rounding at the serialisation boundary (spec §4.1).
 //
 // Every writer rounds coordinates to CoordinateDecimals and elevations to
 // ElevationDecimals AT THE WRITE. A [Document] holds full binary64 precision in
@@ -60,10 +60,6 @@ func RoundPosition(p Position) Position {
 		Lon:  RoundCoordinate(p.Lon),
 		Lat:  RoundCoordinate(p.Lat),
 		Time: p.Time,
-		// Channels is a spelling, not a value, and rounding does not change it.
-		// Dropping it here silently un-did Position.Channels for every position
-		// on the wire, because rounding sits between the model and the emitter.
-		Channels: p.Channels,
 	}
 	if p.Ele != nil {
 		e := RoundElevation(*p.Ele)
@@ -85,14 +81,14 @@ func RoundPosition(p Position) Position {
 // most that many decimal places. That is the whole mechanism by which the
 // digits actually leave the file.
 //
-// NEGATIVE ZERO IS NORMALISED TO POSITIVE ZERO. -0.0000004 rounds to -0, and
-// canonical form spells that `0` (canonical.go's ECMAScript rule); doing it
-// here means all four writers agree without each remembering to.
+// NEGATIVE ZERO IS NORMALISED TO POSITIVE ZERO. -0.0000004 rounds to -0, which
+// is the same value as 0 and carries no information; doing it here means all
+// four writers agree without each remembering to.
 func roundTo(v float64, places int) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return v
 	}
-	// ⚠ FORMAT AND PARSE, NOT MULTIPLY AND DIVIDE. Spec §4.5.4 defines the
+	// ⚠ FORMAT AND PARSE, NOT MULTIPLY AND DIVIDE. Spec §4.1 defines the
 	// rounded value as a RESULT — the value with at most `places` decimals
 	// nearest to the exact binary64, ties to even — and names
 	// scale-round-unscale as non-conforming, because the scaled product is
@@ -100,11 +96,11 @@ func roundTo(v float64, places int) float64 {
 	// multiplication manufactures ties the true decimal never had and destroys
 	// ones it did.
 	//
-	// This line was `math.RoundToEven(v*scale) / scale` and disagreed with
-	// corpus/numbers/ on 175 of 5,329 rows: 0.15 gave 0.2 where the table says
-	// 0.1, 0.05 gave 0, 0.45 gave 0.4. Every one of them is a value §4.5.4
-	// argues from. It also lost precision by MAGNITUDE rather than at a tie,
-	// diverging from exact arithmetic 2,902 times in the 1e14–1e15 range.
+	// `math.RoundToEven(v*scale) / scale` disagrees with corpus/numbers/ on 175
+	// of its rows: 0.15 gives 0.2 where the table says 0.1, 0.05 gives 0, 0.45
+	// gives 0.4. Every one of them is a value §4.1 argues from. It also loses
+	// precision by MAGNITUDE rather than at a tie, diverging from exact
+	// arithmetic 2,902 times in the 1e14–1e15 range.
 	//
 	// strconv.FormatFloat is correctly rounded and breaks a tie to even, which
 	// is the operation the table's generator uses, so the library and the table
@@ -120,14 +116,11 @@ func roundTo(v float64, places int) float64 {
 	// ⚠ ROUNDING CREATES NEGATIVE ZEROS THAT WERE NEVER IN THE MODEL.
 	// math.Round(-0.4) is -0, and -0/10 is -0, so rounding -0.04 to one place
 	// yields a zero with its sign bit set — as does -4e-08 to six places. Spec
-	// §4.5.4 requires the negative-zero rule to be applied AFTER rounding for
-	// exactly this reason: a writer that collapsed -0 only across the values it
-	// was HANDED would emit `-0` for a value it produced itself.
+	// §4.1 requires rounding to happen in the emit path, so a writer that collapsed
+	// -0 only across the values it was HANDED would emit `-0` for a value it
+	// produced itself.
 	//
 	// `r == 0` is true for both zeros in Go, so this one comparison catches it.
-	// The renderer collapses negative zero as well (canonical.go), so a value
-	// reaching the wire is guarded twice; this is the guard on the arithmetic
-	// and that one is the guard on the spelling.
 	if r == 0 {
 		return 0
 	}

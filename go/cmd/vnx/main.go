@@ -26,8 +26,6 @@ import (
 const usage = `vnx — Viatrail Network eXchange tools
 
   vnx validate [--json] <file>   read a document and report what is wrong with it
-  vnx fmt [--write] [--json] <file>
-                                 render in canonical form (spec §4.5)
   vnx outline [--json] <file>    the document's shape, without geometry
   vnx convert --to gpx|kml|geojson [--out <file>] <file>
                                  write the document as GPX, KML or GeoJSON
@@ -56,8 +54,6 @@ func main() {
 	switch os.Args[1] {
 	case "validate":
 		err = cmdValidate(os.Args[2:])
-	case "fmt":
-		err = cmdFmt(os.Args[2:])
 	case "outline":
 		err = cmdOutline(os.Args[2:])
 	case "convert":
@@ -159,29 +155,6 @@ func cmdValidate(args []string) error {
 		fmt.Printf("%s: read with %d diagnostic(s)\n", path, len(diags))
 	}
 	return nil
-}
-
-func cmdFmt(args []string) error {
-	fs := flag.NewFlagSet("fmt", flag.ExitOnError)
-	write := fs.Bool("write", false, "rewrite the file in place")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		return errors.New("fmt needs exactly one file")
-	}
-	path := fs.Arg(0)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	out, err := vnx.Canonical(data)
-	if err != nil {
-		return err
-	}
-	if *write {
-		return os.WriteFile(path, out, 0o644)
-	}
-	_, err = os.Stdout.Write(out)
-	return err
 }
 
 // cmdOutline prints structure without geometry. A day's track is tens of

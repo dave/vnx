@@ -39,6 +39,20 @@ import (
 	"io"
 )
 
+// The [APPNOTE] record signatures and fixed header sizes this reader walks.
+const (
+	sigLocalHeader         = 0x04034b50
+	sigCentralHeader       = 0x02014b50
+	sigEndOfDirectory      = 0x06054b50
+	sigZip64EndOfDirectory = 0x06064b50
+	sigZip64Locator        = 0x07064b50
+	localHeaderSize        = 30
+	centralHeaderSize      = 46
+	endOfDirectorySize     = 22
+
+	zipMethodStored = 0
+)
+
 const (
 	zipMethodDeflate = 8
 	zipFlagUTF8      = 0x0800

@@ -238,16 +238,15 @@ func TestStickIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestStickyWriterIsTheOneCanonicalUses closes the acceptance criterion that
-// canonical.go and the exported writer are ONE implementation. If canonical.go
-// grew a private copy again, its errors would not reach a caller through this
-// type.
-func TestStickyWriterIsTheOneCanonicalUses(t *testing.T) {
+// TestStickyWriterIsTheOneTheEncoderUses closes the acceptance criterion that
+// the encoder and the exported writer are ONE implementation. If the encoder
+// grew a private copy, its errors would not reach a caller through this type.
+func TestStickyWriterIsTheOneTheEncoderUses(t *testing.T) {
 	sink := &failingWriter{after: 0, err: errors.New("no room")}
-	if err := writeCanonical(sink, map[string]any{"a": 1}, 0); err == nil {
-		t.Fatal("writeCanonical returned nil against a sink that accepts nothing — canonical.go " +
-			"is not routing its writes through StickyWriter, so a truncated document would be " +
-			"reported as a clean one")
+	if err := EncodeTo(sink, &Document{Waypoints: []Waypoint{{Name: "x", At: Position{Lon: -3, Lat: 57}}}}); err == nil {
+		t.Fatal("EncodeTo returned nil against a sink that accepts nothing — it is not routing " +
+			"its writes through StickyWriter, so a truncated document would be reported as a " +
+			"clean one")
 	}
 }
 

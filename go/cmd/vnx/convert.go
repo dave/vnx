@@ -40,9 +40,8 @@ type writeFunc func(io.Writer, *vnx.Document) (vnx.WriteReport, error)
 // and was handed GPX has been told nothing.
 //
 // ⚠ "vnx" IS NOT IN HERE, and its absence is a decision. `convert` turns a VNX
-// document into something else; `vnx fmt` is what rewrites a VNX file as VNX.
-// Accepting --to vnx would give this CLI two commands for one job that differ
-// in which of them canonicalises.
+// document into something else. Reading a VNX file and writing it back as VNX
+// is not a conversion, and this CLI does not offer it.
 //
 // ⚠ THE TOKENS ARE THE SAME SPELLINGS vnxbridge.Format USES, AND NOTHING
 // ENFORCES THAT. This command cannot import vnxbridge — that is the whole

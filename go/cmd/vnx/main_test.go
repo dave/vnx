@@ -89,22 +89,6 @@ func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 	}
 }
 
-func TestFmtIsIdempotentAndMatchesTheCorpus(t *testing.T) {
-	bin := build(t)
-	src := "../../../corpus/accept/example-network.vnx"
-	want, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := exec.Command(bin, "fmt", src).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != string(want) {
-		t.Fatal("fmt on the corpus example must be a no-op")
-	}
-}
-
 func TestOutlineOmitsGeometry(t *testing.T) {
 	bin := build(t)
 	out, err := exec.Command(bin, "outline", "../../../corpus/accept/example-network.vnx").Output()

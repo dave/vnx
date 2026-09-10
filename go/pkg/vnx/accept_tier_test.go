@@ -1,20 +1,17 @@
 package vnx
 
-import (
-	"bytes"
-	"testing"
-)
+import "testing"
 
 // TestAcceptTierCatchesAReaderThatDiscardsWhatItRead freezes the proof that the
 // accept tier's check is worth what §8.1 claims for it.
 //
-// ⚠ THIS IS WHY THE TIER USES Reformat AND NOT Canonical. Canonical is bytes in
-// and bytes out; it never builds a model, so it cannot observe anything about
-// what a model kept. The Python implementation measured that on 2026-09-09 by
-// disabling one thing at a time in its decoder: a reader that discarded every
-// data record, every ruleset, every style or every `notes` passed the whole
-// accept tier GREEN. That is the entire extensibility mechanism, all styling
-// and all user prose, silently droppable by a "conforming" implementation.
+// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
+// ANOTHER MODEL. A reader that discarded every data record, every ruleset,
+// every style or every `notes` produces a model that compares equal to itself
+// and passes a model-versus-model tier GREEN. That is the entire extensibility
+// mechanism, all styling and all user prose, silently droppable by a
+// "conforming" implementation. Measured, by disabling one thing at a time in a
+// decoder.
 //
 // Each case below is one of those readers. If any of them stops being caught,
 // the tier has gone back to proving nothing about the model.
@@ -72,14 +69,18 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 				t.Fatal(err)
 			}
 			tc.spoil(doc)
-			got, err := Reformat(doc)
+			got, err := Encode(doc)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if bytes.Equal(got, data) {
-				t.Errorf("a reader that %s reproduced the file byte for byte — the check cannot see it", tc.name)
+			diff, err := compareDocuments(got, data, treeOptions{emitBoundary: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff == "" {
+				t.Errorf("a reader that %s reproduced the file — the check cannot see it", tc.name)
 			} else {
-				t.Logf("caught: %s", tc.name)
+				t.Logf("caught: %s — %s", tc.name, diff)
 			}
 		})
 	}

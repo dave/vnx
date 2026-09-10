@@ -98,6 +98,10 @@ type expectation struct {
 
 	Attachments *[]string `json:"attachments"`
 
+	// Root names the archive's root document. It appears on a write/ container
+	// case, whose output is an archive rather than a document.
+	Root string `json:"root"`
+
 	// Refusal is a substring of the expected error. Substring rather than
 	// equality because the exact wording is a reader's business; what the
 	// corpus pins is that the refusal names its cause.
@@ -156,31 +160,34 @@ func runAccept(t *testing.T, c corpusCase) {
 			t.Errorf("attachments = %v, want %v", attachments, *want)
 		}
 	}
-	// The accept tier's check: DECODE the file, RE-RENDER the model, and
-	// require the bytes back.
+	// The accept tier's check (spec §8.1): DECODE the file, ENCODE the model,
+	// and require the two JSON TREES equal.
 	//
-	// ⚠ IT IS Reformat, NOT Canonical AND NOT Encode, and both halves matter.
+	// ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER. A reader that
+	// discarded every data record, every ruleset, every style and every `notes`
+	// produces a model that compares equal to itself and passes such a tier
+	// green — that is the whole extensibility mechanism, all styling and all
+	// user prose. Comparing against the tree parsed from the ORIGINAL FILE is
+	// what proves a reader kept what it read, and accept_tier_test.go freezes
+	// the proof.
 	//
-	// Canonical is bytes in and bytes out. It never builds a model, so it cannot
-	// see a reader that discarded what it read — measured by the Python
-	// implementation 2026-09-09, a reader that dropped every data record, every
-	// ruleset, every style and every `notes` passed this tier GREEN under it.
-	// That is the whole extensibility mechanism, all styling and all user prose.
-	//
-	// Encode is the WRITER: §4.5.4 rounds at the emit boundary and §4.1 emits
-	// the shortest spelling, so Encode(Decode(f)) is legitimately not f.
-	// Reformat is the FORMATTER, which reproduces what the document carried.
+	// ⚠ AND IT IS NOT A COMPARISON OF BYTES. Key order, number spelling and
+	// whitespace are the writer's own business, so the two sides are parsed and
+	// compared as trees, with the normalisations §8.1 permits.
 	if c.isContainer() {
 		return
 	}
-	got, err := Reformat(doc)
+	got, err := Encode(doc)
 	if err != nil {
-		t.Fatalf("Reformat: %v", err)
+		t.Fatalf("Encode: %v", err)
 	}
-	if !bytes.Equal(got, c.data) {
-		t.Errorf("re-rendering the decoded document did not reproduce the file; "+
-			"first difference at byte %d.\nEither the file is not canonical, or the "+
-			"reader dropped something it read", firstDiff(got, c.data))
+	diff, err := compareDocuments(got, c.data, treeOptions{emitBoundary: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != "" {
+		t.Errorf("encoding the decoded document did not reproduce the file: %s\n"+
+			"Either the reader dropped something it read, or the writer invented something", diff)
 	}
 }
 
@@ -511,72 +518,6 @@ func TestDuplicateObjectKeyIsSilentlyLastWins(t *testing.T) {
 	// makes the loss invisible: the document stays internally consistent.
 	if got := nodes["n1"].Lon; got != -3.60 {
 		t.Fatalf("n1 = %v, want the last spelling (-3.6); duplicate resolution is not last-wins here", got)
-	}
-}
-
-// The formatter cases (corpus/format).
-//
-// The accept files cannot catch a formatter bug, and finding that out is why
-// this exists. They are stored CANONICAL, so canonicalising one only ever asks
-// the renderer about values already spelled correctly — a writer that renders
-// negative zero as `-0`, or `0.000001` as `1e-06`, is never asked the question
-// at all. That is not hypothetical: the reference implementation had exactly the
-// negative-zero bug, its own corpus was blind to it, and only writing an input
-// file in the WRONG spelling surfaced it.
-//
-// So each case here is a deliberately messy document paired with exactly what a
-// conforming formatter must emit for it. This is the test another language's
-// implementation runs to prove its layout agrees byte-for-byte with everyone
-// else's.
-func TestFormatterCases(t *testing.T) {
-	dir := filepath.Join(corpusDir, "format")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cases := 0
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".in.vnx") {
-			continue
-		}
-		cases++
-		t.Run(name, func(t *testing.T) {
-			in, err := os.ReadFile(filepath.Join(dir, name))
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantPath := filepath.Join(dir, strings.TrimSuffix(name, ".in.vnx")+".canonical.vnx")
-			want, err := os.ReadFile(wantPath)
-			if err != nil {
-				t.Fatalf("%s has no expected output beside it: %v", name, err)
-			}
-			// The input must NOT already be canonical, or the case proves
-			// nothing — it would pass for any formatter that echoed its input.
-			if bytes.Equal(in, want) {
-				t.Fatal("the input is already canonical; this case would pass vacuously")
-			}
-			got, err := Canonical(in)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(got, want) {
-				t.Fatalf("formatter output differs at byte %d\n got: %s\nwant: %s",
-					firstDiff(got, want), got, want)
-			}
-			// And the expected output must be a fixed point, or it is not
-			// canonical form.
-			again, err := Canonical(want)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(again, want) {
-				t.Fatalf("%s is not itself canonical", wantPath)
-			}
-		})
-	}
-	if cases == 0 {
-		t.Fatal("no formatter cases found — dead probe, not a clean result")
 	}
 }
 

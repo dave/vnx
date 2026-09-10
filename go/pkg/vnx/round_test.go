@@ -195,9 +195,15 @@ func TestVNXRoundsCoordinatesAtTheWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := string(b)
-	const want = `"at": [-3.671235, 57.118123, 328.1]`
-	if !strings.Contains(out, want) {
-		t.Fatalf("output does not contain %s:\n%s", want, out)
+	// The VALUES, read back from the document, so the assertion is about what
+	// was written rather than about how the writer lays a position out.
+	back, _, err := Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := back.Waypoints[0].At
+	if at.Lon != -3.671235 || at.Lat != 57.118123 || at.Ele == nil || *at.Ele != 328.1 {
+		t.Fatalf("wrote [%v, %v, %v], want [-3.671235, 57.118123, 328.1]", at.Lon, at.Lat, at.Ele)
 	}
 	// RED PROOF: this is what Encode emits with the rounding removed.
 	if strings.Contains(out, "-3.6712345678901235") {
@@ -205,7 +211,7 @@ func TestVNXRoundsCoordinatesAtTheWrite(t *testing.T) {
 	}
 }
 
-// Every position channel on a VNX wire goes through positionTree, so one call
+// Every position channel on a VNX wire goes through positionWire, so one call
 // covers a waypoint's `at`, a ring, a track's pips, an arc's pips, a node and
 // an inline endpoint. Asserted rather than assumed: a second position builder
 // added later would be a second place that could forget.
@@ -239,14 +245,14 @@ func TestEveryVNXPositionChannelIsRounded(t *testing.T) {
 	}
 }
 
-// TestRoundingTiesGoToEven is the per-implementation test spec §4.5.4 requires,
-// and it exists because NO CORPUS TIER CAN REACH THIS RULE.
+// TestRoundingTiesGoToEven pins spec §4.1's tie rule at the unit level, beside
+// the corpus's own reach.
 //
-// ⚠ EVERY TIER RE-RENDERS. accept decodes and re-renders; format canonicalises
-// an input; neither ever asks a library to WRITE — to turn a model into a
-// document with the emit-boundary rules applied. Rounding happens only there.
-// So a fixture cannot catch a writer that rounds a tie away from zero, and each
-// implementation carries its own test instead.
+// ⚠ ONLY TWO THINGS REACH THIS RULE. corpus/write/ asks a library to WRITE — to
+// turn a model into a document with the emit-boundary rules applied — and
+// corpus/numbers/ compares the rounding operation row by row. The accept tier
+// re-encodes what it decoded, which applies rounding to values that already
+// satisfy it, so it cannot see a writer that rounds a tie away from zero.
 //
 // 340.25 and −340.25 are exact doubles, and a quarter-metre elevation grid
 // produces them routinely, so this is an ordinary case rather than a contrived

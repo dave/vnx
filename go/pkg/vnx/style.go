@@ -14,9 +14,9 @@ import "fmt"
 // Typed structs lost two things at once, and the second is the larger bug:
 //
 //   - PRESENCE. `"style": {}` and no `style` key at all were the same value, so
-//     a formatter could not reproduce which it was given, which §8.1's accept
-//     tier requires. That is §3.1's absent-versus-empty rule, which §3.10
-//     generalises to every container.
+//     a caller reading a document could not tell which it had been given. §3.1
+//     lets a WRITER spell the two alike; it does not let a READER collapse them
+//     before the caller sees them.
 //   - EVERY KEY THE FORMAT HAS NOT NAMED. A struct with named fields silently
 //     discarded anything else, in a region the specification declares opaque
 //     and where §3.4's own example prints `"style": { }`. Nobody reported that

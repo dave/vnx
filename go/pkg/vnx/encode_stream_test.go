@@ -11,34 +11,13 @@ import (
 	"testing"
 )
 
-// ⚠ THE DIFFERENTIAL ORACLE THAT LIVED HERE IS GONE, AND DELIBERATELY.
-// Until T8 this file carried TestEncodeToMatchesEncodeOverTheWholeCorpus,
-// comparing EncodeTo against the pre-4b encodeMaterialised over all 37 oracle
-// documents. T8 deleted encodeMaterialised — it was the whole point of the
-// spec — so there is no second implementation left to diff against, and a test
-// comparing EncodeTo with Encode would be comparing a function with a wrapper
-// around itself: green, and incapable of failing.
-//
-// What replaces it is TestEncodeMatchesItsFrozenOutput in encode_oracle_test.go,
-// which pins the same 37 documents to committed expectation bytes that predate
-// every line of phase 2. That is the stronger of the two, and it was written
-// first for exactly this moment.
-
 // TestEncodeToCoversEveryCollectionTheDocumentDeclares is the structural guard
-// on documentCollections, and it answers spec §8's open question 2.
+// on documentCollections.
 //
-// documentCollections names its collections one by one. A tenth added to
+// documentCollections names its collections one by one. An eighth added to
 // vnx.Document and forgotten there would be SILENTLY DROPPED from every
-// exported file — still valid VNX, still a green pair of goldens, and the data
-// simply gone. Reflection finds the omission instead of trusting the next
-// author to remember.
-//
-// It is deliberately a THIRD guard in this shape rather than a re-pointing of
-// vnxbridge's TestDocumentIsEmptyCountsEveryCollectionTheDocumentDeclares and
-// TestCountsCoverEveryCollectionTheDocumentDeclares. Those two guard
-// documentIsEmpty and countDocument, which are different hand-written lists
-// over the same struct; re-pointing either at this table would delete its
-// coverage of its own subject.
+// exported file — still valid VNX, and the data simply gone. Reflection finds
+// the omission instead of trusting the next author to remember.
 func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 	byField := map[string]documentCollection{}
 	for _, c := range documentCollections {
@@ -68,22 +47,12 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 		// green by hand-writing a fixture for the new field.
 		doc := &Document{}
 		reflect.ValueOf(doc).Elem().Field(i).Set(reflect.MakeSlice(f.Type, 1, 1))
-		if !c.present(doc) {
-			t.Errorf("documentCollections[%s].present says a document holding one %s does not carry it",
-				c.key, f.Name)
+		if c.count(doc) != 1 {
+			t.Errorf("documentCollections[%s].count says a document holding one %s holds %d",
+				c.key, f.Name, c.count(doc))
 		}
-		// And an EMPTY-but-present collection is still present. Spec §3.1 makes
-		// that a different document from one where the key is absent, so a
-		// `present` written as len(...) > 0 would drop it — which is what this
-		// arm exists to catch, reflectively, for every collection at once.
-		empty := &Document{}
-		reflect.ValueOf(empty).Elem().Field(i).Set(reflect.MakeSlice(f.Type, 0, 0))
-		if !c.present(empty) {
-			t.Errorf("documentCollections[%s].present says an EMPTY %s is absent; an empty "+
-				"collection and an absent one are different documents", c.key, f.Name)
-		}
-		if absent := (&Document{}); c.present(absent) {
-			t.Errorf("documentCollections[%s].present says an ABSENT %s is present", c.key, f.Name)
+		if n := c.count(&Document{}); n != 0 {
+			t.Errorf("documentCollections[%s].count says an absent %s holds %d", c.key, f.Name, n)
 		}
 		var b bytes.Buffer
 		if err := EncodeTo(&b, doc); err != nil {
@@ -106,72 +75,13 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 	}
 }
 
-// The container half of the ordering rule, asserted rather than trusted to a
-// hand-maintained slice literal. streamObject iterates each table in order and
-// does no sorting of its own, so a table's order IS the output's.
+// Map keys are COLLECTED AND SORTED, never iterated.
 //
-// ⚠ THIS IS NOT PEDANTRY, IT CAUGHT A LIVE ERROR. Spec 4b's plan and its brief
-// both state the network order as "areas, arcs, chains, data, nodes, points".
-// It is not: "arcs" and "areas" agree on "ar" and then `c` < `e`, so `arcs`
-// comes FIRST. Written the remembered way, the encoder produced a perfectly
-// valid file that differed from the conformance corpus at byte 885. A guard
-// that compared against a remembered list would have blessed it.
-func TestStreamedContainerTablesAreInCanonicalOrder(t *testing.T) {
-	docKeys := make([]string, 0, len(documentCollections))
-	for _, c := range documentCollections {
-		docKeys = append(docKeys, c.key)
-	}
-	netKeys := make([]string, 0)
-	for _, c := range networkContainers(emitter{}, Network{}) {
-		netKeys = append(netKeys, c.key)
-	}
-	for _, tbl := range []struct {
-		what string
-		keys []string
-		min  int
-	}{
-		{"documentCollections", docKeys, 7},
-		{"networkContainers", netKeys, 6},
-	} {
-		if len(tbl.keys) < tbl.min {
-			t.Fatalf("%s has %d entries, expected at least %d — the guard is reading the wrong table",
-				tbl.what, len(tbl.keys), tbl.min)
-		}
-		sorted := append([]string(nil), tbl.keys...)
-		sort.Strings(sorted)
-		if !reflect.DeepEqual(tbl.keys, sorted) {
-			t.Errorf("%s is ordered %v; canonical form requires %v", tbl.what, tbl.keys, sorted)
-		}
-	}
-	// The specific inversion the plan got wrong, named so a future reader who
-	// "corrects" it back is told why.
-	if sort.SearchStrings(netKeys, "arcs") > sort.SearchStrings(netKeys, "areas") {
-		t.Error("`areas` is emitted before `arcs`; lexicographically `arcs` comes first (c < e)")
-	}
-}
-
-// The nodes-after-arcs rule, asserted on real bytes rather than on the table,
-// because it is the one a streaming encoder is actively tempted to break: it
-// would be convenient to emit the nodes first so the arcs' from/to keys are
-// established before they are referenced. Canonical form does not allow it.
-func TestNodesAreEmittedAfterArcs(t *testing.T) {
-	var b bytes.Buffer
-	if err := EncodeTo(&b, &Document{Networks: []Network{oracleNetwork()}}); err != nil {
-		t.Fatal(err)
-	}
-	out := b.String()
-	arcs := strings.Index(out, `"arcs":`)
-	nodes := strings.Index(out, `"nodes":`)
-	if arcs < 0 || nodes < 0 {
-		t.Fatalf("the subject emitted no arcs (%d) or no nodes (%d); this test would pass vacuously", arcs, nodes)
-	}
-	if nodes < arcs {
-		t.Errorf("`nodes` is emitted at %d, before `arcs` at %d", nodes, arcs)
-	}
-}
-
-// Map keys are COLLECTED AND SORTED, never iterated — asserted directly on the
-// two maps, in addition to the determinism test's two arms.
+// ⚠ IT IS NOT A RULE OF THE FORMAT AND IS STILL A REQUIREMENT HERE. §4.4 says
+// key order is not significant, so no reader depends on this; what depends on
+// it is the writer being deterministic at all. Go map iteration is randomised
+// per process and per range, so an encoder that iterated these two maps would
+// emit a different file on every run, with no error and no panic.
 func TestNetworkMapKeysAreEmittedSorted(t *testing.T) {
 	n := oracleNetwork()
 	if len(n.Nodes) < 8 || len(n.Arcs) < 8 {
@@ -184,7 +94,7 @@ func TestNetworkMapKeysAreEmittedSorted(t *testing.T) {
 	}
 	out := b.String()
 	for what, want := range map[string][]string{
-		"node": sortedNames(n.Nodes, func(k string) string { return k }),
+		"node": sortedNames(n.Nodes),
 		"arc":  sortedArcNames(n.Arcs),
 	} {
 		last := -1
@@ -199,18 +109,17 @@ func TestNetworkMapKeysAreEmittedSorted(t *testing.T) {
 			last = at
 		}
 		// ⚠ "node-10" sorts BEFORE "node-2" as a string, and that is the
-		// ordering the format uses. If the keys were numerically ordered this
-		// assertion would be checking a different rule from writeObject's.
+		// ordering this writer uses. Numeric ordering would be a different rule.
 		if len(want) < 8 {
 			t.Fatalf("only %d %s keys; too few for order to be meaningful", len(want), what)
 		}
 	}
 }
 
-func sortedNames(m map[string]Position, f func(string) string) []string {
+func sortedNames(m map[string]Position) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
-		out = append(out, f(k))
+		out = append(out, k)
 	}
 	sort.Strings(out)
 	return out
@@ -225,23 +134,16 @@ func sortedArcNames(m map[string]Arc) []string {
 	return out
 }
 
-// TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot pins both sides of
-// spec §3.1's distinction, at every collection.
+// TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike pins §3.1 at every
+// collection.
 //
-// ⚠ THE RULE REVERSED ON 2026-09-09, and the test it replaced knew exactly
-// which case was at stake — its comment read "an EMPTY non-nil slice, which is
-// the case an `if len(...) > 0` guard and an `if ... != nil` guard disagree
-// about", and it asserted the len guard. §3.1 now makes an absent collection
-// and an empty one the same CONTENT and different DOCUMENTS: a reader treats
-// them alike, and a formatter reproduces which it was given, because §8.1's
-// accept tier requires the bytes back.
-//
-// Both goldens carry all seven containers populated, so neither can catch
-// either half of this. It is asserted directly.
-func TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot(t *testing.T) {
+// An absent collection and an empty one carry the same content and a reader
+// must treat them alike, so a writer may spell either — and this one spells
+// both as absence. The rule is asserted directly because both goldens carry all
+// seven containers populated and can catch neither half of it.
+func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 	const headerOnly = "{\n  \"vnx\": \"0.1.0\"\n}\n"
 	for _, c := range documentCollections {
-		// ABSENT: nil, so the key is omitted and nothing else appears.
 		var absent bytes.Buffer
 		if err := EncodeTo(&absent, &Document{}); err != nil {
 			t.Fatalf("%s: %v", c.key, err)
@@ -250,8 +152,6 @@ func TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot(t *testing.T) {
 			t.Errorf("a document with no %s produced %q, want the header-only document", c.field, absent.String())
 		}
 
-		// EMPTY BUT PRESENT: a non-nil zero-length slice, which must emit its
-		// key with an empty array.
 		doc := &Document{}
 		v := reflect.ValueOf(doc).Elem().FieldByName(c.field)
 		v.Set(reflect.MakeSlice(v.Type(), 0, 0))
@@ -259,20 +159,21 @@ func TestAnAbsentCollectionOmitsItsKeyAndAnEmptyOneDoesNot(t *testing.T) {
 		if err := EncodeTo(&empty, doc); err != nil {
 			t.Fatalf("%s: %v", c.key, err)
 		}
-		want := fmt.Sprintf("{\n  \"vnx\": \"0.1.0\",\n  %q: []\n}\n", c.key)
-		if empty.String() != want {
-			t.Errorf("an empty %s produced %q, want %q", c.field, empty.String(), want)
+		if empty.String() != absent.String() {
+			t.Errorf("an empty %s produced %q and an absent one produced %q; §3.1 makes them the same content",
+				c.field, empty.String(), absent.String())
 		}
 	}
 }
 
-// The scalar half. An empty header field is absent, not "".
-func TestEncodeToOmitsEmptyHeaderFieldsAndSortsTheRest(t *testing.T) {
+// The scalar half. An empty header field is absent, not "", and the four are
+// written in the order [Document] declares them.
+func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
 	var b bytes.Buffer
 	if err := EncodeTo(&b, &Document{Version: "0.1.0", Generator: "g", Created: "c"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"created\": \"c\",\n  \"generator\": \"g\",\n  \"vnx\": \"0.1.0\"\n}\n"
+	want := "{\n  \"vnx\": \"0.1.0\",\n  \"generator\": \"g\",\n  \"created\": \"c\"\n}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}
@@ -284,9 +185,37 @@ func TestEncodeToRefusesANilDocument(t *testing.T) {
 	}
 }
 
-// A streaming encoder can fail HALF WAY THROUGH A DOCUMENT, which Encode never
-// could. It must return an error rather than a truncated success — otherwise
-// the sink Syncs, sets committed, and renames a corrupt file into place.
+var errSinkFull = errors.New("sink full")
+
+// failAfter fails once n bytes have been accepted. It models the case that
+// matters: a file that stops accepting writes PART WAY through a document, so
+// the bytes already written are a valid prefix of a corrupt file.
+type failAfter struct {
+	n       int
+	written int
+	calls   int
+}
+
+func (f *failAfter) Write(p []byte) (int, error) {
+	f.calls++
+	if f.written >= f.n {
+		return 0, errSinkFull
+	}
+	room := f.n - f.written
+	if len(p) <= room {
+		f.written += len(p)
+		return len(p), nil
+	}
+	f.written = f.n
+	// A SHORT WRITE WITH NO ERROR. io.Writer permits it only alongside an
+	// error, and a wrapper that trusted that promise would lose these bytes
+	// silently — which is why StickyWriter checks n as well as err.
+	return room, nil
+}
+
+// A streaming encoder can fail HALF WAY THROUGH A DOCUMENT. It must return an
+// error rather than a truncated success — otherwise the sink Syncs, sets
+// committed, and renames a corrupt file into place.
 func TestEncodeToFailsRatherThanTruncating(t *testing.T) {
 	doc := oracleEverything()
 	var full bytes.Buffer
@@ -316,5 +245,22 @@ func TestEncodeToFailsRatherThanTruncating(t *testing.T) {
 	}
 	if w.written != n {
 		t.Fatalf("wrote %d bytes, the document is %d", w.written, n)
+	}
+	if w.calls < 100 {
+		t.Fatalf("only %d writes for a %d byte document — the probe is not seeing the writes", w.calls, n)
+	}
+}
+
+// A latched StickyWriter must not keep calling the sink underneath it. A file
+// handle that has failed once is not a thing to keep writing to, and thousands
+// of doomed syscalls per document is the difference between an error and a
+// hang.
+func TestALatchedWriterStopsCallingTheSink(t *testing.T) {
+	w := &failAfter{n: 8}
+	if err := EncodeTo(w, oracleEverything()); err == nil {
+		t.Fatal("expected an error")
+	}
+	if w.calls > 8 {
+		t.Errorf("the sink was called %d times after failing; the latch is not stopping the writes", w.calls)
 	}
 }

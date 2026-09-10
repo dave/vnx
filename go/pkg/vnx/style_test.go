@@ -35,12 +35,15 @@ func TestAStyleIsOpaque(t *testing.T) {
 		t.Errorf("an unrecognised style key was not carried: got %#v", got)
 	}
 
-	got, err := Reformat(doc)
+	got, err := Encode(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := bytes.Count(got, []byte(`"style": {}`)); n != 1 {
-		t.Errorf("got %d empty style objects in the re-render, want exactly 1:\n%s", n, got)
+	// §3.1 makes an empty container and an absent one the same content, so the
+	// writer spells both as absence. What must survive is the style that has
+	// keys in it.
+	if n := bytes.Count(got, []byte(`"style"`)); n != 1 {
+		t.Errorf("got %d style objects written, want exactly 1 — the one with keys in it:\n%s", n, got)
 	}
 	for _, key := range []string{"halo-width", "glyph"} {
 		if !bytes.Contains(got, []byte(key)) {

@@ -2,7 +2,6 @@ package vnx
 
 import (
 	"bufio"
-	"encoding/json"
 	"math"
 	"os"
 	"strconv"
@@ -10,25 +9,20 @@ import (
 	"testing"
 )
 
-// TestNumberConformanceTable runs this library against corpus/numbers/, which
-// it did not do until 2026-09-10.
+// TestNumberConformanceTable runs this library against corpus/numbers/.
 //
-// ⚠ THE REFERENCE IMPLEMENTATION GENERATED THE SHARED TABLE AND NEVER RAN
-// AGAINST IT. Five other libraries did. Measured when somebody finally
-// compared: the library disagreed with its own table on 175 of 5,329 rows —
-// 0.15 rounded to 0.2 where the table says 0.1, 0.05 to 0, 0.45 to 0.4 — every
-// one of them a value spec §4.5.4 argues from.
+// ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. The table's `render`
+// column is not read: how a number is spelled is the writer's own business
+// (§4.2), and comparing spellings across implementations is the rule this
+// format dropped. What is compared is the rounded VALUE, by bit pattern, which
+// is where the one real defect was — the library disagreed with its own table
+// on 175 of its rows, 0.15 rounding to 0.2 where the table says 0.1, because
+// round.go rounded by SCALING and the generator rounds by FORMATTING. Two
+// operations that agree on the easy cases.
 //
-// The cause was that round.go rounded by SCALING and the generator rounds by
-// FORMATTING, which are different operations that agree on the easy cases. The
-// guard that should have caught it, TestRoundingTiesGoToEven, uses 340.25 and
-// 340.35, and both routes give the same answer for those — a correctly reasoned
-// test, naming its own importance accurately, whose data could not separate the
-// readings it guarded.
-//
-// This test is the fix for the class rather than for the instance: the library
-// and the table now perform the same comparison every other implementation
-// performs, over every row.
+// ⚠ AND BY BIT PATTERN RATHER THAN BY TEXT. Comparing the rounded value as
+// text would put the rendering rule back into the comparison through the side
+// door, and would then pass or fail on how Go spells a double.
 func TestNumberConformanceTable(t *testing.T) {
 	f, err := os.Open("../../../corpus/numbers/numbers.tsv")
 	if err != nil {
@@ -56,17 +50,25 @@ func TestNumberConformanceTable(t *testing.T) {
 
 		for _, c := range []struct {
 			what string
-			got  string
+			got  float64
 			want string
 		}{
-			{"render", renderNumber(t, v), col[2]},
-			{"round6", renderNumber(t, RoundCoordinate(v)), col[3]},
-			{"round1", renderNumber(t, RoundElevation(v)), col[4]},
+			{"round6", RoundCoordinate(v), col[3]},
+			{"round1", RoundElevation(v), col[4]},
 		} {
-			if c.got != c.want {
+			want, err := strconv.ParseFloat(c.want, 64)
+			if err != nil {
+				t.Fatalf("row %q: column %s is %q, which is not a number: %v", col[0], c.what, c.want, err)
+			}
+			// Bit patterns, so the comparison is over the value and not over
+			// how either side spells it. -0 and 0 are DIFFERENT bit patterns
+			// and the same value; §4.1 has rounding normalise the sign, so the
+			// table and the library agree on +0 and a mismatch here is real.
+			if math.Float64bits(c.got) != math.Float64bits(want) {
 				bad++
 				if bad <= 10 {
-					t.Errorf("%s: %s = %q, table says %q (kind %s)", col[0], c.what, c.got, c.want, col[1])
+					t.Errorf("%s: %s = %v (%016x), table says %v (%016x) (kind %s)",
+						col[0], c.what, c.got, math.Float64bits(c.got), want, math.Float64bits(want), col[1])
 				}
 			}
 		}
@@ -82,16 +84,5 @@ func TestNumberConformanceTable(t *testing.T) {
 	if rows < 1000 {
 		t.Fatalf("only %d rows compared; the table holds thousands, so this passed vacuously", rows)
 	}
-	t.Logf("%d rows compared, three columns each", rows)
-}
-
-// renderNumber spells v the way a document would, by going through the same
-// writeNumber the encoder uses rather than a second implementation of it.
-func renderNumber(t *testing.T, v float64) string {
-	t.Helper()
-	var b strings.Builder
-	if err := writeNumber(&b, json.Number(strconv.FormatFloat(v, 'g', -1, 64))); err != nil {
-		t.Fatalf("rendering %v: %v", v, err)
-	}
-	return b.String()
+	t.Logf("%d rows compared, two rounding columns each", rows)
 }

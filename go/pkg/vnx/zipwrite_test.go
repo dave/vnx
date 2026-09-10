@@ -1,32 +1,25 @@
 package vnx_test
 
-// The archive BYTES, field by field, against spec §7.1's table.
+// The archive against spec §7.1, which is five rules and nothing else.
 //
-// ⚠ THIS FILE WALKS THE LOCAL HEADERS, AND THAT IS THE POINT OF IT. Every other
-// container assertion in this package resolves through the CENTRAL DIRECTORY —
-// archive/zip's reader reads that and reports what it finds there, and
-// DecodeContainer goes through archive/zip. So until this file existed, a local
-// header could carry any version, any date, a spurious extra field or a
-// deferred-size flag, and every test in the package would still pass. §7.1
-// fixes each field "in both the local and the central header where a field
-// appears in both"; only one of the two was ever being read.
+// ⚠ §7.1 NO LONGER FIXES A FIELD TABLE, so this file does not walk one. Every
+// other field of the archive is the writer's own business and two conforming
+// writers are not expected to produce the same bytes. What is asserted here is
+// the five: the root document named and first, the UTF-8 filename flag on every
+// entry, unique names, safe attachment paths, and stored or deflated.
 //
-// The other half is the same asymmetry from the other side: these assertions
-// read the bytes rather than a reader's account of them, and TestArchiveIsRead
-// ByArchiveZip keeps a general-purpose implementation on the read side so a
-// hand-written writer cannot drift into a private dialect that only our own
-// reader accepts.
+// The assertions read the archive's own bytes rather than a reader's account of
+// them where the rule is about the bytes, and TestArchiveIsReadByArchiveZip
+// keeps a general-purpose implementation on the read side so this writer cannot
+// drift into a private dialect only our own reader accepts.
 
 import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
-	"hash/crc32"
 	"io"
-	"sort"
 	"strings"
 	"testing"
-	"unicode/utf16"
 
 	"github.com/dave/vnx/go/pkg/vnx"
 )
@@ -50,48 +43,6 @@ type zipHeader struct {
 	external     uint32 // central only
 	name         string
 	body         []byte // local only
-}
-
-// walkLocalHeaders reads the archive forwards, header by header, the way a
-// forward-only reader must.
-//
-// It follows each header's OWN name and extra lengths and its own compressed
-// size to find the next one, which is exactly what §7.1's ban on general
-// purpose bit 3 is for: with the sizes deferred to a descriptor this walk would
-// have to scan for the next signature, and for a stored entry the payload can
-// contain that signature.
-func walkLocalHeaders(t *testing.T, raw []byte) []zipHeader {
-	t.Helper()
-	var out []zipHeader
-	p := 0
-	for p+30 <= len(raw) && binary.LittleEndian.Uint32(raw[p:]) == 0x04034b50 {
-		h := zipHeader{
-			signature:    binary.LittleEndian.Uint32(raw[p:]),
-			needed:       binary.LittleEndian.Uint16(raw[p+4:]),
-			flags:        binary.LittleEndian.Uint16(raw[p+6:]),
-			method:       binary.LittleEndian.Uint16(raw[p+8:]),
-			modTime:      binary.LittleEndian.Uint16(raw[p+10:]),
-			modDate:      binary.LittleEndian.Uint16(raw[p+12:]),
-			crc:          binary.LittleEndian.Uint32(raw[p+14:]),
-			compressed:   binary.LittleEndian.Uint32(raw[p+18:]),
-			uncompressed: binary.LittleEndian.Uint32(raw[p+22:]),
-			extraLen:     binary.LittleEndian.Uint16(raw[p+28:]),
-		}
-		nameLen := int(binary.LittleEndian.Uint16(raw[p+26:]))
-		start := p + 30 + nameLen + int(h.extraLen)
-		if start+int(h.compressed) > len(raw) {
-			t.Fatalf("entry %d claims %d bytes of payload and the archive is %d bytes long",
-				len(out), h.compressed, len(raw))
-		}
-		h.name = string(raw[p+30 : p+30+nameLen])
-		h.body = raw[start : start+int(h.compressed)]
-		out = append(out, h)
-		p = start + int(h.compressed)
-	}
-	if len(out) == 0 {
-		t.Fatal("no local header at offset 0, so this walk measured nothing")
-	}
-	return out
 }
 
 // walkCentralDirectory reads the central directory from the end-of-central-
@@ -177,133 +128,110 @@ func attachmentFixture(t *testing.T, attachments []vnx.Attachment) []byte {
 	return b.Bytes()
 }
 
-// TestEverySpec71FieldIsFixedInBothHeaders checks §7.1's table against the
-// bytes, in the local header and the central directory both.
+// TestEverySpec71RuleHolds checks the five rules §7.1 states.
 //
-// ⚠ THE FIELDS THAT ENCODE THE MACHINE ARE THE ONES THAT BITE. A deterministic
-// writer on one machine can still be non-deterministic across a fleet: create
-// system is 3 on macOS and Linux and 0 on Windows, and external attributes
-// carry whatever file mode the writing library stamps in. Neither is visible
-// from inside one machine, because writing the same archive twice in a row is
-// perfectly reproducible either way — which is why this test reads the field
-// rather than comparing two of our own archives.
-func TestEverySpec71FieldIsFixedInBothHeaders(t *testing.T) {
-	raw := attachmentFixture(t, []vnx.Attachment{{Name: "photo.jpg", Body: []byte("not really a jpeg")}})
-	locals := walkLocalHeaders(t, raw)
+// ⚠ THE DEFLATE ASSERTION IS THE ONE A REGRESSION SLIPS PAST. A writer switched
+// to stored produces an archive every reader still accepts — §7 requires both —
+// and every other test in this package would stay green while a `.vnz` stopped
+// being smaller than the `.vnx` inside it.
+func TestEverySpec71RuleHolds(t *testing.T) {
+	raw := attachmentFixture(t, []vnx.Attachment{{Name: "photo.jpg", Body: strings.NewReader("not really a jpeg")}})
 	centrals := walkCentralDirectory(t, raw)
-	if len(locals) != 2 || len(centrals) != 2 {
-		t.Fatalf("want two entries, got %d local headers and %d central ones", len(locals), len(centrals))
+	if len(centrals) != 2 {
+		t.Fatalf("want two entries, got %d", len(centrals))
 	}
-	for i := range locals {
-		l, c := locals[i], centrals[i]
-		if l.name != c.name {
-			t.Fatalf("entry %d is %q locally and %q in the directory", i, l.name, c.name)
+	if centrals[0].name != vnx.RootDocumentName {
+		t.Errorf("the first entry is %q; §7.1 requires %q, so §7's fallback lands on it",
+			centrals[0].name, vnx.RootDocumentName)
+	}
+	for _, h := range centrals {
+		if h.flags&0x0800 == 0 {
+			t.Errorf("%q: the UTF-8 filename flag is not set (flags %#04x)", h.name, h.flags)
 		}
-		for _, f := range []struct {
-			what string
-			got  any
-			want any
-		}{
-			// version needed, in both headers: 1.0, which is what a stored-only
-			// archive requires. The field states a requirement, not a habit.
-			{"local version needed", l.needed, uint16(10)},
-			{"central version needed", c.needed, uint16(10)},
-			// version made by: 10, with the create-system byte zero.
-			{"version made by", c.madeBy, uint16(10)},
-			// the UTF-8 filename flag, and nothing else. Bit 3 in particular is
-			// clear, which is what makes walkLocalHeaders able to walk.
-			{"local flags", l.flags, uint16(0x0800)},
-			{"central flags", c.flags, uint16(0x0800)},
-			{"local method", l.method, uint16(0)},
-			{"central method", c.method, uint16(0)},
-			{"local mod time", l.modTime, uint16(0x0000)},
-			{"local mod date", l.modDate, uint16(0x0021)},
-			{"central mod time", c.modTime, uint16(0x0000)},
-			{"central mod date", c.modDate, uint16(0x0021)},
-			{"local extra length", l.extraLen, uint16(0)},
-			{"central extra length", c.extraLen, uint16(0)},
-			{"entry comment length", c.commentLen, uint16(0)},
-			{"the disk the entry starts on", c.diskStart, uint16(0)},
-			{"internal attributes", c.internal, uint16(0)},
-			{"external attributes", c.external, uint32(0)},
-		} {
-			if f.got != f.want {
-				t.Errorf("%s of %q = %v, want %v (spec §7.1)", f.what, l.name, f.got, f.want)
-			}
+		if h.method != zip.Deflate {
+			t.Errorf("%q: method %d, want %d (deflate)", h.name, h.method, zip.Deflate)
 		}
-		// The CRC and both sizes are in the LOCAL header, not deferred, and the
-		// two accounts of one entry agree.
-		if want := crc32.ChecksumIEEE(l.body); l.crc != want {
-			t.Errorf("the local CRC of %q is %08x and its payload checksums to %08x", l.name, l.crc, want)
+		if strings.Contains(h.name, `\\`) || strings.HasPrefix(h.name, "/") {
+			t.Errorf("%q is not a safe relative entry path", h.name)
 		}
-		if l.crc != c.crc {
-			t.Errorf("%q: CRC %08x locally, %08x in the directory", l.name, l.crc, c.crc)
+	}
+	seen := map[string]bool{}
+	for _, h := range centrals {
+		key := strings.ToLower(h.name)
+		if seen[key] {
+			t.Errorf("%q appears twice, compared case-insensitively", h.name)
 		}
-		if l.compressed != l.uncompressed {
-			t.Errorf("%q is stored and declares %d compressed against %d uncompressed",
-				l.name, l.compressed, l.uncompressed)
+		seen[key] = true
+	}
+}
+
+// TestTheUTF8FlagIsSetOnAnASCIIName, which is the half a general-purpose writer
+// gets wrong.
+//
+// archive/zip sets the flag only for a name that NEEDS it — one outside ASCII —
+// and §7.1 admits no such exception. An archive whose names all happen to be
+// ASCII would therefore carry the flag nowhere, and nothing else in this file
+// would notice, because the fixture that exercises the flag is the one with an
+// emoji in it.
+func TestTheUTF8FlagIsSetOnAnASCIIName(t *testing.T) {
+	raw := attachmentFixture(t, []vnx.Attachment{{Name: "plain.txt", Body: strings.NewReader("ascii")}})
+	for _, h := range walkCentralDirectory(t, raw) {
+		if h.name != vnx.RootDocumentName && h.name != "plain.txt" {
+			t.Fatalf("unexpected entry %q", h.name)
 		}
-		if int(l.compressed) != len(l.body) {
-			t.Errorf("%q declares %d bytes and carries %d", l.name, l.compressed, len(l.body))
-		}
-		if l.compressed != c.compressed || l.uncompressed != c.uncompressed {
-			t.Errorf("%q: sizes %d/%d locally, %d/%d in the directory",
-				l.name, l.compressed, l.uncompressed, c.compressed, c.uncompressed)
+		if h.flags&0x0800 == 0 {
+			t.Errorf("%q is pure ASCII and carries no UTF-8 filename flag (%#04x)", h.name, h.flags)
 		}
 	}
 }
 
-// TestEntryOrderIsTheRootThenCodePointSortedAttachments.
+// TestTheArchiveIsSmallerThanTheDocumentItHolds, which is what deflating is
+// for and what the export screen's "Compressed file (VNZ)" claims.
+func TestTheArchiveIsSmallerThanTheDocumentItHolds(t *testing.T) {
+	doc := &vnx.Document{Version: "0.1.0"}
+	for i := 0; i < 2000; i++ {
+		doc.Waypoints = append(doc.Waypoints, vnx.Waypoint{
+			Name: "a waypoint with a repetitive name",
+			At:   vnx.Position{Lon: -3.671 + float64(i)/1e6, Lat: 57.118 + float64(i)/1e6},
+		})
+	}
+	plain, err := vnx.Encode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archive bytes.Buffer
+	if err := vnx.EncodeContainerTo(&archive, doc); err != nil {
+		t.Fatal(err)
+	}
+	if archive.Len() >= len(plain) {
+		t.Errorf("the archive is %d bytes and the document is %d; a .vnz must be smaller than the .vnx it holds",
+			archive.Len(), len(plain))
+	}
+	t.Logf("document %d bytes, archive %d bytes (%.1fx)", len(plain), archive.Len(), float64(len(plain))/float64(archive.Len()))
+}
+
+// TestTheRootDocumentIsFirstAndTheAttachmentsFollowInOneOrder.
 //
-// ⚠ THE FIXTURE IS BUILT TO SEPARATE CODE-POINT ORDER FROM UTF-16 CODE-UNIT
-// ORDER, and it asserts that it does. A name in U+E000..U+FFFF sorts BELOW an
-// astral character by code point and ABOVE it by UTF-16 code unit, because the
-// high surrogate begins at U+D800. Every ASCII-only fixture agrees under both
-// comparators, so it would pass against a writer sorting either way — the same
-// shape as a rounding test over data that rounds identically under two routes.
-// The check below fails if a later edit makes the fixture agree with itself.
-func TestEntryOrderIsTheRootThenCodePointSortedAttachments(t *testing.T) {
+// §7.1 requires only that the document is first. This writer also puts the
+// attachments in name order, so that two exports of one library agree with each
+// other — caller order is not a property of the content, and one exporter
+// iterating a map beside another iterating a sorted list would otherwise emit
+// two different archives for one document.
+func TestTheRootDocumentIsFirstAndTheAttachmentsFollowInOneOrder(t *testing.T) {
 	names := []string{"b.jpg", "a/photo.jpg", "\uff3a.txt", "\U0001f600.txt"}
 	attachments := make([]vnx.Attachment, len(names))
 	for i, n := range names {
-		attachments[i] = vnx.Attachment{Name: n, Body: []byte(n)}
+		attachments[i] = vnx.Attachment{Name: n, Body: strings.NewReader(n)}
 	}
-	wantCodePoint := []string{vnx.RootDocumentName, "a/photo.jpg", "b.jpg", "\uff3a.txt", "\U0001f600.txt"}
-
-	// What a UTF-16 code-unit sort would have produced, computed rather than
-	// asserted, so the fixture's discriminating power is measured here.
-	utf16Order := append([]string(nil), names...)
-	sort.Slice(utf16Order, func(i, j int) bool {
-		a, b := utf16.Encode([]rune(utf16Order[i])), utf16.Encode([]rune(utf16Order[j]))
-		for k := 0; k < len(a) && k < len(b); k++ {
-			if a[k] != b[k] {
-				return a[k] < b[k]
-			}
-		}
-		return len(a) < len(b)
-	})
-	wantUTF16 := append([]string{vnx.RootDocumentName}, utf16Order...)
-	if strings.Join(wantUTF16, "\x00") == strings.Join(wantCodePoint, "\x00") {
-		t.Fatal("this fixture sorts the same way under both comparators, so it cannot tell them " +
-			"apart — restore a name above U+FFFF beside one in U+E000..U+FFFF")
-	}
+	want := append([]string{vnx.RootDocumentName}, "a/photo.jpg", "b.jpg", "\uff3a.txt", "\U0001f600.txt")
 
 	raw := attachmentFixture(t, attachments)
 	var got []string
-	for _, h := range walkLocalHeaders(t, raw) {
+	for _, h := range walkCentralDirectory(t, raw) {
 		got = append(got, h.name)
 	}
-	if strings.Join(got, "\x00") != strings.Join(wantCodePoint, "\x00") {
-		t.Errorf("archive order is %q, want %q (spec §7.1: the root document first, then the "+
-			"attachments in code-point order; %q is what a UTF-16 code-unit sort gives)",
-			got, wantCodePoint, wantUTF16)
-	}
-	var directory []string
-	for _, h := range walkCentralDirectory(t, raw) {
-		directory = append(directory, h.name)
-	}
-	if strings.Join(directory, "\x00") != strings.Join(got, "\x00") {
-		t.Errorf("the central directory lists %q where the entries are in the order %q", directory, got)
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Errorf("archive order is %q, want %q (the root document first, then the attachments by name)", got, want)
 	}
 }
 
@@ -312,13 +240,19 @@ func TestEntryOrderIsTheRootThenCodePointSortedAttachments(t *testing.T) {
 // one library — one iterating a map, one a sorted list — must not emit two
 // archives for one document.
 func TestTheArchiveDoesNotDependOnTheOrderTheCallerSupplied(t *testing.T) {
-	forward := []vnx.Attachment{
-		{Name: "a.jpg", Body: []byte("a")},
-		{Name: "b.jpg", Body: []byte("b")},
-		{Name: "\uff3a.txt", Body: []byte("z")},
+	bodies := []struct{ name, body string }{
+		{"a.jpg", "a"},
+		{"b.jpg", "b"},
+		{"\uff3a.txt", "z"},
 	}
-	reversed := []vnx.Attachment{forward[2], forward[1], forward[0]}
-	if !bytes.Equal(attachmentFixture(t, forward), attachmentFixture(t, reversed)) {
+	supply := func(order []int) []vnx.Attachment {
+		out := make([]vnx.Attachment, 0, len(order))
+		for _, i := range order {
+			out = append(out, vnx.Attachment{Name: bodies[i].name, Body: strings.NewReader(bodies[i].body)})
+		}
+		return out
+	}
+	if !bytes.Equal(attachmentFixture(t, supply([]int{0, 1, 2})), attachmentFixture(t, supply([]int{2, 1, 0}))) {
 		t.Error("the same document and attachments in two input orders gave two archives")
 	}
 }
@@ -326,17 +260,16 @@ func TestTheArchiveDoesNotDependOnTheOrderTheCallerSupplied(t *testing.T) {
 // TestArchiveIsReadByArchiveZip keeps a general-purpose reader on the other side
 // of a hand-written writer.
 //
-// ⚠ WITHOUT THIS, EVERY READER IN THE TEST SUITE IS OURS. A writer checked only
-// against the fields we chose to look at, read only by the reader we wrote, can
-// agree with itself about a dialect no other tool accepts. archive/zip shares no
-// code with zipwrite.go and was written from [APPNOTE], which is what makes its
-// agreement worth something. Carried over from the Kotlin seat, which reads
-// every archive it writes back through java.util.zip for the same reason.
+// ⚠ WITHOUT THIS, EVERY READER IN THE TEST SUITE IS OURS. zipread.go is a
+// hand-written reader; a writer read only by it can agree with itself about a
+// dialect no other tool accepts. archive/zip shares no code with zipread.go and
+// was written from [APPNOTE], which is what makes its agreement worth
+// something.
 func TestArchiveIsReadByArchiveZip(t *testing.T) {
 	bodies := map[string]string{"a/photo.jpg": "one", "\U0001f600.txt": "two"}
 	var attachments []vnx.Attachment
 	for n, b := range bodies {
-		attachments = append(attachments, vnx.Attachment{Name: n, Body: []byte(b)})
+		attachments = append(attachments, vnx.Attachment{Name: n, Body: strings.NewReader(b)})
 	}
 	raw := attachmentFixture(t, attachments)
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
@@ -386,7 +319,7 @@ func TestTheWriterRefusesWhatTheReaderWouldRefuse(t *testing.T) {
 		var b bytes.Buffer
 		err := vnx.WriteContainerWithAttachments(&b, vnx.RootDocumentName,
 			func(w io.Writer) error { _, err := w.Write([]byte("{}\n")); return err },
-			[]vnx.Attachment{{Name: name, Body: []byte("x")}})
+			[]vnx.Attachment{{Name: name, Body: strings.NewReader("x")}})
 		if err == nil {
 			t.Errorf("the writer accepted the attachment name %q", name)
 		}
@@ -397,7 +330,7 @@ func TestTheWriterRefusesWhatTheReaderWouldRefuse(t *testing.T) {
 	for _, dup := range [][]string{{"a.jpg", "a.jpg"}, {"DOC.VNX"}, {"x.jpg", "X.JPG"}} {
 		var attachments []vnx.Attachment
 		for _, n := range dup {
-			attachments = append(attachments, vnx.Attachment{Name: n, Body: []byte("x")})
+			attachments = append(attachments, vnx.Attachment{Name: n, Body: strings.NewReader("x")})
 		}
 		var b bytes.Buffer
 		err := vnx.WriteContainerWithAttachments(&b, vnx.RootDocumentName,
@@ -413,8 +346,8 @@ func TestTheWriterRefusesWhatTheReaderWouldRefuse(t *testing.T) {
 // attachment whatever its name ends in. The writer must not reorder on a
 // suffix.
 func TestAnAttachmentNamedLikeADocumentIsStillAnAttachment(t *testing.T) {
-	raw := attachmentFixture(t, []vnx.Attachment{{Name: "a.vnx", Body: []byte("{}\n")}})
-	locals := walkLocalHeaders(t, raw)
+	raw := attachmentFixture(t, []vnx.Attachment{{Name: "a.vnx", Body: strings.NewReader("{}\n")}})
+	locals := walkCentralDirectory(t, raw)
 	if locals[0].name != vnx.RootDocumentName {
 		t.Errorf("first entry is %q; the root document comes first so §7's fallback lands on it",
 			locals[0].name)

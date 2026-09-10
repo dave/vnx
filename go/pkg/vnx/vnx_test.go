@@ -135,15 +135,11 @@ const libRoot = "github.com/dave/vnx/go/pkg/vnx"
 // packages, stdlib-clean or not. Direct imports suffice: stdlib only imports
 // stdlib, so a clean direct set is transitively clean.
 //
-// ⚠ IT COVERS _test.go FILES TOO, since 2026-09-06. Skipping them was a hole
-// wide enough to drive a JSON Schema validator through, and the package that
-// needed one said so out loud: internal/vnxschema's doc comment reads "the
-// stdlib guard in pkg/vnx skips _test.go files, so putting this there would
-// have compiled and passed while quietly making the extracted library
-// undeliverable". A third-party import in a test makes the library just as
-// unshippable as one in a source file — whoever vendors it has to vendor that
-// too — so the exemption that made vnxschema a deliberate decision was, for
-// everyone else, an accident waiting to happen.
+// ⚠ IT COVERS _test.go FILES TOO. A third-party import in a test makes the
+// library just as unshippable as one in a source file — whoever vendors it has
+// to vendor that too — and a guard that read only the source files would let one
+// in through the door nobody watches. This module has no dependencies at all,
+// so there is no exemption to reason about.
 //
 // Test files MAY reach this library's own sibling packages: the external
 // vnx_test package exercises the writers against the codec

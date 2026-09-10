@@ -2,37 +2,32 @@ package vnx
 
 // WRITING a container — the other half of container.go.
 //
-// ⚠ IT IS A WRAPPER, NEVER A SECOND ENCODER. The whole reason this file is
-// zip plumbing and nothing else is that the compressed spelling of a format
-// must be the SAME BYTES as the plain one. A container writer that built its
-// own document — or reached for its own number formatting — would be a second
-// encoding path, and the coordinate-rounding obligation §4.5 puts on the
-// writers (round.go, and the corpus-wide assertion in
-// writer_precision_test.go) would hold on one path and not the other, with
-// nothing to notice. So `produce` is the plain writer, unchanged, handed a
-// different io.Writer.
+// ⚠ IT IS A WRAPPER, NEVER A SECOND ENCODER. The whole reason this file is zip
+// plumbing and nothing else is that the compressed spelling of a format must be
+// the same document as the plain one. A container writer that built its own
+// document — or reached for its own number formatting — would be a second
+// encoding path, and the coordinate-rounding obligation §4.1 puts on the
+// writers (round.go, and the corpus-wide assertion in writer_precision_test.go)
+// would hold on one path and not the other, with nothing to notice. So
+// `produce` is the plain writer, unchanged, handed a different io.Writer.
 //
-// ⚠ AND IT BUFFERS, where an earlier version streamed. §7.1 requires the CRC
-// and both sizes in the LOCAL HEADER and forbids general purpose bit 3, so an
-// entry's length and checksum must be known before its header can be written.
-// Streaming was available only through the data descriptor that rule rules out.
-// The byte count vnxbridge's chunkWriter keeps still means what it always meant
-// — bytes into the temporary, never bytes of document — but it now arrives in
-// one block at the end of the entry rather than in chunks, so cancellation
-// between chunks no longer interrupts a container export mid-document. The
-// uncompressed path is unchanged and still streams.
+// ⚠ AND IT STREAMS. §7.1 constrains no header field that must be known before
+// its payload, so an entry is compressed as it is written and neither the
+// document nor an attachment is ever held whole.
 
 import (
-	"bytes"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
 // Attachment is one file stored beside the document in a `.vnz`.
+//
+// Body is read once, in full, when the archive is written.
 type Attachment struct {
 	Name string
-	Body []byte
+	Body io.Reader
 }
 
 // WriteContainer wraps what `produce` writes in a zip archive holding exactly
@@ -58,9 +53,11 @@ func WriteContainer(w io.Writer, name string, produce func(io.Writer) error) err
 // different documents in different languages. A writer that can emit such an
 // archive hands that problem to every reader downstream.
 //
-// A producer error comes back AS IT IS, unwrapped: an encoder that refused a
-// document has not failed to make an archive, and renaming its refusal would
-// send the caller looking at the zip layer for a defect that is not there.
+// The document is written FIRST, which §7.1 requires: §7's fallback takes the
+// first `.vnx` entry in archive order, so writing the document first makes the
+// fallback and the preferred-name rule land on the same entry. The attachments
+// follow in name order, so that two exports of one library agree with each
+// other whatever order the caller supplied.
 func WriteContainerWithAttachments(w io.Writer, name string, produce func(io.Writer) error, attachments []Attachment) error {
 	if err := checkAttachmentName(name); err != nil {
 		return err
@@ -69,8 +66,13 @@ func WriteContainerWithAttachments(w io.Writer, name string, produce func(io.Wri
 		return fmt.Errorf("%w: root document %q is not at the archive root", ErrContainer, name)
 	}
 	seen := map[string]bool{strings.ToLower(name): true}
-	entries := make([]zipEntry, 0, len(attachments))
-	for _, a := range attachments {
+	rest := make([]Attachment, len(attachments))
+	copy(rest, attachments)
+	sort.SliceStable(rest, func(i, j int) bool { return rest[i].Name < rest[j].Name })
+
+	entries := make([]archiveEntry, 0, len(rest)+1)
+	entries = append(entries, archiveEntry{name: name, body: produce})
+	for _, a := range rest {
 		if err := checkAttachmentName(a.Name); err != nil {
 			return err
 		}
@@ -79,22 +81,24 @@ func WriteContainerWithAttachments(w io.Writer, name string, produce func(io.Wri
 			return fmt.Errorf("%w: duplicate entry %q", ErrContainer, a.Name)
 		}
 		seen[key] = true
-		entries = append(entries, zipEntry{name: a.Name, body: a.Body})
+		if a.Body == nil {
+			return fmt.Errorf("%w: attachment %q has no body", ErrContainer, a.Name)
+		}
+		body := a.Body
+		entries = append(entries, archiveEntry{name: a.Name, body: func(w io.Writer) error {
+			_, err := io.Copy(w, body)
+			return err
+		}})
 	}
-
-	var doc bytes.Buffer
-	if err := produce(&doc); err != nil {
-		return err
-	}
-	return writeZipArchive(w, sortZipEntries(zipEntry{name: name, body: doc.Bytes()}, entries))
+	return writeZipArchive(w, entries)
 }
 
 // EncodeContainerTo writes a Document to w as a `.vnz` archive.
 //
 // It is [EncodeTo] inside [WriteContainer] and nothing else, so a `.vnz` holds
-// byte-for-byte what a `.vnx` of the same document holds. [DecodeContainer]
-// reads what this writes; TestVNZRoundTripsThroughOurOwnImporter proves the
-// pair rather than asserting it.
+// exactly the document a `.vnx` of the same model holds. [DecodeContainer]
+// reads what this writes; TestEncodeContainerToIsReadBackByDecodeContainer
+// proves the pair rather than asserting it.
 func EncodeContainerTo(w io.Writer, doc *Document) error {
 	return WriteContainer(w, RootDocumentName, func(inner io.Writer) error {
 		return EncodeTo(inner, doc)

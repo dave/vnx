@@ -111,7 +111,7 @@ func TestTheContainerEntryHoldsExactlyThePlainEncoding(t *testing.T) {
 	if !bytes.Equal(got.Bytes(), plain.Bytes()) {
 		t.Errorf("the archived document is not the plain encoding.\n  archived: %q\n  plain:    %q\n"+
 			"The container must WRAP the encoder, never re-run it: a second encoding path is a "+
-			"second answer to every rule §4.5 puts on the writers, coordinate rounding included.",
+			"second answer to every rule §4.1 puts on the writers, coordinate rounding included.",
 			got.String(), plain.String())
 	}
 	// Liveness: an empty plain encoding would make the comparison vacuous.

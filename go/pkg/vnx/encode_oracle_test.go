@@ -15,20 +15,26 @@ import (
 	"time"
 )
 
-// The differential oracle (spec 4b §5.1, plan T1).
+// The differential oracle.
 //
-// It freezes what Encode emits TODAY, over far more inputs than the two
-// committed goldens, so that the streaming rewrite in phases 2-4 has something
-// to be differential AGAINST. Both goldens are `Selection{Everything: true}`
-// exports of one library shape; between them they miss every case listed below,
-// and spec §5.3 records five more things a green golden does not prove.
+// It freezes what Encode emits over far more inputs than the two committed
+// goldens, so that a rewrite of the encoder has something to be differential
+// AGAINST. Both goldens are `Selection{Everything: true}` exports of one library
+// shape; between them they miss every case listed below.
 //
-// ⚠ AN EXPECTATION FILE IS NEVER REGENERATED TO MAKE THIS GREEN. A byte
-// difference here is the finding — spec §6 "Never". There is deliberately no
-// -update flag and no env gate: a regeneration path in the committed tree is a
-// path someone takes at 2am. To add a case, add it to generatedOracleCases,
-// write the expectation by hand or with a throwaway generator, READ the bytes,
-// and commit them.
+// ⚠ IT COMPARES JSON TREES, NOT BYTES. Key order, number spelling and
+// whitespace are the writer's own business (§8.1), so an expectation pins what
+// the encoder SAYS rather than how it spells it. The two normalisations that
+// are not about spelling — §3.1's absent-versus-empty, and channels this
+// version does not name — are applied; rounding and the shortest spelling of a
+// position are NOT, because those are rules the encoder must still obey and
+// normalising them would delete the oracle's grip on them.
+//
+// ⚠ AN EXPECTATION FILE IS NEVER REGENERATED TO MAKE THIS GREEN. A difference
+// here is the finding. There is deliberately no -update flag and no env gate: a
+// regeneration path in the committed tree is a path someone takes at 2am. To
+// add a case, add it to generatedOracleCases, write the expectation by hand or
+// with a throwaway generator, READ it, and commit it.
 //
 // ⚠ A CORPUS THAT LACKS A CASE CANNOT FAIL ON IT. An earlier audit probe
 // declared its type coverage complete over eight documents and missed `int`
@@ -69,10 +75,12 @@ func TestEncodeMatchesItsFrozenOutput(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Encode: %v", err)
 			}
-			if !bytes.Equal(got, want) {
-				i := firstDiff(got, want)
-				t.Fatalf("output changed at byte %d\n got: %s\nwant: %s",
-					i, excerpt(got, i), excerpt(want, i))
+			diff, err := compareDocuments(got, want, treeOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff != "" {
+				t.Fatalf("output changed: %s", diff)
 			}
 		})
 	}

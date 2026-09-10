@@ -2,72 +2,120 @@ package vnx
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"time"
 )
 
-// Encode writes a Document as a VNX file, in canonical form (spec §4.5).
+// The wire shapes, and the builders that fill them from the model.
 //
-// It always emits canonical bytes rather than offering a choice. Two exports of
-// the same library must be byte-identical or diffs are unreadable and an agent
-// cannot tell its own edit from formatting churn — and a writer that CAN emit
-// non-canonical output is a writer that eventually does.
+// ⚠ FIELD ORDER IS KEY ORDER, AND THAT IS THE WHOLE MECHANISM. encoding/json
+// emits a struct's fields in declaration order, so the readable ordering —
+// identity first, geometry next, opaque payload last — costs one decision per
+// type and no code at all. Spec §4.4 says key order is not significant, so this
+// is a property of THIS implementation's output and is not promised to any
+// other.
 //
-// Non-finite numbers are refused here rather than written: JSON has no
-// spelling for them, and the alternative to refusing is emitting a `NaN`
-// literal that every conforming reader then rejects, turning a writer's bug
-// into an unreadable file the user only discovers later.
-// Encode is a bytes.Buffer over [EncodeTo], and nothing more. It keeps its
-// exact signature so that the committed goldens go on calling the same
-// function they always called.
-//
-// ⚠ DO NOT OVERSTATE WHAT THAT BUYS. The name is preserved; the implementation
-// underneath it is entirely new, so a green golden is a statement about the
-// output equality of new code, not about "the same entry point" in any sense
-// that survives a total rewrite. The weight is carried by the 37 frozen oracle
-// expectations, which is a property over many documents rather than two
-// fixtures.
-//
-// Callers that have somewhere to write should use EncodeTo: this function
-// necessarily holds the whole output, which is the memory spec 4b exists to
-// stop paying.
-// emitter carries the one decision that separates a WRITER from a FORMATTER.
-//
-// A writer turns a model into a document: spec §4.5.4 has it round coordinates
-// at that boundary, and §4.1 has it emit the shortest spelling of a position.
-// A formatter re-renders a document a reader was handed, so it does neither —
-// it reproduces the arity and the precision the document carried, because
-// canonical form constrains key order and number SPELLING, not precision, and
-// shortening is a writer's rule rather than part of canonical form.
-//
-// ⚠ IT IS A STRUCT AND NOT A bool PARAMETER ON PURPOSE. arcTree already takes
-// a `named bool`, and a second adjacent bool is a silent transposition waiting
-// to happen in a package whose whole job is byte-exact output.
-type emitter struct{ verbatim bool }
+// ⚠ `omitempty` IS CONFORMING, AND §3.1 IS WHY. An absent collection and an
+// empty one carry the same content and a reader treats them alike, so a writer
+// may spell either. Nothing downstream may reintroduce a distinction between
+// them.
 
-// Reformat re-renders a document that was DECODED, reproducing it exactly:
-// every position keeps the arity and the precision the file carried.
-//
-// ⚠ IT IS NOT Encode, AND THE DIFFERENCE IS THE POINT. Encode is a WRITER --
-// spec §4.5.4 has it round coordinates at the emit boundary and §4.1 has it
-// emit the shortest spelling of a position, so Encode(Decode(f)) is legitimately
-// not f. Reformat is the FORMATTER: §4.5.4 says a reader and a formatter round
-// nothing, and shortening is likewise a writer's rule rather than part of
-// canonical form.
-//
-// This is what the conformance corpus's accept tier compares against. That
-// check has to build a MODEL -- canonicalising is bytes in and bytes out and
-// cannot see a reader that discarded what it read -- while still reproducing the
-// file, which only a formatter does.
-func Reformat(doc *Document) ([]byte, error) {
-	var b bytes.Buffer
-	if err := encodeTo(emitter{verbatim: true}, &b, doc); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+// wirePosition is spec §4.1's positional channel array: [lon, lat, ele, time].
+type wirePosition []any
+
+type wireFolder struct {
+	ID     string `json:"id"`
+	Name   string `json:"name,omitempty"`
+	Notes  string `json:"notes,omitempty"`
+	Parent string `json:"parent,omitempty"`
+	Hidden bool   `json:"hidden,omitempty"`
+	Data   []any  `json:"data,omitempty"`
 }
 
+type wireWaypoint struct {
+	Name   string       `json:"name,omitempty"`
+	Notes  string       `json:"notes,omitempty"`
+	Folder string       `json:"folder,omitempty"`
+	Hidden bool         `json:"hidden,omitempty"`
+	At     wirePosition `json:"at"`
+	Style  Style        `json:"style,omitempty"`
+	Data   []any        `json:"data,omitempty"`
+}
+
+type wireArea struct {
+	Name    string         `json:"name,omitempty"`
+	Notes   string         `json:"notes,omitempty"`
+	Folder  string         `json:"folder,omitempty"`
+	Hidden  bool           `json:"hidden,omitempty"`
+	Polygon []wirePosition `json:"polygon"`
+	Style   Style          `json:"style,omitempty"`
+	Data    []any          `json:"data,omitempty"`
+}
+
+type wireSegment struct {
+	Pips []wirePosition `json:"pips"`
+}
+
+type wireTrack struct {
+	Name     string        `json:"name,omitempty"`
+	Notes    string        `json:"notes,omitempty"`
+	Folder   string        `json:"folder,omitempty"`
+	Hidden   bool          `json:"hidden,omitempty"`
+	Started  string        `json:"started,omitempty"`
+	Ended    string        `json:"ended,omitempty"`
+	Segments []wireSegment `json:"segments"`
+	Style    Style         `json:"style,omitempty"`
+	Data     []any         `json:"data,omitempty"`
+}
+
+// wireArc carries `from` and `to` only on a NETWORK arc. A route's arcs own
+// their geometry and name nothing, so writing ids there would invent a graph
+// the route does not have.
+type wireArc struct {
+	From string         `json:"from,omitempty"`
+	To   string         `json:"to,omitempty"`
+	Pips []wirePosition `json:"pips"`
+	Data []any          `json:"data,omitempty"`
+}
+
+type wireRoute struct {
+	Name   string    `json:"name,omitempty"`
+	Notes  string    `json:"notes,omitempty"`
+	Folder string    `json:"folder,omitempty"`
+	Hidden bool      `json:"hidden,omitempty"`
+	Arcs   []wireArc `json:"arcs"`
+	Style  Style     `json:"style,omitempty"`
+	Data   []any     `json:"data,omitempty"`
+}
+
+// wireLink's endpoints are `any` because §3.3.3 gives them two spellings: a
+// node key is a string, an inline handle is a position array.
+type wireLink struct {
+	Arc  string `json:"arc"`
+	From any    `json:"from"`
+	To   any    `json:"to"`
+}
+
+type wireChain struct {
+	Name   string     `json:"name,omitempty"`
+	Notes  string     `json:"notes,omitempty"`
+	Hidden bool       `json:"hidden,omitempty"`
+	Links  []wireLink `json:"links"`
+	Style  Style      `json:"style,omitempty"`
+	Data   []any      `json:"data,omitempty"`
+}
+
+// Encode writes a Document as a VNX file.
+//
+// Non-finite numbers are refused rather than written: JSON has no spelling for
+// them, and the alternative to refusing is emitting a `NaN` literal that every
+// conforming reader then rejects, turning a writer's bug into an unreadable
+// file the user only discovers later.
+//
+// Callers that have somewhere to write should use [EncodeTo]: this function
+// necessarily holds the whole output.
 func Encode(doc *Document) ([]byte, error) {
 	var b bytes.Buffer
 	if err := EncodeTo(&b, doc); err != nil {
@@ -76,191 +124,155 @@ func Encode(doc *Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// waypointTree writes a top-level waypoint or a network's point. They are one
+// waypointWire builds a top-level waypoint or a network's point. They are one
 // shape (spec §3.6) apart from `folder`, which §3.10 does not allow on an
 // in-network point: a network already contains its points, so a folder there
 // would place an item that is not placed. `inNetwork` is what keeps that from
 // depending on the caller's discipline — the two uses share this function, so
 // nothing else could.
-func (e emitter) waypointTree(w Waypoint, inNetwork bool) (map[string]any, error) {
-	o := map[string]any{}
-	putString(o, "name", w.Name)
-	putString(o, "notes", w.Notes)
-	if !inNetwork {
-		putString(o, "folder", w.Folder)
-	}
-	putBool(o, "hidden", w.Hidden)
-	at, err := e.positionTree(w.At)
+func waypointWire(w Waypoint, inNetwork bool) (wireWaypoint, error) {
+	at, err := positionWire(w.At)
 	if err != nil {
-		return nil, err
+		return wireWaypoint{}, err
 	}
-	o["at"] = at
-	if w.Style != nil {
-		o["style"] = map[string]any(w.Style)
+	data, err := dataBodies(w.Data)
+	if err != nil {
+		return wireWaypoint{}, err
 	}
-	if err := putData(o, w.Data); err != nil {
-		return nil, err
+	out := wireWaypoint{Name: w.Name, Notes: w.Notes, Hidden: w.Hidden, At: at, Style: w.Style, Data: data}
+	if !inNetwork {
+		out.Folder = w.Folder
 	}
-	return o, nil
+	return out, nil
 }
 
-// areaTree writes a top-level area or a network's area. `folder` is not allowed
+// areaWire builds a top-level area or a network's area. `folder` is not allowed
 // on an in-network area for the same reason as an in-network point; see
-// waypointTree.
-func (e emitter) areaTree(a Area, inNetwork bool) (map[string]any, error) {
-	o := map[string]any{}
-	putString(o, "name", a.Name)
-	putString(o, "notes", a.Notes)
-	if !inNetwork {
-		putString(o, "folder", a.Folder)
-	}
-	putBool(o, "hidden", a.Hidden)
-	ring, err := e.positionsTree(a.Polygon)
+// waypointWire.
+func areaWire(a Area, inNetwork bool) (wireArea, error) {
+	ring, err := positionsWire(a.Polygon)
 	if err != nil {
-		return nil, err
+		return wireArea{}, err
 	}
-	o["polygon"] = ring
-	if a.Style != nil {
-		o["style"] = map[string]any(a.Style)
+	data, err := dataBodies(a.Data)
+	if err != nil {
+		return wireArea{}, err
 	}
-	if err := putData(o, a.Data); err != nil {
-		return nil, err
+	out := wireArea{Name: a.Name, Notes: a.Notes, Hidden: a.Hidden, Polygon: ring, Style: a.Style, Data: data}
+	if !inNetwork {
+		out.Folder = a.Folder
 	}
-	return o, nil
+	return out, nil
 }
 
-func (e emitter) trackTree(t Track) (map[string]any, error) {
-	o := map[string]any{}
-	putString(o, "name", t.Name)
-	putString(o, "notes", t.Notes)
-	putString(o, "folder", t.Folder)
-	putBool(o, "hidden", t.Hidden)
+func trackWire(t Track) (wireTrack, error) {
+	out := wireTrack{Name: t.Name, Notes: t.Notes, Folder: t.Folder, Hidden: t.Hidden, Style: t.Style}
 	if t.Started != nil {
-		o["started"] = formatTimestamp(*t.Started)
+		out.Started = formatTimestamp(*t.Started)
 	}
 	if t.Ended != nil {
-		o["ended"] = formatTimestamp(*t.Ended)
+		out.Ended = formatTimestamp(*t.Ended)
 	}
-	segs := make([]any, 0, len(t.Segments))
+	out.Segments = make([]wireSegment, 0, len(t.Segments))
 	for _, s := range t.Segments {
-		pips, err := e.positionsTree(s.Pips)
+		pips, err := positionsWire(s.Pips)
 		if err != nil {
-			return nil, err
+			return wireTrack{}, err
 		}
-		segs = append(segs, map[string]any{"pips": pips})
+		out.Segments = append(out.Segments, wireSegment{Pips: pips})
 	}
-	o["segments"] = segs
-	if t.Style != nil {
-		o["style"] = map[string]any(t.Style)
+	data, err := dataBodies(t.Data)
+	if err != nil {
+		return wireTrack{}, err
 	}
-	if err := putData(o, t.Data); err != nil {
-		return nil, err
-	}
-	return o, nil
+	out.Data = data
+	return out, nil
 }
 
 // formatTimestamp writes §4.3's grammar: UTC, `Z`, and OPTIONAL fractional
 // seconds — emitted only when there are any.
 //
-// ⚠ SECONDS-ONLY TRUNCATED SILENTLY. The column behind these is UnixMilli, and
-// formatting with a seconds-only layout threw the milliseconds away on the way
-// out; the reader then parsed back a different instant, and because BOTH sides
-// truncated, a byte-comparison round trip could not see it. Bounded at under a
-// second, and wrong for no reason — the grammar already allowed the digits.
+// ⚠ A SECONDS-ONLY LAYOUT TRUNCATES SILENTLY. The column behind these is
+// UnixMilli, and formatting with a seconds-only layout throws the milliseconds
+// away on the way out; the reader then parses back a different instant.
+// Bounded at under a second, and wrong for no reason — the grammar already
+// allows the digits.
 func formatTimestamp(t time.Time) string {
 	t = t.UTC()
 	if t.Nanosecond() == 0 {
 		return t.Format("2006-01-02T15:04:05Z")
 	}
 	// Trailing zeros trimmed, so a whole number of milliseconds does not
-	// render as .123000000 — one fact, one spelling, same rule as the numbers.
+	// render as .123000000 — one fact, one spelling.
 	return t.Format("2006-01-02T15:04:05.999999999Z")
 }
 
-func (e emitter) routeTree(r Route) (map[string]any, error) {
-	o := map[string]any{}
-	putString(o, "name", r.Name)
-	putString(o, "notes", r.Notes)
-	putString(o, "folder", r.Folder)
-	putBool(o, "hidden", r.Hidden)
-	arcs := make([]any, 0, len(r.Arcs))
+func routeWire(r Route) (wireRoute, error) {
+	out := wireRoute{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Style: r.Style}
+	out.Arcs = make([]wireArc, 0, len(r.Arcs))
 	for _, a := range r.Arcs {
-		ao, err := e.arcTree(a, false)
+		aw, err := arcWire(a, false)
 		if err != nil {
-			return nil, err
+			return wireRoute{}, err
 		}
-		arcs = append(arcs, ao)
+		out.Arcs = append(out.Arcs, aw)
 	}
-	o["arcs"] = arcs
-	if r.Style != nil {
-		o["style"] = map[string]any(r.Style)
+	data, err := dataBodies(r.Data)
+	if err != nil {
+		return wireRoute{}, err
 	}
-	if err := putData(o, r.Data); err != nil {
-		return nil, err
-	}
-	return o, nil
+	out.Data = data
+	return out, nil
 }
 
-// chainTree writes one chain — a per-item builder, like every other function
-// in this file. There is no networkTree: a network's own object is scaffolding
-// with the pips inside it, so streamNetwork writes it directly rather than
-// materialising it (encode_stream.go). Keeping a second whole-network builder
-// beside it would be a second implementation of the container order with
-// nothing left to compare it against.
-func (e emitter) chainTree(c Chain) (map[string]any, error) {
-	co := map[string]any{}
-	putString(co, "name", c.Name)
-	putString(co, "notes", c.Notes)
-	putBool(co, "hidden", c.Hidden)
-	links := make([]any, 0, len(c.Links))
+func chainWire(c Chain) (wireChain, error) {
+	out := wireChain{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Style: c.Style}
+	out.Links = make([]wireLink, 0, len(c.Links))
 	for _, l := range c.Links {
-		lo := map[string]any{"arc": l.Arc}
-		from, err := e.endpointTree(l.From)
+		from, err := endpointWire(l.From)
 		if err != nil {
-			return nil, err
+			return wireChain{}, err
 		}
-		to, err := e.endpointTree(l.To)
+		to, err := endpointWire(l.To)
 		if err != nil {
-			return nil, err
+			return wireChain{}, err
 		}
-		lo["from"], lo["to"] = from, to
-		links = append(links, lo)
+		out.Links = append(out.Links, wireLink{Arc: l.Arc, From: from, To: to})
 	}
-	co["links"] = links
-	if c.Style != nil {
-		co["style"] = map[string]any(c.Style)
+	data, err := dataBodies(c.Data)
+	if err != nil {
+		return wireChain{}, err
 	}
-	if err := putData(co, c.Data); err != nil {
-		return nil, err
-	}
-	return co, nil
+	out.Data = data
+	return out, nil
 }
 
-// arcTree writes an arc. `from` and `to` appear only on a NETWORK arc; a
-// route's arcs own their geometry and name nothing, so writing ids there would
-// invent a graph the route does not have.
-func (e emitter) arcTree(a Arc, named bool) (map[string]any, error) {
-	o := map[string]any{}
+// arcWire builds an arc. `named` is true for a network arc, which must name
+// both its nodes.
+func arcWire(a Arc, named bool) (wireArc, error) {
+	var out wireArc
 	if named {
 		if a.From == "" || a.To == "" {
-			return nil, fmt.Errorf("vnx: a network arc must name both its nodes, got from=%q to=%q", a.From, a.To)
+			return wireArc{}, fmt.Errorf("vnx: a network arc must name both its nodes, got from=%q to=%q", a.From, a.To)
 		}
-		o["from"], o["to"] = a.From, a.To
+		out.From, out.To = a.From, a.To
 	}
-	pips, err := e.positionsTree(a.Pips)
+	pips, err := positionsWire(a.Pips)
 	if err != nil {
-		return nil, err
+		return wireArc{}, err
 	}
-	o["pips"] = pips
-	if err := putData(o, a.Data); err != nil {
-		return nil, err
+	out.Pips = pips
+	data, err := dataBodies(a.Data)
+	if err != nil {
+		return wireArc{}, err
 	}
-	return o, nil
+	out.Data = data
+	return out, nil
 }
 
-func (e emitter) endpointTree(ep Endpoint) (any, error) {
+func endpointWire(ep Endpoint) (any, error) {
 	if ep.At != nil {
-		return e.positionTree(*ep.At)
+		return positionWire(*ep.At)
 	}
 	if ep.Node == "" {
 		return nil, fmt.Errorf("vnx: an endpoint must be a node id or a position, and this is neither")
@@ -268,66 +280,46 @@ func (e emitter) endpointTree(ep Endpoint) (any, error) {
 	return ep.Node, nil
 }
 
-// positionTree writes the fixed positional channels, trimming trailing absence.
+// positionWire writes the fixed positional channels, trimming trailing absence.
 //
 // Trailing `null`s are OMITTED rather than written: [lon, lat, null, null] and
-// [lon, lat] say exactly the same thing, and the shorter spelling is the one a
-// WRITER emits. An interior absence still needs its null — [lon, lat, null, t]
-// cannot be shortened without moving the time into the elevation channel.
-//
-// ⚠ THIS IS THE WRITER. A FORMATTER MUST NOT SHORTEN, and does not exist yet.
-// Spec §4.1 makes shortening a writer's rule rather than part of canonical
-// form, so re-rendering a document a reader was handed has to reproduce the
-// arity it carried — which is what Position.Channels records and what nothing
-// currently reads. See the Reformat work: until it lands, decode-then-Encode
-// is a WRITE and legitimately shortens and rounds, and the accept tier cannot
-// use it as its check.
+// [lon, lat] say exactly the same thing, and §4.1 has a writer emit the shorter
+// one. An interior absence still needs its null — [lon, lat, null, t] cannot be
+// shortened without moving the time into the elevation channel.
 //
 // ⚠ THIS IS WHERE VNX ROUNDS, and it is the only place: every position on a
 // VNX wire — a waypoint's `at`, an area's ring, a track's pips, an arc's pips,
-// a node, an inline endpoint — is built here or by positionsTree, which is
-// this function in a loop. Rounding in the Document instead would round the
-// values a route's arc-boundary dedup and a ring's winding are computed from.
-// See round.go.
-func (e emitter) positionTree(p Position) ([]any, error) {
-	if !e.verbatim {
-		p = RoundPosition(p)
-	}
+// a node, an inline endpoint — is built here or by positionsWire, which is this
+// function in a loop. Rounding in the Document instead would round the values a
+// route's arc-boundary dedup and a ring's winding are computed from. See
+// round.go.
+func positionWire(p Position) (wirePosition, error) {
+	p = RoundPosition(p)
 	if err := finite(p.Lon, "longitude"); err != nil {
 		return nil, err
 	}
 	if err := finite(p.Lat, "latitude"); err != nil {
 		return nil, err
 	}
-	// A formatter reproduces the arity the document carried; a writer emits the
-	// shortest spelling. Position.Channels is zero for a position built in code,
-	// which has no spelling of its own, so a formatter shortens those too.
-	want := 0
-	if e.verbatim {
-		want = p.Channels
-	}
-
-	out := []any{p.Lon, p.Lat}
+	out := wirePosition{p.Lon, p.Lat}
 	if p.Ele != nil {
 		if err := finite(*p.Ele, "elevation"); err != nil {
 			return nil, err
 		}
 		out = append(out, *p.Ele)
-	} else if p.Time != nil || want >= 3 {
+	} else if p.Time != nil {
 		out = append(out, nil)
 	}
 	if p.Time != nil {
 		out = append(out, *p.Time)
-	} else if want >= 4 {
-		out = append(out, nil)
 	}
 	return out, nil
 }
 
-func (e emitter) positionsTree(ps []Position) ([]any, error) {
-	out := make([]any, 0, len(ps))
+func positionsWire(ps []Position) ([]wirePosition, error) {
+	out := make([]wirePosition, 0, len(ps))
 	for _, p := range ps {
-		t, err := e.positionTree(p)
+		t, err := positionWire(p)
 		if err != nil {
 			return nil, err
 		}
@@ -336,30 +328,16 @@ func (e emitter) positionsTree(ps []Position) ([]any, error) {
 	return out, nil
 }
 
-// putData writes the `data` bag, carrying each record's body VERBATIM. The
+// dataBodies builds the `data` bag, carrying each record's body VERBATIM. The
 // body is opaque apart from @type, so it is written back exactly as it came in
 // — that is what makes an unknown record survive read-modify-write.
-func putData(o map[string]any, recs []Record) error {
-	// ⚠ nil, NOT len == 0. Spec §3.10 generalises §3.1's rule beyond the
-	// envelope: requiring a key does not require a non-empty value, and an
-	// empty array is distinct from an absent one. `dataField` returns nil for an
-	// absent key and a non-nil empty slice for `[]`, so the model already draws
-	// the line and only this guard erased it.
-	if recs == nil {
-		return nil
-	}
-	arr, err := recordBodies(recs)
-	if err != nil {
-		return err
-	}
-	o["data"] = arr
-	return nil
-}
-
-// recordBodies is putData's payload, shared with the streaming encoder. A
-// `data` bag is bounded by the item that carries it, so it is built whole
+//
+// A `data` bag is bounded by the item that carries it, so it is built whole
 // rather than streamed.
-func recordBodies(recs []Record) ([]any, error) {
+func dataBodies(recs []Record) ([]any, error) {
+	if len(recs) == 0 {
+		return nil, nil
+	}
 	arr := make([]any, 0, len(recs))
 	for _, r := range recs {
 		if r.Type == "" {
@@ -375,24 +353,32 @@ func recordBodies(recs []Record) ([]any, error) {
 	return arr, nil
 }
 
-func putString(o map[string]any, key, v string) {
-	if v != "" {
-		o[key] = v
-	}
-}
-
-// putBool writes only `true`. `hidden: false` is the default state of every
-// item in a library, and writing it on all of them would triple the size of a
-// document to say nothing.
-func putBool(o map[string]any, key string, v bool) {
-	if v {
-		o[key] = v
-	}
-}
-
 func finite(f float64, what string) error {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return fmt.Errorf("vnx: %s is not finite, and JSON cannot spell that", what)
 	}
 	return nil
+}
+
+// marshalIndent renders one value with encoding/json, indented as though it
+// began at `prefix`.
+//
+// ⚠ HTML ESCAPING IS OFF. Go escapes `<`, `>` and `&` by default so that its
+// output can be pasted into a script tag. That is a sound default for a general
+// encoder and needless noise in a document nobody embeds in HTML; both
+// spellings decode to the same string, so this is a choice about legibility and
+// size rather than about conformance.
+//
+// The trailing newline json.Encoder appends is removed here, because the caller
+// is placing this value inside a larger document and decides its own layout.
+func marshalIndent(v any, prefix string) ([]byte, error) {
+	var b bytes.Buffer
+	e := json.NewEncoder(&b)
+	e.SetEscapeHTML(false)
+	e.SetIndent(prefix, "  ")
+	if err := e.Encode(v); err != nil {
+		return nil, err
+	}
+	out := b.Bytes()
+	return out[:len(out)-1], nil
 }

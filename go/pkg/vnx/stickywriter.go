@@ -6,22 +6,18 @@ import "io"
 // a no-op, so a streaming writer can stay readable without checking a return
 // on every fragment and can make ONE check at the end.
 //
-// ⚠ IT IS NOT A CONVENIENCE. Until spec 4b the canonical writers wrote to a
-// *bytes.Buffer, whose Write cannot fail, so ignoring the returns was safe.
-// They now write to an io.Writer, and on a FILE an ignored short write means
-// the producer returns nil, the sink Syncs, sets `committed`, and renames a
-// TRUNCATED file into place as a successful export. Data corruption presenting
-// as a clean write. Every writer that uses this therefore ends by returning
-// [StickyWriter.Err].
+// ⚠ IT IS NOT A CONVENIENCE. A writer that writes to a *bytes.Buffer cannot
+// fail, so ignoring the returns is safe there. These writers write to an
+// io.Writer, and on a FILE an ignored short write means the producer returns
+// nil, the sink Syncs, sets `committed`, and renames a TRUNCATED file into place
+// as a successful export. Data corruption presenting as a clean write. Every
+// writer that uses this therefore ends by returning [StickyWriter.Err].
 //
 // ⚠ IT IS EXPORTED, AND THAT IS A DELIBERATE ADDITION TO A PACKAGE THAT SHIPS
-// PUBLICLY (spec 5b T3, 2026-09-02). It lived in canonical.go as an unexported
-// `errWriter`, which spec 5b §4.1b then told three SUBPACKAGES — pkg/vnx/gpx,
-// /kml, /geojson — to reuse. They cannot see an unexported identifier, so the
-// mandate did not build as written: a compile probe fails with
-// `undefined: vnx.errWriter`. Exporting it once, here, is what stops three
-// writer packages hand-rolling three answers to the same short-write hazard.
-// canonical.go uses THIS type; there is exactly one implementation.
+// PUBLICLY. Three SUBPACKAGES — pkg/vnx/gpx, /kml, /geojson — reuse it, and
+// they cannot see an unexported identifier. Exporting it once, here, is what
+// stops four writer packages hand-rolling four answers to the same short-write
+// hazard. The VNX encoder uses THIS type; there is exactly one implementation.
 type StickyWriter struct {
 	w   io.Writer
 	err error
@@ -29,11 +25,11 @@ type StickyWriter struct {
 
 // Stick wraps w once.
 //
-// ⚠ AN ALREADY-WRAPPED WRITER IS RETURNED AS ITSELF. The canonical writers
-// recurse and each re-entry calls Stick; a second wrapper would latch its
-// errors into an object the level above never reads, so the error would be
-// held by nobody and the walk would finish "clean". The same applies to a
-// writer package that passes its StickyWriter into a helper.
+// ⚠ AN ALREADY-WRAPPED WRITER IS RETURNED AS ITSELF. A writer that recurses
+// calls Stick on each re-entry; a second wrapper would latch its errors into an
+// object the level above never reads, so the error would be held by nobody and
+// the walk would finish "clean". The same applies to a writer package that
+// passes its StickyWriter into a helper.
 func Stick(w io.Writer) *StickyWriter {
 	if e, ok := w.(*StickyWriter); ok {
 		return e

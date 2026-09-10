@@ -169,14 +169,12 @@ func runWriteContainer(t *testing.T, c writeCase) {
 	if len(got) != len(want) {
 		t.Fatalf("the archive holds %d entries, want %d", len(got), len(want))
 	}
-	for i := range want {
-		if got[i].name != want[i].name {
-			t.Fatalf("entry %d is %q, want %q", i, got[i].name, want[i].name)
-		}
-	}
+	// The root document FIRST is a rule (§7.1); where the attachments fall among
+	// themselves is not. See compareAttachments.
 	if got[0].name != m.Root {
-		t.Errorf("the first entry is %q; §7.1 requires the root document first", got[0].name)
+		t.Fatalf("the first entry is %q; §7.1 requires the root document %q first", got[0].name, m.Root)
 	}
+	compareAttachments(t, entryNames(got[1:]), entryNames(want[1:]), "the archive's attachment entries")
 
 	diff, err := compareDocuments(got[0].body, want[0].body, treeOptions{})
 	if err != nil {
@@ -190,13 +188,7 @@ func runWriteContainer(t *testing.T, c writeCase) {
 		t.Errorf("the root document is %q, and the sidecar names %q", got[0].name, c.expect.Root)
 	}
 	if want := c.expect.Attachments; want != nil {
-		names := make([]string, 0, len(got)-1)
-		for _, e := range got[1:] {
-			names = append(names, e.name)
-		}
-		if strings.Join(names, ",") != strings.Join(*want, ",") {
-			t.Errorf("attachments = %v, and the sidecar names %v", names, *want)
-		}
+		compareAttachments(t, entryNames(got[1:]), *want, "the archive's attachment entries")
 	}
 
 	// An attachment is bytes and is compared as bytes. Nothing in this format
@@ -231,6 +223,14 @@ func runWriteContainer(t *testing.T, c writeCase) {
 type readEntry struct {
 	name string
 	body []byte
+}
+
+func entryNames(es []readEntry) []string {
+	out := make([]string, 0, len(es))
+	for _, e := range es {
+		out = append(out, e.name)
+	}
+	return out
 }
 
 // readArchiveEntries reads every entry of an archive, in archive order, through

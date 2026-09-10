@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -156,9 +157,7 @@ func runAccept(t *testing.T, c corpusCase) {
 	checkPositions(t, doc, c.expect)
 	checkTracks(t, doc, c.expect)
 	if want := c.expect.Attachments; want != nil {
-		if strings.Join(attachments, ",") != strings.Join(*want, ",") {
-			t.Errorf("attachments = %v, want %v", attachments, *want)
-		}
+		compareAttachments(t, attachments, *want, "the attachments the reader listed")
 	}
 	// The accept tier's check (spec §8.1): DECODE the file, ENCODE the model,
 	// and require the two JSON TREES equal.
@@ -189,6 +188,54 @@ func runAccept(t *testing.T, c corpusCase) {
 		t.Errorf("encoding the decoded document did not reproduce the file: %s\n"+
 			"Either the reader dropped something it read, or the writer invented something", diff)
 	}
+}
+
+// compareAttachments compares two attachment lists as a COLLECTION and not as a
+// sequence.
+//
+// ⚠ ARCHIVE ORDER IS NOT A RULE, AND AN ORDERED COMPARISON HERE MAKES SIX
+// LANGUAGES AGREE ON ONE ANYWAY. §7.1 constrains five things about an archive —
+// the root document named `doc.vnx` and FIRST, the UTF-8 filename flag, unique
+// names, safe paths, stored or deflated — and then says every other field is the
+// writer's own business. Where the attachments fall among themselves is one of
+// those other fields, and the sidecar's `attachments` list is read by every
+// implementation, so a runner that compared it in order would export its own
+// reader's iteration order as a conformance requirement.
+//
+// ⚠ ORDER IS A RULE IN EXACTLY ONE PLACE, AND IT IS NOT THIS ONE. §7 selects the
+// root document as "the first entry with a `.vnx` extension in archive order",
+// so a case pinning that SELECTION is asserting something real —
+// TestContainerFallsBackToFirstVnxInArchiveOrder and
+// TestSubdirectoryDocVnxDoesNotBeatARootEntryThatComesFirst. Neither compares an
+// attachment list, and neither may be flattened into this helper.
+//
+// It counts rather than comparing sets, so a duplicated name cannot fill the
+// hole left by a missing one.
+func compareAttachments(t *testing.T, got, want []string, what string) {
+	t.Helper()
+	tally := map[string]int{}
+	for _, n := range got {
+		tally[n]++
+	}
+	for _, n := range want {
+		tally[n]--
+	}
+	var missing, extra []string
+	for n, count := range tally {
+		for ; count < 0; count++ {
+			missing = append(missing, n)
+		}
+		for ; count > 0; count-- {
+			extra = append(extra, n)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(extra)
+	if len(missing) == 0 && len(extra) == 0 {
+		return
+	}
+	t.Errorf("%s do not match the sidecar (compared as a collection; archive order is not a rule)\n"+
+		"  got:     %v\n  want:    %v\n  missing: %v\n  unexpected: %v", what, got, want, missing, extra)
 }
 
 func runReject(t *testing.T, c corpusCase) {

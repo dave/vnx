@@ -637,8 +637,13 @@ final class LibraryTests: XCTestCase {
     /// plain-versus-ZIP64, and the shape this format keeps everywhere: constrain
     /// what a library writes, never what it will read.
     ///
-    /// Worth testing because I have just made the writer sort, and the obvious
-    /// way to get that wrong is to sort in the wrong place.
+    /// ⚠ THIS ONE IS ORDER-SENSITIVE ON PURPOSE, and it is the only container
+    /// test that is. The order it pins belongs to the FIXTURE — those bytes were
+    /// built out of sequence deliberately — and what is asserted is a READER
+    /// property: it hands back what the archive holds, in the order the archive
+    /// holds it. Nothing here says a writer must emit that order; §7.1 says the
+    /// opposite, that every field but the root document's position is the
+    /// writer's own business.
     func testAReaderAcceptsAnArchiveWhoseEntriesAreNotSorted() throws {
         let result = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.unsortedOnTheWire))
         XCTAssertEqual(result.documentName, "doc.vnx")

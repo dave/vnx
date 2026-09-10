@@ -115,13 +115,19 @@ final class WriterArchiveRulesTests: XCTestCase {
 
     /// Rule 3: entry names are unique. Rule 4: no attachment path escapes.
     /// Both are checked by this library's own reader, which refuses either.
+    ///
+    /// The attachments are compared as a COLLECTION. This test is about rules 3
+    /// and 4, and a list comparison here would smuggle in an order rule §7.1
+    /// does not state — the defect is easy to leave behind, because it survives
+    /// fixing the comparison one layer up in the corpus runner.
     func testTheArchiveSatisfiesTheReadersOwnRules() throws {
         let result = try VNX.readContainer(try archive())
         XCTAssertEqual(result.documentName, "doc.vnx")
         XCTAssertEqual(result.diagnostics, [])
-        XCTAssertEqual(result.attachments.map(\.path),
+        XCTAssertEqual(result.attachments.map(\.path).sorted(),
                        ["attachments/photo.txt", "attachments/vue-générale.txt"])
-        XCTAssertEqual(result.attachments[1].bytes, Data("accented name\n".utf8))
+        XCTAssertEqual(result.attachments.first { $0.path.hasSuffix("générale.txt") }?.bytes,
+                       Data("accented name\n".utf8))
         XCTAssertEqual(result.document, document())
     }
 

@@ -64,6 +64,14 @@ enum Rounding {
     /// produced itself. `toDecimalPlaces` keeps the sign, because the sign is
     /// the honest answer to the arithmetic it performs; the collapse belongs
     /// here, at the boundary, which is also where `corpus/numbers/` measures it.
+    ///
+    /// ⚠ SO THE TWO TABLES DISAGREE ON PURPOSE, and it is not a contradiction.
+    /// `RoundingOracle` expects `-0` for these values, because it is generated
+    /// against exact rational arithmetic and measures `toDecimalPlaces`.
+    /// `corpus/numbers/` expects `0`, because it is generated from Go and
+    /// measures what a WRITER emits. Go has the same seam inside its `roundTo`;
+    /// this is that seam, made into two functions so each instrument has
+    /// something to point at.
     private static func emitted(_ x: Double, _ places: Int) -> Double {
         let r = toDecimalPlaces(x, places)
         return r == 0 ? 0 : r

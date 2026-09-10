@@ -78,7 +78,11 @@ class ContainerWriteTest {
                 seen[entry.name] = zin.readBytes()
             }
         }
-        assertEquals(listOf("doc.vnx", "a.txt", "deep/b.bin"), seen.keys.toList())
+        // The root document first, which is the one placement rule section 7.1
+        // states. The attachments are a collection: where they sit is not a rule,
+        // so nothing here checks it.
+        assertEquals("doc.vnx", seen.keys.first(), "section 7.1 requires the root document first")
+        assertEquals(listOf("a.txt", "deep/b.bin"), seen.keys.drop(1).sorted())
         assertEquals("hello", String(seen["a.txt"]!!))
         assertContentEquals(ByteArray(5000) { it.toByte() }, seen["deep/b.bin"])
         assertTrue(String(seen["doc.vnx"]!!).endsWith("}\n"))

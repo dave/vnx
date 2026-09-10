@@ -417,9 +417,10 @@ function runWriteCases(dir, api) {
  * under a name that is not the one the case means and the fixture would test the
  * filesystem instead of the writer.
  *
- * The attachments are fed REVERSED. A writer's output must not depend on the
- * order it was handed, and feeding them in manifest order cannot see one that
- * does.
+ * The attachments are fed REVERSED. That is now a check on the writer's CONTENT
+ * rather than on its order: a writer that dropped or duplicated an attachment
+ * when handed one it did not expect is still caught, and the order it lands in
+ * is not this case's business.
  */
 function runWriteContainerCase(dir, base, api) {
   const { decodeText, decodeContainer, encode, encodeContainer } = api;
@@ -491,10 +492,17 @@ function runWriteContainerCase(dir, base, api) {
 }
 
 /**
- * What SPEC.md 7.1 constrains about an archive: the root document first and
- * under the name the manifest gives, the same entry names, and the same
- * attachment bodies. An attachment is bytes and is compared as bytes — nothing
- * in this format interprets one.
+ * What SPEC.md 7.1 constrains about an archive, and only that: the root document
+ * first and under the name the manifest gives, the same set of entry names, and
+ * the same attachment bodies. An attachment is bytes and is compared as bytes —
+ * nothing in this format interprets one.
+ *
+ * ⚠ ATTACHMENT ORDER IS NOT COMPARED. §7.1 has five rules and then says every
+ * other field of the archive is the writer's own business, so the attachments
+ * are an order-insensitive COLLECTION here. Ruled 2026-09-10. A library may sort
+ * its own output for determinism — this one does — but that is its choice, not
+ * conformance, and a case that checked it would enforce a rule the specification
+ * explicitly disclaims.
  */
 function checkArchive(c, gotBytes, wanted, manifest) {
   let got;
@@ -508,10 +516,10 @@ function checkArchive(c, gotBytes, wanted, manifest) {
     `the archive holds ${got.length} entries, want ${wanted.length}`)) return;
   c.check(got[0].name === manifest.root,
     `the first entry is ${JSON.stringify(got[0].name)}; SPEC.md 7.1 requires the root document first`);
-  const names = got.map((e) => e.name);
-  const wantNames = wanted.map((e) => e.name);
+  const names = got.slice(1).map((e) => e.name).sort();
+  const wantNames = wanted.slice(1).map((e) => e.name).sort();
   c.check(JSON.stringify(names) === JSON.stringify(wantNames),
-    `the entry names are ${JSON.stringify(names)}, want ${JSON.stringify(wantNames)}`);
+    `the attachment names are ${JSON.stringify(names)}, want ${JSON.stringify(wantNames)}`);
 
   const diff = compareDocuments(got[0].body.toString('utf8'), wanted[0].body.toString('utf8'), {});
   c.check(diff === '', `the archive's root document is not the one the case expects: ${diff}`);

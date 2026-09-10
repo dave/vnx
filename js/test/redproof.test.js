@@ -402,6 +402,37 @@ test('accepting a path that escapes the archive is caught by the reject tier', a
   assert.deepEqual(await failingDelta(cases), ['reject/container-escapes.vnz']);
 });
 
+test('attachment ORDER is not a rule, and attachment CONTENT is', async () => {
+  // Ruled 2026-09-10. SPEC.md 7.1 has five rules — the root document named
+  // doc.vnx and FIRST, the UTF-8 flag on every entry, names unique
+  // case-insensitively, attachment paths relative and safe, every entry stored
+  // or deflated — and then says every other field of the archive is the
+  // writer's own business. Entry order past the root document is one of those.
+  //
+  // This library sorts its attachments anyway, for run-to-run determinism. That
+  // is its own choice and NOT conformance, so reordering them must stay green:
+  // a corpus case that reddened here would enforce a rule the specification
+  // explicitly disclaims. The Kotlin seat found the old case doing exactly that.
+  const reversed = await runMutated([{
+    file: 'vnz.js', from: "  return [...files].sort((a, b) => Buffer.from(a.name, 'utf8').compare(Buffer.from(b.name, 'utf8')));", to: '  return [...files].reverse();',
+  }]);
+  assert.deepEqual(await failingDelta(reversed), [],
+    'the corpus now enforces attachment order, which SPEC.md 7.1 disclaims');
+
+  // The content is a different matter, and the case still measures it. Feeding
+  // the attachments reversed is what makes a writer that drops one visible.
+  const dropped = await runMutated([{
+    file: 'vnz.js', from: "  return [...files].sort((a, b) => Buffer.from(a.name, 'utf8').compare(Buffer.from(b.name, 'utf8')));", to: '  return [...files].slice(1);',
+  }]);
+  assert.deepEqual(await failingDelta(dropped), ['write/container-cross-language']);
+
+  const corrupted = await runMutated([{
+    file: 'vnz.js', from: "  return [...files].sort((a, b) => Buffer.from(a.name, 'utf8').compare(Buffer.from(b.name, 'utf8')));",
+    to: "  return [...files].map((f) => ({ ...f, data: Buffer.from('x') }));",
+  }]);
+  assert.deepEqual(await failingDelta(corrupted), ['write/container-cross-language']);
+});
+
 test('widening the projection tolerance is caught by the diagnose tier', async () => {
   const cases = await runMutated([{
     file: 'geo.js',

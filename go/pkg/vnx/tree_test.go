@@ -186,15 +186,14 @@ func normPositionList(o map[string]any, key string, opt treeOptions) {
 	o[key] = out
 }
 
-// normPosition applies what §4.1 lets a comparison ignore about a position.
+// normPosition applies what §8.1 lets a comparison ignore about a position:
+// rounding, and a trailing `null`. Both are emit-boundary rules and are applied
+// only for the accept tier; see treeOptions.
 //
-// ⚠ CHANNELS THIS VERSION DOES NOT NAME ARE DROPPED FROM BOTH SIDES. §4.1 has a
-// reader ignore them, and a channel a reader ignored is one it cannot reproduce.
-// Comparing them would make the corpus require a preservation rule the format
-// does not state.
-//
-// Rounding and the trailing `null` are applied only for the accept tier; see
-// treeOptions.
+// ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no corpus
+// file carries one. §4.1's preservation rule is gone, so a fixture asking a
+// writer to reproduce a fifth channel would be asking for a rule the format
+// does not state — the fixture is what changes, not the comparison.
 func normPosition(v any, opt treeOptions) any {
 	arr, ok := v.([]any)
 	if !ok {
@@ -202,9 +201,6 @@ func normPosition(v any, opt treeOptions) any {
 	}
 	out := make([]any, 0, len(arr))
 	for i, c := range arr {
-		if i >= 4 {
-			break
-		}
 		n, isNumber := c.(float64)
 		if !isNumber || !opt.emitBoundary {
 			out = append(out, c)

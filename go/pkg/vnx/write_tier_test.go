@@ -25,9 +25,8 @@ import (
 // ⚠ AND SO IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and
 // drops a trailing `null` from both, because it compares a document against a
 // re-encoding of itself. Doing that here would normalise away the two rules
-// under test. The only normalisations are the ones that are not about the emit
-// boundary at all: §3.1's absent-versus-empty, and channels this version does
-// not name.
+// under test. The one normalisation left is the one that is not about the emit
+// boundary at all: §3.1's absent-versus-empty.
 const writeTierDir = corpusDir + "/write"
 
 type writeCase struct {

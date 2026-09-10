@@ -1,31 +1,33 @@
 # Writer cases
 
-Each `X.in.vnx` is a document, and `X.written.vnx` is exactly the bytes a
-conforming writer emits for it. The runner decodes the input, calls WRITE, and
-byte-compares.
+Each `X.in.vnx` is a document, and `X.written.vnx` is the document a conforming
+writer produces from it. The runner decodes the input, calls WRITE, and compares
+the two as JSON trees. The bytes are not compared: nothing about a document's
+whitespace, key order or number spelling is constrained.
 
-`SPEC.md` 4.5.4 names two emit paths and this tier is the only one that exercises
-the first:
+Section 4.1 puts two rules at the emit boundary and this tier is the only one
+that exercises them:
 
 | Path | Rounds and shortens? | Tier |
 |---|---|---|
 | WRITE — a model into a document | yes | `write/` |
-| RE-RENDER — a decoded document back into that document | no | `accept/`, `format/` |
+| RE-ENCODE — a decoded document written back out | applies them to values that already satisfy them | `accept/` |
 
 ## Why it exists
 
-A tier that re-renders cannot reach section 4.5.4 at all, because a re-render
-applies none of its rules. Three of them are therefore reachable only from here:
-a rounding tie; a negative zero that no fixture can hand a writer, because the
-writer produces it itself by rounding towards zero; and shortening a position.
+A tier that re-encodes what it decoded rounds values that are already rounded
+and shortens positions that are already short, so it cannot see a defect in
+either rule. Three things are therefore reachable only from here: a rounding
+tie; a negative zero that no fixture can hand a writer, because the writer
+produces it itself by rounding towards zero; and shortening a position.
 
 "Rounding is unreachable because no tier rounds" reads as a fact about the format
 and is a fact about which tiers exist. **An unreachability claim is a claim about
 the current state of someone's ingenuity, not about the format.**
 
 The input is a document rather than a model, which is what makes the tier
-language-neutral: the operation is decode-then-write, exactly as `format/`'s is
-decode-then-re-render. No language-specific way to express a model is needed.
+language-neutral: the operation is decode-then-write. No language-specific way
+to express a model is needed.
 
 ## A container case, and the one shape extension it needs
 
@@ -35,7 +37,7 @@ than a document, so it carries a third input file:
 ```
 container-cross-language.in.vnx              the document
 container-cross-language.attachments.json    {root, attachments: [{name, body}]}
-container-cross-language.written.vnz         exactly the bytes a writer emits
+container-cross-language.written.vnz         the archive a writer produces
 ```
 
 The manifest exists because a container write takes something no other tier's
@@ -49,14 +51,22 @@ a real file could arrive under a name that is not the one the case means, and th
 fixture would test the filesystem instead of the writer. Inside JSON the name is
 escaped text that nothing can alter.
 
-A runner feeds the manifest's attachments in ANY order. The writer sorts them,
-which section 7.1 requires and which this case verifies by construction: the same
-562 bytes come back when the three are supplied reversed.
+A runner feeds the manifest's attachments in ANY order, and the entry names come
+back in one order whichever it was. Section 7.1 requires only that the root
+document is first; a writer that also orders its attachments is what makes two
+exports of one library agree with each other.
+
+The archive's own bytes are not compared. Section 7.1 constrains five rules and
+leaves every other field of the archive to the writer, so what a runner compares
+is the root document's tree, the entry names, and the attachment bodies.
 
 ## What a runner must assert
 
 - The input is NOT already the written form. Without it, a writer that echoed its
   input would pass every case here.
+- Only two normalisations, the ones `SPEC.md` 8.1 permits, and NOT the first of
+  them here: rounding and the shortest spelling of a position are the rules this
+  tier tests, so normalising them away would leave it proving nothing.
 - The written form is a fixed point: writing it again reproduces it. Rounding and
   shortening are both idempotent, so a case that fails this is a defect in the
   fixture rather than in the writer.

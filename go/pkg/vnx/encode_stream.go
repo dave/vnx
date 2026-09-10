@@ -4,18 +4,17 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 )
 
 // The framing layer.
 //
 // ⚠ IT IS PUNCTUATION AND NOTHING ELSE. Every VALUE below — every string, every
 // number, every key, every item — goes through encoding/json. What this file
-// writes is braces, brackets, commas and indentation, so that a document can be
-// emitted without ever holding more than one item at a time. There is no string
-// escaping, no number formatting and no key sorting here, and none may be added:
-// a second answer to any of those is how two encoders in one library start
-// disagreeing.
+// writes is braces, brackets and commas, so that a document can be emitted
+// without ever holding more than one item at a time. There is no string
+// escaping, no number formatting and no key sorting here, and none may be
+// added: a second answer to any of those is how two encoders in one library
+// start disagreeing.
 //
 // Peak memory is O(the largest single item), not O(the document): the document-
 // and network-level scaffolding is written directly, and each item is built,
@@ -31,40 +30,38 @@ func EncodeTo(w io.Writer, doc *Document) error {
 	if err := streamDocument(b, doc); err != nil {
 		return err
 	}
+	// The one byte of whitespace the document carries, and it is a file
+	// convention rather than layout: a text file ends in a newline.
 	b.WriteString("\n")
 	return b.Err()
 }
 
-func indent(depth int) string { return strings.Repeat("  ", depth) }
-
 // object writes one JSON object, a member at a time.
 type object struct {
 	b       *StickyWriter
-	depth   int
 	members int
 }
 
-func openObject(b *StickyWriter, depth int) *object {
+func openObject(b *StickyWriter) *object {
 	b.WriteString("{")
-	return &object{b: b, depth: depth}
+	return &object{b: b}
 }
 
 // key writes a member's name and separator, leaving the caller to write the
-// value at depth+1.
+// value.
 func (o *object) key(k string) error {
 	if o.members > 0 {
 		o.b.WriteString(",")
 	}
 	o.members++
-	o.b.WriteString("\n" + indent(o.depth+1))
 	// The key goes through the same renderer as a value, so a string is escaped
 	// one way in this package rather than two.
-	quoted, err := marshalIndent(k, "")
+	quoted, err := marshalCompact(k)
 	if err != nil {
 		return err
 	}
 	o.b.WriteBytes(quoted)
-	o.b.WriteString(": ")
+	o.b.WriteString(":")
 	return o.b.Err()
 }
 
@@ -73,7 +70,7 @@ func (o *object) value(k string, v any) error {
 	if err := o.key(k); err != nil {
 		return err
 	}
-	out, err := marshalIndent(v, indent(o.depth+1))
+	out, err := marshalCompact(v)
 	if err != nil {
 		return err
 	}
@@ -81,38 +78,27 @@ func (o *object) value(k string, v any) error {
 	return o.b.Err()
 }
 
-func (o *object) close() {
-	if o.members == 0 {
-		o.b.WriteString("}")
-		return
-	}
-	o.b.WriteString("\n" + indent(o.depth) + "}")
-}
+func (o *object) close() { o.b.WriteString("}") }
 
 // streamArray writes an array of values, building ONE at a time and dropping it
 // before the next.
-func streamArray(b *StickyWriter, depth, n int, item func(i int) (any, error)) error {
-	if n == 0 {
-		b.WriteString("[]")
-		return b.Err()
-	}
+func streamArray(b *StickyWriter, n int, item func(i int) (any, error)) error {
 	b.WriteString("[")
 	for i := 0; i < n; i++ {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		b.WriteString("\n" + indent(depth+1))
 		v, err := item(i)
 		if err != nil {
 			return err
 		}
-		out, err := marshalIndent(v, indent(depth+1))
+		out, err := marshalCompact(v)
 		if err != nil {
 			return err
 		}
 		b.WriteBytes(out)
 	}
-	b.WriteString("\n" + indent(depth) + "]")
+	b.WriteString("]")
 	return b.Err()
 }
 
@@ -124,9 +110,9 @@ func streamArray(b *StickyWriter, depth, n int, item func(i int) (any, error)) e
 // emit a different file on every run with no error and no panic. encoding/json
 // sorts a map's keys for the same reason; this does it by hand because it never
 // holds the map's values together.
-func streamKeyedObject(b *StickyWriter, depth int, keys []string, value func(k string) (any, error)) error {
+func streamKeyedObject(b *StickyWriter, keys []string, value func(k string) (any, error)) error {
 	sort.Strings(keys)
-	o := openObject(b, depth)
+	o := openObject(b)
 	for _, k := range keys {
 		v, err := value(k)
 		if err != nil {
@@ -145,7 +131,7 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 	if version == "" {
 		version = Version
 	}
-	o := openObject(b, 0)
+	o := openObject(b)
 	if err := o.value("vnx", version); err != nil {
 		return err
 	}
@@ -170,7 +156,7 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 		if err := o.key(c.key); err != nil {
 			return err
 		}
-		if err := c.emit(b, doc, o.depth+1); err != nil {
+		if err := c.emit(b, doc); err != nil {
 			return err
 		}
 	}
@@ -189,41 +175,41 @@ type documentCollection struct {
 	field string
 	key   string
 	count func(*Document) int
-	emit  func(b *StickyWriter, doc *Document, depth int) error
+	emit  func(b *StickyWriter, doc *Document) error
 }
 
 // In the order [Document] declares them, which is the order they are written.
 var documentCollections = []documentCollection{
 	{"Folders", "folders", func(d *Document) int { return len(d.Folders) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Folders), func(i int) (any, error) { return folderWire(d.Folders[i]) })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Folders), func(i int) (any, error) { return folderWire(d.Folders[i]) })
 		}},
 	{"Waypoints", "waypoints", func(d *Document) int { return len(d.Waypoints) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Waypoints), func(i int) (any, error) { return waypointWire(d.Waypoints[i], false) })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Waypoints), func(i int) (any, error) { return waypointWire(d.Waypoints[i], false) })
 		}},
 	{"Areas", "areas", func(d *Document) int { return len(d.Areas) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Areas), func(i int) (any, error) { return areaWire(d.Areas[i], false) })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Areas), func(i int) (any, error) { return areaWire(d.Areas[i], false) })
 		}},
 	{"Tracks", "tracks", func(d *Document) int { return len(d.Tracks) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Tracks), func(i int) (any, error) { return trackWire(d.Tracks[i]) })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Tracks), func(i int) (any, error) { return trackWire(d.Tracks[i]) })
 		}},
 	{"Routes", "routes", func(d *Document) int { return len(d.Routes) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Routes), func(i int) (any, error) { return routeWire(d.Routes[i]) })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Routes), func(i int) (any, error) { return routeWire(d.Routes[i]) })
 		}},
 	{"Networks", "networks", func(d *Document) int { return len(d.Networks) },
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamNetworks(b, d.Networks, depth)
+		func(b *StickyWriter, d *Document) error {
+			return streamNetworks(b, d.Networks)
 		}},
 	{"Rulesets", "rulesets", func(d *Document) int { return len(d.Rulesets) },
 		// Verbatim and uninspected (vnx.go): a ruleset is an arbitrary value
 		// this package refuses to understand, so it is handed to encoding/json
 		// exactly as it was read.
-		func(b *StickyWriter, d *Document, depth int) error {
-			return streamArray(b, depth, len(d.Rulesets), func(i int) (any, error) { return d.Rulesets[i], nil })
+		func(b *StickyWriter, d *Document) error {
+			return streamArray(b, len(d.Rulesets), func(i int) (any, error) { return d.Rulesets[i], nil })
 		}},
 }
 
@@ -237,22 +223,17 @@ func folderWire(f Folder) (wireFolder, error) {
 	return wireFolder{ID: f.ID, Name: f.Name, Notes: f.Notes, Parent: f.Parent, Hidden: f.Hidden, Data: data}, nil
 }
 
-func streamNetworks(b *StickyWriter, ns []Network, depth int) error {
-	if len(ns) == 0 {
-		b.WriteString("[]")
-		return b.Err()
-	}
+func streamNetworks(b *StickyWriter, ns []Network) error {
 	b.WriteString("[")
 	for i := range ns {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		b.WriteString("\n" + indent(depth+1))
-		if err := streamNetwork(b, ns[i], depth+1); err != nil {
+		if err := streamNetwork(b, ns[i]); err != nil {
 			return err
 		}
 	}
-	b.WriteString("\n" + indent(depth) + "]")
+	b.WriteString("]")
 	return b.Err()
 }
 
@@ -261,8 +242,8 @@ func streamNetworks(b *StickyWriter, ns []Network, depth int) error {
 // dropped before the next one starts.
 //
 // Members follow the order [Network] declares them.
-func streamNetwork(b *StickyWriter, n Network, depth int) error {
-	o := openObject(b, depth)
+func streamNetwork(b *StickyWriter, n Network) error {
+	o := openObject(b)
 	for _, s := range []struct{ key, value string }{
 		{"name", n.Name},
 		{"notes", n.Notes},
@@ -288,7 +269,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		for k := range n.Nodes {
 			keys = append(keys, k)
 		}
-		err := streamKeyedObject(b, o.depth+1, keys, func(k string) (any, error) { return positionWire(n.Nodes[k]) })
+		err := streamKeyedObject(b, keys, func(k string) (any, error) { return positionWire(n.Nodes[k]) })
 		if err != nil {
 			return err
 		}
@@ -301,7 +282,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		for k := range n.Arcs {
 			keys = append(keys, k)
 		}
-		err := streamKeyedObject(b, o.depth+1, keys, func(k string) (any, error) { return arcWire(n.Arcs[k], true) })
+		err := streamKeyedObject(b, keys, func(k string) (any, error) { return arcWire(n.Arcs[k], true) })
 		if err != nil {
 			return err
 		}
@@ -310,7 +291,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		if err := o.key("chains"); err != nil {
 			return err
 		}
-		err := streamArray(b, o.depth+1, len(n.Chains), func(i int) (any, error) { return chainWire(n.Chains[i]) })
+		err := streamArray(b, len(n.Chains), func(i int) (any, error) { return chainWire(n.Chains[i]) })
 		if err != nil {
 			return err
 		}
@@ -319,7 +300,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		if err := o.key("points"); err != nil {
 			return err
 		}
-		err := streamArray(b, o.depth+1, len(n.Points), func(i int) (any, error) { return waypointWire(n.Points[i], true) })
+		err := streamArray(b, len(n.Points), func(i int) (any, error) { return waypointWire(n.Points[i], true) })
 		if err != nil {
 			return err
 		}
@@ -328,7 +309,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		if err := o.key("areas"); err != nil {
 			return err
 		}
-		err := streamArray(b, o.depth+1, len(n.Areas), func(i int) (any, error) { return areaWire(n.Areas[i], true) })
+		err := streamArray(b, len(n.Areas), func(i int) (any, error) { return areaWire(n.Areas[i], true) })
 		if err != nil {
 			return err
 		}
@@ -341,7 +322,7 @@ func streamNetwork(b *StickyWriter, n Network, depth int) error {
 		if err := o.key("data"); err != nil {
 			return err
 		}
-		if err := streamArray(b, o.depth+1, len(recs), func(i int) (any, error) { return recs[i], nil }); err != nil {
+		if err := streamArray(b, len(recs), func(i int) (any, error) { return recs[i], nil }); err != nil {
 			return err
 		}
 	}

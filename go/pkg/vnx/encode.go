@@ -360,22 +360,29 @@ func finite(f float64, what string) error {
 	return nil
 }
 
-// marshalIndent renders one value with encoding/json, indented as though it
-// began at `prefix`.
+// marshalCompact renders one value with encoding/json, with no whitespace at
+// all.
+//
+// ⚠ THE DOCUMENT IS NOT INDENTED, AND THAT IS THE DECISION RATHER THAN AN
+// OMISSION. Nothing about a VNX document's whitespace is constrained, and
+// indenting costs about three times the file: a 200,000-pip track is 25.5 MB
+// indented and 8.3 MB compact. The alternative — indenting the structure while
+// keeping a position on one line — needs a re-indent pass over already-valid
+// JSON, which is a custom emitter wearing a different hat and is the thing this
+// library stopped having. Pretty-printing belongs to a TOOL, not to the format.
 //
 // ⚠ HTML ESCAPING IS OFF. Go escapes `<`, `>` and `&` by default so that its
 // output can be pasted into a script tag. That is a sound default for a general
 // encoder and needless noise in a document nobody embeds in HTML; both
-// spellings decode to the same string, so this is a choice about legibility and
-// size rather than about conformance.
+// spellings decode to the same string, so this is a choice about size rather
+// than about conformance.
 //
 // The trailing newline json.Encoder appends is removed here, because the caller
-// is placing this value inside a larger document and decides its own layout.
-func marshalIndent(v any, prefix string) ([]byte, error) {
+// is placing this value inside a larger document.
+func marshalCompact(v any) ([]byte, error) {
 	var b bytes.Buffer
 	e := json.NewEncoder(&b)
 	e.SetEscapeHTML(false)
-	e.SetIndent(prefix, "  ")
 	if err := e.Encode(v); err != nil {
 		return nil, err
 	}

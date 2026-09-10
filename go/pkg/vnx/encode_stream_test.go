@@ -99,7 +99,7 @@ func TestNetworkMapKeysAreEmittedSorted(t *testing.T) {
 	} {
 		last := -1
 		for _, k := range want {
-			at := strings.Index(out, `"`+k+`": `)
+			at := strings.Index(out, `"`+k+`":`)
 			if at < 0 {
 				t.Fatalf("%s key %q was not emitted at all", what, k)
 			}
@@ -142,7 +142,7 @@ func sortedArcNames(m map[string]Arc) []string {
 // both as absence. The rule is asserted directly because both goldens carry all
 // seven containers populated and can catch neither half of it.
 func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
-	const headerOnly = "{\n  \"vnx\": \"0.1.0\"\n}\n"
+	const headerOnly = "{\"vnx\":\"0.1.0\"}\n"
 	for _, c := range documentCollections {
 		var absent bytes.Buffer
 		if err := EncodeTo(&absent, &Document{}); err != nil {
@@ -173,7 +173,7 @@ func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
 	if err := EncodeTo(&b, &Document{Version: "0.1.0", Generator: "g", Created: "c"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"vnx\": \"0.1.0\",\n  \"generator\": \"g\",\n  \"created\": \"c\"\n}\n"
+	want := "{\"vnx\":\"0.1.0\",\"generator\":\"g\",\"created\":\"c\"}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}

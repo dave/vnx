@@ -197,7 +197,7 @@ func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := bytes.Count(got, []byte(`"folder": "f"`)); n != 2 {
+	if n := bytes.Count(got, []byte(`"folder":"f"`)); n != 2 {
 		t.Errorf("got %d `folder` keys, want 2 — the top-level waypoint and the top-level area only:\n%s", n, got)
 	}
 }

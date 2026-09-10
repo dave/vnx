@@ -1108,11 +1108,13 @@ is an implementation's own business and naming its cause is not, so the
 substring is a weak proxy for the second.
 
 For every file in `accept/`, a runner MUST decode it, encode the decoded
-document, and compare the two as JSON trees: parse the original file to a
-generic tree, parse the encoded output to a generic tree, and require them
-equal. Only one normalisation is permitted before the comparison, and it applies
-to positions: trailing `null` channels are dropped and the precision rules of
-Section 4.1 are applied to both sides. Nothing else may be normalised away.
+document, and compare the tree parsed from the original file against the tree
+parsed from the encoded output.
+
+Two normalisations are permitted, and no others: on a position, trailing `null`
+channels are dropped and the precision rules of Section 4.1 are applied to both
+sides; and an absent container and an empty one normalise to the same value,
+which Section 3.1 requires a reader to do. Nothing else may be normalised away.
 Files in `reject/` and `diagnose/` are not subject to this check.
 
 The comparison is over trees because the bytes of a document are not

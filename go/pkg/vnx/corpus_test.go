@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -355,12 +356,28 @@ func checkPositions(t *testing.T, doc *Document, e expectation) {
 			t.Errorf("no position at %q; the document holds %d addressable positions", want.At, len(have))
 			continue
 		}
-		// Exact float comparison, deliberately. These are the same doubles the
-		// file holds, parsed by the same parser, so anything but equality means
-		// a channel was swapped or precision was lost.
-		if got.Lon != want.Lon || got.Lat != want.Lat {
-			t.Errorf("%s: got lon=%v lat=%v, want lon=%v lat=%v",
-				want.At, got.Lon, got.Lat, want.Lon, want.Lat)
+		// ⚠ BIT PATTERNS, NOT VALUES, AND FOR TWO REASONS.
+		//
+		// A value comparison cannot see a one-ulp move between the parse and
+		// the model, and when it does fail it cannot SHOW the two numbers:
+		// they print identically at default precision, so the failure reads as
+		// a broken test rather than a broken decoder. Both values and both
+		// patterns are printed below for the same reason.
+		//
+		// And `-0.0 == 0.0` in every language here, so a value comparison
+		// cannot tell them apart at all.
+		//
+		// ⚠ WHAT IT DOES NOT CATCH: a parser that is one ulp out. The
+		// sidecar's expected value is read by the SAME parser, so such a
+		// parser is wrong on both sides and they agree. That is what
+		// TestFullPrecisionSurvivesRoundTrip is for. This check is about
+		// anything that moves a value between the parse and the model.
+		if math.Float64bits(got.Lon) != math.Float64bits(want.Lon) ||
+			math.Float64bits(got.Lat) != math.Float64bits(want.Lat) {
+			t.Errorf("%s:\n  got  lon=%v lat=%v  (%016x %016x)\n  want lon=%v lat=%v  (%016x %016x)",
+				want.At,
+				got.Lon, got.Lat, math.Float64bits(got.Lon), math.Float64bits(got.Lat),
+				want.Lon, want.Lat, math.Float64bits(want.Lon), math.Float64bits(want.Lat))
 		}
 	}
 }

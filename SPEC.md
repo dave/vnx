@@ -1191,15 +1191,26 @@ arc" permits the whole arc or any stretch of it, and a chain drawing a whole arc
 where it meant a third of one still draws a plausible line. The rule above is
 deterministic and invents no position.
 
-A position inside `pips` that will not parse drops the arc that holds it, not the
-position. A link that cannot be used drops the link and keeps the chain. Those
-look opposite and are not, and the difference is worth stating because the two
-rules sit next to each other:
+A position that will not parse drops the object that owns it rather than the
+position, and the table above says which object that is. A link that cannot be
+used drops the link and keeps the chain. Those look opposite and are not, and
+the difference is worth stating because the two rules sit next to each other:
 
 GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex changes the shape
 of a line and leaves nothing to indicate it — a shorter, plausible, wrong line.
 A missing link leaves a gap between two endpoints that the continuity rule of
 Section 3.3.3 can see and report, so nothing is lost silently.
+
+A track's owner is the SEGMENT rather than the whole track, for the same reason.
+Section 3.5 already makes the interval between two segments a pause rather than
+geometry, so segments are discontinuous from each other by construction and a
+missing one leaves a gap a consumer can see. Dropping the whole track would lose
+geometry the document is not wrong about.
+
+All three take ONE code. The code plus this table already tells a consumer what
+was lost, so the path is free to name the cause — which is why the wrong-typed
+value needs two codes and this needs one: required-ness cannot be derived from a
+path, and the owning container can.
 
 This is not the required-key rule of Section 6.2. That rule is about a key whose
 VALUE is the wrong type: `"pips": "hello"`. Here `pips` is an array and is
@@ -1213,7 +1224,9 @@ The remedies for the remaining constructs this document constrains:
 | a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
 | an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
 | a link naming a node that is not in its network (3.3.3) | keep the link; see below |
-| a position inside `pips` that will not parse (4.1) | drop the ARC, not the pip |
+| a position that will not parse, inside an arc's `pips` (4.1) | drop the ARC |
+| a position that will not parse, inside a track segment's `pips` (4.1) | drop the SEGMENT |
+| a position that will not parse, inside a `polygon` ring (4.1) | drop the ITEM |
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
 

@@ -243,4 +243,15 @@ var (
 	// is gone" is recoverable from the rest of the item and "the item is gone"
 	// is not, so a caller has to tell them apart without parsing English.
 	CodeWrongTypeRequired = decodeCode("wrong-type-required")
+	// CodePositionUnusable: a position inside an array will not parse (§4.1).
+	// The object owning the array is dropped, and WHICH object that is depends
+	// on the container — §6.2's table has a row for each. One code rather than
+	// three, because the code plus that table already tells a consumer what was
+	// lost, which leaves `path` free to name the cause.
+	CodePositionUnusable = decodeCode("position-unusable")
+	// CodeTerminalPipOffNode: an arc's first or last pip is further from the
+	// node that end names than §3.3.3's tolerance allows (§3.3.2). Both are
+	// kept: the pips are authoritative for geometry, and the node position and
+	// the terminal pip are one fact written twice.
+	CodeTerminalPipOffNode = decodeCode("terminal-pip-off-node")
 )

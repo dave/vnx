@@ -182,6 +182,13 @@ func decodeNamedArcs(v any, path string, nodes map[string]Position, diags []Diag
 		from, _ := aObj["from"].(string)
 		to, _ := aObj["to"].(string)
 		diags = reportUnknownKeys(aObj, at, arcKeys, diags)
+		if a.Pips == nil {
+			// decodePips already reported the unusable position and returned
+			// nil to say "drop the arc". Reporting a pip count here as well
+			// would turn one defect into two, which §6.2 forbids and which the
+			// chain-continuity rule already spells out for links.
+			continue
+		}
 		if len(a.Pips) < 2 {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
 				Message: fmt.Sprintf("arc has %d usable pips, needs at least 2 — dropped", len(a.Pips))})
@@ -215,7 +222,11 @@ func checkArcMeetsNodes(a Arc, from, to, at string, nodes map[string]Position, d
 			return
 		}
 		if metresBetween(np, p) > EndpointToleranceMetres {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
+			// The path names the END, not the arc: §6.3 has it name the
+			// smallest element no part of which could be used, and the arc's
+			// other end and its interior pips are all fine.
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/" + which,
+				Code: CodeTerminalPipOffNode,
 				Message: fmt.Sprintf("arc's %s pip %s is %.0f m from node %q at %s — an arc's pips are its COMPLETE point list and must meet its nodes",
 					which, p, metresBetween(np, p), nodeID, np)})
 		}

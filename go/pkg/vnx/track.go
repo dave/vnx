@@ -165,6 +165,15 @@ func decodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagno
 		}
 		pips, diags2 := decodePips(obj["pips"], at+"/pips", diags)
 		diags = diags2
+		if pips == nil && obj["pips"] != nil {
+			// decodePips reported an unusable position and returned nil to say
+			// "drop the owner". For a track that owner is the SEGMENT: spec
+			// §3.5 already makes the interval between two segments a pause
+			// rather than geometry, so a missing segment leaves a gap a
+			// consumer can see, where a missing pip inside one leaves a
+			// shorter, plausible, wrong line.
+			continue
+		}
 		out = append(out, Segment{Pips: pips})
 	}
 	return out, diags
@@ -173,6 +182,20 @@ func decodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagno
 // decodePips reads a position list. An unusable position drops THAT POSITION,
 // not the whole run — one bad fix in a day's recording should cost one fix,
 // which is the same trade importer/gpx.go makes with InvalidPointCount.
+// decodePips returns nil for a list holding an unusable position, and the
+// CALLER drops the object that owns it.
+//
+// ⚠ IT DOES NOT DROP THE PIP. Spec §6.2: geometry is continuous and structure is
+// not, so a missing vertex changes the shape of a line and leaves nothing to
+// indicate it — a shorter, plausible, wrong line. This dropped the pip and
+// carried on, which produced exactly that.
+//
+// What the caller drops differs by what owns the list, and §6.2's table says
+// which: an arc's pips drop the ARC, a track segment's pips drop the SEGMENT,
+// and a polygon ring drops the ITEM. A segment is the right unit for a track
+// because segments are ALREADY discontinuous from each other — §3.5 makes the
+// interval between two of them a pause rather than geometry — so a dropped
+// segment leaves a gap a consumer can see, exactly as a dropped link does.
 func decodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagnostic) {
 	if v == nil {
 		return nil, diags
@@ -187,15 +210,14 @@ func decodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagnosti
 		at := fmt.Sprintf("%s/%d", path, i)
 		posArr, isArr := item.([]any)
 		if !isArr {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("pip is %s, expected an array — dropped", jsonKind(item))})
-			continue
+			return nil, append(diags, Diagnostic{Severity: Warning, Path: at,
+				Code:    CodePositionUnusable,
+				Message: fmt.Sprintf("pip is %s, expected an array", jsonKind(item))})
 		}
 		p, err := decodePosition(posArr, at)
 		if err != nil {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: err.Error() + " — pip dropped"})
-			continue
+			return nil, append(diags, Diagnostic{Severity: Warning, Path: at,
+				Code: CodePositionUnusable, Message: err.Error()})
 		}
 		out = append(out, p)
 	}

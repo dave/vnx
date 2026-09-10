@@ -135,12 +135,13 @@ func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Dia
 		posArr, isArr := item.([]any)
 		if !isArr {
 			return nil, false, append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
+				Code:    CodePositionUnusable,
 				Message: fmt.Sprintf("ring position is %s — area dropped", jsonKind(item))})
 		}
 		p, err := decodePosition(posArr, fmt.Sprintf("%s/%d", path, i))
 		if err != nil {
 			return nil, false, append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
-				Message: err.Error() + " — area dropped"})
+				Code: CodePositionUnusable, Message: err.Error() + " — area dropped"})
 		}
 		ring = append(ring, p)
 	}

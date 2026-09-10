@@ -155,9 +155,27 @@ wire commitments.
   permits, and writes no ZIP64 records, which SPEC 7 also permits.
 - **No ZIP64 writing.** Reading it is required and is now tested by a
   hand-built fixture (see below); writing it is optional and not done.
-- **No streaming.** A document is parsed into memory. There is a nesting depth
-  limit of 256 (SPEC 9 asks a reader to bound what one document may consume) and
-  no limit on item count.
+- **No streaming, and no resource policy.** A document is parsed into memory.
+  Nothing bounds the number of items, the depth of the folder tree, or the size
+  of an opaque data record, so a ten-million-waypoint document is read in full.
+
+  That is deliberate. SPEC 9 says a reader SHOULD bound what one document may
+  consume, and **the library cannot know the bound while the caller can**: a
+  hiking application exporting its own library legitimately produces that
+  document, and a server accepting an upload from a stranger does not. Any number
+  picked here is wrong for one of them, and refusing a large legitimate export
+  would be worse than reading it.
+
+  **So the answer, if anyone implements it, is a lever rather than a limit**: an
+  optional cap on the reader, defaulting to none, refusing beyond it with a
+  cause. That is the no-fallbacks rule applied to a resource policy — do not
+  invent one, expose the decision. Reach for the parameter, not for a constant.
+
+- **One exception: nesting depth is capped at 256**, and it belongs in the
+  library where the others do not. Recursion depth is the one resource whose
+  failure is a stack overflow rather than slowness, and **a stack overflow is not
+  a refusal a caller can handle.** That makes it a correctness bound rather than
+  a policy one.
 
 ## Three things the corpus cannot reach, and what covers them here
 

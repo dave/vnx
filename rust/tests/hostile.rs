@@ -12,6 +12,19 @@
 //! than for being damaged. So these are the crate's own, and they are
 //! systematic rather than illustrative — a hand-picked corrupt file tests the
 //! corruption someone imagined.
+//!
+//! **But a broad sweep is a weaker instrument than it looks, and the targeted
+//! cases below are not redundant with it.** Most damage is caught by something
+//! else on the way past: corrupting the document stops the JSON parsing,
+//! corrupting a header fails a length check. So a sweep that requires only "no
+//! panic" can never tell you WHICH guard did the work, and it cannot isolate a
+//! guard that only one kind of damage reaches. The CRC check is the instance —
+//! only a corrupt ATTACHMENT reaches it, and there the archive reads clean and
+//! wrong bytes come back as content.
+//!
+//! And the sweeps cannot reach a value large enough to overflow: a bit flip
+//! cannot move a header field from 32 bits to 64. That input has to be built,
+//! which is what `a_zip64_offset_near_the_top_of_the_range_is_refused` does.
 
 use vnx::{decode, vnz, zip};
 

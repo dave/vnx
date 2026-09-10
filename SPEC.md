@@ -1384,8 +1384,14 @@ A VNZ file is a ZIP archive carrying a VNX document and its attachments.
 - A reader MUST accept an archive whose entries defer their sizes to a data
   descriptor, and MUST take the sizes from the CENTRAL DIRECTORY rather than
   from a local header.
-- A reader MUST NOT refuse an entry whose declared size exceeds the bytes it
-  holds, where the CRC over those bytes agrees.
+- When a reader READS an entry, it MUST NOT refuse it for declaring a size
+  greater than the bytes present, where the CRC over those bytes agrees. A
+  reader that never reads the entry never asks the question.
+
+  The scope is deliberate. Requiring every entry to be verified when a container
+  is opened makes opening one cost its whole payload, so a library of
+  photographs pays that on every read for a metadata field the reader has no use
+  for — a performance contract in a conformance rule's clothes.
 
 Those two are the same point twice: A SIZE FIELD IS NOT THE AUTHORITY ON WHAT AN
 ENTRY CONTAINS, AND THE CHECKSUM IS. An archive written with the deferred-size

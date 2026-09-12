@@ -55,13 +55,24 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RATIONALE = pathlib.Path.home() / "src/knowledge/features/export/format-spec.md"
 
+# Every Markdown file a reader of this repository can open. The six language
+# READMEs sit here because they are the pages most readers reach first, and
+# because the leaks this script exists to catch — a date, a commit hash, a path
+# into a private codebase — were found in four of them by a person reading.
 PUBLISHED = [
     "SPEC.md",
     "IMPLEMENTING.md",
     "README.md",
+    "CONTRIBUTING.md",
     "corpus/README.md",
     "corpus/numbers/README.md",
     "corpus/write/README.md",
+    "go/README.md",
+    "python/README.md",
+    "js/README.md",
+    "rust/README.md",
+    "kotlin/README.md",
+    "swift/README.md",
 ]
 
 # (pattern, what to do about it). The message has to stand alone: whoever trips
@@ -132,6 +143,27 @@ LINK = re.compile(r"\]\((?!https?://|#|mailto:)([^)#]+)")
 KEYWORD = re.compile(r"\b(MUST NOT|MUST|SHOULD NOT|SHOULD|REQUIRED|MAY|OPTIONAL|SHALL)\b")
 
 # The register tells the specification is not allowed to carry.
+# A reader arrives today and has seen no earlier version of this repository.
+# Prose that refers to one is addressed to somebody who is not reading it. This
+# is a hard failure rather than a warning because every instance found so far
+# reached a published document and had to be removed by hand afterwards.
+HISTORY = [
+    (
+        re.compile(r"\bno longer\b|\bany more\b|(?<!be )(?<!is )(?<!are )(?<!was )"
+                   r"(?<!were )(?<!been )\bused to\b|"
+                   r"\bpreviously\b|\bearlier version\b|\bhas since\b|"
+                   r"\bhave disagreed\b|\bhas disagreed\b|\bup until\b"),
+        "a reference to a state of this project the reader has never seen. "
+        "State what is true now. If the change itself matters to a reader, it "
+        "belongs in a changelog, not in the prose.",
+    ),
+    (
+        re.compile(r"\b20\d\d-\d\d-\d\d\b|\bRuled \d|\bMeasured 20\d\d"),
+        "a date. A published document describes the format, not the day a "
+        "decision was taken.",
+    ),
+]
+
 REGISTER = [
     (re.compile(r"⚠"), "a warning sigil used as emphasis. A specification uses 'Note:' or nothing."),
     (re.compile(r"\byou\b|\byour\b", re.IGNORECASE), "second person. A specification addresses a reader or a writer, not 'you'."),
@@ -234,6 +266,32 @@ def check_register(problems: list[str]) -> None:
                 problems.append(f"SPEC.md:{number}: {match.group(0)!r} — {why}\n    {line.strip()}")
 
 
+def check_history(problems: list[str]) -> None:
+    """Every published document, not only the specification.
+
+    CONTRIBUTING.md states this rule, so its own statement of the forbidden
+    words would trip the scan. A fenced block is skipped for that reason, which
+    is also why the rule is quoted inside one there.
+    """
+    for name in PUBLISHED:
+        path = ROOT / name
+        if not path.exists():
+            continue  # check_published already reports it
+        fenced = False
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            bare = re.sub(r"`[^`]*`", "", line)
+            for pattern, why in HISTORY:
+                if match := pattern.search(bare):
+                    problems.append(
+                        f"{name}:{number}: {match.group(0)!r} — {why}\n    {line.strip()}"
+                    )
+
+
 def check_rationale(problems: list[str]) -> None:
     if not RATIONALE.exists():
         print(f"check-spec: no rationale document at {RATIONALE}; skipping that check")
@@ -308,6 +366,7 @@ def main() -> None:
     check_markdown_structure(problems)
     check_published(problems)
     check_register(problems)
+    check_history(problems)
     check_rationale(problems)
 
     if problems:

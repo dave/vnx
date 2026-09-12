@@ -29,9 +29,20 @@ along that arc.
 }
 ```
 
-It is a reduction of [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx),
-which shows the rest: folders, routes, tracks, waypoints, areas and styling.
-To check a file of your own:
+A position is `[lon, lat, ele, time_ms]`, **longitude first**. Channels from index
+2 upward may be `null` or omitted. Reversing longitude and latitude produces a
+file that parses perfectly and draws in the wrong hemisphere, which
+[`corpus/accept/lonlat-transposition.vnx`](corpus/accept/lonlat-transposition.vnx)
+catches.
+
+A network owns its graph: `nodes` and `arcs` keyed by identifier, with `chains`
+traversing those arcs by reference. That reference is the construct GPX, KML and
+GeoJSON cannot express. A top-level route owns its arcs outright and needs no
+graph, so writing one takes only ordered lists of positions.
+
+The full [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx)
+shows the rest: folders, routes, tracks, waypoints, areas and styling. To check a
+file of your own:
 
 ```sh
 cd go && go run ./cmd/vnx validate ../corpus/accept/example-network.vnx

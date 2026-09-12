@@ -61,13 +61,16 @@ a term is listed after every term its definition uses.
 
 - A **document** is a JSON object carrying a `vnx` version key and up to seven
   collections (Section 3.1).
+- An **item** is an object that can carry `name`, `notes`, `hidden` and `data`
+  (Section 3.10). An item is top-level when it is a member of one of the
+  document's collections; every other item sits inside a top-level one.
 - A **position** is a JSON array of channels: longitude, latitude, and
   optionally elevation and time (Section 4.1).
 - A **pip** is one position in the `pips` array of an arc or of a track segment
   (Sections 3.3.2 and 3.5).
-- A **folder** is a named grouping with an `id`. An item other than a folder
-  places itself in a folder by naming that `id` in its `folder` key; a folder
-  places itself in another folder with `parent` (Section 3.2).
+- A **folder** is a named grouping with an `id`. A top-level item other than a
+  folder places itself in a folder by naming that `id` in its `folder` key; a
+  folder places itself in another folder with `parent` (Section 3.2).
 - A **network** is a graph of nodes and arcs, together with the chains that
   traverse those arcs and the points and areas that belong to the network
   (Section 3.3).
@@ -95,8 +98,8 @@ a term is listed after every term its definition uses.
   either at the top level or within a network (Section 3.7).
 - A **ruleset** is one entry of the top-level `rulesets` array, opaque in this
   version (Section 3.9).
-- A **data record** is one object in an item's `data` array, identified by its
-  `@type` and otherwise opaque (Section 5).
+- A **data record** is one object in the `data` array of an item or of an arc,
+  identified by its `@type` and otherwise opaque (Section 5).
 - A **container** is a ZIP archive, the VNZ file, carrying one document and its
   attachments (Section 7).
 - An **attachment** is any entry of a container other than the root document
@@ -306,7 +309,8 @@ key being absent.
 `parent` is absent at the root. Folders are the only top-level items that carry
 an `id`, because they are the only top-level items referenced from elsewhere.
 
-Any item may carry a `folder` key naming the folder that contains it.
+A top-level item other than a folder MAY carry a `folder` key naming the folder
+that contains it.
 
 ### 3.3 Networks
 
@@ -556,7 +560,7 @@ other channel takes part, for the same reason as Section 3.3.3's endpoints.
 Holes and multiple rings are not expressible in this format.
 
 A reader that encounters a nested or additional ring MUST report a diagnostic
-and MUST drop the item. It MUST NOT silently keep the outer ring, and MUST NOT
+and MUST drop the area. It MUST NOT silently keep the outer ring, and MUST NOT
 merge the rings.
 
 ### 3.8 Hidden state
@@ -611,9 +615,11 @@ Three notes on the table:
 - `folder` names the folder an item sits in. It does not appear on a folder,
   which places itself with `parent`, and it does not appear on a network's
   `points` or `areas`, which their network already contains.
-- `hidden` appears on every item that can be hidden, including a top-level
-  waypoint. Section 3.8 names the shape rather than the collection, and a
-  waypoint and a network's point are one shape (Section 3.6).
+- `name`, `notes`, `hidden` and `data` appear together on every item and, apart
+  from `data` on an arc, on no other object in the table. An object to which
+  the table gives none of them is not an item. `hidden` therefore appears on a
+  top-level waypoint: Section 3.8 names the shape rather than the collection,
+  and a waypoint and a network's point are one shape (Section 3.6).
 - An arc carries no `name`, `notes`, `hidden` or `style`, and neither a link nor
   a segment carries `hidden`. A per-arc style is a plausible future addition and
   is not part of version 0.1.
@@ -755,10 +761,11 @@ Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 - Keys defined by this format are lower kebab-case. `@type` (Section 5) is the
   single exception and is the only key in the format carrying a
   non-alphanumeric character.
-- A writer SHOULD derive an identifier from the item's name where it has one:
-  lower kebab-case, about ten characters, with a numeric suffix for uniqueness.
-  Where there is no name, a writer SHOULD use a sequential identifier such as
-  `node-1` or `arc-1`. Readability is preferred to file size.
+- A writer SHOULD derive an identifier from the name of the object it
+  identifies, where that object has one: lower kebab-case, about ten
+  characters, with a numeric suffix for uniqueness. Where there is no name, a
+  writer SHOULD use a sequential identifier such as `node-1` or `arc-1`.
+  Readability is preferred to file size.
 - Key order is not significant anywhere in a document, including inside data
   records. A reader MUST accept any key order.
 
@@ -770,9 +777,9 @@ track. The order of positions in a line is the shape of the line.
 
 ## 5. Data records
 
-Every item MAY carry a `data` key holding an array of records. Each record is a
-JSON object carrying an `@type` key whose value is a reverse-DNS identifier,
-plus arbitrary sibling fields.
+Every item, and every arc, MAY carry a `data` key holding an array of records.
+Each record is a JSON object carrying an `@type` key whose value is a
+reverse-DNS identifier, plus arbitrary sibling fields.
 
 ```json
 "data": [
@@ -799,12 +806,12 @@ misreading a VNX document.
 2. A record body is an opaque JSON object apart from `@type`. A vocabulary entry
    MAY carry a field named `type`.
 3. A record of an unrecognised type is inert. It MUST NOT be treated as an
-   error, on any host item, including a host on which the reader did not expect
-   it.
+   error on any host, the item or arc whose `data` carries it, including a host
+   on which the reader did not expect it.
 4. A record of an unrecognised type MUST survive a read-modify-write at value
    level.
-5. The meaning of a record is the pair of its type and its host item, not the
-   type alone. `app.viatrail.navigation` with `value: "avoid"` on a chain means
+5. The meaning of a record is the pair of its type and its host, not the type
+   alone. `app.viatrail.navigation` with `value: "avoid"` on a chain means
    avoid this stretch of path; on an area it means avoid this region. This
    specification defines a type's meaning per host.
 6. A type with a single primary payload names it `value`. A type with several
@@ -900,7 +907,7 @@ How a consumer derives elevation gain and loss is its own business.
 A reader is tolerant of damage and silent about nothing.
 
 - An unrecognised key on an object defined by this format: the reader MUST
-  record a diagnostic, MUST skip the key, and MUST keep the item. An
+  record a diagnostic, MUST skip the key, and MUST keep the object. An
   unrecognised key is not an unusable value.
 - An unusable value, such as a position that will not parse, a link naming an
   arc that is absent from the document, a `polygon` carrying a ring beyond the
@@ -913,11 +920,11 @@ A reader is tolerant of damage and silent about nothing.
   extent is the entire ring set.
 - A value of the wrong JSON type is an unusable value. Where the key is
   OPTIONAL (Section 3.10), the reader MUST drop the field and MUST keep the
-  item. Where the key is REQUIRED, the reader MUST drop the item, because the
-  object cannot exist without it.
+  object. Where the key is REQUIRED, the reader MUST drop the object, because
+  it cannot exist without it.
 
   The two cases take different codes and are not one diagnostic with two
-  remedies. "A field is gone" and "the item is gone" are materially different
+  remedies. "A field is gone" and "the object is gone" are materially different
   outcomes for whoever holds the file, so a caller must be able to tell them
   apart without parsing English.
 
@@ -969,12 +976,12 @@ The remedies for the constructs this document constrains:
 | Construct | Remedy |
 |---|---|
 | an inline link endpoint that does not project onto its arc within tolerance (3.3.3) | drop the link |
-| a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the item |
+| a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the area |
 | an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
 | a link naming a node that is not in its network (3.3.3) | keep the link; see above |
 | a position that will not parse, inside an arc's `pips` (4.1) | drop the arc |
 | a position that will not parse, inside a track segment's `pips` (4.1) | drop the segment |
-| a position that will not parse, inside a `polygon` ring (4.1) | drop the item |
+| a position that will not parse, inside a `polygon` ring (4.1) | drop the area |
 | a data record with no `@type`, or one that is not a string (5) | drop the record |
 | consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
 
@@ -1227,7 +1234,7 @@ A file with no sidecar is a failure, not a skip.
 
 Three sidecar fields do work that is not evident from their names:
 
-- `counts` gives the exact number of items per collection, and prevents an
+- `counts` gives the exact number of entries in each collection, and prevents an
   accept case passing vacuously. A decoder returning an empty document for every
   input would otherwise satisfy "no error and no diagnostics" on all of them.
 - `positions` pins which number reached which channel, and is the only available

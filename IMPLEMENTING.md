@@ -615,8 +615,15 @@ and test nothing about it.
   intercept.
 - **Check the CRC.** A corrupt *attachment* is caught by nothing else: the
   document keeps parsing, so the archive reads clean.
-- **A stored entry's two declared sizes must agree**, or a truncated entry reads
-  as whole. That sweep also found a defect no
+- **A stored entry whose two declared sizes disagree is not a refusal.** The
+  temptation is strong, because for a stored entry the two are equal in a
+  well-formed archive and a disagreement looks like a truncated entry read as
+  whole. `SPEC §7` forbids refusing on it, for the same reason it forbids
+  refusing on a declared size that exceeds the bytes present: the CRC settles
+  what the entry contains and a size field does not. Record a diagnostic if you
+  like; do not refuse, and do not drop the entry.
+
+  That sweep also found a defect no
 committed fixture can reach: a ZIP64 extended information field can name a
 local-header offset anywhere in a 64-bit range, so `offset + length` overflowed a
 pointer-sized integer before any bounds check ran. In a release build it wrapped

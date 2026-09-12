@@ -1138,21 +1138,27 @@ implementation.
 - A reader MUST accept an archive whose entries defer their sizes to a data
   descriptor, and MUST take the sizes from the central directory rather than
   from a local header.
-- A reader MUST NOT refuse an entry on the ground that its declared size exceeds
-  the bytes present, where the CRC over those bytes agrees. A reader is not
-  required to detect such a discrepancy. The rule constrains what a reader does
-  with one it has observed, so a reader that trusts the declared size and never
-  notices a shortfall has nothing to do here.
+- A reader MUST NOT refuse an entry on the ground that a declared size exceeds
+  the bytes present, where the CRC over those bytes agrees. This covers either
+  size field: the compressed size, the uncompressed size, or both. A reader is
+  not required to detect such a discrepancy. The rule constrains what a reader
+  does with one it has observed, so a reader that trusts a declared size and
+  never notices a shortfall has nothing to do here.
 
   It is a prohibition rather than an obligation so that no reader has to be
   structured any particular way.
+- A reader MUST NOT refuse an entry on the ground that its two declared sizes
+  disagree with each other, where the CRC over the bytes present agrees. For a
+  stored entry the two are equal in a well-formed archive, so a disagreement is
+  a defect in the archive — but it is a defect in a size field, and the CRC
+  settles what the entry contains without reference to either. A reader MAY
+  record a diagnostic; it MUST NOT refuse, and MUST NOT drop the entry.
 
-Those last two rules are the same point twice: a size field is not the authority
-on what an entry contains, and the checksum is. Neither is diagnosable, so a
-reader that accepts one has nothing to report. They are stated because silence
-is what produces the question, and an implementer resolving it alone hardens
-until they refuse, believing they have improved robustness while breaking
-conformance.
+Those last three rules are the same point three times: a size field is not the
+authority on what an entry contains, and the checksum is. They are stated
+because silence is what produces the question, and an implementer resolving it
+alone hardens until they refuse, believing they have improved robustness while
+breaking conformance.
 
 Note: an implementation matching the root document on the base name alone
 matches at any depth and lets the last match win rather than the first. The

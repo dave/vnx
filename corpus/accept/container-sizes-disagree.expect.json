@@ -1,0 +1,16 @@
+{
+  "kind": "accept",
+  "note": "A STORED entry whose two declared sizes disagree with each other, with the CRC correct over the bytes present. `doc.vnx` declares 139 compressed against 146 uncompressed, holds 139, and its CRC is computed over those 139. Section 7 forbids refusing on this: a size field is not the authority on what an entry contains and the checksum is, which is the same rule that governs container-over-declared-size.vnz one step further on. A reader MAY report it; it MUST NOT refuse and MUST NOT drop the entry. THIS CASE EXISTS BECAUSE ONE ARCHIVE GAVE THREE ANSWERS. It satisfies two descriptions at once - a declared size exceeding the bytes present with the CRC agreeing, and two declared sizes disagreeing - and section 7 named only the first, so implementations split: some refused the archive, some read it clean, and some had no check at all. Comparing the two DECLARED fields is what produces the refusal, and it is the natural thing to write, because for a stored entry they are equal in any well-formed archive. Derived from container-over-declared-size.vnz by changing one field, so the two cases differ in exactly the property under test: that one over-declares BOTH sizes equally and this one makes them disagree. Hand-built, because section 7.1 forbids a conforming writer to produce it.",
+  "counts": {
+    "waypoints": 1
+  },
+  "root": "doc.vnx",
+  "attachments": [
+    "before.txt",
+    "after.txt"
+  ],
+  "attachment_contents": {
+    "before.txt": "an attachment ahead of the document",
+    "after.txt": "an attachment behind it"
+  }
+}

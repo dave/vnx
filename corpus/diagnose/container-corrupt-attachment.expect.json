@@ -1,0 +1,16 @@
+{
+  "kind": "diagnose",
+  "note": "An attachment whose compression method is DEFLATE - one a reader must accept - whose stream has been damaged so it will not inflate to bytes matching its CRC. Spec 7 gives the same remedy as an unusable METHOD: drop the attachment, record a diagnostic, return the document. THIS CASE EXISTS BECAUSE SIX IMPLEMENTATIONS DISAGREED ABOUT IT. Some dropped the attachment and reported it, some refused the whole archive, and some never inflated an attachment at all so never met the damage. No corpus case asked the question, so nothing made the disagreement visible. Section 7 named the remedy only for an unusable method, so each implementation filled the gap for a corrupt stream on its own and a caller would have got a trail library from three of them and an error from the other three. The document here is intact and its waypoint must come back: refusing it discards good geometry over a damaged photograph, which is the disproportion section 7 rules out in its own words. Returning the attachment with empty bytes is equally wrong and is what the sidecar's absent attachment_contents pins - an empty attachment is indistinguishable from one the archive never carried.",
+  "counts": {
+    "waypoints": 1
+  },
+  "root": "doc.vnx",
+  "attachments": [],
+  "diagnostics": [
+    {
+      "path": "#/entries/attachments~1photo.txt",
+      "code": "attachment-unreadable",
+      "message_advisory": "the attachment could not be read and was dropped"
+    }
+  ]
+}

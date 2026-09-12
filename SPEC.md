@@ -1114,6 +1114,19 @@ implementation.
   is an attachment, the reader MUST drop that attachment, MUST record a
   diagnostic, and MUST return the document. Refusing a whole library because one
   photograph used an unusual method would be disproportionate.
+- An attachment whose compression method is one of the two above but whose bytes
+  cannot be recovered — a stream that will not decompress, or one whose CRC
+  disagrees with the bytes present — takes the same remedy: the reader MUST drop
+  that attachment, MUST record a diagnostic, and MUST return the document. The
+  same proportion applies, and the document is unaffected by the damage. A reader
+  MUST NOT refuse the archive on this ground, and MUST NOT return the attachment
+  with empty or partial content, which would be indistinguishable from an
+  attachment the archive never carried. Where the ROOT DOCUMENT cannot be
+  recovered this way, the reader MUST refuse the archive, as above.
+
+  Note: a reader is not required to detect the damage. Section 7's rule on an
+  over-declared size stands: this rule governs what a reader does with damage it
+  has observed, not how hard it looks.
 - A reader MUST read an archive that uses the ZIP64 extensions of [APPNOTE].
 - A reader MUST accept an archive whose entries defer their sizes to a data
   descriptor, and MUST take the sizes from the central directory rather than

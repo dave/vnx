@@ -5,6 +5,9 @@ go/cmd/vnx/vnx
 
 .DS_Store
 
-# SwiftPM builds into the directory holding the manifest, which is now the
-# repository root.
-/.build/
+# SwiftPM builds into the directory holding the manifest, which is the
+# repository root. The `swift/` entries catch a build left by a checkout from
+# before the manifest moved.
+.build/
+.swiftpm/
+*.xcodeproj

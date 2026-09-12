@@ -140,24 +140,36 @@ Two settings are worth naming because they are easy to miss:
 The section that saves the most time, because these are decisions made in the
 first hour and discovered in the last.
 
-### 4.1 Absent, empty and false are three different documents
+### 4.1 Absence, and the two places it means something different
 
 `SPEC §3.1`: absence means "not known" and is not a default value, with two
-stated exceptions. A key that is absent, a key present with an empty array, and
-a `hidden` written as `false` are three different documents and have to
-round-trip as three.
+stated exceptions.
+
+Two rules pull in opposite directions here, and each holds in its own place.
+
+For an OPTIONAL collection, absent and empty carry the same content and
+`SPEC §3.1` requires a reader to treat them alike. `SPEC §8.1` normalises the
+two to one value, so the accept tier cannot see the difference and is not meant
+to. A model that holds both shapes is free to; a model that folds them together
+is equally conforming.
+
+For a REQUIRED key, they are distinct. `SPEC §3.10`: `"links": []` satisfies
+`links` and an absent `links` does not, because a required key must be present
+for the object to exist. That is the difference worth building for.
+
+A `hidden` written as `false` is a third case again: `SPEC §3.8` gives absence
+the meaning visible, and a writer emits the key only when it is true.
 
 `label-visible` is where getting this wrong is invisible. Absence means Auto, and
 a reader that treats it as `false` flattens Auto to hidden with nothing to report
 (`SPEC §3.6`).
 
-The language pulls the same way here as it does over a position's channels. A
-plain list for every collection, where absent and empty are one value, is more
-idiomatic in Rust than an optional list, and every reviewer would suggest the
-change. Until `corpus/accept/empty-collections.vnx` landed, no corpus case
-carried an empty collection, so an implementation that conflated the two passed
-every tier. The Rust implementation reports getting this right by accident and
-for the wrong reason. *(Measured by the Rust implementation.)*
+The language pulls here. A plain list for every collection, where absent and
+empty are one value, is more idiomatic in Rust than an optional list, and every
+reviewer would suggest the change. For the seven document collections that
+change is safe, because `SPEC §3.1` puts the two shapes on the same footing.
+Where it is not safe is a required key, and a model that cannot tell an absent
+`links` from an empty one cannot report the object as malformed.
 
 The two absences that do carry a meaning are named in `SPEC §3.1`, and they are
 the only ones: an absent `label-visible` is Auto, and an absent `hidden` is
@@ -604,8 +616,10 @@ and a library-based reader reports nothing wrong — it never consults that head
 > An independent reader is not automatically an independent instrument. It can
 > consult the same field the defect is not in.
 
-`SPEC §7.1`'s property is that the two headers **agree**, and no reader of either
-can check it. Walk the archive forward as bytes. *(Reported by the Kotlin and
+`SPEC §7.1` requires the UTF-8 filename flag on **every entry**, and that flag
+sits in the local header as well as in the central directory. No reader built on
+a ZIP library can witness the local copy, because every such library answers from
+the central directory. Walk the archive forward as bytes. *(Reported by the Kotlin and
 JavaScript implementations; the corruption measured by the Python one, whose own
 assertions were blind to it.)*
 
@@ -879,15 +893,16 @@ learned nothing until you have said which of the three it is.**
 > A comparison that has never been seen to fail is not a comparison. It is a
 > green light with no bulb in it. *(Measured by the Kotlin implementation.)*
 
-One cross-language check covers 460,007 doubles with zero disagreements: 300,000
-uniform over the binary64 range via a bits-to-double constructor, 40,000 dense
-small magnitudes, and every value the specification and corpus name. The two
-halves share no code: one language writes raw IEEE 754 bits and its own answers
-to a table, and thirty lines in the other bit-cast each row back and compare.
+Build such a check from two halves that share no code: one language writes raw
+IEEE 754 bits and its own answers to a table, and the other bit-casts each row
+back and compares. Sample the whole binary64 range through a bits-to-double
+constructor, add dense small magnitudes, and add every value the specification
+and the corpus name.
 
-The number that makes it worth having is not 460,007 but 78, the disagreements
-that reappear when the tie mode is reverted. Without those, zero disagreements is
-indistinguishable from a comparison that is not running.
+Zero disagreements is worth nothing on its own. What makes the check worth having
+is the count of disagreements that reappear when the tie mode is reverted, and a
+check that cannot produce that number is indistinguishable from one that is not
+running.
 
 An agreement certifies only what its shared input varies. Four implementations
 agreed on a container built from one input and cited it as their strongest
@@ -903,11 +918,12 @@ Four writers fed one input is one measurement, four times.
 
 Three traps in building such a table *(Kotlin implementation)*: bits must travel
 as bits, since an unsigned parser fails on every negative double and, with the
-error ignored, reported 149,667 disagreements against `0`; a mining criterion can
-decorate rather than discriminate (section 6.3); and the generator must be
-deterministic, because a table nobody can diff is useless.
+error ignored, scores every one of them as a disagreement against `0`; a mining
+criterion can decorate rather than discriminate (section 6.3); and the generator
+must be deterministic, because a table nobody can diff is useless.
 
-The result is `corpus/numbers/numbers.tsv`: a set of doubles as IEEE 754 hex,
+`corpus/numbers/numbers.tsv` is the shipped form of that idea: a set of doubles
+as IEEE 754 hex,
 with two reference answers each, rounded to 6 places and to 1. About ten lines to
 read in any language, and it is compared **by bit pattern, never by text** —
 comparing a spelling would put a rendering rule this format does not have back
@@ -987,39 +1003,40 @@ the check.**
 
 ## 12. Where each language fell
 
-Navigation only. Every fact here is stated above, and each implementation's own
-`## Notes for porters` section has the language detail.
+Where each of the six met the traps above, with the section that covers each in
+brackets. The link on each name goes to that library's page, which documents the
+library rather than repeating what is here.
 
-**Go** — [`go/README.md`](go/README.md#notes-for-porters). `math.Round` is half
+**Go** — [`go/README.md`](go/README.md). `math.Round` is half
 away from zero (6.2), and the reference implementation rounded by scaling, which
 is a different operation (6.1). `encoding/json` accepts `1e400` into
 `json.Number` and refuses it only into `float64` (5.1).
 
-**Python** — [`python/README.md`](python/README.md#notes-for-porters). `json`
+**Python** — [`python/README.md`](python/README.md). `json`
 accepts `NaN` and `Infinity` by default, so a Python reader either makes its
 parser strict or refuses under `SPEC §4.2` with wording the `reject/` sidecars do
 not expect (5.1). Decimal intuition about which way a value rounds is wrong in
 the same way in every language, and Python is where it was measured (6.1).
 
-**Swift** — [`swift/README.md`](swift/README.md#notes-for-porters). `.rounded()`
+**Swift** — [`swift/README.md`](swift/README.md). `.rounded()`
 does not round half to even; the emit boundary needs `.toNearestOrEven` (6.2).
 `JSONSerialization` spells `-3.67` as `-3.6699999999999999`, so the renderer is
 `JSONEncoder` while the parser is hand-written (3).
 
-**Kotlin** — [`kotlin/README.md`](kotlin/README.md#notes-for-porters).
+**Kotlin** — [`kotlin/README.md`](kotlin/README.md).
 `BigDecimal.HALF_UP` at the rounding boundary is half away from zero, and
 `Math.round(x * 10) / 10` is half-up on the JVM, so a guard testing only negative
 ties passes it (6.2). The JVM standard library has no JSON API at all, which
 makes the reader-versus-renderer split of section 3 an explicit decision rather
 than a default.
 
-**JavaScript** — [`js/README.md`](js/README.md#notes-for-porters). `toFixed`
+**JavaScript** — [`js/README.md`](js/README.md). `toFixed`
 rounds ties away from zero on both signs, and `Math.round(x * 10) / 10` is
 half-up (6.2). `1e400` parses to infinity rather than failing, so a reviver or an
 equivalent post-parse check is the only thing between it and a coordinate of
 infinity (5.1).
 
-**Rust** — [`rust/README.md`](rust/README.md#notes-for-porters). `f64::round` is
+**Rust** — [`rust/README.md`](rust/README.md). `f64::round` is
 half away from zero, and `round_ties_even` is the right rounding mode applied to
 the wrong operation (6.1, 6.2). `serde_json` needs an opt-in feature to keep the
 last bit of a full-precision coordinate (3). The idiomatic model of a collection

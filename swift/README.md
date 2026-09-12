@@ -5,7 +5,7 @@ diagnostics.
 
 Swift 5.9 or later, on macOS 10.15, iOS 13, tvOS 13 or watchOS 6. Foundation and
 zlib only — zlib is a system library, present in the macOS SDK and in every Linux
-distribution, so there is nothing to fetch and no lock file. Implements VNX 0.1.0
+distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the development package (`zlib1g-dev`) and no lock file. Implements VNX 0.1.0
 — [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -97,9 +97,10 @@ document.
   `message` is English prose, advisory, and never compared (SPEC §6.3). `path`
   is a JSON Pointer (RFC 6901) into the document, except `attachment-unreadable`,
   which points into the archive's entries.
-- **An absent collection is `nil`, not `[]`.** `Document` holds the two apart, so
-  a read-write-read is a fixed point. Inside an item — `Route.arcs`,
-  `Chain.links`, `Track.segments`, an arc's `pips` — it is a plain array.
+- **An absent collection is `nil`, not `[]`.** `Document` keeps the spelling the
+  document used, though the two carry the same content (SPEC §3.1). Inside an
+  item — `Route.arcs`, `Chain.links`, `Track.segments`, an arc's `pips` — it is a
+  plain array.
 - **`Track.movingTimeMilliseconds` is `nil` for unknown.** Unknown is not zero.
 - **A `Position` holds four values, not the arity the document spelled.**
   `elevation` and `timeMilliseconds` are `nil` where a channel was absent or

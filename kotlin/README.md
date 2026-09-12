@@ -3,7 +3,8 @@
 `vnx` reads and writes VNX documents and VNZ containers on the JVM, and reports
 diagnostics.
 
-Kotlin 2.1 and a JVM 17 toolchain, which the Gradle wrapper fetches. One
+Kotlin 2.1, on a JDK 17 you have installed. The Gradle wrapper fetches Gradle
+itself, not a JDK. One
 dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
 1.8.0, which has to reach the runtime classpath of whatever consumes this.
@@ -106,9 +107,9 @@ that is a thrown exception against the list returned beside the document.
   format's reason code; `message` is advisory English that nothing compares
   (SPEC §6.3). `path` is a JSON Pointer (RFC 6901) into the document, except
   `attachment-unreadable`, which points into the archive's entries.
-- **An absent collection is `null`, not an empty list.** `VnxDocument` holds the
-  two apart, so a read-write-read is a fixed point. Inside an item it is a plain
-  list.
+- **An absent collection is `null`, not an empty list.** `VnxDocument` keeps the
+  spelling the document used, though the two carry the same content (SPEC §3.1).
+  Inside an item it is a plain list.
 - **`Track.movingTimeMs()` returns null for unknown.** Unknown is not zero.
 - **A `Position` holds four values, not the arity the document spelled.** `ele`
   and `timeMs` are null where a channel was absent or JSON `null`.

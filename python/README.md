@@ -91,8 +91,9 @@ is a raised exception against the `diagnostics` list returned beside a document.
   token to switch on; `message` is English prose, advisory, and never compared
   (SPEC §6.3). `vnx/decode.py` and `vnx/container.py` raise every code.
 - **An absent collection is `None`, not `[]`.** `None` means the key was not
-  present, and an empty list is a different document, so write `or []` around a
-  collection you iterate.
+  present. It carries the same content as an empty one (SPEC §3.1), so the
+  distinction is representation rather than meaning — but write `or []` around a
+  collection you iterate, or `None` will raise.
 - **`Track.moving_time_ms()` is a call and returns `None` for unknown.** Unknown
   is not zero. `Position.ele` and `time_ms` are `None` for a channel that was
   `null` or left off.

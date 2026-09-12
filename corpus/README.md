@@ -216,7 +216,7 @@ segment start:
 ```sh
 cd corpus && python3 -c "
 import math,json,glob
-R=6371000.0
+R=6371008.8
 def d(p,a,b,cosref):
     ax,ay=a[0]*cosref,a[1]; bx,by=b[0]*cosref,b[1]; px,py=p[0]*cosref,p[1]
     dx,dy=bx-ax,by-ay
@@ -271,10 +271,10 @@ loudly, so it was never the risk.) `attachments/first.txt` exists to push
 the property: with the extra field ignored and a lost offset defaulting to zero,
 `doc.vnx` reads as 0 bytes rather than as itself.
 
-This archive is input, not an example of what `SPEC §7.1` asks a writer to
-produce. `SPEC §7.1` says a conforming writer emits no ZIP64 records, and
-`SPEC §7` says a reader must read them, which is why the file has to be
-hand-built rather than produced by any library here.
+This archive is input rather than an example of what a writer here produces.
+`SPEC §7` requires a reader to read ZIP64; `SPEC §7.1` leaves writing it to the
+writer and no implementation in this repository writes it, which is why the file
+has to be hand-built.
 
 ## Known limitations
 
@@ -292,8 +292,8 @@ wrong. The self-test in step 8 is the author's own, and it is not optional.
 **No sidecar asserts an attachment's bytes.** Every container case lists
 attachment names and nothing else, so the tier cannot separate a reader that
 returns an attachment's content from one that returns only its name. Both shapes
-pass: `js/`, `rust/` and `swift/` hand back the bytes, `python/` and `kotlin/`
-hand back a list of names, and the corpus is green for all five. A container
+pass, and the six implementations split evenly: `js/`, `rust/` and `swift/` hand
+back the bytes; `go/`, `python/` and `kotlin/` hand back a list of names. A container
 exists to carry attachments, so a runner author should not read a green
 container case as evidence that the payload survived the read.
 

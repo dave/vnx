@@ -45,8 +45,8 @@ are equal as values and different as bit patterns.
 Two header lines are machine-readable, and a runner is required to check them:
 
 ```
-# rows=48
-# counts: boundary=9 named=8 negative-zero=5 round1-tie=6 round6-tie=8 ...
+# rows=N
+# counts: boundary=… named=… negative-zero=… round1-tie=… round6-tie=… scaling-route=…
 ```
 
 Parse `rows=` and the `counts:` line, and assert that what the run observed

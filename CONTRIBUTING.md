@@ -39,8 +39,8 @@ Each command runs that language's unit tests and its corpus harness.
 | Swift | `cd swift && swift test` |
 
 Go needs no setup. Python needs 3.11 or later, JavaScript Node 22 or later,
-Rust 1.77 or later, and Swift 5.9 or later; the Kotlin build fetches its own
-toolchain through the wrapper.
+Rust 1.77 or later, Swift 5.9 or later, and a JDK 17 for Kotlin. Each Gradle
+wrapper fetches Gradle, not a JDK.
 
 To check the documents:
 

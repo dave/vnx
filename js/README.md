@@ -16,7 +16,7 @@ npm install ../vnx/js
 ```
 
 That writes a `file:` dependency, after which `@viatrail/vnx` resolves by name.
-The consuming `package.json` needs `"type": "module"`.
+Import it from an ES module — a `package.json` with `"type": "module"`, or a `.mjs` file.
 
 ## Usage
 

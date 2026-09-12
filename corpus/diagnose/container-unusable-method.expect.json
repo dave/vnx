@@ -7,6 +7,9 @@
   "attachments": [
     "notes/readable.txt"
   ],
+  "attachment_contents": {
+    "notes/readable.txt": "kept, so the drop is provably scoped\n"
+  },
   "diagnostics": [
     {
       "path": "#/entries/photos~1a~0b.jpg",

@@ -7,5 +7,9 @@
   "attachments": [
     "attachments/first.txt",
     "attachments/photo.txt"
-  ]
+  ],
+  "attachment_contents": {
+    "attachments/first.txt": "written before the document, so its offset is not zero\n",
+    "attachments/photo.txt": "not really a photo\n"
+  }
 }

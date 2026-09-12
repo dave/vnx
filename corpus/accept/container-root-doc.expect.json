@@ -6,5 +6,8 @@
   },
   "attachments": [
     "attachments/photo.txt"
-  ]
+  ],
+  "attachment_contents": {
+    "attachments/photo.txt": "not really a photo\n"
+  }
 }

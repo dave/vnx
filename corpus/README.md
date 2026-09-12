@@ -46,6 +46,7 @@ the run, not a skip.
 | `tracks` | document tiers | per track, looked up by name: `moving_time_ms`, or `null` for unknown |
 | `root` | `.vnz` cases | the entry name of the root document |
 | `attachments` | `.vnz` cases | the entry names the archive carries beside the root document |
+| `attachment_contents` | `.vnz` cases | each attachment's bytes, as UTF-8 text, keyed by entry name |
 | `refusal` | `reject/` | a substring of the expected refusal message |
 | `diagnostics` | `diagnose/` | the expected diagnostics, compared as a set |
 | `cannot_detect` | any case | why no diagnostic is possible, where a case expects none |
@@ -59,6 +60,7 @@ the run, not a skip.
   "positions": [{"at": "/networks/0/arcs/arc-1/pips/0", "lon": -3.6, "lat": 57.1}],
   "tracks":    [{"name": "T", "moving_time_ms": 167000}],  // null = unknown
   "attachments": ["photos/summit.jpg"],       // .vnz only
+  "attachment_contents": {"photos/summit.jpg": "…"},  // .vnz only
 
   "refusal":     "substring of the expected error",        // reject only
   "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
@@ -288,14 +290,6 @@ reader satisfies a path-only matcher and a code-comparing matcher alike. No
 fixture can close that: a fixture can only state a correct expectation, and the
 disagreement between the two matchers appears only against a reader that is
 wrong. The self-test in step 8 is the author's own, and it is not optional.
-
-**No sidecar asserts an attachment's bytes.** Every container case lists
-attachment names and nothing else, so the tier cannot separate a reader that
-returns an attachment's content from one that returns only its name. Both shapes
-pass, and the six implementations split evenly: `js/`, `rust/` and `swift/` hand
-back the bytes; `go/`, `python/` and `kotlin/` hand back a list of names. A container
-exists to carry attachments, so a runner author should not read a green
-container case as evidence that the payload survived the read.
 
 **No case exercises the path-and-code uniqueness rule of step 7.** Measured over
 every sidecar in the corpus, not one expects two diagnostics at a single path,

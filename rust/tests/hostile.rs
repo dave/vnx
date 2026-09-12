@@ -438,45 +438,104 @@ fn a_corrupt_attachment_is_dropped_and_diagnosed() {
     );
 }
 
-/// A stored entry declares its size twice, and the two must agree. A reader
-/// that takes one and ignores the other reads a truncated or padded entry as
-/// whole.
+/// A stored entry declares its size twice, and the two DISAGREEING is not a
+/// refusal. SPEC 7 forbids refusing on it, and forbids dropping the entry,
+/// where the CRC over the bytes present agrees: a size field is not the
+/// authority on what an entry contains, and the checksum is.
 ///
-/// ⚠ THE DAMAGE GOES ON THE ROOT DOCUMENT, NOT ON THE FIRST ENTRY IN THE
-/// DIRECTORY. Under SPEC 7 an attachment this reader cannot
-/// produce bytes for is DROPPED with a diagnostic rather than refused, so
-/// damaging an attachment tests the remedy rather than the size check — and
-/// this fixture's first directory record is an attachment. The root document
-/// is the entry whose fault is still a refusal, which is what lets the
-/// assertion below name the cause.
+/// ⚠ THIS TEST ONCE ASSERTED THE OPPOSITE, and the assertion was not wrong
+/// about the code — it was wrong about the rule. Comparing the two declared
+/// fields is the natural thing to write, because for a stored entry they are
+/// equal in any well-formed archive, and this reader did it and refused
+/// `accept/container-sizes-disagree.vnz`. SPEC 7 settled it the other way.
+///
+/// ⚠ THE MUTATION GOES ON THE ROOT DOCUMENT, NOT ON THE FIRST ENTRY IN THE
+/// DIRECTORY. Under SPEC 7 an attachment this reader cannot produce bytes for
+/// is DROPPED with a diagnostic rather than refused, so a fault on an
+/// attachment would be reported rather than refused whatever the reader thought
+/// of the sizes — and this fixture's first directory record is an attachment.
+/// Putting it on the root document is what makes a refusal, if one came, both
+/// possible and visible.
 #[test]
-fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
+fn a_stored_entry_whose_two_sizes_disagree_is_read() {
     let good = stored_container();
     assert!(
         vnz::read(&good).is_ok(),
-        "the undamaged archive must read, or this proves nothing"
+        "the unmutated archive must read, or this proves nothing"
     );
-    let mut damaged = good.clone();
-    // Change the CENTRAL DIRECTORY's compressed size, which is what this
-    // reader takes its lengths from, leaving the uncompressed size alone.
-    let cd = central_directory_record(&damaged, "doc.vnx");
+    let mut mutated = good.clone();
+    // Raise the CENTRAL DIRECTORY's uncompressed size, which is where this
+    // reader takes its lengths from, leaving the compressed size alone. The
+    // bytes present are untouched and their CRC still agrees, so the only thing
+    // that changed is that the two declared fields no longer match.
+    let cd = central_directory_record(&mutated, "doc.vnx");
     let declared = u32::from_le_bytes([
-        damaged[cd + 24],
-        damaged[cd + 25],
-        damaged[cd + 26],
-        damaged[cd + 27],
+        mutated[cd + 24],
+        mutated[cd + 25],
+        mutated[cd + 26],
+        mutated[cd + 27],
     ]);
-    damaged[cd + 20..cd + 24].copy_from_slice(&(declared - 1).to_le_bytes());
-    let refusal =
-        vnz::read(&damaged).expect_err("a stored entry with disagreeing sizes must be refused");
-    // NOT an `||` with the CRC message. Removing the size check leaves the CRC
-    // check to refuse this archive anyway, so an assertion that accepted either
-    // message passed with the size check deleted — measured 2026-09-10, and it
-    // is the same "too broad to attribute" failure as a mutation that changes
-    // two things, in an assertion instead of a mutation.
+    mutated[cd + 24..cd + 28].copy_from_slice(&(declared + 7).to_le_bytes());
+    let container = vnz::read(&mutated)
+        .expect("SPEC 7 forbids refusing an entry whose two declared sizes disagree");
+    // Not dropped either, and not reported: SPEC 7 permits a diagnostic and the
+    // corpus case expects none, so this reader raises none. The document has to
+    // be checked for CONTENT, because a reader that returned an empty document
+    // would satisfy `is_ok` alone.
+    assert_eq!(
+        container.reading.document.waypoints.as_ref().map(Vec::len),
+        Some(1),
+        "the document came back empty"
+    );
+    assert_eq!(container.attachments.len(), 2, "an attachment was dropped");
     assert!(
-        refusal.to_string().contains("two sizes disagree"),
-        "refused for the wrong reason, so this does not test the size check: {refusal}"
+        container.reading.diagnostics.is_empty(),
+        "{:?}",
+        container.reading.diagnostics
+    );
+}
+
+/// A stored entry declaring FEWER compressed bytes than it holds is refused,
+/// and the CRC is what refuses it.
+///
+/// ⚠ THIS IS THE GUARD THE DELETED SIZE COMPARISON WAS CREDITED WITH. A short
+/// declaration would otherwise read a truncated entry as whole, and removing
+/// the comparison did not open that door: the declared compressed size bounds
+/// the read, so one byte fewer than the entry holds is taken and its checksum
+/// does not match the one the archive states. SPEC 7's prohibition does not
+/// reach here — it holds only where the CRC over the bytes read agrees, and
+/// here it does not.
+///
+/// ⚠ THE BASE ARCHIVE IS NOT `stored_container()`. That one over-declares BOTH
+/// sizes, 146 against the 139 bytes it holds, so lowering its declared
+/// compressed size by one still leaves it above what is present and truncates
+/// nothing — measured, and the test passed while proving nothing. This fixture
+/// is the corpus's only stored archive whose declared compressed size EQUALS
+/// the bytes present, which is what makes one byte off a real truncation.
+///
+/// The assertion names the CRC message rather than accepting any refusal,
+/// because a refusal for any other reason would not show that the CRC is still
+/// load-bearing.
+#[test]
+fn a_stored_entry_declaring_fewer_bytes_than_it_holds_fails_its_crc() {
+    let good = corpus_archive("accept/container-sizes-disagree.vnz");
+    assert!(
+        vnz::read(&good).is_ok(),
+        "the unmutated archive must read, or this proves nothing"
+    );
+    let mut mutated = good.clone();
+    let cd = central_directory_record(&mutated, "doc.vnx");
+    let declared = u32::from_le_bytes([
+        mutated[cd + 20],
+        mutated[cd + 21],
+        mutated[cd + 22],
+        mutated[cd + 23],
+    ]);
+    mutated[cd + 20..cd + 24].copy_from_slice(&(declared - 1).to_le_bytes());
+    let refusal = vnz::read(&mutated).expect_err("a truncated read must not pass as whole");
+    assert!(
+        refusal.to_string().contains("fails its CRC check"),
+        "refused for the wrong reason, so this does not show the CRC caught it: {refusal}"
     );
 }
 

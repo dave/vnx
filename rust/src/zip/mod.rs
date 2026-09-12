@@ -2,8 +2,9 @@
 //!
 //! ⚠ THE READER IS WRITTEN OUT RATHER THAN TAKEN FROM A CRATE, and SPEC 7 is
 //! why. Three of its reader rules are ones a general-purpose ZIP library does
-//! not offer: an entry whose declared size exceeds the bytes present MUST be
-//! accepted where the CRC agrees, a per-entry unusable-method remedy differs
+//! not offer: an entry whose sizes are wrong MUST be accepted where the CRC
+//! agrees — whether a declared size exceeds the bytes present or the two
+//! declared sizes disagree with each other — a per-entry unusable-method remedy differs
 //! for the root document and for an attachment, and a duplicate name must be
 //! SEEN twice rather than resolved. It reads the central directory rather than
 //! scanning local headers, so it sees the archive the way the format defines
@@ -178,15 +179,17 @@ impl<'a> Archive<'a> {
         let data = slice(self.bytes, data_at, take as usize)?;
 
         let out = match entry.method {
-            0 => {
-                if entry.compressed_size != entry.uncompressed_size {
-                    return bad(format!(
-                        "`{}` is stored, but its two sizes disagree",
-                        entry.name
-                    ));
-                }
-                data.to_vec()
-            }
+            // ⚠ NOTHING COMPARES THE TWO DECLARED SIZES. For a stored entry they
+            // are the same quantity, so a disagreement is a defect in the
+            // archive — but SPEC 7 forbids refusing on it, and forbids dropping
+            // the entry, where the CRC over the bytes present agrees. A size
+            // field is not the authority on what an entry contains; the checksum
+            // is. `take` above is the whole bound on a stored read: the declared
+            // compressed size, clamped to the room left before `payload_bound`.
+            // The declared uncompressed size bounds nothing here — for a stored
+            // entry there is no decompression for it to limit — and the CRC
+            // below decides whether the bytes taken were the whole payload.
+            0 => data.to_vec(),
             8 => inflate(data, entry.uncompressed_size as usize)
                 .map_err(|e| ZipError(format!("`{}`: {e}", entry.name)))?,
             method => {

@@ -119,10 +119,28 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 		if &entries[i] == root || e.isDirectory() {
 			continue
 		}
-		// An attachment that cannot be decompressed is DROPPED with a
-		// diagnostic, and the document is still returned: refusing a whole
-		// library because one photograph used an unusual method would be
-		// disproportionate.
+		// An attachment that cannot be recovered is DROPPED with a diagnostic,
+		// and the document is still returned: refusing a whole library because
+		// one photograph is damaged would be disproportionate.
+		//
+		// ⚠ THE TWO WAYS TO FAIL TAKE ONE REMEDY, and that is §7 as it now
+		// stands rather than a simplification. A method this reader does not
+		// have and a deflate stream that will not inflate to its CRC are
+		// different faults with the same consequence: there is no attachment.
+		// Both drop, both raise `attachment-unreadable`, both return the
+		// document.
+		//
+		// ⚠ THIS WAS A REFUSAL BETWEEN 6dfebeb AND THIS COMMIT, reasoning from
+		// rust/src/vnz.rs, and Rust turned out to be the outlier: Swift,
+		// JavaScript and Kotlin all dropped. §7 ruled for the majority on
+		// 2026-09-12 and corpus/diagnose/container-corrupt-attachment.vnz now
+		// asks the question no case used to ask. Do not "restore" the refusal:
+		// it discards good geometry over a damaged photograph.
+		//
+		// ⚠ AND A DROP IS NOT AN EMPTY ATTACHMENT. Returning the entry with no
+		// bytes would be indistinguishable from one the archive never carried,
+		// which is why the corpus sidecar pins an EMPTY attachments list rather
+		// than a present-but-empty entry.
 		//
 		// ⚠ THE PATH IS IN THE SEPARATE `#/entries/` SPACE OF §6.3, because an
 		// archive entry is not part of the document and no pointer into the
@@ -140,16 +158,20 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 			})
 			continue
 		}
-		// ⚠ A FAILURE HERE IS A REFUSAL, NOT A DROP, and the split is
-		// deliberate. The diagnostic above is for the ONE fault §7 names in an
-		// attachment — a compression method this reader does not have — which is
-		// an expected absence and proportionately survivable. A usable method
-		// that then will not inflate, or whose CRC disagrees, is a CORRUPT
-		// archive, and handing back a document from a file we know is damaged
-		// would hide that. rust/src/vnz.rs refuses here too.
+		// ⚠ THE CRC CHECK STAYS. Dropping is the REMEDY, not a reason to stop
+		// looking: [readZipEntry] inflates the entry and compares its checksum,
+		// so a damaged attachment is still DETECTED and still reported. A
+		// reader that skipped the check would hand back corrupt bytes as good
+		// ones, which is worse than either answer §7 considered.
 		body, err := readZipEntry(r, e)
 		if err != nil {
-			return nil, nil, err
+			diags = append(diags, Diagnostic{
+				Severity: Warning,
+				Code:     CodeAttachmentUnreadable,
+				Path:     "#/entries/" + escapePointerToken(e.name),
+				Message:  fmt.Sprintf("attachment %q could not be read, so it was dropped: %s", e.name, faultReason(err)),
+			})
+			continue
 		}
 		attachments = append(attachments, ContainerAttachment{Path: e.name, Bytes: body})
 	}
@@ -159,6 +181,18 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 // escapePointerToken escapes one JSON Pointer reference token ([RFC 6901]): `~`
 // becomes `~0` and `/` becomes `~1`, in that order. An attachment name is the
 // one place in this format where a member name routinely contains a slash.
+// faultReason is the zip-level reason without [ErrContainer]'s prose in front
+// of it. A diagnostic that said "unusable container" would contradict the
+// document it is attached to — §7 drops a damaged attachment precisely so the
+// container stays usable.
+func faultReason(err error) string {
+	var f containerFault
+	if errors.As(err, &f) {
+		return f.reason
+	}
+	return err.Error()
+}
+
 func escapePointerToken(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
 }

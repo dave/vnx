@@ -86,8 +86,22 @@ func (e zipEntryHeader) isDirectory() bool {
 }
 
 func zipMalformed(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", ErrContainer, fmt.Sprintf(format, args...))
+	return containerFault{reason: fmt.Sprintf(format, args...)}
 }
+
+// containerFault is a zip-level fault: an [ErrContainer] for `errors.Is`, and
+// the bare reason for whoever needs the reason WITHOUT the sentinel's prose.
+//
+// ⚠ THE SPLIT EXISTS BECAUSE THE SAME FAULT IS SOMETIMES NOT A REFUSAL. §7
+// drops a damaged ATTACHMENT and returns the document, so [DecodeContainer]
+// puts this reason inside a diagnostic — and "vnx: unusable container: …" is a
+// false sentence there, about an archive the reader has just declared usable.
+// `fmt.Errorf("%w: …")` cannot give the reason back, because Unwrap returns the
+// sentinel and the reason survives only inside the formatted string.
+type containerFault struct{ reason string }
+
+func (c containerFault) Error() string { return ErrContainer.Error() + ": " + c.reason }
+func (c containerFault) Unwrap() error { return ErrContainer }
 
 // readZipDirectory reads every central directory entry, in archive order,
 // duplicates included.

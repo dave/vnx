@@ -254,9 +254,16 @@ var (
 	// kept: the pips are authoritative for geometry, and the node position and
 	// the terminal pip are one fact written twice.
 	CodeTerminalPipOffNode = decodeCode("terminal-pip-off-node")
-	// CodeAttachmentUnreadable: a VNZ attachment compressed by a method that is
-	// neither stored nor deflate (§7). The attachment is dropped and the document
-	// is returned.
+	// CodeAttachmentUnreadable: a VNZ attachment this reader cannot recover
+	// (§7) — either compressed by a method that is neither stored nor deflate,
+	// or carried in a stored/deflate entry whose bytes will not come back (a
+	// stream that will not inflate, a CRC that disagrees). The attachment is
+	// dropped and the document is returned.
+	//
+	// ⚠ ONE CODE FOR BOTH, which is §7's own ruling rather than a shortcut. The
+	// remedy is identical and what a caller can DO about it is identical: the
+	// attachment is not there. Splitting the code would make six
+	// implementations agree on a distinction the format does not draw.
 	//
 	// ⚠ ITS PATH IS NOT A POINTER INTO THE DOCUMENT. An archive entry is not part
 	// of the document, so this is the one code whose `path` lives in §6.3's

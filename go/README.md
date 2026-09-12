@@ -171,6 +171,15 @@ Refusals are Go errors, matched with `errors.Is` against four sentinels:
 usable `vnx` key, `ErrUnsupportedVersion` for a version this reader does not
 implement, and `ErrContainer` for an archive that yields no document at all.
 
+`ErrContainer` means what it says: an archive is refused only when no document
+comes out of it. A fault in an ATTACHMENT is never one of those — whether its
+compression method is one this reader does not have, or its bytes will not come
+back from a method it does have, the attachment is dropped, an
+`attachment-unreadable` diagnostic records it, and the document is returned
+([`SPEC §7`](../SPEC.md#7-the-vnz-container)). Refusing a whole trail library
+over one damaged photograph would be disproportionate. The root document is the
+exception, because there is nothing left to return.
+
 A `Diagnostic` carries `Path` — a JSON-pointer location such as
 `/networks/0/arcs/arc-1` — a short English `Message`, and `Code`, the stable
 token a caller matches on without reading the prose. `Code` is set on every

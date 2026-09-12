@@ -452,3 +452,57 @@ func deflateBytes(t *testing.T, s string) []byte {
 	}
 	return b.Bytes()
 }
+
+// TestACorruptAttachmentIsDroppedAndTheRootStillRefuses.
+//
+// §7 gives an attachment whose bytes cannot be recovered the SAME remedy as one
+// whose compression method is unusable: drop it, raise a diagnostic, return the
+// document. A damaged photograph must not cost a caller the trail geometry
+// beside it.
+//
+// ⚠ THIS WAS A REFUSAL IN GO FOR ONE COMMIT (6dfebeb), reasoned from
+// rust/src/vnz.rs, and Rust was the outlier — Swift, JavaScript and Kotlin all
+// dropped. §7 ruled for the majority on 2026-09-12. The corpus case is
+// diagnose/container-corrupt-attachment.vnz; this test is the unit-level half,
+// and it pins the two things the corpus case cannot say in one file: that the
+// CRC is still CHECKED rather than skipped, and that the ROOT document keeps
+// the opposite answer.
+func TestACorruptAttachmentIsDroppedAndTheRootStillRefuses(t *testing.T) {
+	wrong := uint32(0xdeadbeef)
+
+	bad := stored("photos/summit.jpg", "the bytes as written")
+	bad.crcOverride = &wrong
+	c, diags := readArchive(t, assemble([]entrySpec{
+		stored("doc.vnx", smallDoc), bad, stored("ok.jpg", "fine"),
+	}, assembleOpts{}))
+
+	// ⚠ THE DROP IS NOT AN EMPTY ATTACHMENT. An entry returned with no bytes is
+	// indistinguishable from one the archive never carried, so the damaged name
+	// must be ABSENT rather than present-and-empty.
+	if len(c.Attachments) != 1 || c.Attachments[0].Path != "ok.jpg" {
+		t.Errorf("attachments = %v, want just ok.jpg: the corrupt one is dropped, not blanked", c.Attachments)
+	}
+	if c.Document == nil || c.Document.Version != vnx.Version {
+		t.Errorf("document = %+v; §7 returns it, damaged photograph or not", c.Document)
+	}
+	if len(diags) != 1 {
+		t.Fatalf("diagnostics = %v, want exactly one for the dropped attachment", diags)
+	}
+	if diags[0].Code != vnx.CodeAttachmentUnreadable {
+		t.Errorf("code = %q, want %q — one code covers both ways to fail to recover an attachment",
+			diags[0].Code, vnx.CodeAttachmentUnreadable)
+	}
+	if want := "#/entries/photos~1summit.jpg"; diags[0].Path != want {
+		t.Errorf("path = %q, want %q", diags[0].Path, want)
+	}
+
+	// The root document is §7's exception, and for a reason that does not apply
+	// to an attachment: there is no document to return, so there is nothing a
+	// diagnostic could be attached to.
+	root := stored("doc.vnx", smallDoc)
+	root.crcOverride = &wrong
+	raw := assemble([]entrySpec{root}, assembleOpts{})
+	if _, _, err := vnx.DecodeContainer(bytes.NewReader(raw), int64(len(raw))); err == nil {
+		t.Error("an archive whose ROOT DOCUMENT fails its CRC was accepted; there is no document to return")
+	}
+}

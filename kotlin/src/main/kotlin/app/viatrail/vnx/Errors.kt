@@ -83,12 +83,22 @@ enum class RefusalCause(
  * A document was refused. SPEC.md section 6.3 requires this to reach the caller
  * through a channel separate from the diagnostics, so that a refused document is
  * distinguishable from one that was read with elements dropped.
+ *
+ * UNCHECKED, and that is for the JAVA caller rather than the Kotlin one.
+ * Kotlin has no checked exceptions, so extending [Exception] cost a Kotlin
+ * caller nothing — but it made this a checked exception to `javac` while no
+ * Kotlin signature emits a `throws` clause naming it. The result was the worst
+ * of both: a Java caller was not forced to handle a refusal AND could not name
+ * it, because `catch (VnxRefusal e)` around a `Vnx.readDocument` call is
+ * rejected with "exception VnxRefusal is never thrown in body of corresponding
+ * try statement". Catching [Exception] and downcasting was the only route.
+ * Changed 2026-09-12; nothing in Kotlin had to move with it.
  */
 class VnxRefusal(
     /** The stable machine cause, so a caller never has to read the English. */
     val refusal: RefusalCause,
     override val message: String,
-) : Exception(message) {
+) : RuntimeException(message) {
     override fun toString() = "VnxRefusal(${refusal.name}): $message"
 }
 

@@ -184,3 +184,10 @@ shaped by Kotlin.
   a stock parser does not, and `NaN` and `Infinity` are not JSON tokens.
 - `PortabilityTest` reads the dependency set off the compiled classes rather than
   the build file, and confines the JSON library to `Serialise.kt`.
+- **`VnxRefusal` extends `RuntimeException`, and a port to another JVM language
+  should keep it unchecked.** Kotlin has no checked exceptions, so it emits no
+  `throws` clause naming a refusal. A checked `VnxRefusal` therefore does not
+  oblige a Java caller to handle one, and `javac` rejects `catch (VnxRefusal e)`
+  around a `Vnx.readDocument` call as an exception never thrown — leaving
+  `catch (Exception)` and a downcast as the only route to the cause. Unchecked
+  gives up a compulsion that was never enforced and buys back the catch.

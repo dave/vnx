@@ -2,7 +2,7 @@
 //! attachments.
 
 use crate::decode::{decode, Reading};
-use crate::diag::{escape_token, Cause, Diagnostic};
+use crate::diag::{escape_token, AttachmentFault, Cause, Diagnostic};
 use crate::error::Refusal;
 use crate::zip::{Archive, Entry};
 
@@ -24,26 +24,27 @@ pub struct Container {
 
 /// Read a `.vnz` container.
 ///
-/// SPEC 7's refusal causes are separate from SPEC 6.2's.
+/// SPEC 7's refusal causes are separate from SPEC 6.2's, and A FAULT IN AN
+/// ATTACHMENT IS NOT AMONG EITHER. Two faults reach an attachment, and both
+/// drop it with a diagnostic and return the document.
 ///
-/// ⚠ TWO ATTACHMENT FAULTS, TWO REMEDIES, AND ONLY ONE OF THEM IS SPECIFIED.
-///
-/// * An UNUSABLE COMPRESSION METHOD is the case SPEC 7 rules on: an attachment
-///   compressed by a method other than stored or deflate is dropped, a
-///   diagnostic is recorded and the document is returned, because refusing a
-///   whole library over one photograph would be disproportionate. That is the
-///   `method_is_readable` branch below.
-/// * A CORRUPT STREAM — an attachment whose bytes fail to inflate, or whose
-///   CRC disagrees with the bytes present — is REFUSED here. SPEC 7 does not
-///   cover it: its drop-with-a-diagnostic rule is written about the method,
-///   and corruption appears in Section 7 only in the rule forbidding a refusal
+/// * An UNUSABLE COMPRESSION METHOD is the case SPEC 7 rules on in its own
+///   words: an attachment compressed by a method other than stored or deflate
+///   is dropped, a diagnostic is recorded and the document is returned,
+///   because refusing a whole library over one photograph would be
+///   disproportionate. The method is checked BEFORE anything is inflated.
+/// * A CORRUPT STREAM — an attachment that will not inflate, or whose bytes
+///   disagree with the entry's CRC — is dropped the same way. ⚠ SPEC 7 DOES
+///   NOT RULE ON THIS CASE. Its remedy is written about the method, and
+///   corruption appears in Section 7 only in the rule forbidding a refusal
 ///   "where the CRC over those bytes agrees", which says nothing about a CRC
-///   that does not. So this is THIS READER'S CHOICE, not a rule of the format,
-///   and another conforming implementation may differ. It is refused because a
-///   bad method says an attachment is merely beyond this reader while bad
-///   bytes say the archive is not what it claims to be, and returning content
-///   the archive's own checksum disowns is worse than returning nothing.
-///   Raised for the spec to settle 2026-09-12.
+///   that does not. Ruled on 2026-09-12 by the reasoning SPEC 7 gives for the
+///   method case, which transfers: the document is intact and readable, and
+///   the diagnostic is what stops the loss being silent. This crate REFUSED
+///   until that ruling, and was the only one of six that did.
+///
+/// The ROOT DOCUMENT is the other half of both rules and refuses either way,
+/// because there is no document to return.
 pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
     let archive = Archive::open(bytes).map_err(|e| Refusal::ContainerMalformed {
         detail: e.to_string(),
@@ -74,7 +75,7 @@ pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
             reading.diagnostics.push(Diagnostic::new(
                 attachment_pointer(&entry.name),
                 Cause::AttachmentUnreadable {
-                    method: entry.method,
+                    fault: AttachmentFault::UnusableMethod(entry.method),
                 },
             ));
             continue;
@@ -84,11 +85,15 @@ pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
                 path: entry.name.clone(),
                 bytes,
             }),
-            Err(e) => {
-                return Err(Refusal::ContainerMalformed {
-                    detail: e.to_string(),
-                })
-            }
+            // Dropped, NOT refused. The archive is damaged in one entry and
+            // the document is whole; see this function's doc comment for why
+            // that is a ruling rather than a reading of SPEC 7.
+            Err(e) => reading.diagnostics.push(Diagnostic::new(
+                attachment_pointer(&entry.name),
+                Cause::AttachmentUnreadable {
+                    fault: AttachmentFault::CorruptStream(e.to_string()),
+                },
+            )),
         }
     }
 

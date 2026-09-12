@@ -359,7 +359,7 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
     );
 }
 
-/// A corrupt attachment is refused rather than returned as content.
+/// A corrupt attachment is dropped and diagnosed, never returned as content.
 ///
 /// This cannot be reached by any corpus container — they are all well-formed —
 /// and it cannot be reached by the bit-flip sweep above either, because that
@@ -376,11 +376,14 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
 /// asserted the word `CRC` and so would have gone red on a dependency bump
 /// that changed nothing about the behaviour anyone depends on.
 ///
-/// The property is: refused, not returned, and the refusal NAMES THE ENTRY, so
-/// a user is told which file is bad. Both detectors satisfy it, because both
-/// paths in `zip::Archive::read` prefix the entry name.
+/// The property is: the damaged bytes are not handed back, the document still
+/// reads, and a diagnostic NAMES THE ENTRY so the loss is not silent. Both
+/// detectors satisfy it.
+///
+/// The drop is the ruling of 2026-09-12; see `vnz::read`. This crate refused
+/// until then.
 #[test]
-fn a_corrupt_attachment_is_refused_rather_than_returned() {
+fn a_corrupt_attachment_is_dropped_and_diagnosed() {
     // ⚠ A COMMITTED DEFLATED ARCHIVE, NOT ONE THIS CRATE WRITES. The bytes of
     // a deflate stream depend on the compressor, so a byte chosen inside one
     // this crate produced would move under a `flate2` upgrade. A corpus
@@ -392,22 +395,61 @@ fn a_corrupt_attachment_is_refused_rather_than_returned() {
     // intact, and only the attachment's content has changed.
     let mut damaged = good.clone();
     damaged[at + 3] ^= 0x01;
+    let intact = vnz::read(&good)
+        .expect("the undamaged archive must read, or this proves nothing");
+    let container = vnz::read(&damaged)
+        .expect("a corrupt ATTACHMENT does not refuse the archive; the document is intact");
+
+    // Not returned as content, under any name.
     assert!(
-        vnz::read(&good).is_ok(),
-        "the undamaged archive must read, or this proves nothing"
+        !container
+            .attachments
+            .iter()
+            .any(|a| a.path == "attachments/photo.txt"),
+        "the damaged attachment was handed back: {:?}",
+        container.attachments
     );
-    let refusal =
-        vnz::read(&damaged).expect_err("a corrupt attachment must be refused, not returned");
-    let text = refusal.to_string();
+    // And the document is still whole, or dropping the photograph lost more
+    // than the photograph.
+    assert_eq!(
+        container.reading.document, intact.reading.document,
+        "a damaged attachment must not change the document"
+    );
+    // The loss is disclosed, and the diagnostic names the entry it dropped.
+    // SPEC 6.3 escapes the name as ONE reference token, so the `/` is `~1`.
+    let named: Vec<&str> = container
+        .reading
+        .diagnostics
+        .iter()
+        .filter(|d| d.path == "#/entries/attachments~1photo.txt")
+        .map(|d| d.code())
+        .collect();
+    assert_eq!(
+        named,
+        ["attachment-unreadable"],
+        "the drop must be disclosed against the entry that was dropped: {:?}",
+        container.reading.diagnostics
+    );
+    // The undamaged archive reports nothing, or the assertion above would pass
+    // on a reader that diagnosed every attachment.
     assert!(
-        text.contains("attachments/photo.txt"),
-        "the refusal must name the entry it could not read: {text}"
+        intact.reading.diagnostics.is_empty(),
+        "{:?}",
+        intact.reading.diagnostics
     );
 }
 
 /// A stored entry declares its size twice, and the two must agree. A reader
 /// that takes one and ignores the other reads a truncated or padded entry as
 /// whole.
+///
+/// ⚠ THE DAMAGE GOES ON THE ROOT DOCUMENT, NOT ON THE FIRST ENTRY IN THE
+/// DIRECTORY. Since the ruling of 2026-09-12 an attachment this reader cannot
+/// produce bytes for is DROPPED with a diagnostic rather than refused, so
+/// damaging an attachment tests the remedy rather than the size check — and
+/// this fixture's first directory record is an attachment. The root document
+/// is the entry whose fault is still a refusal, which is what lets the
+/// assertion below name the cause.
 #[test]
 fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
     let good = stored_container();
@@ -418,10 +460,7 @@ fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
     let mut damaged = good.clone();
     // Change the CENTRAL DIRECTORY's compressed size, which is what this
     // reader takes its lengths from, leaving the uncompressed size alone.
-    let cd = damaged
-        .windows(4)
-        .position(|w| w == 0x0201_4b50u32.to_le_bytes())
-        .expect("a central directory entry");
+    let cd = central_directory_record(&damaged, "doc.vnx");
     let declared = u32::from_le_bytes([
         damaged[cd + 24],
         damaged[cd + 25],
@@ -440,4 +479,29 @@ fn a_stored_entry_whose_two_sizes_disagree_is_refused() {
         refusal.to_string().contains("two sizes disagree"),
         "refused for the wrong reason, so this does not test the size check: {refusal}"
     );
+}
+
+/// The offset of the central directory record for `name`.
+///
+/// The records are walked rather than scanned for, because the signature can
+/// appear inside an entry name or an extra field, and the name is matched so a
+/// test says which entry it damages instead of "whichever came first".
+fn central_directory_record(bytes: &[u8], name: &str) -> usize {
+    let mut at = bytes
+        .windows(4)
+        .position(|w| w == 0x0201_4b50u32.to_le_bytes())
+        .expect("a central directory");
+    loop {
+        assert_eq!(
+            bytes[at..at + 4],
+            0x0201_4b50u32.to_le_bytes(),
+            "walked off the end of the central directory looking for {name:?}"
+        );
+        let u16_at = |o: usize| u16::from_le_bytes([bytes[at + o], bytes[at + o + 1]]) as usize;
+        let (name_len, extra_len, comment_len) = (u16_at(28), u16_at(30), u16_at(32));
+        if &bytes[at + 46..at + 46 + name_len] == name.as_bytes() {
+            return at;
+        }
+        at += 46 + name_len + extra_len + comment_len;
+    }
 }

@@ -93,10 +93,35 @@ pub enum Cause {
     RecordTypeMissing,
     /// SPEC 3.6: an `importance` outside the range 1 to 5, or not an integer.
     ImportanceOutOfRange,
-    /// SPEC 7: an ATTACHMENT compressed by a method other than stored or
-    /// deflate. The attachment is dropped and the document is returned;
-    /// refusing a whole library over one photograph would be disproportionate.
-    AttachmentUnreadable { method: u16 },
+    /// SPEC 7: an ATTACHMENT this reader could not produce bytes for. The
+    /// attachment is dropped and the document is returned; refusing a whole
+    /// library over one photograph would be disproportionate.
+    ///
+    /// Two faults reach it, and `fault` says which. They share a code because
+    /// they share a remedy, and because what a caller does about a missing
+    /// attachment does not depend on why it is missing.
+    AttachmentUnreadable { fault: AttachmentFault },
+}
+
+/// Why an attachment could not be read (SPEC 7).
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttachmentFault {
+    /// A compression method other than stored or deflate. SPEC 7 rules on this
+    /// case in its own words, and the method is refused BEFORE any attempt to
+    /// decompress, so the bytes are never looked at.
+    UnusableMethod(u16),
+    /// A usable method whose stream will not decompress, or whose bytes
+    /// disagree with the entry's CRC.
+    ///
+    /// ⚠ SPEC 7 DOES NOT RULE ON THIS CASE. Its drop-with-a-diagnostic rule is
+    /// written about the METHOD, and corruption appears in Section 7 only in
+    /// the rule forbidding a refusal "where the CRC over those bytes agrees",
+    /// which says nothing about a CRC that does not. Dropping was ruled on
+    /// 2026-09-12, by the reasoning SPEC 7 gives for the method case: the
+    /// document is intact, refusing a whole library over one damaged
+    /// photograph is disproportionate, and the diagnostic is what stops the
+    /// loss being silent. Rust refused until that ruling and was the outlier.
+    CorruptStream(String),
 }
 
 impl Cause {
@@ -215,11 +240,17 @@ impl std::fmt::Display for Cause {
                 f,
                 "`importance` is an integer from 1 to 5, so the field is dropped"
             ),
-            Cause::AttachmentUnreadable { method } => write!(
-                f,
-                "the attachment uses compression method {method}, which is neither \
-                 stored nor deflate, so it is dropped"
-            ),
+            Cause::AttachmentUnreadable { fault } => match fault {
+                AttachmentFault::UnusableMethod(method) => write!(
+                    f,
+                    "the attachment uses compression method {method}, which is neither \
+                     stored nor deflate, so it is dropped"
+                ),
+                AttachmentFault::CorruptStream(detail) => write!(
+                    f,
+                    "the attachment will not decompress, so it is dropped: {detail}"
+                ),
+            },
         }
     }
 }
@@ -393,7 +424,9 @@ mod tests {
             },
             Cause::RecordTypeMissing,
             Cause::ImportanceOutOfRange,
-            Cause::AttachmentUnreadable { method: 99 },
+            Cause::AttachmentUnreadable {
+                fault: AttachmentFault::UnusableMethod(99),
+            },
         ];
         let mut codes: Vec<&str> = all.iter().map(Cause::code).collect();
         let total = codes.len();

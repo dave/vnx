@@ -66,6 +66,7 @@ root.
 | `Container` | `document_entry: String`, `reading: Reading`, `attachments: Vec<Attachment>` |
 | `Attachment` | `path: String`, `bytes: Vec<u8>` |
 | `Diagnostic` | `path: String`, `cause: Cause`, and `code()` / `message()` |
+| `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
 | `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `profile`, `generator`, `created` |
 | `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()` |
 | `Track` | `segments: Vec<Segment>`, and `moving_time_ms() -> Option<f64>` |
@@ -91,6 +92,13 @@ is `Err` against the `diagnostics` list returned beside a document.
 - **`Track::moving_time_ms()` returns `None` for unknown.** Unknown is not zero.
 - **A position keeps the arity the document spelled**, and `Position::ele()` and
   `time_ms()` return `None` for a channel that was absent or `null`.
+- **A damaged attachment costs only itself.** An entry compressed by a method
+  other than stored or deflate, and an entry whose bytes will not decompress,
+  are both dropped with an `attachment-unreadable` diagnostic while the
+  document is returned. `AttachmentFault` says which. Only a fault in the root
+  document refuses the archive, because then there is nothing to return.
+  SPEC §7 rules on the method. It does not rule on a corrupt stream, which
+  takes the same remedy by the reasoning SPEC §7 gives for the method.
 - **Damaged geometry costs its container.** A position inside `pips` that will
   not parse drops the arc or segment holding it, while a link that cannot be
   used is dropped and its chain survives (SPEC §6.2). `position-unusable` names

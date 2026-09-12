@@ -52,7 +52,7 @@ pub mod vnz;
 pub mod zip;
 
 pub use decode::{decode, decode_json, Reading};
-pub use diag::{Cause, Diagnostic};
+pub use diag::{AttachmentFault, Cause, Diagnostic};
 pub use encode::encode;
 pub use error::Refusal;
 pub use json::Json;

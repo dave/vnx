@@ -41,7 +41,7 @@ the run, not a skip.
 |---|---|---|
 | `kind` | every case | `accept`, `reject`, `diagnose` or `write`; must match the directory |
 | `note` | every case | what this case separates, and which of its values are load-bearing |
-| `counts` | document tiers | the exact item count per collection |
+| `counts` | document tiers | the exact number of entries in each collection |
 | `positions` | document tiers | pinned coordinates, each addressed by an `at` JSON Pointer |
 | `tracks` | document tiers | per track, looked up by name: `moving_time_ms`, or `null` for unknown |
 | `root` | `.vnz` cases | the entry name of the root document |

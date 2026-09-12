@@ -92,7 +92,7 @@ reach for.
 | One diagnostic per bad path, the rest of the document kept | Stops at the first syntax error, and reports one failure for the whole document. | `SPEC §6.2` |
 | Every number parsed as binary64, integer literals included | Widens or narrows to the type it infers — an integer type for an integer literal, a decimal type for a number with a point. | `SPEC §4.2` |
 | The last bit of a coordinate preserved | Short-parse paths trade the last bit for speed, and a full-precision coordinate is exactly where that shows. | `SPEC §4.1` |
-| Duplicate keys seen, or the limitation accepted knowingly | Resolves last-wins before any format rule runs, so an item vanishes unobservably. | `SPEC §6.4` |
+| Duplicate keys seen, or the limitation accepted knowingly | Resolves last-wins before any format rule runs, so an entry vanishes unobservably. | `SPEC §6.4` |
 | Strict reading | Offers permissive modes — trailing commas, comments, unquoted keys — that accept exactly what `SPEC §4.2` forbids. | `SPEC §4.2` |
 | Number rendering | Renderers disagree about the shortest round-tripping spelling. A renderer that spells `-3.67` as `-3.6699999999999999` round-trips correctly and is legal. | `SPEC §8.1` |
 
@@ -249,7 +249,7 @@ between it and a coordinate of infinity.
 
 Two entries with the same key resolve last-wins in Go's `encoding/json`, Node's
 `JSON.parse` and Python's `json`, all measured, before any format rule runs, so
-an item vanishes and a reader built on a stock parser cannot observe it
+an entry vanishes and a reader built on a stock parser cannot observe it
 (`SPEC §6.4`). `corpus/diagnose/duplicate-object-key.vnx` expects no diagnostic.
 
 Before taking that at face value: the format pushes you into writing your own
@@ -520,7 +520,7 @@ A link that cannot be used is dropped and its chain survives.
 They are the same rule. A missing vertex changes the shape of a line and leaves
 nothing to indicate it: a shorter, plausible, wrong line. A missing link leaves a
 gap the continuity rule of `SPEC §3.3.3` can see and report, so nothing is lost
-silently. A ring vertex that will not parse drops the **item**, for the same
+silently. A ring vertex that will not parse drops the **area**, for the same
 reason plus `SPEC §3.7`: a polygon is one closed ring of at least four positions,
 so dropping a vertex both moves the boundary and can turn a four-vertex ring into
 a three-vertex non-ring.

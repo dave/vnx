@@ -1,127 +1,141 @@
-# vnx — a Python implementation of the VNX format
+# vnx — the VNX format in Python
 
-A codec: it reads and writes `.vnx` and `.vnz` and reports diagnostics (§6.3).
-That is what `SPEC.md` calls a VNX library, and it passes the whole conformance
-corpus.
+`vnx` reads and writes VNX documents and VNZ containers in Python, and reports
+diagnostics.
 
-Python 3.11+. Standard library only — no dependencies, at all, by design.
+Python 3.11 or later, and no dependencies. Implements VNX 0.1.0 —
+[`SPEC.md`](../SPEC.md) is the format definition.
+
+## Install
+
+Clone the repository and install the package from its path. The editable
+install needs pip 21.3 or later, so a fresh virtual environment is the shortest
+route.
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e ../vnx/python
+```
+
+`import vnx` then resolves from any working directory.
+
+## Usage
+
+Read a file, list what is in it, report every fault, and write it back.
 
 ```python
 import vnx
 
-result = vnx.read_file("trip.vnx")
-for diagnostic in result.diagnostics:
-    print(diagnostic.path, diagnostic.message)
+reading = vnx.read_file("corpus/accept/example-network.vnx")
+doc = reading.document
 
-vnx.encode_file("trip.vnx", result.document)
+for route in doc.routes or []:
+    print("route", route.name, len(route.arcs or []), "arcs")
+for network in doc.networks or []:
+    for chain in network.chains or []:
+        print("chain", chain.name, len(chain.links or []), "links")
+for track in doc.tracks or []:
+    print("track", track.name, "moving", track.moving_time_ms())
+for d in reading.diagnostics:
+    print(d.code, d.path, d.message)
 
-container = vnx.read_container_file("trip.vnz")
-print(container.document_name, container.attachments)
+vnx.encode_file("out.vnx", doc)
 ```
 
-**Writing applies the emit-boundary rules of §4.1** — longitude and latitude to
-6 decimal places, elevation to 1, and the shortest spelling of every position.
-Reading applies none of them: `accept/full-precision-coordinate.vnx` decodes to
-`-3.6712345678901235` and encodes to `-3.671235`, which its own sidecar says is
-correct.
+A `.vnz` opens with `vnx.read_container_file`, which carries `document` and
+`diagnostics` beside the container's own fields.
 
-| Call | What it does |
+## API
+
+| Call | Takes | Returns | Raises |
+|---|---|---|---|
+| `vnx.read_file` | a path | `ReadResult` | `VNXRefusal` |
+| `vnx.read_bytes` | `bytes` | `ReadResult` | `VNXRefusal` |
+| `vnx.decode_document` | a parsed JSON value | `ReadResult` | `VNXRefusal` |
+| `vnx.read_container_file` | a path | `ContainerReadResult` | `VNXRefusal` |
+| `vnx.read_container_bytes` | `bytes` | `ContainerReadResult` | `VNXRefusal` |
+| `vnx.encode_file` | a path, a `Document` | `None` | — |
+| `vnx.encode_bytes` | a `Document` | `bytes` | — |
+| `vnx.encode_document` | a `Document` | a JSON value | — |
+| `vnx.encode_container_bytes` | a `Document`, `dict[str, bytes]` of attachments | `bytes` | — |
+| `vnx.parse_json` | `bytes` | a JSON value | `VNXRefusal` |
+
+| Type | Fields |
 |---|---|
-| `encode_bytes` / `encode_file` | a document, rounded and shortest-spelled |
-| `encode_container_bytes` | the same, inside a deflated `.vnz` |
+| `ReadResult` | `document: Document`, `diagnostics: list[Diagnostic]` |
+| `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[str]` |
+| `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
+| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `profile`, `generator`, `created`, and `counts()` |
+| `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `chains`, `points`, `areas` |
+| `Arc`, `RouteArc` | `pips: list[Position]`; an `Arc` also has `from_` and `to` |
+| `Chain` | `links: list[Link]`, each `Link` carrying `arc`, `from_`, `to` |
+| `Route` | `arcs: list[RouteArc]` |
+| `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
+| `Position` | `lon`, `lat`, `ele`, `time_ms` |
 
-The bytes of a document are not a rule. Key order, number spelling and
-whitespace are this library's own business, and two conforming writers are not
-expected to agree byte for byte. It writes compact JSON with no whitespace.
+Items also carry `name`, `notes`, `folder`, `hidden`, `style` and `data` where
+SPEC §3 gives them. `from_` takes the underscore because `from` is a keyword.
 
-A document that cannot be read at all raises `vnx.VNXRefusal`. A document that
-could be read with pieces dropped comes back with diagnostics. They are separate
-channels on purpose (§6.3), and nothing malformed ever becomes a default.
+Encoding what you decoded is legitimately not the bytes you read, because a
+writer applies the emit-boundary rules of SPEC §4.1.
 
-## Running the corpus
+## Errors and diagnostics
+
+A refusal and a diagnostic are separate channels (SPEC §6.3), and in Python that
+is a raised exception against the `diagnostics` list returned beside a document.
+
+- **A refusal is a `vnx.VNXRefusal`.** Every cause of SPEC §6.2 and SPEC §7
+  arrives as that exception, a damaged archive included, so a reading call has
+  one type to catch.
+- **A diagnostic comes back with the document.** `Diagnostic.code` is the stable
+  token to switch on; `message` is English prose, advisory, and never compared
+  (SPEC §6.3). `vnx/decode.py` and `vnx/container.py` raise every code.
+- **An absent collection is `None`, not `[]`.** `None` means the key was not
+  present, and an empty list is a different document, so write `or []` around a
+  collection you iterate.
+- **`Track.moving_time_ms()` is a call and returns `None` for unknown.** Unknown
+  is not zero. `Position.ele` and `time_ms` are `None` for a channel that was
+  `null` or left off.
+- **Damaged geometry costs its container.** A position inside `pips` that will
+  not parse drops the arc or segment holding it, while a link that cannot be
+  used is dropped and its chain survives (SPEC §6.2).
+
+## Run the tests
 
 ```sh
 cd python && python3 -m unittest discover -s tests -t .
 ```
 
-216 tests, about a second, no toolchain beyond Python. The corpus runner is
-`tests/test_corpus.py`; it walks `../corpus/` and runs every case against its
-sidecar, and a case file without a sidecar is a failure rather than a skip.
-
-`tests/test_red_proof.py` is the reason to believe the runner. Each test there
-breaks one thing — transposes longitude and latitude, rounds by scaling instead
-of by formatting, sums a track's moving time across its pause, drops a ruleset,
-stops recording diagnostics — runs the corpus check that is supposed to notice,
-and asserts it goes red.
-
-Two of them carry the finding the accept tier rests on. A reader that discarded
-every data record, every ruleset, every style or every `notes` produces a model
-that compares equal to itself, so a tier comparing one model against another
-passes all four green. Comparing against the tree parsed from the original file
-catches all four.
-
-## What it does not do
-
-- **No GPX, KML or GeoJSON.** Those are conversion tools rather than part of the
-  format, Go-only by ruling.
-- **No writer-side vocabulary rules.** §5.2's rule for `app.viatrail.routing` —
-  that a writer verifies the arc kind against the source before writing — is
-  stated in terms of Viatrail's internal model, which this library does not
-  have. §5.3's `portable` profile filtering is likewise a writer's decision
-  about its own records, not a codec operation: `profile` is read, preserved and
-  not acted on.
-- **No resource bounds.** §9 recommends bounding what one document may consume.
-  This library places no limit on item counts, pip counts or folder depth.
-- **No duplicate-key detection.** §6.4: `json` resolves duplicates last-wins
-  before any VNX rule runs, like every mainstream parser.
-- **Almost nothing inside a style.** A style body is opaque by ruling, so no
-  key inside one is ever unknown and every key survives a read-modify-write.
-  One *value* is inspected — `importance`, ruled normative at 1 to 5. That is
-  not a contradiction: a normative range is a rule about a value, not about a
-  key set, exactly as §5.2 gives typed payloads to records whose bodies stay
-  opaque. Everything else passes uninspected, including `line-style`,
-  `pin-shape`, `label-position`, the enumerations in §5.2, and `label-visible`,
-  whose tristate §3.6 makes load-bearing. Those ranges are stated in the
-  specification with no rule saying what a reader does with a value outside
-  them.
-
-## Decisions this implementation had to make
-
-Each is a place the specification is silent or the corpus answered instead. They
-are listed here so that a disagreement with another implementation has somewhere
-to start.
-
-Rows marked **ruled** are settled decisions rather than this library's own
-choice.
-
-| Question | What this library does |
-|---|---|
-| Does a position keep the arity the document spelled? | No. `[lon, lat]` and `[lon, lat, null]` are one model, and the writer emits the shortest spelling of it (§4.1). A comparison of two documents normalises the same way (§8.1). |
-| Which keys are "defined by this format"? | `vnx/keys.py`, read off the §3 examples and constrained from below by the accept corpus. §1.3 says an example defines no rule, so no key set in this format is normative today. |
-| Are style objects key-checked? | **Ruled: no, a style body is opaque**, like a data record body. This library checked style key names at first, from three invented key sets; the ruling reversed that, because a style vocabulary grows faster than a structural one and key sets would diagnose a valid document every time Viatrail adds a style key. |
-| Does a network's own point or area carry `folder`? | **Ruled: no.** §3.2 gives `folder` to "any item"; an item a network already contains does not also sit in a folder. Conditional on Viatrail's exporter not writing one — `vnx/keys.py` says how to flip it. |
-| Is `importance` a constraint or a description? | **Ruled: normative**, 1 to 5. `icon-size`'s list of sizes is informative and unchecked. An out-of-range `importance` is diagnosed and the key dropped; the remedy is this library's reading, since §6.2 gives none for a value outside a stated range. |
-| Is `hidden` legal on a top-level waypoint? | **Ruled: yes** — §3.6's "share one shape" governs §3.8's host list. |
-| Is `notes` legal on a track? | **Ruled: yes.** This library had assumed it on no evidence at all before it was ruled. |
-| How are strings escaped? | Whatever `json.dumps` does, with `ensure_ascii` off so non-ASCII stays UTF-8. The bytes of a document are not a rule. |
-| Which distance function measures the 50 m tolerance? | A local equirectangular projection, `vnx/geo.py`. Unspecified. |
-| What does a ring that does not close do? | Diagnostic, and the area is dropped — the same remedy §3.7 gives a nested ring. |
-| What does a link endpoint naming an absent node do? | Diagnostic, link kept. Only an absent *arc* is named by §6.2, and only an arc is a link's whole meaning. |
-| Do two links either side of a dropped one have to meet? | No. Continuity is checked between links adjacent in the document, so one defect stays one diagnostic. |
-| What is a track's moving time when only some pips carry times? | The first and last timed pip of each segment. §3.5 addresses all-timed and never-timed only. |
-| Does an omitted `counts` key mean zero? | No, unchecked: `accept/example-network.expect.json` omits `rulesets` for a document that has one. |
+Unit tests and the corpus runner over all four tiers. `tests/test_red_proof.py`
+breaks the reader in turn and requires the corpus check to notice each break.
 
 ## Layout
 
-```
-vnx/jsonio.py      strict parsing: no NaN, no Infinity (SPEC 4.2)
-vnx/keys.py        the key vocabulary, and where each set came from
-vnx/model.py       the document model (SPEC 3)
-vnx/decode.py      reading, with diagnostics and refusals (SPEC 6)
-vnx/encode.py      model to JSON tree
-vnx/container.py   the VNZ container (SPEC 7, 9)
-vnx/writer.py      the writer emit path: rounding, then `json.dumps`
-vnx/geo.py         point-to-polyline distance, for SPEC 3.3.3
-vnx/pointer.py     RFC 6901
-vnx/errors.py      VNXRefusal and Diagnostic
-```
+| Module | What it is |
+|---|---|
+| `jsonio` | strict parsing: no `NaN`, no `Infinity` (SPEC §4.2) |
+| `keys` | the key vocabulary |
+| `model` | the document model (SPEC §3) |
+| `decode` | reading, with diagnostics and refusals (SPEC §6) |
+| `encode` | model to JSON tree |
+| `writer` | the emit boundary, and the rounding (SPEC §4.1) |
+| `container` | the VNZ container (SPEC §7, §9) |
+| `geo` | the projection tolerance of SPEC §3.3.3 |
+| `pointer` | RFC 6901 |
+| `errors` | `VNXRefusal` and `Diagnostic` |
+
+## Notes for porters
+
+General form in [`IMPLEMENTING.md`](../IMPLEMENTING.md); these are the parts
+that are shaped by Python.
+
+- `jsonio` wraps `json` rather than calling it, because `json` accepts the
+  `NaN` and `Infinity` literals SPEC §4.2 excludes. `json` also resolves a
+  repeated key last-wins before any VNX rule runs, so duplicate keys are
+  undetectable here (SPEC §6.4).
+- Decoding is a hand-written walk over the parsed tree rather than a mapper into
+  typed structures, because SPEC §6.2 wants one diagnostic per bad path with the
+  rest of the document kept.
+- `Position` holds typed fields rather than the channel array, so the arity a
+  document spelled is not model state; the writer emits the shortest spelling
+  (SPEC §4.1).

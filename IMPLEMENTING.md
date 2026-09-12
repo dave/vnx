@@ -125,9 +125,7 @@ Two settings are worth naming because they are easy to miss:
 
 - A parser may offer an exact-float mode as a non-default feature flag. Without
   it, `corpus/accept/full-precision-coordinate.vnx` decodes one bit low, and
-  the last bit of a coordinate is what that case exists to protect. *(Measured
-  by the Rust implementation, whose `serde_json` needs `features =
-  ["float_roundtrip"]`.)*
+  the last bit of a coordinate is what that case exists to protect.
 - A parser may hand you a decimal or big-integer type rather than a double.
   `SPEC §4.2` defines numbers as IEEE 754 binary64, so the conversion has to
   happen, and doing it late means two values that are one document compare as
@@ -194,7 +192,7 @@ An opaque body can hold a normative *value* without ceasing to be opaque. A
 style body is opaque by ruling, and `SPEC §3.6` puts a normative range on its
 `importance`. That is not a contradiction: a normative range is a rule about a
 value, not about a key set, exactly as `SPEC §5.2` gives typed payloads to
-records whose bodies stay opaque. *(Reported by the Python implementation.)*
+records whose bodies stay opaque.
 
 ### 4.3 A position's arity is a spelling, not a fact
 
@@ -223,8 +221,7 @@ behaviour you inherit.
 
 A literal like `1e999` or `1e400` is well-formed JSON whose value is not finite
 in binary64: it parses to infinity rather than failing. Check after parsing as
-well as during; a `JSON.parse` reviver or equivalent hook is enough. *(Measured
-by the JavaScript implementation.)*
+well as during; a `JSON.parse` reviver or equivalent hook is enough.
 
 The three literals fail differently in different runtimes, and the differences do
 not line up:
@@ -233,9 +230,7 @@ not line up:
 |---|---|---|---|
 | `NaN` | error | throws | accepts, giving `nan` |
 | `Infinity` | error | throws | accepts, giving `inf` |
-| `1e400` | error into `float64` | returns infinity silently | accepts, giving `inf` |
-
-*(Measured by the JavaScript implementation.)* Go accepts `1e400` into
+| `1e400` | error into `float64` | returns infinity silently | accepts, giving `inf` | Go accepts `1e400` into
 `json.Number`, keeping the text, and refuses it only on unmarshal into `float64`.
 
 Two consequences. The `reject/` sidecars expect the substring `malformed JSON`,
@@ -244,7 +239,6 @@ it is a strict-parser artefact rather than one language's. The implementation it
 bites is Python, whose `json.loads` accepts all three by default: a Python
 implementation either makes its parser strict or refuses under `SPEC §4.2`, and a
 `SPEC §4.2` refusal legitimately does not contain the words "malformed JSON".
-*(Measured by the Python implementation, which is that counterexample.)*
 
 And `1e400` is the case every library catches for itself, with the runtimes
 failing differently rather than uniformly. Node hands back infinity with no
@@ -261,7 +255,7 @@ an item vanishes and a reader built on a stock parser cannot observe it
 Before taking that at face value: the format pushes you into writing your own
 parser anyway (section 3), and once you have one, detecting a duplicate key is
 about three lines. The limitation belongs to stock parsers rather than to the
-format. *(Measured by the Kotlin implementation.)* Since the corpus case expects
+format. Since the corpus case expects
 no diagnostic, a reader that gains the ability turns it red, which is the signal
 to revisit the limitation rather than a failure.
 
@@ -298,9 +292,7 @@ one.
 | `0.45` | `0.5` | `0.4` |
 | `1.85` | `1.9` | `1.8` |
 | `0.95` | `0.9` | `1.0` |
-| `340.25` | `340.2` (exact, a genuine tie) | `340.2` |
-
-*(Measured by the Rust implementation.)* Six of those seven disagree, in both
+| `340.25` | `340.2` (exact, a genuine tie) | `340.2` | Six of those seven disagree, in both
 directions, and they are ordinary elevation-shaped values rather than corner
 cases. Scaling has a second failure the table cannot show: a large value
 multiplied by 10^6 can overflow to infinity, where rounding against the double
@@ -331,8 +323,7 @@ The guard that existed beside the defect used `340.25` and `340.35` — the last
 row of the table above, which agrees under both operations. `0.15` would have
 caught it the day that test was written. So the repair was two repairs: the
 operation, and running every row of the published table through the encoder,
-which is the comparison the other five libraries were making. *(Reported by the
-Go implementation, which wrote both the defect and the test.)*
+which is the comparison the other five libraries were making.
 
 A magnitude bound guarding the scaled product against overflow went with it. Such
 a bound is not a rule of the format; it is an artefact of the operation, and it
@@ -346,8 +337,7 @@ output. Round to a *value*, and hand the value to your encoder.
 Decimal intuition lies about which way a value rounds, whichever operation you
 pick. `3.05` rounds down to `3.0`, correctly, because the literal is really
 `3.04999999999999982236431605997495353221893310546875`. A test written from
-intuition asserts `3.1` and reports a correct writer as broken. *(Measured by the
-Python implementation, which wrote that expectation before measuring it.)* But
+intuition asserts `3.1` and reports a correct writer as broken. But
 `3.05` gives `3.0` under both operations above, so it cannot tell them apart,
 which is why the worked example here is `0.15`.
 
@@ -363,9 +353,6 @@ that in a different place.
 | `-340.25` | `-340.2` | `-340.2` | `-340.3` |
 | `340.75` | `340.8` | `340.8` | `340.8` |
 
-*(Measured by the JavaScript implementation on Go 1.25.6, CPython 3.14 and
-Node 22.19.)*
-
 `toFixed` strips the sign and rounds the magnitude, so it is symmetric: away from
 zero on both signs, `-340.25` to `-340.3` as well.
 
@@ -373,13 +360,13 @@ The asymmetric rule is the one everybody reaches for first.
 `Math.round(x * 10) / 10` is half-up in both JavaScript and Java, because
 `Math.round` breaks a tie toward positive infinity, so it is wrong on every
 positive tie and right on every negative one by accident. **A guard testing only
-negative ties passes it.** *(Measured by the Kotlin implementation.)*
+negative ties passes it.**
 
 There are two naive routes rather than one, and they differ on sign:
 `Math.round(x*10)/10` is half-up, `round(x*10)/10` on a half-away-from-zero
 rounder is half-away-from-zero. They agree on every positive tie and disagree on
 every negative one, so a suite catching one and not the other has a gap that
-reads as closed. Red-proof both. *(Measured by the Rust implementation.)*
+reads as closed. Red-proof both.
 
 Five wrong tie rules and the two values that separate them:
 
@@ -391,23 +378,21 @@ Five wrong tie rules and the two values that separate them:
 `340.25` catches half-away-from-zero and half-up; `340.75` catches
 half-toward-zero and half-down; either catches half-to-odd. **Only the pair
 identifies half-to-even**, so a fixture carrying one of them tests less than it
-looks. *(Measured by the JavaScript implementation.)*
+looks.
 
 The values are reachable rather than contrived. A tie at one decimal place needs
 a fractional part of exactly `.x5`, and of the ten candidates only `.25` and
-`.75` are dyadic, but a quarter-metre elevation grid produces both. *(Measured by
-the JavaScript implementation.)*
+`.75` are dyadic, but a quarter-metre elevation grid produces both.
 
 Rounding also creates negative zeros that were never in the model — `-4e-08` to
 six places, `-0.04` to one. The table gives `0` on every row that reaches it, so
-collapse the sign. *(Measured by the Rust implementation.)*
+collapse the sign.
 
 ### 6.3 Building a rounding-tie fixture is a trap
 
 `0.0000005` is not a tie and is not a binary64 value at all. Its nearest double
 is `4.99999999999999977e-7`, below the midpoint, so it rounds down under every
 rule, and a suite pinning it passes whichever way the tie branch is written.
-*(Measured by the JavaScript implementation, which measured the nearest double.)*
 
 A tie at *n* decimal places needs the midpoint to be exactly representable, which
 means dyadic, which means 5^n must divide (2k+1). At six places the smallest real
@@ -445,9 +430,7 @@ against one corpus endpoint spread from 19.81 m to 36.47 m, a factor of 1.8:
 | equirectangular, cosine of the query point's latitude, as specified | 19.81 m |
 | equirectangular, cosine of each point's own latitude | 20.34 m |
 | degrees scaled by 111 320 on both axes, no cosine | 25.52 m |
-| Web Mercator | 36.47 m |
-
-*(Measured by the Python implementation.)* An implementation reaching for Web
+| Web Mercator | 36.47 m | An implementation reaching for Web
 Mercator, or scaling by degrees with no cosine term, passes every structural
 check and disagrees about which documents are legal.
 
@@ -470,7 +453,7 @@ The two tolerance cases therefore run in opposite directions on purpose.
 `corpus/accept/inline-endpoint-within-tolerance.vnx` catches a model that
 over-reads and refuses good geometry;
 `corpus/diagnose/inline-endpoint-beyond-tolerance.vnx` catches one that
-under-reads and accepts bad geometry. *(Measured by the Python implementation.)*
+under-reads and accepts bad geometry.
 
 The separation has to be large enough for the error to cross the threshold rather
 than merely move the number, and that is a stronger requirement than it sounds.
@@ -484,7 +467,7 @@ All four figures assume the mean radius of 6 371 008.8 m that `SPEC §3.3.3`
 names, and only that constant reproduces the 45 and 55 the fixtures are named
 for: at 111 132 m per degree the same coordinates solve to 44.974 and 54.969.
 The difference never moves a verdict, which is exactly why a distance quoted
-without its constant outlives both. *(Measured by the Rust implementation.)*
+without its constant outlives both.
 
 ---
 
@@ -510,8 +493,7 @@ how an unclassified failure reaches a caller wearing a classification.
 Refusals are matched as an English substring by the `reject/` sidecars, which is
 the remaining place the corpus compares English across implementations. Structure
 your refusal causes as a closed set regardless, so the day refusals gain codes is
-a mapping rather than a rewrite. *(Reported by the Swift and JavaScript
-implementations, which both hold that mapping.)*
+a mapping rather than a rewrite.
 
 ### 8.2 Nothing malformed becomes a default
 
@@ -546,8 +528,7 @@ a three-vertex non-ring.
 A diagnostic should therefore name *what was dropped* rather than only what was
 wrong, because the remedy is not the same everywhere and a caller should not have
 to derive it from the pointer. `corpus/diagnose/position-unusable.vnx` is the
-case. *(Reported by the Rust implementation, which shipped the reading
-`SPEC §6.2` rules out — keeping the good pips — and had to unpick it.)*
+case.
 
 ### 8.4 Resource bounds are the caller's decision, not yours
 
@@ -565,8 +546,7 @@ decision.
 One bound belongs in the library where the others do not: **nesting depth**.
 Recursion depth is the one resource whose failure is a stack overflow rather than
 slowness, and a stack overflow is not a refusal a caller can handle. That makes
-it a correctness bound rather than a policy one. *(Reported by the Rust
-implementation, which caps it at 256.)*
+it a correctness bound rather than a policy one.
 
 ---
 
@@ -597,15 +577,13 @@ archive that masks them in the **local header only** — which is what Python's
 `force_zip64` produces — can be read correctly with the extra-field parser
 deleted entirely. Mask both sizes and the local-header offset in the *central
 directory*, and saturate every field the end record can, so the ZIP64 locator
-has to be followed. *(Measured by the Rust and Swift implementations, both of
-which shipped the weaker fixture first.)*
+has to be followed.
 
 ### 9.2 A reader and a writer by the same hand agree perfectly
 
 Two halves written by one author can be wrong in the same way and never
 disagree, so **read every archive you produce back with a library that never saw
-this specification**. *(Reported by the Kotlin implementation, which reads its
-own archives with `java.util.zip`.)*
+this specification**.
 
 Necessary and not sufficient, which is the sharper half. Every ZIP library
 resolves an entry from the **central directory**: it is the authoritative index
@@ -619,9 +597,7 @@ and a library-based reader reports nothing wrong — it never consults that head
 `SPEC §7.1` requires the UTF-8 filename flag on **every entry**, and that flag
 sits in the local header as well as in the central directory. No reader built on
 a ZIP library can witness the local copy, because every such library answers from
-the central directory. Walk the archive forward as bytes. *(Reported by the Kotlin and
-JavaScript implementations; the corruption measured by the Python one, whose own
-assertions were blind to it.)*
+the central directory. Walk the archive forward as bytes.
 
 The same blindness makes a fixture look like coverage when it is not. A
 committed `.vnz` whose local headers carry zeros where the central directory
@@ -640,10 +616,7 @@ and test nothing about it.
 - **Check the CRC.** A corrupt *attachment* is caught by nothing else: the
   document keeps parsing, so the archive reads clean.
 - **A stored entry's two declared sizes must agree**, or a truncated entry reads
-  as whole.
-
-*(All three reported by the Rust implementation, from a sweep of every prefix and
-every single-byte flip of a container.)* That sweep also found a defect no
+  as whole. That sweep also found a defect no
 committed fixture can reach: a ZIP64 extended information field can name a
 local-header offset anywhere in a 64-bit range, so `offset + length` overflowed a
 pointer-sized integer before any bounds check ran. In a release build it wrapped
@@ -683,15 +656,13 @@ a new tier reached it.
 The opposite failure looks like tidying up. An artefact can be emptied by an act
 that reads as conformance: sixty decorative tie rows, a sorted attachment pair.
 **Before regenerating a fixture, say which rule each existing one is the only
-witness for.** *(Reported by the Kotlin implementation, which declined the
-regeneration.)*
+witness for.**
 
 A related trap, and the one condition here that care does not fix: a wrong reason
 under a right conclusion has nothing with a motive to check it. A wrong reason
 under a wrong conclusion is caught by whoever tests the conclusion; under a right
 one it holds everything up while being false. Which gives the rule: **a reason
 that has only ever answered one kind of question has never been tested.**
-*(Reported by the JavaScript implementation, against its own earlier claim.)*
 
 So the question is not which rules are unreachable but which are unreached
 today, and what shape a case would take. Where two readings of a rule produce a
@@ -726,16 +697,15 @@ the fix was as invisible as the defect.
 positions together, so both comparators return the same verdict on it. It looks
 like coverage, being in `diagnose/` and named for continuity, and it cannot
 attribute its verdict to either reading. **Any fixture that changes two variables
-together tests neither.** *(Reported by the JavaScript implementation.)*
+together tests neither.**
 
 **A ZIP64 fixture** that masked sizes in the local header only, so disabling the
-extra-field parser left the test green (section 9.2). *(Reported by the Swift
-implementation.)*
+extra-field parser left the test green (section 9.2).
 
 **A tie table.** Sixty rows labelled as ties, mined by a detector that asked
 whether a neighbouring spelling of the same length also round-trips. That
 question does not identify a tie (section 6.3). Every one of the sixty stayed
-green when the tie rule was reverted. *(Measured by the Kotlin implementation.)*
+green when the tie rule was reverted.
 
 #### A check that was discriminating and quietly stopped
 
@@ -744,7 +714,7 @@ These worked when written. Something moved underneath them.
 **A runner that stopped comparing.** A sidecar pins a diagnostic by reason code;
 one matcher looked for an English `message` field, found nothing, and fell
 through to comparing paths alone, leaving every diagnose case green while
-checking half of what it pinned. *(Measured by the Python implementation.)*
+checking half of what it pinned.
 
 **Absence-proofs that go stale.** A proof that no tier catches some defect is
 true until a case reaches it. See 10.3.
@@ -766,7 +736,6 @@ corpus files deleted, because it restated numbers rather than reading the
 artefact. Beside it, a test asserting that the wrong cosine reference changes
 neither verdict passed green while asserting something false of the corpus it
 named. **A test that restates a number cannot notice when the artefact moves.**
-*(Reported by the Rust implementation.)*
 
 **A diagnose tier that cannot see a code.** Every `diagnose/` fixture carries at
 most one diagnostic and its path identifies it, so no case can separate a matcher
@@ -774,7 +743,7 @@ that compares the reason code from one that ignores it — measured: weakening t
 matcher to compare the path alone leaves the whole tier green. The tier cannot
 fix this for you, so the runner has to self-test its own matcher. Right path with
 the wrong code must fail, and a sidecar carrying no code must fail rather than be
-silently ignored. *(Reported by the Rust implementation.)*
+silently ignored.
 
 The repair for all three is to make the test read the artefact. Mutate the
 implementation, run the real corpus, and assert exactly which cases fail. That
@@ -814,19 +783,17 @@ A red proof lies in five ways.
 **It can miss its target.** One patched the library's function while the test
 module had bound the name at import, so the assertion was calling the real one
 and the guard stayed green. "The red proof stayed green" is the evidence someone
-uses to throw a good test away. *(Measured by the Python implementation.)*
+uses to throw a good test away.
 
 **Its mutation can match nothing.** Which is why one suite makes each mutation
 assert that its own search string was found: a substitution matching nothing
-makes the whole file a test of nothing. *(Measured by the JavaScript
-implementation.)*
+makes the whole file a test of nothing.
 
 **The mutation can be broader than the rule it claims to test.** An
 away-from-zero rounder built on a round-trip tie detector moves phantoms as well
 as ties, reddening four corpus cases instead of one. Writing the assertion to
 match that would attribute three failures to a rule they had nothing to do with.
 The repair is a companion test freezing that the extra value is a phantom.
-*(Measured by the JavaScript implementation.)*
 
 **The mutation may never reach the code it claims to break.** A notes-discarding
 mutation came back green because it patched only the first of several call sites,
@@ -837,8 +804,7 @@ target is indistinguishable from a runner finding nothing wrong.
 nothing. One patched two modules and left one active during the restore, so the
 check it named was permanently red, which reads as confidence rather than as a
 broken instrument. A red-proof author watches for the red, so the revert is the
-half nobody tests. Assert both directions. *(Measured by the Python
-implementation.)*
+half nobody tests. Assert both directions.
 
 And a proof whose conclusion is an absence needs re-running whenever the thing it
 claims to be absent from grows. A red proof asserting that no tier catches some
@@ -858,7 +824,7 @@ noticed rather than remembered.
 The mutations that come back green are the ones worth the exercise. Of the 34
 injected into one implementation, 26 went red as designed and taught their author
 nothing not believed beforehand. Four came back green, and three of those paid
-for the whole run. *(Reported by the Swift implementation.)*
+for the whole run.
 
 They come back green for three reasons that are indistinguishable from the
 console and call for three different actions.
@@ -878,11 +844,11 @@ not merely reveal a weak test; it forced a better instrument, which then caught 
 bug. The oracle is `swift/Tests/VNXTests/RoundingOracle.swift`, and its own
 docstring states its size. Fix the test.
 
-**The branch is unreachable.** Two mutations of the version rule for 1.0 and
-later came back green and were *provably* no-ops, because a 0.1 reader can never
-take that branch (`SPEC §2.2`). That is neither a weak guard nor a bad mutation.
-Record it, in the code, so the next person does not run the same mutation, see
-green, and conclude the guard is weak.
+**The branch is unreachable.** A mutation of the version rule for 1.0 and above
+is a provable no-op in a 0.1 reader, which can never take that branch
+(`SPEC §2.2`), so it comes back green for a reason that is neither a weak guard
+nor a bad mutation. Record the proof in the code, so the next person does not run
+the same mutation, see green, and conclude the guard is weak.
 
 An unreachable branch and an untested one look identical forever unless somebody
 writes down which was proved. So: **when a red proof comes back green, you have
@@ -891,7 +857,7 @@ learned nothing until you have said which of the three it is.**
 ### 10.4 Red-proof the instrument, not only the code
 
 > A comparison that has never been seen to fail is not a comparison. It is a
-> green light with no bulb in it. *(Measured by the Kotlin implementation.)*
+> green light with no bulb in it.
 
 Build such a check from two halves that share no code: one language writes raw
 IEEE 754 bits and its own answers to a table, and the other bit-casts each row
@@ -910,8 +876,7 @@ cross-language evidence. That input carried a single attachment, so the one rule
 all four were breaking was a rule about several: **obeying it changed nothing
 about the artefact they agreed on.** Silent on exactly the field in question, and
 a matching hash offers no surface on which that silence shows. A note can be
-doubted; a SHA-256 reads as agreement. *(Reported by the JavaScript
-implementation, against its own result.)*
+doubted; a SHA-256 reads as agreement.
 
 Two implementations measuring one fact is overlap only if their inputs differ.
 Four writers fed one input is one measurement, four times.
@@ -954,7 +919,6 @@ no fixture is the one most likely to be quietly violated, because everyone
 reading the specification believes it is enforced. Four rules sat in that state
 at once: node-key resolution, the full-entry-name root document match,
 `a..b/photo.jpg` being legal, and a backslash in an entry name being refused.
-*(Reported by the JavaScript implementation, which holds a proof for each.)*
 
 When you find one, the remedy is a fixture, and a local test in your own suite
 until one exists. Say which it is in your notes, so the next implementation does
@@ -963,7 +927,7 @@ not assume the corpus covers it.
 ### 11.2 What a guard that works looks like
 
 Three properties, from a test written to keep a corpus runner strict about which
-field a sidecar pins. *(Reported by the Swift implementation.)*
+field a sidecar pins.
 
 **Build the input on disk; do not assert about the corpus.** A guard tested only
 against inputs that satisfy it has not been tested, and the whole corpus
@@ -1049,5 +1013,4 @@ One last thing, from the implementations that found two invisible defects in a
 day, both by comparing against another implementation rather than by reasoning:
 
 > When you have a choice between arguing about a specification clause and
-> measuring two implementations, measure. *(Measured by the Kotlin
-> implementation.)*
+> measuring two implementations, measure.

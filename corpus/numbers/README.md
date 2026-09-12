@@ -125,10 +125,10 @@ Three mutations, each of which must redden this table:
 
 Define a property as the thing under test, never approximate it. A tie decided
 by asking whether a second equally short spelling round-trips is the tempting
-proxy, and it labels far more rows than are ties: a category mined that way held
-sixty rows, every one of which stayed green when the tie rule was reverted. The
-generator decides a tie exactly, in rational arithmetic, and its guards are the
-evidence rather than the category names.
+proxy, and it labels far more rows than are ties, so a category mined that way
+fills with rows that stay green when the tie rule is reverted. The generator
+decides a tie exactly, in rational arithmetic, and its guards are the evidence
+rather than the category names.
 
 ## Where the answers come from
 

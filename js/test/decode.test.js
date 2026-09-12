@@ -44,12 +44,25 @@ test('a non-string vnx value is refused rather than coerced', () => {
   assert.equal(refusal('{"vnx": null}').cause_code, 'version-shape');
 });
 
-test('a MAJOR or MINOR above the reader is refused; PATCH never is', () => {
+test('a MAJOR or MINOR outside the reader\'s series is refused; PATCH never is', () => {
+  // SPEC.md 2.2: through 0.x each MINOR is its own series, and "a lower minor
+  // is refused for the same reason as a higher one". Both directions are here
+  // because a reader written as "greater than" passes the first two lines and
+  // reads 0.0.9, which is the defect this pair exists to catch.
   assert.equal(refusal(doc0('0.2.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('1.0.0').text).cause_code, 'version-too-new');
-  for (const v of ['0.1.99', '0.0.9', '0.1.0']) {
+  assert.equal(refusal(doc0('0.0.9').text).cause_code, 'version-too-old');
+  for (const v of ['0.1.99', '0.1.0']) {
     assert.equal(decodeText(doc0(v).text).document.vnx, v);
   }
+});
+
+test('a refusal below the reader\'s series names the version and the series', () => {
+  // SPEC.md 2.2 requires the version; the corpus additionally expects the
+  // document's own series, so the user is told which reader they need.
+  const err = refusal(doc0('0.0.9').text);
+  assert.ok(err.message.includes('0.0.9'), err.message);
+  assert.ok(err.message.includes('0.0 series'), err.message);
 });
 
 function doc0(v) {

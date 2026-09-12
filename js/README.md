@@ -127,6 +127,12 @@ way, and scaling by a power of ten manufactures ties the true decimal never had.
 `src/round.js` decides the tie in `BigInt`. See
 [`IMPLEMENTING.md`](../IMPLEMENTING.md).
 
+Version comparison is "not this reader's series", not "newer than this reader".
+Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.1
+reader refuses 0.0.9 for the same reason it refuses 0.2.0, and only PATCH is
+free. A reader written with `>` reads the older document under rules that were
+never meant for it. `reject/version-too-old.vnx` is the case that catches it.
+
 Archive entries are sorted by comparing UTF-8 bytes. `Array.prototype.sort()`
 orders by UTF-16 code unit, which disagrees above U+FFFF, and an attachment name
 may carry any character.

@@ -114,12 +114,25 @@ export function decodeValue(value) {
   const [, majorText, minorText] = VERSION.exec(declared);
   const major = Number(majorText);
   const minor = Number(minorText);
-  // SPEC.md 2.2: through 0.x the MINOR component is a breaking axis. PATCH
+  // SPEC.md 2.2: through 0.x each MINOR is its own series, so the question is
+  // whether the document is in THIS reader's series, not whether it is newer
+  // than it. A lower minor is refused for the same reason as a higher one: a
+  // 0.1 reader has no rules for 0.0, exactly as it has none for 0.2. PATCH
   // never refuses, at any version, because a patch increment is additive.
-  if (major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR)) {
+  if (major !== READER_MAJOR || minor !== READER_MINOR) {
+    const newer = major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR);
+    // Both refusals name the version, which SPEC.md 2.2 requires; they differ
+    // in what the user is told to do about it, which is the only reason a
+    // reader distinguishes the two directions at all.
+    if (newer) {
+      throw new VnxRefusal(
+        'version-too-new',
+        `the document declares version ${declared}; this reader implements ${READER_MAJOR}.${READER_MINOR}.x, so a newer reader is needed`,
+      );
+    }
     throw new VnxRefusal(
-      'version-too-new',
-      `the document declares version ${declared}; this reader implements ${READER_MAJOR}.${READER_MINOR}.x, so a newer reader is needed`,
+      'version-too-old',
+      `the document declares version ${declared}; this reader implements ${READER_MAJOR}.${READER_MINOR}.x and does not support the ${major}.${minor} series`,
     );
   }
 

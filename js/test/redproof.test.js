@@ -308,13 +308,29 @@ test('comparing inline endpoints by identity rather than value is caught by one 
   assert.deepEqual(await failingDelta(cases), ['accept/shared-turnaround-handle.vnx']);
 });
 
-test('accepting a MINOR above the reader is caught by the reject tier', async () => {
+test('accepting a version outside the reader\'s series is caught by the reject tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
-    from: '  if (major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR)) {',
+    from: '  if (major !== READER_MAJOR || minor !== READER_MINOR) {',
     to: '  if (false) {',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['reject/version-too-new.vnx']);
+  assert.deepEqual(await failingDelta(cases), [
+    'reject/version-too-new.vnx',
+    'reject/version-too-old.vnx',
+  ]);
+});
+
+test('comparing versions as "newer than" rather than "not this series" is caught by one file only', async () => {
+  // The historical defect, restored exactly: SPEC.md 2.2 makes each 0.x MINOR
+  // its own series, and a "greater than" reader reads a 0.0 document under 0.1
+  // rules. reject/version-too-new.vnx does NOT catch it, which is why the pair
+  // was incomplete and five of the six implementations shared the shape.
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '  if (major !== READER_MAJOR || minor !== READER_MINOR) {',
+    to: '  if (major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR)) {',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['reject/version-too-old.vnx']);
 });
 
 test('refusing a newer PATCH is caught by the accept tier', async () => {
@@ -324,8 +340,13 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
     to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
   }]);
   // write/emit-boundary declares 0.1.99 too, so the same defect reddens both.
+  // reject/version-too-old.vnx is red for a third reason: 0.0.9 has a non-zero
+  // PATCH, so the mutant refuses it before reaching the series check and says
+  // "a newer reader is needed" about a document below the reader. It is refused
+  // for the wrong cause, and its sidecar's substring is what notices.
   assert.deepEqual(await failingDelta(cases), [
     'accept/version-newer-patch.vnx',
+    'reject/version-too-old.vnx',
     'write/emit-boundary',
   ]);
 });
@@ -464,6 +485,27 @@ test('attachment ORDER is not a rule, and attachment CONTENT is', async () => {
     to: "  return [...files].map((f) => ({ ...f, data: Buffer.from('x') }));",
   }]);
   assert.deepEqual(await failingDelta(corrupted), ['write/container-cross-language']);
+});
+
+test('an attachment read back as the wrong bytes is caught by the read tiers', async () => {
+  // The names alone do not measure this: before the sidecars pinned
+  // `attachment_contents`, a reader that returned every entry under the right
+  // name with the wrong bytes passed the whole corpus. Proved here so the
+  // runner's content check cannot be quietly dropped again.
+  const cases = await runMutated([{
+    file: 'vnz.js',
+    from: '      attachments.set(e.name, readEntryData(buf, e));',
+    to: "      attachments.set(e.name, Buffer.from('not the bytes in the archive'));",
+  }]);
+  // write/container-cross-language is in the list for its own reason: it reads
+  // back the archive it just wrote, so corrupting the reader reddens it too.
+  assert.deepEqual(await failingDelta(cases), [
+    'accept/container-over-declared-size.vnz',
+    'accept/container-root-doc.vnz',
+    'accept/container-zip64.vnz',
+    'diagnose/container-unusable-method.vnz',
+    'write/container-cross-language',
+  ]);
 });
 
 test('widening the projection tolerance is caught by the diagnose tier', async () => {

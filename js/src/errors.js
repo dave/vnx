@@ -128,6 +128,11 @@ export const REFUSAL_SUBSTRINGS = Object.freeze({
   'not-a-vnx-document': 'not a VNX document',
   'version-shape': 'MAJOR.MINOR.PATCH',
   'version-too-new': 'a newer reader is needed',
+  // The one entry whose substring is not a constant of the rule: the corpus
+  // expects the DOCUMENT'S OWN series (`0.0 series` for reject/version-too-old
+  // .vnx), so this value tracks that one fixture rather than the message
+  // template. It is the sharpest argument in the table for typed refusals.
+  'version-too-old': '0.0 series',
   'zip-duplicate-entry': 'duplicate entry',
   'zip-path-escapes': 'escapes the archive',
   'zip-malformed': 'malformed archive',

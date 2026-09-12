@@ -110,7 +110,7 @@ function runSidecarCase(kind, dir, file, api) {
   checkCounts(c, result.document, expect.counts);
   checkPositions(c, result.positions, expect.positions ?? []);
   checkTracks(c, result.document, expect.tracks);
-  if (isContainer) checkAttachments(c, result.attachments, expect.attachments);
+  if (isContainer) checkAttachments(c, result.attachments, expect.attachments, expect.attachment_contents);
 
   if (kind === 'accept' && !isContainer) {
     // SPEC.md 8.1: decode, ENCODE, and compare the two JSON TREES, with the
@@ -266,12 +266,44 @@ function checkTracks(c, doc, expected) {
   }
 }
 
-function checkAttachments(c, attachments, expected) {
-  if (expected === undefined) return;
-  const got = [...attachments.keys()].sort();
-  const want = [...expected].sort();
-  c.check(JSON.stringify(got) === JSON.stringify(want),
-    `attachments are ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+/**
+ * `attachments` is the entry NAMES, `attachment_contents` each entry's bytes as
+ * UTF-8 text (corpus/README.md, "The sidecar").
+ *
+ * Both are compared without regard to order: SPEC.md 7 does not order a
+ * reader's attachment list, so a reader that sorts them is as conforming as one
+ * that keeps archive order.
+ *
+ * ⚠ `attachment_contents` is keyed by the entries the reader is expected to
+ * RETURN, which is not always every entry in the archive. The archive of
+ * diagnose/container-unusable-method.vnz carries an entry compressed by a
+ * method SPEC.md 7 lets a reader drop with a diagnostic, and its sidecar lists
+ * only the readable one. So this walks the SIDECAR's keys and requires each to
+ * be present; the names check above is what catches an extra attachment the
+ * reader should have dropped.
+ *
+ * @param {Map<string, Buffer>} attachments entry name to bytes, as the library returns them
+ * @param {string[]|undefined} expected entry names
+ * @param {Record<string, string>|undefined} contents entry name to UTF-8 text
+ */
+function checkAttachments(c, attachments, expected, contents) {
+  if (expected !== undefined) {
+    const got = [...attachments.keys()].sort();
+    const want = [...expected].sort();
+    c.check(JSON.stringify(got) === JSON.stringify(want),
+      `attachments are ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+  }
+  if (contents === undefined) return;
+  for (const [name, want] of Object.entries(contents)) {
+    const body = attachments.get(name);
+    if (!c.check(body !== undefined, `attachment ${JSON.stringify(name)} has expected content but was not returned`)) continue;
+    // Compared as TEXT, because that is how the sidecar can carry it. An
+    // attachment is bytes; a fixture whose body is not valid UTF-8 cannot be
+    // pinned this way and must not be given an `attachment_contents` entry.
+    const got = Buffer.from(body).toString('utf8');
+    c.check(got === want,
+      `attachment ${JSON.stringify(name)} is ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+  }
 }
 
 /**

@@ -289,6 +289,14 @@ fixture can close that: a fixture can only state a correct expectation, and the
 disagreement between the two matchers appears only against a reader that is
 wrong. The self-test in step 8 is the author's own, and it is not optional.
 
+**No sidecar asserts an attachment's bytes.** Every container case lists
+attachment names and nothing else, so the tier cannot separate a reader that
+returns an attachment's content from one that returns only its name. Both shapes
+pass: `js/`, `rust/` and `swift/` hand back the bytes, `python/` and `kotlin/`
+hand back a list of names, and the corpus is green for all five. A container
+exists to carry attachments, so a runner author should not read a green
+container case as evidence that the payload survived the read.
+
 **No case exercises the path-and-code uniqueness rule of step 7.** Measured over
 every sidecar in the corpus, not one expects two diagnostics at a single path,
 so a runner that skipped that check would notice nothing. The rule is a property

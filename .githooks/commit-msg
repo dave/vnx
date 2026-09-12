@@ -1,0 +1,7 @@
+#!/bin/sh
+# This repository's commit messages name no tool and no assistant.
+if grep -qiE '^(Co-Authored-By:.*(Claude|Anthropic|Copilot|Cursor)|Claude-Session:|Generated with)' "$1"; then
+	echo "commit-msg: this repository's history carries no assistant attribution." >&2
+	echo "Remove the Co-Authored-By / Claude-Session / Generated-with trailer." >&2
+	exit 1
+fi

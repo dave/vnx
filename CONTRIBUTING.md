@@ -67,6 +67,14 @@ fix(kotlin): the independent-reader test pinned the writer's entry order too
 spec: negative zero collapses to positive zero, restored to 4.1
 ```
 
+Commit messages name no tool and no assistant. `.githooks/commit-msg` rejects a
+`Co-Authored-By`, `Claude-Session` or `Generated with` trailer; enable it once
+per clone with:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 ## Documentation
 
 Documentation here is written for the person who wants to USE a library, not for

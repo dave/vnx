@@ -216,6 +216,18 @@ The ZIP mechanics in `pkg/vnx` are written by hand rather than taken from
 size exceeds the bytes it holds where the CRC agrees, and `archive/zip` refuses
 it. See [`IMPLEMENTING.md §9.1`](../IMPLEMENTING.md).
 
+A `.vnz` attachment comes back as a HANDLE — `Path`, plus `Bytes()` and
+`Open()` — where the JavaScript, Rust and Swift implementations return the path
+alongside the content. That is a deliberate difference and not drift. Go takes
+an `io.ReaderAt`, which most of the others do not have, so it can offer the
+content without deciding for the caller that they want it; materialising every
+attachment made `DecodeContainer` retain 50 MB on a 52 MB archive and took peak
+heap from 50 MB to 158 MB, all of it discarded by the one caller we have, which
+wants the names. Nothing here crosses the wire, and the conformance corpus
+cannot tell the two shapes apart because it asks for the content and gets it.
+`DecodeContainer` still reads every attachment to its end and keeps none, so a
+damaged one is found and diagnosed at decode time as `SPEC §7` requires.
+
 `cmd/vnx` imports `pkg/vnx` and the three writer packages and nothing further, a
 set a test pins one package at a time. That is what lets the tool cross-compile
 and run anywhere the reference model is wanted without a database behind it.

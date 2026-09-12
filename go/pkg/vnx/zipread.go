@@ -31,10 +31,10 @@ package vnx
 // library.
 
 import (
-	"bytes"
 	"compress/flate"
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"hash/crc32"
 	"io"
 )
@@ -247,37 +247,38 @@ func decodeEntryName(raw []byte, flags uint16) (string, error) {
 // A SHORT declaration needs nothing special: the CRC over too few bytes
 // disagrees, so the same check catches it.
 func readZipEntry(r io.ReaderAt, e zipEntryHeader) ([]byte, error) {
+	rc, err := openZipEntry(r, e)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
+// openZipEntry streams one entry's content, checking as it goes.
+//
+// ⚠ IT IS THE ONE READ PATH, and [readZipEntry] is it plus an io.ReadAll. Two
+// paths would be two answers to §7's awkward cases — an over-declared size, a
+// stored entry whose two sizes disagree, a declared inflated size used as a
+// limit rather than an allocation — and the streaming one would be the one
+// nobody covered.
+//
+// ⚠ NOTHING IS HELD WHOLE. The payload is read through an io.SectionReader over
+// the caller's io.ReaderAt, so a caller holding an *os.File never has the
+// compressed bytes resident either. This matters: [DecodeContainer] verifies
+// every attachment and keeps none, and the whole point of that is to cost
+// nothing but time.
+func openZipEntry(r io.ReaderAt, e zipEntryHeader) (io.ReadCloser, error) {
 	if !e.usableMethod() {
 		return nil, zipMalformed("entry %q uses compression method %d, which is neither stored nor deflate", e.name, e.method)
 	}
-	header := make([]byte, localHeaderSize)
-	if _, err := r.ReadAt(header, int64(e.localOffset)); err != nil {
-		return nil, zipMalformed("the local header for %q is missing or truncated: %s", e.name, err)
+	dataStart, n, err := locateZipPayload(r, e)
+	if err != nil {
+		return nil, err
 	}
-	if binary.LittleEndian.Uint32(header) != sigLocalHeader {
-		return nil, zipMalformed("the local header for %q has a bad signature", e.name)
-	}
-	// The LOCAL header's own name and extra lengths say where the payload
-	// starts. They are different fields from the central directory's, and an
-	// archive may legitimately carry an extra field in one and not the other.
-	nameLen := uint64(binary.LittleEndian.Uint16(header[26:]))
-	extraLen := uint64(binary.LittleEndian.Uint16(header[28:]))
-	dataStart := e.localOffset + localHeaderSize + nameLen + extraLen
-	if dataStart > e.payloadBound {
-		return nil, zipMalformed("the payload of %q starts past where it must end", e.name)
-	}
-	n := e.compressed
-	if available := e.payloadBound - dataStart; n > available {
-		n = available
-	}
-	raw := make([]byte, n)
-	if _, err := r.ReadAt(raw, int64(dataStart)); err != nil && !(err == io.EOF && uint64(len(raw)) == n) {
-		return nil, zipMalformed("reading the payload of %q: %s", e.name, err)
-	}
-
-	var body []byte
-	switch e.method {
-	case zipMethodStored:
+	section := io.NewSectionReader(r, dataStart, int64(n))
+	v := &verifyingReader{name: e.name, crc: e.crc, hash: crc32.NewIEEE()}
+	if e.method == zipMethodStored {
 		// A stored entry's two sizes are one quantity by definition, so a header
 		// claiming otherwise is lying about one of them. Over-declaring both is
 		// the case §7 accepts and is not this.
@@ -285,46 +286,130 @@ func readZipEntry(r io.ReaderAt, e zipEntryHeader) ([]byte, error) {
 			return nil, zipMalformed("%q is stored and declares %d compressed against %d uncompressed",
 				e.name, e.compressed, e.uncompressed)
 		}
-		body = raw
-	default:
-		inflated, err := inflateBounded(e.name, raw, e.uncompressed)
-		if err != nil {
-			return nil, err
-		}
-		body = inflated
+		// ⚠ NO LENGTH CHECK ON THE STORED PATH. §7 requires an entry declaring
+		// MORE bytes than it holds to be read where the CRC over the bytes
+		// present agrees, and corpus/accept/container-over-declared-size.vnz is
+		// that entry. Demanding the declared count here refuses a conforming
+		// archive. A SHORT declaration still needs nothing special: the CRC over
+		// too few bytes disagrees.
+		v.src = section
+		return v, nil
 	}
-	if got := crc32.ChecksumIEEE(body); got != e.crc {
-		return nil, zipMalformed("%q fails its CRC: the archive says %08x and the bytes are %08x", e.name, e.crc, got)
-	}
-	return body, nil
-}
-
-// inflateBounded uses the declared size as a LIMIT rather than as an allocation.
-//
-// ⚠ THE DECLARED SIZE COMES FROM THE ARCHIVE, so a hostile twenty-byte entry can
-// declare two gigabytes. Sizing a buffer from it hands an attacker the process
-// rather than the document. The Kotlin seat measured exactly that archive on
-// 2026-09-10 and took an OutOfMemoryError, which escapes most catch blocks; Go
-// has no equivalent escape but it has the same allocation.
-//
-// §9's resource bound for a merely large HONEST archive is a separate matter and
-// this library still does not implement one.
-func inflateBounded(name string, raw []byte, declared uint64) ([]byte, error) {
-	fr := flate.NewReader(bytes.NewReader(raw))
-	defer fr.Close()
+	// ⚠ THE DECLARED INFLATED SIZE IS A LIMIT, NEVER AN ALLOCATION, and the
+	// LimitReader below is how. The number comes from the ARCHIVE, so a hostile
+	// twenty-byte entry can declare two gigabytes; sizing a buffer from it hands
+	// an attacker the process rather than the document. The Kotlin seat measured
+	// exactly that archive on 2026-09-10 and took an OutOfMemoryError, which
+	// escapes most catch blocks; Go has no equivalent escape but it has the same
+	// allocation. TestADeclaredInflatedSizeIsALimitNotAnAllocation bounds it.
+	//
+	// §9's resource bound for a merely large HONEST archive is a separate matter
+	// and this library still does not implement one.
+	fr := flate.NewReader(section)
+	v.closer = fr
 	// One byte past the declaration, so overrunning it is observable rather than
 	// silently truncated.
-	body, err := io.ReadAll(io.LimitReader(fr, int64(declared)+1))
-	if err != nil {
-		return nil, zipMalformed("%q is not valid deflate data: %s", name, err)
+	v.src = io.LimitReader(fr, int64(e.uncompressed)+1)
+	v.deflate = true
+	v.checkLength = true
+	v.declared = e.uncompressed
+	return v, nil
+}
+
+// locateZipPayload finds where an entry's payload starts and how many of its
+// bytes the archive actually holds.
+func locateZipPayload(r io.ReaderAt, e zipEntryHeader) (dataStart int64, n uint64, err error) {
+	header := make([]byte, localHeaderSize)
+	if _, err := r.ReadAt(header, int64(e.localOffset)); err != nil {
+		return 0, 0, zipMalformed("the local header for %q is missing or truncated: %s", e.name, err)
 	}
-	if uint64(len(body)) > declared {
-		return nil, zipMalformed("%q inflates to more than the %d bytes its header declares", name, declared)
+	if binary.LittleEndian.Uint32(header) != sigLocalHeader {
+		return 0, 0, zipMalformed("the local header for %q has a bad signature", e.name)
 	}
-	if uint64(len(body)) != declared {
-		return nil, zipMalformed("%q inflated to %d bytes and its header declares %d", name, len(body), declared)
+	// The LOCAL header's own name and extra lengths say where the payload
+	// starts. They are different fields from the central directory's, and an
+	// archive may legitimately carry an extra field in one and not the other.
+	nameLen := uint64(binary.LittleEndian.Uint16(header[26:]))
+	extraLen := uint64(binary.LittleEndian.Uint16(header[28:]))
+	start := e.localOffset + localHeaderSize + nameLen + extraLen
+	if start > e.payloadBound {
+		return 0, 0, zipMalformed("the payload of %q starts past where it must end", e.name)
 	}
-	return body, nil
+	n = e.compressed
+	if available := e.payloadBound - start; n > available {
+		n = available
+	}
+	return int64(start), n, nil
+}
+
+// verifyingReader streams an entry's content and checks, at EOF, the two things
+// the archive says about it: how long it is and what it checksums to.
+//
+// ⚠ THE CHECKS FIRE AT EOF, WHICH MEANS A CALLER THAT STOPS EARLY NEVER SEES
+// THEM. That is inherent to streaming rather than a defect — a caller reading
+// the first kilobyte of a photograph has not established anything about the
+// rest — and it is why [DecodeContainer] reads every attachment to completion
+// rather than opening it and looking away.
+type verifyingReader struct {
+	name string
+	src  io.Reader
+	// closer is the inflater, where there is one. A stored entry has none.
+	closer      io.Closer
+	crc         uint32
+	hash        hash.Hash32
+	deflate     bool
+	checkLength bool
+	declared    uint64
+	read        uint64
+	done        bool
+}
+
+func (v *verifyingReader) Read(p []byte) (int, error) {
+	if v.done {
+		return 0, io.EOF
+	}
+	n, err := v.src.Read(p)
+	if n > 0 {
+		v.read += uint64(n)
+		v.hash.Write(p[:n])
+	}
+	switch {
+	case err == io.EOF:
+		v.done = true
+		if verr := v.verify(); verr != nil {
+			return n, verr
+		}
+		return n, io.EOF
+	case err != nil:
+		v.done = true
+		if v.deflate {
+			return n, zipMalformed("%q is not valid deflate data: %s", v.name, err)
+		}
+		return n, zipMalformed("reading the payload of %q: %s", v.name, err)
+	}
+	return n, nil
+}
+
+func (v *verifyingReader) verify() error {
+	if v.checkLength {
+		if v.read > v.declared {
+			return zipMalformed("%q inflates to more than the %d bytes its header declares", v.name, v.declared)
+		}
+		if v.read != v.declared {
+			return zipMalformed("%q inflated to %d bytes and its header declares %d", v.name, v.read, v.declared)
+		}
+	}
+	if got := v.hash.Sum32(); got != v.crc {
+		return zipMalformed("%q fails its CRC: the archive says %08x and the bytes are %08x", v.name, v.crc, got)
+	}
+	return nil
+}
+
+func (v *verifyingReader) Close() error {
+	if v.closer != nil {
+		return v.closer.Close()
+	}
+	return nil
 }
 
 // findEndOfCentralDirectory locates the record and follows the ZIP64 records

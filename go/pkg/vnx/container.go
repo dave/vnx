@@ -17,24 +17,65 @@ const RootDocumentName = "doc.vnx"
 // the library can be read at all.
 var ErrContainer = errors.New("vnx: unusable container")
 
-// ContainerAttachment is one file read out of a .vnz, beside the document: its
-// entry path and its bytes.
+// ContainerAttachment is one file stored beside the document in a .vnz: its
+// entry path, and a way to get its content.
 //
-// ⚠ IT IS THE BYTES AND NOT JUST THE NAME, which is what makes a .vnz readable
-// at all. Until 2026-09-12 this package handed back names only, so a caller
-// holding a container could see that a photograph existed and had no way to get
-// it — the container exists to carry attachments, and half of that is content.
-// js, rust and swift all return path plus bytes; this is the same shape.
+// ⚠ IT IS A HANDLE, AND THE OTHER FIVE IMPLEMENTATIONS MATERIALISE. js, rust
+// and swift return the path alongside the bytes, and that is the right shape
+// for them. Go takes an io.ReaderAt, which most of them do not have, so it can
+// offer the bytes WITHOUT deciding on the caller's behalf that they want them.
+// Nothing here crosses the wire — a container's shape is a library's own
+// business, §7 constrains the archive and not the API — and the conformance
+// corpus cannot tell the two apart, because it asks for the content and gets
+// it. Read this as a decision, not as drift.
 //
-// ⚠ IT IS A SEPARATE TYPE FROM [Attachment], which is the WRITE side's
-// streaming source (a name and an io.Reader, read once as the archive is
-// written). They are not the same thing: the writer never holds a file whole
-// and this one is nothing but the whole file.
+// It is measured rather than argued. Materialising every attachment made
+// [DecodeContainer] retain 50.0 MB on a 52 MB archive carrying five 10 MB
+// attachments, and took peak heap from 50.3 MB to 157.6 MB. Viatrail's import
+// path wants the NAMES — it counts them to tell the user what an import is
+// about to drop, and `Import` takes a document and nothing else — so every one
+// of those bytes was inflated and thrown away.
+//
+// ⚠ Path IS FREE AND THE CONTENT IS NOT. Path costs nothing: it comes from the
+// central directory, which [DecodeContainer] has already read. [Bytes] and
+// [Open] go back to the archive.
 type ContainerAttachment struct {
 	// Path is the archive entry name, forward-slash separated.
 	Path string
-	// Bytes is the attachment's decompressed content.
-	Bytes []byte
+
+	// The archive this entry came from, and where it sits in it. A handle is
+	// only as good as the reader behind it: the io.ReaderAt must still be
+	// usable when Bytes or Open is called, so a caller that opened a file and
+	// closed it holds a handle to nothing.
+	src   io.ReaderAt
+	entry zipEntryHeader
+}
+
+// Bytes returns the attachment's decompressed content.
+//
+// [DecodeContainer] has already verified that it can be recovered, so an error
+// here means the archive changed underneath the handle, or the io.ReaderAt it
+// was read through is no longer usable.
+func (a ContainerAttachment) Bytes() ([]byte, error) {
+	rc, err := a.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
+// Open streams the attachment's decompressed content. The caller closes it.
+//
+// ⚠ THE CONTENT IS CHECKED AT EOF, so a caller that stops reading early has
+// verified nothing about the rest. That is inherent to streaming. It is not a
+// hole here, because [DecodeContainer] has already read this entry to
+// completion once.
+func (a ContainerAttachment) Open() (io.ReadCloser, error) {
+	if a.src == nil {
+		return nil, fmt.Errorf("%w: attachment %q has no archive behind it", ErrContainer, a.Path)
+	}
+	return openZipEntry(a.src, a.entry)
 }
 
 // Container is a decoded .vnz archive: the document, and the attachments stored
@@ -158,13 +199,19 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 			})
 			continue
 		}
-		// ⚠ THE CRC CHECK STAYS. Dropping is the REMEDY, not a reason to stop
-		// looking: [readZipEntry] inflates the entry and compares its checksum,
-		// so a damaged attachment is still DETECTED and still reported. A
-		// reader that skipped the check would hand back corrupt bytes as good
-		// ones, which is worse than either answer §7 considered.
-		body, err := readZipEntry(r, e)
-		if err != nil {
+		// ⚠ EVERY ATTACHMENT IS READ TO COMPLETION HERE AND NOTHING IS KEPT.
+		// That is the whole design: §7 requires a damaged attachment to be
+		// DROPPED WITH A DIAGNOSTIC, and a reader that waited until someone
+		// asked for the bytes would never look, so the diagnostic §7 requires
+		// would simply never be raised and a corrupt archive would read as a
+		// clean one. corpus/diagnose/container-corrupt-attachment.vnz is the
+		// case that catches it.
+		//
+		// ⚠ AND IT COSTS TIME RATHER THAN MEMORY. [openZipEntry] streams
+		// through an io.SectionReader over the caller's io.ReaderAt, so this
+		// loop's high-water mark is one inflate window and not one attachment,
+		// let alone all of them.
+		if err := verifyZipEntry(r, e); err != nil {
 			diags = append(diags, Diagnostic{
 				Severity: Warning,
 				Code:     CodeAttachmentUnreadable,
@@ -173,7 +220,7 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 			})
 			continue
 		}
-		attachments = append(attachments, ContainerAttachment{Path: e.name, Bytes: body})
+		attachments = append(attachments, ContainerAttachment{Path: e.name, src: r, entry: e})
 	}
 	return &Container{Document: doc, Attachments: attachments}, diags, nil
 }
@@ -181,6 +228,19 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 // escapePointerToken escapes one JSON Pointer reference token ([RFC 6901]): `~`
 // becomes `~0` and `/` becomes `~1`, in that order. An attachment name is the
 // one place in this format where a member name routinely contains a slash.
+// verifyZipEntry reads an entry to its end and keeps none of it, so that the
+// checks [openZipEntry] makes at EOF — the declared length, the CRC — happen
+// without the content becoming resident.
+func verifyZipEntry(r io.ReaderAt, e zipEntryHeader) error {
+	rc, err := openZipEntry(r, e)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	_, err = io.Copy(io.Discard, rc)
+	return err
+}
+
 // faultReason is the zip-level reason without [ErrContainer]'s prose in front
 // of it. A diagnostic that said "unusable container" would contradict the
 // document it is attached to — §7 drops a damaged attachment precisely so the

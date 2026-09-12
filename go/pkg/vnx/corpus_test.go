@@ -221,18 +221,28 @@ func checkAttachments(t *testing.T, got []ContainerAttachment, e expectation) {
 	if e.AttachmentContents == nil {
 		return
 	}
-	have := map[string][]byte{}
+	have := map[string]ContainerAttachment{}
 	for _, a := range got {
-		have[a.Path] = a.Bytes
+		have[a.Path] = a
 	}
 	for path, want := range e.AttachmentContents {
-		bytes, ok := have[path]
+		a, ok := have[path]
 		if !ok {
 			t.Errorf("the sidecar pins the content of %q and the reader returned no such attachment", path)
 			continue
 		}
-		if string(bytes) != want {
-			t.Errorf("%s: content = %q, want %q", path, string(bytes), want)
+		// ⚠ THE CONTENT IS FETCHED THROUGH THE HANDLE, which is what keeps this
+		// check honest now that Go returns one. A runner that read a field
+		// would prove only that a field was filled; asking for the bytes is
+		// what every other implementation's runner does, and it is the same
+		// question.
+		body, err := a.Bytes()
+		if err != nil {
+			t.Errorf("%s: the reader listed this attachment and then could not produce it: %v", path, err)
+			continue
+		}
+		if string(body) != want {
+			t.Errorf("%s: content = %q, want %q", path, string(body), want)
 		}
 	}
 }

@@ -3,6 +3,8 @@ package vnx
 import (
 	"archive/zip"
 	"bytes"
+	"io"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -129,8 +131,26 @@ func TestContainerAttachmentsCarryTheirBytes(t *testing.T) {
 	if len(c.Attachments) != 1 || c.Attachments[0].Path != "photos/summit.jpg" {
 		t.Fatalf("attachments = %v", c.Attachments)
 	}
-	if got := string(c.Attachments[0].Bytes); got != "jpeg" {
+	body, err := c.Attachments[0].Bytes()
+	if err != nil {
+		t.Fatalf("the attachment was listed and then could not be produced: %v", err)
+	}
+	if got := string(body); got != "jpeg" {
 		t.Errorf("attachment bytes = %q, want %q", got, "jpeg")
+	}
+	// The handle streams too, and the two must agree — a caller choosing Open
+	// over Bytes must not get different content.
+	rc, err := c.Attachments[0].Open()
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer rc.Close()
+	streamed, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("reading the stream: %v", err)
+	}
+	if string(streamed) != string(body) {
+		t.Errorf("Open gave %q and Bytes gave %q", streamed, body)
 	}
 }
 
@@ -155,5 +175,53 @@ func TestContainerSurfacesDocumentDiagnostics(t *testing.T) {
 	}
 	if diags[0].Path != "/nmae" {
 		t.Fatalf("diagnostic path = %q, want /nmae", diags[0].Path)
+	}
+}
+
+// TestDecodeContainerDoesNotMaterialiseAttachments is the regression guard for
+// the reason the handle exists.
+//
+// ⚠ IT MEASURES THE ALLOCATION RATHER THAN ASSERTING THE TYPE. A reader that
+// returned handles and filled them by reading every attachment into a cache
+// first would satisfy any assertion about the API's shape while costing exactly
+// what the handle was introduced to stop. Measured on the change that
+// introduced this: materialising five 10 MB attachments retained 50.0 MB and
+// took peak heap from 50.3 MB to 157.6 MB.
+//
+// The bound is deliberately loose. What is being caught is a whole attachment
+// becoming resident, which is three orders of magnitude above the streaming
+// cost; a tight bound here would fail on an unrelated change to a buffer size
+// and teach the next person to raise it.
+func TestDecodeContainerDoesNotMaterialiseAttachments(t *testing.T) {
+	const attachmentSize = 8 << 20
+	big := string(make([]byte, attachmentSize))
+	z := makeZip(t, [][2]string{{"doc.vnx", minimalDoc}, {"big.bin", big}})
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Attachments) != 1 {
+		t.Fatalf("attachments = %v, want the one that was written", c.Attachments)
+	}
+	const bound = attachmentSize / 4
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > bound {
+		t.Errorf("decoding an archive with one %d-byte attachment allocated %d bytes, over the %d bound: "+
+			"the attachment is being materialised rather than streamed", attachmentSize, grew, bound)
+	}
+
+	// ⚠ AND THE CONTENT IS STILL REACHABLE. Half of this guard is that nothing
+	// was kept; the other half is that the handle still works, or the cheap
+	// answer would be to return nothing at all.
+	body, err := c.Attachments[0].Bytes()
+	if err != nil {
+		t.Fatalf("the handle could not produce the attachment: %v", err)
+	}
+	if len(body) != attachmentSize {
+		t.Errorf("the handle produced %d bytes, want %d", len(body), attachmentSize)
 	}
 }

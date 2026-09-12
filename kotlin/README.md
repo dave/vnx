@@ -3,12 +3,13 @@
 `vnx` reads and writes VNX documents and VNZ containers on the JVM, and reports
 diagnostics.
 
-Kotlin 2.1, on a JDK 17 you have installed. The Gradle wrapper fetches Gradle
-itself, not a JDK. One
-dependency,
+Kotlin 2.1.20, on a JDK 17 you have installed. The Gradle wrapper fetches Gradle
+itself, not a JDK. One dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
 1.8.0, which has to reach the runtime classpath of whatever consumes this.
-Implements VNX 0.1.0; [`SPEC.md`](../SPEC.md) is the format definition.
+Implements VNX 0.1.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
+0.x the MINOR component is a breaking axis, so this reader reads the 0.1 series
+and refuses every other, in both directions (SPEC §2.2).
 
 ## Install
 
@@ -49,7 +50,8 @@ library's own, and writing throws
 
 ## Usage
 
-Read a file, walk a track to its coordinates, report every fault, write it back.
+Read a file, walk a track to its coordinates, save any attachments it carried,
+report every fault, write it back.
 
 ```kotlin
 import app.viatrail.vnx.Vnx
@@ -64,9 +66,19 @@ fun main(args: Array<String>) {
             for (pip in segment.pips.take(2)) println("  ${pip.lon}, ${pip.lat}")
         }
     }
+
+    // Null for a plain `.vnx`. For a `.vnz` it is the archive's other entries,
+    // each a path AND its bytes, so a caller can write them out.
+    for (attachment in reading.attachments ?: emptyList()) {
+        println("attachment ${attachment.path}: ${attachment.bytes.size} bytes")
+    }
     for (d in reading.diagnostics) println("${d.code} ${d.path}: ${d.message}")
 
     File("out.vnx").writeText(Vnx.write(reading.document))
+
+    // And back into an archive. A writer takes the bytes it will carry.
+    val carried = (reading.attachments ?: emptyList()).associate { it.path to it.bytes }
+    File("out.vnz").writeBytes(Vnx.writeContainer(reading.document, carried))
 }
 ```
 
@@ -78,12 +90,13 @@ fun main(args: Array<String>) {
 | `Vnx.readDocument` | `String` or `ByteArray`, a byte order mark tolerated | `ReadResult` | `VnxRefusal`, one of the four document causes |
 | `Vnx.readContainer` | `ByteArray` | `ReadResult` | `VnxRefusal`, a document or a container cause |
 | `Vnx.write` | `VnxDocument` | `String` | `VnxRefusal`, for a number JSON cannot spell |
-| `Vnx.writeContainer` | `VnxDocument`, `Map<String, ByteArray>` | `ByteArray` | the same, from the document it carries |
+| `Vnx.writeContainer` | `VnxDocument`, `Map<String, ByteArray>` of entry name to bytes | `ByteArray` | the same, from the document it carries |
 | `Vnx.version` | — | `Version` | — |
 
 | Type | Members |
 |---|---|
-| `ReadResult` | `document: VnxDocument`, `diagnostics: List<Diagnostic>`, `attachments: List<String>?` |
+| `ReadResult` | `document: VnxDocument`, `diagnostics: List<Diagnostic>`, `attachments: List<Attachment>?` |
+| `Attachment` | `path: String`, `bytes: ByteArray`; equality is by value |
 | `Diagnostic` | `path: String`, `message: String`, `cause: DiagnosticCause`, `code: String?` |
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
 | `VnxDocument` | `vnx`, `profile`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
@@ -91,10 +104,19 @@ fun main(args: Array<String>) {
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
 | `Segment` | `pips: List<Position>` |
 
-`ReadResult.attachments` holds entry names in archive order, not bytes, and is
-null where the source was a plain `.vnx`. A writer applies the emit-boundary
+`ReadResult.attachments` holds each attachment as a path AND its bytes, in
+archive order, and is null where the source was a plain `.vnx`. Archive order is
+this library's choice rather than a rule: SPEC §7 fixes the order only for
+picking the root document. An entry compressed by a method this reader cannot use
+is dropped with an `attachment-unreadable` diagnostic and is not in the list,
+because a container returning an attachment it could not decompress would be
+handing back a name and calling it a file. A writer applies the emit-boundary
 rules of SPEC §4.1, so two conforming writers can produce different bytes for the
 same document and SPEC §8.1 compares parsed documents.
+
+**`Attachment` compares by value.** A Kotlin `data class` holding a `ByteArray`
+gets `equals` by reference for that member, so this type writes its own: two
+attachments with the same path and the same content are equal.
 
 ## Errors and diagnostics
 
@@ -103,6 +125,10 @@ that is a thrown exception against the list returned beside the document.
 
 - **A refusal is a thrown `VnxRefusal`.** `refusal` is a `RefusalCause`, a closed
   enum, so the whole set is reachable from code; `Errors.kt` documents each one.
+- **Through 0.x a version refusal is about the SERIES, not about being newer.**
+  Each MINOR is its own series (SPEC §2.2), so this 0.1 reader refuses `0.0.9`
+  for the same reason it refuses `0.2.0`, and both raise
+  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.1.5` reads.
 - **A diagnostic comes back with the document.** Branch on `Diagnostic.code`, the
   format's reason code; `message` is advisory English that nothing compares
   (SPEC §6.3). `path` is a JSON Pointer (RFC 6901) into the document, except

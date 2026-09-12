@@ -11,19 +11,24 @@ package app.viatrail.vnx
  * corpus currently matches refusals as English substrings, which makes the
  * wording load-bearing for anyone who did not write it; a stable machine cause
  * beside it means a caller — and a future corpus that matches on reason codes —
- * never has to read the prose. [RefusalCause.corpusSubstring] is the table that
+ * never has to read the prose. [RefusalCause.corpusSubstrings] is the table that
  * makes that migration mechanical.
  */
 enum class RefusalCause(
     /**
-     * The substring the conformance corpus expects in this cause's message
-     * today, or null where no corpus case exercises the cause.
+     * The substrings the conformance corpus expects in this cause's messages
+     * today, empty where no corpus case exercises the cause.
+     *
+     * A LIST rather than one string, because a cause is not a sentence. The
+     * version-series cause is refused from two directions and section 2.2 wants
+     * the refusal to say which, so one cause carries two expectations and each
+     * has to be provoked separately. WordingTest asserts the table against the
+     * sidecars in both directions so it cannot go stale silently.
      *
      * When the corpus moves to reason codes, this table is what maps the old
-     * expectation onto the new field, and it is asserted against the sidecars
-     * by RefusalWordingTest so it cannot go stale silently.
+     * expectations onto the new field.
      */
-    val corpusSubstring: String?,
+    vararg val corpusSubstrings: String,
 ) {
     /** The bytes are not JSON at all. `NaN` and `Infinity` land here. */
     MALFORMED_JSON("malformed JSON"),
@@ -34,14 +39,22 @@ enum class RefusalCause(
     /** `vnx` is not three digit-runs separated by full stops. (2.2) */
     VERSION_MALFORMED("MAJOR.MINOR.PATCH"),
 
-    /** `vnx` names a MAJOR or MINOR above the reader's. (2.2) */
-    VERSION_TOO_NEW("a newer reader is needed"),
+    /**
+     * `vnx` names a MAJOR series, or through 0.x a MINOR series, that this
+     * reader does not support. (2.2)
+     *
+     * NOT "too new". Through 0.x each MINOR is its own series, so 0.0.9 is
+     * refused by a 0.1 reader for the same reason 0.2.0 is. The cause was named
+     * VERSION_TOO_NEW until 2026-09-12, when it turned out the name had made
+     * the lower direction easy to forget in six implementations at once.
+     */
+    VERSION_SERIES_UNSUPPORTED("a newer reader is needed", "0.0 series"),
 
     /** A number in the document is not finite. (4.2) */
-    NON_FINITE_NUMBER(null),
+    NON_FINITE_NUMBER(),
 
     /** The archive is not a readable ZIP. (7) */
-    CONTAINER_MALFORMED(null),
+    CONTAINER_MALFORMED(),
 
     /** Two entries whose names match case-insensitively. (7) */
     CONTAINER_DUPLICATE_ENTRY("duplicate entry"),
@@ -50,10 +63,10 @@ enum class RefusalCause(
     CONTAINER_PATH_ESCAPES("escapes the archive"),
 
     /** No `.vnx` entry anywhere in the archive. (7) */
-    CONTAINER_NO_DOCUMENT(null),
+    CONTAINER_NO_DOCUMENT(),
 
     /** The root document uses a compression method other than stored or deflate. (7) */
-    CONTAINER_ROOT_COMPRESSION(null),
+    CONTAINER_ROOT_COMPRESSION(),
     ;
 }
 

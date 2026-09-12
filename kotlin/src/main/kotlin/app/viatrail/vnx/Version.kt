@@ -33,25 +33,38 @@ data class Version(val major: BigInteger, val minor: BigInteger, val patch: BigI
     }
 
     /**
-     * Whether a reader at [SUPPORTED] must refuse a document at this version.
+     * Whether a reader at [reader] supports this document's version.
      *
-     * Through 0.x the MINOR component is a breaking axis, so a 0.1.0 reader
-     * refuses anything whose MAJOR or MINOR is above its own and accepts
-     * anything at or below — 0.1.3 and 0.0.9 are read, 0.2.0 and 1.0.0 are not.
-     * The PATCH component never refuses at any version, because a patch
-     * increment is additive by definition.
+     * The rule is "the same series", not "not greater than" (SPEC.md section
+     * 2.2). Through 0.x each MINOR is its own series: a 0.1.0 reader reads
+     * 0.1.3, and refuses 0.2.0 AND 0.0.9. A lower minor is refused for the same
+     * reason as a higher one — 0.0 is not an older spelling of 0.1, it is a
+     * series this reader has no rules for. The PATCH component never refuses at
+     * any version, because a patch increment is additive by definition.
      *
      * From 1.0 onward minor versions are additive and only a MAJOR increment
-     * refuses. This reader is at 0.1, so every 1.x document is above its MAJOR
-     * and is refused by the first branch regardless; the second branch is
-     * written out because the rule is the format's, not this reader's.
+     * refuses. This reader is at 0.1, so the second branch is unreachable here;
+     * it is written out because the rule is the format's, not this reader's.
+     *
+     * A reader that supported several series would hold a set of them and ask
+     * this question once per member. This one supports exactly [SUPPORTED].
      */
-    fun isTooNewFor(reader: Version): Boolean {
-        if (reader.major.signum() == 0) {
-            val byMajor = major.compareTo(reader.major)
-            if (byMajor != 0) return byMajor > 0
-            return minor > reader.minor
-        }
-        return major > reader.major
+    fun isSupportedBy(reader: Version): Boolean {
+        if (major != reader.major) return false
+        if (reader.major.signum() == 0) return minor == reader.minor
+        return true
+    }
+
+    /**
+     * Whether this version is above [reader] on the MAJOR.MINOR axis.
+     *
+     * Only for WORDING: a refusal that says "a newer reader is needed" must not
+     * be said of a document from an older series. Nothing decides acceptance
+     * here; [isSupportedBy] does that.
+     */
+    fun isAbove(reader: Version): Boolean {
+        val byMajor = major.compareTo(reader.major)
+        if (byMajor != 0) return byMajor > 0
+        return minor > reader.minor
     }
 }

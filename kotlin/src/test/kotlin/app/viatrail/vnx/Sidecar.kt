@@ -26,6 +26,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
             // entry the document is written as, and the attachment list beside
             // it repeats what the manifest carries.
             "root",
+            // 2026-09-12: `attachments` names the entries and
+            // `attachment_contents` pins their BYTES, so a reader that returns
+            // names without content cannot pass the container tier.
+            "attachment_contents",
         )
 
         /** The seven top-level collections `counts` may name (SPEC.md section 3.1). */
@@ -92,6 +96,28 @@ class Sidecar(val file: File, private val root: JsonObject) {
     fun attachments(): List<String>? {
         val v = root["attachments"] as? JsonArray ?: return null
         return v.elements.map { (it as JsonString).value }
+    }
+
+    /**
+     * `attachment_contents`: each entry name against its bytes, spelled as
+     * UTF-8 text.
+     *
+     * TEXT rather than base64 because every body in the corpus is text and a
+     * fixture a maintainer cannot read is a fixture nobody checks. An
+     * attachment is arbitrary bytes in the format; if one ever needs a body
+     * that is not text, this field grows a sibling rather than changing
+     * meaning.
+     *
+     * It need not name every attachment. `diagnose/container-unusable-method.vnz`
+     * carries an entry the reader drops, and the sidecar lists only what a
+     * conforming reader returns.
+     */
+    fun attachmentContents(): Map<String, String>? {
+        val v = root["attachment_contents"] as? JsonObject ?: return null
+        return v.entries().associate { (name, body) ->
+            name to ((body as? JsonString)?.value
+                ?: error("${file.name}: attachment_contents.$name is not a string"))
+        }
     }
 
     /**

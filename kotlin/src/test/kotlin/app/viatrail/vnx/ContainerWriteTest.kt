@@ -44,7 +44,7 @@ class ContainerWriteTest {
         val bytes = Vnx.writeContainer(document, one)
         assertEquals("doc.vnx", rawEntries(bytes).first().name, "the root document goes first")
         assertEquals(
-            bodies.keys.sorted(), Vnx.readContainer(bytes).attachments!!.sorted(),
+            bodies.keys.sorted(), Vnx.readContainer(bytes).attachments!!.map { it.path }.sorted(),
             "every attachment must survive, whatever order it sits in",
         )
     }
@@ -56,7 +56,11 @@ class ContainerWriteTest {
         val back = Vnx.readContainer(bytes)
         assertEquals(emptyList(), back.diagnostics)
         assertEquals("Bothy", back.document.waypoints!![0].name)
-        assertEquals(listOf("attachments/photo.txt"), back.attachments)
+        assertEquals(
+            listOf(Attachment("attachments/photo.txt", "not a photo\n".toByteArray())),
+            back.attachments,
+            "an attachment must round-trip as bytes, not as a name",
+        )
     }
 
     /**
@@ -155,7 +159,7 @@ class ContainerWriteTest {
         // failing is exactly how a missing flag would announce itself.
         val name = "photos/caf\u00e9-\u5c71.jpg"
         val bytes = Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
-        assertEquals(listOf(name), Vnx.readContainer(bytes).attachments)
+        assertEquals(listOf(name), Vnx.readContainer(bytes).attachments!!.map { it.path })
     }
 
     @Test
@@ -165,7 +169,10 @@ class ContainerWriteTest {
             documentOf("""{"vnx":"0.1.0"}"""),
             linkedMapOf("empty.bin" to ByteArray(0), "big.bin" to big),
         )
-        assertEquals(listOf("big.bin", "empty.bin"), Vnx.readContainer(bytes).attachments!!.sorted())
+        val read = Vnx.readContainer(bytes).attachments!!.sortedBy { it.path }
+        assertEquals(listOf("big.bin", "empty.bin"), read.map { it.path })
+        assertContentEquals(big, read[0].bytes, "the large attachment came back through this library's reader")
+        assertEquals(0, read[1].bytes.size, "an empty attachment is empty, not absent")
         ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->
             var checked = 0
             while (true) {

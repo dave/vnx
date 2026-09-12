@@ -3,6 +3,7 @@ package app.viatrail.vnx
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -239,11 +240,38 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `a minor below the reader's is accepted and a minor above is refused`() {
-        assertEquals(emptyList(), read("""{"vnx":"0.0.9"}""").diagnostics)
-        val e = assertFailsWith<VnxRefusal> { read("""{"vnx":"0.2.0"}""") }
-        assertEquals(RefusalCause.VERSION_TOO_NEW, e.refusal)
-        assertEquals(RefusalCause.VERSION_TOO_NEW, assertFailsWith<VnxRefusal> { read("""{"vnx":"1.0.0"}""") }.refusal)
+    fun `through 0-x a minor that is not the reader's own is refused, in EITHER direction`() {
+        // Section 2.2: each MINOR is its own series, so the rule is "not the same
+        // series" and not "greater than". A lower minor is refused for the same
+        // reason as a higher one — 0.0 is not an older spelling of 0.1.
+        //
+        // BOTH DIRECTIONS, because a reader written to the wrong rule passes
+        // whichever one it was tested on. This library read 0.0.9 until
+        // 2026-09-12, with the higher direction green throughout.
+        for (above in listOf("0.2.0", "1.0.0", "9.9.9")) {
+            val e = assertFailsWith<VnxRefusal>("\"$above\" must be refused") { read("""{"vnx":"$above"}""") }
+            assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, e.refusal, "for \"$above\"")
+            assertTrue(e.message.contains(above), "the refusal must name the version: ${e.message}")
+        }
+        val older = assertFailsWith<VnxRefusal> { read("""{"vnx":"0.0.9"}""") }
+        assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, older.refusal)
+        assertTrue(older.message.contains("0.0.9"), "the refusal must name the version: ${older.message}")
+        // And it must name the SERIES rather than claim a newer reader would
+        // help, because none would.
+        assertTrue(older.message.contains("0.0 series"), "the refusal must name the series: ${older.message}")
+        assertFalse(
+            older.message.contains("a newer reader is needed"),
+            "no newer reader reads an older series: ${older.message}",
+        )
+    }
+
+    @Test
+    fun `the fix did not swap one direction for the other`() {
+        // The failure mode of a rule written the other way round: a reader that
+        // now refuses 0.0.9 and has stopped reading its own series.
+        assertEquals(emptyList(), read("""{"vnx":"0.1.5"}""").diagnostics)
+        assertEquals("0.1.5", read("""{"vnx":"0.1.5"}""").document.vnx)
+        assertEquals(emptyList(), read("""{"vnx":"0.1.0"}""").diagnostics)
     }
 
     @Test

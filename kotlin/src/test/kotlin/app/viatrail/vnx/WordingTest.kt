@@ -120,23 +120,41 @@ class WordingTest {
     }
 
     @Test
-    fun `each refusal cause emits the substring its table entry claims`() {
-        val provoked = mapOf(
+    fun `each refusal cause emits the substrings its table entry claims`() {
+        // A LIST of provocations rather than a map, because a cause is not a
+        // sentence. VERSION_SERIES_UNSUPPORTED is reached from two directions and
+        // section 2.2 wants the refusal to say which, so it appears twice — and a
+        // reader that answered both directions with the same sentence would leave
+        // one of its two claimed substrings unprovoked and fail below.
+        val provoked = listOf(
             RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.1.0","waypoints":[{"at":[NaN,57]}]}"""),
             RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"profile":"full"}"""),
             RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.1"}"""),
-            RefusalCause.VERSION_TOO_NEW to refusalOf("""{"vnx":"9.9.9"}"""),
+            RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"9.9.9"}"""),
+            RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"0.0.9"}"""),
             RefusalCause.CONTAINER_DUPLICATE_ENTRY to containerRefusal("reject/container-duplicate-entries.vnz"),
             RefusalCause.CONTAINER_PATH_ESCAPES to containerRefusal("reject/container-escapes.vnz"),
         )
+        for ((cause, refusal) in provoked) {
+            assertEquals(cause, refusal.refusal, "the wrong cause was raised: ${refusal.message}")
+        }
         for (cause in RefusalCause.entries) {
-            val substring = cause.corpusSubstring ?: continue
-            val refusal = provoked[cause] ?: fail("$cause claims a corpus substring but nothing provokes it here")
-            assertEquals(cause, refusal.refusal, "the wrong cause was raised")
-            assertTrue(
-                refusal.message.contains(substring),
-                "$cause claims \"$substring\" but says: ${refusal.message}",
-            )
+            val messages = provoked.filter { it.first == cause }.map { it.second.message }
+            for (substring in cause.corpusSubstrings) {
+                if (messages.isEmpty()) fail("$cause claims \"$substring\" and nothing provokes it here")
+                assertTrue(
+                    messages.any { it.contains(substring) },
+                    "$cause claims \"$substring\" and no provocation says it. Got: $messages",
+                )
+            }
+            // The other direction: a provocation whose message claims none of the
+            // cause's substrings is wording that has drifted from the table.
+            for (message in messages) {
+                assertTrue(
+                    cause.corpusSubstrings.any { message.contains(it) },
+                    "$cause says \"$message\", which claims none of ${cause.corpusSubstrings.toList()}",
+                )
+            }
         }
     }
 
@@ -152,7 +170,7 @@ class WordingTest {
         // Both directions. The first catches a code the corpus added that this
         // library cannot emit; the second catches a code this library claims that
         // the corpus has retired, which would otherwise sit here looking checked.
-        val claimed = RefusalCause.entries.mapNotNull { it.corpusSubstring }.toSet()
+        val claimed = RefusalCause.entries.flatMap { it.corpusSubstrings.toList() }.toSet()
         val corpusCodes = HashSet<String>()
         val unclaimed = ArrayList<String>()
         for (tier in listOf("accept", "reject", "diagnose")) {
@@ -171,6 +189,17 @@ class WordingTest {
             unclaimed.isEmpty(),
             "the corpus pins expectations no cause claims:\n" + unclaimed.joinToString("\n"),
         )
+        // And the refusal table's own direction: a substring claimed here that no
+        // sidecar pins any more sits looking checked and is not.
+        val pinned = HashSet<String>()
+        for (tier in listOf("accept", "reject", "diagnose")) {
+            for (file in File(corpus, tier).listFiles()!!.filter { it.name.endsWith(".expect.json") }) {
+                Sidecar.read(file).refusal?.let { pinned.add(it) }
+            }
+        }
+        val stale = claimed.filter { it !in pinned }
+        assertTrue(stale.isEmpty(), "these refusal substrings are claimed and no corpus case pins them: $stale")
+
         val orphaned = DiagnosticCause.entries.mapNotNull { it.corpusCode }.filter { it !in corpusCodes }
         assertTrue(
             orphaned.isEmpty(),

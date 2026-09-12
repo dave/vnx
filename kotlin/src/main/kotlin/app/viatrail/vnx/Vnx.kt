@@ -31,7 +31,9 @@ object Vnx {
      * attachments (SPEC.md section 7).
      *
      * The returned [ReadResult.attachments] holds every entry that is not the
-     * root document, in archive order.
+     * root document, as a path AND its bytes, in archive order. An entry this
+     * reader cannot decompress is dropped with a diagnostic rather than
+     * returned without content.
      *
      * THE ORDER IS THIS LIBRARY'S CHOICE, not a rule. Section 7 states archive
      * order once, and it is about selecting the root document: where there is no
@@ -75,7 +77,7 @@ object Vnx {
 
         val result = readDocument(root.bytes())
         val diagnostics = ArrayList(result.diagnostics)
-        val attachments = ArrayList<String>()
+        val attachments = ArrayList<Attachment>()
         for (entry in entries) {
             if (entry === root) continue
             if (!entry.isUsable) {
@@ -90,7 +92,7 @@ object Vnx {
                 )
                 continue
             }
-            attachments.add(entry.name)
+            attachments.add(Attachment(entry.name, entry.bytes()))
         }
         return ReadResult(result.document, diagnostics, attachments)
     }

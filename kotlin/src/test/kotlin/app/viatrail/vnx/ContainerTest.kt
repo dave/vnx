@@ -40,7 +40,7 @@ class ContainerTest {
     fun `doc-vnx at the root wins over an earlier vnx entry`() {
         val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.1.0"}""", "doc.vnx" to doc))
         assertEquals("In a container", r.document.waypoints!![0].name)
-        assertEquals(listOf("aaa.vnx"), r.attachments)
+        assertEquals(listOf("aaa.vnx"), r.attachments!!.map { it.path })
     }
 
     @Test
@@ -51,7 +51,7 @@ class ContainerTest {
         // attachment is what says `first.vnx` was taken.
         val r = Vnx.readContainer(zip("first.vnx" to doc, "second.vnx" to """{"vnx":"0.1.0"}"""))
         assertEquals("In a container", r.document.waypoints!![0].name)
-        assertEquals(listOf("second.vnx"), r.attachments)
+        assertEquals(listOf("second.vnx"), r.attachments!!.map { it.path })
     }
 
     @Test
@@ -84,7 +84,9 @@ class ContainerTest {
     fun `a stored entry reads as well as a deflated one`() {
         val r = Vnx.readContainer(zip("doc.vnx" to doc, "notes.txt" to "hello", stored = true))
         assertEquals("In a container", r.document.waypoints!![0].name)
-        assertEquals(listOf("notes.txt"), r.attachments)
+        // The BYTES, not the name: a stored entry is the one shape where a
+        // reader that never decompresses anything still returns the right length.
+        assertEquals(listOf(Attachment("notes.txt", "hello".toByteArray())), r.attachments)
     }
 
     @Test
@@ -126,7 +128,7 @@ class ContainerTest {
         val r = Vnx.readContainer(zip("doc.vnx" to doc, "a..b/photo.jpg" to "x", "..hidden" to "y"))
         // A COLLECTION. The subject here is which names are accepted, and section
         // 7 states no rule about the order a reader reports them in.
-        assertEquals(listOf("..hidden", "a..b/photo.jpg"), r.attachments!!.sorted())
+        assertEquals(listOf("..hidden", "a..b/photo.jpg"), r.attachments!!.map { it.path }.sorted())
     }
 
     @Test
@@ -244,7 +246,7 @@ class ContainerTest {
     @Test
     fun `a fault in the document inside a container is the document's fault, reported as such`() {
         val e = assertFailsWith<VnxRefusal> { Vnx.readContainer(zip("doc.vnx" to """{"vnx":"9.9.9"}""")) }
-        assertEquals(RefusalCause.VERSION_TOO_NEW, e.refusal)
+        assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, e.refusal)
     }
 
     @Test

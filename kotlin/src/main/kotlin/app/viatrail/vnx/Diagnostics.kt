@@ -160,11 +160,40 @@ data class ReadResult(
     val document: VnxDocument,
     val diagnostics: List<Diagnostic>,
     /**
-     * The attachment entry names of the container this came from, in archive
-     * order, or null when the source was a plain `.vnx` document.
+     * The attachments of the container this came from, in archive order, or
+     * null when the source was a plain `.vnx` document.
+     *
+     * NAMES ALONE WOULD NOT BE AN ANSWER. A container exists to carry
+     * attachments, and a caller handed a list of names it cannot open has been
+     * told what it is missing rather than given it.
      */
-    val attachments: List<String>? = null,
+    val attachments: List<Attachment>? = null,
 )
+
+/**
+ * One file inside a `.vnz` container that is not the root document (SPEC.md
+ * section 7).
+ *
+ * [path] is the archive entry name: a relative, forward-slash separated path,
+ * checked at read time by the rules of sections 7 and 9. [bytes] is the entry's
+ * content, decompressed. Nothing in this format interprets an attachment, so
+ * the bytes come back as they are.
+ *
+ * EQUALITY IS BY VALUE, written out rather than generated. A `data class`
+ * holding a [ByteArray] gets `equals` by REFERENCE for that member, so two
+ * attachments with the same path and the same content would compare unequal,
+ * and a test asserting on a list of them would fail for a reason that has
+ * nothing to do with what it is testing.
+ */
+class Attachment(val path: String, val bytes: ByteArray) {
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is Attachment && path == other.path && bytes.contentEquals(other.bytes))
+
+    override fun hashCode(): Int = 31 * path.hashCode() + bytes.contentHashCode()
+
+    /** The bytes are not printed: an attachment is arbitrary content and may be large. */
+    override fun toString() = "Attachment($path, ${bytes.size} bytes)"
+}
 
 /** Builds RFC 6901 JSON Pointers as the decoder descends. */
 internal class Pointer private constructor(private val text: String) {

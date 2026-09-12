@@ -193,11 +193,27 @@ class CorpusTest {
      * something the format does not ask them to agree on.
      */
     private fun checkAttachments(case: File, sidecar: Sidecar, result: ReadResult) {
-        val expected = sidecar.attachments() ?: return
-        assertEquals(
-            expected.sorted(), (result.attachments ?: emptyList()).sorted(),
-            "${case.name}: attachments",
-        )
+        val got = result.attachments ?: emptyList()
+        sidecar.attachments()?.let { expected ->
+            assertEquals(
+                expected.sorted(), got.map { it.path }.sorted(),
+                "${case.name}: attachments",
+            )
+        }
+        // And their BYTES. A reader that returns names without content passes
+        // the list check and carries nothing; that is what this is here to see.
+        // The sidecar spells a body as UTF-8 text, and need not name every
+        // attachment — a dropped one is not returned and is not listed.
+        val contents = sidecar.attachmentContents() ?: return
+        val byPath = got.associateBy { it.path }
+        for ((path, body) in contents) {
+            val attachment = byPath[path]
+                ?: fail("${case.name}: `attachment_contents` names \"$path\" and no such attachment came back")
+            assertEquals(
+                body, String(attachment.bytes, Charsets.UTF_8),
+                "${case.name}: the content of \"$path\"",
+            )
+        }
     }
 
     // ---------------------------------------------------------------- reject
@@ -240,6 +256,11 @@ class CorpusTest {
             checkCounts(case, sidecar, result)
             checkPositions(case, sidecar, result)
             checkTracks(case, sidecar, result)
+            // A container case can sit in this tier: an attachment the reader
+            // cannot decompress is DROPPED with a diagnostic while the document
+            // is returned. Checking the attachments here is what proves the drop
+            // was scoped to the one entry rather than total.
+            checkAttachments(case, sidecar, result)
         }
     }
 
@@ -420,9 +441,16 @@ class CorpusTest {
             val back = Vnx.readContainer(bytes)
             assertEquals(emptyList(), back.diagnostics, "${input.name}: the archive this library wrote must read cleanly")
             assertEquals(
-                attachments.keys.sorted(), (back.attachments ?: emptyList()).sorted(),
+                attachments.keys.sorted(), (back.attachments ?: emptyList()).map { it.path }.sorted(),
                 "${input.name} does not carry the manifest's attachments",
             )
+            for (attachment in back.attachments ?: emptyList()) {
+                val body = attachments.getValue(attachment.path)
+                assertTrue(
+                    body.contentEquals(attachment.bytes),
+                    "${input.name}: the body of ${attachment.path} did not survive the round trip",
+                )
+            }
         }
     }
 

@@ -73,11 +73,17 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 "`vnx` is \"$versionText\", which is not of the shape MAJOR.MINOR.PATCH " +
                     "— three runs of decimal digits separated by full stops",
             )
-        if (version.isTooNewFor(readerVersion)) {
+        if (!version.isSupportedBy(readerVersion)) {
+            // Section 2.2 requires the refusal to NAME the version, and the two
+            // directions are not one sentence. A document from a series this
+            // reader is too old for is answered with the reader a user needs; a
+            // document from a series this reader has no rules for is answered
+            // with the series, because no newer reader would help.
             refuse(
-                RefusalCause.VERSION_TOO_NEW,
+                RefusalCause.VERSION_SERIES_UNSUPPORTED,
                 "this document is version $version and this reader implements $readerVersion, " +
-                    "so a newer reader is needed to read it",
+                    if (version.isAbove(readerVersion)) "so a newer reader is needed to read it"
+                    else "so the ${version.major}.${version.minor} series is not one it supports",
             )
         }
 

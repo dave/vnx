@@ -116,13 +116,27 @@ enum class DiagnosticCause(
     TERMINAL_PIP_OFF_NODE("terminal-pip-off-node", "beyond the 50 m tolerance"),
 
     /**
-     * An attachment compressed by a method other than stored or deflate. (7)
+     * An attachment whose bytes this reader could not return, so it was dropped
+     * and the document returned without it. (7)
+     *
+     * TWO FAULTS, ONE CODE, because section 7 gives them one remedy: a
+     * compression method other than stored or deflate, and bytes that cannot be
+     * recovered though the method was usable — a stream that will not
+     * decompress, or a CRC that disagrees with the bytes present. Refusing a
+     * whole trail library because one photograph is damaged is the same
+     * disproportion as refusing it because one photograph used an unusual
+     * method, and the document is untouched either way. The English says which
+     * of the two it was; the code does not, and a caller's remedy is the same.
+     *
+     * The advisory wording is therefore the part both messages share. It was
+     * "neither stored nor deflate" until the corrupt-bytes rule arrived, which
+     * would have quietly stopped covering half of what the cause now reports.
      *
      * The one cause here whose `path` is not a pointer into the document: an
      * archive entry is not part of the document, so it lives in section 6.3's
      * separate `#/entries/<name>` space.
      */
-    ATTACHMENT_UNREADABLE("attachment-unreadable", "neither stored nor deflate"),
+    ATTACHMENT_UNREADABLE("attachment-unreadable", "is dropped"),
     ;
 }
 

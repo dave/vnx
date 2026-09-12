@@ -35,6 +35,25 @@ internal object Zip {
         fun bytes(): ByteArray = bytes ?: throw IllegalStateException("entry $name is not usable: $failure")
     }
 
+    /**
+     * One ENTRY's payload could not be recovered: a stream that will not
+     * decompress, or a CRC that disagrees with the bytes present.
+     *
+     * NOT a refusal, and that is section 7's distinction rather than a
+     * convenience. Whether such an entry refuses the archive or drops one
+     * attachment depends on WHICH entry it is, and only the container reader
+     * knows that. Carrying the fact out as a failed [Entry] leaves the decision
+     * where section 7 puts it — exactly as an unusable compression method
+     * already did.
+     *
+     * It is an exception rather than a return type because the failure is found
+     * several frames down, inside the inflater loop, and threading a nullable
+     * back through would put a branch at every level that has nothing to decide.
+     */
+    private class Damaged(val why: String) : Exception(why)
+
+    private fun damaged(why: String): Nothing = throw Damaged(why)
+
     private const val EOCD_SIGNATURE = 0x06054b50
     private const val ZIP64_LOCATOR_SIGNATURE = 0x07064b50
     private const val ZIP64_EOCD_SIGNATURE = 0x06064b50
@@ -153,17 +172,42 @@ internal object Zip {
         if (dataEnd > data.size) malformed("the data for \"$name\" runs past the end of the archive")
 
         val raw = data.copyOfRange(dataStart, dataEnd)
+        // Section 7: an entry whose method is stored or deflate but whose bytes
+        // cannot be recovered takes the SAME remedy as an unusable method — the
+        // reader drops an attachment and reports it, and refuses only where the
+        // damaged entry is the root document. So this is a per-entry fact like
+        // the method above, and not a refusal taken here.
+        //
+        // The CRC check is what DETECTS the damage and it stays. Section 7 does
+        // not require a reader to look; it requires one that has looked to
+        // report rather than to return the bytes it found. Only the remedy moved.
+        return try {
+            Entry(name, method, recover(method, raw, header, uncompressedSize), null)
+        } catch (e: Damaged) {
+            Entry(name, method, null, e.why)
+        }
+    }
+
+    /**
+     * One entry's payload, decompressed and checked against its CRC, or
+     * [Damaged].
+     *
+     * Every message here is written to follow "the attachment X is dropped:" and
+     * "the root document X cannot be read:", so it starts at "it" and never
+     * repeats the entry name. The caller knows which entry it asked about.
+     */
+    private fun recover(method: Int, raw: ByteArray, header: Header, uncompressedSize: Long): ByteArray {
         val body = if (method == METHOD_STORED) {
             // A stored entry's two sizes are the same quantity by definition, so a
             // header claiming otherwise is lying about one of them. Over-declaring
             // BOTH is the case section 7 accepts and is not this: the bound above
             // has already brought the compressed size down to what is present.
             if (header.compressedSize != uncompressedSize) {
-                malformed("\"$name\" is stored but declares different compressed and uncompressed sizes")
+                damaged("it is stored and declares different compressed and uncompressed sizes")
             }
             raw
         } else {
-            inflate(name, raw, uncompressedSize)
+            inflate(raw, uncompressedSize)
         }
 
         // Verify the CRC. Nothing in section 7 requires this, and a reader that
@@ -173,12 +217,12 @@ internal object Zip {
         // that happens to survive the checks above.
         val actual = CRC32().apply { update(body) }.value
         if (actual != header.crc) {
-            malformed(
-                "\"$name\" fails its CRC: the archive says ${"%08x".format(header.crc)} " +
+            damaged(
+                "it fails its CRC: the archive says ${"%08x".format(header.crc)} " +
                     "and the bytes are ${"%08x".format(actual)}",
             )
         }
-        return Entry(name, method, body, null)
+        return body
     }
 
     /**
@@ -192,11 +236,12 @@ internal object Zip {
      * Measured 2026-09-10 against exactly that archive.
      *
      * So the declared size is used as a LIMIT rather than as an allocation, and
-     * a stream that exceeds it or falls short of it is refused. Section 9's
+     * a stream that exceeds it or falls short of it is damage to that entry.
+     * Section 9's
      * resource bound for a merely large HONEST archive is a separate matter and
      * this library still does not implement one.
      */
-    private fun inflate(name: String, raw: ByteArray, declaredSize: Long): ByteArray {
+    private fun inflate(raw: ByteArray, declaredSize: Long): ByteArray {
         val inflater = Inflater(true)
         try {
             inflater.setInput(raw)
@@ -208,16 +253,16 @@ internal object Zip {
                 if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
                 written += n
                 if (written > declaredSize) {
-                    malformed("\"$name\" inflates to more than the $declaredSize bytes its header declares")
+                    damaged("it inflates to more than the $declaredSize bytes its header declares")
                 }
                 out.write(chunk, 0, n)
             }
             if (written != declaredSize) {
-                malformed("\"$name\" inflated to $written bytes and its header declares $declaredSize")
+                damaged("it inflated to $written bytes and its header declares $declaredSize")
             }
             return out.toByteArray()
         } catch (e: java.util.zip.DataFormatException) {
-            malformed("\"$name\" is not valid deflate data: ${e.message}")
+            damaged("it is not valid deflate data: ${e.message}")
         } finally {
             inflater.end()
         }

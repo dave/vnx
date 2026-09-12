@@ -107,10 +107,14 @@ fun main(args: Array<String>) {
 `ReadResult.attachments` holds each attachment as a path AND its bytes, in
 archive order, and is null where the source was a plain `.vnx`. Archive order is
 this library's choice rather than a rule: SPEC §7 fixes the order only for
-picking the root document. An entry compressed by a method this reader cannot use
-is dropped with an `attachment-unreadable` diagnostic and is not in the list,
-because a container returning an attachment it could not decompress would be
-handing back a name and calling it a file. A writer applies the emit-boundary
+picking the root document. An attachment whose bytes this reader cannot return —
+a compression method it cannot use, a stream that will not decompress, or a CRC
+that disagrees with the bytes present — is dropped with an
+`attachment-unreadable` diagnostic and is not in the list, because an attachment
+handed back empty cannot be told apart from one the archive never carried. The
+document comes back either way; only the ROOT document being unrecoverable
+refuses the archive, and then because there is nothing to return. A writer
+applies the emit-boundary
 rules of SPEC §4.1, so two conforming writers can produce different bytes for the
 same document and SPEC §8.1 compares parsed documents.
 
@@ -129,6 +133,11 @@ that is a thrown exception against the list returned beside the document.
   Each MINOR is its own series (SPEC §2.2), so this 0.1 reader refuses `0.0.9`
   for the same reason it refuses `0.2.0`, and both raise
   `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.1.5` reads.
+- **Damage to one attachment is reported, not thrown.** SPEC §7 rules refusing a
+  whole trail library over one damaged photograph disproportionate, so a
+  corrupt or unreadable attachment leaves the document intact and raises an
+  `attachment-unreadable` diagnostic. `CONTAINER_ROOT_UNREADABLE` is the same
+  fault on the root document, where a refusal is the only answer left.
 - **A diagnostic comes back with the document.** Branch on `Diagnostic.code`, the
   format's reason code; `message` is advisory English that nothing compares
   (SPEC §6.3). `path` is a JSON Pointer (RFC 6901) into the document, except

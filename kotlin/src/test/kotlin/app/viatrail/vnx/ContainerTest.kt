@@ -141,10 +141,14 @@ class ContainerTest {
      * A ZIP header that lies, in the four ways it can.
      *
      * None of these is reachable from a corpus fixture — every committed archive
-     * is well-formed — so they are built here. A malformed archive must be
-     * REFUSED, and in particular must not crash the library: the sizes and the
-     * CRC come from the archive, so an archive that is hostile or merely broken
-     * can declare anything it likes about them.
+     * is well-formed — so they are built here. The library must not crash on one:
+     * the sizes and the CRC come from the archive, so an archive that is hostile
+     * or merely broken can declare anything it likes about them.
+     *
+     * WHAT IT DOES INSTEAD depends on which entry carries the lie, which is
+     * section 7's own distinction. These fixtures carry ONE entry and it is the
+     * root document, so every one of them is refused; the attachment side of the
+     * same faults is below, and the archives there carry two entries.
      */
     private fun lying(
         name: String = "doc.vnx",
@@ -198,7 +202,7 @@ class ContainerTest {
                 lying(body = doc, method = 8, payload = deflated(doc), declaredUncompressed = 0x7FFFFFF0L),
             )
         }
-        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+        assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
     }
 
     @Test
@@ -210,7 +214,7 @@ class ContainerTest {
         val e = assertFailsWith<VnxRefusal> {
             Vnx.readContainer(lying(body = doc, method = 0, declaredUncompressed = 0xFFFFFFFEL))
         }
-        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+        assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
     }
 
     @Test
@@ -221,20 +225,146 @@ class ContainerTest {
         val e = assertFailsWith<VnxRefusal> {
             Vnx.readContainer(lying(body = doc, method = 8, payload = half, declaredCompressed = half.size.toLong()))
         }
-        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+        assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
     }
 
     @Test
-    fun `an entry whose bytes fail their CRC is refused`() {
-        // Nothing in section 7 requires this, and a reader that skips it accepts
-        // corrupt data in silence — which for a format whose whole argument is
-        // that two libraries agree byte for byte is the wrong way to be lenient.
+    fun `a ROOT DOCUMENT whose bytes fail their CRC is refused`() {
+        // Nothing in section 7 requires the CHECK, and a reader that skips it
+        // accepts corrupt data in silence — which for a format whose whole
+        // argument is that two libraries agree byte for byte is the wrong way to
+        // be lenient. What section 7 does require is the REMEDY, and for the root
+        // document it is a refusal: there is no document to return.
         val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
         val e = assertFailsWith<VnxRefusal> {
             Vnx.readContainer(lying(body = doc, method = 0, crc = 0xDEADBEEFL))
         }
-        assertEquals(RefusalCause.CONTAINER_MALFORMED, e.refusal)
+        assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
         assertTrue(e.message.contains("CRC"), "the refusal must name what failed: ${e.message}")
+    }
+
+    // ------------------------------------ a damaged ATTACHMENT, which is dropped
+
+    /**
+     * An archive of two entries: an intact `doc.vnx`, and one attachment built
+     * to a caller's specification so it can be damaged.
+     *
+     * Two entries rather than one is the whole point. Every fixture above
+     * carries the lie on the root document, where section 7's remedy is a
+     * refusal; the same fault on an attachment must drop that attachment and
+     * return the document, and nothing proves the difference without an archive
+     * that holds both.
+     */
+    private fun archiveWithDamaged(
+        attachment: String = "attachments/photo.txt",
+        body: ByteArray,
+        method: Int,
+        payload: ByteArray = body,
+        declaredCompressed: Long = payload.size.toLong(),
+        declaredUncompressed: Long = body.size.toLong(),
+        crc: Long = java.util.zip.CRC32().apply { update(body) }.value,
+    ): ByteArray = twoEntries(
+        Raw("doc.vnx", doc.toByteArray(), 0, doc.toByteArray(), doc.length.toLong(), doc.length.toLong(),
+            java.util.zip.CRC32().apply { update(doc.toByteArray()) }.value),
+        Raw(attachment, body, method, payload, declaredCompressed, declaredUncompressed, crc),
+    )
+
+    private class Raw(
+        val name: String,
+        val body: ByteArray,
+        val method: Int,
+        val payload: ByteArray,
+        val declaredCompressed: Long,
+        val declaredUncompressed: Long,
+        val crc: Long,
+    )
+
+    /** Two entries, written by hand so that either one's header may lie. */
+    private fun twoEntries(vararg raws: Raw): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        fun le16(o: java.io.ByteArrayOutputStream, v: Int) { o.write(v and 0xff); o.write((v ushr 8) and 0xff) }
+        fun le32(o: java.io.ByteArrayOutputStream, v: Long) {
+            le16(o, (v and 0xffff).toInt()); le16(o, ((v ushr 16) and 0xffff).toInt())
+        }
+        val offsets = ArrayList<Long>()
+        for (raw in raws) {
+            offsets.add(out.size().toLong())
+            val n = raw.name.toByteArray(Charsets.UTF_8)
+            le32(out, 0x04034b50); le16(out, 10); le16(out, 0x800); le16(out, raw.method); le16(out, 0); le16(out, 0x21)
+            le32(out, raw.crc); le32(out, raw.declaredCompressed); le32(out, raw.declaredUncompressed)
+            le16(out, n.size); le16(out, 0)
+            out.write(n); out.write(raw.payload)
+        }
+        val central = java.io.ByteArrayOutputStream()
+        for ((i, raw) in raws.withIndex()) {
+            val n = raw.name.toByteArray(Charsets.UTF_8)
+            le32(central, 0x02014b50); le16(central, 10); le16(central, 10); le16(central, 0x800)
+            le16(central, raw.method); le16(central, 0); le16(central, 0x21)
+            le32(central, raw.crc); le32(central, raw.declaredCompressed); le32(central, raw.declaredUncompressed)
+            le16(central, n.size); le16(central, 0); le16(central, 0); le16(central, 0); le16(central, 0)
+            le32(central, 0); le32(central, offsets[i])
+            central.write(n)
+        }
+        val directoryOffset = out.size().toLong()
+        val cd = central.toByteArray()
+        out.write(cd)
+        le32(out, 0x06054b50); le16(out, 0); le16(out, 0); le16(out, raws.size); le16(out, raws.size)
+        le32(out, cd.size.toLong()); le32(out, directoryOffset); le16(out, 0)
+        return out.toByteArray()
+    }
+
+    /** The document read back, with the one attachment dropped and reported. */
+    private fun assertDropped(bytes: ByteArray, why: String) {
+        val r = Vnx.readContainer(bytes)
+        // The document is untouched by damage to an attachment, and section 7
+        // says so: refusing it discards good geometry over a damaged photograph.
+        assertEquals("In a container", r.document.waypoints!![0].name, why)
+        // DROPPED, not returned empty: an attachment with no bytes cannot be told
+        // apart from one the archive never carried.
+        assertEquals(emptyList(), r.attachments, why)
+        assertEquals(1, r.diagnostics.size, "$why: one diagnostic, for the one entry")
+        assertEquals(DiagnosticCause.ATTACHMENT_UNREADABLE, r.diagnostics[0].cause, why)
+        assertEquals("#/entries/attachments~1photo.txt", r.diagnostics[0].path, why)
+    }
+
+    @Test
+    fun `an attachment that fails its CRC is dropped and reported, not refused`() {
+        val body = "a photograph, or it was".toByteArray()
+        assertDropped(
+            archiveWithDamaged(body = body, method = 0, crc = 0xDEADBEEFL),
+            "a stored attachment whose CRC disagrees",
+        )
+    }
+
+    @Test
+    fun `an attachment whose deflate stream will not inflate is dropped and reported`() {
+        val body = "a photograph, or it was".toByteArray()
+        val full = deflated(body)
+        val half = full.copyOfRange(0, full.size / 2)
+        assertDropped(
+            archiveWithDamaged(body = body, method = 8, payload = half, declaredCompressed = half.size.toLong()),
+            "a truncated deflate stream",
+        )
+    }
+
+    @Test
+    fun `a damaged attachment does not take an intact one with it`() {
+        // The drop must be scoped to the entry that is damaged. A reader that
+        // abandoned the archive at the first fault would return the document and
+        // no attachments at all, and would pass the two tests above.
+        val good = "this one is fine\n".toByteArray()
+        val bad = "a photograph, or it was".toByteArray()
+        val bytes = twoEntries(
+            Raw("doc.vnx", doc.toByteArray(), 0, doc.toByteArray(), doc.length.toLong(), doc.length.toLong(),
+                java.util.zip.CRC32().apply { update(doc.toByteArray()) }.value),
+            Raw("attachments/photo.txt", bad, 0, bad, bad.size.toLong(), bad.size.toLong(), 0xDEADBEEFL),
+            Raw("notes/kept.txt", good, 0, good, good.size.toLong(), good.size.toLong(),
+                java.util.zip.CRC32().apply { update(good) }.value),
+        )
+        val r = Vnx.readContainer(bytes)
+        assertEquals(listOf(Attachment("notes/kept.txt", good)), r.attachments)
+        assertEquals(1, r.diagnostics.size)
+        assertEquals("#/entries/attachments~1photo.txt", r.diagnostics[0].path)
     }
 
     @Test

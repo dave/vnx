@@ -67,10 +67,15 @@ object Vnx {
         // extracts later and may forget.
         for (entry in entries) checkPath(entry.name)
 
+        // Section 7: where the ROOT DOCUMENT cannot be recovered — an unusable
+        // method, a stream that will not decompress, a CRC that disagrees — the
+        // archive is refused, because there is then no document to return. That
+        // is the whole of why this is a refusal and the same fault on an
+        // attachment is not.
         val root = rootDocument(entries)
         if (!root.isUsable) {
             refuse(
-                RefusalCause.CONTAINER_ROOT_COMPRESSION,
+                RefusalCause.CONTAINER_ROOT_UNREADABLE,
                 "the root document \"${root.name}\" cannot be read: ${root.unusableBecause}",
             )
         }
@@ -81,8 +86,15 @@ object Vnx {
         for (entry in entries) {
             if (entry === root) continue
             if (!entry.isUsable) {
-                // Refusing a whole library because one photograph used an unusual
-                // method would be disproportionate (section 7).
+                // Section 7, for both faults that reach here: an unusable
+                // compression method, and bytes that cannot be recovered though
+                // the method was usable. Refusing a whole library because one
+                // photograph is damaged, or used an unusual method, would be
+                // disproportionate, and the document is untouched either way.
+                //
+                // DROPPED, not returned empty. An attachment handed back with no
+                // bytes is indistinguishable from one the archive never carried,
+                // which section 7 forbids in as many words.
                 diagnostics.add(
                     Diagnostic(
                         entryPointer(entry.name),

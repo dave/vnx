@@ -65,8 +65,17 @@ enum class RefusalCause(
     /** No `.vnx` entry anywhere in the archive. (7) */
     CONTAINER_NO_DOCUMENT(),
 
-    /** The root document uses a compression method other than stored or deflate. (7) */
-    CONTAINER_ROOT_COMPRESSION(),
+    /**
+     * The root document's bytes cannot be recovered: an unusable compression
+     * method, a stream that will not decompress, or a CRC that disagrees. (7)
+     *
+     * The same fault on an ATTACHMENT is not a refusal at all — section 7 drops
+     * it with a diagnostic. The root document is the exception because there is
+     * then no document to return. The cause was named CONTAINER_ROOT_COMPRESSION
+     * until 2026-09-12, when the corrupt-bytes remedy joined it and the name
+     * stopped covering what it decides.
+     */
+    CONTAINER_ROOT_UNREADABLE(),
     ;
 }
 

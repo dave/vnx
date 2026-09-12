@@ -113,14 +113,24 @@ func TestContainerWithNoDocumentRefused(t *testing.T) {
 	}
 }
 
-func TestContainerAttachmentsAreListed(t *testing.T) {
+// TestContainerAttachmentsCarryTheirBytes.
+//
+// ⚠ THE CONTENT IS ASSERTED, NOT ONLY THE PATH. This test checked the name
+// alone until 2026-09-12, and passed the whole time the library had no way at
+// all to hand an attachment's bytes to a caller — a reader that listed the
+// entries and threw the files away was indistinguishable from one that read
+// them.
+func TestContainerAttachmentsCarryTheirBytes(t *testing.T) {
 	z := makeZip(t, [][2]string{{"doc.vnx", minimalDoc}, {"photos/summit.jpg", "jpeg"}})
 	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(c.Attachments) != 1 || c.Attachments[0] != "photos/summit.jpg" {
+	if len(c.Attachments) != 1 || c.Attachments[0].Path != "photos/summit.jpg" {
 		t.Fatalf("attachments = %v", c.Attachments)
+	}
+	if got := string(c.Attachments[0].Bytes); got != "jpeg" {
+		t.Errorf("attachment bytes = %q, want %q", got, "jpeg")
 	}
 }
 

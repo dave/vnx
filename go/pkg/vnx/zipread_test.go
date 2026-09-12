@@ -294,7 +294,7 @@ func TestAnUnusableMethodDependsOnWhichEntryCarriesIt(t *testing.T) {
 	bad := stored("photos/a b~c.jpg", "would be bzip2")
 	bad.method = bzip2Method
 	c, diags := readArchive(t, assemble([]entrySpec{stored("doc.vnx", smallDoc), bad, stored("ok.jpg", "fine")}, assembleOpts{}))
-	if len(c.Attachments) != 1 || c.Attachments[0] != "ok.jpg" {
+	if len(c.Attachments) != 1 || c.Attachments[0].Path != "ok.jpg" {
 		t.Errorf("attachments = %q, want just ok.jpg: the unreadable one is dropped", c.Attachments)
 	}
 	if len(diags) != 1 {
@@ -358,7 +358,7 @@ func TestAnEOCDSignatureInsideAPayloadDoesNotEndTheArchive(t *testing.T) {
 		t.Errorf("diagnostics = %v, want none", diags)
 	}
 	if len(c.Attachments) != 1 {
-		t.Errorf("attachments = %q, want the one that was written", c.Attachments)
+		t.Errorf("attachments = %v, want the one that was written", c.Attachments)
 	}
 }
 

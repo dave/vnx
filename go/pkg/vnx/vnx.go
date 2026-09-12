@@ -283,7 +283,7 @@ func checkVersion(declared string) error {
 	// A reader MAY support several, and one that did would apply each
 	// document's own series rules.
 	if dMaj == 0 && oMaj == 0 && dMin < oMin {
-		return fmt.Errorf("%w: document is %s and this reader implements %s — through 0.x each minor is a separate series, and this reader does not implement %d.%d",
+		return fmt.Errorf("%w: document is %s and this reader implements %s — through 0.x each minor is a separate series, and this reader does not implement the %d.%d series",
 			ErrUnsupportedVersion, declared, Version, dMaj, dMin)
 	}
 	return nil

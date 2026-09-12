@@ -17,11 +17,31 @@ const RootDocumentName = "doc.vnx"
 // the library can be read at all.
 var ErrContainer = errors.New("vnx: unusable container")
 
-// Container is a decoded .vnz archive: the document, and the names of the
-// attachments stored beside it.
+// ContainerAttachment is one file read out of a .vnz, beside the document: its
+// entry path and its bytes.
+//
+// ⚠ IT IS THE BYTES AND NOT JUST THE NAME, which is what makes a .vnz readable
+// at all. Until 2026-09-12 this package handed back names only, so a caller
+// holding a container could see that a photograph existed and had no way to get
+// it — the container exists to carry attachments, and half of that is content.
+// js, rust and swift all return path plus bytes; this is the same shape.
+//
+// ⚠ IT IS A SEPARATE TYPE FROM [Attachment], which is the WRITE side's
+// streaming source (a name and an io.Reader, read once as the archive is
+// written). They are not the same thing: the writer never holds a file whole
+// and this one is nothing but the whole file.
+type ContainerAttachment struct {
+	// Path is the archive entry name, forward-slash separated.
+	Path string
+	// Bytes is the attachment's decompressed content.
+	Bytes []byte
+}
+
+// Container is a decoded .vnz archive: the document, and the attachments stored
+// beside it.
 type Container struct {
 	Document    *Document
-	Attachments []string
+	Attachments []ContainerAttachment
 }
 
 // DecodeContainer reads a .vnz archive.
@@ -93,7 +113,7 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 		return nil, nil, err
 	}
 
-	attachments := make([]string, 0, len(entries))
+	attachments := make([]ContainerAttachment, 0, len(entries))
 	for i := range entries {
 		e := entries[i]
 		if &entries[i] == root || e.isDirectory() {
@@ -120,7 +140,18 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 			})
 			continue
 		}
-		attachments = append(attachments, e.name)
+		// ⚠ A FAILURE HERE IS A REFUSAL, NOT A DROP, and the split is
+		// deliberate. The diagnostic above is for the ONE fault §7 names in an
+		// attachment — a compression method this reader does not have — which is
+		// an expected absence and proportionately survivable. A usable method
+		// that then will not inflate, or whose CRC disagrees, is a CORRUPT
+		// archive, and handing back a document from a file we know is damaged
+		// would hide that. rust/src/vnz.rs refuses here too.
+		body, err := readZipEntry(r, e)
+		if err != nil {
+			return nil, nil, err
+		}
+		attachments = append(attachments, ContainerAttachment{Path: e.name, Bytes: body})
 	}
 	return &Container{Document: doc, Attachments: attachments}, diags, nil
 }

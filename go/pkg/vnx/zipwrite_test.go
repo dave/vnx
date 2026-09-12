@@ -303,7 +303,7 @@ func TestArchiveIsReadByArchiveZip(t *testing.T) {
 		t.Errorf("reading our own archive produced diagnostics: %v", diags)
 	}
 	if len(c.Attachments) != 2 {
-		t.Errorf("attachments = %q, want the two that were written", c.Attachments)
+		t.Errorf("attachments = %v, want the two that were written", c.Attachments)
 	}
 }
 
@@ -356,7 +356,7 @@ func TestAnAttachmentNamedLikeADocumentIsStillAnAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(c.Attachments) != 1 || c.Attachments[0] != "a.vnx" {
-		t.Errorf("attachments = %q, want [a.vnx]", c.Attachments)
+	if len(c.Attachments) != 1 || c.Attachments[0].Path != "a.vnx" {
+		t.Errorf("attachments = %v, want [a.vnx]", c.Attachments)
 	}
 }

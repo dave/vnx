@@ -101,13 +101,18 @@ vnx validate --json corpus/diagnose/chain-does-not-join.vnx
   "ok": true,
   "diagnostics": [
     {
-      "severity": "warning",
+      "code": "chain-discontinuity",
       "path": "/networks/0/chains/0/links/1",
       "message": "this link starts at c but the previous one ends at b — the chain is not one connected walk"
     }
   ]
 }
 ```
+
+A diagnostic in that report carries `code`, `path` and `message`, and nothing
+else. `code` is the stable token to match on; it is empty for the decode
+diagnostics that have no assigned code. There is no `severity` field, because
+[`SPEC §6.3`](../SPEC.md#63-diagnostics) says a diagnostic carries none.
 
 `outline` exists because a day's recorded track holds tens of thousands of
 positions. It reports a library's shape at a size a caller can hold, so that
@@ -140,8 +145,14 @@ Everything below is in `package vnx`.
 | `WriterCodes` | — | `[]string`, every `Code` the conversion writers emit |
 
 `Document` holds the header fields and the item collections. `Container` holds a
-`*Document` and the names of the files stored beside it. `EncodeTo` streams, so
-a document is never held in memory twice.
+`*Document` and the files stored beside it, each a `ContainerAttachment` with a
+`Path` and its `Bytes` — the same shape the JavaScript, Rust and Swift
+implementations return. `EncodeTo` streams, so a document is never held in
+memory twice.
+
+`ContainerAttachment` (read) and `Attachment` (write) are separate types on
+purpose. The reader has the whole file; the writer takes a `Name` and an
+`io.Reader` and never holds one whole.
 
 Each conversion writer — `pkg/vnx/gpx`, `pkg/vnx/kml`, `pkg/vnx/geojson` —
 exports one `Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error)`.
@@ -160,10 +171,17 @@ Refusals are Go errors, matched with `errors.Is` against four sentinels:
 usable `vnx` key, `ErrUnsupportedVersion` for a version this reader does not
 implement, and `ErrContainer` for an archive that yields no document at all.
 
-A `Diagnostic` carries `Severity` (`Info` or `Warning`), `Path` — a
-JSON-pointer location such as `/networks/0/arcs/arc-1` — and a short English
-`Message`. Conversion-writer diagnostics also carry a stable `Code` and its
-`Args`, so a caller can match one without reading its prose.
+A `Diagnostic` carries `Path` — a JSON-pointer location such as
+`/networks/0/arcs/arc-1` — a short English `Message`, and `Code`, the stable
+token a caller matches on without reading the prose. `Code` is set on every
+conversion-writer diagnostic (with its `Args`) and on the decode diagnostics the
+conformance corpus pins; it is empty on the rest, which is a ruling rather than
+a gap.
+
+The Go type also carries a `Severity` (`Info` or `Warning`). That field is this
+library's own and is no part of the format: `SPEC §6.3` says a diagnostic
+carries no severity, so `--json` does not emit one and no conformance case
+compares one.
 
 ## Run the tests
 

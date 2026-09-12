@@ -78,7 +78,7 @@ func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 	var rep struct {
 		OK          bool `json:"ok"`
 		Diagnostics []struct {
-			Severity, Path, Message string
+			Code, Path, Message string
 		} `json:"diagnostics"`
 	}
 	if err := json.Unmarshal(out, &rep); err != nil {
@@ -86,6 +86,48 @@ func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 	}
 	if len(rep.Diagnostics) != 1 || rep.Diagnostics[0].Path != "/nmae" {
 		t.Fatalf("got %+v", rep.Diagnostics)
+	}
+}
+
+// TestJSONDiagnosticCarriesCodeAndNoSeverity pins §6.3's field set on the
+// machine-readable output.
+//
+// ⚠ IT ASSERTS ON THE RAW KEYS, not on a decoded struct, and that is the only
+// shape that works. encoding/json ignores a key the target struct does not
+// name, so a struct-based test cannot see an extra `severity` at all — which is
+// exactly how this tool emitted one for as long as it did while
+// TestJSONOutputCarriesDiagnosticPaths stayed green beside it.
+//
+// The two halves are both spec, both §6.3: "A diagnostic carries no severity",
+// and `code` is the stable token a conformance case compares and a script
+// matches on.
+func TestJSONDiagnosticCarriesCodeAndNoSeverity(t *testing.T) {
+	bin := build(t)
+	out, err := exec.Command(bin, "validate", "--json", "../../../corpus/diagnose/chain-does-not-join.vnx").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rep struct {
+		Diagnostics []map[string]any `json:"diagnostics"`
+	}
+	if err := json.Unmarshal(out, &rep); err != nil {
+		t.Fatalf("--json must emit parseable JSON: %v\n%s", err, out)
+	}
+	if len(rep.Diagnostics) == 0 {
+		t.Fatalf("the fixture must raise a diagnostic, or this test measures nothing:\n%s", out)
+	}
+	for i, d := range rep.Diagnostics {
+		if _, present := d["severity"]; present {
+			t.Errorf("diagnostic %d carries a `severity` key; §6.3 says a diagnostic carries no severity", i)
+		}
+		code, present := d["code"]
+		if !present {
+			t.Errorf("diagnostic %d carries no `code` key; §6.3 defines it and a script matches on it", i)
+			continue
+		}
+		if code != "chain-discontinuity" {
+			t.Errorf("diagnostic %d code = %v, want the token the corpus pins", i, code)
+		}
 	}
 }
 

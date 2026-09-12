@@ -78,16 +78,32 @@ type jsonReport struct {
 	Diagnostics []jsonDiagnostic `json:"diagnostics"`
 }
 
+// jsonDiagnostic is the machine-readable spelling of a diagnostic, and it
+// carries exactly the three fields spec §6.3 defines.
+//
+// ⚠ IT CARRIES `code` AND NOT `severity`, and that is the spec rather than a
+// preference. §6.3 says in as many words that "a diagnostic carries no
+// severity", and it makes `code` the stable token a conformance case compares
+// and a script matches on. This struct emitted `severity` and omitted `code`
+// until 2026-09-12 — the reference implementation's machine-readable output
+// inventing a field the format denies while dropping the one it defines, which
+// is the worst possible place for that pair of mistakes to live.
+//
+// `code` is EMPTY for most decode diagnostics and that is deliberate too: spec
+// 5b ruled that the sixty decode sites in pkg/vnx do not get codes, and only
+// the diagnostics a corpus case pins carry one. It is emitted regardless of
+// whether it is empty — an absent key would make "this reader assigned no code"
+// indistinguishable from "this reader forgot the field".
 type jsonDiagnostic struct {
-	Severity string `json:"severity"`
-	Path     string `json:"path"`
-	Message  string `json:"message"`
+	Code    string `json:"code"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
 }
 
 func toJSONDiags(diags []vnx.Diagnostic) []jsonDiagnostic {
 	out := make([]jsonDiagnostic, 0, len(diags))
 	for _, d := range diags {
-		out = append(out, jsonDiagnostic{d.Severity.String(), d.Path, d.Message})
+		out = append(out, jsonDiagnostic{d.Code, d.Path, d.Message})
 	}
 	return out
 }

@@ -90,6 +90,17 @@ type expectation struct {
 
 	Attachments *[]string `json:"attachments"`
 
+	// AttachmentContents pins each attachment's BYTES, keyed by entry name,
+	// spelled as UTF-8 text so a sidecar stays readable.
+	//
+	// ⚠ IT IS WHAT STOPS THE `attachments` LIST PASSING VACUOUSLY. A reader
+	// that enumerated the archive's entry names and threw every file away
+	// satisfied `attachments` on every container case in the corpus — and five
+	// of the six implementations were doing exactly that, Go among them, while
+	// the whole tier was green. A container carries attachments; a name is not
+	// one.
+	AttachmentContents map[string]string `json:"attachment_contents"`
+
 	// Root names the archive's root document. It appears on a write/ container
 	// case, whose output is an archive rather than a document.
 	Root string `json:"root"`
@@ -147,9 +158,7 @@ func runAccept(t *testing.T, c corpusCase) {
 	checkCounts(t, doc, c.expect.Counts)
 	checkPositions(t, doc, c.expect)
 	checkTracks(t, doc, c.expect)
-	if want := c.expect.Attachments; want != nil {
-		compareAttachments(t, attachments, *want, "the attachments the reader listed")
-	}
+	checkAttachments(t, attachments, c.expect)
 	// The accept tier's check (spec §8.1): DECODE the file, ENCODE the model,
 	// and require the two JSON TREES equal.
 	//
@@ -202,6 +211,40 @@ func runAccept(t *testing.T, c corpusCase) {
 //
 // It counts rather than comparing sets, so a duplicated name cannot fill the
 // hole left by a missing one.
+// checkAttachments runs both container expectations: the entry names, and the
+// bytes behind them.
+func checkAttachments(t *testing.T, got []ContainerAttachment, e expectation) {
+	t.Helper()
+	if e.Attachments != nil {
+		compareAttachments(t, attachmentPaths(got), *e.Attachments, "the attachments the reader listed")
+	}
+	if e.AttachmentContents == nil {
+		return
+	}
+	have := map[string][]byte{}
+	for _, a := range got {
+		have[a.Path] = a.Bytes
+	}
+	for path, want := range e.AttachmentContents {
+		bytes, ok := have[path]
+		if !ok {
+			t.Errorf("the sidecar pins the content of %q and the reader returned no such attachment", path)
+			continue
+		}
+		if string(bytes) != want {
+			t.Errorf("%s: content = %q, want %q", path, string(bytes), want)
+		}
+	}
+}
+
+func attachmentPaths(as []ContainerAttachment) []string {
+	out := make([]string, 0, len(as))
+	for _, a := range as {
+		out = append(out, a.Path)
+	}
+	return out
+}
+
 func compareAttachments(t *testing.T, got, want []string, what string) {
 	t.Helper()
 	tally := map[string]int{}
@@ -245,11 +288,16 @@ func runReject(t *testing.T, c corpusCase) {
 
 func runDiagnose(t *testing.T, c corpusCase) {
 	t.Helper()
-	doc, diags, _, err := c.decode()
+	doc, diags, attachments, err := c.decode()
 	if err != nil {
 		t.Fatalf("must be READ with diagnostics, not refused: %v", err)
 	}
 	checkCounts(t, doc, c.expect.Counts)
+	// ⚠ A DIAGNOSE CONTAINER CASE CHECKS ITS ATTACHMENTS TOO. The whole claim
+	// of diagnose/container-unusable-method is that ONE attachment is dropped
+	// and the other survives; a runner that read the diagnostic and never
+	// looked at what was kept would pass a reader that dropped both.
+	checkAttachments(t, attachments, c.expect)
 
 	// Diagnostics are compared as a SET, not by index — spec §6.3 says emission
 	// order is not significant. An index comparison would make order a
@@ -481,7 +529,7 @@ type corpusCase struct {
 
 func (c corpusCase) isContainer() bool { return strings.HasSuffix(c.path, ".vnz") }
 
-func (c corpusCase) decode() (*Document, []Diagnostic, []string, error) {
+func (c corpusCase) decode() (*Document, []Diagnostic, []ContainerAttachment, error) {
 	if c.isContainer() {
 		ct, diags, err := DecodeContainer(bytes.NewReader(c.data), int64(len(c.data)))
 		if err != nil {

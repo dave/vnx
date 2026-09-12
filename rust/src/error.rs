@@ -22,8 +22,17 @@ pub enum Refusal {
     NotAVnxDocument { detail: String },
     /// `vnx` is not three digit-runs separated by full stops.
     VersionMalformed { found: String },
-    /// `vnx` names a MAJOR or MINOR above the reader's.
-    VersionTooNew { found: String },
+    /// `vnx` names a MAJOR.MINOR series this reader does not implement.
+    ///
+    /// Through 0.x each MINOR is its own series (SPEC 2.2), so this covers
+    /// BOTH DIRECTIONS: a lower minor is refused for the same reason as a
+    /// higher one. `major` and `minor` are the document's own, carried so the
+    /// message can name the series a reader would need.
+    VersionUnsupportedSeries {
+        found: String,
+        major: u64,
+        minor: u64,
+    },
     // ---- SPEC 7, the container causes ----
     /// The bytes are not a ZIP archive this reader can walk.
     ContainerMalformed { detail: String },
@@ -54,13 +63,34 @@ impl std::fmt::Display for Refusal {
                 "the version `{found}` is not MAJOR.MINOR.PATCH — three runs of \
                  decimal digits separated by full stops, as in `0.1.0`"
             ),
-            Refusal::VersionTooNew { found } => write!(
-                f,
-                "this document declares version {found} and this reader implements \
-                 {}.{}.x, so a newer reader is needed",
-                crate::model::SUPPORTED.0,
-                crate::model::SUPPORTED.1
-            ),
+            Refusal::VersionUnsupportedSeries {
+                found,
+                major,
+                minor,
+            } => {
+                let (ours_major, ours_minor) = crate::model::SUPPORTED;
+                // SPEC 2.2 requires the refusal to NAME THE VERSION. The tail
+                // differs by direction only so a user is told what to do: a
+                // newer document needs a newer reader, while an older series
+                // needs a reader for that series, which is not this one and
+                // not a newer one either.
+                if (*major, *minor) > (ours_major, ours_minor) {
+                    write!(
+                        f,
+                        "this document declares version {found}, from the \
+                         {major}.{minor} series, and this reader implements the \
+                         {ours_major}.{ours_minor} series, so a newer reader is needed"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "this document declares version {found}, from the \
+                         {major}.{minor} series, and this reader implements the \
+                         {ours_major}.{ours_minor} series, so a reader for the \
+                         {major}.{minor} series is needed"
+                    )
+                }
+            }
             Refusal::ContainerMalformed { detail } => {
                 write!(f, "not a readable ZIP archive: {detail}")
             }
@@ -117,10 +147,20 @@ mod tests {
                 "MAJOR.MINOR.PATCH",
             ),
             (
-                Refusal::VersionTooNew {
+                Refusal::VersionUnsupportedSeries {
                     found: "9.9.9".into(),
+                    major: 9,
+                    minor: 9,
                 },
                 "a newer reader is needed",
+            ),
+            (
+                Refusal::VersionUnsupportedSeries {
+                    found: "0.0.9".into(),
+                    major: 0,
+                    minor: 0,
+                },
+                "0.0 series",
             ),
             (
                 Refusal::ContainerDuplicateEntry {
@@ -141,14 +181,28 @@ mod tests {
         }
     }
 
-    /// SPEC 2.2: the refusal for a version above the reader's must name the
-    /// version needed, or the user is told only that something is wrong.
+    /// SPEC 2.2: a series refusal must name the version, in EITHER direction,
+    /// or the user is told only that something is wrong.
     #[test]
-    fn a_too_new_refusal_names_the_version() {
-        let text = Refusal::VersionTooNew {
+    fn a_series_refusal_names_the_version_in_both_directions() {
+        let newer = Refusal::VersionUnsupportedSeries {
             found: "9.9.9".into(),
+            major: 9,
+            minor: 9,
         }
         .to_string();
-        assert!(text.contains("9.9.9"), "{text}");
+        assert!(newer.contains("9.9.9"), "{newer}");
+
+        let older = Refusal::VersionUnsupportedSeries {
+            found: "0.0.9".into(),
+            major: 0,
+            minor: 0,
+        }
+        .to_string();
+        assert!(older.contains("0.0.9"), "{older}");
+        // The two directions must not collapse into one sentence: telling a
+        // user of a 0.0 document that a NEWER reader is needed sends them the
+        // wrong way.
+        assert!(!older.contains("a newer reader is needed"), "{older}");
     }
 }

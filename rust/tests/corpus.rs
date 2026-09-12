@@ -65,13 +65,7 @@ fn accept_tier() {
                     container.reading.document,
                     container.reading.diagnostics,
                     bytes,
-                    Some(
-                        container
-                            .attachments
-                            .iter()
-                            .map(|a| a.path.clone())
-                            .collect::<Vec<_>>(),
-                    ),
+                    Some(container.attachments),
                 )
             }
             _ => {
@@ -148,22 +142,26 @@ fn diagnose_tier() {
         let sidecar = case.sidecar();
         expect_kind(&sidecar, "diagnose", case);
 
-        let (document, diagnostics) = match case.extension() {
+        let (document, diagnostics, attachments) = match case.extension() {
             "vnz" => {
                 let c = vnz::read(&case.bytes)
                     .unwrap_or_else(|e| panic!("{}: refused: {e}", case.name));
-                (c.reading.document, c.reading.diagnostics)
+                (c.reading.document, c.reading.diagnostics, Some(c.attachments))
             }
             _ => {
                 let r = decode(&case.bytes)
                     .unwrap_or_else(|e| panic!("{}: refused: {e}", case.name));
-                (r.document, r.diagnostics)
+                (r.document, r.diagnostics, None)
             }
         };
 
         check_counts(&sidecar, &document, case);
         check_positions(&sidecar, &document, case);
         check_tracks(&sidecar, &document, case);
+        // A diagnose container pins its attachments too: SPEC 7 has an
+        // unusable METHOD drop one entry and keep the rest, and a reader that
+        // dropped them all would otherwise satisfy the diagnostic alone.
+        check_attachments(&sidecar, attachments.as_deref(), case);
 
         let expected = read_expected_diagnostics(&sidecar)
             .unwrap_or_else(|why| panic!("{}: {why}", case.name));
@@ -1090,24 +1088,75 @@ fn check_tracks(sidecar: &Json, document: &Document, case: &Case) {
     }
 }
 
-fn check_attachments(sidecar: &Json, got: Option<&[String]>, case: &Case) {
-    let Some(want) = sidecar.get("attachments").and_then(Json::as_array) else {
+/// `attachments` pins the entry NAMES the archive yields beside the document,
+/// and `attachment_contents` pins their BYTES.
+///
+/// Names alone pass a reader that returns every attachment empty, or one that
+/// hands back the same buffer for all of them, so the contents are the half
+/// that proves an attachment was actually read. `attachment_contents` is
+/// UTF-8 text, and the comparison is against the attachment's bytes.
+///
+/// ⚠ THE CONTENTS ARE THE ATTACHMENTS THAT SURVIVED, NOT THE ARCHIVE'S
+/// ENTRIES. `diagnose/container-unusable-method.vnz` carries an entry SPEC 7
+/// has the reader drop with a diagnostic, and its sidecar lists only the
+/// readable one — so this compares key-for-key against what the reader
+/// returned. A runner expecting an entry for the dropped one would fail a
+/// conforming reader.
+fn check_attachments(sidecar: &Json, got: Option<&[vnz::Attachment]>, case: &Case) {
+    if sidecar.get("attachments").is_none() && sidecar.get("attachment_contents").is_none() {
+        return;
+    }
+    let got = got.unwrap_or_else(|| {
+        panic!(
+            "{}: `attachments` and `attachment_contents` are container-only fields",
+            case.name
+        )
+    });
+
+    if let Some(want) = sidecar.get("attachments").and_then(Json::as_array) {
+        let want: BTreeSet<String> = want
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .unwrap_or_else(|| panic!("{}: an attachment path is not a string", case.name))
+                    .to_string()
+            })
+            .collect();
+        let names: BTreeSet<String> = got.iter().map(|a| a.path.clone()).collect();
+        assert_eq!(names, want, "{}: attachments", case.name);
+    }
+
+    let Some(want) = sidecar.get("attachment_contents") else {
         return;
     };
-    let want: BTreeSet<String> = want
+    let want = want.as_object().unwrap_or_else(|| {
+        panic!("{}: `attachment_contents` is not an object", case.name)
+    });
+    let want: BTreeMap<String, String> = want
         .iter()
-        .map(|v| {
-            v.as_str()
-                .unwrap_or_else(|| panic!("{}: an attachment path is not a string", case.name))
-                .to_string()
+        .map(|(name, body)| {
+            let body = body.as_str().unwrap_or_else(|| {
+                panic!(
+                    "{}: the content of attachment {name:?} is not a string",
+                    case.name
+                )
+            });
+            (name.clone(), body.to_string())
         })
         .collect();
-    let got: BTreeSet<String> = got
-        .unwrap_or_else(|| panic!("{}: `attachments` is a container-only field", case.name))
+    let got: BTreeMap<String, String> = got
         .iter()
-        .cloned()
+        .map(|a| {
+            let text = String::from_utf8(a.bytes.clone()).unwrap_or_else(|_| {
+                panic!(
+                    "{}: attachment {:?} is not UTF-8, and a sidecar can only pin text",
+                    case.name, a.path
+                )
+            });
+            (a.path.clone(), text)
+        })
         .collect();
-    assert_eq!(got, want, "{}: attachments", case.name);
+    assert_eq!(got, want, "{}: attachment contents", case.name);
 }
 
 // ---------------------------------------------------------------------------

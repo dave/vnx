@@ -1114,11 +1114,15 @@ fn parse_version(text: &str) -> Result<Version, Refusal> {
         minor: numbers[1],
         patch: numbers[2],
     };
-    // SPEC 2.2, through 0.x: refuse a MAJOR or MINOR above this reader's.
-    // PATCH never refuses, at any version.
-    if (version.major, version.minor) > SUPPORTED {
-        return Err(Refusal::VersionTooNew {
+    // SPEC 2.2, through 0.x: EACH MINOR IS ITS OWN SERIES, so the test is
+    // "not this reader's series", NOT "above it". 0.0 is not an older spelling
+    // of 0.1 and this reader has no rules for it, so `0.0.9` is refused for
+    // the same reason `0.2.0` is. PATCH never refuses, at any version.
+    if (version.major, version.minor) != SUPPORTED {
+        return Err(Refusal::VersionUnsupportedSeries {
             found: text.to_string(),
+            major: version.major,
+            minor: version.minor,
         });
     }
     Ok(version)
@@ -1176,14 +1180,27 @@ mod tests {
 
     #[test]
     fn versions_that_refuse_and_versions_that_do_not() {
+        // Above this reader's series.
         assert!(matches!(
             refuse(r#"{"vnx": "0.2.0"}"#),
-            Refusal::VersionTooNew { .. }
+            Refusal::VersionUnsupportedSeries { .. }
         ));
         assert!(matches!(
             refuse(r#"{"vnx": "1.0.0"}"#),
-            Refusal::VersionTooNew { .. }
+            Refusal::VersionUnsupportedSeries { .. }
         ));
+        // And BELOW it, which is the same refusal for the same reason: a
+        // reader comparing with `>` reads these and passes everything above.
+        for text in ["0.0.9", "0.0.0"] {
+            let document = format!(r#"{{"vnx": "{text}"}}"#);
+            assert!(
+                matches!(
+                    refuse(&document),
+                    Refusal::VersionUnsupportedSeries { .. }
+                ),
+                "{text:?} was not refused as a series this reader does not implement"
+            );
+        }
         for text in ["0.1", "0.1.0.0", "0.1.x", "0.1.+1", "", "0.1.", ".1.0", "0.1.0 "] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
@@ -1192,7 +1209,7 @@ mod tests {
             );
         }
         // PATCH never refuses, and a leading zero is a legal spelling.
-        for text in ["0.1.99", "0.0.9", "00.01.0000", "0.1.0"] {
+        for text in ["0.1.99", "0.1.4294967296", "00.01.0000", "0.1.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             let reading = read(&document);
             assert_eq!(

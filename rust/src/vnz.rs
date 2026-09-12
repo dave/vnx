@@ -24,10 +24,26 @@ pub struct Container {
 
 /// Read a `.vnz` container.
 ///
-/// SPEC 7's refusal causes are separate from SPEC 6.2's, and a fault in an
-/// attachment is not among either: an attachment this reader cannot decompress
-/// is dropped with a diagnostic, because refusing a whole library over one
-/// photograph would be disproportionate.
+/// SPEC 7's refusal causes are separate from SPEC 6.2's.
+///
+/// ⚠ TWO ATTACHMENT FAULTS, TWO REMEDIES, AND ONLY ONE OF THEM IS SPECIFIED.
+///
+/// * An UNUSABLE COMPRESSION METHOD is the case SPEC 7 rules on: an attachment
+///   compressed by a method other than stored or deflate is dropped, a
+///   diagnostic is recorded and the document is returned, because refusing a
+///   whole library over one photograph would be disproportionate. That is the
+///   `method_is_readable` branch below.
+/// * A CORRUPT STREAM — an attachment whose bytes fail to inflate, or whose
+///   CRC disagrees with the bytes present — is REFUSED here. SPEC 7 does not
+///   cover it: its drop-with-a-diagnostic rule is written about the method,
+///   and corruption appears in Section 7 only in the rule forbidding a refusal
+///   "where the CRC over those bytes agrees", which says nothing about a CRC
+///   that does not. So this is THIS READER'S CHOICE, not a rule of the format,
+///   and another conforming implementation may differ. It is refused because a
+///   bad method says an attachment is merely beyond this reader while bad
+///   bytes say the archive is not what it claims to be, and returning content
+///   the archive's own checksum disowns is worse than returning nothing.
+///   Raised for the spec to settle 2026-09-12.
 pub fn read(bytes: &[u8]) -> Result<Container, Refusal> {
     let archive = Archive::open(bytes).map_err(|e| Refusal::ContainerMalformed {
         detail: e.to_string(),

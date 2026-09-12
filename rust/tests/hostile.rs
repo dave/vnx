@@ -359,14 +359,26 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
     );
 }
 
-/// A CRC is a claim the archive makes about its own bytes, and a reader that
-/// never checks it reads a corrupt file clean.
+/// A corrupt attachment is refused rather than returned as content.
 ///
 /// This cannot be reached by any corpus container — they are all well-formed —
 /// and it cannot be reached by the bit-flip sweep above either, because that
 /// sweep only requires "no panic". Corrupting a byte of the DOCUMENT is caught
 /// incidentally, since the JSON stops parsing; corrupting a byte of an
-/// ATTACHMENT is caught by nothing but the CRC.
+/// ATTACHMENT is caught only by the integrity checks in `zip`.
+///
+/// ⚠ WHICH CHECK CATCHES IT IS NOT THE PROPERTY, AND MUST NOT BE ASSERTED.
+/// Two detectors race here: inflate may reject the damaged stream, or it may
+/// produce bytes whose CRC then disagrees. Which one fires is a property of
+/// the deflate implementation, not of this crate — under the pinned
+/// `miniz_oxide 0.8.9` inflate succeeds and the CRC check catches it, and a
+/// later version detects it during inflate. An earlier version of this test
+/// asserted the word `CRC` and so would have gone red on a dependency bump
+/// that changed nothing about the behaviour anyone depends on.
+///
+/// The property is: refused, not returned, and the refusal NAMES THE ENTRY, so
+/// a user is told which file is bad. Both detectors satisfy it, because both
+/// paths in `zip::Archive::read` prefix the entry name.
 #[test]
 fn a_corrupt_attachment_is_refused_rather_than_returned() {
     // ⚠ A COMMITTED DEFLATED ARCHIVE, NOT ONE THIS CRATE WRITES. The bytes of
@@ -386,9 +398,10 @@ fn a_corrupt_attachment_is_refused_rather_than_returned() {
     );
     let refusal =
         vnz::read(&damaged).expect_err("a corrupt attachment must be refused, not returned");
+    let text = refusal.to_string();
     assert!(
-        refusal.to_string().contains("CRC"),
-        "refused for the wrong reason: {refusal}"
+        text.contains("attachments/photo.txt"),
+        "the refusal must name the entry it could not read: {text}"
     );
 }
 

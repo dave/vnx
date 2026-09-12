@@ -24,6 +24,8 @@ Measured 2026-09-09, all sixteen caught:
     skip the chain continuity check      diagnose
     skip the unrecognised-key rule       diagnose
     refuse on a newer PATCH too          accept
+    compare the version series with `>`  reject (version-too-old is the only case)
+    return every attachment empty        accept AND diagnose (attachment_contents)
     resolve a tie away from zero         format
     escape < > and & as Go does          format
     render a position over several lines accept, format
@@ -114,8 +116,17 @@ MUTATIONS = [
      "                let _ = key;"),
 
     ("refuse on a newer PATCH too", "src/decode.rs",
-     "    if (version.major, version.minor) > SUPPORTED {",
-     "    if (version.major, version.minor, version.patch) > (SUPPORTED.0, SUPPORTED.1, 0) {"),
+     "    if (version.major, version.minor) != SUPPORTED {",
+     "    if (version.major, version.minor) != SUPPORTED || version.patch > 0 {"),
+
+    # SPEC 2.2 through 0.x: each MINOR is its own series, so the test is "not
+    # this reader's series", not "above it". `>` is the shape five of the six
+    # implementations had, and it passes reject/version-too-new while READING
+    # a 0.0 document — silently, under rules that were never written for it.
+    # Only reject/version-too-old.vnx reaches this.
+    ("compare the version series with `>` rather than `!=`", "src/decode.rs",
+     "    if (version.major, version.minor) != SUPPORTED {",
+     "    if (version.major, version.minor) > SUPPORTED {"),
 
     ("round coordinates while decoding", "src/decode.rs",
      "                Json::Number(n) => channels.push(Some(*n)),",
@@ -270,6 +281,19 @@ MUTATIONS = [
      "    names[1..].sort_by(|a, b| a.path.cmp(&b.path));",
      "    names[1..].sort_by(|a, b| b.path.cmp(&a.path));",
      "expect-green"),
+
+    # The corpus pins attachment NAMES and CONTENTS separately, and names alone
+    # pass a reader that returns every attachment empty. `attachment_contents`
+    # is the half that proves an attachment was actually decompressed.
+    ("return every attachment empty", "src/vnz.rs",
+     "            Ok(bytes) => attachments.push(Attachment {\n"
+     "                path: entry.name.clone(),\n"
+     "                bytes,\n"
+     "            }),",
+     "            Ok(bytes) => attachments.push(Attachment {\n"
+     "                path: entry.name.clone(),\n"
+     "                bytes: { let _ = bytes; Vec::new() },\n"
+     "            }),"),
 
     ("drop the last attachment", "src/vnz.rs",
      "    Ok(crate::zip::write_archive(&names))",

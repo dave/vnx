@@ -113,14 +113,13 @@ pub enum AttachmentFault {
     /// A usable method whose stream will not decompress, or whose bytes
     /// disagree with the entry's CRC.
     ///
-    /// ⚠ SPEC 7 DOES NOT RULE ON THIS CASE. Its drop-with-a-diagnostic rule is
-    /// written about the METHOD, and corruption appears in Section 7 only in
-    /// the rule forbidding a refusal "where the CRC over those bytes agrees",
-    /// which says nothing about a CRC that does not. Dropping was ruled on
-    /// SPEC 7, by the reasoning it gives for the method case: the
-    /// document is intact, refusing a whole library over one damaged
-    /// photograph is disproportionate, and the diagnostic is what stops the
-    /// loss being silent. Rust refused until that ruling and was the outlier.
+    /// SPEC 7 gives this the same remedy as an unusable method, in its own
+    /// sentence: drop the attachment, record a diagnostic, return the
+    /// document, and never hand the attachment back with empty or partial
+    /// content. The reasoning is the method case's — the document is intact,
+    /// refusing a whole library over one damaged photograph is
+    /// disproportionate, and the diagnostic is what stops the loss being
+    /// silent.
     CorruptStream(String),
 }
 

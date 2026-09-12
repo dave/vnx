@@ -4,3 +4,7 @@ go/vnx
 go/cmd/vnx/vnx
 
 .DS_Store
+
+# SwiftPM builds into the directory holding the manifest, which is now the
+# repository root.
+/.build/

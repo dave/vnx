@@ -260,22 +260,35 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
                 "attachment-unreadable",
             )
         )
-    # An attachment's BYTES come back with its name.  An entry this reader
-    # cannot decompress was already dropped above, on its METHOD, before
-    # anything was inflated; what is left failing here is a damaged archive --
-    # a wrong CRC or a truncated stream -- and that is refused like every other
-    # malformed container rather than dropped quietly.  A caller cannot tell a
-    # silently missing attachment from one the archive never held.
+    # An attachment's BYTES come back with its name.
+    #
+    # SPEC 7 gives a stored-or-deflate entry whose bytes cannot be recovered --
+    # a damaged stream, a CRC that disagrees -- THE SAME REMEDY as an unusable
+    # method: drop it, record a diagnostic, return the document.  It is not a
+    # ground to refuse the archive, because refusing discards good geometry
+    # over one damaged photograph, and the root document is the only entry
+    # whose loss leaves nothing to return.  Nor may it come back with empty or
+    # partial content, which a caller cannot tell from an attachment the
+    # archive never carried.
+    #
+    # This library refused here until SPEC 7 said so (`38679fb`).  Three of the
+    # six implementations did; the spec had named the remedy for an unusable
+    # METHOD only, and each filled the gap on its own.
     attachments = []
     for name in names:
         if name == document_name or name in unreadable:
             continue
         try:
             body = archive.read(name)
-        except (zipfile.BadZipFile, zlib.error, EOFError, ValueError) as exc:
-            raise VNXRefusal(
-                f"the attachment {name!r} will not decompress: {exc}"
-            ) from exc
+        except (zipfile.BadZipFile, zlib.error, EOFError, ValueError):
+            diagnostics.append(
+                Diagnostic(
+                    _entry_pointer(name),
+                    f"attachment {name!r} could not be read, and was dropped",
+                    "attachment-unreadable",
+                )
+            )
+            continue
         attachments.append(Attachment(name, body))
     return ContainerReadResult(
         document=result.document,

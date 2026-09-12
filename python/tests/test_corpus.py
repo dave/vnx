@@ -79,7 +79,7 @@ class CorpusStructure(unittest.TestCase):
 
     # Fields this runner compares.  `kind` and `note` are structural.
     CHECKED = {"kind", "note", "counts", "positions", "tracks", "attachments",
-               "attachment_contents", "refusal", "diagnostics"}
+               "attachment_contents", "root", "refusal", "diagnostics"}
     # Fields this runner knowingly does not compare, and why.  A sidecar field
     # that is in neither set fails the test below rather than being ignored:
     # an unasserted expectation is how a fixture quietly becomes the format.
@@ -176,6 +176,12 @@ class _CorpusCase(unittest.TestCase):
         because the other was dropped on its compression method.
         """
         attachments = getattr(result, "attachments", [])
+        if "root" in expect:
+            self.assertEqual(
+                getattr(result, "document_name", None),
+                expect["root"],
+                f"{name}: the entry the document was read from",
+            )
         if "attachments" in expect:
             self.assertEqual(
                 sorted(a.path for a in attachments),

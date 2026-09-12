@@ -116,6 +116,11 @@ is a raised exception against the `diagnostics` list returned beside a document.
 - **A refusal is a `vnx.VNXRefusal`.** Every cause of SPEC §6.2 and SPEC §7
   arrives as that exception, a damaged archive included, so a reading call has
   one type to catch.
+- **One damaged attachment does not cost you the document.** An attachment the
+  reader cannot decompress, or whose method is neither stored nor deflate, is
+  dropped with an `attachment-unreadable` diagnostic and the rest of the
+  container comes back (SPEC §7). It is never returned with empty bytes. Only a
+  damaged root document refuses, because that leaves nothing to return.
 - **A diagnostic comes back with the document.** `Diagnostic.code` is the stable
   token to switch on; `message` is English prose, advisory, and never compared
   (SPEC §6.3). `vnx/decode.py` and `vnx/container.py` raise every code.

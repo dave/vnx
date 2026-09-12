@@ -561,6 +561,13 @@ class RedProof(unittest.TestCase):
         The name list alone cannot see a reader that hands back the right
         entries with the wrong -- or no -- content, which is the defect this
         library had in a stronger form: it returned names and no bytes at all.
+
+        SPEC 7 now forbids the emptied shape in as many words (`38679fb`): an
+        attachment whose bytes cannot be recovered is DROPPED with a
+        diagnostic, and MUST NOT be returned with empty or partial content,
+        because a caller cannot tell that from an attachment the archive never
+        carried.  So this proof guards a MUST rather than a courtesy, and it is
+        the only check that would see a reader taking the forbidden shortcut.
         """
         original = vnx.container.read_container_bytes
 

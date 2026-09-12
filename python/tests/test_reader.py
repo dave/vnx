@@ -1021,6 +1021,69 @@ class ContainerCompression(unittest.TestCase):
         self.assertIsNotNone(result.document)
 
 
+class ContainerCorruptAttachment(unittest.TestCase):
+    """SPEC 7: a usable METHOD whose BYTES will not come back.
+
+    The same remedy as an unusable method -- drop the attachment, record a
+    diagnostic, return the document -- and it is a MUST in both directions: the
+    archive MUST NOT be refused, and the attachment MUST NOT come back empty.
+
+    Three of the six implementations refused here, this one included, while the
+    specification named the remedy for an unusable method alone.  `38679fb`
+    settled it and `corpus/diagnose/container-corrupt-attachment.vnz` pins it;
+    this test is the local witness, so the reason does not live only in a
+    fixture.
+    """
+
+    DOC = b'{"vnx": "0.1.0", "waypoints": [{"at": [1, 2]}]}'
+
+    def archive(self) -> bytes:
+        """A deflated attachment whose stream is damaged, CRC untouched."""
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as handle:
+            handle.writestr("doc.vnx", self.DOC)
+            handle.writestr("attachments/photo.txt", b"a photograph" * 20)
+        data = bytearray(buffer.getvalue())
+        # Damage the deflate stream of the second entry, in place, so the
+        # archive's structure is intact and only the payload is unrecoverable.
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as handle:
+            info = handle.getinfo("attachments/photo.txt")
+        at = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+        for offset in range(at + 2, at + info.compress_size):
+            data[offset] ^= 0xFF
+        return bytes(data)
+
+    def test_a_corrupt_attachment_is_dropped_and_the_document_returned(self) -> None:
+        result = vnx.read_container_bytes(self.archive())
+        self.assertEqual(result.attachments, [])
+        assert result.document.waypoints is not None
+        self.assertEqual(len(result.document.waypoints), 1)
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertEqual(result.diagnostics[0].code, "attachment-unreadable")
+        self.assertEqual(
+            result.diagnostics[0].path, "#/entries/attachments~1photo.txt"
+        )
+
+    def test_a_corrupt_ROOT_document_still_refuses(self) -> None:
+        """The one entry whose loss leaves nothing to return."""
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as handle:
+            handle.writestr("doc.vnx", self.DOC * 20)
+        data = bytearray(buffer.getvalue())
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as handle:
+            info = handle.getinfo("doc.vnx")
+        at = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+        for offset in range(at + 2, at + info.compress_size):
+            data[offset] ^= 0xFF
+        with self.assertRaises(vnx.VNXRefusal) as caught:
+            vnx.read_container_bytes(bytes(data))
+        self.assertIn("root document", str(caught.exception))
+
+
 class ContainerWriterDeflates(unittest.TestCase):
     """SPEC 7.1: every entry is stored or deflated, and a writer picks.
 

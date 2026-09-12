@@ -62,11 +62,12 @@ final class CauseTableTests: XCTestCase {
     }
 
     /// Forward: every REFUSAL cause the corpus exercises maps, in the table, to
-    /// exactly the substring that corpus expectation used.
+    /// a set of substrings that holds exactly the one that corpus expectation
+    /// used.
     func testEveryObservedCauseMapsToTheSubstringTheCorpusUsed() throws {
         for (cause, substring) in try observe() {
-            XCTAssertEqual(Cause.corpusSubstring[cause], substring,
-                           "cause `\(cause.rawValue)` satisfied the corpus expectation \"\(substring)\", which the table does not record")
+            XCTAssertTrue(Cause.corpusSubstring[cause]?.contains(substring) ?? false,
+                          "cause `\(cause.rawValue)` satisfied the corpus expectation \"\(substring)\", which the table does not record")
         }
     }
 
@@ -75,12 +76,25 @@ final class CauseTableTests: XCTestCase {
     /// expectation deleted from a sidecar, a cause that stopped firing — and a
     /// forward-only check stays green through all three.
     func testTableHasNoEntryTheCorpusDoesNotExercise() throws {
-        let observedCauses = Set(try observe().map(\.cause))
+        let observed = try observe()
+        let observedCauses = Set(observed.map(\.cause))
         let tabled = Set(Cause.corpusSubstring.keys)
         XCTAssertEqual(tabled.subtracting(observedCauses), [],
                        "these causes are in the table but no corpus case reaches them any more")
         XCTAssertEqual(observedCauses.subtracting(tabled), [],
                        "these causes satisfy a corpus expectation but are missing from the table")
+
+        // And per SUBSTRING, not only per cause. A cause carrying several —
+        // `versionUnsupportedSeries` does — would otherwise keep a stale entry
+        // alive on the strength of its sibling: the cause is still observed, so
+        // the check above stays green while the substring nothing expects any
+        // more sits in the table unnoticed.
+        let observedSubstrings = Set(observed.map(\.substring))
+        let tabledSubstrings = Set(Cause.corpusSubstring.values.flatMap { $0 })
+        XCTAssertEqual(tabledSubstrings.subtracting(observedSubstrings), [],
+                       "these substrings are in the table but no corpus expectation uses them any more")
+        XCTAssertEqual(observedSubstrings.subtracting(tabledSubstrings), [],
+                       "the corpus expects these substrings and the table does not record them")
     }
 
     /// Every message a cause can produce actually contains the substring the
@@ -105,14 +119,22 @@ final class CauseTableTests: XCTestCase {
                 }
             }
         }
-        for (cause, substring) in Cause.corpusSubstring {
+        for (cause, substrings) in Cause.corpusSubstring {
             guard let messages = seen[cause] else {
                 XCTFail("no corpus case produced cause `\(cause.rawValue)`")
                 continue
             }
+            // Every message this cause produces carries one of the tabled
+            // substrings, AND every tabled substring is carried by one of them.
+            // The second half is what stops a cause with two spellings passing
+            // while only ever emitting the first.
             for message in messages {
-                XCTAssertTrue(message.contains(substring),
-                              "a `\(cause.rawValue)` message does not contain the tabled substring \"\(substring)\": \(message)")
+                XCTAssertTrue(substrings.contains(where: message.contains),
+                              "a `\(cause.rawValue)` message contains none of the tabled substrings \(substrings.sorted()): \(message)")
+            }
+            for substring in substrings {
+                XCTAssertTrue(messages.contains { $0.contains(substring) },
+                              "no live `\(cause.rawValue)` message contains the tabled substring \"\(substring)\"")
             }
         }
     }
@@ -156,7 +178,8 @@ final class CauseTableTests: XCTestCase {
     /// rather than a refactor.
     func testCauseNamesArePinned() {
         XCTAssertEqual(Set(Cause.allCases.map(\.rawValue)), [
-            "malformedJSON", "notAVNXDocument", "versionMalformed", "versionTooNew",
+            "malformedJSON", "notAVNXDocument", "versionMalformed",
+            "versionUnsupportedSeries",
             "nonFiniteNumber", "containerMalformed", "containerPathEscapes",
             "containerDuplicateEntry", "containerNoDocument",
             "containerRootCompressionUnsupported",

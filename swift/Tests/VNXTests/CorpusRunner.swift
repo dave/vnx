@@ -30,14 +30,14 @@ enum Corpus {
     /// A `.vnz` decoded as JSON fails at byte 0 on the `P` of `PK`, which reads
     /// as a malformed document rather than as a runner that forgot a tier can
     /// hold an archive.
-    static func read(_ url: URL) throws -> (document: Document, diagnostics: [Diagnostic]) {
+    static func read(_ url: URL) throws -> (document: Document, diagnostics: [Diagnostic], attachments: [Attachment]) {
         let bytes = try Data(contentsOf: url)
         if url.pathExtension == "vnz" {
             let container = try VNX.readContainer(bytes)
-            return (container.document, container.diagnostics)
+            return (container.document, container.diagnostics, container.attachments)
         }
         let result = try VNX.read(bytes)
-        return (result.document, result.diagnostics)
+        return (result.document, result.diagnostics, [])
     }
 
     static func cases(in tier: String) throws -> [URL] {
@@ -60,6 +60,17 @@ enum Corpus {
         let positions: [(pointer: String, lon: Double, lat: Double)]
         let tracks: [(name: String, movingTimeMilliseconds: Double?)]
         let attachments: [String]?
+        /// Each attachment's BYTES, keyed by entry name, as UTF-8 text.
+        ///
+        /// The names listed here are exactly the ones `attachments` lists, and
+        /// an entry a reader dropped appears in neither —
+        /// `diagnose/container-unusable-method.vnz` is the case that says so:
+        /// it carries two entries, lists one, and its other one is reported as
+        /// a diagnostic instead. So the comparison is a whole-map comparison,
+        /// which is what catches a reader that returns an attachment's bytes
+        /// truncated, inflated twice, or taken from the neighbouring entry —
+        /// none of which the name list can see.
+        let attachmentContents: [String: String]?
         let refusal: String?
         /// The entry name a container write case expects its document under.
         let rootEntry: String?
@@ -109,6 +120,16 @@ enum Corpus {
                 return (name, nil)
             }
             self.attachments = o["attachments"]?.arrayValue?.compactMap { $0.stringValue }
+            if let c = o["attachment_contents"]?.objectValue {
+                self.attachmentContents = try c.mapValues { value in
+                    guard let text = value.stringValue else {
+                        throw SidecarError("an `attachment_contents` entry in \(url.lastPathComponent) is \(value.typeName); the corpus states each one as UTF-8 text")
+                    }
+                    return text
+                }
+            } else {
+                self.attachmentContents = nil
+            }
             self.refusal = o["refusal"]?.stringValue
             self.rootEntry = o["root"]?.stringValue
             if let d = o["diagnostics"]?.arrayValue {

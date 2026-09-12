@@ -31,12 +31,17 @@ final class LibraryTests: XCTestCase {
     }
 
     func testVersionsAcceptedAndRefused() throws {
-        for accepted in ["0.1.0", "0.1.3", "0.0.9", "0.1.99", "00.1.0", "0.01.000000000000000000005"] {
+        // Every accepted spelling is in the 0.1 series. A long or
+        // leading-zeroed component is a SPELLING of a series, not another one.
+        for accepted in ["0.1.0", "0.1.3", "0.1.99", "00.1.0", "0.01.000000000000000000005"] {
             XCTAssertNoThrow(try read("{\"vnx\":\"\(accepted)\"}"), accepted)
         }
-        for tooNew in ["0.2.0", "1.0.0", "9.9.9", "0.10.0"] {
-            XCTAssertThrowsError(try read("{\"vnx\":\"\(tooNew)\"}"), tooNew) {
-                XCTAssertEqual(($0 as? Refusal)?.cause, .versionTooNew, tooNew)
+        // Another series, in either direction: SPEC 2.2 refuses a lower minor
+        // for the same reason as a higher one, so `0.0.9` belongs in this list
+        // and not the one above.
+        for otherSeries in ["0.0.9", "0.0.0", "0.2.0", "1.0.0", "9.9.9", "0.10.0"] {
+            XCTAssertThrowsError(try read("{\"vnx\":\"\(otherSeries)\"}"), otherSeries) {
+                XCTAssertEqual(($0 as? Refusal)?.cause, .versionUnsupportedSeries, otherSeries)
             }
         }
         // "A version string that is not three digit-runs separated by full
@@ -63,15 +68,21 @@ final class LibraryTests: XCTestCase {
         for other in ["1.0.0", "2.5.9", "9.9.9"] {
             XCTAssertThrowsError(try read("{\"vnx\":\"" + other + "\"}"), other) {
                 let refusal = $0 as! Refusal
-                XCTAssertEqual(refusal.cause, .versionTooNew, other)
+                XCTAssertEqual(refusal.cause, .versionUnsupportedSeries, other)
                 XCTAssertTrue(refusal.message.contains("MUST NOT read another one under its own rules"),
                               "the refusal names the series rule, not the minor rule: " + refusal.message)
             }
         }
-        XCTAssertThrowsError(try read("{\"vnx\":\"0.2.0\"}")) {
-            XCTAssertTrue(($0 as! Refusal).message.contains("breaking axis"))
+        // A minor either side of the reader's is refused for the MINOR rule,
+        // which names the series rather than the major regime.
+        for otherMinor in ["0.2.0", "0.0.9"] {
+            XCTAssertThrowsError(try read("{\"vnx\":\"" + otherMinor + "\"}"), otherMinor) {
+                let refusal = $0 as! Refusal
+                XCTAssertTrue(refusal.message.contains("each minor is its own series"),
+                              "the refusal names the minor rule, not the series rule: " + refusal.message)
+                XCTAssertFalse(refusal.message.contains("MUST NOT read another one under its own rules"))
+            }
         }
-        XCTAssertNoThrow(try read("{\"vnx\":\"0.0.9\"}"))
         XCTAssertNoThrow(try read("{\"vnx\":\"0.1.99\"}"))
     }
 

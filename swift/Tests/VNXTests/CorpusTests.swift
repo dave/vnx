@@ -22,14 +22,14 @@ final class CorpusTests: XCTestCase {
         let bytes = try Data(contentsOf: url)
         let document: Document
         let diagnostics: [Diagnostic]
-        var attachments: [String] = []
+        var attachments: [Attachment] = []
         var documentSource = bytes
 
         if url.pathExtension == "vnz" {
             let container = try VNX.readContainer(bytes)
             document = container.document
             diagnostics = container.diagnostics
-            attachments = container.attachments.map(\.path)
+            attachments = container.attachments
             // The tree comparison is against the DOCUMENT inside the archive,
             // not against the archive: SPEC 7.1 constrains five rules and leaves
             // every other field of a container to its writer.
@@ -46,9 +46,7 @@ final class CorpusTests: XCTestCase {
         try assertCounts(sidecar, document, name)
         try assertPositions(sidecar, document, name)
         try assertTracks(sidecar, document, name)
-        if let expected = sidecar.attachments {
-            XCTAssertEqual(attachments.sorted(), expected.sorted(), "\(name): attachments")
-        }
+        assertAttachments(sidecar, attachments, name)
 
         // SPEC 8.1: decode, ENCODE, and compare the tree parsed from the
         // original file against the tree parsed from the output. Never the
@@ -123,6 +121,7 @@ final class CorpusTests: XCTestCase {
         try assertCounts(sidecar, result.document, name)
         try assertPositions(sidecar, result.document, name)
         try assertTracks(sidecar, result.document, name)
+        assertAttachments(sidecar, result.attachments, name)
         assertDiagnosticsMatchAsSet(expected: expected, reported: result.diagnostics, name: name)
     }
 
@@ -401,6 +400,40 @@ final class CorpusTests: XCTestCase {
         for collection in expected.keys {
             XCTAssertNotNil(actual[collection], "\(name): sidecar names an unknown collection `\(collection)`")
         }
+    }
+
+    /// The attachments a container case expects: their NAMES, and — where the
+    /// sidecar states them — their BYTES.
+    ///
+    /// The two are separate expectations and the name list is the weaker of
+    /// them: it cannot see a reader that returns an attachment whole but with
+    /// the wrong bytes in it, which is what an off-by-one on a local header, a
+    /// payload bounded by the wrong following entry, or a stored entry run
+    /// through the inflater all produce. Only the content map sees those.
+    ///
+    /// Asserted for the DIAGNOSE tier as well as accept, and that is the half
+    /// that carries the interesting case: `container-unusable-method.vnz` holds
+    /// an entry a reader cannot decompress, which SPEC 7 drops with a
+    /// diagnostic while returning the document. Its sidecar names only the
+    /// readable entry, so a whole-map comparison asserts the drop was SCOPED —
+    /// a reader that dropped both, or kept the unreadable one, fails here
+    /// rather than only in the diagnostics list.
+    private func assertAttachments(_ sidecar: Corpus.Sidecar, _ attachments: [Attachment], _ name: String) {
+        if let expected = sidecar.attachments {
+            // SPEC 7 does not order a reader's attachment list, and the corpus
+            // README says so outright, so the comparison sorts both sides.
+            XCTAssertEqual(attachments.map(\.path).sorted(), expected.sorted(), "\(name): attachments")
+        }
+        guard let expected = sidecar.attachmentContents else { return }
+        var actual: [String: String] = [:]
+        for attachment in attachments {
+            guard let text = String(data: attachment.bytes, encoding: .utf8) else {
+                XCTFail("\(name): the attachment \"\(attachment.path)\" is not UTF-8, and the sidecar states its content as text")
+                continue
+            }
+            actual[attachment.path] = text
+        }
+        XCTAssertEqual(actual, expected, "\(name): attachment contents")
     }
 
     private func assertPositions(_ sidecar: Corpus.Sidecar, _ document: Document, _ name: String) throws {

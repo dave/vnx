@@ -28,8 +28,15 @@ public enum Cause: String, Sendable, CaseIterable {
     case notAVNXDocument
     /// `vnx` is not three digit-runs separated by full stops.
     case versionMalformed
-    /// `vnx` names a MAJOR or MINOR above the reader's.
-    case versionTooNew
+    /// `vnx` names a series this reader does not implement.
+    ///
+    /// NOT "too new", in either half of the rule, and the name says so. SPEC
+    /// 2.2 selects the regime by the DOCUMENT's MAJOR, so a major either side
+    /// of the reader's refuses; and through 0.x each MINOR is its own series,
+    /// where "a lower minor is refused for the same reason as a higher one".
+    /// One cause, because it is one reason — which direction it was is in the
+    /// English, and only there.
+    case versionUnsupportedSeries
     /// A number in the document is not finite. Unreachable through a `NaN`
     /// literal, which the parser refuses first, but reachable through a
     /// well-formed literal that overflows binary64, such as `1e400`.
@@ -149,7 +156,7 @@ public enum Cause: String, Sendable, CaseIterable {
         .malformedJSON: "malformed-json",
         .notAVNXDocument: "not-a-vnx-document",
         .versionMalformed: "version-malformed",
-        .versionTooNew: "version-too-new",
+        .versionUnsupportedSeries: "version-unsupported-series",
         .nonFiniteNumber: "non-finite-number",
         .containerMalformed: "container-malformed",
         .containerPathEscapes: "container-path-escapes",
@@ -166,7 +173,7 @@ public enum Cause: String, Sendable, CaseIterable {
         .folderNotPresent: "folder-absent",
     ]
 
-    /// The English substring the corpus expects for this cause today, for
+    /// The English substrings the corpus expects for this cause today, for
     /// REFUSALS ONLY.
     ///
     /// Diagnostics used to be here too, matched on `message`. They are not any
@@ -194,13 +201,19 @@ public enum Cause: String, Sendable, CaseIterable {
     /// right reason in different words, and only the first wording passes. This
     /// library takes the strict-parser route and distinguishes the two causes
     /// itself, so a caller can tell them apart even where the corpus cannot.
-    public static let corpusSubstring: [Cause: String] = [
-        .malformedJSON: "malformed JSON",
-        .notAVNXDocument: "not a VNX document",
-        .versionMalformed: "MAJOR.MINOR.PATCH",
-        .versionTooNew: "a newer reader is needed",
-        .containerPathEscapes: "escapes the archive",
-        .containerDuplicateEntry: "duplicate entry",
+    /// A SET per cause, not one string, and `versionUnsupportedSeries` is why:
+    /// the corpus refuses `9.9.9` and `0.0.9` for the one reason and pins a
+    /// different substring for each, because the English a holder needs differs
+    /// — one of them should go and find a newer reader and the other should
+    /// not. A cause with a single entry is asserted exactly as strictly as
+    /// before.
+    public static let corpusSubstring: [Cause: Set<String>] = [
+        .malformedJSON: ["malformed JSON"],
+        .notAVNXDocument: ["not a VNX document"],
+        .versionMalformed: ["MAJOR.MINOR.PATCH"],
+        .versionUnsupportedSeries: ["a newer reader is needed", "0.0 series"],
+        .containerPathEscapes: ["escapes the archive"],
+        .containerDuplicateEntry: ["duplicate entry"],
     ]
 }
 

@@ -40,7 +40,7 @@ final class DocumentDecoder {
             throw Refusal(.versionMalformed,
                           "`vnx` is \"\(versionText)\", which is not of the shape MAJOR.MINOR.PATCH: three runs of decimal digits separated by full stops")
         }
-        try refuseIfNewer(version)
+        try refuseUnlessThisReaderImplementsTheSeries(version)
 
         // SPEC 4.2: a document containing a non-finite number MUST be refused.
         // `NaN` and `Infinity` literals never reach here — they are not JSON,
@@ -81,7 +81,7 @@ final class DocumentDecoder {
         return document
     }
 
-    private func refuseIfNewer(_ version: SemanticVersion) throws {
+    private func refuseUnlessThisReaderImplementsTheSeries(_ version: SemanticVersion) throws {
         let majorOrder = SemanticVersion.compare(version.major, readerVersion.major)
         let minorOrder = SemanticVersion.compare(version.minor, readerVersion.minor)
 
@@ -96,15 +96,29 @@ final class DocumentDecoder {
         // ignore-what-you-do-not-recognise rule is a guess about guarantees the
         // document never carried.
         if majorOrder != 0 {
-            throw Refusal(.versionTooNew,
-                          "this document is version \(version.display) and a newer reader is needed; this reader implements the \(readerVersion.major).x series and MUST NOT read another one under its own rules")
+            // The direction is in the English only. A document from a later
+            // series needs a newer reader; one from an earlier series does not,
+            // and a refusal that told its holder to upgrade would send them
+            // looking for a reader that will never exist.
+            let direction = majorOrder > 0 ? "and a newer reader is needed" : "and this reader is too new for it"
+            throw Refusal(.versionUnsupportedSeries,
+                          "this document is version \(version.display) \(direction); this reader implements the \(readerVersion.major).x series and MUST NOT read another one under its own rules")
         }
 
-        // Within the document's own major series. Through 0.x the MINOR number
-        // is a breaking axis, so a higher minor refuses; from 1.0 onward minor
-        // versions are additive and only a MAJOR increment refuses. The PATCH
-        // component never refuses at any version, which is why it appears in
-        // neither branch.
+        // Within the document's own major series. Through 0.x EACH MINOR IS ITS
+        // OWN SERIES, so the test is "not the same series" rather than "greater
+        // than": SPEC 2.2 says a reader "refuses 0.2.0, and it refuses 0.0.9
+        // unless it declares support for the 0.0 series. A lower minor is
+        // refused for the same reason as a higher one." A reader comparing with
+        // `> 0` reads a 0.0.9 document under 0.1's rules, which is a guess about
+        // guarantees that document never carried — and it is the shape this
+        // library had until `corpus/reject/version-too-old.vnx` existed to
+        // catch it.
+        //
+        // From 1.0 onward minor versions are additive and only a MAJOR
+        // increment refuses. The PATCH component never refuses at any version,
+        // which is why it appears in neither branch.
+        //
         // Read from the DOCUMENT, per the rule above. Control only reaches
         // here when the two majors are numerically equal, so swapping this for
         // `readerVersion.major` is a provable no-op and a red proof of it comes
@@ -112,9 +126,9 @@ final class DocumentDecoder {
         // rule is exercised where it is observable: `VersionRuleTests` reads as
         // a 1.x reader, where the two branches genuinely differ.
         let documentIsPreOne = SemanticVersion.compare(version.major, "0") == 0
-        if documentIsPreOne && minorOrder > 0 {
-            throw Refusal(.versionTooNew,
-                          "this document is version \(version.display) and a newer reader is needed; through 0.x the minor number is a breaking axis and this reader supports \(readerVersion.major).\(readerVersion.minor).x")
+        if documentIsPreOne && minorOrder != 0 {
+            throw Refusal(.versionUnsupportedSeries,
+                          "this document is version \(version.display), which is in the \(version.major).\(version.minor) series; through 0.x each minor is its own series, and this reader implements only \(readerVersion.major).\(readerVersion.minor), so a document from another series is refused whether its minor is higher or lower")
         }
     }
 

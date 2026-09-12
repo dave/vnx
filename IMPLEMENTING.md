@@ -623,13 +623,20 @@ and test nothing about it.
   what the entry contains and a size field does not. Record a diagnostic if you
   like; do not refuse, and do not drop the entry.
 
-  That sweep also found a defect no
-committed fixture can reach: a ZIP64 extended information field can name a
-local-header offset anywhere in a 64-bit range, so `offset + length` overflowed a
-pointer-sized integer before any bounds check ran. In a release build it wrapped
-and the archive was refused, so nobody would have noticed; in a debug build it
-panicked. Reaching it needs an offset near the top of the 64-bit range, which is
-a hand-built archive rather than a bit-flip of a committed one.
+  Work out what bounds the read once the two sizes need not agree, and write it
+  down. The declared *compressed* size, capped by the next local header or the
+  central directory, is the one that decides how many bytes a stored entry
+  yields; the declared uncompressed size is not consulted on that path, so a
+  disagreement between the two cannot change what comes back.
+
+A sweep of every prefix and every single-byte flip of a container reaches none
+of the following, and it is worth knowing why. A ZIP64 extended information
+field can name a local-header offset anywhere in a 64-bit range, so
+`offset + length` can overflow a pointer-sized integer before any bounds check
+runs. In a release build it wraps and the archive is refused, so nobody notices;
+in a debug build it panics. Reaching it needs an offset near the top of the
+64-bit range, which is a hand-built archive rather than a bit-flip of a
+committed one.
 
 Every corpus fixture is well-formed, including the ones that must be refused —
 they are refused for *format* reasons rather than for being damaged. So no tier

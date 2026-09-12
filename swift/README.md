@@ -1,123 +1,144 @@
 # VNX for Swift
 
-A VNX codec: read and write `.vnx` and `.vnz`, report diagnostics. Swift 5.9+,
-Foundation plus the system zlib. No package dependencies.
+`VNX` reads and writes VNX documents and VNZ containers in Swift, and reports
+diagnostics.
+
+Swift 5.9 or later, on macOS 10.15, iOS 13, tvOS 13 or watchOS 6. Foundation and
+zlib only — zlib is a system library, present in the macOS SDK and in every Linux
+distribution, so there is nothing to fetch and no lock file. Implements VNX 0.1.0
+— [`SPEC.md`](../SPEC.md) is the format definition.
+
+## Install
+
+Clone the repository and depend on the package by path. In the consuming
+`Package.swift`:
+
+```swift
+dependencies: [
+    .package(path: "../vnx/swift")
+],
+targets: [
+    .executableTarget(name: "MyApp", dependencies: [
+        .product(name: "VNX", package: "swift")
+    ])
+]
+```
+
+**The `package:` label is the name of the DIRECTORY the dependency points at,
+not the package's declared name.** The declared name, the product and the module
+are all spelled `VNX`, and `package: "VNX"` fails with `unknown package 'VNX' in
+dependencies of target 'MyApp'; valid packages are: 'swift'`. With the dependency
+at `../vnx/swift` the label is `swift`.
+
+Set the consuming package's `platforms` floor at or above this one; a lower floor
+fails to resolve.
+
+## Usage
+
+Read a file, walk a track to its coordinates, report every fault, write it back.
+
+```swift
+import Foundation
+import VNX
+
+let url = URL(fileURLWithPath: CommandLine.arguments[1])
+let reading = try VNX.read(contentsOf: url)
+
+for track in reading.document.tracks ?? [] {
+    print("track \(track.name ?? "(unnamed)")")
+    for segment in track.segments {
+        for pip in segment.pips.prefix(2) {
+            print("  \(pip.lon), \(pip.lat)")
+        }
+    }
+}
+for d in reading.diagnostics {
+    print("\(d.code) \(d.path): \(d.message)")
+}
+
+try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
+```
+
+## API
+
+| Call | Takes | Returns | Throws |
+|---|---|---|---|
+| `VNX.read(_:)` | `Data` | `VNX.ReadResult` | `Refusal`, one of the four document causes |
+| `VNX.read(contentsOf:)` | `URL`, read as a container where the extension is `.vnz` | `VNX.ReadResult` | the same, and whatever reading the file raises |
+| `VNX.readContainer(_:)` | `Data` | `ContainerResult` | `Refusal`, a document or a container cause |
+| `VNX.write(_:)` | `Document` | `Data` | `Refusal`, for a number JSON cannot spell |
+| `VNX.writeContainer(document:attachments:)` | `Document`, `[Attachment]` | `Data` | the same, from the document it carries |
+| `VNX.version` | — | `String` | — |
+
+| Type | Members |
+|---|---|
+| `VNX.ReadResult` | `document: Document`, `diagnostics: [Diagnostic]` |
+| `ContainerResult` | `documentName: String`, `document`, `diagnostics`, `attachments: [Attachment]` |
+| `Attachment` | `path: String`, `bytes: Data` |
+| `Diagnostic` | `path: String`, `message: String`, `cause: Cause`, `code: String` |
+| `Refusal` | `message: String`, `cause: Cause`; conforms to `Error` |
+| `Document` | `vnx`, `profile`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| `Position` | `lon`, `lat`, `elevation: Double?`, `timeMilliseconds: Double?`, `isSamePlace(as:)` |
+| `Track` | `segments: [TrackSegment]`, `movingTimeMilliseconds: Double?` |
+
+Every public type is `Sendable`. Writing what you read is legitimately not the
+bytes you read, because a writer applies the emit-boundary rules of SPEC §4.1.
+
+## Errors and diagnostics
+
+A refusal and a diagnostic are separate channels (SPEC §6.2–§6.3), and in Swift
+that is a thrown error against the `diagnostics` array returned beside a
+document.
+
+- **A refusal is a thrown `Refusal`.** `Refusal.cause` is a `Cause` and
+  `cause.code` is its stable token. `Cause` is `CaseIterable`, so the whole set
+  is reachable from code; `Sources/VNX/Cause.swift` documents each one.
+- **A diagnostic comes back with the document.** Branch on `Diagnostic.code`.
+  `message` is English prose, advisory, and never compared (SPEC §6.3). `path`
+  is a JSON Pointer (RFC 6901) into the document, except `attachment-unreadable`,
+  which points into the archive's entries.
+- **An absent collection is `nil`, not `[]`.** `Document` holds the two apart, so
+  a read-write-read is a fixed point. Inside an item — `Route.arcs`,
+  `Chain.links`, `Track.segments`, an arc's `pips` — it is a plain array.
+- **`Track.movingTimeMilliseconds` is `nil` for unknown.** Unknown is not zero.
+- **A `Position` holds four values, not the arity the document spelled.**
+  `elevation` and `timeMilliseconds` are `nil` where a channel was absent or
+  `null`, and a writer emits the shortest spelling of the four.
+- **This reader bounds nothing.** SPEC §9 has a reader taking documents from an
+  untrusted source bound what one may consume; impose that limit before handing
+  this library an upload.
+
+## Run the tests
 
 ```sh
 cd swift && swift test
 ```
 
-## What it does
-
-| Call | What it does |
-|---|---|
-| `VNX.read(_:)` | reads a `.vnx`, returning a `Document` and its diagnostics, or throwing a `Refusal` |
-| `VNX.readContainer(_:)` | reads a `.vnz`, returning the same plus its attachments |
-| `VNX.write(_:)` | writes a document, applying the emit-boundary rules of SPEC 4.1 |
-| `VNX.writeContainer(document:attachments:)` | writes a `.vnz` with every entry deflated |
-
-There is one emit path. The format defines no byte layout and the corpus
-compares parsed documents rather than bytes, so the only operation a writer
-performs is the one that turns a model into a file.
-
-`write` throws where the model holds a number JSON cannot spell (SPEC 4.2).
-
-## What it does not do
-
-- **No GPX, KML or GeoJSON.** The repository README calls those "conversion
-  tools, not part of the format ... no library is expected to implement them".
-- **No hand-written JSON serialiser.** `JSONEncoder` renders the tree.
-  `JSONSerialization` would not do: it spells `-3.67` as `-3.6699999999999999`.
-  The PARSER is still hand-written, because a reader has rules a stock parser
-  does not enforce — `NaN` and `Infinity` are not tokens here.
-- **No duplicate-object-key detection.** SPEC 6.4 documents this as a limitation
-  of the format. `corpus/diagnose/duplicate-object-key.vnx` expects no
-  diagnostic, and if a reader ever gains the ability to see one, that file goes
-  red and the limitation gets revisited.
-
-## zlib
-
-`Package.swift` declares a `systemLibrary` target for zlib, with a module map
-over `<zlib.h>`. It is the only build-system dependency this library has, and it
-is a system one on purpose: zlib ships with the macOS SDK and with every Linux
-distribution, so it costs no fetch and no lock file. A conformance library that
-needed a package graph could not be dropped into an app that has none.
-
-It buys both directions of DEFLATE — a `.vnz` writer that compresses, and the
-inflate a reader needs for SPEC 7 — plus the CRC-32 a ZIP entry carries. The
-alternative on Apple platforms is `Compression.framework`, which does not exist
-on Linux.
-
-## Reason codes
-
-SPEC 6.3 gives a diagnostic a `code`, and the corpus compares codes rather than
-English. Every `Diagnostic` and every `Refusal` here carries a `Cause`, whose
-`code` is the corpus's own token for the six the corpus pins and this library's
-own kebab-case token for the rest. `Cause.corpusCode` and
-`Cause.corpusSubstring` are asserted against the corpus in both directions, so
-neither table can go stale in silence.
-
-A refusal has no code in the format yet — the corpus still matches `refusal` as
-an English substring, which its README calls the remaining place it compares
-English across implementations. `Cause` distinguishes the refusals the corpus
-cannot: `malformedJSON` and `nonFiniteNumber` both concern SPEC 4.2 and only the
-first has a corpus wording.
+Unit tests and the corpus runner over the accept, reject, diagnose, write and
+numbers tiers. A green run is the conformance claim.
 
 ## Layout
 
 | File | What it holds |
 |---|---|
-| `JSONValue.swift`, `JSONParser.swift` | a strict RFC 8259 parser, and the tree it produces |
-| `Model.swift` | the document model. A position holds four values, not the arity the file spelled |
-| `Decoder.swift` | SPEC 6.2 in full: what is refused, what is dropped, what is reported |
-| `Encoder.swift` | the model back to a JSON tree, with SPEC 4.1's emit boundary applied |
-| `Projection.swift` | SPEC 3.3.3's equirectangular map and the 50 m tolerance |
-| `Deflate.swift`, `Zip.swift`, `Container.swift` | zlib, ZIP with ZIP64, and SPEC 7 and 7.1 |
-| `Rounding.swift` | SPEC 4.1's precision, from the exact decimal expansion, ties to even |
-| `CodePointOrder.swift` | the one order this library chooses for itself; Swift's `<` normalises |
+| `JSONValue.swift`, `JSONParser.swift` | a strict RFC 8259 parser and its tree |
+| `Model.swift` | the decoded document (SPEC §3) |
+| `Decoder.swift` | what is refused, dropped and reported (SPEC §6.2) |
+| `Encoder.swift`, `Rounding.swift` | the emit boundary and its precision (SPEC §4.1) |
+| `Projection.swift` | the equirectangular map and its tolerance (SPEC §3.3.3) |
+| `Deflate.swift`, `Zip.swift`, `Container.swift` | zlib, ZIP with ZIP64, the container (SPEC §7) |
 | `Version.swift` | `MAJOR.MINOR.PATCH`, compared as numbers of any length |
-| `Cause.swift` | reason codes, and the tables tying them to the corpus |
+| `CodePointOrder.swift` | code-point ordering, which Swift's `<` does not give |
+| `Cause.swift` | the reason codes, and the tables tying them to the corpus |
 
-## Tests
+## Notes for porters
 
-`Tests/VNXTests/CorpusTests.swift` runs the accept, reject, diagnose and write
-tiers. The accept tier compares the tree parsed from the file against the tree
-parsed from `write(read(file))`, applying the two normalisations SPEC 8.1
-permits and no others.
+General form in [`IMPLEMENTING.md`](../IMPLEMENTING.md); these are the parts
+that are shaped by Swift.
 
-`AcceptTierProofTests.swift` freezes why that comparison is against the FILE.
-Four spoiled readers — one that drops every data record, every ruleset, every
-style, every `notes` — are each asserted to be caught by the tree comparison,
-and each asserted to pass a model-versus-model comparison green. That is the
-whole extensibility mechanism, all styling and all user prose, silently
-droppable by a "conforming" implementation.
-
-`WriterArchiveRulesTests.swift` asserts SPEC 7.1's five rules against the
-archive this writer produces, reading the local headers out of raw bytes rather
-than through `Zip.entries`. That instrument choice is the point: every ZIP
-library resolves an entry from the central directory on purpose, so a library
-can never be the instrument for a local-header rule — it reports agreement
-whatever the local header says. It no longer compares whole archives against
-another implementation's bytes, because 7.1 no longer asks two writers to agree
-on them.
-
-`LibraryTests.swift` covers what the corpus does not reach — ZIP64 central
-directories, the root-document rule at depth, version spellings, model-first
-round trips.
-
-`NumberConformanceTests.swift` runs the shared number-conformance table from
-`corpus/numbers/`, generated by the Go reference. It compares the ROUNDED VALUE
-by bit pattern and does not read the table's `render` column: how a number is
-spelled is the writer's own business (SPEC 4.2), and comparing spellings across
-implementations is the rule this format dropped.
-
-`VersionRuleTests.swift` reads documents as a hypothetical 1.x reader, because
-SPEC 2.2's rule that minor versions are additive from 1.0 onward is otherwise
-unreachable from a library that implements 0.1 — and an unreachable branch is
-where a mutation goes green and gets mistaken for a tested one.
-
-`RoundingTests.swift` covers SPEC 4.1's precision rule in depth, against
-`RoundingOracle` — 4,082 triples computed with rational arithmetic — because the
-obvious implementation is wrong in a way that looks right: scaling by a power of
-ten MANUFACTURES ties the exact decimal expansion does not have (`0.15` is
-`0.1`, not `0.2`) and destroys ties it does (`0.45` is `0.5`, not `0.4`).
+- `JSONEncoder` renders the tree, because `JSONSerialization` spells `-3.67` as
+  `-3.6699999999999999`. The parser is hand-written: a reader enforces rules a
+  stock parser does not, and `NaN` and `Infinity` are not JSON tokens.
+- zlib arrives through a `systemLibrary` target with a module map over
+  `<zlib.h>`, rather than `Compression.framework`, which has no Linux build.
+- `withoutEscapingSlashes` sets the platform floor at macOS 10.15.

@@ -6,47 +6,52 @@ diagnostics.
 Kotlin 2.1.20, on a JDK 17 you have installed. The Gradle wrapper fetches Gradle
 itself, not a JDK. One dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
-1.8.0, which has to reach the runtime classpath of whatever consumes this.
+1.8.0, which this library's POM declares, so it arrives on a consumer's runtime
+classpath without the consumer naming it.
 Implements VNX 0.1.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
 0.x the MINOR component is a breaking axis, so this reader reads the 0.1 series
 and refuses every other, in both directions (SPEC §2.2).
 
 ## Install
 
-Clone the repository and take this build in as a composite build. In the
-consuming `settings.gradle.kts`:
-
-```kotlin
-includeBuild("../vnx/kotlin") {
-    dependencySubstitution {
-        substitute(module("app.viatrail:vnx")).using(project(":"))
-    }
-}
-```
-
-and in the consuming `build.gradle.kts`:
-
 ```kotlin
 dependencies {
-    implementation("app.viatrail:vnx")
+    implementation("app.viatrail:vnx:0.1.0")
 }
 ```
 
-**The coordinate `app.viatrail:vnx` is invented by the consumer.** It matches
-nothing in this build and exists only to give the substitution rule something to
-bind to; any string serves, so long as both lines spell it alike. Drop the
-`dependencySubstitution` block and resolution fails with `Could not find
-app.viatrail:vnx:`. This route puts kotlinx-serialization on the runtime
-classpath without the consumer naming it.
+That coordinate is this build's own: `group` is `app.viatrail`, the artifact is
+`vnx`, and the version is the VNX version implemented. Install it into your own
+Maven local repository to resolve it. In `kotlin/`:
 
-A flat jar is the alternative: `./gradlew jar` here produces
-`build/libs/vnx.jar`, which `implementation(files(".../vnx.jar"))` compiles
-against. **Declare
-`implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")` beside
-it.** `files()` carries no POM, so nothing transitive arrives with the jar, and
-its absence is not a build error: reading succeeds, because the parser is this
-library's own, and writing throws
-`NoClassDefFoundError: kotlinx/serialization/json/Json` at run time.
+```sh
+./gradlew publishToMavenLocal
+```
+
+and name that repository in the consuming build:
+
+```kotlin
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+```
+
+`mavenCentral()` beside it resolves kotlinx-serialization, which the published
+POM asks for. Nothing else is needed: the POM carries the dependency, so writing
+a document works without the consumer declaring a JSON library of its own.
+
+Developing against the library — where a change here should be picked up without
+republishing — take it in as a composite build instead. In the consuming
+`settings.gradle.kts`:
+
+```kotlin
+includeBuild("../vnx/kotlin")
+```
+
+and the same `implementation("app.viatrail:vnx:0.1.0")` line. Gradle substitutes
+the included build for the coordinate because the two agree on `group` and name;
+no `dependencySubstitution` block, and no `mavenLocal()`.
 
 ## Usage
 

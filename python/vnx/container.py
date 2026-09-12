@@ -23,20 +23,36 @@ from .errors import Diagnostic, VNXRefusal
 from .model import Document
 
 __all__ = [
-    "ContainerReadResult", "read_container_bytes", "encode_container_bytes",
+    "Attachment", "ContainerReadResult", "read_container_bytes",
+    "encode_container_bytes",
 ]
 
 _ROOT_DOCUMENT = "doc.vnx"
 _DRIVE_LETTER = re.compile(r"\A[A-Za-z]:")
 
 
+@dataclass(frozen=True, slots=True)
+class Attachment:
+    """One file carried alongside the document (SPEC 7).
+
+    The PATH and the BYTES travel together because a caller that cannot reach
+    the bytes cannot do anything with the name: the container exists to carry
+    attachments, and a reader that returned names alone made a ``.vnz`` half
+    readable.  Nothing in this format interprets the bytes -- an attachment is
+    opaque, so it is ``bytes`` and not a decoded anything.
+    """
+
+    path: str
+    bytes: bytes
+
+
 @dataclass(slots=True)
 class ContainerReadResult:
-    """A container's document, its diagnostics, and its attachment names."""
+    """A container's document, its diagnostics, and its attachments."""
 
     document: Document
     diagnostics: list[Diagnostic]
-    attachments: list[str] = field(default_factory=list)
+    attachments: list[Attachment] = field(default_factory=list)
     document_name: str = _ROOT_DOCUMENT
 
 
@@ -244,9 +260,23 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
                 "attachment-unreadable",
             )
         )
-    attachments = [
-        name for name in names if name != document_name and name not in unreadable
-    ]
+    # An attachment's BYTES come back with its name.  An entry this reader
+    # cannot decompress was already dropped above, on its METHOD, before
+    # anything was inflated; what is left failing here is a damaged archive --
+    # a wrong CRC or a truncated stream -- and that is refused like every other
+    # malformed container rather than dropped quietly.  A caller cannot tell a
+    # silently missing attachment from one the archive never held.
+    attachments = []
+    for name in names:
+        if name == document_name or name in unreadable:
+            continue
+        try:
+            body = archive.read(name)
+        except (zipfile.BadZipFile, zlib.error, EOFError, ValueError) as exc:
+            raise VNXRefusal(
+                f"the attachment {name!r} will not decompress: {exc}"
+            ) from exc
+        attachments.append(Attachment(name, body))
     return ContainerReadResult(
         document=result.document,
         diagnostics=diagnostics,

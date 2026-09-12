@@ -28,7 +28,8 @@ import os
 from typing import Union
 
 from .container import (
-    ContainerReadResult, encode_container_bytes, read_container_bytes,
+    Attachment, ContainerReadResult, encode_container_bytes,
+    read_container_bytes,
 )
 from .decode import ReadResult, SUPPORTED_VERSION, decode_document, read_bytes
 from .encode import encode_document
@@ -41,8 +42,9 @@ from .model import (
 from .writer import encode_bytes, round_position, rounded_document
 
 __all__ = [
-    "Area", "Arc", "Chain", "ContainerReadResult", "DataRecord", "Diagnostic",
-    "Document", "Folder", "Link", "Network", "Position", "ReadResult", "Route",
+    "Area", "Arc", "Attachment", "Chain", "ContainerReadResult", "DataRecord",
+    "Diagnostic", "Document", "Folder", "Link", "Network", "Position",
+    "ReadResult", "Route",
     "RouteArc", "SUPPORTED_VERSION", "Segment", "Track", "VNXRefusal",
     "Waypoint", "decode_document", "encode_document", "encode_bytes",
     "encode_container_bytes", "encode_file", "parse_json", "read_bytes",

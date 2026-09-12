@@ -44,9 +44,35 @@ class Versions(unittest.TestCase):
     def test_a_matching_version_is_accepted(self) -> None:
         self.assertEqual(read('{"vnx": "0.1.0"}').document.vnx, "0.1.0")
 
-    def test_an_older_minor_is_accepted(self) -> None:
-        # SPEC 2.2 in as many words: "A 0.1.0 reader accepts 0.1.3 and 0.0.9".
-        self.assertEqual(read('{"vnx": "0.0.9"}').document.vnx, "0.0.9")
+    def test_a_lower_minor_is_refused(self) -> None:
+        """SPEC 2.2: through 0.x each MINOR is ITS OWN SERIES.
+
+        0.0 is not an older spelling of 0.1, and this reader has no rules for
+        it -- "a lower minor is refused for the same reason as a higher one".
+        Written as "greater than", which is what this library shipped, a 0.0.9
+        document is read under 0.1 rules it was never written to.
+        """
+        with self.assertRaises(VNXRefusal) as caught:
+            read('{"vnx": "0.0.9"}')
+        message = str(caught.exception)
+        # The version itself, which SPEC 2.2 requires, and the SERIES, so the
+        # reader a user needs is named rather than only that something is wrong.
+        self.assertIn("0.0.9", message)
+        self.assertIn("0.0 series", message)
+
+    def test_a_higher_minor_is_refused(self) -> None:
+        """The counterpart direction, so a fix cannot swap one for the other."""
+        with self.assertRaises(VNXRefusal) as caught:
+            read('{"vnx": "0.2.0"}')
+        self.assertIn("0.2.0", str(caught.exception))
+
+    def test_any_patch_within_the_series_is_accepted(self) -> None:
+        """SPEC 2.2: PATCH never refuses, in either direction."""
+        for version in ("0.1.0", "0.1.5", "0.1.99"):
+            with self.subTest(version=version):
+                self.assertEqual(
+                    read(f'{{"vnx": "{version}"}}').document.vnx, version
+                )
 
     def test_a_newer_major_is_refused(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -603,7 +629,10 @@ class Containers(unittest.TestCase):
         )
         self.assertEqual(result.document_name, "doc.vnx")
         self.assertEqual(result.document.folders, [])
-        self.assertEqual(result.attachments, ["aaa.vnx"])
+        self.assertEqual(
+            result.attachments,
+            [vnx.Attachment("aaa.vnx", b'{"vnx": "0.1.0", "areas": []}')],
+        )
 
     def test_the_match_is_on_the_full_entry_name(self) -> None:
         # A doc.vnx at depth is not the root document.  Matching on the base
@@ -624,7 +653,9 @@ class Containers(unittest.TestCase):
         document = vnx.read_bytes(b'{"vnx": "0.1.0", "waypoints": [{"at": [1, 2]}]}').document
         data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         result = vnx.read_container_bytes(data)
-        self.assertEqual(result.attachments, ["attachments/p.txt"])
+        self.assertEqual(
+            result.attachments, [vnx.Attachment("attachments/p.txt", b"x")]
+        )
         assert result.document.waypoints is not None
         at = result.document.waypoints[0].at
         assert at is not None
@@ -876,7 +907,9 @@ class ContainerPathRules(unittest.TestCase):
         self.assertIn("backslash", self.refuses("a\\b.jpg"))
         self.assertIn("`..` path segment", self.refuses("../x"))
         result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
-        self.assertEqual(result.attachments, ["a..b/photo.jpg"])
+        self.assertEqual(
+            result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")]
+        )
 
     def test_the_writer_refuses_a_name_it_would_refuse_to_read(self) -> None:
         document = vnx.read_bytes(self.DOC).document
@@ -890,7 +923,9 @@ class ContainerPathRules(unittest.TestCase):
         document the format declares valid, and no archive in the corpus would
         catch it."""
         result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
-        self.assertEqual(result.attachments, ["a..b/photo.jpg"])
+        self.assertEqual(
+            result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")]
+        )
 
     def test_names_differing_only_by_case_are_duplicates(self) -> None:
         """SPEC 7 compares duplicate names case-insensitively. A
@@ -951,7 +986,10 @@ class ContainerCompression(unittest.TestCase):
         for method in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
             with self.subTest(method=method):
                 result = vnx.read_container_bytes(self.archive(method, method))
-                self.assertEqual(result.attachments, ["attachments/photo.txt"])
+                self.assertEqual(
+                    result.attachments,
+                    [vnx.Attachment("attachments/photo.txt", b"x")],
+                )
                 self.assertEqual(result.diagnostics, [])
 
     def test_an_unreadable_root_document_refuses_the_archive(self) -> None:
@@ -1019,7 +1057,10 @@ class ContainerWriterDeflates(unittest.TestCase):
         data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x" * 200})
         result = vnx.read_container_bytes(data)
         self.assertEqual(result.diagnostics, [])
-        self.assertEqual(result.attachments, ["attachments/p.txt"])
+        self.assertEqual(
+            result.attachments,
+            [vnx.Attachment("attachments/p.txt", b"x" * 200)],
+        )
         self.assertEqual(
             tree.compare_documents(
                 vnx.encode_bytes(result.document), vnx.encode_bytes(document),

@@ -398,13 +398,24 @@ class _Reader:
             )
         major, minor = int(match.group(1)), int(match.group(2))
         # SPEC 2.2: PATCH never refuses.  Through 0.x, MAJOR and MINOR are both
-        # breaking axes, so anything above this reader's own is refused.
+        # breaking axes, and each MINOR is ITS OWN SERIES -- so the test is "not
+        # the series this reader implements", not "above it".  0.0 is not an
+        # older spelling of 0.1; this reader has no rules for it and refuses it
+        # for the same reason it refuses 0.2.  Written as `>` -- the shape five
+        # of the six implementations had -- a 0.0.9 document reads as though it
+        # were 0.1, under rules it was never written to.
+        if (major, minor) == SUPPORTED_VERSION:
+            return
+        supported = f"{SUPPORTED_VERSION[0]}.{SUPPORTED_VERSION[1]}"
         if (major, minor) > SUPPORTED_VERSION:
-            supported = f"{SUPPORTED_VERSION[0]}.{SUPPORTED_VERSION[1]}"
             raise VNXRefusal(
                 f"this document is version {version} and a newer reader is needed: "
                 f"this one reads {supported}.x"
             )
+        raise VNXRefusal(
+            f"this document is version {version} and this reader does not "
+            f"support the {major}.{minor} series: it reads {supported}.x"
+        )
 
     def _collection(
         self, obj: dict[str, JSONValue], key: str, decode: Any

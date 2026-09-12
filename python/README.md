@@ -42,8 +42,36 @@ for d in reading.diagnostics:
 vnx.encode_file("out.vnx", doc)
 ```
 
-A `.vnz` opens with `vnx.read_container_file`, which carries `document` and
-`diagnostics` beside the container's own fields.
+```
+route Braeriach direct 2 arcs
+chain Chalamain Gap 2 links
+chain Rock fall 1 links
+track Lairig Ghru, 12 May moving 167000.0
+```
+
+A `.vnz` opens with `vnx.read_container_file`. It carries `document` and
+`diagnostics` beside the container's own fields, and each attachment arrives as
+a path and its bytes.
+
+```python
+import vnx
+
+container = vnx.read_container_file("corpus/accept/container-root-doc.vnz")
+print("document entry", container.document_name)
+for attachment in container.attachments:
+    print("attachment", attachment.path, len(attachment.bytes), "bytes")
+
+try:
+    vnx.read_bytes(b'{"vnx": "0.0.9"}')
+except vnx.VNXRefusal as refusal:
+    print("refused:", refusal)
+```
+
+```
+document entry doc.vnx
+attachment attachments/photo.txt 19 bytes
+refused: this document is version 0.0.9 and this reader does not support the 0.0 series: it reads 0.1.x
+```
 
 ## API
 
@@ -57,13 +85,14 @@ A `.vnz` opens with `vnx.read_container_file`, which carries `document` and
 | `vnx.encode_file` | a path, a `Document` | `None` | — |
 | `vnx.encode_bytes` | a `Document` | `bytes` | — |
 | `vnx.encode_document` | a `Document` | a JSON value | — |
-| `vnx.encode_container_bytes` | a `Document`, `dict[str, bytes]` of attachments | `bytes` | — |
+| `vnx.encode_container_bytes` | a `Document`, `dict[str, bytes]` of attachments | `bytes` | `VNXRefusal` |
 | `vnx.parse_json` | `bytes` | a JSON value | `VNXRefusal` |
 
 | Type | Fields |
 |---|---|
 | `ReadResult` | `document: Document`, `diagnostics: list[Diagnostic]` |
-| `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[str]` |
+| `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
+| `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
 | `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `profile`, `generator`, `created`, and `counts()` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `chains`, `points`, `areas` |
@@ -97,6 +126,10 @@ is a raised exception against the `diagnostics` list returned beside a document.
 - **`Track.moving_time_ms()` is a call and returns `None` for unknown.** Unknown
   is not zero. `Position.ele` and `time_ms` are `None` for a channel that was
   `null` or left off.
+- **A version outside this reader's series is refused, in either direction.**
+  Through 0.x each MINOR is its own series (SPEC §2.2), so `0.0.9` is refused
+  exactly as `0.2.0` is, and the message names the series. Any PATCH within
+  `0.1` reads.
 - **Damaged geometry costs its container.** A position inside `pips` that will
   not parse drops the arc or segment holding it, while a link that cannot be
   used is dropped and its chain survives (SPEC §6.2).

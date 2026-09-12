@@ -79,7 +79,7 @@ class CorpusStructure(unittest.TestCase):
 
     # Fields this runner compares.  `kind` and `note` are structural.
     CHECKED = {"kind", "note", "counts", "positions", "tracks", "attachments",
-               "refusal", "diagnostics"}
+               "attachment_contents", "refusal", "diagnostics"}
     # Fields this runner knowingly does not compare, and why.  A sidecar field
     # that is in neither set fails the test below rather than being ignored:
     # an unasserted expectation is how a fixture quietly becomes the format.
@@ -160,6 +160,38 @@ class _CorpusCase(unittest.TestCase):
         if path.suffix == ".vnz":
             return vnx.read_container_file(path)
         return vnx.read_file(path)
+
+    def _check_attachments(self, expect: dict, result: Any, name: str) -> None:
+        """The attachment NAMES, and the BYTES the sidecar pins for them.
+
+        `attachments` alone cannot see a reader that hands back names with no
+        way to reach a content -- which is what this library did until the
+        container carried `Attachment(path, bytes)`.  `attachment_contents`
+        pins the bytes, as UTF-8 text, so the names are provably attached to
+        the right payloads.
+
+        It is a SUBSET of the entries, not a second listing of them: a sidecar
+        pins the content of the entries it cares to, and
+        `diagnose/container-unusable-method.vnz` lists only the readable one
+        because the other was dropped on its compression method.
+        """
+        attachments = getattr(result, "attachments", [])
+        if "attachments" in expect:
+            self.assertEqual(
+                sorted(a.path for a in attachments),
+                sorted(expect["attachments"]),
+                f"{name}: attachments",
+            )
+        if "attachment_contents" not in expect:
+            return
+        bodies = {a.path: a.bytes for a in attachments}
+        for entry, text in expect["attachment_contents"].items():
+            self.assertIn(entry, bodies, f"{name}: no attachment {entry!r}")
+            self.assertEqual(
+                bodies[entry],
+                text.encode("utf-8"),
+                f"{name}: the bytes of attachment {entry!r}",
+            )
 
     def _check_counts(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
         """SPEC 8.1's `counts`, under the completeness rule ruled 2026-09-09.
@@ -250,12 +282,7 @@ class AcceptTier(_CorpusCase):
                 self._check_counts(expect, result.document, path.name)
                 self._check_positions(expect, result.document, path.name)
                 self._check_tracks(expect, result.document, path.name)
-                if "attachments" in expect:
-                    self.assertEqual(
-                        sorted(getattr(result, "attachments", [])),
-                        sorted(expect["attachments"]),
-                        f"{path.name}: attachments",
-                    )
+                self._check_attachments(expect, result, path.name)
 
     def test_accept_files_survive_a_read_and_a_write(self) -> None:
         """SPEC 8.1's check: DECODE the file, ENCODE the model, and require the
@@ -321,6 +348,7 @@ class DiagnoseTier(_CorpusCase):
                 self._check_counts(expect, result.document, path.name)
                 self._check_positions(expect, result.document, path.name)
                 self._check_tracks(expect, result.document, path.name)
+                self._check_attachments(expect, result, path.name)
 
 
 class DiagnosticsAreDistinguishable(unittest.TestCase):
@@ -578,12 +606,16 @@ class WriteTier(unittest.TestCase):
                 read = vnx.read_container_bytes(written.read_bytes())
                 self.assertEqual(read.diagnostics, [])
                 self.assertEqual(
-                    sorted(read.attachments), sorted(self._manifest(manifest))
+                    {a.path: a.bytes for a in read.attachments},
+                    self._manifest(manifest),
                 )
                 again = vnx.read_container_bytes(
                     vnx.encode_container_bytes(read.document, self._manifest(manifest))
                 )
-                self.assertEqual(sorted(again.attachments), sorted(read.attachments))
+                self.assertEqual(
+                    sorted(again.attachments, key=lambda a: a.path),
+                    sorted(read.attachments, key=lambda a: a.path),
+                )
                 self.assertEqual(
                     tree.compare_documents(
                         vnx.encode_bytes(again.document),

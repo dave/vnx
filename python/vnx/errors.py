@@ -46,6 +46,12 @@ class VNXRefusal(Exception):
     ``a newer reader is        ``decode._check_version``     MAJOR or MINOR
     needed``                                                 above this
                                                              reader's
+    ``<M>.<N> series``          ``decode._check_version``    a 0.x MINOR
+                                                             BELOW this
+                                                             reader's, which
+                                                             is its own series
+                                                             and not an older
+                                                             spelling of one
     ``duplicate entry``         ``container``                two entries of
                                                              one name
     ``escapes the archive``     ``container._check_path``    ``..``, an

@@ -342,6 +342,34 @@ class RedProof(unittest.TestCase):
             "reader that never refuses a version",
         )
 
+    def test_a_version_check_that_only_looks_upward_is_caught(self) -> None:
+        """The defect this library shipped, and five of the six had.
+
+        SPEC 2.2 makes each 0.x MINOR its own series, so the test is "not the
+        reader's series"; written as "above the reader's", a lower minor reads
+        under rules it was never written to.  `reject/version-too-new.vnx`
+        cannot see it -- that direction still refuses -- so the proof is that
+        `reject/version-too-old.vnx` goes red on its own.
+        """
+        def upward_only(self: Any, version: str) -> None:
+            match = decode._VERSION.match(version)
+            if match is None:
+                raise vnx.VNXRefusal(
+                    f"unreadable version {version!r}: MAJOR.MINOR.PATCH"
+                )
+            pair = (int(match.group(1)), int(match.group(2)))
+            if pair > decode.SUPPORTED_VERSION:
+                raise vnx.VNXRefusal(
+                    f"this document is version {version} and a newer reader is "
+                    "needed"
+                )
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "_check_version", upward_only),
+            "RejectTier.test_reject",
+            "version check that only looks upward",
+        )
+
     def test_a_permissive_json_parser_is_caught(self) -> None:
         """Some libraries offer a mode that accepts NaN.  It must not be used."""
         import json
@@ -516,13 +544,37 @@ class RedProof(unittest.TestCase):
 
         def sloppy(data: bytes) -> Any:
             got = original(data)
-            got.attachments = got.attachments + [got.document_name]
+            got.attachments = got.attachments + [
+                vnx.Attachment(got.document_name, b"")
+            ]
             return got
 
         self.assertGoesRed(
             mock.patch.object(vnx, "read_container_bytes", sloppy),
             "AcceptTier.test_accept",
             "container reader that counts the document as an attachment",
+        )
+
+    def test_a_container_reader_that_returns_empty_attachments_is_caught(self) -> None:
+        """`attachment_contents` is what pins a name to its BYTES.
+
+        The name list alone cannot see a reader that hands back the right
+        entries with the wrong -- or no -- content, which is the defect this
+        library had in a stronger form: it returned names and no bytes at all.
+        """
+        original = vnx.container.read_container_bytes
+
+        def emptied(data: bytes) -> Any:
+            got = original(data)
+            got.attachments = [
+                vnx.Attachment(a.path, b"") for a in got.attachments
+            ]
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(vnx, "read_container_bytes", emptied),
+            "DiagnoseTier.test_diagnose",
+            "container reader that loses an attachment's bytes",
         )
 
     def test_a_container_reader_that_takes_the_last_vnx_entry_is_caught(self) -> None:

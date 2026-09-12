@@ -225,6 +225,103 @@ func TestAShortDeclaredSizeIsRefused(t *testing.T) {
 	}
 }
 
+// TestAStoredEntrysTwoDeclaredSizesMayDisagree is §7's third size rule, and it
+// replaces a check that refused on exactly this. For a stored entry the two
+// declared sizes are one quantity, so a disagreement IS a defect in the archive
+// — but it is a defect in a size field, and §7 forbids refusing on it where the
+// CRC over the bytes present agrees.
+//
+// ⚠ THE FAULT IS IN THE UNCOMPRESSED FIELD AND THE PAYLOAD IS WHOLE, which is
+// what separates this from TestAShortDeclaredSizeIsRefused below it: nothing is
+// wrong with the bytes, so nothing may be refused or dropped. §7 permits a
+// diagnostic and does not require one; corpus/accept/container-sizes-disagree.vnz
+// expects none, and this pins the same.
+//
+// corpus/accept/container-sizes-disagree.vnz covers the root document. This adds
+// the ATTACHMENT, which the corpus file cannot separate from it: a reader that
+// dropped such an attachment with a diagnostic would still satisfy the corpus
+// case's root, and §7 forbids the drop.
+func TestAStoredEntrysTwoDeclaredSizesMayDisagree(t *testing.T) {
+	inflated := uint32(len(smallDoc)) + 7
+	root := stored("doc.vnx", smallDoc)
+	root.inflatedSize = &inflated
+
+	const body = "the bytes as written"
+	attachmentInflated := uint32(len(body)) + 11
+	attachment := stored("photos/summit.jpg", body)
+	attachment.inflatedSize = &attachmentInflated
+
+	c, diags := readArchive(t, assemble([]entrySpec{root, attachment}, assembleOpts{}))
+	if c.Document.Version != "0.1.0" {
+		t.Errorf("version = %q, want 0.1.0", c.Document.Version)
+	}
+	if len(c.Attachments) != 1 || c.Attachments[0].Path != "photos/summit.jpg" {
+		t.Fatalf("attachments = %q, want photos/summit.jpg: §7 forbids dropping it", c.Attachments)
+	}
+	got, err := c.Attachments[0].Bytes()
+	if err != nil {
+		t.Fatalf("reading the attachment: %v", err)
+	}
+	if string(got) != body {
+		t.Errorf("attachment content = %q, want %q: the bytes PRESENT are what is read", got, body)
+	}
+	if len(diags) != 0 {
+		t.Errorf("an accepted archive produced diagnostics: %v", diags)
+	}
+}
+
+// TestSizesDisagreeingDoesNotSuspendTheChecksum. The companion to the rule
+// above, and the thing the corpus file cannot say alone: not comparing the two
+// declared sizes removes a check on a HEADER FIELD and leaves the CRC standing.
+//
+// ⚠ WITHOUT THIS, A READER THAT CHECKED NOTHING WOULD PASS EVERY OTHER TEST
+// HERE. The corpus accept case proves only that a conforming archive is read.
+// This proves the same archive shape is still refused once its BYTES are wrong,
+// so the change is a narrowed check rather than an abandoned one.
+func TestSizesDisagreeingDoesNotSuspendTheChecksum(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want string
+		make func() entrySpec
+	}{{
+		// The sizes disagree AND a payload byte is wrong. The header now says
+		// nothing a reader would refuse on, so only the checksum can catch it.
+		name: "corrupt payload",
+		want: "fails its CRC",
+		make: func() entrySpec {
+			e := stored("doc.vnx", strings.Replace(smallDoc, "0.1.0", "0.1.1", 1))
+			crc := crc32.ChecksumIEEE([]byte(smallDoc))
+			inflated := uint32(len(smallDoc)) + 7
+			e.crcOverride, e.inflatedSize = &crc, &inflated
+			return e
+		},
+	}, {
+		// Sizes disagreeing does not license reading fewer bytes than the
+		// compressed declaration either: the payload is four bytes short of what
+		// the CRC was computed over.
+		name: "short payload",
+		want: "fails its CRC",
+		make: func() entrySpec {
+			e := stored("doc.vnx", smallDoc)
+			e.declaredSize = uint32(len(smallDoc)) - 4
+			inflated := uint32(len(smallDoc)) + 7
+			e.inflatedSize = &inflated
+			return e
+		},
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := assemble([]entrySpec{tc.make()}, assembleOpts{})
+			_, _, err := vnx.DecodeContainer(bytes.NewReader(raw), int64(len(raw)))
+			if err == nil {
+				t.Fatal("a corrupt entry was accepted; dropping the size comparison must not drop the CRC")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("the refusal is %q, which does not name the checksum as the fault", err)
+			}
+		})
+	}
+}
+
 // TestADeferredSizeIsRead. §7: a reader MUST accept an archive whose entries
 // defer their sizes to a data descriptor, and MUST take the sizes from the
 // CENTRAL DIRECTORY rather than from a local header.

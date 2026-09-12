@@ -1,0 +1,10 @@
+{
+  "generator": "corpus",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Ben Macdui",
+      "at": [-3.6689, 57.0704]
+    }
+  ]
+}

@@ -279,13 +279,25 @@ func openZipEntry(r io.ReaderAt, e zipEntryHeader) (io.ReadCloser, error) {
 	section := io.NewSectionReader(r, dataStart, int64(n))
 	v := &verifyingReader{name: e.name, crc: e.crc, hash: crc32.NewIEEE()}
 	if e.method == zipMethodStored {
-		// A stored entry's two sizes are one quantity by definition, so a header
-		// claiming otherwise is lying about one of them. Over-declaring both is
-		// the case §7 accepts and is not this.
-		if e.compressed != e.uncompressed {
-			return nil, zipMalformed("%q is stored and declares %d compressed against %d uncompressed",
-				e.name, e.compressed, e.uncompressed)
-		}
+		// ⚠ THE TWO DECLARED SIZES ARE NOT COMPARED, WHICH IS §7. For a stored
+		// entry they are one quantity, so a header claiming otherwise is a defect
+		// — but it is a defect in a SIZE FIELD, and §7 forbids refusing on it
+		// where the CRC over the bytes present agrees: "a size field is not the
+		// authority on what an entry contains, and the checksum is."
+		// corpus/accept/container-sizes-disagree.vnz is that entry, and it is
+		// derived from container-over-declared-size.vnz by changing one field.
+		// Comparing the two fields is the natural thing to write and is exactly
+		// what produced three answers to one archive across six implementations.
+		// §7 permits a diagnostic here and does not require one; the corpus case
+		// expects none, so none is raised.
+		//
+		// ⚠ THE COMPRESSED DECLARATION BOUNDS THE READ, capped by payloadBound —
+		// see [locateZipPayload], whose `n` is min(e.compressed, bytes between
+		// the payload start and the next local header or the central directory).
+		// e.uncompressed is not consulted on this path at all, so a disagreement
+		// cannot change how many bytes are read. That is what keeps an entry
+		// whose sizes disagree reading exactly the bytes present.
+		//
 		// ⚠ NO LENGTH CHECK ON THE STORED PATH. §7 requires an entry declaring
 		// MORE bytes than it holds to be read where the CRC over the bytes
 		// present agrees, and corpus/accept/container-over-declared-size.vnz is

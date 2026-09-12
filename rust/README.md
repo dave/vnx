@@ -132,8 +132,9 @@ that are shaped by Rust.
   because SPEC §6.2 wants one diagnostic per bad path with the rest of the
   document kept, and a derive stops at the first field it cannot read.
 - `Position` holds `Vec<Option<f64>>` rather than a struct of `Option<f64>`
-  fields, because a position's arity is model state and a typed elevation field
-  cannot express it.
+  fields, so the arity a document spelled survives into the model. Typed fields
+  also conform, because SPEC §4.1 asks a writer for the shortest spelling rather
+  than for the arity it read; `python/` takes that route.
 - The ZIP reader is written out rather than taken from a crate, because three of
   SPEC §7's reader rules are ones a general-purpose ZIP library does not offer.
 - `#![forbid(unsafe_code)]`, so the worst outcome of a hostile archive is a

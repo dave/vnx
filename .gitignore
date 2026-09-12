@@ -1,0 +1,6 @@
+# The `vnx` command-line tool, built into whichever directory `go build` ran in.
+/vnx
+go/vnx
+go/cmd/vnx/vnx
+
+.DS_Store

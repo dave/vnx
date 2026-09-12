@@ -262,10 +262,14 @@ fn position(p: &Position) -> Json {
 ///   340.25  340.2  (exact, a true tie)                      340.2
 /// ```
 ///
-/// Six of ten ordinary elevation-shaped values disagree, in both directions. So
-/// "round to one place, ties to even" is not one rule: it is two, depending on
-/// whether the tie is judged against the double or against the scaled product,
-/// and SPEC 4.1 does not say which. Reported.
+/// Five of the six values above disagree, in both directions. So "round to one
+/// place, ties to even" is not one rule: it is two, depending on whether the tie
+/// is judged against the double or against the scaled product, and SPEC 4.1 does
+/// not say which. Reported.
+///
+/// `corpus/numbers/numbers.tsv` decides it. Its `scaling-route` rows separate the
+/// two operations, every one sides with rounding the double, and the table's
+/// header declares how many there are.
 ///
 /// This crate takes the reading the prose states: the nearest value with that
 /// many decimal places to the double it was handed. Rust's `{:.*}` expands the

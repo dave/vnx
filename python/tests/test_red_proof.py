@@ -160,8 +160,8 @@ class RedProof(unittest.TestCase):
     def test_the_numbers_table_catches_a_half_up_rounder(self) -> None:
         """The table is an instrument, so it needs its own red proof.
 
-        Zero disagreements across 5,315 rows means nothing unless a wrong rule
-        puts disagreements back.
+        Zero disagreements across every row of the table means nothing unless a
+        wrong rule puts disagreements back.
         """
         from decimal import Decimal, ROUND_HALF_UP
 

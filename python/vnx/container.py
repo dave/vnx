@@ -271,9 +271,10 @@ def read_container_bytes(data: bytes) -> ContainerReadResult:
     # partial content, which a caller cannot tell from an attachment the
     # archive never carried.
     #
-    # This library refused here until SPEC 7 said so (`38679fb`).  Three of the
-    # six implementations did; the spec had named the remedy for an unusable
-    # METHOD only, and each filled the gap on its own.
+    # SPEC 7 named the remedy for an unusable METHOD only, so implementations
+    # filled the gap for a damaged stream on their own and did not agree.  The
+    # rule is now stated; `corpus/diagnose/container-corrupt-attachment.vnz`
+    # holds it.
     attachments = []
     for name in names:
         if name == document_name or name in unreadable:

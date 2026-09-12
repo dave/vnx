@@ -562,7 +562,7 @@ class RedProof(unittest.TestCase):
         entries with the wrong -- or no -- content, which is the defect this
         library had in a stronger form: it returned names and no bytes at all.
 
-        SPEC 7 now forbids the emptied shape in as many words (`38679fb`): an
+        SPEC 7 forbids the emptied shape in as many words: an
         attachment whose bytes cannot be recovered is DROPPED with a
         diagnostic, and MUST NOT be returned with empty or partial content,
         because a caller cannot tell that from an attachment the archive never

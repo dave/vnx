@@ -1028,10 +1028,11 @@ class ContainerCorruptAttachment(unittest.TestCase):
     diagnostic, return the document -- and it is a MUST in both directions: the
     archive MUST NOT be refused, and the attachment MUST NOT come back empty.
 
-    Three of the six implementations refused here, this one included, while the
-    specification named the remedy for an unusable method alone.  `38679fb`
-    settled it and `corpus/diagnose/container-corrupt-attachment.vnz` pins it;
-    this test is the local witness, so the reason does not live only in a
+    Implementations disagreed here while the specification named the remedy for
+    an unusable method alone: some dropped the attachment, some refused the
+    archive, and some never inflated one so never met the damage.  SPEC 7 now
+    states the rule and `corpus/diagnose/container-corrupt-attachment.vnz` pins
+    it; this test is the local witness, so the reason does not live only in a
     fixture.
     """
 

@@ -117,7 +117,7 @@ pub enum AttachmentFault {
     /// written about the METHOD, and corruption appears in Section 7 only in
     /// the rule forbidding a refusal "where the CRC over those bytes agrees",
     /// which says nothing about a CRC that does not. Dropping was ruled on
-    /// 2026-09-12, by the reasoning SPEC 7 gives for the method case: the
+    /// SPEC 7, by the reasoning it gives for the method case: the
     /// document is intact, refusing a whole library over one damaged
     /// photograph is disproportionate, and the diagnostic is what stops the
     /// loss being silent. Rust refused until that ruling and was the outlier.

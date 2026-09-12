@@ -48,7 +48,7 @@ Measured 2026-09-09, all sixteen caught:
     trust a declared uncompressed size   hostile
     reserve the declared size up front   unit test (would ABORT, not error)
     skip the CRC check                   hostile (a corrupt attachment reads clean)
-    refuse a corrupt attachment          hostile (the 2026-09-12 ruling; no corpus case yet)
+    refuse a corrupt attachment          hostile + corpus diagnose/container-corrupt-attachment
     ignore a stored entry's second size  hostile
     skip the terminal-pip check          diagnose
     report it on every arc               diagnose (the sound arc is what catches this)
@@ -296,10 +296,9 @@ MUTATIONS = [
      "                bytes: { let _ = bytes; Vec::new() },\n"
      "            }),"),
 
-    # The ruling of 2026-09-12: a corrupt attachment is DROPPED with a
-    # diagnostic, not refused. This crate refused until then and was the only
-    # one of six that did, so the old behaviour is the one to guard against.
-    # No corpus case reaches it yet.
+    # SPEC 7: a corrupt attachment is DROPPED with a diagnostic, never
+    # refused. Refusing is the shape to guard against, because it reads as
+    # strictness and silently costs the caller a whole readable document.
     ("refuse a corrupt attachment rather than dropping it", "src/vnz.rs",
      "            Err(e) => reading.diagnostics.push(Diagnostic::new(\n"
      "                attachment_pointer(&entry.name),\n"

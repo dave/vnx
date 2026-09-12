@@ -34,14 +34,14 @@ pub struct Container {
 ///   because refusing a whole library over one photograph would be
 ///   disproportionate. The method is checked BEFORE anything is inflated.
 /// * A CORRUPT STREAM — an attachment that will not inflate, or whose bytes
-///   disagree with the entry's CRC — is dropped the same way. ⚠ SPEC 7 DOES
-///   NOT RULE ON THIS CASE. Its remedy is written about the method, and
-///   corruption appears in Section 7 only in the rule forbidding a refusal
-///   "where the CRC over those bytes agrees", which says nothing about a CRC
-///   that does not. Ruled on 2026-09-12 by the reasoning SPEC 7 gives for the
-///   method case, which transfers: the document is intact and readable, and
-///   the diagnostic is what stops the loss being silent. This crate REFUSED
-///   until that ruling, and was the only one of six that did.
+///   disagree with the entry's CRC — is dropped the same way, and SPEC 7 says
+///   so in its own sentence: the reader MUST drop the attachment, MUST record
+///   a diagnostic and MUST return the document, MUST NOT refuse the archive on
+///   that ground, and MUST NOT hand the attachment back with empty or partial
+///   content, which a caller cannot tell from one the archive never carried.
+///   The reasoning is the method case's, transferred: the document is intact
+///   and readable, and the diagnostic is what stops the loss being silent.
+///   `corpus/diagnose/container-corrupt-attachment.vnz` holds it.
 ///
 /// The ROOT DOCUMENT is the other half of both rules and refuses either way,
 /// because there is no document to return.

@@ -380,8 +380,7 @@ fn a_zip64_offset_near_the_top_of_the_range_is_refused() {
 /// reads, and a diagnostic NAMES THE ENTRY so the loss is not silent. Both
 /// detectors satisfy it.
 ///
-/// The drop is the ruling of 2026-09-12; see `vnz::read`. This crate refused
-/// until then.
+/// The drop is SPEC 7's rule; see `vnz::read`.
 #[test]
 fn a_corrupt_attachment_is_dropped_and_diagnosed() {
     // ⚠ A COMMITTED DEFLATED ARCHIVE, NOT ONE THIS CRATE WRITES. The bytes of
@@ -444,7 +443,7 @@ fn a_corrupt_attachment_is_dropped_and_diagnosed() {
 /// whole.
 ///
 /// ⚠ THE DAMAGE GOES ON THE ROOT DOCUMENT, NOT ON THE FIRST ENTRY IN THE
-/// DIRECTORY. Since the ruling of 2026-09-12 an attachment this reader cannot
+/// DIRECTORY. Under SPEC 7 an attachment this reader cannot
 /// produce bytes for is DROPPED with a diagnostic rather than refused, so
 /// damaging an attachment tests the remedy rather than the size check — and
 /// this fixture's first directory record is an attachment. The root document

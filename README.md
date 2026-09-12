@@ -1,16 +1,59 @@
 # VNX — Viatrail Network eXchange
 
-VNX is a JSON interchange format that carries trail network topology rather than
-just polylines.
+VNX is a JSON interchange format for trail data. It carries the topology of a
+trail network — shared geometry, with named walks drawn over it — and not only
+polylines.
 
-The format is at major version 0, and is unstable. Through 0.x the minor version
+The format is at major version 0 and is unstable. Through 0.x the minor version
 is a breaking axis, and constructs may be added, changed or removed without a
 compatibility guarantee.
 
-- [`SPEC.md`](SPEC.md) — the format definition.
-- [`corpus/`](corpus/) — the conformance corpus, which decides whether an
-  implementation is correct.
-- [`go/`](go/) — the reference implementation and the `vnx` command-line tool.
+A small document: two nodes, an arc joining them, and a chain that names a walk
+along that arc.
+
+```json
+{
+  "vnx": "0.1.0",
+  "networks": [{
+    "name": "Lairig Ghru approaches",
+    "nodes": {
+      "node-1": [-3.6712, 57.118, 340],
+      "node-2": [-3.6605, 57.1042, 512.5]
+    },
+    "arcs": {
+      "arc-1": { "from": "node-1", "to": "node-2", "pips": [
+        [-3.6712, 57.118, 340], [-3.6644, 57.1085, 451.9], [-3.6605, 57.1042, 512.5]] }
+    },
+    "chains": [{ "name": "Chalamain Gap", "links": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
+  }]
+}
+```
+
+It is a reduction of [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx),
+which shows the rest: folders, routes, tracks, waypoints, areas and styling.
+To check a file of your own:
+
+```sh
+cd go && go run ./cmd/vnx validate ../corpus/accept/example-network.vnx
+```
+
+## Where to go
+
+| Path | What it is |
+|---|---|
+| [`SPEC.md`](SPEC.md) | The format definition. Normative: every rule is stated here. |
+| [`corpus/`](corpus/) | The conformance corpus, which decides whether an implementation is correct. |
+| [`go/`](go/) | Go library. The reference implementation, and the home of the `vnx` command-line tool. |
+| [`python/`](python/) | Python library. |
+| [`js/`](js/) | JavaScript library. |
+| [`rust/`](rust/) | Rust library. |
+| [`kotlin/`](kotlin/) | Kotlin library. |
+| [`swift/`](swift/) | Swift library. |
+| [`IMPLEMENTING.md`](IMPLEMENTING.md) | For writing a new implementation in a seventh language. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Repository layout, test commands, and the documentation standard. |
+
+Six libraries read and write the format. Each directory's README gives that
+language's install line, usage and API.
 
 ## Why it exists
 
@@ -54,61 +97,29 @@ and not only its syntax.
 See [`corpus/README.md`](corpus/README.md) for the sidecar fields and for what
 the corpus cannot check.
 
-## What a library implements
+## Not in scope
 
-A VNX library reads and writes `.vnx` and `.vnz` and reports diagnostics. That
-is what the corpus tests and what "a VNX library" means here.
+VNX describes trail data, and a library's job is to read it, write it and report
+diagnostics. That is the whole of what the corpus tests and what "a VNX library"
+means here.
 
-### What it costs, before you start
+A document may carry style properties on its features. How those are drawn,
+tiled or rendered belongs to the reading application; the format defines the
+properties and stops there.
 
-The bytes of a document are not pinned. Key order, number spelling and
-whitespace are the writer's own business, and the corpus compares parsed
-documents rather than bytes. So an implementation encodes with its language's
-standard JSON library and writes containers with its standard ZIP library, and
-what it writes by hand is the walk from a parsed JSON tree into the model, which
-is where the diagnostics come from.
+Conversion to GPX, KML and GeoJSON belongs to the `vnx` command-line tool under
+[`go/`](go/). Those three formats cannot express a network, so the conversion is
+deliberately lossy — a way to hand a file to another application. It is a
+property of that tool, not of the format, and a library conforms without it.
 
-Two things do have to be written carefully. Rounding to six decimal places is
-defined as a result rather than a procedure: round by formatting the value and
-parsing the text back, because multiply-round-divide gets six of ten ordinary
-elevations wrong. And a reader has to report every fault it finds rather than
-stopping at the first, which rules out decoding straight into typed structures
-through a derive macro.
+## Contributing
 
-The GPX, KML and GeoJSON writers under `go/` are conversion tools, not part of
-the format. They are deliberately lossy exports for handing a file to another
-application, and no library is expected to implement them.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the repository layout, the test command
+for each language, and the standard that documentation here is held to.
 
-## Reading a document
+A change to the format is a change to `SPEC.md` and to `corpus/` together, and
+then to the six libraries that have to pass it.
 
-A document holds folders, networks, routes, tracks, waypoints and areas. A
-network owns a graph — `nodes` and `arcs` keyed by identifier — and its `chains`
-traverse those arcs by reference, which is the construct the other formats
-cannot express. A top-level route owns its arcs outright and needs no graph, so
-writing one requires only ordered lists of positions.
+## Licence
 
-Coordinates are `[lon, lat, ele, time_ms]`, longitude first, and channels from
-index 2 upward may be `null` or omitted. Reversing longitude and latitude
-produces a file that parses perfectly and draws in the wrong hemisphere;
-`corpus/accept/lonlat-transposition.vnx` catches it.
-
-## The command-line tool
-
-`go/cmd/vnx` wraps the same library, so the tool cannot drift from what the
-reference implementation writes.
-
-| Command | What it does |
-|---|---|
-| `validate` | reads a document and reports its diagnostics |
-| `outline` | prints a document's structure — names, folders, counts, topology — without coordinates |
-| `convert` | converts to and from GPX, KML and GeoJSON |
-
-Every command exits non-zero on failure and offers JSON output carrying document
-paths, which is what makes it usable from a script or an agent without parsing
-English prose. `outline` exists because a day's recorded track holds tens of
-thousands of pips: it lets a caller work on a library far larger than it could
-otherwise read.
-
-```sh
-cd go && go run ./cmd/vnx validate ../corpus/accept/example-network.vnx
-```
+MIT. See [`LICENCE`](LICENCE).

@@ -145,6 +145,11 @@ internal object Zip {
      * payload; reading the declared count instead runs into the next local
      * header and fails the CRC on a conforming archive. A SHORT declaration
      * needs nothing of its own — the same CRC catches it.
+     *
+     * [compressedSize] clamped to the bound is therefore the WHOLE bound on a
+     * stored entry's read. The declared uncompressed size is consulted only by
+     * [inflate], and the two declared sizes are never compared with each other:
+     * section 7 forbids refusing or dropping an entry because they disagree.
      */
     private fun readEntry(data: ByteArray, header: Header, payloadBound: Long): Entry {
         val name = header.name
@@ -198,13 +203,18 @@ internal object Zip {
      */
     private fun recover(method: Int, raw: ByteArray, header: Header, uncompressedSize: Long): ByteArray {
         val body = if (method == METHOD_STORED) {
-            // A stored entry's two sizes are the same quantity by definition, so a
-            // header claiming otherwise is lying about one of them. Over-declaring
-            // BOTH is the case section 7 accepts and is not this: the bound above
-            // has already brought the compressed size down to what is present.
-            if (header.compressedSize != uncompressedSize) {
-                damaged("it is stored and declares different compressed and uncompressed sizes")
-            }
+            // NOTHING COMPARES THE TWO DECLARED SIZES. For a stored entry they are
+            // the same quantity, so a disagreement is a defect in the archive —
+            // but section 7 forbids refusing an entry on that ground where the CRC
+            // over the bytes present agrees, and forbids dropping it. A size field
+            // is not the authority on what an entry contains; the checksum is.
+            //
+            // So `raw` is already the whole of a stored read: readEntry took the
+            // declared compressed size clamped to the room left before the
+            // payload bound, and that is all that bounds it. The declared
+            // uncompressed size bounds nothing here — a stored entry has no
+            // decompression for it to limit — and the CRC below decides whether
+            // the bytes taken were the whole payload.
             raw
         } else {
             inflate(raw, uncompressedSize)

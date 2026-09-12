@@ -206,15 +206,46 @@ class ContainerTest {
     }
 
     @Test
-    fun `a stored entry whose two declared sizes differ is refused`() {
-        // They are the same quantity by definition, so a header claiming
-        // otherwise is lying about one of them. Left unchecked this read
-        // SILENTLY, which is worse than the crash above.
+    fun `a stored entry whose two declared sizes differ is read, not refused`() {
+        // THIS TEST ONCE ASSERTED THE OPPOSITE. Comparing the two declared
+        // fields is the natural thing to write — for a stored entry they are the
+        // same quantity, so a disagreement looks like a truncated entry being
+        // read as whole — and this reader did it and refused
+        // accept/container-sizes-disagree.vnz. Section 7 settles it the other
+        // way: a size field is not the authority on what an entry contains, the
+        // checksum is, so a disagreement is neither a refusal nor a drop where
+        // the CRC over the bytes present agrees.
+        //
+        // The declared uncompressed size here is absurd rather than merely
+        // wrong, so nothing can quietly treat it as a length: the bytes present
+        // are the whole payload and their CRC is correct.
+        val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
+        val r = Vnx.readContainer(lying(body = doc, method = 0, declaredUncompressed = 0xFFFFFFFEL))
+        // The document is checked for CONTENT, because a reader returning an
+        // empty one would satisfy "did not throw" on its own.
+        assertEquals("0.1.0", r.document.vnx)
+        // Section 7 permits a diagnostic and does not require one, and the corpus
+        // case expects none, so none is raised.
+        assertEquals(emptyList(), r.diagnostics)
+    }
+
+    @Test
+    fun `a stored entry declaring fewer bytes than it holds fails its CRC`() {
+        // THIS IS THE GUARD THE DELETED SIZE COMPARISON WAS CREDITED WITH. A
+        // short declaration would otherwise read a truncated entry as whole, and
+        // removing the comparison did not open that door: the declared compressed
+        // size bounds the read, so one byte fewer than the entry holds is taken
+        // and its checksum does not match the one the archive states. Section 7's
+        // prohibition does not reach here — it holds only where the CRC over the
+        // bytes read agrees, and here it does not.
         val doc = "{\n  \"vnx\": \"0.1.0\"\n}\n".toByteArray()
         val e = assertFailsWith<VnxRefusal> {
-            Vnx.readContainer(lying(body = doc, method = 0, declaredUncompressed = 0xFFFFFFFEL))
+            Vnx.readContainer(lying(body = doc, method = 0, declaredCompressed = doc.size - 1L))
         }
         assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
+        // The CRC message, not any refusal: a refusal for another reason would
+        // not show that the CRC is what caught the truncation.
+        assertTrue(e.message.contains("CRC"), "the refusal must name what failed: ${e.message}")
     }
 
     @Test

@@ -10,25 +10,34 @@ distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the d
 
 ## Install
 
-Clone the repository and depend on the package by path. In the consuming
-`Package.swift`:
+Depend on the repository. In the consuming `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(path: "../vnx/swift")
+    .package(url: "https://github.com/dave/vnx.git", from: "0.1.0")
 ],
 targets: [
     .executableTarget(name: "MyApp", dependencies: [
-        .product(name: "VNX", package: "swift")
+        .product(name: "VNX", package: "vnx")
     ])
 ]
 ```
 
-**The `package:` label is the name of the DIRECTORY the dependency points at,
-not the package's declared name.** The declared name, the product and the module
-are all spelled `VNX`, and `package: "VNX"` fails with `unknown package 'VNX' in
-dependencies of target 'MyApp'; valid packages are: 'swift'`. With the dependency
-at `../vnx/swift` the label is `swift`.
+The repository is private: that line resolves for someone with access to it, and
+for everyone once it is public. Working from a clone instead, point at the
+repository root, with `.package(path: "../vnx")`. The rest is identical, label
+included.
+
+**The `package:` label is `vnx`, the repository, not the package's declared
+name and not the directory the sources sit in.** The declared name, the product
+and the module are all spelled `VNX`, and the sources are under `swift/`, but
+SwiftPM identifies a package by the last component of its URL or path. `package:
+"swift"` fails with `unknown package 'swift' in dependencies of target 'MyApp';
+valid packages are: 'vnx'`. The match ignores case, so `"VNX"` also resolves;
+`"vnx"` is the spelling the toolchain prints and the one to write.
+
+The manifest is at the repository root and its targets point into `swift/`,
+which is what makes the URL form work. `swift/` holds sources and tests only.
 
 Set the consuming package's `platforms` floor at or above this one; a lower floor
 fails to resolve.
@@ -114,6 +123,10 @@ document.
 ```sh
 cd swift && swift test
 ```
+
+The manifest is at the repository root, and `swift test` finds it from any
+directory inside the repository, so this and `swift test` at the root run the
+same suite.
 
 Unit tests and the corpus runner over the accept, reject, diagnose, write and
 numbers tiers. A green run is the conformance claim.

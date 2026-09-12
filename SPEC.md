@@ -54,6 +54,123 @@ explains how to run the corpus and why particular cases are shaped as they are.
 `IMPLEMENTING.md` is a guide to the traps in this specification. Where either
 differs from this document, this one decides.
 
+### 1.4 Terminology
+
+This section is informative. Each term is defined by the section it cites, and
+a term is listed after every term its definition uses.
+
+- A **document** is a JSON object carrying a `vnx` version key and up to seven
+  collections (Section 3.1).
+- A **position** is a JSON array of channels: longitude, latitude, and
+  optionally elevation and time (Section 4.1).
+- A **pip** is one position in the `pips` array of an arc or of a track segment
+  (Sections 3.3.2 and 3.5).
+- A **folder** is a named grouping with an `id`. An item other than a folder
+  places itself in a folder by naming that `id` in its `folder` key; a folder
+  places itself in another folder with `parent` (Section 3.2).
+- A **network** is a graph of nodes and arcs, together with the chains that
+  traverse those arcs and the points and areas that belong to the network
+  (Section 3.3).
+- A **node** is a position in a network, keyed by an identifier, at which arcs
+  start and end (Section 3.3.1).
+- An **arc** is a polyline carried as a `pips` array. In a network an arc runs
+  between the two nodes its `from` and `to` name, and its pips include both node
+  positions (Section 3.3.2); in a route an arc names no nodes and has no
+  identifier (Section 3.4).
+- A **link** is one step of a chain: the arc it follows and the two endpoints
+  between which it follows that arc, each either a node key or an inline
+  position (Section 3.3.3).
+- A **chain** is an ordered array of links forming one connected walk along a
+  network's arcs; the order is the direction of travel, and a chain does not own
+  the arcs it follows (Section 3.3.3).
+- A **route** is a top-level item that owns an ordered array of arcs, where
+  consecutive arcs share an endpoint position (Section 3.4).
+- A **segment** is an ordered `pips` array within a track; the interval between
+  two segments is a pause (Section 3.5).
+- A **track** is a top-level item carrying an ordered array of segments
+  (Section 3.5).
+- A **waypoint** is a top-level item carrying one position, `at`; a network's
+  points have the same shape (Section 3.6).
+- An **area** is an item carrying one closed ring of positions, `polygon`,
+  either at the top level or within a network (Section 3.7).
+- A **ruleset** is one entry of the top-level `rulesets` array, opaque in this
+  version (Section 3.9).
+- A **data record** is one object in an item's `data` array, identified by its
+  `@type` and otherwise opaque (Section 5).
+- A **container** is a ZIP archive, the VNZ file, carrying one document and its
+  attachments (Section 7).
+- An **attachment** is any entry of a container other than the root document
+  (Section 7).
+- A **diagnostic** is a report that one element of a document, or one entry of
+  a container, could not be used as written; it is returned alongside the
+  document (Section 6.3).
+- A **refusal** is the outcome in which a reader returns no document; it is
+  reported on a channel separate from diagnostics (Sections 6.2 and 6.3).
+
+### 1.5 Example
+
+This section is informative; Section 1.3 says of an example that it defines no
+rule. The document below is complete and is read with no diagnostics.
+
+```json
+{
+  "vnx": "0.1.0",
+  "generator": "example 1.0",
+  "created": "2026-08-31T06:45:12Z",
+  "folders": [
+    { "id": "cairngorms", "name": "Cairngorms" }
+  ],
+  "networks": [
+    {
+      "folder": "cairngorms",
+      "name": "Lairig Ghru approaches",
+      "nodes": {
+        "node-1": [-3.6712, 57.118, 340],
+        "node-2": [-3.6605, 57.1042, 512.5]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [
+            [-3.6712, 57.118, 340],
+            [-3.669, 57.1131, 388.2],
+            [-3.6605, 57.1042, 512.5]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "Chalamain Gap",
+          "style": { "color": "#c1440e", "width": 4 },
+          "links": [
+            { "arc": "arc-1", "from": "node-1", "to": "node-2" }
+          ]
+        }
+      ]
+    }
+  ],
+  "waypoints": [
+    {
+      "folder": "cairngorms",
+      "name": "Car park",
+      "at": [-3.675, 57.1201, 320],
+      "data": [
+        { "@type": "app.viatrail.tag", "value": "parking" }
+      ]
+    }
+  ]
+}
+```
+
+`vnx` is the format version (Section 2.2); `generator` and `created` are
+informational (Section 3.1). The one folder, `cairngorms`, is named by the
+`folder` key of the network and of the waypoint (Section 3.2). The network
+holds two nodes, one arc whose `pips` begin at the position of `node-1` and end
+at the position of `node-2`, and one chain whose single link follows that arc
+from `node-1` to `node-2` (Section 3.3). The waypoint carries its position in
+`at` and one data record of type `app.viatrail.tag` (Sections 3.6 and 5).
+
 ## 2. Document identification
 
 ### 2.1 Names and media types
@@ -401,11 +518,12 @@ Top-level `waypoints` and a network's `points` share one shape.
 
 `at` is a position (Section 4.1).
 
-`icon-size` is an integer in points. The values 16, 21, 27, 35 and 46 are the
-ones Viatrail emits; that sentence is informative and does not constrain a
-document. No range is stated for it, so a reader does not check it and
-`"icon-size": "large"` passes unremarked. Section 6.2 checks a value only where
-this document states a range or an enumeration.
+`icon-size` is an integer in points. No range is stated for it, so a reader
+does not check it and `"icon-size": "large"` passes unremarked. Section 6.2
+checks a value only where this document states a range or an enumeration.
+
+Note: the values 16, 21, 27, 35 and 46 are the ones an application emits in
+practice; that does not constrain a document.
 
 `importance` is an integer from 1 to 5, and that is normative: a value outside
 the range is handled under Section 6.2. Neither is spelled as a word.
@@ -545,8 +663,8 @@ The following rules apply:
   expressible.
 - Trailing channels MAY be omitted. Arity 2 through 4 carry the channels this
   version defines. Arity 2 is used for inline chain endpoints (Section 3.3.3)
-  and for area rings (Section 3.7). Arity 4 is legal on an arc, but Viatrail
-  writes no arc pip carrying a time, and a reader should not expect one.
+  and for area rings (Section 3.7). Arity 4 is legal on an arc, and a reader
+  does not depend on an arc pip carrying a time.
 - A position MAY carry more channels than this version defines. A reader MUST
   ignore them and MUST NOT report a diagnostic for them.
 - Positions of differing arity MAY appear within one `pips` array, and a reader
@@ -718,9 +836,9 @@ The following is a requirement on Viatrail's export path rather than on a
 library: an exporter verifies that an arc's stored kind follows from its source,
 and reports a diagnostic for an arc where it does not.
 
-`app.viatrail.navigation` is aspirational. Viatrail's routing engine has no
-avoid-this-area or avoid-this-span input, so a reader must not expect the record
-to have influenced any geometry in the document.
+`app.viatrail.navigation` records an intent. Nothing in this format states
+that a routing engine acted on it, so a reader does not expect the record to
+have influenced any geometry in the document.
 
 `app.viatrail.compute-failed` marks an arc whose route computation failed. Such
 an arc still carries `pips`, holding its two endpoint positions, because a
@@ -820,7 +938,7 @@ A reader is tolerant of damage and silent about nothing.
   |---|---|
   | the top level is not a JSON object, or carries no `vnx` key | 2.2 |
   | `vnx` is not three digit-runs separated by full stops | 2.2 |
-  | `vnx` names a MAJOR or MINOR above the reader's | 2.2 |
+  | `vnx` names a MAJOR or, through 0.x, a MINOR series the reader does not support | 2.2 |
   | a number in the document is not finite | 4.2 |
 
   Section 7 states the causes for which a container is refused. They are
@@ -950,13 +1068,15 @@ from one that was read with elements dropped.
 
 ### 6.4 Duplicate object keys
 
-Two entries with the same key in one JSON object, for example two `node-1`
-entries in one `nodes` object, resolve last-wins in every mainstream JSON
-parser, before any VNX rule is applied. A node therefore disappears and a reader
-built on a standard parser has no way to observe it.
+A reader is not required to detect two entries with the same key in one JSON
+object, for example two `node-1` entries in one `nodes` object, and MUST NOT
+report a diagnostic for one. The rules of this format apply to the object as
+the reader's JSON parser delivered it. The corpus carries a case for this
+(Section 8) which expects no diagnostic.
 
-This is a documented limitation of this format rather than a rule. The corpus
-carries a case for it (Section 8.1) which expects no diagnostic.
+Note: a JSON parser resolves a repeated key before any rule of this format is
+applied, and in every mainstream parser the last entry wins, so the earlier node
+disappears and a reader built on such a parser cannot observe it.
 
 ## 7. The VNZ container
 

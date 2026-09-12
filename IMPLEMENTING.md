@@ -579,6 +579,15 @@ not, for three reader rules and one instrument problem.
 Add ZIP64: `SPEC §7` requires a reader to accept it. Writing it is optional, and
 every implementation here writes plain archives.
 
+Build your own ZIP64 fixture with care, because the obvious route leaves the
+parser untested. A reader takes its sizes from the central directory, so an
+archive that masks them in the **local header only** — which is what Python's
+`force_zip64` produces — can be read correctly with the extra-field parser
+deleted entirely. Mask both sizes and the local-header offset in the *central
+directory*, and saturate every field the end record can, so the ZIP64 locator
+has to be followed. *(Measured by the Rust and Swift implementations, both of
+which shipped the weaker fixture first.)*
+
 ### 9.2 A reader and a writer by the same hand agree perfectly
 
 Two halves written by one author can be wrong in the same way and never
@@ -625,8 +634,8 @@ committed fixture can reach: a ZIP64 extended information field can name a
 local-header offset anywhere in a 64-bit range, so `offset + length` overflowed a
 pointer-sized integer before any bounds check ran. In a release build it wrapped
 and the archive was refused, so nobody would have noticed; in a debug build it
-panicked. No truncation or bit-flip of a committed fixture produces it, because
-none of them carries a ZIP64 extra field.
+panicked. Reaching it needs an offset near the top of the 64-bit range, which is
+a hand-built archive rather than a bit-flip of a committed one.
 
 Every corpus fixture is well-formed, including the ones that must be refused —
 they are refused for *format* reasons rather than for being damaged. So no tier
@@ -744,6 +753,14 @@ artefact. Beside it, a test asserting that the wrong cosine reference changes
 neither verdict passed green while asserting something false of the corpus it
 named. **A test that restates a number cannot notice when the artefact moves.**
 *(Reported by the Rust implementation.)*
+
+**A diagnose tier that cannot see a code.** Every `diagnose/` fixture carries at
+most one diagnostic and its path identifies it, so no case can separate a matcher
+that compares the reason code from one that ignores it — measured: weakening the
+matcher to compare the path alone leaves the whole tier green. The tier cannot
+fix this for you, so the runner has to self-test its own matcher. Right path with
+the wrong code must fail, and a sidecar carrying no code must fail rather than be
+silently ignored. *(Reported by the Rust implementation.)*
 
 The repair for all three is to make the test read the artefact. Mutate the
 implementation, run the real corpus, and assert exactly which cases fail. That

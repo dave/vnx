@@ -502,6 +502,7 @@ test('an attachment read back as the wrong bytes is caught by the read tiers', a
   assert.deepEqual(await failingDelta(cases), [
     'accept/container-over-declared-size.vnz',
     'accept/container-root-doc.vnz',
+    'accept/container-sizes-disagree.vnz',
     'accept/container-zip64.vnz',
     // Corrupt-attachment is here because the mutation hands back bytes for an
     // entry the reader must have dropped, so its empty `attachments` is what

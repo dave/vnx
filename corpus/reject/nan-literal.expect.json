@@ -1,5 +1,6 @@
 {
   "kind": "reject",
+  "schema": "not-json",
   "note": "A NaN literal (spec 6.2). Refusal is not a judgement call here: NaN is not JSON at all, so a conforming parser cannot even reach the document. This file is in the corpus because some libraries offer a permissive mode that accepts it, and a coordinate of NaN silently poisons every distance and every bounding box computed downstream.",
   "refusal": "malformed JSON"
 }

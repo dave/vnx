@@ -1,5 +1,6 @@
 {
   "kind": "accept",
+  "schema": "valid",
   "note": "A version whose PATCH is above the reader's own (spec 2.1). This is the component that does NOT refuse: a patch bump is additive by definition, so a reader reads the document with the rules it has and anything the later patch added arrives through the ordinary unknown-key diagnostics of 6.2. The pairing matters - reject/version-too-new.vnx is the same file one MINOR higher and is refused - because a reader that compared all three components would refuse this one too, and to a user the two refusals would look identical.",
   "counts": {
     "waypoints": 1

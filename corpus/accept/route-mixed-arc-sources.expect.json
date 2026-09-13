@@ -1,5 +1,6 @@
 {
   "kind": "accept",
+  "schema": "valid",
   "note": "A route mixing a hand-drawn arc with an engine-routed one (spec 8). Arc boundaries are meaning, not chunking: they are where the user changed how the line was made, and a reader that concatenates the pip lists into one polyline loses that without erroring. The join is the shared position present as the last pip of arc 0 and the first of arc 1.",
   "counts": {
     "routes": 1

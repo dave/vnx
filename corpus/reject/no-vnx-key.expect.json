@@ -1,5 +1,6 @@
 {
   "kind": "reject",
+  "schema": "invalid",
   "note": "Well-formed JSON that is not a VNX document. Without the `vnx` key there is no version to check compatibility against, so reading it would mean guessing which format's rules apply.",
   "refusal": "not a VNX document"
 }

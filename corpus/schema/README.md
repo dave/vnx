@@ -25,6 +25,12 @@ schema can only check shape.
   polygon with nested rings is caught here.
 - A record-level timestamp is UTC with a `Z` suffix, and nothing else.
 - Every `data` record carries an `@type`.
+- `importance`, inside a style object, is an integer from 1 to 5. It is the ONLY
+  style value checked, because it is the only one `SPEC.md` gives a normative
+  range (section 3.6). `icon-size` is deliberately not typed: section 3.6 states
+  that no range is stated for it and that `"icon-size": "large"` passes
+  unremarked, so a schema typing it would refuse a document every conforming
+  reader accepts.
 
 ## What it cannot check
 
@@ -41,10 +47,9 @@ red and this list gets corrected rather than quietly going stale.
 | An inline endpoint that is not on its arc | Arithmetic over two values, not a shape. |
 | Container-scoped ids | A route's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
 | A shared reversal endpoint | Two links in one chain may share an endpoint, and a reader compares inline positions by value. Nothing structural distinguishes it. |
-| A version above the reader's | Reader-relative. The schema does not know what any reader implements. |
+| A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.0.9` and `9.9.9` satisfy the version pattern exactly as `0.1.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read a 0.0 document. `reject/version-too-old.vnx` is what catches it. |
 | A duplicate object key | Resolved last-wins by the parser before the schema runs (`SPEC.md` section 6.4). |
 | `NaN` and `Infinity` | Not JSON. No validator ever sees the document. |
-| Canonical form | About bytes, not structure. |
 | Everything about `.vnz` | An archive is not a JSON document. |
 
 ## What it deliberately permits
@@ -61,11 +66,13 @@ which a 0.1 reader preserves verbatim and interprets not at all (section 3.9).
 The corpus records a `schema` verdict per case, so the disagreements are visible
 rather than assumed. Two kinds exist and both are correct:
 
-- `reject/version-too-new.vnx` is schema-valid and reader-refused. Only a reader
-  knows what it implements.
+- `reject/version-too-new.vnx` and `reject/version-too-old.vnx` are both
+  schema-valid and both reader-refused. Only a reader knows what it implements.
 - Most diagnose files are schema-valid and diagnosed: an unrecognised key, a
-  dangling link, a chain that does not join. `diagnose/polygon-second-ring.vnx`
-  and `diagnose/timestamp-with-offset.vnx` are the two the schema does catch.
+  dangling link, a chain that does not join. Four are schema-invalid —
+  `polygon-second-ring`, `timestamp-with-offset`, `position-unusable` and
+  `wrong-typed-value` — because each is wrong in its SHAPE, which is the one
+  thing a schema does reach.
 
 ## Running it
 

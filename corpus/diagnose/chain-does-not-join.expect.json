@@ -1,5 +1,6 @@
 {
   "kind": "diagnose",
+  "schema": "valid",
   "note": "A chain whose consecutive links do not meet. Both links are kept - the geometry is real, and a gap the writer intended is not the reader's to delete - but the break is reported, so a consumer computing a distance along the chain knows the number includes a 9 km jump. This file is the counterweight to accept/shared-turnaround-handle.vnx: a reader with no continuity check at all passes that one for the wrong reason and fails this one.",
   "counts": {
     "networks": 1

@@ -1,5 +1,6 @@
 {
   "kind": "accept",
+  "schema": "valid",
   "note": "The transposition case (spec 8). A reader that reads [lat, lon] instead of [lon, lat] still parses this file cleanly - both numbers are in range for both channels - so it passes every structural check and draws the point 8000 km wrong. The only defence is asserting which number went where, which is what `positions` does.",
   "counts": {
     "waypoints": 1

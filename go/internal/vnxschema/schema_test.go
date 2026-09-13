@@ -24,6 +24,9 @@ package vnxschema_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +149,18 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			"a version far above any reader's",
 			`{"vnx":"9.9.9"}`,
 		},
+		{
+			// And it cannot refuse one from the past either, which is the half
+			// that actually bit. Through 0.x each MINOR is its own series
+			// (spec 2.2), so 0.0 is not an older spelling of 0.1 and a 0.1
+			// reader must refuse it — but `0.0.9` satisfies the version
+			// pattern exactly as `0.1.0` does. Five of the six implementations
+			// compared with "greater than" rather than "not equal" and read
+			// this file; corpus/reject/version-too-old.vnx is what catches it,
+			// and it is recorded schema-VALID for the reason asserted here.
+			"a version below the reader's series",
+			`{"vnx":"0.0.9","waypoints":[{"at":[-3.6712,57.118]}]}`,
+		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var doc any
@@ -195,4 +210,70 @@ func loadExpectation(t *testing.T, path string) expectation {
 		t.Fatalf("%s records no schema verdict", path)
 	}
 	return e
+}
+
+// TestTheSchemaValidatorIsTheOnlyThirdPartyImport keeps this package's
+// exemption from widening into the module's.
+//
+// go.mod's require block exists for this package alone. That is safe only for
+// as long as it stays true, and "stays true" is not something a comment can
+// enforce: the four TestImportsAreStdlibOnly guards each read their OWN
+// directory, so between them they cover pkg/vnx, the three writer packages and
+// cmd/vnx — and nothing else in the module. A third-party import landing in a
+// directory none of them watches would compile, pass, and quietly make the
+// shipped library undeliverable to anyone who vendors it.
+//
+// So this one walks the whole module. Stdlib is recognised the way the go tool
+// recognises it: an import path whose first segment carries no dot.
+func TestTheSchemaValidatorIsTheOnlyThirdPartyImport(t *testing.T) {
+	const (
+		moduleRoot = "github.com/dave/vnx/go"
+		exemptDir  = "internal/vnxschema"
+	)
+
+	fset := token.NewFileSet()
+	checked := 0
+	err := filepath.Walk("../..", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		rel, err := filepath.Rel("../..", path)
+		if err != nil {
+			return err
+		}
+		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", rel, err)
+		}
+		checked++
+		for _, imp := range f.Imports {
+			p := strings.Trim(imp.Path.Value, `"`)
+			if p == moduleRoot || strings.HasPrefix(p, moduleRoot+"/") {
+				continue
+			}
+			if !strings.Contains(strings.SplitN(p, "/", 2)[0], ".") {
+				continue // stdlib
+			}
+			if filepath.ToSlash(filepath.Dir(rel)) == exemptDir {
+				continue
+			}
+			t.Errorf("%s imports the third-party package %q.\n"+
+				"go.mod's require block is %s's alone — it is safe only because that "+
+				"package is under internal/ and is pruned out of every consumer's module "+
+				"graph. An import here is not, and it makes the library undeliverable to "+
+				"anyone who vendors it.", rel, p, exemptDir)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The control. A walk that found no files would report a clean sweep.
+	if checked < 20 {
+		t.Fatalf("parsed only %d .go files — dead probe, not a clean result", checked)
+	}
+	t.Logf("parsed %d .go files across the module", checked)
 }

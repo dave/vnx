@@ -50,6 +50,7 @@ the run, not a skip.
 | `refusal` | `reject/` | a substring of the expected refusal message |
 | `diagnostics` | `diagnose/` | the expected diagnostics, compared as a set |
 | `cannot_detect` | any case | why no diagnostic is possible, where a case expects none |
+| `schema` | `.vnx` cases | `valid`, `invalid` or `not-json`: the verdict `schema/vnx-0.1.schema.json` reaches. Not a reader's business — a runner reads past it |
 
 ```jsonc
 {
@@ -65,9 +66,18 @@ the run, not a skip.
   "refusal":     "substring of the expected error",        // reject only
   "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
                    "message_advisory": "unknown key"}],
-  "cannot_detect": "why no diagnostic is possible"
+  "cannot_detect": "why no diagnostic is possible",
+
+  "schema": "valid"                           // the JSON Schema's verdict, not a reader's
 }
 ```
+
+`schema` is the one field an implementation runner does NOT compare. It records
+what `schema/vnx-0.1.schema.json` says about the fixture, which is a claim about
+the schema rather than about any library, and `go/internal/vnxschema` is what
+asserts it. A runner that fails on fields it does not read — Python's and
+Kotlin's both do, deliberately — must name this one as known and skip it rather
+than drop the guard.
 
 Three fields do work that is not evident from their names.
 

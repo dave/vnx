@@ -60,6 +60,14 @@ type expectedPosition struct {
 
 type expectation struct {
 	Kind string `json:"kind"`
+
+	// Schema is the verdict the JSON Schema reaches on this case, and it is
+	// NOT this runner's business — internal/vnxschema is what asserts it. It is
+	// declared here only because these sidecars are decoded with
+	// DisallowUnknownFields, so a field this struct does not name is a hard
+	// error rather than an ignored key. Removing it would fail the corpus.
+	Schema string `json:"schema"`
+
 	Note string `json:"note"`
 
 	// Counts is exact, and it is what stops an accept file passing vacuously:

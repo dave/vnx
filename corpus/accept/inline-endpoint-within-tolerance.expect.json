@@ -1,5 +1,6 @@
 {
   "kind": "accept",
+  "schema": "valid",
   "note": "An inline chain endpoint 45.000 m from its arc under the model SPEC 3.3.3 states, which a conforming reader must accept. This case catches a model that over-reads: a reader taking the cosine of each segment's start latitude reads this endpoint at 67.409 m and wrongly refuses a legal document; flat degrees-times-111320 reads 117.723 m and Web Mercator 117.591 m, and both wrongly refuse it too. The thirteen degrees of latitude are deliberate and are not a trail. The effect being pinned is a percentage error, so a realistic arc hides it: at three degrees the segment-start model reads 48.842 m against a 50 m tolerance, so every model accepts and the case discriminates against nothing. The number moves and the verdict does not, and a corpus case is a verdict. The arc is a meridian, so the projected segment is vertical in every model and the distance is exactly the longitude offset times whatever scale the model uses. No model can disagree about the arithmetic, only about the scale, which is the thing under test. See diagnose/inline-endpoint-beyond-tolerance.vnx, whose arc runs the other way for a reason.",
   "counts": {
     "networks": 1

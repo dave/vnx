@@ -1,5 +1,6 @@
 {
   "kind": "diagnose",
+  "schema": "invalid",
   "note": "A GeoJSON-shaped polygon with a second ring. This format carries ONE closed ring and cannot express holes, so the area is dropped with a diagnostic rather than flattened to ring 1 - a reader that quietly kept the outer ring would draw an area whose hole had vanished, with nothing anywhere to say so. The second, plain area proves the drop is scoped to the offending item.",
   "counts": {
     "areas": 1

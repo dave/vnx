@@ -111,26 +111,92 @@ class CorpusTest {
 
     private fun checkCounts(case: File, sidecar: Sidecar, result: ReadResult) {
         val expected = sidecar.counts() ?: fail("${case.name}: an accept or diagnose case needs `counts`")
-        val unknown = expected.keys - Sidecar.COLLECTIONS.toSet()
-        assertTrue(unknown.isEmpty(), "${case.name}: `counts` names collections that do not exist: $unknown")
         val document = result.document
+        val actual = LinkedHashMap<String, Int>()
+        actual["folders"] = document.folders?.size ?: 0
+        actual["networks"] = document.networks?.size ?: 0
+        actual["routes"] = document.routes?.size ?: 0
+        actual["tracks"] = document.tracks?.size ?: 0
+        actual["waypoints"] = document.waypoints?.size ?: 0
+        actual["areas"] = document.areas?.size ?: 0
+        actual["rulesets"] = (document.rulesets as? JsonArray)?.elements?.size ?: 0
+        // The nested containers, addressed by the same JSON Pointer vocabulary
+        // `positions` uses. A bare name is a top-level collection; a name
+        // starting with `/` is a container inside one.
+        actual.putAll(containerCountsByPointer(document))
+
+        for ((key, want) in expected) {
+            val got = actual[key]
+                ?: fail("${case.name}: `counts` names `$key`, which is not a collection the document carries")
+            assertEquals(want, got, "${case.name}: `$key` count")
+        }
         // A collection the sidecar does not name is expected to be empty. That is
-        // what makes `counts` complete rather than a spot check.
-        val actual = mapOf(
-            "folders" to (document.folders?.size ?: 0),
-            "networks" to (document.networks?.size ?: 0),
-            "routes" to (document.routes?.size ?: 0),
-            "tracks" to (document.tracks?.size ?: 0),
-            "waypoints" to (document.waypoints?.size ?: 0),
-            "areas" to (document.areas?.size ?: 0),
-            "rulesets" to ((document.rulesets as? JsonArray)?.elements?.size ?: 0),
-        )
-        for (collection in Sidecar.COLLECTIONS) {
-            assertEquals(
-                expected[collection] ?: 0, actual[collection],
-                "${case.name}: `$collection` count",
+        // what makes `counts` complete rather than a spot check: an omitted
+        // collection would otherwise mean "unchecked", which lets a decoder
+        // invent or drop items in it with nothing to say so.
+        for ((key, got) in actual) {
+            if (got == 0) continue
+            assertTrue(
+                key in expected,
+                "${case.name}: the document carries $got `$key` and the sidecar does not name that collection; " +
+                    "an unnamed collection is unchecked, not empty",
             )
         }
+    }
+
+    /**
+     * The number of children of every NESTED container in the decoded document,
+     * keyed by a JSON Pointer in the wire's own key names — the same vocabulary
+     * `positions` uses.
+     *
+     * IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS. A
+     * reader that dropped every route's arcs, or truncated an arc's pips, or
+     * lost every chain in a network, changed nothing a sidecar could see: the
+     * document still carried one route, one network, one track. The accept tier
+     * catches that through its decode-encode-compare, but section 8.1 exempts
+     * the diagnose tier from the round trip — which is exactly the tier where a
+     * reader is supposed to drop something in a SCOPED way, and where dropping
+     * more than the scope went unseen.
+     *
+     * It is a producer rather than a pointer resolver, for the reason
+     * ModelPointer's companion in Go is: one traversal answers every pointer, so
+     * a case can pin a container deep inside a network without this needing a
+     * pointer parser.
+     *
+     * ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+     * `/networks/0/arcs/arc-1/pips` — section 3.3 makes `arcs` and `nodes`
+     * objects, and an object has no order, so an index there would export this
+     * implementation's map iteration order as a conformance requirement.
+     */
+    private fun containerCountsByPointer(document: VnxDocument): Map<String, Int> {
+        val out = LinkedHashMap<String, Int>()
+        document.networks?.forEachIndexed { i, network ->
+            out["/networks/$i/nodes"] = network.nodes?.size ?: 0
+            out["/networks/$i/arcs"] = network.arcs?.size ?: 0
+            network.arcs?.forEach { (key, arc) -> out["/networks/$i/arcs/$key/pips"] = arc.pips.size }
+            out["/networks/$i/chains"] = network.chains?.size ?: 0
+            network.chains?.forEachIndexed { j, chain -> out["/networks/$i/chains/$j/links"] = chain.links.size }
+            // UNCONDITIONALLY, like every other container here. A guard on these
+            // two alone would make `/networks/0/points: 0` a legal sidecar entry
+            // for a runner that emits it and a hard "not a collection the
+            // document carries" error for one that does not — a divergence
+            // between conforming implementations with nothing in the spec to
+            // separate them. A zero never triggers the completeness rule either
+            // way, so the guard bought nothing for the cost.
+            out["/networks/$i/points"] = network.points?.size ?: 0
+            out["/networks/$i/areas"] = network.areas?.size ?: 0
+            network.areas?.forEachIndexed { j, area -> out["/networks/$i/areas/$j/polygon"] = area.polygon.size }
+        }
+        document.routes?.forEachIndexed { i, route ->
+            out["/routes/$i/arcs"] = route.arcs.size
+            route.arcs.forEachIndexed { j, arc -> out["/routes/$i/arcs/$j/pips"] = arc.pips.size }
+        }
+        document.tracks?.forEachIndexed { i, track ->
+            out["/tracks/$i/segments"] = track.segments.size
+            track.segments.forEachIndexed { j, segment -> out["/tracks/$i/segments/$j/pips"] = segment.pips.size }
+        }
+        document.areas?.forEachIndexed { i, area -> out["/areas/$i/polygon"] = area.polygon.size }
+        return out
     }
 
     private fun checkPositions(case: File, sidecar: Sidecar, result: ReadResult) {

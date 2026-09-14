@@ -387,18 +387,36 @@ final class CorpusTests: XCTestCase {
         return try Corpus.Sidecar(sidecarURL)
     }
 
-    /// `counts` is exact per collection, and a collection the sidecar does not
-    /// name must be empty. Without the second half a decoder that invented
-    /// items in an unnamed collection would pass.
+    /// `counts` is exact, over the top-level collections AND the nested
+    /// containers inside them. A bare name is a top-level collection; a name
+    /// starting with `/` is a container addressed by the same JSON Pointer
+    /// vocabulary `positions` uses.
+    ///
+    /// The completeness rule runs in BOTH directions, and neither half is
+    /// optional. A container the document carries non-empty that the sidecar
+    /// does not name is an error, because unnamed would otherwise mean
+    /// unchecked and a decoder could invent items there; and a sidecar key the
+    /// walk cannot produce is an error naming the key, because a runner that
+    /// quietly skipped an expectation it did not understand is worse than one
+    /// that never had it.
     private func assertCounts(_ sidecar: Corpus.Sidecar, _ document: Document, _ name: String) throws {
         guard let expected = sidecar.counts else { return }
-        let actual = document.collectionCounts
-        for (collection, count) in actual {
-            XCTAssertEqual(count, expected[collection] ?? 0,
-                           "\(name): `\(collection)` count")
+        let actual = document.corpusCounts
+        for (container, count) in actual {
+            if count == 0 && expected[container] == nil {
+                // A container the document does not carry need not be named.
+                // A NON-EMPTY one must be, which the next line enforces.
+                continue
+            }
+            guard let want = expected[container] else {
+                XCTFail("\(name): the document carries \(count) at `\(container)` and the sidecar does not name it; "
+                        + "an unnamed container is unchecked, not empty")
+                continue
+            }
+            XCTAssertEqual(count, want, "\(name): `\(container)` count")
         }
-        for collection in expected.keys {
-            XCTAssertNotNil(actual[collection], "\(name): sidecar names an unknown collection `\(collection)`")
+        for container in expected.keys where actual[container] == nil {
+            XCTFail("\(name): the sidecar counts `\(container)`, which this runner's walk cannot produce")
         }
     }
 

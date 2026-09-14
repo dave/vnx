@@ -3,7 +3,10 @@
   "schema": "valid",
   "note": "A track with a pause. The gap between segments is not geometry and not walking: wall-clock span is 1953000 ms, moving time is 103000 + 64000 = 167000 ms. A reader that sums first-to-last across the whole track, or that draws a straight line between the segments, is wrong in a way no structural check can see.",
   "counts": {
-    "tracks": 1
+    "tracks": 1,
+    "/tracks/0/segments": 2,
+    "/tracks/0/segments/0/pips": 3,
+    "/tracks/0/segments/1/pips": 2
   },
   "tracks": [
     {

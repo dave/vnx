@@ -376,10 +376,16 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 		"areas":     len(doc.Areas),
 		"rulesets":  len(doc.Rulesets),
 	}
+	// The nested containers, addressed by the same JSON Pointer vocabulary
+	// `positions` uses. A bare name is a top-level collection; a name starting
+	// with `/` is a container inside one.
+	for ptr, n := range containerCountsByPointer(doc) {
+		got[ptr] = n
+	}
 	for k, w := range want {
 		g, known := got[k]
 		if !known {
-			t.Fatalf("sidecar counts %q, which is not a collection", k)
+			t.Fatalf("sidecar counts %q, which is not a collection the document carries", k)
 		}
 		if g != w {
 			t.Errorf("%s: got %d, want %d", k, g, w)
@@ -446,6 +452,69 @@ func checkPositions(t *testing.T, doc *Document, e expectation) {
 				want.Lon, want.Lat, math.Float64bits(want.Lon), math.Float64bits(want.Lat))
 		}
 	}
+}
+
+// containerCountsByPointer walks the decoded document and returns the number of
+// children of every NESTED container in it, keyed by a JSON Pointer in the
+// wire's own key names — the same vocabulary `positions` uses.
+//
+// ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
+// that dropped every route's arcs, or truncated an arc's pips to the first two,
+// or lost every chain in a network, changed nothing a sidecar could see: the
+// document still carried one route, one network, one track. The transposition
+// defence (`positions`) does not close it either — it pins the value at a few
+// named indices and says nothing about how many there are.
+//
+// It is a producer rather than a resolver, for the reason positionsByPointer is:
+// one traversal answers every pointer, so a case can pin a container deep inside
+// a network without the harness growing a pointer parser. An implementation in
+// another language writes the same walk over its own model.
+//
+// ⚠ ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+// `/networks/0/arcs/arc-1/pips` — §3.3 makes `arcs` and `nodes` objects, and an
+// object has no order, so an index there would be this implementation's map
+// iteration exported as a conformance requirement.
+func containerCountsByPointer(doc *Document) map[string]int {
+	out := map[string]int{}
+	for i, n := range doc.Networks {
+		out[fmt.Sprintf("/networks/%d/nodes", i)] = len(n.Nodes)
+		out[fmt.Sprintf("/networks/%d/arcs", i)] = len(n.Arcs)
+		for key, a := range n.Arcs {
+			out[fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key)] = len(a.Pips)
+		}
+		out[fmt.Sprintf("/networks/%d/chains", i)] = len(n.Chains)
+		for j, c := range n.Chains {
+			out[fmt.Sprintf("/networks/%d/chains/%d/links", i, j)] = len(c.Links)
+		}
+		// Emitted unconditionally, like every other container here. The
+		// conditional these two used to carry was arbitrary — a zero never
+		// triggers the completeness rule either way, and making a zero
+		// ANSWERABLE is what lets a sidecar legally record one. Under the
+		// conditional, `/networks/0/points: 0` resolved in some
+		// implementations and was a hard "not a collection" error in others,
+		// which is a divergence between six runners with nothing to justify it.
+		out[fmt.Sprintf("/networks/%d/points", i)] = len(n.Points)
+		out[fmt.Sprintf("/networks/%d/areas", i)] = len(n.Areas)
+		for j, a := range n.Areas {
+			out[fmt.Sprintf("/networks/%d/areas/%d/polygon", i, j)] = len(a.Polygon)
+		}
+	}
+	for i, r := range doc.Routes {
+		out[fmt.Sprintf("/routes/%d/arcs", i)] = len(r.Arcs)
+		for j, a := range r.Arcs {
+			out[fmt.Sprintf("/routes/%d/arcs/%d/pips", i, j)] = len(a.Pips)
+		}
+	}
+	for i, tr := range doc.Tracks {
+		out[fmt.Sprintf("/tracks/%d/segments", i)] = len(tr.Segments)
+		for j, sg := range tr.Segments {
+			out[fmt.Sprintf("/tracks/%d/segments/%d/pips", i, j)] = len(sg.Pips)
+		}
+	}
+	for i, a := range doc.Areas {
+		out[fmt.Sprintf("/areas/%d/polygon", i)] = len(a.Polygon)
+	}
+	return out
 }
 
 // positionsByPointer walks the decoded document and returns every position in

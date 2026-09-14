@@ -39,6 +39,76 @@ def _bits(value: float) -> str:
 COLLECTIONS = ("folders", "networks", "routes", "tracks", "waypoints", "areas")
 
 
+def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
+    """The number of children of every NESTED container in the document, keyed
+    by a JSON Pointer in the wire's own key names -- the same vocabulary
+    `positions` uses.
+
+    ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS.  A
+    reader that dropped a chain's links, or truncated an arc's pips, changed
+    nothing a sidecar could see: the document still carried one network, one
+    route, one track.  The accept tier's decode->encode->tree comparison catches
+    most of that already, but the DIAGNOSE tier is exempt from the round trip
+    (SPEC 8.1) -- and those are exactly the cases where a reader is supposed to
+    drop something in a SCOPED way.  Measured on the pre-D2 corpus: a reader
+    that dropped the REST OF THE CHAIN along with a dangling link passed every
+    tier green.  Container (.vnz) accept cases are the other gap, because the
+    round trip returns early for them.  `positions` does not close either: it
+    pins the value at a few named indices and says nothing about how many there
+    are.
+
+    It is a PRODUCER rather than a pointer resolver, for the reason
+    `positions_by_pointer` is in the reference: one traversal answers every
+    pointer, so a case can pin a container deep inside a network without this
+    helper growing a pointer parser.  A sidecar key this walk does not produce
+    is a loud failure naming the key, never a skip.
+
+    ⚠ ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+    `/networks/0/arcs/arc-1/pips` -- SPEC 3.3 makes `arcs` and `nodes` objects,
+    and an object has no order, so an index there would export this
+    implementation's dict iteration order as a conformance requirement.
+
+    A sidecar MAY name a container the document carries empty (see
+    `corpus/diagnose/inline-endpoint-beyond-tolerance.expect.json`, which
+    records `/networks/0/chains/0/links: 0`).  Failing to name a NON-empty
+    container is the error; naming a zero is legal.
+
+    ⚠ EVERY CONTAINER IS EMITTED UNCONDITIONALLY, ZERO-COUNT ONES INCLUDED, and
+    that is a conformance requirement rather than a taste.  `points` and `areas`
+    briefly carried a non-empty guard here and in the Go reference.  A zero
+    never triggers the completeness rule, so the guard bought nothing -- what it
+    cost is that `/networks/0/points: 0` resolved in a runner that emitted
+    unconditionally and was a hard "not a collection the document carries" error
+    in one that did not.  One sidecar entry, legal in one conforming
+    implementation and a failure in another, with nothing in the spec to
+    separate them.  Ruled out across all five runners 2026-09-14.
+    """
+    out: dict[str, int] = {}
+    for i, network in enumerate(document.networks or []):
+        out[f"/networks/{i}/nodes"] = len(network.nodes or {})
+        out[f"/networks/{i}/arcs"] = len(network.arcs or {})
+        for key, arc in (network.arcs or {}).items():
+            out[f"/networks/{i}/arcs/{key}/pips"] = len(arc.pips or [])
+        out[f"/networks/{i}/chains"] = len(network.chains or [])
+        for j, chain in enumerate(network.chains or []):
+            out[f"/networks/{i}/chains/{j}/links"] = len(chain.links or [])
+        out[f"/networks/{i}/points"] = len(network.points or [])
+        out[f"/networks/{i}/areas"] = len(network.areas or [])
+        for j, area in enumerate(network.areas or []):
+            out[f"/networks/{i}/areas/{j}/polygon"] = len(area.polygon or [])
+    for i, route in enumerate(document.routes or []):
+        out[f"/routes/{i}/arcs"] = len(route.arcs or [])
+        for j, arc in enumerate(route.arcs or []):
+            out[f"/routes/{i}/arcs/{j}/pips"] = len(arc.pips or [])
+    for i, track in enumerate(document.tracks or []):
+        out[f"/tracks/{i}/segments"] = len(track.segments or [])
+        for j, segment in enumerate(track.segments or []):
+            out[f"/tracks/{i}/segments/{j}/pips"] = len(segment.pips or [])
+    for i, area in enumerate(document.areas or []):
+        out[f"/areas/{i}/polygon"] = len(area.polygon or [])
+    return out
+
+
 def _cases(kind: str) -> list[pathlib.Path]:
     directory = CORPUS / kind
     return sorted(
@@ -212,11 +282,23 @@ class _CorpusCase(unittest.TestCase):
         decoder could invent or drop items in a collection no sidecar named and
         stay green.  Enforcing it is the point: a rule most files satisfy by
         accident is one the next file breaks silently.
+
+        The same rule now covers the NESTED containers, addressed by the same
+        JSON Pointer vocabulary `positions` uses: a bare name is a top-level
+        collection, a name starting with `/` is a container inside one.  That is
+        where the guarantee comes from -- see `_container_counts_by_pointer` for
+        what it closes and what it does not.
         """
         counts = document.counts()
+        counts.update(_container_counts_by_pointer(document))
         pinned = expect.get("counts") or {}
         for collection, want in pinned.items():
-            self.assertIn(collection, counts, f"{name}: unknown collection {collection!r}")
+            self.assertIn(
+                collection,
+                counts,
+                f"{name}: the sidecar counts {collection!r}, which is not a "
+                "collection the document carries",
+            )
             self.assertEqual(counts[collection], want, f"{name}: {collection} count")
         for collection, got in counts.items():
             if got:
@@ -224,7 +306,7 @@ class _CorpusCase(unittest.TestCase):
                     collection,
                     pinned,
                     f"{name}: the document carries {got} {collection} and the "
-                    "sidecar does not name that collection",
+                    "sidecar does not name that container",
                 )
 
     def _check_positions(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:

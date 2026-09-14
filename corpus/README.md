@@ -41,7 +41,7 @@ the run, not a skip.
 |---|---|---|
 | `kind` | every case | `accept`, `reject`, `diagnose` or `write`; must match the directory |
 | `note` | every case | what this case separates, and which of its values are load-bearing |
-| `counts` | document tiers | the exact number of entries in each collection |
+| `counts` | document tiers | the exact number of entries in each collection, and in each nested container |
 | `positions` | document tiers | pinned coordinates, each addressed by an `at` JSON Pointer |
 | `tracks` | document tiers | per track, looked up by name: `moving_time_ms`, or `null` for unknown |
 | `root` | `.vnz` cases | the entry name of the root document |
@@ -85,6 +85,33 @@ Three fields do work that is not evident from their names.
 returned an empty document for every input satisfies "no error, no diagnostics"
 on all of them.
 
+It carries two kinds of key. A **bare name** is one of the seven top-level
+collections. A name **starting with `/`** is a container nested inside one,
+addressed by the same JSON Pointer vocabulary `positions` uses —
+`/networks/0/nodes`, `/routes/0/arcs/1/pips`, `/tracks/0/segments`,
+`/networks/0/chains/2/links`, `/areas/0/polygon`.
+
+⚠ **THE NESTED KEYS ARE WHAT THE `diagnose/` TIER HAS INSTEAD OF A ROUND TRIP.**
+`SPEC §8.1` exempts `reject/` and `diagnose/` from the decode-then-encode
+comparison, and `diagnose/` is exactly where a reader is required to drop
+something in a SCOPED way: one area of two, one segment of two, one link of
+three. Before these keys existed nothing pinned what SURVIVED, and an
+over-broad drop — a dangling link taking the rest of its chain with it —
+passed the whole corpus green.
+
+⚠ **AN ARC OR NODE CONTAINER IS KEYED BY ITS OWN KEY, NEVER BY AN INDEX**:
+`/networks/0/arcs/arc-1/pips`. `SPEC §3.3` makes `arcs` and `nodes` objects,
+and an object has no order, so an index there would export one implementation's
+iteration order as a conformance requirement.
+
+⚠ **A DIAGNOSE CASE RECORDS WHAT THE READER ENDS UP WITH, NOT WHAT THE FILE
+HOLDS.** `diagnose/polygon-second-ring.vnx` carries two areas and its sidecar
+records one, because the nested-ring area is dropped whole. Read the case's
+`note` before changing a number: the note states the rule that decides it.
+A count of `0` is legal and sometimes load-bearing —
+`diagnose/inline-endpoint-beyond-tolerance.expect.json` pins
+`/networks/0/chains/0/links: 0` because the chain's only link is dropped.
+
 `positions` is the only available defence against a longitude and latitude
 transposition (`SPEC §8.1`). Both orderings parse, both are in range, and
 nothing structural separates them while the point lands 8,000 km away. The
@@ -126,7 +153,8 @@ every arc pip, node, area vertex and track pip unchecked. Keep the list wide.
     `numbers/`. Check the outcome against the tier's requirement.
 3.  Resolve every sidecar expectation by something the document says, never by
     position. Look a `tracks` entry up by `name`, a `positions` entry up by its
-    `at` pointer, and a `counts` entry up by collection key. An index lookup
+    `at` pointer, and a `counts` entry up by its collection key or pointer. An
+    index lookup
     finds *a* track at position 0 and compares against the wrong one, which
     passes a sidecar that has drifted from its fixture. An expectation naming
     something the document does not contain fails the case.

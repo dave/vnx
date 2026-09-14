@@ -3,7 +3,9 @@
   "schema": "invalid",
   "note": "A record-level timestamp with a non-Z offset (spec 4.3). A refusal here would contradict 6.2, whose refusal list is exactly four causes and whose rule for an unusable VALUE is drop-and-diagnose. Refusing would throw away every pip of a track over a badly spelled date, which is wildly disproportionate. The geometry and the pip times, which are integers and unaffected, all survive.",
   "counts": {
-    "tracks": 1
+    "tracks": 1,
+    "/tracks/0/segments": 1,
+    "/tracks/0/segments/0/pips": 2
   },
   "diagnostics": [
     {

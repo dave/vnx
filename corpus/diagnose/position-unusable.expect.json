@@ -5,7 +5,15 @@
   "counts": {
     "areas": 1,
     "networks": 1,
-    "tracks": 1
+    "tracks": 1,
+    "/areas/0/polygon": 4,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/sound/pips": 2,
+    "/networks/0/chains": 1,
+    "/networks/0/chains/0/links": 1,
+    "/networks/0/nodes": 3,
+    "/tracks/0/segments": 1,
+    "/tracks/0/segments/0/pips": 2
   },
   "positions": [
     {

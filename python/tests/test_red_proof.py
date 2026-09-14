@@ -11,6 +11,7 @@ catch, plus the ones this implementation had to decide for itself.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import pathlib
 import unittest
@@ -35,6 +36,20 @@ def _run(name: str) -> unittest.TestResult:
     suite = unittest.TestLoader().loadTestsFromName(name, module)
     runner = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0)
     return runner.run(suite)
+
+
+@contextlib.contextmanager
+def _both(*patches: Any) -> Any:
+    """Several `mock.patch` objects as one context manager.
+
+    Deferred, not entered on construction: `assertGoesRed` runs the check green
+    again after leaving the block, and a defect that was already live before the
+    `with` would make that second run meaningless.
+    """
+    with contextlib.ExitStack() as stack:
+        for patch in patches:
+            stack.enter_context(patch)
+        yield stack
 
 
 class RedProof(unittest.TestCase):
@@ -119,7 +134,15 @@ class RedProof(unittest.TestCase):
         def named_keys_only(
             self: Any, expect: Any, document: Any, name: str
         ) -> None:
+            # The nested-container walk stays: what is frozen here is the
+            # COMPLETENESS half of the rule -- "an omitted container is
+            # unchecked" -- not the pointer vocabulary the sidecars address
+            # containers with.  Without the walk this stub dies on a KeyError
+            # for a `/...` key it cannot resolve, and a frozen finding that goes
+            # red for a reason unrelated to the finding is the exact failure
+            # mode that gets frozen tests deleted as flaky.  Leave it in.
             counts = document.counts()
+            counts.update(test_corpus._container_counts_by_pointer(document))
             for collection, want in (expect.get("counts") or {}).items():
                 self.assertEqual(counts[collection], want)
 
@@ -128,6 +151,149 @@ class RedProof(unittest.TestCase):
                     test_corpus._CorpusCase, "_check_counts", named_keys_only
                 ):
             self.assertTrue(_run("AcceptTier.test_accept").wasSuccessful())
+
+    # -- the nested `counts` containers (D2) ----------------------------
+    #
+    # What these three freeze, and why it is not what the plan for D2 said.
+    #
+    # The plan claimed `counts` counted only the six top-level arrays, "so a
+    # reader that drops every route's arcs passes".  It does not.  The accept
+    # tier re-encodes the decoded document and compares the two trees, and that
+    # comparison sees a missing route arc on its own -- see
+    # `test_a_dropped_route_arc_was_already_caught_without_counts`, which takes
+    # `counts` out of the picture entirely and watches accept go red anyway.
+    #
+    # The hole D2 actually closes is the `diagnose/` tier.  SPEC 8.1 exempts it
+    # from the round trip, for the good reason that a diagnose case is a
+    # document the reader is SUPPOSED to come back from with less than it was
+    # given.  That exemption is the hole: with no round trip and only top-level
+    # counts, nothing looked at how much less.  A reader that drops a dangling
+    # link AND the rest of its chain with it -- a scoped drop made over-broad --
+    # passed the whole corpus green.
+
+    @staticmethod
+    def _over_broad_chain_drop() -> Any:
+        """A reader whose scoped drop is over-broad: a dropped link takes the
+        rest of its chain with it.
+
+        This is the defect in its smallest honest form.  In the decoder the
+        difference is one keyword -- the loop in `_Reader._chain` keeps going
+        past a link it could not use, and a `break` there would not.  Patched
+        from outside rather than by re-writing `_chain`, so the test does not
+        carry a stale copy of the decoder's continuity bookkeeping.
+        """
+        dropped: list[str] = []
+        original_link = decode._Reader._link
+        original_chain = decode._Reader._chain
+
+        def recording(self: Any, value: Any, path: str, network: Any) -> Any:
+            got = original_link(self, value, path, network)
+            if got is None:
+                dropped.append(path)
+            return got
+
+        def truncating(self: Any, value: Any, path: str, network: Any) -> Any:
+            before = len(dropped)
+            chain = original_chain(self, value, path, network)
+            if chain is not None and len(dropped) > before:
+                # Every link before the first dropped one was kept, so the index
+                # of that drop is how many links survive an over-broad one.
+                first = int(dropped[before].rsplit("/", 1)[1])
+                chain.links = (chain.links or [])[:first]
+            return chain
+
+        return _both(
+            mock.patch.object(decode._Reader, "_link", recording),
+            mock.patch.object(decode._Reader, "_chain", truncating),
+        )
+
+    def test_an_over_broad_scoped_drop_is_caught(self) -> None:
+        """The nested `counts` containers, ruled 2026-09-14.
+
+        Two corpus cases carry the two shapes of the same defect, and the
+        runner names the container in both:
+
+          link-names-absent-arc.vnx  /networks/0/chains/0/links  1, want 2
+          position-unusable.vnx      /networks/0/chains/0/links  0, want 1
+
+        The second is the more alarming one -- its dangling link is the FIRST in
+        the chain, so the over-broad drop empties the chain outright rather than
+        truncating it -- and it is the one a red proof aimed only at the first
+        case would never have shown.
+        """
+        self.assertGoesRed(
+            self._over_broad_chain_drop(),
+            "DiagnoseTier.test_diagnose",
+            "reader whose dropped link takes the rest of its chain with it",
+        )
+
+    def test_the_top_level_counts_rule_could_not_see_that(self) -> None:
+        """The finding, frozen, so the weaker rule is not reintroduced.
+
+        Counting only the six top-level collections, the over-broad drop above
+        is invisible: the document still carries one network, one chain, one of
+        everything a pre-D2 sidecar named.  And `diagnose/` has no round trip to
+        catch what `counts` misses.  If this ever goes red, the nested
+        containers have stopped being counted.
+        """
+        def top_level_only(
+            self: Any, expect: Any, document: Any, name: str
+        ) -> None:
+            counts = document.counts()
+            pinned = {
+                key: want
+                for key, want in (expect.get("counts") or {}).items()
+                if not key.startswith("/")
+            }
+            for collection, want in pinned.items():
+                self.assertEqual(counts[collection], want)
+            for collection, got in counts.items():
+                if got:
+                    self.assertIn(collection, pinned)
+
+        with self._over_broad_chain_drop(), mock.patch.object(
+            test_corpus._CorpusCase, "_check_counts", top_level_only
+        ):
+            self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
+
+    def test_a_dropped_route_arc_was_already_caught_without_counts(self) -> None:
+        """The correction, frozen: `counts` is not what catches this one.
+
+        A reader that drops a route's arcs is caught in the accept tier by the
+        decode-encode-tree comparison, with `counts` removed from the run
+        entirely.  Said here because the claim that it was NOT caught is what
+        made the nested containers look like an accept-tier fix; they are a
+        `diagnose/`-tier fix, and a red proof that leaves `counts` switched on
+        cannot tell the two guards apart.
+
+        ⚠ THE GUARD IS `test_accept_files_survive_a_read_and_a_write`, NOT
+        `test_accept`.  In this runner the round trip is its own test method, so
+        `test_accept` -- with `counts` switched off -- stays GREEN under this
+        defect.  Measured, having first aimed this proof at `test_accept` and
+        watched it come back green.  The reference runner puts both in one
+        subtest, which is exactly how a fault caught by one guard gets credited
+        to the other.
+        """
+        original = decode._Reader.document
+
+        def truncating(self: Any, value: Any) -> Any:
+            got = original(self, value)
+            for route in got.routes or []:
+                if route.arcs:
+                    route.arcs = route.arcs[:1]
+            return got
+
+        def unchecked(self: Any, expect: Any, document: Any, name: str) -> None:
+            return None
+
+        with mock.patch.object(
+            test_corpus._CorpusCase, "_check_counts", unchecked
+        ):
+            self.assertGoesRed(
+                mock.patch.object(decode._Reader, "document", truncating),
+                "AcceptTier.test_accept_files_survive_a_read_and_a_write",
+                "reader that drops a route's arcs, with `counts` switched off",
+            )
 
     def test_moving_time_reported_as_zero_is_caught(self) -> None:
         """`moving_time_ms: null` means unknown, which is not zero."""

@@ -3,7 +3,10 @@
   "schema": "valid",
   "note": "Two `n1` entries in one `nodes` map (spec 6.4). This file expects NO diagnostic, which is the point: last-wins is what every mainstream JSON parser does, the first node is gone before any VNX code runs, and a standard parser gives a reader no way to know it happened. The arc's pips here start at the SECOND n1, so the document is internally consistent and nothing downstream looks wrong either. That internal consistency is what removes the witness, and it is worth knowing which rule could otherwise have been one. Section 3.3.2 compares each terminal pip against its node and diagnoses beyond 50 m, and the two `n1` entries here are 9,165 m apart - so under first-wins that check fires and under last-wins it does not. Measured with a first-wins hook: before section 3.3.2 was implemented anywhere, both orders produced zero diagnostics and this file could not tell them apart; afterwards, first-wins reports 9,165 m. So this case still expects no diagnostic and still records the limitation, but the limitation now rests on the arc's pips agreeing with the surviving node rather than on nothing being able to see the loss at all. Pointing the pips at the FIRST n1 would turn this file into a test of parser key order, which is not what it is for and is not a property the format can require - see diagnose/terminal-pip-off-node.vnx, which tests that rule directly.",
   "counts": {
-    "networks": 1
+    "networks": 1,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/a1/pips": 3,
+    "/networks/0/nodes": 2
   },
   "diagnostics": [],
   "cannot_detect": "A duplicate object key is resolved by the JSON parser before the format's own rules see the document. Detecting it needs a parser that reports duplicates - which none of the five target languages offers by default - so this is documented rather than papered over. If a reader ever DOES detect it, this file goes red and the limitation gets revisited rather than quietly outliving its cause."

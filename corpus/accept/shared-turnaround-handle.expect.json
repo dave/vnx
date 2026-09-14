@@ -3,6 +3,11 @@
   "schema": "valid",
   "note": "A chain whose two links share one turnaround handle (spec 3.2). Zero diagnostics is the whole assertion: the continuity check must find these two inline positions equal BY VALUE. A reader comparing pointers or object identity reports a broken chain, and a reader with no continuity check at all passes this file for the wrong reason - which is why the corpus also carries a must-diagnose file for a chain that genuinely does not join.",
   "counts": {
-    "networks": 1
+    "networks": 1,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/spur/pips": 3,
+    "/networks/0/chains": 1,
+    "/networks/0/chains/0/links": 2,
+    "/networks/0/nodes": 2
   }
 }

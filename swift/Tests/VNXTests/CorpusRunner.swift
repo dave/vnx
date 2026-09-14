@@ -302,4 +302,75 @@ extension Document {
             "rulesets": rulesets?.count ?? 0,
         ]
     }
+
+    /// The number of children of every NESTED container in the document, keyed
+    /// by a JSON Pointer in the wire's own key names — the same vocabulary
+    /// `positions` uses.
+    ///
+    /// It exists because `counts` counted only the seven top-level collections.
+    /// A reader that dropped every route's arcs, truncated an arc's pips, or
+    /// lost a chain's links changed nothing a sidecar could see: the document
+    /// still carried one route, one network, one track. That matters most in
+    /// the DIAGNOSE tier, which SPEC 8.1 exempts from the round-trip — exactly
+    /// the tier where a reader is meant to drop something in a SCOPED way, and
+    /// where an unscoped drop was measured to pass the whole corpus green.
+    ///
+    /// It is a producer rather than a pointer resolver, for the same reason
+    /// `position(atPointer:)`'s counterpart in Go is: one traversal answers
+    /// every pointer, so a case can pin a container deep inside a network
+    /// without the harness growing a second pointer parser.
+    ///
+    /// EVERY CONTAINER IS EMITTED UNCONDITIONALLY, INCLUDING AN EMPTY ONE.
+    /// A zero never triggers the completeness rule in either direction, so a
+    /// "only when non-empty" guard buys nothing — and it costs the one thing
+    /// six independent runners exist to prevent: `/networks/0/points: 0` would
+    /// resolve in a runner that emitted unconditionally and be a hard "not a
+    /// container the document carries" error in one that did not, with no
+    /// section of the spec to separate them.
+    ///
+    /// ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+    /// `/networks/0/arcs/arc-1/pips` — SPEC 3.3 makes `arcs` and `nodes`
+    /// objects, and an object has no order, so an index there would export this
+    /// implementation's dictionary iteration order as a conformance rule.
+    var nestedContainerCounts: [String: Int] {
+        var out: [String: Int] = [:]
+        for (i, network) in (networks ?? []).enumerated() {
+            out["/networks/\(i)/nodes"] = network.nodes?.count ?? 0
+            out["/networks/\(i)/arcs"] = network.arcs?.count ?? 0
+            for (key, arc) in network.arcs ?? [:] {
+                out["/networks/\(i)/arcs/\(key)/pips"] = arc.pips.count
+            }
+            out["/networks/\(i)/chains"] = network.chains?.count ?? 0
+            for (j, chain) in (network.chains ?? []).enumerated() {
+                out["/networks/\(i)/chains/\(j)/links"] = chain.links.count
+            }
+            out["/networks/\(i)/points"] = network.points?.count ?? 0
+            out["/networks/\(i)/areas"] = network.areas?.count ?? 0
+            for (j, area) in (network.areas ?? []).enumerated() {
+                out["/networks/\(i)/areas/\(j)/polygon"] = area.polygon.count
+            }
+        }
+        for (i, route) in (routes ?? []).enumerated() {
+            out["/routes/\(i)/arcs"] = route.arcs.count
+            for (j, arc) in route.arcs.enumerated() {
+                out["/routes/\(i)/arcs/\(j)/pips"] = arc.pips.count
+            }
+        }
+        for (i, track) in (tracks ?? []).enumerated() {
+            out["/tracks/\(i)/segments"] = track.segments.count
+            for (j, segment) in track.segments.enumerated() {
+                out["/tracks/\(i)/segments/\(j)/pips"] = segment.pips.count
+            }
+        }
+        for (i, area) in (areas ?? []).enumerated() {
+            out["/areas/\(i)/polygon"] = area.polygon.count
+        }
+        return out
+    }
+
+    /// The top-level collections and the nested containers together, which is
+    /// what a sidecar's `counts` is compared against.
+    var corpusCounts: [String: Int] {
+        collectionCounts.merging(nestedContainerCounts) { _, nested in nested }
+    }
 }

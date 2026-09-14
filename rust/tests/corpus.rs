@@ -993,33 +993,144 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
     let Some(counts) = sidecar.get("counts").and_then(Json::as_object) else {
         return;
     };
+    let mut got: BTreeMap<String, usize> = BTreeMap::new();
+    got.insert("folders".into(), document.folders.as_ref().map_or(0, Vec::len));
+    got.insert("networks".into(), document.networks.as_ref().map_or(0, Vec::len));
+    got.insert("routes".into(), document.routes.as_ref().map_or(0, Vec::len));
+    got.insert("tracks".into(), document.tracks.as_ref().map_or(0, Vec::len));
+    got.insert("waypoints".into(), document.waypoints.as_ref().map_or(0, Vec::len));
+    got.insert("areas".into(), document.areas.as_ref().map_or(0, Vec::len));
+    got.insert(
+        "rulesets".into(),
+        document
+            .rulesets
+            .as_ref()
+            .and_then(Json::as_array)
+            .map_or(0, <[Json]>::len),
+    );
+    // The nested containers, addressed by the same JSON Pointer vocabulary
+    // `positions` uses. A bare name is a top-level collection; a name starting
+    // with `/` is a container inside one.
+    got.extend(container_counts_by_pointer(document));
+
     for (collection, want) in counts {
         let want = want
             .as_f64()
             .unwrap_or_else(|| panic!("{}: a count is not a number", case.name))
             as usize;
-        let got = match collection.as_str() {
-            "folders" => document.folders.as_ref().map_or(0, Vec::len),
-            "networks" => document.networks.as_ref().map_or(0, Vec::len),
-            "routes" => document.routes.as_ref().map_or(0, Vec::len),
-            "tracks" => document.tracks.as_ref().map_or(0, Vec::len),
-            "waypoints" => document.waypoints.as_ref().map_or(0, Vec::len),
-            "areas" => document.areas.as_ref().map_or(0, Vec::len),
-            "rulesets" => document
-                .rulesets
-                .as_ref()
-                .and_then(Json::as_array)
-                .map_or(0, <[Json]>::len),
-            other => panic!("{}: the sidecar counts an unknown collection {other:?}", case.name),
-        };
+        let found = got.get(collection.as_str()).copied().unwrap_or_else(|| {
+            panic!(
+                "{}: the sidecar counts {collection:?}, which is not a collection the document carries",
+                case.name
+            )
+        });
         assert_eq!(
-            got, want,
-            "{}: expected {want} item(s) in `{collection}` and found {got}",
+            found, want,
+            "{}: {collection}: got {found}, want {want}",
             case.name
         );
     }
+    // A sidecar MUST name every container its document carries non-empty. An
+    // omitted container used to mean "unchecked", which let a decoder invent or
+    // drop items in it with nothing to say so. Naming a zero is legal; failing
+    // to name a NON-empty container is the error.
+    for (collection, found) in &got {
+        if *found == 0 {
+            continue;
+        }
+        if !counts.iter().any(|(k, _)| k == collection) {
+            panic!(
+                "{}: the document carries {found} {collection} and the sidecar does not name that \
+                 collection; an unnamed collection is unchecked, not empty",
+                case.name
+            );
+        }
+    }
 }
 
+/// The number of children of every NESTED container in the decoded document,
+/// keyed by a JSON Pointer in the wire's own key names — the same vocabulary
+/// `positions` uses.
+///
+/// ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL ARRAYS. A reader
+/// that dropped every route's arcs, or truncated an arc's pips, or lost every
+/// chain in a network, changed nothing a sidecar could see in the diagnose
+/// tier, which SPEC 8.1 exempts from the round-trip comparison. Measured: a
+/// dangling link taking the rest of its chain with it passed the whole corpus
+/// green before this existed.
+///
+/// It is a producer rather than a pointer resolver, for the reason
+/// `resolve_position`'s counterpart in the Go runner is: one traversal answers
+/// every pointer, so a case can pin a container deep inside a network without
+/// the runner growing a second pointer parser.
+///
+/// ⚠ ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+/// `/networks/0/arcs/arc-1/pips` — SPEC 3.3 makes `arcs` and `nodes` objects,
+/// and an object has no order. This crate happens to hold them in a `Vec` in
+/// document order, which is exactly the temptation: an index here would export
+/// that storage choice as a conformance requirement.
+fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
+    let mut out = BTreeMap::new();
+    for (i, network) in document.networks.iter().flatten().enumerate() {
+        out.insert(
+            format!("/networks/{i}/nodes"),
+            network.nodes.as_ref().map_or(0, Vec::len),
+        );
+        out.insert(
+            format!("/networks/{i}/arcs"),
+            network.arcs.as_ref().map_or(0, Vec::len),
+        );
+        for (key, arc) in network.arcs.iter().flatten() {
+            out.insert(
+                format!("/networks/{i}/arcs/{}/pips", escape(key)),
+                arc.pips.len(),
+            );
+        }
+        out.insert(
+            format!("/networks/{i}/chains"),
+            network.chains.as_ref().map_or(0, Vec::len),
+        );
+        for (j, chain) in network.chains.iter().flatten().enumerate() {
+            out.insert(format!("/networks/{i}/chains/{j}/links"), chain.links.len());
+        }
+        out.insert(
+            format!("/networks/{i}/points"),
+            network.points.as_ref().map_or(0, Vec::len),
+        );
+        out.insert(
+            format!("/networks/{i}/areas"),
+            network.areas.as_ref().map_or(0, Vec::len),
+        );
+        for (j, area) in network.areas.iter().flatten().enumerate() {
+            out.insert(
+                format!("/networks/{i}/areas/{j}/polygon"),
+                area.polygon.len(),
+            );
+        }
+    }
+    for (i, route) in document.routes.iter().flatten().enumerate() {
+        out.insert(format!("/routes/{i}/arcs"), route.arcs.len());
+        for (j, arc) in route.arcs.iter().enumerate() {
+            out.insert(format!("/routes/{i}/arcs/{j}/pips"), arc.pips.len());
+        }
+    }
+    for (i, track) in document.tracks.iter().flatten().enumerate() {
+        out.insert(format!("/tracks/{i}/segments"), track.segments.len());
+        for (j, segment) in track.segments.iter().enumerate() {
+            out.insert(format!("/tracks/{i}/segments/{j}/pips"), segment.pips.len());
+        }
+    }
+    for (i, area) in document.areas.iter().flatten().enumerate() {
+        out.insert(format!("/areas/{i}/polygon"), area.polygon.len());
+    }
+    out
+}
+
+/// RFC 6901 escaping for a key that becomes one pointer token. Arc keys are
+/// user-chosen strings (SPEC 4.4), so `/` and `~` in one are legal.
+fn escape(key: &str) -> String {
+    key.replace('~', "~0").replace('/', "~1")
+}
 /// `positions` is the only available defence against a longitude and latitude
 /// transposition: both orderings parse, both are in range, and the point lands
 /// 8,000 km away with every structural check still passing.

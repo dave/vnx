@@ -179,20 +179,113 @@ export function matchDiagnostics(c, reported, expected) {
 }
 
 /**
- * `counts` is exact per collection. A collection the sidecar does not name is
- * asserted EMPTY, so a decoder that invented items somewhere unnamed cannot
- * hide behind an unmentioned key.
+ * `counts` is exact, and covers both the six top-level collections and the
+ * NESTED containers inside them, addressed by the same JSON Pointer vocabulary
+ * `positions` uses. A bare name is a top-level collection; a name starting with
+ * `/` is a container inside one.
+ *
+ * A collection the sidecar does not name is asserted EMPTY, so a decoder that
+ * invented items somewhere unnamed cannot hide behind an unmentioned key — and,
+ * in the other direction, a sidecar key this runner cannot produce is an error
+ * rather than a silence. Both halves matter: this check used to iterate the keys
+ * it produced ITSELF and read `counts[key] ?? 0`, so every nested key a sidecar
+ * carried was skipped without a word. A runner that quietly drops an
+ * expectation reports conformance it never measured.
  */
 function checkCounts(c, doc, counts) {
   if (counts === undefined) return;
-  for (const key of COLLECTIONS) {
-    const got = (doc[key] ?? []).length;
-    const want = counts[key] ?? 0;
-    c.check(got === want, `counts.${key}: expected ${want}, read ${got}`);
+  const got = {};
+  for (const key of COLLECTIONS) got[key] = (doc[key] ?? []).length;
+  for (const [ptr, n] of containerCountsByPointer(doc)) got[ptr] = n;
+
+  for (const [key, want] of Object.entries(counts)) {
+    if (!Object.prototype.hasOwnProperty.call(got, key)) {
+      c.failures.push(`counts names ${JSON.stringify(key)}, which is not a collection the document carries`);
+      continue;
+    }
+    c.check(got[key] === want, `${key}: got ${got[key]}, want ${want}`);
   }
-  for (const key of Object.keys(counts)) {
-    c.check(COLLECTIONS.includes(key), `counts names ${JSON.stringify(key)}, which is not a collection`);
+  // A sidecar MUST name every collection its document carries non-empty. An
+  // omitted collection used to mean "unchecked", which let a decoder invent or
+  // drop items in it with nothing to say so. Naming a zero stays legal — a
+  // diagnose case that drops every link of a chain pins `links: 0` on purpose.
+  for (const [key, n] of Object.entries(got)) {
+    if (n === 0) continue;
+    if (!Object.prototype.hasOwnProperty.call(counts, key)) {
+      c.failures.push(`the document carries ${n} ${key} and the sidecar does not name that collection; an unnamed collection is unchecked, not empty`);
+    }
   }
+}
+
+/**
+ * The number of children of every NESTED container in the decoded document,
+ * keyed by a JSON Pointer in the wire's own key names.
+ *
+ * ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
+ * that dropped every route's arcs, or truncated an arc's pips to the first two,
+ * or lost every chain in a network, changed nothing a sidecar could see: the
+ * document still carried one route, one network, one track. `positions` does
+ * not close it either — it pins the VALUE at a few named indices and says
+ * nothing about how many there are. Measured on the pre-D2 tree: a reader that
+ * dropped a dangling link AND THE REST OF ITS CHAIN passed the whole corpus
+ * green, because the diagnose tier is exempt from the round trip (SPEC.md 8.1)
+ * and the diagnose tier is exactly where a reader is supposed to drop things.
+ *
+ * It is a producer rather than a pointer resolver, for the reason
+ * `positionsByPointer` is in the Go reference: one traversal answers every
+ * pointer, so a case can pin a container deep inside a network without the
+ * harness growing a pointer parser.
+ *
+ * ⚠ ARC AND NODE CONTAINERS ARE KEYED BY THEIR OWN KEY, NOT BY AN INDEX.
+ * `/networks/0/arcs/arc-1/pips` — SPEC.md 3.3 makes `arcs` and `nodes` objects,
+ * and an object has no order, so an index there would be this implementation's
+ * map iteration order exported as a conformance requirement.
+ *
+ * @param {import('../src/model.js').Document} doc
+ * @returns {Map<string, number>}
+ */
+function containerCountsByPointer(doc) {
+  const out = new Map();
+  (doc.networks ?? []).forEach((n, i) => {
+    out.set(`/networks/${i}/nodes`, (n.nodes ?? new Map()).size);
+    out.set(`/networks/${i}/arcs`, (n.arcs ?? new Map()).size);
+    for (const [key, arc] of n.arcs ?? new Map()) {
+      out.set(`/networks/${i}/arcs/${key}/pips`, (arc.pips ?? []).length);
+    }
+    out.set(`/networks/${i}/chains`, (n.chains ?? []).length);
+    (n.chains ?? []).forEach((chain, j) => {
+      out.set(`/networks/${i}/chains/${j}/links`, (chain.links ?? []).length);
+    });
+    // ⚠ UNCONDITIONALLY, EMPTY OR NOT, like every other container in this walk.
+    // These two once carried a non-empty guard, and it bought nothing: a zero
+    // never triggers the completeness rule either way. What it COST was that
+    // `/networks/0/points: 0` resolved in a runner emitting unconditionally and
+    // was a hard "not a collection the document carries" in one that did not —
+    // a sidecar entry legal in one conforming implementation and a failure in
+    // another, with nothing in the specification to separate them. Ruled
+    // 2026-09-14 across all six runners.
+    out.set(`/networks/${i}/points`, (n.points ?? []).length);
+    out.set(`/networks/${i}/areas`, (n.areas ?? []).length);
+    (n.areas ?? []).forEach((a, j) => {
+      out.set(`/networks/${i}/areas/${j}/polygon`, (a.polygon ?? []).length);
+    });
+  });
+  (doc.routes ?? []).forEach((r, i) => {
+    out.set(`/routes/${i}/arcs`, (r.arcs ?? []).length);
+    (r.arcs ?? []).forEach((a, j) => {
+      out.set(`/routes/${i}/arcs/${j}/pips`, (a.pips ?? []).length);
+    });
+  });
+  (doc.tracks ?? []).forEach((t, i) => {
+    out.set(`/tracks/${i}/segments`, (t.segments ?? []).length);
+    (t.segments ?? []).forEach((s, j) => {
+      out.set(`/tracks/${i}/segments/${j}/pips`, (s.pips ?? []).length);
+    });
+  });
+  (doc.areas ?? []).forEach((a, i) => {
+    out.set(`/areas/${i}/polygon`, (a.polygon ?? []).length);
+  });
+  return out;
 }
 
 /**

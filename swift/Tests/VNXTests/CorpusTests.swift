@@ -150,28 +150,27 @@ final class CorpusTests: XCTestCase {
     // MARK: - write/
 
     /// SPEC 4.1's emit boundary, which only this tier reaches: every other tier
-    /// encodes what it decoded, so it applies the precision rule to values that
-    /// already satisfy it and shortens positions that are already short.
+    /// encodes what it decoded, so it shortens positions that are already short.
     ///
-    /// Two things about `emit-boundary`'s elevation ties, so that neither reads
-    /// as an oversight to whoever tidies the fixture next:
+    /// ⚠ NO VALUE IN `emit-boundary` CHANGES, and that is the assertion rather
+    /// than the absence of one. The tier compares what the writer produced
+    /// against the document it was given, so a writer that rounded
+    /// `-3.6712345678901235` to six places would be CONFORMING — the format no
+    /// longer constrains a writer's precision — and would still fail here. The
+    /// rule left at this boundary is arity: `[lon, lat, null]` loses its null,
+    /// `[lon, lat, ele, null]` loses only the trailing one, and
+    /// `[lon, lat, null, time]` is unchanged, because dropping that null would
+    /// move the time into the elevation channel.
     ///
-    /// - BOTH `340.25` and `340.75` are load-bearing, and it takes the pair.
-    ///   `340.25` separates half-to-even from half-away-from-zero and half-up;
-    ///   `340.75` separates it from half-toward-zero and half-down. Neither
-    ///   alone leaves one rule standing —
-    ///   `RoundingTests.testOnlyHalfToEvenSurvivesThePair` asserts exactly that.
-    /// - There is deliberately NO NEGATIVE TIE, and that is not a gap: all five
-    ///   wrong rules are already separated by the positive pair, which
-    ///   `RoundingTests.testOnlyHalfToEvenSurvivesThePair` asserts directly
-    ///   rather than taking on trust. Note what that does NOT say: over
-    ///   positives alone, half-away-from-zero and half-up are the same
-    ///   behaviour, as are half-toward-zero and half-down. Separating a wrong
-    ///   rule from half-to-even and telling two wrong rules apart are different
-    ///   jobs, and the fixture only needs the first.
+    /// The case carried the rounding rules until they left the format — ties to
+    /// even at `340.25`/`340.75`, the scaled-multiplication trap, a negative
+    /// zero manufactured by rounding — and `corpus/numbers/` held 48 reference
+    /// roundings for the same rule. All of it went with SPEC 4.1's requirement,
+    /// because a corpus that certifies a rule the format does not state
+    /// certifies the wrong thing.
     ///
-    /// The tier's README is worth quoting, because it corrects something this
-    /// library's own comments asserted: "That was stated for months as a
+    /// The tier's README is still worth quoting, because it corrects something
+    /// this library's own comments asserted: "That was stated for months as a
     /// permanent property — 'rounding is unreachable because no tier rounds' —
     /// and it was not a fact about the format. It was a fact about which tiers
     /// had been built. An unreachability claim is a claim about the current
@@ -343,9 +342,9 @@ final class CorpusTests: XCTestCase {
             XCTFail("\(stem): the written document is not the one the case expects — \(d)")
         }
 
-        // Rounding and shortening are both idempotent, so the written form is a
-        // fixed point. A case that fails this is a defect in the fixture rather
-        // than in the writer.
+        // Shortening is idempotent, so the written form is a fixed point. A
+        // case that fails this is a defect in the fixture rather than in the
+        // writer.
         let again = try VNX.write(try VNX.read(expected).document)
         if let d = try Tree.difference(got: again, want: expected) {
             XCTFail("\(stem): the expected output is not a fixed point of the writer — \(d)")

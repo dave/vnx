@@ -114,7 +114,6 @@ Unit tests, the red-proofs and the corpus harness. `node corpus/run.js
 | `src/decode.js` | reading a document (SPEC 3, 4 and 6) |
 | `src/model.js` | the decoded model |
 | `src/emit.js` | model to document text |
-| `src/round.js` | decimal rounding for the emit path (SPEC 4.1) |
 | `src/vnz.js` | the VNZ container (SPEC 7) |
 | `src/zip.js` | the ZIP reader and writer |
 | `src/errors.js` | `VnxRefusal`, `Diagnostic` and the code registers |
@@ -122,10 +121,13 @@ Unit tests, the red-proofs and the corpus harness. `node corpus/run.js
 
 ## Notes for porters
 
-Rounding is by formatting, never by scaling: `toFixed` resolves a tie the wrong
-way, and scaling by a power of ten manufactures ties the true decimal never had.
-`src/round.js` decides the tie in `BigInt`. See
-[`IMPLEMENTING.md`](../IMPLEMENTING.md).
+A coordinate is written at the precision the model holds it. SPEC 4.1 does not
+constrain a writer's precision — its six-places paragraph is advice, mirroring
+RFC 7946 Section 11.2, and states no requirement — so this library rounds nothing on
+the way out. A reader MUST NOT round either. The one emit-boundary rule left is
+the shortest spelling of a position, which is about ARITY and not precision:
+`[lon, lat, null]` loses its trailing null, and `[lon, lat, null, time]` does
+not. See [`IMPLEMENTING.md`](../IMPLEMENTING.md).
 
 Version comparison is "not this reader's series", not "newer than this reader".
 Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.1

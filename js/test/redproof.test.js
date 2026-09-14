@@ -65,7 +65,6 @@ async function runMutated(edits) {
     decodeContainer: api.decodeContainer,
     encodeContainer: api.encodeContainer,
     encode: api.encode,
-    roundToPlaces: api.roundToPlaces,
   });
 }
 
@@ -243,6 +242,10 @@ test('answering 0 for an unknown moving time is caught', async () => {
 });
 
 test('rounding in the reader is caught by the full-precision case', async () => {
+  // SPEC.md 4.1: a reader MUST NOT round. The rule survived the removal of the
+  // WRITER's rounding, and this is the proof that the corpus still reaches it —
+  // the accept tier no longer normalises precision on either side, so a reader
+  // that rounds shows up in the tree comparison as well as in `positions`.
   const cases = await runMutated([{
     file: 'decode.js',
     from: '  return new Position(v.slice());',
@@ -269,9 +272,9 @@ test('a value moved between the parse and the model is caught, bit-exactly', asy
 test('a coordinate turned into NEGATIVE zero is NOT caught; no fixture pins a zero', async () => {
   // ⚠ THIS RECORDS A GAP, and the gap is worth naming. `JSON.stringify(-0)` is
   // `"0"` and the accept tier compares trees by VALUE, so no document tier can
-  // see a negative zero at all; `corpus/numbers/` is the only instrument that
-  // can, over a table of literals. The bit-exact `positions` check was meant to
-  // be the second, on real documents.
+  // see a negative zero at all. The bit-exact `positions` check is now the only
+  // instrument in the corpus that could — the table of literals that used to be
+  // the other one went with the writer's rounding rule.
   //
   // It cannot be, yet. Measured 2026-09-10: every coordinate any sidecar pins
   // lies between -3.74 and -2.99, so no `positions` expectation reaches a zero
@@ -558,23 +561,6 @@ test('using Web Mercator for the projection IS caught', async () => {
   assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
 });
 
-test('breaking rounding reddens the accept tier as well as the write tier', async () => {
-  // There is ONE emit path, so every tier that encodes reaches the rounder.
-  //
-  // The accept tier still cannot be the whole guard: it applies rounding to
-  // BOTH sides, so it sees a rounder that answers wrongly and not one that
-  // rounds to the wrong PLACES. `write/emit-boundary` is what covers that, and
-  // the next two cases are where the separation is measured.
-  const cases = await runMutated([{
-    file: 'emit.js',
-    from: '  return roundToPlaces(v, places);',
-    to: '  return 0;',
-  }]);
-  const red = await failingDelta(cases);
-  assert.ok(red.includes('write/emit-boundary'), red.join(', '));
-  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
-});
-
 test('shortening a position is caught by the write tier', async () => {
   const cases = await runMutated([{
     file: 'emit.js',
@@ -592,42 +578,6 @@ test('shortening past an interior null is caught by the write tier', async () =>
     to: '  return out.filter((channel) => channel !== null);',
   }]);
   assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
-});
-
-test('a negative zero the writer CREATED is caught by the number tier alone', async () => {
-  // ⚠ NO DOCUMENT TIER CAN SEE THIS ONE. `JSON.stringify(-0)` is `"0"`, and a
-  // tree comparison is over VALUES, where -0 and 0 are equal. So the rule is
-  // real — rounding creates negative zeros the model never held — and the only
-  // instrument that reaches it is the number tier's BIT-PATTERN comparison.
-  // Recorded rather than assumed: this is why that tier compares bits.
-  const cases = await runMutated([{
-    file: 'round.js',
-    from: '  if (v === 0) return 0;',
-    to: '  if (v === 0) return v;',
-  }, {
-    file: 'round.js',
-    from: '  return Number(decimalText(q, places, negative));',
-    to: '  return negative ? -Number(decimalText(q, places, false)) : Number(decimalText(q, places, false));',
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv']);
-});
-
-test('rounding half away from zero instead of half to even is caught by the write tier', async () => {
-  requireFixture(
-    'write/emit-boundary.expect.json',
-    (d) => d.kind === 'write',
-    'it needs the write tier, whose fixture carries the 340.25 tie',
-  );
-  // Measured 2026-09-09: Go and Python give 340.2 for 340.25 to one place,
-  // JavaScript `toFixed` gives 340.3.
-  const cases = await runMutated([{
-    file: 'round.js',
-    from: '  else if (twiceRemainder === denominator && q % 2n === 1n) q += 1n; // half to even',
-    to: '  else if (twiceRemainder === denominator) q += 1n; // half away from zero',
-  }]);
-  // Both tiers, and the README for the number tier requires exactly that: the
-  // `round6` and `round1` columns are a different path from `render`.
-  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv', 'write/emit-boundary']);
 });
 
 test('comparing node keys instead of their positions is NOT caught', async () => {
@@ -674,54 +624,6 @@ test('summing only the timed segments of a partial track is caught', async () =>
     to: '      if (typeof first !== \'number\' || typeof last !== \'number\') continue;',
   }]);
   assert.deepEqual(await failingDelta(cases), ['accept/track-partly-timed.vnx']);
-});
-
-test('rounding by scaling first, rather than on the exact expansion, is caught by the write tier', async () => {
-  requireFixture(
-    'write/emit-boundary.in.vnx',
-    (d) => JSON.stringify(d).includes('0.15'),
-    'it needs the 0.15 elevation; the two ties are blind to the choice of operation',
-  );
-  // Rounding a decimal place has TWO independent choices: which way a tie goes,
-  // and whether the value is rounded on its exact decimal expansion or scaled
-  // by a power of ten and rounded as an integer. The elevation ties pin the
-  // first and were blind to the second until 0.15 was added — every other value
-  // in the fixture gives the identical answer under both operations.
-  //
-  // The mutation breaks ties to EVEN so that only the operation differs; a
-  // Math.round-based mutation would change both at once and prove neither.
-  const cases = await runMutated([{
-    file: 'emit.js',
-    from: '  return roundToPlaces(v, places);',
-    to: `  const scaled = v * 10 ** places;
-  const floor = Math.floor(scaled);
-  const diff = scaled - floor;
-  let n;
-  if (diff > 0.5) n = floor + 1;
-  else if (diff < 0.5) n = floor;
-  else n = floor % 2 === 0 ? floor : floor + 1;
-  return n / 10 ** places;`,
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
-});
-
-test('the scaling route in the ROUNDER itself reddens the number tier too', async () => {
-  // The tier separation the case above cannot show on its own: a mutation in
-  // emit.js reaches the write tier alone, because the number tier calls the
-  // rounder directly. Mutating the rounder reaches both.
-  const cases = await runMutated([{
-    file: 'round.js',
-    from: '  return Number(decimalText(q, places, negative));',
-    to: `  const scaled = v * 10 ** places;
-  const floor = Math.floor(scaled);
-  const diff = scaled - floor;
-  let n;
-  if (diff > 0.5) n = floor + 1;
-  else if (diff < 0.5) n = floor;
-  else n = floor % 2 === 0 ? floor : floor + 1;
-  return n / 10 ** places;`,
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['numbers/numbers.tsv', 'write/emit-boundary']);
 });
 
 test('a crash inside a tier fails its own case rather than the run', async () => {

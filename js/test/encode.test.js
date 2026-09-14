@@ -15,11 +15,16 @@ function encodedAt(document) {
   return JSON.parse(encode(document)).waypoints[0].at;
 }
 
-test('encoding rounds lon and lat to 6 places and elevation to 1', () => {
+test('a coordinate is written at the precision the model holds', () => {
+  // SPEC.md 4.1 does not constrain a writer's precision, and the six-places
+  // paragraph there is advice with no requirement in it. A writer that rounded
+  // would still be conforming; this one does not, so a document that arrives at
+  // full binary64 precision leaves at full binary64 precision.
   const { document } = decodeText(doc({
     waypoints: [{ at: [-3.6712345678901235, 57.11812345678901, 340.26] }],
   }));
-  assert.deepEqual(encodedAt(document), [-3.671235, 57.118123, 340.3]);
+  assert.deepEqual(encodedAt(document), [-3.6712345678901235, 57.11812345678901, 340.26]);
+  assert.ok(encode(document).includes('-3.6712345678901235'));
 });
 
 test('encoding emits the shortest spelling of a position', () => {
@@ -36,7 +41,7 @@ test('shortening stops at an interior absence', () => {
   assert.deepEqual(pips, [[1, 2, null, 5], [1, 2, 3]]);
 });
 
-test('a channel beyond those this version names is neither rounded nor dropped', () => {
+test('a channel beyond those this version names is not dropped', () => {
   // SPEC.md 4.1: a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding.
   const { document } = decodeText(doc({ waypoints: [{ at: [1, 2, 3, 4, 5.55555] }] }));
@@ -64,25 +69,24 @@ test('the output is compact: no space argument reaches JSON.stringify', () => {
   assert.equal(out, '{"vnx":"0.1.0","waypoints":[{"at":[1,2]}]}');
 });
 
-test('rounding happens in the emit path, never in the model', () => {
-  // SPEC.md 4.1: endpoint comparison and ring winding compare positions by full
-  // value, and rounding ahead of them changes the geometry. Encoding must not
-  // mutate what the model holds.
-  const { document } = decodeText(doc({ waypoints: [{ at: [-3.6712345678901235, 57.118] }] }));
+test('encoding does not mutate the model', () => {
+  // Endpoint comparison and ring winding compare positions by full value, so a
+  // writer that wrote back into the model would change the geometry rather than
+  // its spelling. The shortening is on a copy.
+  const { document } = decodeText(doc({ waypoints: [{ at: [-3.6712345678901235, 57.118, null] }] }));
   encode(document);
   assert.equal(document.waypoints[0].at.lon, -3.6712345678901235);
+  assert.equal(document.waypoints[0].at.arity, 3);
 });
 
-test('a writer creates no negative zero from a value that had none', () => {
-  // SPEC.md 4.1: rounding -0.04 to one place, or -4e-8 to six, produces a zero
-  // with the sign bit set in most languages. Neither value carries a negative
-  // zero into the writer; both could carry one out of it. `JSON.stringify`
-  // spells -0 as `0`, so the guard that matters is on the VALUE.
+test('a writer invents no negative zero', () => {
+  // The writer touches no value, so a value that carried no negative zero in
+  // cannot carry one out. `JSON.stringify` spells -0 as `0`, so the guard that
+  // matters is on the VALUE.
   const { document } = decodeText(doc({
     waypoints: [{ at: [-0.00000004, -0.00000004, -0.04] }],
   }));
   for (const channel of encodedAt(document)) assert.ok(!Object.is(channel, -0));
-  assert.equal(encode(document).includes('-0'), false);
 });
 
 test('a container round-trips its document and its attachments', () => {
@@ -91,8 +95,9 @@ test('a container round-trips its document and its attachments', () => {
   const container = decodeContainer(packed);
 
   const again = decodeContainer(writeContainer(container));
-  // The document went through the encoder, so it is rounded and shortened.
-  assert.equal(again.document.waypoints[0].at.lon, -3.671235);
+  // The document went through the encoder, so its position is shortened — and
+  // its coordinate is unchanged, which is the other half of the same claim.
+  assert.equal(again.document.waypoints[0].at.lon, -3.6712345678901235);
   assert.equal(again.document.waypoints[0].at.arity, 2);
   assert.deepEqual([...again.attachments.keys()], ['a/photo.txt']);
   assert.equal(again.attachments.get('a/photo.txt').toString('utf8'), 'x');

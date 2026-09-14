@@ -16,15 +16,20 @@ enum Tree {
     /// Which normalisations a comparison applies.
     ///
     /// ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares
-    /// a document against a re-encoding of itself, so SPEC 4.1's precision and
-    /// its shortest spelling are applied to both sides — otherwise the tier
-    /// would require the file to have been written by this library. The write
-    /// tier compares one writer's output against another's, where those two
-    /// rules are the very thing under test: normalising them there would make
-    /// the tier prove nothing.
+    /// a document against a re-encoding of itself, so SPEC 4.1's shortest
+    /// spelling is applied to both sides — otherwise the tier would require the
+    /// file to have been written by this library. The write tier compares one
+    /// writer's output against another's, where that rule is the very thing
+    /// under test: normalising it there would make the tier prove nothing.
     struct Options {
-        /// Applies SPEC 4.1's writer rules — the precision, and dropping a
-        /// trailing `null` channel — to both sides.
+        /// Applies SPEC 4.1's writer rule — dropping a trailing `null` channel
+        /// — to both sides.
+        ///
+        /// Precision is NOT one of these. SPEC 4.1 no longer constrains how
+        /// precisely a writer states a coordinate, and SPEC 8.1 permits exactly
+        /// two normalisations: a dropped trailing `null`, and an absent
+        /// container equal to an empty one. A comparator that rounded would be
+        /// blind to a writer that lost digits.
         var emitBoundary = false
     }
 
@@ -162,9 +167,14 @@ enum Tree {
         o[key] = .array(arr.map { normPosition($0, opt) })
     }
 
-    /// Applies what SPEC 8.1 lets a comparison ignore about a position: the
-    /// precision of SPEC 4.1, and a trailing `null`. Both are emit-boundary
-    /// rules and are applied only for the accept tier; see `Options`.
+    /// Applies the one thing SPEC 8.1 lets a comparison ignore about a
+    /// position: a trailing `null`. It is an emit-boundary rule and is applied
+    /// only for the accept tier; see `Options`.
+    ///
+    /// ⚠ VALUES ARE NEVER TOUCHED. This used to round channels 0–2 as well,
+    /// when SPEC 4.1 required a writer to. It does not any more, and the
+    /// rounding had to go with it: normalising a value the format does not
+    /// constrain makes the comparator agree with a writer that dropped digits.
     ///
     /// ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no
     /// corpus file carries one. SPEC 4.1's preservation rule is gone, so a
@@ -172,19 +182,7 @@ enum Tree {
     /// a rule the format does not state — the fixture is what changes, not the
     /// comparison.
     private static func normPosition(_ v: JSONValue, _ opt: Options) -> JSONValue {
-        guard let arr = v.arrayValue, opt.emitBoundary else { return v }
-        var out: [JSONValue] = []
-        for (i, c) in arr.enumerated() {
-            guard let n = c.numberValue else {
-                out.append(c)
-                continue
-            }
-            switch i {
-            case 0, 1: out.append(.number(Rounding.coordinate(n)))
-            case 2: out.append(.number(Rounding.elevation(n)))
-            default: out.append(.number(n))
-            }
-        }
+        guard var out = v.arrayValue, opt.emitBoundary else { return v }
         while out.count > 2, out.last == .null { out.removeLast() }
         return .array(out)
     }

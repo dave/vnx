@@ -6,15 +6,13 @@
       "name": "Every emit-boundary rule in one document",
       "hidden": false,
       "nodes": {
-        "collapses-to-zero": [-0.00000004, -0.00000004, -0.04],
-        "scale-first-gets-this-wrong": [-3.6707, 57.1177, 0.15],
-        "tie-down": [-3.6712345678901235, 57.11812345678901, 340.25],
-        "tie-up": [-3.671, 57.118, 340.75]
+        "full-precision": [-3.6712345678901235, 57.11812345678901, 340.25],
+        "plain": [-3.671, 57.118, 340.75]
       },
       "arcs": {
         "a": {
-          "from": "tie-down",
-          "to": "tie-up",
+          "from": "full-precision",
+          "to": "plain",
           "pips": [
             [-3.6712345678901235, 57.11812345678901, 340.25],
             [-3.671, 57.118, null],

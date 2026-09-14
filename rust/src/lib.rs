@@ -10,14 +10,15 @@
 //!
 //! ```text
 //! decode  bytes -> a document, plus every diagnostic  (SPEC 6)
-//! encode  model -> bytes, rounded and shortened       (SPEC 4.1)
+//! encode  model -> bytes, shortest spelling            (SPEC 4.1)
 //! ```
 //!
-//! ⚠ ENCODING WHAT YOU DECODED IS LEGITIMATELY NOT WHAT YOU READ, because a
-//! writer rounds coordinates and emits the shortest spelling of a position.
-//! The bytes of a document are not constrained (SPEC 8.1), so the conformance
-//! corpus compares JSON TREES, never bytes and never one model against
-//! another.
+//! ⚠ ENCODING WHAT YOU DECODED IS LEGITIMATELY NOT THE SAME BYTES, because a
+//! writer emits the shortest spelling of a position — `[lon, lat, null]` goes
+//! out as `[lon, lat]`. No VALUE changes: this crate does not round, on either
+//! path. The bytes of a document are not constrained (SPEC 8.1), so the
+//! conformance corpus compares JSON TREES, never bytes and never one model
+//! against another.
 //!
 //! # No fallbacks
 //!

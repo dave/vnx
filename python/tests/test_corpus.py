@@ -25,11 +25,11 @@ CORPUS = pathlib.Path(__file__).resolve().parents[2] / "corpus"
 
 CASE_SUFFIXES = (".vnx", ".vnz")
 
-# The write tier normalises ALMOST NOTHING.  The accept tier rounds both sides
-# and drops a trailing `null` from both, because it compares a document against
-# a re-encoding of itself.  Doing that here would normalise away the two rules
-# under test.  The one normalisation left is the one that is not about the emit
-# boundary at all: SPEC 3.1's absent-versus-empty.
+# The write tier normalises ALMOST NOTHING.  The accept tier drops a trailing
+# `null` from both sides, because it compares a document against a re-encoding
+# of itself.  Doing that here would normalise away the rule under test.  The one
+# normalisation left is the one that is not about the emit boundary at all:
+# SPEC 3.1's absent-versus-empty.
 _WRITE_TIER = tree.Options(emit_boundary=False)
 
 
@@ -509,10 +509,8 @@ class WriteTier(unittest.TestCase):
     """Decode an input and call the WRITE path (SPEC 4.1).
 
     The only tier that reaches the emit boundary. The others re-encode what they
-    decoded, which applies rounding to values that already satisfy it and
-    shortening to positions already short, so rounding, the shortest-spelling
-    rule, both tie directions and a negative zero the writer created are all
-    invisible to them.
+    decoded, which shortens positions that are already short, so the
+    shortest-spelling rule is invisible to them.
 
     A library exposing no write path fails here by name rather than by a
     confusing byte diff.
@@ -608,8 +606,8 @@ class WriteTier(unittest.TestCase):
                 )
 
     def test_the_written_form_is_a_fixed_point(self) -> None:
-        """Rounding and shortening are both idempotent, so a case that fails
-        this is a defect in the fixture rather than in the writer."""
+        """Shortening is idempotent, so a case that fails this is a defect in
+        the fixture rather than in the writer."""
         for _, written in self._pairs():
             with self.subTest(case=written.name):
                 document = vnx.read_bytes(written.read_bytes()).document
@@ -721,129 +719,6 @@ class WriteTier(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class NumbersTier(unittest.TestCase):
-    """`corpus/numbers/numbers.tsv`: the rounding every implementation must
-    perform on a given double (SPEC 4.1).
-
-    A tier in standing and not in shape. A case in the document tiers is a
-    document; a row here is a value, and its answer columns are the
-    expectation, so there is no sidecar.
-
-    It reaches the rounding of SPEC 4.1 for the same reason `write/` does, and
-    it reaches it per value rather than per document, which is what makes it the
-    instrument for a rule that only fails on particular doubles.
-    """
-
-    TABLE = CORPUS / "numbers" / "numbers.tsv"
-
-    def rows(self) -> list[tuple[str, str, str, str]]:
-        if not self.TABLE.is_file():
-            return []
-        out = []
-        for line in self.TABLE.read_text().splitlines():
-            if not line or line.startswith("#"):
-                continue
-            bits, kind, round6, round1 = line.split("\t")
-            out.append((bits, kind, round6, round1))
-        return out
-
-    def header(self) -> tuple[int, dict[str, int]]:
-        """The declared row count and the declared count per kind.
-
-        The generator refuses to write a header that disagrees with its body, so
-        reading it is what makes a table that lost a category a failure here
-        rather than a silence.  A hardcoded list of the categories this test
-        depends on would go stale the moment one is added, and the newest
-        category is always the one nothing pins.
-        """
-        rows, counts = -1, {}
-        for line in self.TABLE.read_text().splitlines():
-            if not line.startswith("#"):
-                break
-            if line.startswith("# rows="):
-                rows = int(line[len("# rows="):].strip())
-            if line.startswith("# counts:"):
-                for pair in line[len("# counts:"):].split():
-                    kind, _, n = pair.partition("=")
-                    counts[kind] = int(n)
-        return rows, counts
-
-    def test_the_table_matches_the_header_it_declares(self) -> None:
-        rows = self.rows()
-        self.assertTrue(rows, f"no table at {self.TABLE}")
-        declared_rows, declared_counts = self.header()
-        self.assertEqual(len(rows), declared_rows, "the body and the header disagree on the row count")
-        self.assertTrue(declared_counts, "the header declares no per-kind counts")
-        seen: dict[str, int] = {}
-        for _bits, kind, _round6, _round1 in rows:
-            seen[kind] = seen.get(kind, 0) + 1
-        self.assertEqual(seen, declared_counts, "the body and the header disagree on which kinds are present")
-
-    def test_every_row_rounds_as_the_table_says(self) -> None:
-        """⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING.
-
-        How a number is spelled is the writer's own business (SPEC 4.2), and
-        comparing spellings across implementations is the rule this format
-        dropped.  What is compared is the rounded VALUE, by BIT PATTERN --
-        comparing it as text would put a rendering rule back into the comparison
-        through the side door, and would then pass or fail on how Python spells
-        a double.
-        """
-        import struct
-
-        from vnx.model import Position
-        from vnx.writer import round_position
-
-        failures: list[str] = []
-        for bits, kind, round6, round1 in self.rows():
-            value = struct.unpack(">d", bytes.fromhex(bits))[0]
-            # Rounding is defined at the emit boundary, so it is exercised
-            # through the writer rather than through a private helper: a test
-            # calling something the writer does not call proves nothing about
-            # what this library emits.
-            got6 = round_position(Position(value, 0.0)).lon
-            ele = round_position(Position(0.0, 0.0, value)).ele
-            got1 = 0.0 if ele is None else ele
-            for label, got, want in (
-                ("round6", got6, round6),
-                ("round1", got1, round1),
-            ):
-                # -0 and 0 are DIFFERENT bit patterns and the same value;
-                # SPEC 4.1 has rounding normalise the sign, so the table and the
-                # library agree on +0 and a mismatch here is real.
-                if _bits(got) != _bits(float(want)):
-                    failures.append(
-                        f"{bits} ({kind}) {label}: got {got!r} "
-                        f"({_bits(got)}), table says {want} "
-                        f"({_bits(float(want))})"
-                    )
-        self.assertEqual(failures[:10], [], f"{len(failures)} of {len(self.rows())} rows differ")
-
-    def test_the_table_reaches_the_rounding_tie(self) -> None:
-        """The table is only worth running if reverting a rule reddens it.
-
-        A conformance table nobody has seen fail is a green light with no bulb
-        in it, so this asserts the rows exist that would catch a writer rounding
-        ties away from zero.
-        """
-        import struct
-
-        ties = [
-            row for row in self.rows()
-            if self._is_one_place_tie(struct.unpack(">d", bytes.fromhex(row[0]))[0])
-        ]
-        self.assertTrue(ties, "no row in the table can separate the tie rules")
-
-    @staticmethod
-    def _is_one_place_tie(value: float) -> bool:
-        from decimal import Decimal
-
-        exact = Decimal(value)
-        scaled = exact * 10
-        return scaled == scaled.to_integral_value() + Decimal("0.5") or \
-            scaled == scaled.to_integral_value() - Decimal("0.5")
 
 
 class ExpectationsResolveByName(unittest.TestCase):

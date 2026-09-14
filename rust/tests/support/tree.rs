@@ -12,20 +12,26 @@
 
 use vnx::json::{parse, Json};
 
-/// Whether the comparison applies SPEC 4.1's writer rules.
+/// Whether the comparison applies SPEC 4.1's writer rule.
 ///
 /// ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares a
-/// document against a re-encoding of itself, so rounding and the shortest
-/// spelling of a position are applied to both sides — otherwise it would
-/// require the file to have been written by this library. The write tier
-/// compares one writer's output against another's, where rounding and
-/// shortening are the very rules under test: normalising them there would make
-/// the tier prove nothing.
+/// document against a re-encoding of itself, so the shortest spelling of a
+/// position is applied to both sides — otherwise it would require the file to
+/// have been written by this library. The write tier compares one writer's
+/// output against another's, where shortening is the very rule under test:
+/// normalising it there would make the tier prove nothing.
+///
+/// ⚠ NEITHER SETTING ROUNDS, AND THAT IS NOW A RULE RATHER THAN AN OMISSION.
+/// SPEC 8.1 permits exactly two normalisations — a trailing `null` channel
+/// dropped, and an absent container equal to an empty one. A comparison that
+/// also rounded would accept a writer that lost precision the document
+/// carried, which SPEC 4.1 no longer licenses anyone to lose on another
+/// implementation's behalf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmitBoundary {
-    /// Round, and drop a trailing `null` channel, on both sides.
+    /// Drop a trailing `null` channel, on both sides.
     Normalise,
-    /// Leave both alone. The write tier's rules are these two.
+    /// Leave both alone. The write tier's rule is this one.
     Keep,
 }
 
@@ -188,7 +194,7 @@ fn position_list(o: &mut Entries, key: &str, emit: EmitBoundary) {
 }
 
 /// SPEC 8.1's first normalisation: on a position, trailing `null` channels are
-/// dropped and SPEC 4.1's precision is applied.
+/// dropped. Nothing else — a value is compared exactly as both sides state it.
 ///
 /// ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no corpus
 /// file carries one. SPEC 4.1 has a reader ignore an extra channel; it does not
@@ -201,20 +207,7 @@ fn position(value: &Json, emit: EmitBoundary) -> Json {
     if emit == EmitBoundary::Keep {
         return value.clone();
     }
-    let mut out: Vec<Json> = channels
-        .iter()
-        .enumerate()
-        .map(|(index, channel)| {
-            let Json::Number(n) = channel else {
-                return channel.clone();
-            };
-            match index {
-                0 | 1 => Json::Number(vnx::encode::round_for_test(*n, 6)),
-                2 => Json::Number(vnx::encode::round_for_test(*n, 1)),
-                _ => Json::Number(*n),
-            }
-        })
-        .collect();
+    let mut out: Vec<Json> = channels.clone();
     while out.len() > 2 && out[out.len() - 1] == Json::Null {
         out.pop();
     }

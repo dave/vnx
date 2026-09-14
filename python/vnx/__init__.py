@@ -11,9 +11,9 @@ part of the format and are not here.
     for diagnostic in result.diagnostics:
         print(diagnostic.path, diagnostic.message)
 
-Writing applies the emit-boundary rules of SPEC 4.1 -- longitude and latitude
-to 6 decimal places, elevation to 1, and the shortest spelling of every
-position:
+Writing applies the emit-boundary rules of SPEC 4.1 -- the shortest spelling of
+every position.  It does not change a value: the format does not constrain a
+writer's precision, so what you put in a position is what comes out:
 
     vnx.encode_bytes(doc)
 
@@ -39,7 +39,7 @@ from .model import (
     Area, Arc, Chain, DataRecord, Document, Folder, Link, Network, Position,
     Route, RouteArc, Segment, Track, Waypoint,
 )
-from .writer import encode_bytes, round_position, rounded_document
+from .writer import encode_bytes, normalised_document
 
 __all__ = [
     "Area", "Arc", "Attachment", "Chain", "ContainerReadResult", "DataRecord",
@@ -49,7 +49,7 @@ __all__ = [
     "Waypoint", "decode_document", "encode_document", "encode_bytes",
     "encode_container_bytes", "encode_file", "parse_json", "read_bytes",
     "read_container_bytes", "read_container_file", "read_file",
-    "round_position", "rounded_document",
+    "normalised_document",
 ]
 
 __version__ = "0.1.0"
@@ -66,6 +66,6 @@ def read_container_file(path: Union[str, os.PathLike[str]]) -> ContainerReadResu
 
 
 def encode_file(path: Union[str, os.PathLike[str]], document: Document) -> None:
-    """Write *document* at writer precision — rounded and shortest-spelled."""
+    """Write *document*: shortest-spelled positions, values unchanged."""
     with open(path, "wb") as handle:
         handle.write(encode_bytes(document))

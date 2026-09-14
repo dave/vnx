@@ -5,32 +5,31 @@ import (
 	"strconv"
 )
 
-// Rounding at the serialisation boundary (spec §4.1).
+// Coordinate rounding, offered as a utility and required by nothing.
 //
-// Every writer rounds coordinates to CoordinateDecimals and elevations to
-// ElevationDecimals AT THE WRITE. A [Document] holds full binary64 precision in
-// memory and Decode reads it back at full precision; only the encoders round.
+// ⚠ THIS IS NO LONGER A RULE OF THE VNX FORMAT. SPEC §4.1 used to require a
+// writer to round longitude and latitude to 6 decimal places and elevation to
+// 1. It does not any more: a rounded coordinate and an unrounded one are both
+// conforming documents that every conforming reader reads identically, so the
+// rule could never buy interop — §4.1 forbids a READER to round and §8.1
+// disowns byte agreement between writers. What it bought was file size, which
+// is the producer's business. RFC 7946 §11.2 says the same about GeoJSON,
+// informatively and without an RFC 2119 keyword.
 //
-// ⚠ THE NUMBERS ARE NOT A STYLE CHOICE. 6 decimal places of latitude is about
-// 11 cm on the ground; a consumer GPS is accurate to ±3–5 m. Everything below
-// the sixth place is the arithmetic's noise, not the instrument's reading, and
-// publishing `-3.269679000000008` as though it were a measurement is a claim
-// the data cannot support. It is also most of the file: a fully populated pip
-// is 57 bytes at full precision and 27 at 6/1.
+// So the VNX encoder does NOT call these. A value handed to it reaches the wire
+// as it was given, and corpus/accept/full-precision-coordinate.vnx is the case
+// that proves a reader keeps it.
 //
-// ⚠ ROUND LAST, AFTER ALL GEOMETRY LOGIC. Ring winding and the arc-boundary
-// dedup in gpx.routePips and geojson.appendJoined compare positions BY FULL
-// VALUE, and SubPolyline cuts an arc at a chain's endpoints by projecting onto
-// it. Rounding before any of them would change which points those comparisons
-// consider equal, or move the point a cut lands on, which is a change to the
-// geometry rather than to its spelling. Every call below therefore sits in the
-// emit path, never in the model.
+// ⚠ THE LOSSY WRITERS STILL CALL THEM, AND SHOULD. geojson, gpx and kml are
+// other people's formats, and rounding on the way into one of those is a
+// decision about that format, not about this one. RFC 7946 §11.2 recommends 6
+// places for exactly the reason the constants below give.
 //
-// ⚠ ONE IMPLEMENTATION, FOUR CALLERS — vnx, geojson, gpx and kml. The same
-// discipline DocumentIsEmpty follows and for the same reason: four writers that
-// can answer differently eventually do, and a coordinate that differs in the
-// last place between two exports of one library is exactly the kind of
-// disagreement nobody notices until a diff is unreadable.
+// An application that wants smaller VNX files rounds its own document before
+// encoding; [RoundPosition] is what it calls. Rounding a document the
+// application still computes with would be a mistake — arc-boundary dedup, ring
+// winding and endpoint snapping compare positions by full value — so round a
+// copy built for export, not the model.
 const (
 	// CoordinateDecimals is the precision longitude and latitude are written
 	// at, in decimal places. ~11 cm.

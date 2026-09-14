@@ -157,7 +157,7 @@ breaks the reader in turn and requires the corpus check to notice each break.
 | `model` | the document model (SPEC §3) |
 | `decode` | reading, with diagnostics and refusals (SPEC §6) |
 | `encode` | model to JSON tree |
-| `writer` | the emit boundary, and the rounding (SPEC §4.1) |
+| `writer` | the emit boundary: shortest spelling, `hidden` (SPEC §4.1, §3.8) |
 | `container` | the VNZ container (SPEC §7, §9) |
 | `geo` | the projection tolerance of SPEC §3.3.3 |
 | `pointer` | RFC 6901 |

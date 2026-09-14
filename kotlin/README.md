@@ -162,8 +162,8 @@ that is a thrown exception against the list returned beside the document.
 cd kotlin && ./gradlew test
 ```
 
-Unit tests and the corpus runner over the accept, reject, diagnose, write and
-numbers tiers. A green run is the conformance claim.
+Unit tests and the corpus runner over the accept, reject, diagnose and write
+tiers. A green run is the conformance claim.
 
 ## Layout
 

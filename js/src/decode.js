@@ -263,9 +263,9 @@ function data(path, kv, ctx) {
 
 /**
  * A position (SPEC.md 4.1). The channel array is kept WHOLE, at the arity the
- * document carried. A reader MUST NOT round and MUST NOT shorten: both are emit
- * rules, and endpoint snapping and ring winding compare positions by full
- * value.
+ * document carried. A reader MUST NOT round — decoding preserves the binary64
+ * value the document states — and MUST NOT shorten, which is an emit rule.
+ * Endpoint snapping and ring winding compare positions by full value.
  */
 /**
  * @param {string} [code] the diagnostic code to report a failure under.

@@ -150,27 +150,32 @@ enum DocumentEncoder {
 
     // MARK: - Positions
 
-    /// SPEC 4.1's emit boundary: round, then emit the shortest spelling.
+    /// SPEC 4.1's emit boundary: the shortest spelling of a position, and
+    /// nothing else.
     ///
-    /// ⚠ THIS IS WHERE VNX ROUNDS, and it is the only place. Every position on
-    /// the wire — a waypoint's `at`, an area's ring, a track's pip, an arc's
-    /// pip, a node, an inline endpoint — passes through here. Rounding in the
-    /// model instead would round the values a route's arc-boundary dedup and a
-    /// ring's winding are computed from, which is a change to the geometry
-    /// rather than to its spelling.
+    /// ⚠ NO VALUE CHANGES HERE. This format does not constrain how precisely a
+    /// writer states a coordinate, so a value passes through exactly as the
+    /// model holds it. The rule that remains is about ARITY, not precision:
+    /// `[lon, lat, null]` writes as `[lon, lat]`, and `[lon, lat, ele, null]`
+    /// loses only its trailing null.
+    ///
+    /// This library used to round longitude and latitude to 6 decimal places
+    /// and elevation to 1, because SPEC 4.1 required it. That requirement is
+    /// gone: a rounded coordinate and an unrounded one are both conforming
+    /// documents that every reader reads identically, so it was never a rule
+    /// about interchange. The advice survives in SPEC 4.1 as an informative
+    /// paragraph mirroring RFC 7946 Section 11.2, and a producer that wants
+    /// smaller files may round its own data — but not on this path, which the
+    /// write tier compares byte-for-value against the document it was given.
     private static func position(_ p: Position) -> JSONValue {
-        var channels: [JSONValue] = [
-            .number(Rounding.coordinate(p.lon)),
-            .number(Rounding.coordinate(p.lat)),
-        ]
+        var channels: [JSONValue] = [.number(p.lon), .number(p.lat)]
         if let t = p.timeMilliseconds {
             // An interior absence keeps its `null`: dropping it would move the
             // time into the elevation channel.
-            channels.append(p.elevation.map { .number(Rounding.elevation($0)) } ?? .null)
-            // Time is an integer count of milliseconds and is not rounded.
+            channels.append(p.elevation.map { .number($0) } ?? .null)
             channels.append(.number(t))
         } else if let e = p.elevation {
-            channels.append(.number(Rounding.elevation(e)))
+            channels.append(.number(e))
         }
         return .array(channels)
     }

@@ -5,19 +5,14 @@
 // spelling and whitespace are the writer's own business, so this seat spells a
 // document the way its own runtime does.
 //
-// This is the EMIT BOUNDARY, and the two rules SPEC.md 4.1 puts here are
-// applied on the way out: coordinates rounded to 6 decimal places and
-// elevations to 1, and the shortest spelling of a position.
+// This is the EMIT BOUNDARY, and the one rule SPEC.md 4.1 puts here is applied
+// on the way out: the shortest spelling of a position.
 //
-// Rounding MUST happen here and MUST NOT happen in the model (SPEC.md 4.1):
-// comparing positions by full value is what endpoint snapping and ring winding
-// rely on, and rounding ahead of them changes the geometry rather than its
-// spelling.
-
-import { roundToPlaces } from './round.js';
-
-const LONLAT_PLACES = 6;
-const ELEVATION_PLACES = 1;
+// ⚠ A COORDINATE PASSES THROUGH UNCHANGED. SPEC.md 4.1 does not constrain a
+// writer's precision — the six-places paragraph there is advice, mirroring
+// [RFC 7946] 11.2, and carries no requirement. This seat writes the binary64
+// value the model holds. Rounding is a producer's size decision and belongs
+// somewhere this library's write path does not reach.
 
 /**
  * Encode a document as VNX text.
@@ -28,16 +23,8 @@ export function encode(doc) {
   return JSON.stringify(emitDocument(doc));
 }
 
-function round(v, places) {
-  if (v === null) return null;
-  return roundToPlaces(v, places);
-}
-
 function emitPosition(position) {
   const out = position.channels.slice();
-  out[0] = round(out[0], LONLAT_PLACES);
-  out[1] = round(out[1], LONLAT_PLACES);
-  if (out.length > 2) out[2] = round(out[2], ELEVATION_PLACES);
   // Shortest spelling: drop trailing `null` channels down to arity 2. An
   // INTERIOR absence keeps its null, or dropping it would move the time into
   // the elevation channel.

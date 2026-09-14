@@ -96,7 +96,10 @@ class ContainerWriteTest {
     fun `the document inside the archive is the document this library writes`() {
         val document = documentOf(fullPrecision)
         val written = String(inner(Vnx.writeContainer(document)))
-        assertTrue(written.contains("[-3.671235,57.118123]"), "a writer rounds: $written")
+        assertTrue(
+            written.contains("[-3.6712345678901235,57.11812345678901]"),
+            "a writer does not round, at the container boundary either: $written",
+        )
         assertEquals(Vnx.write(document), written)
     }
 

@@ -94,10 +94,11 @@ class CorpusTest {
      * tree parsed from the output.
      *
      * TREES, not bytes: key order, number spelling and whitespace are the
-     * writer's own business. Rounding and the shortest spelling of a position are
-     * applied to BOTH sides, because this tier compares a document against a
-     * re-encoding of itself and would otherwise require the file to have been
-     * written by this library.
+     * writer's own business. The shortest spelling of a position is applied to
+     * BOTH sides, because this tier compares a document against a re-encoding of
+     * itself and would otherwise require the file to have been written by this
+     * library. VALUES ARE NOT NORMALISED: section 4.1 stopped requiring a writer
+     * to round, so a value that moved here is a defect and must show as one.
      *
      * And against the FILE, never against another model. AcceptTierTest holds
      * that distinction, and it is the whole worth of this check.
@@ -398,15 +399,13 @@ class CorpusTest {
      * The emit boundary (SPEC.md section 4.1).
      *
      * This tier is the only one that reaches it. Every other tier compares a
-     * document against a re-encoding of itself, which applies rounding to values
-     * that already satisfy it and shortening to positions already short, so a
-     * defect in either rule is invisible outside this directory and
-     * `corpus/numbers/`.
+     * document against a re-encoding of itself, which shortens positions that are
+     * already short, so a defect in the rule is invisible outside this directory.
      *
-     * AND SO IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and
-     * drops a trailing `null` from both. Doing that here would normalise away the
-     * two rules under test. The one normalisation left is the one that is not
-     * about the emit boundary at all: section 3.1's absent-versus-empty.
+     * AND SO IT NORMALISES ALMOST NOTHING. The accept tier drops a trailing
+     * `null` from both sides. Doing that here would normalise away the rule under
+     * test. The one normalisation left is the one that is not about the emit
+     * boundary at all: section 3.1's absent-versus-empty.
      */
     @Test
     fun write() {
@@ -422,8 +421,8 @@ class CorpusTest {
             Tree.compare(actual, expected, opt)?.let {
                 fail("${input.name}: the written document is not the one the case expects: $it")
             }
-            // Rounding and shortening are both idempotent, so the written form is
-            // a fixed point. A case that fails this is a defect in the fixture.
+            // Shortening is idempotent, so the written form is a fixed point. A
+            // case that fails this is a defect in the fixture.
             Tree.compare(writeThrough(expected, written.name), expected, opt)?.let {
                 fail("${written.name} is not a fixed point of the writer: $it")
             }

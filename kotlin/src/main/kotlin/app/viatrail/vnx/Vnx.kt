@@ -117,13 +117,18 @@ object Vnx {
     // -------------------------------------------------------------- writing
 
     /**
-     * WRITES a document: JSON with SPEC.md section 4.1's emit-boundary rules
-     * applied — coordinates rounded to 6 places and elevations to 1, and the
-     * shortest spelling of every position.
+     * WRITES a document: JSON with SPEC.md section 4.1's emit-boundary rule
+     * applied — the shortest spelling of every position.
      *
-     * A writer rounds, so writing what you read is not byte for byte what you
-     * read. Section 8.1 compares documents as JSON TREES for that reason, and
-     * nothing about a document's bytes is constrained.
+     * A VALUE IS WRITTEN AS IT STANDS. Section 4.1 does not constrain a writer's
+     * precision; rounding a coordinate to six places is advice there, mirroring
+     * [RFC 7946] Section 11.2, and a caller that wants it does it to its own
+     * model before calling this.
+     *
+     * Writing what you read is still not byte for byte what you read — key order,
+     * number spelling and `hidden: false` all move. Section 8.1 compares
+     * documents as JSON TREES for that reason, and nothing about a document's
+     * bytes is constrained.
      */
     fun write(document: VnxDocument): String = Serialise.render(Encoder().encode(document))
 

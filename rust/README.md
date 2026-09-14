@@ -121,7 +121,7 @@ reader in turn and requires the corpus runner to notice each break.
 | `json` | a JSON value, parsed and serialised by `serde_json` |
 | `model` | the decoded document (SPEC §3) |
 | `decode` | reading, tolerant of damage and silent about nothing (SPEC §6) |
-| `encode` | the emit boundary, and the rounding (SPEC §4.1) |
+| `encode` | the emit boundary: the shortest spelling of a position (SPEC §4.1) |
 | `diag` | diagnostic causes and their codes (SPEC §6.3) |
 | `error` | the refusal causes (SPEC §6.2, §7) |
 | `geo` | the projection tolerance of SPEC §3.3.3 |

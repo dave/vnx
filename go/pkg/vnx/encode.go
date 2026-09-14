@@ -287,14 +287,12 @@ func endpointWire(ep Endpoint) (any, error) {
 // one. An interior absence still needs its null — [lon, lat, null, t] cannot be
 // shortened without moving the time into the elevation channel.
 //
-// ⚠ THIS IS WHERE VNX ROUNDS, and it is the only place: every position on a
-// VNX wire — a waypoint's `at`, an area's ring, a track's pips, an arc's pips,
-// a node, an inline endpoint — is built here or by positionsWire, which is this
-// function in a loop. Rounding in the Document instead would round the values a
-// route's arc-boundary dedup and a ring's winding are computed from. See
-// round.go.
+// ⚠ THIS WRITER DOES NOT ROUND, and that changed: it used to, because §4.1
+// required it. The format no longer constrains a writer's precision, so a value
+// handed to this function reaches the wire as it was given. An application that
+// wants smaller files rounds its own document before encoding — [RoundPosition]
+// is still here for that, as a utility rather than an obligation.
 func positionWire(p Position) (wirePosition, error) {
-	p = RoundPosition(p)
 	if err := finite(p.Lon, "longitude"); err != nil {
 		return nil, err
 	}

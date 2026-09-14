@@ -42,7 +42,7 @@ export class Case {
  *
  * @param {string} CORPUS path to the corpus directory
  * @param {{decodeText: Function, decodeContainer: Function, encode: Function,
- *          encodeContainer: Function, roundToPlaces: Function}} api
+ *          encodeContainer: Function}} api
  * @returns {Case[]}
  */
 export function runCorpus(CORPUS, api) {
@@ -55,7 +55,6 @@ export function runCorpus(CORPUS, api) {
     }
   }
   cases.push(...runWriteCases(path.join(CORPUS, 'write'), api));
-  cases.push(...runNumberCases(path.join(CORPUS, 'numbers'), api));
   return cases;
 }
 
@@ -114,7 +113,7 @@ function runSidecarCase(kind, dir, file, api) {
 
   if (kind === 'accept' && !isContainer) {
     // SPEC.md 8.1: decode, ENCODE, and compare the two JSON TREES, with the
-    // emit-boundary rules applied to both sides.
+    // emit-boundary rule applied to both sides.
     //
     // ⚠ AGAINST THE ORIGINAL FILE, never against another model. A reader that
     // discarded every data record, ruleset, style and `notes` produces a model
@@ -303,8 +302,8 @@ function containerCountsByPointer(doc) {
  * And `-0 === 0` is true in JavaScript, so a value comparison cannot tell them
  * apart. That matters here more than it looks: `JSON.stringify(-0)` is `"0"` and
  * the accept tier compares trees by value, so NO DOCUMENT TIER can see a
- * negative zero, and `corpus/numbers/` is the only instrument that can — over a
- * table of literals.
+ * negative zero. This bit-pattern check is the corpus's only instrument for one,
+ * now that the rounding tier that used to carry a table of literals is gone.
  *
  * ⚠ THE NEGATIVE-ZERO HALF IS LATENT, MEASURED 2026-09-10. Every coordinate any
  * sidecar pins is between -3.74 and -2.99, so no `positions` expectation reaches
@@ -400,125 +399,16 @@ function checkAttachments(c, attachments, expected, contents) {
 }
 
 /**
- * The NUMBER tier: `numbers.tsv` fixes the result of rounding a given double to
- * 6 and to 1 decimal places.
- *
- * ⚠ IT TESTS THE ROUNDING OPERATION, NOT A SPELLING. How a number is spelled is
- * the writer's own business (SPEC.md 4.2). What is compared is the rounded
- * VALUE, BY BIT PATTERN — comparing it as text would put a rendering rule back
- * in through the side door and would then pass or fail on how this runtime
- * spells a double.
- *
- * A row is a value rather than a document, so there is no sidecar: the answer
- * columns ARE the expectation. It is the only tier that reaches past the emit
- * boundary at value level, and it separates two independent choices the document
- * tiers cannot — the tie direction, and whether rounding is done on the exact
- * decimal expansion or by scaling first.
- *
- * The double arrives as 16 hexadecimal digits of its IEEE 754 encoding. A
- * decimal literal would beg the question the table exists to answer.
- */
-function runNumberCases(dir, api) {
-  const { roundToPlaces } = api;
-  if (!fs.existsSync(dir)) return [];
-  const c = new Case('numbers/numbers.tsv');
-  const file = path.join(dir, 'numbers.tsv');
-  if (!fs.existsSync(file)) {
-    c.failures.push('no numbers.tsv in the numbers tier');
-    return [c];
-  }
-  if (typeof roundToPlaces !== 'function') {
-    c.failures.push('the implementation exposes no rounder');
-    return [c];
-  }
-
-  const view = new DataView(new ArrayBuffer(8));
-  const toDouble = (hex) => {
-    view.setBigUint64(0, BigInt(`0x${hex}`));
-    return view.getFloat64(0);
-  };
-  const bitsOf = (n) => {
-    view.setFloat64(0, n);
-    return view.getBigUint64(0).toString(16).padStart(16, '0');
-  };
-
-  let rows = 0;
-  let failedRows = 0;
-  const seen = new Map();
-  const sample = [];
-  const COLUMNS = ['round6', 'round1'];
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
-  // The header declares the row count and the count per kind, and the generator
-  // refuses to write a header that disagrees with its body. Reading it is what
-  // makes a table that lost a whole category a failure here rather than a
-  // silence: a hardcoded list of the categories this runner depends on would go
-  // stale the moment one is added, and the newest category is always the one
-  // nothing pins.
-  let declaredRows = -1;
-  const declaredCounts = new Map();
-  for (const line of lines) {
-    if (!line.startsWith('#')) break;
-    if (line.startsWith('# rows=')) declaredRows = Number(line.slice('# rows='.length).trim());
-    if (line.startsWith('# counts:')) {
-      for (const pair of line.slice('# counts:'.length).trim().split(/\s+/)) {
-        const [kind, n] = pair.split('=');
-        declaredCounts.set(kind, Number(n));
-      }
-    }
-  }
-  for (const [index, line] of lines.entries()) {
-    if (line === '' || line.startsWith('#')) continue;
-    const columns = line.split('\t');
-    if (columns.length !== 4) {
-      c.failures.push(`line ${index + 1}: expected four tab-separated columns, found ${columns.length}`);
-      continue;
-    }
-    const [bits, kind] = columns;
-    const want = [Number(columns[2]), Number(columns[3])];
-    rows++;
-    seen.set(kind, (seen.get(kind) ?? 0) + 1);
-    const v = toDouble(bits);
-    const got = [roundToPlaces(v, 6), roundToPlaces(v, 1)];
-    // ⚠ BY BIT PATTERN. -0 and 0 are the same value and DIFFERENT bit patterns;
-    // SPEC.md 4.1 has rounding normalise the sign, so the table says 0 and a
-    // mismatch here is real rather than a spelling.
-    if (got.every((g, i) => bitsOf(g) === bitsOf(want[i]))) continue;
-    failedRows++;
-    // A bounded sample: five thousand identical failures are one defect, and a
-    // report nobody reads is not a report. The count above it is the scale.
-    if (sample.length < 12) {
-      const wrong = COLUMNS.filter((_, i) => bitsOf(got[i]) !== bitsOf(want[i])).join(' and ');
-      sample.push(`line ${index + 1}  ${bits} (${kind})  ${wrong}: expected [${want}], produced [${got}]`);
-    }
-  }
-  if (failedRows > 0) {
-    c.failures.push(`${failedRows} of ${rows} rows disagree; first ${sample.length}:`, ...sample);
-  }
-  // A table read as zero rows would satisfy every comparison in it.
-  c.check(declaredRows > 0, 'the table header declares no row count');
-  c.check(rows === declaredRows, `${rows} rows read and the header declares ${declaredRows}`);
-  c.check(declaredCounts.size > 0, 'the table header declares no per-kind counts');
-  for (const [kind, want] of declaredCounts) {
-    c.check(seen.get(kind) === want, `the header declares ${want} ${kind} rows and the body holds ${seen.get(kind) ?? 0}`);
-  }
-  for (const kind of seen.keys()) {
-    c.check(declaredCounts.has(kind), `the body holds ${kind} rows the header does not declare`);
-  }
-  return [c];
-}
-
-/**
  * The WRITE tier (SPEC.md 4.1): decode the input, ENCODE, and compare the two
  * documents as JSON trees. This is the only tier that reaches the emit-boundary
- * rules, because every other tier encodes what it decoded — which applies
- * rounding to values that already satisfy it and shortening to positions already
- * short.
+ * rule, because every other tier encodes what it decoded — which applies
+ * shortening to positions that are already short.
  *
- * ⚠ AND SO IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and
- * drops a trailing `null` from both, because it compares a document against a
- * re-encoding of itself. Doing that here would normalise away the two rules
- * under test. The one normalisation left is the one that is not about the emit
- * boundary at all: SPEC.md 3.1's absent-versus-empty.
+ * ⚠ AND SO IT NORMALISES ALMOST NOTHING. The accept tier drops a trailing
+ * `null` from both sides, because it compares a document against a re-encoding
+ * of itself. Doing that here would normalise away the rule under test. The one
+ * normalisation left is the one that is not about the emit boundary at all:
+ * SPEC.md 3.1's absent-versus-empty.
  */
 function runWriteCases(dir, api) {
   const { decodeText, encode } = api;
@@ -576,7 +466,7 @@ function runWriteCases(dir, api) {
         `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
       const diff = compareDocuments(encode(decoded.document), want, {});
       c.check(diff === '', `the written document is not the one the case expects: ${diff}`);
-      // Rounding and shortening are both idempotent, so the written form must be
+      // Shortening is idempotent, so the written form must be
       // a fixed point. A case that fails this is a defect in the fixture.
       const again = compareDocuments(encode(decodeText(want).document), want, {});
       c.check(again === '', `the expected output is not a fixed point of the writer: ${again}`);

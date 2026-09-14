@@ -152,9 +152,12 @@ fn to_serde(value: &Json) -> serde_json::Value {
 /// carry the same value and either is conforming; this one is the one a reader
 /// of the file expects to see.
 ///
-/// Negative zero is a whole number and so leaves as `0`. A writer relies on
-/// that: rounding can CREATE a negative zero that was never in the model
-/// (SPEC 4.1).
+/// Negative zero is a whole number and so leaves as `0`. That is a SPELLING
+/// decision, not a rounding one — the two zeros are the same binary64 value
+/// and SPEC 4.2 makes the round trip value-level. It used to be load-bearing
+/// for the writer, which manufactured negative zeros by rounding; the writer
+/// no longer rounds, so the only way one reaches here is a document that
+/// stated it.
 ///
 /// # Panics
 ///

@@ -52,6 +52,25 @@ def _both(*patches: Any) -> Any:
         yield stack
 
 
+def _round_positions(value: Any) -> Any:
+    """Every position in an encoded tree, rounded the way SPEC 4.1 used to
+    require.  A position is the only list of numbers a tree carries outside the
+    opaque regions, and the write fixture has no opaque region."""
+    if isinstance(value, dict):
+        return {key: _round_positions(item) for key, item in value.items()}
+    if isinstance(value, list):
+        if len(value) >= 2 and all(
+            isinstance(channel, float) or channel is None for channel in value
+        ):
+            out = list(value)
+            for index, places in ((0, 6), (1, 6), (2, 1)):
+                if index < len(out) and isinstance(out[index], float):
+                    out[index] = float(f"{out[index]:.{places}f}")
+            return out
+        return [_round_positions(item) for item in value]
+    return value
+
+
 class RedProof(unittest.TestCase):
     def assertGoesRed(self, defect: Any, check: str, because: str) -> None:
         with defect:
@@ -321,96 +340,43 @@ class RedProof(unittest.TestCase):
             "track that sums first-to-last across the whole track",
         )
 
-    # -- the number-conformance table ------------------------------------
-
-    def test_the_numbers_table_catches_a_half_up_rounder(self) -> None:
-        """The table is an instrument, so it needs its own red proof.
-
-        Zero disagreements across every row of the table means nothing unless a
-        wrong rule puts disagreements back.
-        """
-        from decimal import Decimal, ROUND_HALF_UP
-
-        def half_up(value: float, places: int = 0) -> float:
-            return float(
-                Decimal(value).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)
-            )
-
-        self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", half_up),
-            "NumbersTier.test_every_row_rounds_as_the_table_says",
-            "writer rounding ties half up",
-        )
-
-    def test_the_numbers_table_catches_a_scaling_rounder(self) -> None:
-        """SPEC 4.1 names scale-round-unscale as non-conforming.
-
-        It is the defect the shared table exists for: the two routes agree on
-        the easy cases, and Go's scaling route disagreed with the table on every
-        row of its ``scaling-route`` category.
-        """
-        def scaled(value: float, places: int) -> float:
-            scale = 10.0 ** places
-            return round(value * scale) / scale
-
-        self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", scaled),
-            "NumbersTier.test_every_row_rounds_as_the_table_says",
-            "writer rounding by scaling instead of by formatting",
-        )
-
     # -- the writer emit path -------------------------------------------
 
-    def test_rounding_away_from_zero_is_caught(self) -> None:
-        """The JavaScript seat's defect: `toFixed`-style away-from-zero.
+    def test_a_writer_that_changes_a_value_is_caught(self) -> None:
+        """SPEC 4.1 no longer constrains a writer's precision, so a writer that
+        rounds is CONFORMING -- and still fails the write tier, because the tier
+        compares what the writer produced against the document it was given.
 
-        Reached by the write tier and by the number table, both of which put a
-        model through the emit path.  A tier that only decodes cannot see it.
+        That is the assertion `corpus/write/emit-boundary` makes by holding
+        four values at 7+ decimal places and changing none of them, and it is
+        worth a red proof: after the rounding rules left, a comparison that
+        quietly normalised precision on both sides would look exactly as green.
         """
-        from decimal import Decimal, ROUND_HALF_UP
+        original = vnx.writer.encode_document
 
-        def half_up(value: float, places: int = 0) -> float:
-            return float(
-                Decimal(value).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)
-            )
-
-        self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", half_up),
-            "writer:RoundingTies.test_the_javascript_case",
-            "writer rounding ties away from zero",
-        )
-
-    def test_a_writer_that_does_not_round_at_all_is_caught(self) -> None:
-        self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", lambda v, places=0: v),
-            "writer:Rounding.test_places",
-            "writer that does not round",
-        )
-
-    def test_a_created_negative_zero_reaching_the_bytes_is_caught(self) -> None:
-        """Rounding a small negative value makes a zero with its sign bit set,
-        and no document ever carried one."""
-        def keep_the_sign(value: float, places: int) -> float:
-            return float(f"{value:.{places}f}")
+        def rounding(document: Any) -> Any:
+            tree_ = original(document)
+            return _round_positions(tree_)
 
         self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", keep_the_sign),
-            "writer:RoundingCreatesNegativeZero"
-            ".test_a_created_negative_zero_never_reaches_the_bytes",
-            "rounding that keeps a created negative zero",
-        )
-
-    def test_the_write_tier_catches_a_scaling_rounder(self) -> None:
-        """The tier normalises almost nothing, so the rule under test is
-        reachable from a fixture as well as from the table."""
-        def scaled(value: float, places: int) -> float:
-            scale = 10.0 ** places
-            return round(value * scale) / scale
-
-        self.assertGoesRed(
-            mock.patch.object(vnx.writer, "round_to", scaled),
+            mock.patch.object(vnx.writer, "encode_document", rounding),
             "WriteTier.test_the_writer_emits_the_written_document",
-            "writer rounding by scaling instead of by formatting",
+            "writer that rounds a coordinate on the way out",
+        )
+
+    def test_a_writer_that_drops_an_interior_null_is_caught(self) -> None:
+        """SPEC 4.1: `[lon, lat, null, time]` cannot be shortened, because
+        dropping the null would move the time into the elevation channel."""
+        original = vnx.encode._position
+
+        def greedy(position: Any) -> Any:
+            got = original(position)
+            return [channel for channel in got if channel is not None]
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.encode, "_position", greedy),
+            "WriteTier.test_the_writer_emits_the_written_document",
+            "writer that drops every null rather than the trailing ones",
         )
 
     def test_a_dropped_ruleset_is_caught(self) -> None:

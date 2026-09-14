@@ -150,10 +150,12 @@ final class LibraryTests: XCTestCase {
             .contains("[1,2,3,4]"), true)
     }
 
-    /// SPEC 4.1: a writer rounds longitude and latitude to 6 decimal places and
-    /// elevation to 1, and emits the shortest spelling. A reader does neither —
-    /// "a reader MUST NOT round. Decoding preserves full binary64 precision."
-    func testAWriterRoundsAndShortensAndAReaderDoesNot() throws {
+    /// SPEC 4.1: a writer emits the shortest spelling of a position, and states
+    /// a coordinate to whatever precision it holds — the format constrains
+    /// neither the reader's precision nor the writer's. "A reader MUST NOT
+    /// round. Decoding preserves the binary64 value the document states", and
+    /// nothing on the write path narrows it either.
+    func testAWriterShortensAndNeitherSideRounds() throws {
         let json = minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
         let document = try read(json).document
         // BY BIT PATTERN. The message here used to claim the reader "keeps every
@@ -166,30 +168,42 @@ final class LibraryTests: XCTestCase {
                        "the reader keeps every bit")
         XCTAssertEqual(document.waypoints?[0].at.lat.bitPattern, 0x404c_8f1e_ab5f_e64e)
         XCTAssertTrue(String(decoding: try VNX.write(document), as: UTF8.self)
-            .contains("[-3.671235,57.118123,340.1]"),
-            "a writer rounds and drops the trailing null")
+            .contains("[-3.6712345678901235,57.11812345678901,340.06]"),
+            "a writer drops the trailing null and changes no value")
     }
 
-    /// SPEC 4.1: "The rounded value is the value with at most that many decimal
-    /// places nearest to the binary64 value the writer was handed, with a tie
-    /// resolved to even. An elevation of `340.25` becomes `340.2`, not `340.3`."
+    /// SPEC 4.2: how a number is SPELLED is the writer's own business, and this
+    /// library spells it as Swift's shortest round-tripping decimal, which uses
+    /// an exponent below 1e-4. `1e-06` and `0.000001` are one value.
     ///
-    /// Swift's bare `.rounded()` rounds away from zero and gets every one of
-    /// these wrong. Only `corpus/write/` and `corpus/numbers/` reach the rule
-    /// from a fixture, so this is a third instrument on the shortest path.
-    func testRoundingTiesGoToEven() throws {
+    /// This test used to assert ties to even at `340.25`, because SPEC 4.1
+    /// required a writer to round elevation to one decimal place. It does not
+    /// any more, so the values below are carried through untouched and the only
+    /// claim left is about spelling.
+    func testNumberSpellingIsTheWritersOwnBusiness() throws {
         func written(_ p: Position) throws -> String {
             String(decoding: try VNX.write({ var d = Document(); d.waypoints = [Waypoint(at: p)]; return d }()),
                    as: UTF8.self)
         }
-        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: 340.25)).contains("[1,2,340.2]"))
-        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: 340.35)).contains("[1,2,340.4]"))
-        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: -340.25)).contains("[1,2,-340.2]"))
-        // The SPELLING here is Swift's shortest round-trip decimal, which uses
-        // an exponent below 1e-4. SPEC 4.2 makes that the writer's own business
-        // — the round trip is defined at value level — so the assertion is on
-        // the text this library emits and not on a form the format requires.
-        XCTAssertTrue(try written(Position(lon: 0.00000125, lat: 0.00000175)).contains("[1e-06,2e-06]"))
+        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: 340.25)).contains("[1,2,340.25]"))
+        XCTAssertTrue(try written(Position(lon: 1, lat: 2, elevation: -340.25)).contains("[1,2,-340.25]"))
+        XCTAssertTrue(try written(Position(lon: 0.00000125, lat: 0.00000175)).contains("[1.25e-06,1.75e-06]"))
+    }
+
+    /// ⚠ THE WRITE PATH NARROWS NO VALUE, and this is the guard that says so.
+    /// The library rounded longitude and latitude to 6 places and elevation to
+    /// 1 for as long as SPEC 4.1 required it; with that requirement gone, a
+    /// writer that still rounded would silently discard nine digits a caller
+    /// handed it. Asserted on the TEXT, because the value comparison a
+    /// round-trip makes would also pass for a writer that never wrote the
+    /// digits at all and a reader that read what it wrote.
+    func testTheWritePathPreservesEveryDigitItIsHanded() throws {
+        let source = Data("""
+        {"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
+        """.utf8)
+        let written = String(decoding: try VNX.write(try VNX.read(source).document), as: UTF8.self)
+        XCTAssertTrue(written.contains("[-3.6712345678901235,57.11812345678901,340.06,1778914991000]"),
+                      "got \(written)")
     }
 
     func testWriteKeepsAnInteriorNull() throws {

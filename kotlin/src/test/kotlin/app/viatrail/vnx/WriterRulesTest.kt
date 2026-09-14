@@ -6,24 +6,28 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The emit-boundary rules of SPEC.md section 4.1, at this library's own writer.
+ * The emit-boundary rule of SPEC.md section 4.1, at this library's own writer.
  *
- * There is ONE emit operation. A writer rounds and shortens, always, so what it
- * writes is legitimately not the bytes it read — which is why section 8.1
- * compares documents as JSON trees.
+ * There is ONE emit operation, and it SHORTENS a position and never rounds one.
+ * What it writes is still legitimately not the bytes it read — key order, number
+ * spelling and `hidden: false` all move — which is why section 8.1 compares
+ * documents as JSON trees.
  */
 class WriterRulesTest {
 
     private val corpus = File(System.getProperty("vnx.corpus")!!)
 
     @Test
-    fun `a writer rounds a coordinate to six places`() {
-        // accept/full-precision-coordinate.vnx is a READER-PRESERVATION case: the
-        // reader must not round, and the writer must.
+    fun `neither the reader nor the writer rounds a coordinate`() {
+        // accept/full-precision-coordinate.vnx is the PRESERVATION case. Section
+        // 4.1 requires a reader to keep the binary64 value the document states,
+        // and no longer asks a writer to round it: rounding is advice there,
+        // mirroring RFC 7946 section 11.2, and carries no requirement.
         val file = File(corpus, "accept/full-precision-coordinate.vnx")
         val document = Vnx.readDocument(file.readText()).document
         assertEquals(-3.6712345678901234, document.waypoints!![0].at.lon, "the reader must not round")
-        assertTrue(Vnx.write(document).contains("[-3.671235,57.118123]"), Vnx.write(document))
+        val written = Vnx.write(document)
+        assertTrue(written.contains("[-3.6712345678901235,57.11812345678901]"), written)
     }
 
     @Test
@@ -45,9 +49,12 @@ class WriterRulesTest {
     }
 
     @Test
-    fun `elevation rounds to one place and time is never rounded`() {
-        val document = Vnx.readDocument("""{"vnx":"0.1.0","waypoints":[{"at":[-3.12345678,57.87654321,340.06,1778914991000]}]}""").document
-        assertTrue(Vnx.write(document).contains("[-3.123457,57.876543,340.1,1778914991000]"), Vnx.write(document))
+    fun `a value passes through the writer unchanged in every channel`() {
+        // The trap this replaces: `Math.round(x * 10) / 10` on the elevation, and
+        // a six-place round on the coordinates. Every channel here would move
+        // under the rule that left the format, and none may move now.
+        val document = Vnx.readDocument("""{"vnx":"0.1.0","waypoints":[{"at":[-3.12345678,57.87654321,340.25,1778914991000]}]}""").document
+        assertTrue(Vnx.write(document).contains("[-3.12345678,57.87654321,340.25,1778914991000]"), Vnx.write(document))
     }
 
     @Test

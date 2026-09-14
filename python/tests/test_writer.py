@@ -2,20 +2,23 @@
 
 Nothing here is reachable by the accept, reject or diagnose tiers. Each of them
 re-encodes a document that already satisfies the emit-boundary rules, so a
-writer is only ever asked what a value should look like when it is emitted from
-a model with no text behind it. That is why the rounding rules are
-per-implementation tests as well as a corpus tier.
+writer is only ever asked what a position should look like when it is emitted
+from a model with no text behind it.
+
+⚠ PRECISION IS NOT AN EMIT-BOUNDARY RULE. SPEC 4.1 does not constrain how
+precisely a writer states a coordinate, so the write path passes a value
+through unchanged. The rules that remain are the shortest spelling of a
+position and SPEC 3.8's `hidden`.
 """
 
 from __future__ import annotations
 
-import math
 import unittest
 
 import vnx
 from vnx.encode import _position
-from vnx.model import Document, Position, Waypoint
-from vnx.writer import encode_bytes, round_position, round_to, rounded_document
+from vnx.model import Area, Document, Position, Waypoint
+from vnx.writer import encode_bytes, normalised_document
 
 
 def waypoint_at(
@@ -35,14 +38,14 @@ class TheEmitBoundary(unittest.TestCase):
         with open(f"{path}/../corpus/accept/full-precision-coordinate.vnx", "rb") as f:
             return f.read()
 
-    def test_the_full_precision_case_encodes_to_the_rounded_value(self) -> None:
-        """Its sidecar: "Encoding this document through a writer gives
-        -3.671235, and that is correct." """
+    def test_the_full_precision_case_writes_back_unchanged(self) -> None:
+        """SPEC 4.1: the format does not constrain a writer's precision, so
+        every digit the document stated comes back out."""
         document = vnx.read_bytes(self.source()).document
-        self.assertIn(b"[-3.671235,57.118123]", encode_bytes(document))
+        self.assertIn(b"[-3.6712345678901235,57.11812345678901]", encode_bytes(document))
 
     def test_the_reader_keeps_the_full_precision_value(self) -> None:
-        """SPEC 4.1: a reader MUST NOT round. Rounding is the writer's."""
+        """SPEC 4.1: a reader MUST NOT round."""
         document = vnx.read_bytes(self.source()).document
         assert document.waypoints is not None
         at = document.waypoints[0].at
@@ -50,47 +53,65 @@ class TheEmitBoundary(unittest.TestCase):
         self.assertEqual(at.lon, -3.6712345678901235)
 
     def test_the_writer_does_not_touch_the_caller_s_model(self) -> None:
-        """SPEC 4.1: rounding MUST NOT happen in the model."""
-        document = waypoint_at(-3.6712345678901235, 57.118)
+        """The `hidden` normalisation builds a new model rather than editing
+        the caller's."""
+        document = Document(vnx="0.1.0", areas=[Area(hidden=False)])
         encode_bytes(document)
-        assert document.waypoints is not None
-        at = document.waypoints[0].at
-        assert at is not None
-        self.assertEqual(at.lon, -3.6712345678901235)
+        assert document.areas is not None
+        self.assertIs(document.areas[0].hidden, False)
 
-    def test_the_rounded_copy_is_a_different_document(self) -> None:
+    def test_the_normalised_copy_is_a_different_document(self) -> None:
         document = waypoint_at(-3.6712345678901235, 57.118)
-        self.assertIsNot(rounded_document(document), document)
+        self.assertIsNot(normalised_document(document), document)
 
 
-class Rounding(unittest.TestCase):
-    def test_places(self) -> None:
-        p = round_position(Position(-3.6712345678901235, 57.11812345678901, 340.26))
-        self.assertEqual((p.lon, p.lat, p.ele), (-3.671235, 57.118123, 340.3))
+class PrecisionPassesThrough(unittest.TestCase):
+    """SPEC 4.1's precision paragraph is advice and carries no requirement.
 
-    def test_time_is_never_rounded(self) -> None:
-        p = round_position(Position(1.0, 2.0, 3.0, 1778914991000.0))
-        self.assertEqual(p.time_ms, 1778914991000.0)
+    These are the values that used to prove the rounding: a tie at `340.25`,
+    the scaled-multiplication trap at `0.15`, and a small negative that
+    rounding would have turned into a signed zero. None of them moves now.
+    """
 
-    def test_an_absent_elevation_stays_absent(self) -> None:
-        """Rounding a missing elevation into 0.0 would put every unknown point
-        at sea level."""
-        self.assertIsNone(round_position(Position(1.0, 2.0)).ele)
+    def emitted(self, lon: float, lat: float, ele: float | None = None) -> bytes:
+        return encode_bytes(waypoint_at(lon, lat, ele))
 
-    def test_rounding_is_by_formatting_and_not_by_scaling(self) -> None:
-        """SPEC 4.1 names the scaled route as non-conforming, and these are the
-        three values it argues from.
+    def test_seventeen_digits_survive(self) -> None:
+        self.assertIn(
+            b'"at":[-3.6712345678901235,57.11812345678901]',
+            self.emitted(-3.6712345678901235, 57.11812345678901),
+        )
 
-        The scaled route gives 0.2, 0 and 0.4, because the scaled product is
-        itself a binary64 and is not always the exact scaled value.
-        """
-        for value, want in ((0.15, 0.1), (0.05, 0.1), (0.45, 0.5)):
+    def test_an_elevation_tie_is_not_moved(self) -> None:
+        self.assertIn(b'"at":[1.0,2.0,340.25]', self.emitted(1.0, 2.0, 340.25))
+
+    def test_the_scaling_trap_values_are_not_moved(self) -> None:
+        for value in (0.15, 0.05, 0.45):
             with self.subTest(value=value):
-                self.assertEqual(round_to(value, 1), want)
+                self.assertIn(
+                    f'"at":[1.0,2.0,{value}]'.encode(), self.emitted(1.0, 2.0, value)
+                )
+
+    def test_a_small_negative_keeps_its_sign_and_its_digits(self) -> None:
+        """Rounding made a negative zero out of these; nothing makes one now."""
+        self.assertIn(
+            b'"at":[-4e-07,-4e-07,-0.04]', self.emitted(-4e-7, -4e-7, -0.04)
+        )
+
+    def test_a_negative_zero_in_the_model_is_written_as_the_model_holds_it(
+        self,
+    ) -> None:
+        """A caller that puts one in gets one out. No document carries a
+        negative zero, so nothing but a caller's own arithmetic makes one."""
+        self.assertIn(b'"at":[-0.0,2.0]', self.emitted(-0.0, 2.0))
 
 
 class ShortestSpelling(unittest.TestCase):
-    """SPEC 4.1: a writer emits the shortest spelling of a position."""
+    """SPEC 4.1: a writer emits the shortest spelling of a position.
+
+    This is arity, not precision. It is the one emit-boundary rule left on a
+    position, and `corpus/write/emit-boundary` is its fixture.
+    """
 
     def test_an_absent_elevation_and_time_leave_two_channels(self) -> None:
         self.assertEqual(_position(Position(1.0, 2.0)), [1.0, 2.0])
@@ -110,90 +131,16 @@ class ShortestSpelling(unittest.TestCase):
         self.assertIn(b'"at":[1.0,2.0]', encode_bytes(waypoint_at(1.0, 2.0)))
 
 
-class RoundingTies(unittest.TestCase):
-    """SPEC 4.1: a rounding tie goes to even.
+class HiddenIsWrittenOnlyWhenTrue(unittest.TestCase):
+    """SPEC 3.8. Absence already means visible, so a false carries nothing."""
 
-    The JavaScript seat's case: `340.25` to one place is `340.2` in Go and
-    Python and `340.3` from JS `toFixed`, and `340.25` is an exact double
-    reachable from any quarter-metre elevation.
-    """
+    def test_a_false_hidden_is_dropped(self) -> None:
+        document = Document(vnx="0.1.0", areas=[Area(hidden=False)])
+        self.assertNotIn(b"hidden", encode_bytes(document))
 
-    def elevation(self, value: float) -> float:
-        rounded = round_position(Position(0.0, 0.0, value)).ele
-        assert rounded is not None
-        return rounded
-
-    def test_the_javascript_case(self) -> None:
-        from decimal import Decimal
-
-        self.assertEqual(str(Decimal(340.25)), "340.25", "not an exact tie")
-        self.assertEqual(self.elevation(340.25), 340.2)
-
-    def test_ties_go_to_even_in_both_directions(self) -> None:
-        for value, want in (
-            (340.25, 340.2), (340.35, 340.4), (340.45, 340.4), (340.55, 340.6),
-            (-340.25, -340.2), (-340.45, -340.4),
-        ):
-            with self.subTest(value=value):
-                self.assertEqual(self.elevation(value), want)
-
-    def test_a_six_place_tie_goes_to_even(self) -> None:
-        """Six-place ties are rare but real, and worth knowing how to build.
-
-        A tie at n places needs the midpoint (2k+1)/(2*10**n) to be exactly
-        representable, i.e. DYADIC, which needs 5**n to divide (2k+1).  At six
-        places the smallest such value is 5**6 / (2 * 10**6) = 2**-7.  Nothing
-        like `0.0000005` works: it is not a binary64 value at all, so a naive
-        attempt at this test silently exercises a non-tie.
-        """
-        from decimal import Decimal
-
-        for value, want in (
-            (0.0078125, 0.007812),      # 2**-7,  even wins over 0.007813
-            (0.0234375, 0.023438),      # 3*2**-7, even wins over 0.023437
-            (0.0390625, 0.039062),
-            (0.0546875, 0.054688),
-        ):
-            with self.subTest(value=value):
-                self.assertEqual(
-                    str(Decimal(value))[-1], "5", "not an exact six-place tie"
-                )
-                got = round_position(Position(value, 2.0)).lon
-                self.assertEqual(got, want)
-                self.assertEqual(int(f"{got:.6f}"[-1]) % 2, 0, "chose the odd digit")
-
-
-class RoundingCreatesNegativeZero(unittest.TestCase):
-    """Rounding can CREATE a negative zero, which the writer must collapse.
-
-    No document carries one, so nothing but the writer's own arithmetic can
-    produce it, and only once a writer exists.
-    """
-
-    def test_the_formatting_primitive_really_does_produce_a_signed_zero(self) -> None:
-        self.assertEqual(format(-0.04, ".1f"), "-0.0")
-        self.assertTrue(math.copysign(1.0, float(format(-0.04, ".1f"))) < 0)
-
-    def test_the_rounding_collapses_it(self) -> None:
-        rounded = round_to(-0.04, 1)
-        self.assertEqual(rounded, 0.0)
-        self.assertTrue(math.copysign(1.0, rounded) > 0, "still a negative zero")
-
-    def test_a_created_negative_zero_never_reaches_the_bytes(self) -> None:
-        # -0.04 is a legitimate longitude at six places and must KEEP its sign;
-        # only the elevation, at one place, becomes a negative zero.  Asserting
-        # "no minus anywhere" would pass for the wrong reason and fail for a
-        # correct writer, so the whole array is pinned.
-        self.assertIn(
-            b'"at":[-0.04,-0.04,0.0]', encode_bytes(waypoint_at(-0.04, -0.04, -0.04))
-        )
-        # Below half a microdegree every channel collapses, signs and all.
-        self.assertIn(
-            b'"at":[0.0,0.0,0.0]', encode_bytes(waypoint_at(-4e-7, -4e-7, -0.04))
-        )
-
-    def test_a_negative_longitude_that_rounds_to_zero(self) -> None:
-        self.assertIn(b"[0.0,0.0]", encode_bytes(waypoint_at(-0.0000004, -0.0000004)))
+    def test_a_true_hidden_is_kept(self) -> None:
+        document = Document(vnx="0.1.0", areas=[Area(hidden=True)])
+        self.assertIn(b'"hidden":true', encode_bytes(document))
 
 
 class WriterOutputIsStable(unittest.TestCase):

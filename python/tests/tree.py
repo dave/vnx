@@ -13,9 +13,10 @@ FILE against the tree parsed from encode(decode(file)) is what proves a reader
 kept what it read.  `test_red_proof.py` freezes the proof.
 
 Exactly two normalisations are permitted (SPEC 8.1) and there is no third: on a
-position, trailing ``null`` channels are dropped and SPEC 4.1's precision is
-applied to both sides; and an absent container and an empty one normalise to the
-same value.
+position, trailing ``null`` channels are dropped; and an absent container and an
+empty one normalise to the same value.  A VALUE IS NEVER NORMALISED.  SPEC 4.1
+does not constrain a writer's precision, so rounding one side to meet the other
+would hide a writer that changed a coordinate.
 """
 
 from __future__ import annotations
@@ -23,8 +24,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
-
-from vnx.writer import ELEVATION_PLACES, LONLAT_PLACES, round_to
 
 __all__ = ["Options", "compare_documents", "parse_tree", "tree_diff"]
 
@@ -34,11 +33,11 @@ class Options:
     """Which normalisations a comparison applies.
 
     ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST.  The accept tier compares a
-    document against a re-encoding of itself, so SPEC 4.1's emit-boundary rules
-    are applied to both sides -- otherwise it would require the file to have
-    been written by this library.  The write tier compares one writer's output
-    against another's, where rounding and the shortest spelling are the very
-    rules under test: normalising them there would make the tier prove nothing.
+    document against a re-encoding of itself, so SPEC 4.1's shortest spelling is
+    applied to both sides -- otherwise it would require the file to have been
+    written by this library.  The write tier compares one writer's output
+    against another's, where the shortest spelling is the very rule under test:
+    normalising it there would make the tier prove nothing.
     """
 
     emit_boundary: bool = False
@@ -66,8 +65,8 @@ def compare_documents(got: bytes, want: bytes, options: Options) -> str:
 #
 # It is SCHEMA-AWARE rather than a heuristic over shapes, because the two
 # regions the format declares opaque -- a data record's body and a style -- may
-# hold arrays of numbers that are not positions and must not be rounded, and may
-# hold empty containers that a third party means to keep.
+# hold arrays of numbers that are not positions and must not be shortened, and
+# may hold empty containers that a third party means to keep.
 
 Each = Callable[[dict[str, Any], Options], None]
 
@@ -187,9 +186,11 @@ def _position_list(obj: dict[str, Any], key: str, options: Options) -> None:
 
 
 def _position(value: Any, options: Options) -> Any:
-    """SPEC 8.1's first normalisation: rounding, and a trailing ``null``.
+    """SPEC 8.1's first normalisation: a trailing ``null``.
 
-    Both are emit-boundary rules and are applied only where `Options` says so.
+    It is an emit-boundary rule and is applied only where `Options` says so.
+    No channel VALUE is touched -- SPEC 4.1 leaves precision to the writer, so
+    the comparison must show a value that changed rather than absorb it.
 
     ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no corpus
     file carries one.  A fixture asking a writer to reproduce a fifth channel
@@ -198,17 +199,7 @@ def _position(value: Any, options: Options) -> Any:
     """
     if not isinstance(value, list):
         return value
-    out: list[Any] = []
-    for index, channel in enumerate(value):
-        if not options.emit_boundary or not isinstance(channel, float):
-            out.append(channel)
-            continue
-        if index in (0, 1):
-            out.append(round_to(channel, LONLAT_PLACES))
-        elif index == 2:
-            out.append(round_to(channel, ELEVATION_PLACES))
-        else:
-            out.append(channel)
+    out = list(value)
     if options.emit_boundary:
         while len(out) > 2 and out[-1] is None:
             out.pop()

@@ -9,5 +9,4 @@ export {
 export { decodeText, decodeValue, indexPositions, READER_MAJOR, READER_MINOR } from './decode.js';
 export { encode, emitDocument } from './emit.js';
 export { distanceToPolylineM, PROJECTION_TOLERANCE_M, EARTH_RADIUS_M } from './geo.js';
-export { roundToPlaces } from './round.js';
 export { decodeContainer, encodeContainer, writeContainer } from './vnz.js';

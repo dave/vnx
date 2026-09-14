@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Red-proof the conformance runners (corpus, numbers, zip64).
+"""Red-proof the conformance runners (corpus, zip64, hostile).
 
 Break the reader, one defect at a time, and require the runner to go RED. A
 tier that stays green under a mutation is a tier that was not testing what its
@@ -12,7 +12,9 @@ It edits files in place and restores them from a snapshot after each mutation,
 so it must be run on a clean tree. It needs no dependencies beyond cargo and
 Python 3.
 
-Measured 2026-09-09, all sixteen caught:
+Measured 2026-09-09, and re-measured 2026-09-14 when SPEC 4.1 stopped
+requiring a writer to round and the five rounding mutations, the number table
+they were measured against, and `tests/numbers.rs` all went with it:
 
     transpose lon and lat                accept, format
     normalise [lon, lat, null]           accept
@@ -30,18 +32,13 @@ Measured 2026-09-09, all sixteen caught:
     escape < > and & as Go does          format
     render a position over several lines accept, format
     sort keys plain lexicographically    accept, format
-    round coordinates while decoding     accept, format
+    round coordinates while decoding     accept, format (a reader MUST NOT round)
     keep only a nested polygon's ring    diagnose
-    resolve a rendering tie away         numbers (render, round6, round1)
-    scale before rounding                numbers (round1, round6)
-    round half away from zero            numbers (round1, round6)
     compare a diagnostic's path only     the runner's own self-test
     ignore a stale `message` sidecar     the runner's own self-test
     skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
     ignore the ZIP64 end record          zip64
     take the segment-start cosine        accept AND diagnose, in opposite directions
-    round half UP                        numbers (JS/Java; caught by 340.25, NOT by 340.75)
-    round half away from zero            numbers (Rust/C; differs from half-up on NEGATIVE ties)
     conflate the two wrong-type codes    diagnose
     keep the good pips, drop one         unit tests only — NO corpus case reaches it
     add an offset without checking       hostile (a real defect, found this way)
@@ -132,29 +129,6 @@ MUTATIONS = [
     ("round coordinates while decoding", "src/decode.rs",
      "                Json::Number(n) => channels.push(Some(*n)),",
      "                Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
-
-    # The number-conformance table is the only instrument that reaches these
-    # three: rounding happens only when a WRITER emits a model, and every corpus
-    # tier re-encodes what it decoded.
-    ("scale before rounding, as the obvious spelling does", "src/encode.rs",
-     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
-     "    let scale = 10f64.powi(places as i32); let rounded: f64 = (value * scale).round_ties_even() / scale;"),
-
-    # `Math.round(x * 10) / 10` — half-UP, toward positive infinity, which is
-    # what JavaScript and Java give you. It agrees with half-to-even on 340.75,
-    # so a fixture carrying only that value would pass it.
-    #
-    # NOT the same wrong function as the one below: half-up and half-away-from-
-    # zero agree on every positive tie and disagree on every negative one, so a
-    # suite catching one and not the other has a gap that reads as closed.
-    ("round half UP at the writer boundary", "src/encode.rs",
-     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
-     "    let scale = 10f64.powi(places as i32); let rounded: f64 = ((value * scale) + 0.5).floor() / scale;"),
-
-    # Rust's own `f64::round`, and C's `round()`. The other naive route.
-    ("round half away from zero at the writer boundary", "src/encode.rs",
-     "    let rounded: f64 = format!(\"{value:.places$}\")\n        .parse()\n        .expect(\"a fixed-precision formatting of a finite double parses back\");",
-     "    let scale = 10f64.powi(places as i32); let rounded: f64 = (value * scale).round() / scale;"),
 
     # This one is caught by the runner's own SELF-TEST, not by any corpus
     # fixture: every diagnose fixture carries at most one diagnostic and its
@@ -253,12 +227,6 @@ MUTATIONS = [
     ("report a terminal-pip disagreement on every arc", "src/decode.rs",
      "                if metres > TOLERANCE_M {",
      "                if metres >= 0.0 {"),
-
-    # SPEC 4.1: rounding CREATES negative zeros that were never in the model,
-    # and 993 rows of `corpus/numbers/numbers.tsv` reach one.
-    ("leave the negative zero rounding created", "src/encode.rs",
-     "    if rounded == 0.0 {\n        return 0.0;\n    }",
-     "    if false {\n        return 0.0;\n    }"),
 
     # SPEC 8.1: the accept tier compares against the ORIGINAL FILE. A
     # comparison that sees nothing passes every reader, including one that threw
@@ -411,7 +379,7 @@ def run_corpus():
     # detail line names which tests reddened, so corpus and unit coverage stay
     # distinguishable.
     out = subprocess.run(["cargo", "test", "--no-fail-fast", "--lib", "--test", "corpus",
-                          "--test", "numbers", "--test", "zip64", "--test", "hostile"],
+                          "--test", "zip64", "--test", "hostile"],
                          cwd=ROOT, capture_output=True, text=True)
     text = out.stdout + out.stderr
     if "test result: ok." in text and "FAILED" not in text:

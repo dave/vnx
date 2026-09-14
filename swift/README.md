@@ -128,8 +128,8 @@ The manifest is at the repository root, and `swift test` finds it from any
 directory inside the repository, so this and `swift test` at the root run the
 same suite.
 
-Unit tests and the corpus runner over the accept, reject, diagnose, write and
-numbers tiers. A green run is the conformance claim.
+Unit tests and the corpus runner over the accept, reject, diagnose and write
+tiers. A green run is the conformance claim.
 
 ## Layout
 
@@ -138,7 +138,7 @@ numbers tiers. A green run is the conformance claim.
 | `JSONValue.swift`, `JSONParser.swift` | a strict RFC 8259 parser and its tree |
 | `Model.swift` | the decoded document (SPEC §3) |
 | `Decoder.swift` | what is refused, dropped and reported (SPEC §6.2) |
-| `Encoder.swift`, `Rounding.swift` | the emit boundary and its precision (SPEC §4.1) |
+| `Encoder.swift` | the emit boundary — the shortest spelling of a position (SPEC §4.1) |
 | `Projection.swift` | the equirectangular map and its tolerance (SPEC §3.3.3) |
 | `Deflate.swift`, `Zip.swift`, `Container.swift` | zlib, ZIP with ZIP64, the container (SPEC §7) |
 | `Version.swift` | `MAJOR.MINOR.PATCH`, compared as numbers of any length |

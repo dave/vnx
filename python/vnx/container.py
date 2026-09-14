@@ -304,8 +304,8 @@ def encode_container_bytes(
 ) -> bytes:
     """A ``.vnz`` holding *document* and *attachments*.
 
-    The document is emitted exactly as `encode_bytes` emits it: rounded to 6
-    and 1 places, with the shortest spelling of every position.
+    The document is emitted exactly as `encode_bytes` emits it: values
+    unchanged, with the shortest spelling of every position.
     """
     return _container(encode_bytes(document), attachments)
 

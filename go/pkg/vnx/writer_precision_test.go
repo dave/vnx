@@ -112,13 +112,26 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 				}
 				totals[w.name] += len(got)
 				for _, p := range got {
-					if w.name == "vnx" {
-						seenChannels[p.channel] = true
-					}
 					checkPlaces(t, w.name, p)
 				}
 			}
 		})
+	}
+
+	// ⚠ THE CHANNEL-COVERAGE GUARD IS DRIVEN BY THE VNX WALK, and VNX is no
+	// longer one of the writers under test above. It is kept, because what it
+	// proves is a property of the CORPUS — that some accept fixture reaches
+	// every position channel the format defines — and that is worth just as
+	// much now the VNX writer does not round. Without this pass the guard would
+	// have gone quietly vacuous the moment VNX left the table.
+	for _, f := range fixtures {
+		var b bytes.Buffer
+		if err := vnx.EncodeTo(&b, f.doc); err != nil {
+			t.Fatalf("%s: encoding as VNX for the coverage guard: %v", f.name, err)
+		}
+		for _, p := range vnxPositions(t, b.Bytes()) {
+			seenChannels[p.channel] = true
+		}
 	}
 
 	for _, name := range wantChannels {
@@ -238,7 +251,13 @@ func writersUnderTest() []writerUnderTest {
 		}
 	}
 	return []writerUnderTest{
-		{"vnx", vnx.EncodeTo, vnxPositions, true},
+		// ⚠ VNX IS NOT IN THIS TABLE ANY MORE, and its absence is the
+		// assertion. SPEC §4.1 no longer constrains a writer's precision, so
+		// the VNX encoder writes what it was handed;
+		// TestTheVNXWriterDoesNotRound below is the case that pins it. The
+		// lossy writers below still round, because GPX, KML and GeoJSON are
+		// other formats and rounding into one of those is that format's
+		// decision — RFC 7946 §11.2 recommends 6 places for GeoJSON.
 		{"geojson", report(geojson.Write), geojsonPositions, false},
 		{"gpx", report(gpx.Write), gpxPositions, false},
 		{"kml", report(kml.Write), kmlPositions, false},
@@ -513,7 +532,7 @@ func kmlPositions(t *testing.T, out []byte) []foundPos {
 // ORIGINATES goes out at 6/1 because every encoder rounds at its boundary. Do
 // not "fix" this into agreement — deleting either half breaks the other's
 // guarantee.
-func TestTheReaderPreservesFullPrecisionAndTheWriterRounds(t *testing.T) {
+func TestTheVNXWriterDoesNotRound(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "corpus", "accept", "full-precision-coordinate.vnx")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -529,17 +548,21 @@ func TestTheReaderPreservesFullPrecisionAndTheWriterRounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	if doc.Waypoints[0].At.Lon != -3.6712345678901235 {
-		t.Fatalf("the reader lost precision before the writer was asked: %v", doc.Waypoints[0].At.Lon)
+		t.Fatalf("the reader lost precision: %v", doc.Waypoints[0].At.Lon)
 	}
 	enc, err := vnx.Encode(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(enc, []byte(fullPrecision)) {
-		t.Errorf("Encode emitted full precision; a writer rounds at the boundary:\n%s", enc)
+	if !bytes.Contains(enc, []byte(fullPrecision)) {
+		t.Errorf("the writer changed a value it was handed. SPEC §4.1 does not "+
+			"constrain a writer's precision, so this document must survive a "+
+			"read and a write unaltered:\n%s", enc)
 	}
-	if !bytes.Contains(enc, []byte("-3.671235")) {
-		t.Errorf("Encode did not emit the rounded coordinate -3.671235:\n%s", enc)
+	if bytes.Contains(enc, []byte("-3.671235")) {
+		t.Errorf("the writer rounded to 6 places. That was the rule until §4.1 "+
+			"stopped requiring it; rounding now belongs to the application, "+
+			"which rounds its own document before encoding:\n%s", enc)
 	}
 }
 

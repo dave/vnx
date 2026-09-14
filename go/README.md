@@ -3,9 +3,7 @@
 `vnx` reads and writes VNX documents and VNZ containers in Go, and it is the
 reference implementation of the format. Where [`SPEC.md`](../SPEC.md), the
 [corpus](../corpus/) and an implementation disagree, this is the implementation
-that gets corrected first, and the number-conformance table every
-implementation is measured against,
-[`corpus/numbers/numbers.tsv`](../corpus/numbers/), is generated in Go.
+that gets corrected first.
 
 Go 1.25 or later. No dependencies: the library, the command-line tool and the
 three conversion writers import the standard library and nothing else.

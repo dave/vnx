@@ -32,13 +32,24 @@ Two normalisations are applied, the two Section 8.1 permits, and no others:
   - An absent container and an empty one are the same value, so a key whose
     value is `[]` or `{}` equals that key being absent.
 
-Section 8.1 also permits re-applying the Section 4.1 precision rules to both
-sides. This script does NOT, deliberately. That normalisation exists for the
-corpus, where the original file was not written by a conforming writer and may
-carry more decimals than a writer may emit. Here both sides of every comparison
-are already writer output, so both have been rounded by a conforming writer. A
-surviving difference is a disagreement about the rounding rule itself, which is
-exactly what this matrix should report rather than erase.
+No value is normalised here, and since Section 4.1 stopped constraining a
+writer's precision, none should be.
+
+⚠ THIS MATRIX DOES NOT GUARD PRECISION, and it is worth saying so because it
+looks as though it should. Each cell compares a WRITER'S OUTPUT against a
+reader's reproduction of that same output, so an implementation that rounded on
+the way out would produce rounded bytes that every reader reproduces faithfully,
+and all six of its cells would pass. What this matrix proves is that the six
+agree with each other about what a document MEANS — not that any of them kept
+the digits it was handed.
+
+The guard for that is the ACCEPT TIER, and it is per-implementation: a runner
+decodes a corpus file, re-encodes it, and compares against the ORIGINAL FILE, so
+a writer that rounds differs from the file and reddens.
+`corpus/accept/full-precision-coordinate.vnx` carries `-3.6712345678901235` for
+exactly that purpose. Keep it, and do not let any runner reintroduce a precision
+normalisation into that comparison — several did have one, applied to both
+sides, which would have absorbed the very defect the fixture exists to catch.
 
 No fallbacks. A missing toolchain, an unreadable file, a driver that cannot be
 invoked: each is a named error and a non-zero exit. A cell is never skipped.

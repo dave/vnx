@@ -95,7 +95,8 @@ fn accept_tier() {
 
         // SPEC 8.1: decode, encode, and compare the two TREES. The emit
         // boundary is normalised on both sides, because this compares a
-        // document against a re-encoding of itself and a writer rounds.
+        // document against a re-encoding of itself and a writer shortens.
+        // Values are compared exactly: nothing here rounds.
         let encoded = encode(&document);
         if let Some(difference) = tree::compare(
             encoded.as_bytes(),
@@ -605,11 +606,11 @@ fn read_manifest(manifest: &Path, stem: &str) -> Vec<vnz::Attachment> {
 /// operation is decode-then-encode, and the input is a DOCUMENT rather than a
 /// model, so no language-specific way to express a model is needed.
 ///
-/// ⚠ IT NORMALISES ALMOST NOTHING. The accept tier rounds both sides and drops
-/// a trailing `null` from both, because it compares a document against a
-/// re-encoding of itself. Doing that here would normalise away the two rules
-/// under test. The one normalisation left is the one that is not about the emit
-/// boundary at all: SPEC 3.1's absent-versus-empty.
+/// ⚠ IT NORMALISES ALMOST NOTHING. The accept tier drops a trailing `null`
+/// from both sides, because it compares a document against a re-encoding of
+/// itself. Doing that here would normalise away the rule under test. The one
+/// normalisation left is the one that is not about the emit boundary at all:
+/// SPEC 3.1's absent-versus-empty.
 #[test]
 fn write_tier() {
     let dir = corpus_root().join("write");
@@ -672,9 +673,9 @@ fn write_tier() {
             panic!("write/{stem}: the written document is not the one the case expects: {difference}");
         }
 
-        // The written form is a fixed point: rounding and shortening are both
-        // idempotent, so a case that fails this is a defect in the fixture
-        // rather than in the writer.
+        // The written form is a fixed point: shortening is idempotent, so a
+        // case that fails this is a defect in the fixture rather than in the
+        // writer.
         let again = encode(
             &decode(&expected)
                 .unwrap_or_else(|e| panic!("write/{stem}.written.vnx: {e}"))

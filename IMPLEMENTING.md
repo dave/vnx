@@ -58,7 +58,7 @@ proves it.
 | `accept/` | A parser, the whole model of `SPEC §3`, an encoder, and a JSON-tree comparison against the original file. |
 | `reject/` | A refusal channel separate from your return value, carrying one of `SPEC §6.2`'s causes. |
 | `diagnose/` | One diagnostic per bad path, each with a stable code, with the rest of the document read and returned. |
-| `write/` | A real emit boundary: `SPEC §4.1`'s rounding and the shortest spelling of a position. No other document tier reaches it. |
+| `write/` | The one emit-boundary rule: `SPEC §4.1`'s shortest spelling of a position. No other document tier reaches it. |
 | `numbers/` | Rounding as an operation on a value, correct on ordinary values as well as on ties, compared by bit pattern. |
 
 Two properties of that order are worth knowing in advance.
@@ -269,149 +269,27 @@ JSON integer is a binary64 too, and rendering it as one is what makes
 
 ## 6. Numbers
 
-Rounding is where the languages differ most and where the corpus helps least.
-Each implementation encodes JSON with its own standard library, so a number's
-spelling is not a rule of this format; the value that reaches the encoder is.
+Parse every number as binary64 and write back the value, not the text
+(`SPEC §4.2`). That is the whole of it.
 
-### 6.1 "Round to N places" names two different operations
+⚠ **NOTHING HERE REQUIRES YOU TO ROUND.** `SPEC §4.1` does not constrain a
+writer's precision, so an implementation that writes what it was handed is
+conforming and has no rounding rule to get right.
 
-Take this one before the tie rule, because it is the larger defect and the
-independent one.
+If your application chooses to round — to make its files smaller, which is the
+only thing rounding buys — two traps are worth knowing, because they are
+genuinely hard to see. `Math.round(x * 10) / 10` is half-up on the JVM and in
+JavaScript, not half-to-even. And scaling by a power of ten before rounding is a
+different operation from formatting to N places: the scaled product is itself a
+binary64, so it manufactures ties the true decimal never had and destroys ones it
+did. Both are your implementation's business, not the format's.
 
-Scaling by a power of ten, rounding, and dividing back is not "the nearest value
-with n decimal places, ties to even". It is a different rule wearing the right
-name, and every language's idiom hands it to you. Multiplying by the scale is
-itself a rounding step, and it moves values onto an exact half that were never on
-one.
-
-| value | nearest 1 dp of the double | scale, then round ties to even |
-|---|---|---|
-| `0.15` | `0.1` (it is 0.1499999999999999944…) | `0.2` |
-| `0.05` | `0.1` | `0` |
-| `1.05` | `1.1` | `1` |
-| `0.45` | `0.5` | `0.4` |
-| `1.85` | `1.9` | `1.8` |
-| `0.95` | `0.9` | `1.0` |
-| `340.25` | `340.2` (exact, a genuine tie) | `340.2` | Six of those seven disagree, in both
-directions, and they are ordinary elevation-shaped values rather than corner
-cases. Scaling has a second failure the table cannot show: a large value
-multiplied by 10^6 can overflow to infinity, where rounding against the double
-does not.
-
-The number table decides it. Its `kind` column names the rows that separate the
-two operations:
-
-```sh
-awk -F'\t' '$2=="scaling-route"' corpus/numbers/numbers.tsv
-```
-
-Every one of them sides with rounding against the double, at one place and at
-six. The table's own header states its row count and its per-kind counts; read
-them from the file rather than from here.
-
-The tie direction of section 6.2 disagrees only on exact halves; the operation
-disagrees on most values. **A library can have the tie rule right and be wrong on
-almost every elevation it writes.** Coordinates carry more of that exposure than
-elevations, six places being longitude and latitude.
-
-Two details there matter more than any count. Somebody mined the `scaling-route`
-rows specifically to catch a library that rounds by scaling, and **the library
-that generated the table did not read it.** The instrument and the defect sat in
-one repository and never met.
-
-The guard that existed beside the defect used `340.25` and `340.35` — the last
-row of the table above, which agrees under both operations. `0.15` would have
-caught it the day that test was written. So the repair was two repairs: the
-operation, and running every row of the published table through the encoder,
-which is the comparison the other five libraries were making.
-
-A magnitude bound guarding the scaled product against overflow went with it. Such
-a bound is not a rule of the format; it is an artefact of the operation, and it
-stops existing when the operation changes.
-
-Formatting to a decimal string and parsing it back is the correct
-implementation, because the formatter expands the double exactly and rounds ties
-to even. The caveat is that the formatted text is an intermediate and never the
-output. Round to a *value*, and hand the value to your encoder.
-
-Decimal intuition lies about which way a value rounds, whichever operation you
-pick. `3.05` rounds down to `3.0`, correctly, because the literal is really
-`3.04999999999999982236431605997495353221893310546875`. A test written from
-intuition asserts `3.1` and reports a correct writer as broken. But
-`3.05` gives `3.0` under both operations above, so it cannot tell them apart,
-which is why the worked example here is `0.15`.
-
-### 6.2 The rounding tie goes to even
-
-`SPEC §4.1` rounds longitude and latitude to 6 decimal places and elevation to 1,
-at the writer boundary. Ties there go to even, and every language's idiom breaks
-that in a different place.
-
-| value to 1 place | Go | Python | JavaScript `toFixed` |
-|---|---|---|---|
-| `340.25` | `340.2` | `340.2` | `340.3` |
-| `-340.25` | `-340.2` | `-340.2` | `-340.3` |
-| `340.75` | `340.8` | `340.8` | `340.8` |
-
-`toFixed` strips the sign and rounds the magnitude, so it is symmetric: away from
-zero on both signs, `-340.25` to `-340.3` as well.
-
-The asymmetric rule is the one everybody reaches for first.
-`Math.round(x * 10) / 10` is half-up in both JavaScript and Java, because
-`Math.round` breaks a tie toward positive infinity, so it is wrong on every
-positive tie and right on every negative one by accident. **A guard testing only
-negative ties passes it.**
-
-There are two naive routes rather than one, and they differ on sign:
-`Math.round(x*10)/10` is half-up, `round(x*10)/10` on a half-away-from-zero
-rounder is half-away-from-zero. They agree on every positive tie and disagree on
-every negative one, so a suite catching one and not the other has a gap that
-reads as closed. Red-proof both.
-
-Five wrong tie rules and the two values that separate them:
-
-| value | rule | half-odd | away from 0 | toward 0 | half-up | half-down |
-|---|---|---|---|---|---|---|
-| `340.25` | `340.2` | `340.3` | `340.3` | `340.2` | `340.3` | `340.2` |
-| `340.75` | `340.8` | `340.7` | `340.8` | `340.7` | `340.8` | `340.7` |
-
-`340.25` catches half-away-from-zero and half-up; `340.75` catches
-half-toward-zero and half-down; either catches half-to-odd. **Only the pair
-identifies half-to-even**, so a fixture carrying one of them tests less than it
-looks.
-
-The values are reachable rather than contrived. A tie at one decimal place needs
-a fractional part of exactly `.x5`, and of the ten candidates only `.25` and
-`.75` are dyadic, but a quarter-metre elevation grid produces both.
-
-Rounding also creates negative zeros that were never in the model — `-4e-08` to
-six places, `-0.04` to one. The table gives `0` on every row that reaches it, so
-collapse the sign.
-
-### 6.3 Building a rounding-tie fixture is a trap
-
-`0.0000005` is not a tie and is not a binary64 value at all. Its nearest double
-is `4.99999999999999977e-7`, below the midpoint, so it rounds down under every
-rule, and a suite pinning it passes whichever way the tie branch is written.
-
-A tie at *n* decimal places needs the midpoint to be exactly representable, which
-means dyadic, which means 5^n must divide (2k+1). At six places the smallest real
-one is 2^-7, or `0.0078125`, sitting exactly between `0.007812` and `0.007813`;
-`0.0234375` is the next. At one place, `340.25` qualifies because its fractional
-part is a quarter. *(Reached independently by the Python and Kotlin
-implementations, which is why it is worth stating twice: two routes to one value
-are stronger evidence than either route.)*
-
-The JavaScript suite keeps `0.0000005` beside the real ties as a named non-tie,
-so nobody later mistakes it for the tie case.
-
-A related trap on the mining side: a detector that asks whether a neighbouring
-spelling of the same length also round-trips does not identify a tie. It asks
-whether the value is the nearest double to a decimal, and many decimals share one
-nearest double. A table mined that way decorates rather than discriminates
-(section 10.2).
-
----
+⚠ **WHAT SURVIVES IS THE READER'S HALF.** A reader MUST NOT round. Whatever
+precision a document states is what the reader keeps, and
+`corpus/accept/full-precision-coordinate.vnx` is the case that proves it. In
+Rust this needs `serde_json`'s `float_roundtrip` feature, which is why
+`Cargo.toml` pins it with a comment: without it `-3.6712345678901235` parses one
+bit away from what `str::parse` gives.
 
 ## 7. Geometry
 
@@ -650,14 +528,12 @@ yourself, and require a refusal or a clean read, never a crash.
 ### 10.1 Know which rules no fixture reaches
 
 The accept, reject and diagnose tiers all start from a document that exists, so
-`SPEC §4.1`'s rounding rule is satisfied by every value in them before a writer
-is asked anything. That put rounding outside the corpus's reach, and each
-implementation carried its own tests for it.
+every emit-boundary rule is already satisfied by the values in them before a
+writer is asked anything.
 
-`corpus/write/` decodes an input and calls the write path, so rounding, both tie
-directions and the shortest spelling of a position are all reachable. An
-implementation exposing no write path fails it by name rather than by a confusing
-diff.
+`corpus/write/` decodes an input and calls the write path, so the shortest
+spelling of a position is reachable. An implementation exposing no write path
+fails it by name rather than by a confusing diff.
 
 The entry is worth keeping for what happened to the claim attached to it. The
 writer boundary was described, in this document and elsewhere, as permanently
@@ -733,11 +609,13 @@ checking half of what it pinned.
 **Absence-proofs that go stale.** A proof that no tier catches some defect is
 true until a case reaches it. See 10.3.
 
-**A fixture retired by a rule change.** A test used two positions that collide
-once rounded, to prove that arc-boundary de-duplication compares full values.
-Change the rounding rule so the two stop colliding and the test asserts that a
+**A fixture retired by a rule change**, and this one actually happened. A test
+used two positions that collide once rounded, to prove that arc-boundary
+de-duplication compares full values. `SPEC §4.1` then stopped requiring a writer
+to round at all, so the two never collide and the test asserts that a
 de-duplication has not merged two points it could not have merged. Nothing about
-it looks wrong at any point.
+it looks wrong at any point. When a rule leaves a format, search for the fixtures
+that were built on it rather than waiting for one to fail.
 
 #### A guard that was never connected to what it names
 
@@ -855,8 +733,12 @@ immediately found a real defect — rounding was one double wrong above about 9e
 because an identity branch tested a power of two where the true boundary is a
 power of ten, so past it the rounded integer exceeded 2^53. The green proof did
 not merely reveal a weak test; it forced a better instrument, which then caught a
-bug. The oracle is `swift/Tests/VNXTests/RoundingOracle.swift`, and its own
-docstring states its size. Fix the test.
+bug. Fix the test.
+
+⚠ The oracle was 4,110 lines of 128-bit arithmetic and it is gone, deleted with
+the rounding rule it certified. Both the defect it found and the defect it had
+existed only because the rule did. That is the honest arithmetic of a rule: it
+does not only cost the words that state it.
 
 **The branch is unreachable.** A mutation of the version rule for 1.0 and above
 is a provable no-op in a 0.1 reader, which can never take that branch
@@ -901,11 +783,11 @@ error ignored, scores every one of them as a disagreement against `0`; a mining
 criterion can decorate rather than discriminate (section 6.3); and the generator
 must be deterministic, because a table nobody can diff is useless.
 
-`corpus/numbers/numbers.tsv` is the shipped form of that idea: a set of doubles
+`corpus/numbers/numbers.tsv` was the shipped form of that idea: a set of doubles
 as IEEE 754 hex,
 with two reference answers each, rounded to 6 places and to 1. About ten lines to
-read in any language, and it is compared **by bit pattern, never by text** —
-comparing a spelling would put a rendering rule this format does not have back
+read in any language, and it was compared **by bit pattern, never by text** —
+comparing a spelling would have put a rendering rule this format does not have back
 into the measurement through the side door.
 
 ---
@@ -1002,9 +884,10 @@ does not round half to even; the emit boundary needs `.toNearestOrEven` (6.2).
 `JSONEncoder` while the parser is hand-written (3).
 
 **Kotlin** — [`kotlin/README.md`](kotlin/README.md).
-`BigDecimal.HALF_UP` at the rounding boundary is half away from zero, and
-`Math.round(x * 10) / 10` is half-up on the JVM, so a guard testing only negative
-ties passes it (6.2). The JVM standard library has no JSON API at all, which
+`BigDecimal.HALF_UP` is half away from zero and `Math.round(x * 10) / 10` is
+half-up on the JVM, so a guard testing only negative ties passes either. That is
+a trap for an implementation that rounds by choice; the format asks for no
+rounding. The JVM standard library has no JSON API at all, which
 makes the reader-versus-renderer split of section 3 an explicit decision rather
 than a default.
 

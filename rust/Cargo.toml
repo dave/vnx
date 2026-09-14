@@ -2,7 +2,9 @@
 name = "vnx"
 version = "0.1.0"
 edition = "2021"
-# `f64::round_ties_even`, which SPEC 4.1 needs at the writer boundary.
+# Pinned, not measured against a feature this crate needs today: it was raised
+# to 1.77 for `f64::round_ties_even` at the writer boundary, and the writer no
+# longer rounds. Left where it is rather than lowered on a guess.
 rust-version = "1.77"
 description = "Reader and writer for the VNX trail interchange format"
 license = "MIT"

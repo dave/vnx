@@ -18,12 +18,11 @@ internal object Tree {
      * Which normalisations a comparison applies.
      *
      * THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares a
-     * document against a re-encoding of itself, so rounding and the shortest
-     * spelling of a position are applied to both sides — otherwise the tier would
-     * require the file to have been written by this library. The write tier
-     * compares one writer's output against another's, where rounding and
-     * shortening are the very rules under test: normalising them there would make
-     * the tier prove nothing.
+     * document against a re-encoding of itself, so the shortest spelling of a
+     * position is applied to both sides — otherwise the tier would require the
+     * file to have been written by this library. The write tier compares one
+     * writer's output against another's, where shortening is the very rule under
+     * test: normalising it there would make the tier prove nothing.
      */
     class Options(val emitBoundary: Boolean)
 
@@ -140,9 +139,14 @@ internal object Tree {
     }
 
     /**
-     * What section 8.1 lets a comparison ignore about a position: rounding, and a
-     * trailing `null`. Both are emit-boundary rules and are applied only where
-     * [Options.emitBoundary] says so.
+     * What section 8.1 lets a comparison ignore about a position: a trailing
+     * `null`, and nothing else. It is an emit-boundary rule and is applied only
+     * where [Options.emitBoundary] says so.
+     *
+     * A VALUE IS NEVER NORMALISED. Section 4.1 stopped requiring a writer to
+     * round, so a comparison that rounded both sides would hide a writer that
+     * damaged a coordinate — and section 8.1 names the two permitted
+     * normalisations, which no longer include rounding.
      *
      * A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no corpus
      * file carries one. Section 4.1's preservation rule is gone, so a fixture
@@ -152,13 +156,7 @@ internal object Tree {
     private fun position(value: JsonValue, opt: Options): JsonValue {
         val arr = value as? JsonArray ?: return value
         if (!opt.emitBoundary) return arr
-        var out: List<JsonValue> = arr.elements.mapIndexed { index, channel ->
-            if (channel !is JsonNumber) channel else when (index) {
-                0, 1 -> JsonNumber(Rounding.toPlaces(channel.value, 6))
-                2 -> JsonNumber(Rounding.toPlaces(channel.value, 1))
-                else -> channel
-            }
-        }
+        var out: List<JsonValue> = arr.elements
         while (out.size > 2 && out.last() is JsonNull) out = out.dropLast(1)
         return JsonArray(out)
     }

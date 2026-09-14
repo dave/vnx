@@ -1,16 +1,13 @@
 package app.viatrail.vnx
 
-import java.math.BigDecimal
-import java.math.RoundingMode
-
 /**
  * Turns a decoded model back into a JSON value tree.
  *
- * There is one operation, and it is WRITE: SPEC.md section 4.1's emit-boundary
- * rules always apply — coordinates rounded, and the shortest spelling of a
- * position. Writing what was read is legitimately not what was read, byte for
- * byte, because a writer rounds; section 8.1 makes the comparison a comparison
- * of JSON trees for exactly that reason.
+ * There is one operation, and it is WRITE: SPEC.md section 4.1's one
+ * emit-boundary rule always applies — the shortest spelling of a position.
+ * Writing what was read is legitimately not what was read, byte for byte,
+ * because a writer may spell a number differently and omits `hidden: false`;
+ * section 8.1 makes the comparison a comparison of JSON trees for that reason.
  */
 internal class Encoder {
 
@@ -33,23 +30,18 @@ internal class Encoder {
     // ------------------------------------------------------------ positions
 
     /**
-     * Section 4.1: a writer rounds at the serialisation boundary, longitude and
-     * latitude to 6 decimal places and elevation to 1. Time is an integer count
-     * of milliseconds and is not rounded. Rounding MUST NOT happen in the model,
-     * because endpoint comparison and de-duplication compare positions by full
-     * value.
+     * Section 4.1: a writer emits the SHORTEST spelling of a position, which
+     * means dropping trailing nulls. An interior absence keeps its `null` —
+     * dropping it would move the time into the elevation channel. That is ARITY,
+     * not precision.
      *
-     * Section 4.1 again: a writer emits the SHORTEST spelling of a position,
-     * which means dropping trailing nulls. An interior absence keeps its `null` —
-     * dropping it would move the time into the elevation channel.
+     * A VALUE PASSES THROUGH UNCHANGED. Section 4.1 does not constrain how
+     * precisely a writer states a coordinate: rounding is advice there, mirroring
+     * [RFC 7946] Section 11.2, and it carries no requirement. A caller that wants
+     * smaller files rounds its own model before handing it here.
      */
     fun position(p: Position): JsonArray {
-        var channels: List<Double?> = listOf(
-            Rounding.toPlaces(p.lon, 6),
-            Rounding.toPlaces(p.lat, 6),
-            p.ele?.let { Rounding.toPlaces(it, 1) },
-            p.timeMs,
-        )
+        var channels: List<Double?> = listOf(p.lon, p.lat, p.ele, p.timeMs)
         while (channels.size > 2 && channels.last() == null) {
             channels = channels.dropLast(1)
         }
@@ -176,46 +168,4 @@ internal class Encoder {
      * copying its input.
      */
     private fun hidden(value: Boolean?): Boolean? = if (value == true) true else null
-}
-
-/**
- * The emit-boundary rounding of SPEC.md section 4.1: longitude and latitude to 6
- * decimal places, elevation to 1, over the exact binary value of the double.
- * Time is an integer count of milliseconds and is not rounded.
- *
- * ROUNDING IS BY FORMATTING, NEVER BY SCALING, which is what section 4.1
- * requires in as many words. `BigDecimal(value)` is the EXACT binary value, so
- * `setScale` is the correctly rounded decimal of the number the writer was
- * handed — the same operation as formatting to that many places and parsing the
- * text back. Scaling by a power of ten first rounds a product that is itself a
- * binary64, which manufactures ties the true decimal never had and destroys ties
- * it did: measured in Go, the scaling route disagreed with the shared reference
- * table on every row of its `scaling-route` category.
- *
- * Ties round to EVEN. Measured 2026-09-09: Go's `strconv.FormatFloat` and
- * Python's `%.1f` both write 340.25 to one place as `340.2`, where JavaScript's
- * `toFixed` gives `340.3`. `RoundingMode.HALF_UP` agrees with `toFixed` and is
- * wrong here. The tie is not a corner case in these channels — at 1 place every
- * odd quarter is one, so every quarter-metre elevation, and at 6 places every
- * odd multiple of 1/128.
- *
- * `Math.round` is the other trap and the worse one: in Java and JavaScript alike
- * `Math.round(x * 10) / 10` rounds a tie towards POSITIVE INFINITY, which is not
- * this rule. Where it differs is decided by the PARITY OF THE LOWER CANDIDATE,
- * not by the sign:
- *
- * ```
- *   340.25 -> 340.2 here, 340.3 there    differs
- *   340.75 -> 340.8 here, 340.8 there    agrees
- *  -340.25 -> -340.2 here, -340.2 there  agrees
- *  -340.75 -> -340.8 here, -340.7 there  differs
- * ```
- *
- * It differs exactly where this rule rounds towards negative infinity. So a
- * fixture carrying only `340.75` passes a `Math.round` implementation, and one
- * carrying only positives does not: `340.25` catches it on its own.
- */
-internal object Rounding {
-    fun toPlaces(value: Double, places: Int): Double =
-        BigDecimal(value).setScale(places, RoundingMode.HALF_EVEN).toDouble()
 }

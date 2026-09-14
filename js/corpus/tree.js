@@ -10,21 +10,21 @@
 // a reader kept what it read. test/redproof.test.js freezes the proof.
 //
 // ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares a
-// document against a re-encoding of itself, so SPEC.md 4.1's emit-boundary rules
-// — rounding, and the shortest spelling of a position — are applied to both
-// sides; otherwise the tier would require the file to have been written by this
-// library. The write tier compares one writer's output against another's, where
-// those two rules are the very ones under test, so normalising them there would
-// make the tier prove nothing.
+// document against a re-encoding of itself, so SPEC.md 4.1's emit-boundary rule
+// — the shortest spelling of a position — is applied to both sides; otherwise
+// the tier would require the file to have been written by this library. The
+// write tier compares one writer's output against another's, where that rule is
+// the very one under test, so normalising it there would make the tier prove
+// nothing.
 //
-// SPEC.md 8.1 permits EXACTLY TWO normalisations and no others. They are the two
-// named above: the position pair, and an absent container reading the same as an
-// empty one.
-
-import { roundToPlaces } from '../src/round.js';
-
-const LONLAT_PLACES = 6;
-const ELEVATION_PLACES = 1;
+// ⚠ PRECISION IS NEVER NORMALISED, on either tier. SPEC.md 4.1 does not
+// constrain a writer's precision and a reader MUST NOT round, so a comparison
+// that rounded would hide a reader that had. That is what makes
+// `accept/full-precision-coordinate.vnx` an instrument rather than a formality.
+//
+// SPEC.md 8.1 permits EXACTLY TWO normalisations and no others: the shortest
+// spelling of a position, and an absent container reading the same as an empty
+// one.
 
 /**
  * Parse JSON to a plain tree. Numbers land as doubles, so the comparison is
@@ -41,8 +41,8 @@ export function parseTree(text) {
  *
  * It is SCHEMA-AWARE rather than a heuristic over shapes, because the two
  * regions the format declares opaque — a data record's body and a style — may
- * hold arrays of numbers that are not positions and must not be rounded, and may
- * hold empty containers a third party means to keep.
+ * hold arrays of numbers that are not positions and must not be shortened, and
+ * may hold empty containers a third party means to keep.
  *
  * @param {unknown} v
  * @param {{emitBoundary?: boolean}} opt
@@ -157,8 +157,8 @@ function normPositionList(o, key, opt) {
 
 /**
  * The first permitted normalisation: on a position, trailing `null` channels are
- * dropped and SPEC.md 4.1's precision is applied. Both are emit-boundary rules,
- * so both are applied for the accept tier only — see the note at the top.
+ * dropped. It is an emit-boundary rule, so it is applied for the accept tier
+ * only — see the note at the top. A channel's VALUE is never touched.
  *
  * ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY. SPEC.md 4.1's
  * fifth-channel preservation rule is gone, so a fixture asking a writer to
@@ -167,12 +167,7 @@ function normPositionList(o, key, opt) {
  */
 function normPosition(v, opt) {
   if (!Array.isArray(v)) return v;
-  const out = v.map((c, i) => {
-    if (typeof c !== 'number' || !opt.emitBoundary) return c;
-    if (i === 0 || i === 1) return roundToPlaces(c, LONLAT_PLACES);
-    if (i === 2) return roundToPlaces(c, ELEVATION_PLACES);
-    return c;
-  });
+  const out = v.slice();
   if (!opt.emitBoundary) return out;
   let n = out.length;
   while (n > 2 && out[n - 1] === null) n--;

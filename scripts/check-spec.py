@@ -65,7 +65,6 @@ PUBLISHED = [
     "README.md",
     "CONTRIBUTING.md",
     "corpus/README.md",
-    "corpus/numbers/README.md",
     "corpus/write/README.md",
     "corpus/schema/README.md",
     "go/README.md",

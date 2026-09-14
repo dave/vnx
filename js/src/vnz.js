@@ -149,8 +149,8 @@ function pathFault(name) {
 
 /**
  * Write a decoded container back out: the document goes through the encoder, so
- * its coordinates are rounded and its positions shortened, and the attachments
- * and the document's entry name are carried through unchanged.
+ * its positions are written in their shortest spelling, and the attachments and
+ * the document's entry name are carried through unchanged.
  *
  * @param {Container} container from decodeContainer
  * @returns {Buffer}

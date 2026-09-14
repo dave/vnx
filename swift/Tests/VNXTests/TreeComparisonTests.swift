@@ -53,22 +53,34 @@ final class TreeComparisonTests: XCTestCase {
 
     /// And the two normalisations SPEC 8.1 permits are the ONLY two. A style is
     /// opaque, so an empty container inside one is content a third party meant
-    /// to keep, and a number inside one is not a coordinate to be rounded.
+    /// to keep, and a trailing `null` inside one is not a position's channel to
+    /// be dropped.
     func testNothingIsNormalisedInsideAnOpaqueRegion() throws {
         XCTAssertNotNil(try Tree.difference(got: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{\"x\":[]}}]"),
                                             want: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{}}]")))
         XCTAssertNotNil(try Tree.difference(
-            got: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{\"v\":[1.00000005]}}]"),
-            want: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{\"v\":[1]}}]"),
+            got: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{\"v\":[1,2,null]}}]"),
+            want: doc("\"waypoints\":[{\"at\":[1,2],\"style\":{\"v\":[1,2]}}]"),
             Tree.Options(emitBoundary: true)))
     }
 
-    /// The precision rule is applied to BOTH SIDES in the accept tier, and to
-    /// neither in the write tier — where it is the rule under test.
+    /// The shortest-spelling rule is applied to BOTH SIDES in the accept tier,
+    /// and to neither in the write tier — where it is the rule under test.
     func testTheEmitBoundaryNormalisationIsOptional() throws {
-        let precise = doc("\"waypoints\":[{\"at\":[1.00000005,2,340.25,null]}]")
+        let long = doc("\"waypoints\":[{\"at\":[1.00000005,2,340.25,null]}]")
+        let short = doc("\"waypoints\":[{\"at\":[1.00000005,2,340.25]}]")
+        XCTAssertNil(try Tree.difference(got: long, want: short, Tree.Options(emitBoundary: true)))
+        XCTAssertNotNil(try Tree.difference(got: long, want: short))
+    }
+
+    /// ⚠ AND IT NORMALISES NO VALUE, at either setting. The comparator rounded
+    /// channels 0–2 while SPEC 4.1 required a writer to round; with that rule
+    /// gone, a comparator that still rounded would call a writer that lost
+    /// digits equal to one that kept them.
+    func testTheEmitBoundaryNormalisationDoesNotTouchValues() throws {
+        let precise = doc("\"waypoints\":[{\"at\":[1.00000005,2,340.25]}]")
         let rounded = doc("\"waypoints\":[{\"at\":[1.0000001,2,340.2]}]")
-        XCTAssertNil(try Tree.difference(got: precise, want: rounded, Tree.Options(emitBoundary: true)))
-        XCTAssertNotNil(try Tree.difference(got: precise, want: rounded))
+        XCTAssertNotNil(try Tree.difference(got: precise, want: rounded, Tree.Options(emitBoundary: true)),
+                        "a lost digit is a difference, not a normalisation")
     }
 }

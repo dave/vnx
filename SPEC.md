@@ -610,7 +610,7 @@ empty array is distinct from an absent one.
 
 A node is a position (Section 4.1), not an object, and has no keys.
 
-Three notes on the table:
+Notes on the table:
 
 - `folder` names the folder an item sits in. It does not appear on a folder,
   which places itself with `parent`, and it does not appear on a network's
@@ -685,42 +685,18 @@ The following rules apply:
 
 #### Precision
 
-A writer MUST round longitude and latitude to at most 6 decimal places, and
-elevation to at most 1. `time_ms` is an integer count of milliseconds and MUST
-NOT be rounded.
+This format does not constrain how precisely a writer states a coordinate. Any
+binary64 value is a conforming one, and two writers handed the same position may
+state it to different precision.
 
-The rounded value is the value with at most that many decimal places nearest to
-the binary64 value the writer was handed, with a tie resolved to even. An
-elevation of `340.25` becomes `340.2`, not `340.3`.
+A writer should consider the cost of more precision than it needs. Six decimal
+places of longitude and latitude is about 10 cm, well inside the error of a
+consumer GPS receiver, and a document of long tracks can be halved by rounding
+to it. [RFC 7946] Section 11.2 makes the same point about GeoJSON. This
+paragraph is advice and carries no requirement.
 
-The rounding is by formatting. Format the value to that many decimal places and
-parse the text back:
-
-```
-round(v, n) = parse(format(v, n decimal places))
-```
-
-Scaling by a power of ten, rounding, and dividing back is a different operation
-and MUST NOT be used. The scaled product is itself a binary64 and is not always
-the exact scaled value, so the multiplication can manufacture a tie the true
-decimal never had, and can destroy one it did. `0.15` rounds to `0.1` at one
-place where the scaled route gives `0.2`; `0.05` rounds to `0.1` where the
-scaled route gives `0`; `0.45` rounds to `0.5` where the scaled route gives
-`0.4`.
-
-Rounding a value that underflows to zero yields positive zero, and a writer MUST
-NOT emit a negative zero.
-
-`-0` and `0` are the same value, so the tree comparison of Section 8.1 cannot see
-this rule and is not meant to. `corpus/numbers/` pins it.
-
-Rounding MUST happen in the emit path and MUST NOT happen in the model. Arc
-boundary de-duplication, ring winding and endpoint snapping compare positions by
-full value, and rounding ahead of them changes which positions they consider
-equal, which is a change to the geometry rather than to its spelling.
-
-A reader MUST NOT round. Decoding preserves full binary64 precision.
-
+A reader MUST NOT round. Decoding preserves the binary64 value the document
+states.
 
 ### 4.2 Numbers
 
@@ -745,9 +721,6 @@ with a literal `Z` suffix and OPTIONAL fractional seconds. An offset other than
 A record-level timestamp is checked for shape only. A reader MUST NOT refuse or
 diagnose one on calendar grounds, even though ISO 8601 would:
 `2026-13-45T99:99:99Z` matches the grammar this section states and is accepted.
-That is a rule rather than a consequence, and it is stated because naming ISO
-8601 arguably imports a calendar.
-
 Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 8601 string.
 
@@ -769,8 +742,7 @@ Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 - Key order is not significant anywhere in a document, including inside data
   records. A reader MUST accept any key order.
 
-Array order is the opposite, and the two rules sit together so that neither is
-read as the other. Arrays MUST NOT be reordered. The order of an array is data,
+Arrays MUST NOT be reordered. The order of an array is data,
 and it is meaningful wherever an array appears in this format: the positions in
 a `pips` array, the links of a chain, the arcs of a route, and the segments of a
 track. The order of positions in a line is the shape of the line.
@@ -854,34 +826,19 @@ SHOULD disclose the failure rather than present the geometry as computed.
 
 ### 5.3 Profiles
 
-`profile` takes one of two values:
+`profile` is an optional string stating which records its writer chose to
+include. Two values are defined: `full`, every record present, and `portable`,
+records marked vendor in Section 5.2 omitted.
 
-| Value | Effect |
-|---|---|
-| `full` | every record is present |
-| `portable` | records marked vendor in Section 5.2 are omitted |
+`profile` records a choice already made. A reader MUST preserve the value and
+MUST NOT act on it: the records a profile would have removed are already absent.
+A reader MUST accept an unrecognised value and an absent one, and MUST NOT
+refuse either.
 
-`profile` records the choice its writer made. A reader MUST preserve the value
-and MUST NOT act on it: the records a profile would have removed are already
-absent. A reader MUST accept an unrecognised value and an absent one, and MUST
-NOT refuse either.
-
-A record whose type is outside the `app.viatrail.` namespace is kept in both
-profiles. A portable export strips Viatrail-private records; it does not strip
-another program's extensions.
-
-The `app.viatrail.` namespace is reserved without regard to case. A type that
-differs from the prefix only by case, such as `App.viatrail.x`, is inside the
-namespace and is not another program's. A writer MUST NOT author one, and a
-reader classifying a record for the purposes of this section MUST match the
-prefix case-insensitively.
-
-The case-insensitive rule is about the namespace, and it does not reach
-identity. A `@type` value is compared exactly everywhere else in this format:
-`App.viatrail.tag` is a different type from `app.viatrail.tag` and has no row in
-the table in Section 5.2. A reader MUST NOT fold case to resolve one onto the
-other. Rules 3 and 4 of Section 5.1 govern it as they govern any unrecognised
-type.
+A record outside the `app.viatrail.` namespace is kept under both values. The
+namespace is matched without regard to case for this purpose only; `@type` is
+compared exactly everywhere else, so `App.viatrail.tag` is a different type from
+`app.viatrail.tag` and Rules 3 and 4 of Section 5.1 govern it.
 
 ## 6. Reading
 
@@ -1031,11 +988,10 @@ diagnostic rather than one rule with two exceptions.
    dropped around it, and a polygon with nested rings names the polygon while
    the area is dropped around it.
 
-   "No part of which" is load-bearing. A link naming an absent arc and an inline
-   endpoint that misses its arc are near-twins, and they land at different
-   depths for a reason. When the arc is absent nothing about the link resolves,
+   A link naming an absent arc and an inline endpoint that misses its arc land
+   at different depths: when the arc is absent nothing about the link resolves,
    so the link is named; when the endpoint misses the arc, the arc and the other
-   endpoint are still fine, so only `to` is.
+   endpoint still resolve, so only `to` is.
 2. Where the diagnostic is about a relationship, nothing is unusable at all: a
    chain whose links do not meet keeps both links. Such a diagnostic names the
    second of the pair, the link that failed to continue, not the one it failed
@@ -1145,8 +1101,6 @@ implementation.
   does with one it has observed, so a reader that trusts a declared size and
   never notices a shortfall has nothing to do here.
 
-  It is a prohibition rather than an obligation so that no reader has to be
-  structured any particular way.
 - A reader MUST NOT refuse an entry on the ground that its two declared sizes
   disagree with each other, where the CRC over the bytes present agrees. For a
   stored entry the two are equal in a well-formed archive, so a disagreement is
@@ -1189,7 +1143,15 @@ writers are not expected to produce the same bytes for the same document.
 The corpus distributed with this specification is what decides whether an
 implementation conforms. Every implementation runs the same files.
 
-The corpus has four kinds of case, and one reference table:
+The `write/` tier is the only one that exercises the emit-boundary rule of
+Section 4.1, the shortest spelling of a position. Every other tier re-encodes
+what it decoded, which applies the rule to values that already satisfy it, so a
+defect in it is unreachable without this tier. A runner MUST assert that a
+case's input is not already the written form, and that the written form is a
+fixed point of the writer. Without those two guards a writer that echoed its
+input would pass the tier.
+
+The tiers, and what each requires:
 
 | Directory | Requirement |
 |---|---|
@@ -1197,89 +1159,33 @@ The corpus has four kinds of case, and one reference table:
 | `reject/` | MUST be refused, and the refusal MUST name its cause |
 | `diagnose/` | MUST be read, reporting exactly the listed diagnostics |
 | `write/` | a document, and the document a writer MUST produce from it |
-| `numbers/` | reference roundings to 6 and to 1 decimal places |
 
-The `write/` tier is the only one that exercises the emit-boundary rules of
-Section 4.1: rounding, and the shortest spelling of a position. Every other tier
-re-encodes what it decoded, which applies rounding to values that already
-satisfy it, so a defect in either rule is unreachable without the `write/` tier
-and `corpus/numbers/`. A runner MUST assert that a case's input is not already
-the written form, and that the written form is a fixed point of the writer.
-Without those two guards a writer that echoed its input would pass the tier.
+### 8.1 Sidecars and comparison
 
-Accept cases cover at least: a worked example exercising every construct; absent
-elevation and absent time spelled with `null`; a position that renders visibly
-wrong if longitude and latitude are transposed; a coordinate that survives only
-at full binary64 precision; unrecognised data types on unexpected hosts,
-preserved through a read-modify-write; a chain with a shared reversal endpoint;
-a route with mixed hand-drawn and engine-routed arcs; an arc marked
-compute-failed; a track with a pause; a track with no pip times; a document
-whose patch version is above the reader's; and a container under each of the two
-root-document rules of Section 7.
-
-Reject cases cover at least: a `NaN` literal; an `Infinity` literal; a version
-above the reader's; a two-component version; well-formed JSON with no `vnx` key;
-a container with a `..` attachment path; and a container with duplicate entry
-names.
-
-Diagnose cases cover at least: an unrecognised key on an object defined by this
-format; a link naming an absent arc; a chain whose consecutive links do not
-meet; a polygon with a second ring; a record-level timestamp with an offset
-other than `Z`; and a duplicate object key, which expects no diagnostic and
-records the limitation of Section 6.4.
-
-### 8.1 Storage and sidecars
-
-The corpus lives at `corpus/`, at the root of this repository, in directories
-named for the kinds above, and carries its own README.
-
-Each `foo.vnx` or `foo.vnz` has a `foo.expect.json` sidecar holding its expected
-result. The sidecar is plain JSON beside the file rather than inside a test in
-any one language, so that an implementation in any language can run the corpus.
-A file with no sidecar is a failure, not a skip.
-
-Three sidecar fields do work that is not evident from their names:
-
-- `counts` gives the exact number of entries in each collection, and prevents an
-  accept case passing vacuously. A decoder returning an empty document for every
-  input would otherwise satisfy "no error and no diagnostics" on all of them.
-- `positions` pins which number reached which channel, and is the only available
-  defence against a longitude and latitude transposition: both orderings parse,
-  both are in range, and the point lands 8,000 km away with every structural
-  check still passing. The expected values are JSON numbers, so the comparison
-  is between doubles rather than between formatted text.
-- `moving_time_ms` set to `null` means unknown, which is not zero
-  (Section 3.5).
+Each case carries a `foo.expect.json` sidecar holding its expected result, as
+plain JSON beside the file rather than inside a test in any one language. A file
+with no sidecar is a failure, not a skip.
 
 A diagnostic is matched on its `path` and its `code` (Section 6.3). Its English
-is advisory and MUST NOT be compared.
-
-A refusal is matched as a substring of its message, which is the one place this
-corpus compares English across implementations. The exact wording of a refusal
-is an implementation's own business and naming its cause is not, so the
-substring is a weak proxy for the second.
+is advisory and MUST NOT be compared. A refusal is matched as a substring of its
+message, which is the one place this corpus compares English.
 
 For every file in `accept/`, a runner MUST decode it, encode the decoded
 document, and compare the tree parsed from the original file against the tree
-parsed from the encoded output.
-
-Two normalisations are permitted, and no others: on a position, trailing `null`
-channels are dropped and the precision rules of Section 4.1 are applied to both
-sides; and an absent container and an empty one normalise to the same value,
-which Section 3.1 requires a reader to do. Nothing else may be normalised away.
-Files in `reject/` and `diagnose/` are not subject to this check.
+parsed from the encoded output. It MUST NOT be reduced to a comparison of one
+decoded model against another: a reader that discarded every data record, every
+ruleset, every style and every `notes` field produces a model equal to itself.
+Two normalisations are permitted and no others — trailing `null` channels
+dropped from a position, and an absent container equal to an empty one. Files in
+`reject/` and `diagnose/` are not subject to this check.
 
 The comparison is over trees because the bytes of a document are not
-constrained: key order, number spelling and whitespace are all the writer's own
+constrained: key order, number spelling and whitespace are the writer's own
 business.
 
-It MUST NOT be reduced to a comparison of one decoded model against another. A
-reader that discarded every data record, every ruleset, every style and every
-`notes` field produces a model that compares equal to itself, and that is the
-whole extensibility mechanism, all styling and all user prose. Comparing against
-the tree parsed from the original file is what proves a reader kept what it
-read.
-
+`corpus/README.md` is the runner contract: which cases exist, what each sidecar
+field means, and how to add one. It is normative for a runner and is kept in the
+corpus so that it cannot drift from the files it describes.
 
 ## 9. Security considerations
 

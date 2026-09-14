@@ -12,7 +12,7 @@ appear to disagree, `SPEC.md` is right.
     rule this document discusses is stated there.
 2.  Read `corpus/README.md`. The sidecar fields listed there are the contract
     your test runner implements.
-3.  Watch a green run before writing anything, so you know what one looks like:
+3.  Watch a green run before writing anything:
 
     ```sh
     cd js  && node corpus/run.js     # prints "n/m cases passed" and exits 0
@@ -21,7 +21,7 @@ appear to disagree, `SPEC.md` is right.
 
 4.  Write the runner before the library. Point it at `corpus/`, walk every
     fixture, compare against the sidecar beside it, and treat a fixture with no
-    sidecar as a failure rather than a skip.
+    sidecar as a failure, not a skip.
 5.  Run it. Every case fails. Make them pass one tier at a time, in the order
     of section 2.
 6.  Red-proof the runner. Break your library one rule at a time, run the check
@@ -30,9 +30,9 @@ appear to disagree, `SPEC.md` is right.
 
 The rest of this document is where a language's defaults quietly disagree with
 the format, and where a test written to catch that disagreement fails to catch
-it. Six implementations were written from `SPEC.md` and `corpus/` alone — Go,
-Python, Swift, Kotlin, JavaScript and Rust — and everything below is something
-at least one of them got wrong first. Each entry gives the requirement, the
+it. Six implementations were written from `SPEC.md` and `corpus/` alone: Go,
+Python, Swift, Kotlin, JavaScript and Rust. Everything below is something at
+least one of them got wrong first. Each entry gives the requirement, the
 languages that fall into it, and the measurement. Measurements are attributed to
 the implementation that made them; nothing here is inferred from another
 implementation's source.
@@ -42,7 +42,7 @@ Read it before writing your encoder, not after your corpus run goes red.
 A caution about the numbers in it. Each is a measurement of a particular file at
 a particular moment, not a property of the format. Fixtures move. A number
 copied out of this document into a test asserts, from then on, that a file says
-what it said, so name the artefact beside it or write the claim as a
+what it said. Name the artefact beside it, or write the claim as a
 counterfactual, which has no artefact to go stale against.
 
 ---
@@ -59,20 +59,18 @@ proves it.
 | `reject/` | A refusal channel separate from your return value, carrying one of `SPEC §6.2`'s causes. |
 | `diagnose/` | One diagnostic per bad path, each with a stable code, with the rest of the document read and returned. |
 | `write/` | The one emit-boundary rule: `SPEC §4.1`'s shortest spelling of a position. No other document tier reaches it. |
-| `numbers/` | Rounding as an operation on a value, correct on ordinary values as well as on ties, compared by bit pattern. |
 
-Two properties of that order are worth knowing in advance.
+Two properties of that order:
 
-`accept/` is the hardest tier and the one that repays being built first, because
-its comparison is against the **tree parsed from the original file**, never
-against a second model. A reader that discarded every data record, every
-ruleset, every style and every `notes` produces a model equal to itself and
-passes a model-versus-model tier green — that is the whole extensibility
-mechanism, all styling and all user prose, dropped by an implementation that
-reports itself conforming. *(Frozen as a proof by the Rust, Swift, Python and
-JavaScript implementations independently.)*
+`accept/` is the hardest tier and the one to build first. Its comparison is
+against the tree parsed from the original file, never against a second model. A
+reader that discarded every data record, every ruleset, every style and every
+`notes` produces a model equal to itself and passes a model-versus-model tier
+green: the whole extensibility mechanism, all styling and all user prose,
+dropped by an implementation that reports itself conforming. *(Frozen as a
+proof by the Rust, Swift, Python and JavaScript implementations independently.)*
 
-`write/` and `numbers/` are the only tiers that reach a writer. The other three
+`write/` is the only tier that reaches a writer. The other three
 start from a document that exists, so every value in them satisfies `SPEC §4.1`
 before your writer is asked anything (section 10.1).
 
@@ -80,38 +78,36 @@ before your writer is asked anything (section 10.1).
 
 ## 3. Choose your JSON layer
 
-This is the first decision and the most expensive one to revisit, because the
-format's reading rules are stated in detail and a stock parser answers on its
-own terms instead. Work down this table against the library you were going to
-reach for.
+This is the first decision and the most expensive one to revisit. The format's
+reading rules are stated in detail, and a stock parser answers on its own terms.
+Work down this table against the library you were going to reach for.
 
 | What the format needs | What a stock JSON layer tends to do | Cite |
 |---|---|---|
-| `NaN`, `Infinity` and `-Infinity` refused | Several accept them by default. It is a flag to turn off rather than a behaviour you inherit. | `SPEC §4.2` |
+| `NaN`, `Infinity` and `-Infinity` refused | Several accept them by default. It is a flag to turn off, not a behaviour you inherit. | `SPEC §4.2` |
 | A literal whose value is not finite in binary64 refused | `1e400` is well-formed JSON. Parsers differ: one errors, one throws, one returns infinity in silence, one keeps the text and fails only on conversion. | `SPEC §4.2` |
 | One diagnostic per bad path, the rest of the document kept | Stops at the first syntax error, and reports one failure for the whole document. | `SPEC §6.2` |
-| Every number parsed as binary64, integer literals included | Widens or narrows to the type it infers — an integer type for an integer literal, a decimal type for a number with a point. | `SPEC §4.2` |
+| Every number parsed as binary64, integer literals included | Widens or narrows to the type it infers: an integer type for an integer literal, a decimal type for a number with a point. | `SPEC §4.2` |
 | The last bit of a coordinate preserved | Short-parse paths trade the last bit for speed, and a full-precision coordinate is exactly where that shows. | `SPEC §4.1` |
 | Duplicate keys seen, or the limitation accepted knowingly | Resolves last-wins before any format rule runs, so an entry vanishes unobservably. | `SPEC §6.4` |
-| Strict reading | Offers permissive modes — trailing commas, comments, unquoted keys — that accept exactly what `SPEC §4.2` forbids. | `SPEC §4.2` |
+| Strict reading | Offers permissive modes (trailing commas, comments, unquoted keys) that accept exactly what `SPEC §4.2` forbids. | `SPEC §4.2` |
 | Number rendering | Renderers disagree about the shortest round-tripping spelling. A renderer that spells `-3.67` as `-3.6699999999999999` round-trips correctly and is legal. | `SPEC §8.1` |
 
-Read the table in two halves, because reading and writing land differently.
+Read the table in two halves; reading and writing land differently.
 
-**The reader is the half you probably write yourself.** Six of the eight rows
-above are reader rules, and the format spells out what a reader does with a
-document that is wrong in a particular way. A parser that stops at the first
-error cannot produce the per-path diagnostics `SPEC §6.2` asks for, whatever
-else it does well. Writing a JSON parser that produces a value tree is a day's
-work, and it buys strictness, the position of each value for a JSON Pointer, and
-the option of seeing a duplicate key.
+The reader is the half you probably write yourself. Six of the eight rows above
+are reader rules, and the format spells out what a reader does with a document
+that is wrong in a particular way. A parser that stops at the first error cannot
+produce the per-path diagnostics `SPEC §6.2` asks for. Writing a JSON parser
+that produces a value tree is a day's work, and it buys strictness, the position
+of each value for a JSON Pointer, and the option of seeing a duplicate key.
 
-**The writer is the half you should not write.** Nothing about a document's
-bytes is a rule — `SPEC §4.2` defines round-trip at value level and `SPEC §8.1`
-compares parsed trees — so key order, number spelling and whitespace are your
-own business, and a hand-written renderer buys nothing. Take the stock one.
-Check that it renders a double as a shortest round-tripping decimal before you
-commit to it.
+The writer is the half you should not write. Nothing about a document's bytes
+is a rule: `SPEC §4.2` defines round-trip at value level and `SPEC §8.1`
+compares parsed trees. Key order, number spelling and whitespace are your own
+business, and a hand-written renderer buys nothing. Take the stock one. Check
+that it renders a double as a shortest round-tripping decimal before you commit
+to it.
 
 **Do not decode through a derive macro, a `Codable` conformance, or any other
 schema-driven binding.** It is the shape every one of these languages pushes you
@@ -121,12 +117,12 @@ silently drops every key your type does not name, which is the extensibility
 mechanism of `SPEC §3.10`, `SPEC §5.1` and `SPEC §3.9`. Parse to a generic value
 tree and walk it by hand.
 
-Two settings are worth naming because they are easy to miss:
+Two settings are easy to miss:
 
 - A parser may offer an exact-float mode as a non-default feature flag. Without
   it, `corpus/accept/full-precision-coordinate.vnx` decodes one bit low, and
   the last bit of a coordinate is what that case exists to protect.
-- A parser may hand you a decimal or big-integer type rather than a double.
+- A parser may hand you a decimal or big-integer type instead of a double.
   `SPEC §4.2` defines numbers as IEEE 754 binary64, so the conversion has to
   happen, and doing it late means two values that are one document compare as
   two.
@@ -135,15 +131,12 @@ Two settings are worth naming because they are easy to miss:
 
 ## 4. The model
 
-The section that saves the most time, because these are decisions made in the
-first hour and discovered in the last.
+These are decisions made in the first hour and discovered in the last.
 
 ### 4.1 Absence, and the two places it means something different
 
 `SPEC §3.1`: absence means "not known" and is not a default value, with two
 stated exceptions.
-
-Two rules pull in opposite directions here, and each holds in its own place.
 
 For an OPTIONAL collection, absent and empty carry the same content and
 `SPEC §3.1` requires a reader to treat them alike. `SPEC §8.1` normalises the
@@ -152,11 +145,11 @@ to. A model that holds both shapes is free to; a model that folds them together
 is equally conforming.
 
 For a REQUIRED key, they are distinct. `SPEC §3.10`: `"links": []` satisfies
-`links` and an absent `links` does not, because a required key must be present
-for the object to exist. That is the difference worth building for.
+`links` and an absent `links` does not. A required key must be present for the
+object to exist.
 
-A `hidden` written as `false` is a third case again: `SPEC §3.8` gives absence
-the meaning visible, and a writer emits the key only when it is true.
+A `hidden` written as `false` is a third case: `SPEC §3.8` gives absence the
+meaning visible, and a writer emits the key only when it is true.
 
 `label-visible` is where getting this wrong is invisible. Absence means Auto, and
 a reader that treats it as `false` flattens Auto to hidden with nothing to report
@@ -165,13 +158,12 @@ a reader that treats it as `false` flattens Auto to hidden with nothing to repor
 The language pulls here. A plain list for every collection, where absent and
 empty are one value, is more idiomatic in Rust than an optional list, and every
 reviewer would suggest the change. For the seven document collections that
-change is safe, because `SPEC §3.1` puts the two shapes on the same footing.
-Where it is not safe is a required key, and a model that cannot tell an absent
-`links` from an empty one cannot report the object as malformed.
+change is safe: `SPEC §3.1` puts the two shapes on the same footing. It is not
+safe for a required key. A model that cannot tell an absent `links` from an
+empty one cannot report the object as malformed.
 
-The two absences that do carry a meaning are named in `SPEC §3.1`, and they are
-the only ones: an absent `label-visible` is Auto, and an absent `hidden` is
-visible. Every other absence is "not known" and stays that way through a
+Those two absences, Auto and visible, are the only ones `SPEC §3.1` gives a
+meaning. Every other absence is "not known" and stays that way through a
 read-modify-write.
 
 ### 4.2 Opaque bodies survive at value level
@@ -180,27 +172,26 @@ Data records (`SPEC §5.1`), `rulesets` (`SPEC §3.9`) and style objects
 (`SPEC §3.10`) are opaque: no key inside them is ever unrecognised, and each has
 to survive a read-modify-write untouched.
 
-That is a modelling decision rather than a serialisation one. Decode a record
-body into a typed structure and you lose the fields your type does not name. The
-accept tier's tree comparison is what catches it, and it is the only thing that
-does: every other assertion in a sidecar is about a construct the format names.
+That is a modelling decision, not a serialisation one. Decode a record body into
+a typed structure and you lose the fields your type does not name. The accept
+tier's tree comparison is the only thing that catches it: every other assertion
+in a sidecar is about a construct the format names.
 
 Keep such a body as whatever your JSON layer produced. It is the one place where
 holding an untyped value is the correct model.
 
 An opaque body can hold a normative *value* without ceasing to be opaque. A
 style body is opaque by ruling, and `SPEC §3.6` puts a normative range on its
-`importance`. That is not a contradiction: a normative range is a rule about a
-value, not about a key set, exactly as `SPEC §5.2` gives typed payloads to
-records whose bodies stay opaque.
+`importance`. A normative range is a rule about a value, not about a key set,
+exactly as `SPEC §5.2` gives typed payloads to records whose bodies stay opaque.
 
 ### 4.3 A position's arity is a spelling, not a fact
 
 `[lon, lat]` and `[lon, lat, null]` state the same thing, and a reader must take
 either. Implementations split on whether the model holds the arity the file
-spelled or a fixed set of channels, and **both pass**, because a writer emits the
-shortest spelling of a position (`SPEC §4.1`) and the accept tier's comparison
-normalises trailing `null` channels on both sides (`SPEC §8.1`).
+spelled or a fixed set of channels, and both pass: a writer emits the shortest
+spelling of a position (`SPEC §4.1`) and the accept tier's comparison normalises
+trailing `null` channels on both sides (`SPEC §8.1`).
 
 The distinction that is not free: an *interior* `null` is meaning, not spelling.
 `[lon, lat, null, time]` says the elevation is unknown and the time is known, and
@@ -216,11 +207,11 @@ on it.
 
 `NaN`, `Infinity` and `-Infinity` are not JSON, and a document containing one is
 refused (`SPEC §4.2`). Several standard libraries accept them by default,
-Python's `json` module among them, so this is a flag to turn off rather than a
-behaviour you inherit.
+Python's `json` module among them. This is a flag to turn off, not a behaviour
+you inherit.
 
 A literal like `1e999` or `1e400` is well-formed JSON whose value is not finite
-in binary64: it parses to infinity rather than failing. Check after parsing as
+in binary64: it parses to infinity instead of failing. Check after parsing as
 well as during; a `JSON.parse` reviver or equivalent hook is enough.
 
 The three literals fail differently in different runtimes, and the differences do
@@ -230,34 +221,34 @@ not line up:
 |---|---|---|---|
 | `NaN` | error | throws | accepts, giving `nan` |
 | `Infinity` | error | throws | accepts, giving `inf` |
-| `1e400` | error into `float64` | returns infinity silently | accepts, giving `inf` | Go accepts `1e400` into
-`json.Number`, keeping the text, and refuses it only on unmarshal into `float64`.
+| `1e400` | error into `float64` | returns infinity silently | accepts, giving `inf` |
+
+Go accepts `1e400` into `json.Number`, keeping the text, and refuses it only on
+unmarshal into `float64`.
 
 Two consequences. The `reject/` sidecars expect the substring `malformed JSON`,
 which describes what a *strict* parser says; both Go and Node are strict here, so
-it is a strict-parser artefact rather than one language's. The implementation it
-bites is Python, whose `json.loads` accepts all three by default: a Python
+it is a strict-parser artefact, not one language's. The implementation it bites
+is Python, whose `json.loads` accepts all three by default: a Python
 implementation either makes its parser strict or refuses under `SPEC §4.2`, and a
 `SPEC §4.2` refusal legitimately does not contain the words "malformed JSON".
 
-And `1e400` is the case every library catches for itself, with the runtimes
-failing differently rather than uniformly. Node hands back infinity with no
-complaint, so a reviver or an equivalent post-parse check is the only thing
-between it and a coordinate of infinity.
+And `1e400` is the case every library catches for itself. Node hands back
+infinity with no complaint, so a reviver or an equivalent post-parse check is
+the only thing between it and a coordinate of infinity.
 
 ### 5.2 Duplicate object keys
 
 Two entries with the same key resolve last-wins in Go's `encoding/json`, Node's
-`JSON.parse` and Python's `json`, all measured, before any format rule runs, so
-an entry vanishes and a reader built on a stock parser cannot observe it
+`JSON.parse` and Python's `json`, all measured, before any format rule runs. The
+entry vanishes and a reader built on a stock parser cannot observe it
 (`SPEC §6.4`). `corpus/diagnose/duplicate-object-key.vnx` expects no diagnostic.
 
-Before taking that at face value: the format pushes you into writing your own
-parser anyway (section 3), and once you have one, detecting a duplicate key is
-about three lines. The limitation belongs to stock parsers rather than to the
-format. Since the corpus case expects
-no diagnostic, a reader that gains the ability turns it red, which is the signal
-to revisit the limitation rather than a failure.
+The format pushes you into writing your own parser anyway (section 3), and once
+you have one, detecting a duplicate key is about three lines. The limitation
+belongs to stock parsers, not to the format. Since the corpus case expects no
+diagnostic, a reader that gains the ability turns it red. That is the signal to
+revisit the limitation, not a failure.
 
 ### 5.3 Parse every number as binary64
 
@@ -272,24 +263,26 @@ JSON integer is a binary64 too, and rendering it as one is what makes
 Parse every number as binary64 and write back the value, not the text
 (`SPEC §4.2`). That is the whole of it.
 
-⚠ **NOTHING HERE REQUIRES YOU TO ROUND.** `SPEC §4.1` does not constrain a
-writer's precision, so an implementation that writes what it was handed is
-conforming and has no rounding rule to get right.
+Nothing here requires you to round. `SPEC §4.1` does not constrain a writer's
+precision, so an implementation that writes what it was handed is conforming and
+has no rounding rule to get right.
 
-If your application chooses to round — to make its files smaller, which is the
-only thing rounding buys — two traps are worth knowing, because they are
-genuinely hard to see. `Math.round(x * 10) / 10` is half-up on the JVM and in
-JavaScript, not half-to-even. And scaling by a power of ten before rounding is a
-different operation from formatting to N places: the scaled product is itself a
-binary64, so it manufactures ties the true decimal never had and destroys ones it
-did. Both are your implementation's business, not the format's.
+If your application chooses to round, to make its files smaller, which is the
+only thing rounding buys, two traps are hard to see. `Math.round(x * 10) / 10`
+is half-up on the JVM and in JavaScript, not half-to-even. And scaling by a
+power of ten before rounding is a different operation from formatting to N
+places: the scaled product is itself a binary64, so it manufactures ties the
+true decimal never had and destroys ones it did. Both are your implementation's
+business, not the format's.
 
-⚠ **WHAT SURVIVES IS THE READER'S HALF.** A reader MUST NOT round. Whatever
-precision a document states is what the reader keeps, and
+The reader's half is a rule. A reader MUST NOT round. Whatever precision a
+document states is what the reader keeps, and
 `corpus/accept/full-precision-coordinate.vnx` is the case that proves it. In
 Rust this needs `serde_json`'s `float_roundtrip` feature, which is why
 `Cargo.toml` pins it with a comment: without it `-3.6712345678901235` parses one
 bit away from what `str::parse` gives.
+
+---
 
 ## 7. Geometry
 
@@ -308,9 +301,11 @@ against one corpus endpoint spread from 19.81 m to 36.47 m, a factor of 1.8:
 | equirectangular, cosine of the query point's latitude, as specified | 19.81 m |
 | equirectangular, cosine of each point's own latitude | 20.34 m |
 | degrees scaled by 111 320 on both axes, no cosine | 25.52 m |
-| Web Mercator | 36.47 m | An implementation reaching for Web
-Mercator, or scaling by degrees with no cosine term, passes every structural
-check and disagrees about which documents are legal.
+| Web Mercator | 36.47 m |
+
+An implementation reaching for Web Mercator, or scaling by degrees with no cosine
+term, passes every structural check and disagrees about which documents are
+legal.
 
 ### 7.2 A refusal fixture cannot discriminate, so the arc's direction is the test
 
@@ -318,8 +313,8 @@ This is the least obvious property in the corpus and the first casualty of a
 tidy-up.
 
 A fixture that must be refused cannot tell a correct model from one that
-over-reads, because a model reading a larger distance also refuses. Every wrong
-model refuses a 55 m case.
+over-reads: a model reading a larger distance also refuses. Every wrong model
+refuses a 55 m case.
 
 Discrimination comes from the arc's direction. Run the arc north to south, so its
 first vertex sits at high latitude and the query point at low, and a model taking
@@ -333,19 +328,19 @@ over-reads and refuses good geometry;
 `corpus/diagnose/inline-endpoint-beyond-tolerance.vnx` catches one that
 under-reads and accepts bad geometry.
 
-The separation has to be large enough for the error to cross the threshold rather
-than merely move the number, and that is a stronger requirement than it sounds.
-On an arc spanning three degrees of latitude, a segment-start-cosine model reads
-48.87 m and 59.73 m where the correct model reads 45 and 55: an 8.5 per cent
-error, plainly visible in the numbers, and the verdict is unchanged on both
-files. Thirteen degrees gives 67.447 m and 36.845 m, which flips both. A fixture
-that moves a number without moving a verdict separates nothing.
+The separation has to be large enough for the error to cross the threshold, not
+merely move the number. On an arc spanning three degrees of latitude, a
+segment-start-cosine model reads 48.87 m and 59.73 m where the correct model
+reads 45 and 55: an 8.5 per cent error, plainly visible in the numbers, and the
+verdict is unchanged on both files. Thirteen degrees gives 67.447 m and
+36.845 m, which flips both. A fixture that moves a number without moving a
+verdict separates nothing.
 
 All four figures assume the mean radius of 6 371 008.8 m that `SPEC §3.3.3`
 names, and only that constant reproduces the 45 and 55 the fixtures are named
 for: at 111 132 m per degree the same coordinates solve to 44.974 and 54.969.
-The difference never moves a verdict, which is exactly why a distance quoted
-without its constant outlives both.
+The difference never moves a verdict, which is why a distance quoted without its
+constant outlives both.
 
 ---
 
@@ -354,24 +349,24 @@ without its constant outlives both.
 ### 8.1 Two channels, and a caller who can tell them apart
 
 `SPEC §6.2` and `SPEC §6.3` divide every bad document into two outcomes, and they
-are separate channels rather than two severities on one list. A document that
-cannot be read at all is **refused**: your language's error mechanism, carrying
-one of `SPEC §6.2`'s causes. A document that can be read with pieces dropped
-comes back as a document **alongside** its diagnostics.
+are separate channels, not two severities on one list. A document that cannot be
+read at all is refused: your language's error mechanism, carrying one of
+`SPEC §6.2`'s causes. A document that can be read with pieces dropped comes back
+as a document alongside its diagnostics.
 
-Collapsing them is the common shape and it costs the caller the distinction
+Collapsing them is the common shape, and it costs the caller the distinction
 between "you have nothing" and "you have most of it". Every implementation here
 raises a dedicated refusal type and returns diagnostics as data.
 
 `SPEC §6.3` gives a diagnostic a stable `code`. That is what a conformance case
 compares; the English message beside it is advisory and nothing compares it. Keep
-both, and keep the code a closed set with no catch-all member — a catch-all is
-how an unclassified failure reaches a caller wearing a classification.
+both, and keep the code a closed set with no catch-all member. A catch-all is how
+an unclassified failure reaches a caller wearing a classification.
 
 Refusals are matched as an English substring by the `reject/` sidecars, which is
 the remaining place the corpus compares English across implementations. Structure
 your refusal causes as a closed set regardless, so the day refusals gain codes is
-a mapping rather than a rewrite.
+a mapping, not a rewrite.
 
 ### 8.2 Nothing malformed becomes a default
 
@@ -382,49 +377,47 @@ collection.
 The rule is easy to agree with and easy to break in one specific place: a
 "sensible" default for a missing or unparseable number reads as robustness and is
 indistinguishable, downstream, from a document that said so. `Track#movingTime`
-returning zero where the answer is unknown is the worked example — unknown is not
+returning zero where the answer is unknown is the worked example. Unknown is not
 zero, and `corpus/accept/track-without-times.vnx` and
 `corpus/accept/track-partly-timed.vnx` are where it shows.
 
 The two absences that legitimately carry a meaning are in section 4.1, and they
-are absences in a conforming document rather than malformed values.
+are absences in a conforming document, not malformed values.
 
 ### 8.3 Geometry is continuous and structure is not
 
 `SPEC §6.2`'s remedies read as inconsistent and are not. A position inside `pips`
-that will not parse drops **the arc or segment that holds it**, not the position.
-A link that cannot be used is dropped and its chain survives.
+that will not parse drops the arc or segment that holds it, not the position. A
+link that cannot be used is dropped and its chain survives.
 
 They are the same rule. A missing vertex changes the shape of a line and leaves
 nothing to indicate it: a shorter, plausible, wrong line. A missing link leaves a
 gap the continuity rule of `SPEC §3.3.3` can see and report, so nothing is lost
-silently. A ring vertex that will not parse drops the **area**, for the same
-reason plus `SPEC §3.7`: a polygon is one closed ring of at least four positions,
-so dropping a vertex both moves the boundary and can turn a four-vertex ring into
-a three-vertex non-ring.
+silently. A ring vertex that will not parse drops the area, for the same reason
+plus `SPEC §3.7`: a polygon is one closed ring of at least four positions, so
+dropping a vertex both moves the boundary and can turn a four-vertex ring into a
+three-vertex non-ring.
 
-A diagnostic should therefore name *what was dropped* rather than only what was
-wrong, because the remedy is not the same everywhere and a caller should not have
-to derive it from the pointer. `corpus/diagnose/position-unusable.vnx` is the
-case.
+A diagnostic should therefore name *what was dropped*, not only what was wrong.
+The remedy is not the same everywhere, and a caller should not have to derive it
+from the pointer. `corpus/diagnose/position-unusable.vnx` is the case.
 
 ### 8.4 Resource bounds are the caller's decision, not yours
 
-`SPEC §9` says a reader SHOULD bound what one document may consume, and the
-library cannot know the bound while the caller can: an application exporting its
-own library legitimately produces a ten-million-waypoint document, and a server
+`SPEC §9` says a reader SHOULD bound what one document may consume. The library
+cannot know the bound while the caller can: an application exporting its own
+library legitimately produces a ten-million-waypoint document, and a server
 accepting an upload from a stranger does not. Any constant picked inside the
 library is wrong for one of them.
 
-So the answer, if you implement it, is **a lever rather than a limit**: an
-optional cap, defaulting to none, refusing beyond it with a cause. That is the
-no-fallbacks rule applied to a resource policy — do not invent one, expose the
-decision.
+So the answer, if you implement it, is a lever, not a limit: an optional cap,
+defaulting to none, refusing beyond it with a cause. That is the no-fallbacks
+rule applied to a resource policy. Do not invent one; expose the decision.
 
-One bound belongs in the library where the others do not: **nesting depth**.
-Recursion depth is the one resource whose failure is a stack overflow rather than
+One bound belongs in the library where the others do not: nesting depth.
+Recursion depth is the one resource whose failure is a stack overflow, not
 slowness, and a stack overflow is not a refusal a caller can handle. That makes
-it a correctness bound rather than a policy one.
+it a correctness bound, not a policy one.
 
 ---
 
@@ -442,40 +435,38 @@ not, for three reader rules and one instrument problem.
 - **An unusable compression method takes a different remedy for the root
   document than for an attachment.** A library gives you one behaviour for
   both. `corpus/diagnose/container-unusable-method.vnz` is the case.
-- **A duplicate entry name is seen twice rather than resolved.** Every library
-  resolves it, because resolving it is what an archive reader is for.
+- **A duplicate entry name is seen twice, not resolved.** Every library
+  resolves it; resolving it is what an archive reader is for.
   `corpus/reject/container-duplicate-entries.vnz` is the case.
 
 Add ZIP64: `SPEC §7` requires a reader to accept it. Writing it is optional, and
 every implementation here writes plain archives.
 
-Build your own ZIP64 fixture with care, because the obvious route leaves the
-parser untested. A reader takes its sizes from the central directory, so an
-archive that masks them in the **local header only** — which is what Python's
-`force_zip64` produces — can be read correctly with the extra-field parser
-deleted entirely. Mask both sizes and the local-header offset in the *central
-directory*, and saturate every field the end record can, so the ZIP64 locator
-has to be followed.
+Build your own ZIP64 fixture with care; the obvious route leaves the parser
+untested. A reader takes its sizes from the central directory, so an archive
+that masks them in the local header only, which is what Python's `force_zip64`
+produces, can be read correctly with the extra-field parser deleted entirely.
+Mask both sizes and the local-header offset in the *central directory*, and
+saturate every field the end record can, so the ZIP64 locator has to be
+followed.
 
 ### 9.2 A reader and a writer by the same hand agree perfectly
 
 Two halves written by one author can be wrong in the same way and never
-disagree, so **read every archive you produce back with a library that never saw
-this specification**.
+disagree. Read every archive you produce back with a library that never saw
+this specification.
 
-Necessary and not sufficient, which is the sharper half. Every ZIP library
-resolves an entry from the **central directory**: it is the authoritative index
-and the local header a hint. So no library-based check can witness a rule about a
-local header, whoever wrote the library. Corrupt a local header's version and CRC
-and a library-based reader reports nothing wrong — it never consults that header.
+Necessary and not sufficient. Every ZIP library resolves an entry from the
+central directory: it is the authoritative index and the local header a hint. So
+no library-based check can witness a rule about a local header, whoever wrote
+the library. Corrupt a local header's version and CRC and a library-based reader
+reports nothing wrong; it never consults that header. An independent reader is
+not automatically an independent instrument. It can consult the same field the
+defect is not in.
 
-> An independent reader is not automatically an independent instrument. It can
-> consult the same field the defect is not in.
-
-`SPEC §7.1` requires the UTF-8 filename flag on **every entry**, and that flag
-sits in the local header as well as in the central directory. No reader built on
-a ZIP library can witness the local copy, because every such library answers from
-the central directory. Walk the archive forward as bytes.
+`SPEC §7.1` requires the UTF-8 filename flag on every entry, and that flag sits
+in the local header as well as in the central directory. No reader built on a
+ZIP library can witness the local copy. Walk the archive forward as bytes.
 
 The same blindness makes a fixture look like coverage when it is not. A
 committed `.vnz` whose local headers carry zeros where the central directory
@@ -485,21 +476,20 @@ and test nothing about it.
 
 ### 9.3 Three hazards in the reader, each with a mutation behind it
 
-- **Never reserve a declared uncompressed size up front.** Use it as a
-  **ceiling**: hand the decompressor one byte more than the declared size and no
-  more, so a stream that over-produces is stopped there rather than run to
-  completion and measured afterwards. In some languages an allocation failure
-  aborts the process rather than returning an error, which no caller can
-  intercept.
+- **Never reserve a declared uncompressed size up front.** Use it as a ceiling:
+  hand the decompressor one byte more than the declared size and no more, so a
+  stream that over-produces is stopped there instead of run to completion and
+  measured afterwards. In some languages an allocation failure aborts the
+  process instead of returning an error, which no caller can intercept.
 - **Check the CRC.** A corrupt *attachment* is caught by nothing else: the
   document keeps parsing, so the archive reads clean.
 - **A stored entry whose two declared sizes disagree is not a refusal.** The
-  temptation is strong, because for a stored entry the two are equal in a
-  well-formed archive and a disagreement looks like a truncated entry read as
-  whole. `SPEC §7` forbids refusing on it, for the same reason it forbids
-  refusing on a declared size that exceeds the bytes present: the CRC settles
-  what the entry contains and a size field does not. Record a diagnostic if you
-  like; do not refuse, and do not drop the entry.
+  temptation is strong: for a stored entry the two are equal in a well-formed
+  archive, and a disagreement looks like a truncated entry read as whole.
+  `SPEC §7` forbids refusing on it, for the same reason it forbids refusing on
+  a declared size that exceeds the bytes present: the CRC settles what the
+  entry contains and a size field does not. Record a diagnostic if you like; do
+  not refuse, and do not drop the entry.
 
   Work out what bounds the read once the two sizes need not agree, and write it
   down. The declared *compressed* size, capped by the next local header or the
@@ -508,17 +498,16 @@ and test nothing about it.
   disagreement between the two cannot change what comes back.
 
 A sweep of every prefix and every single-byte flip of a container reaches none
-of the following, and it is worth knowing why. A ZIP64 extended information
-field can name a local-header offset anywhere in a 64-bit range, so
-`offset + length` can overflow a pointer-sized integer before any bounds check
-runs. In a release build it wraps and the archive is refused, so nobody notices;
-in a debug build it panics. Reaching it needs an offset near the top of the
-64-bit range, which is a hand-built archive rather than a bit-flip of a
-committed one.
+of the following. A ZIP64 extended information field can name a local-header
+offset anywhere in a 64-bit range, so `offset + length` can overflow a
+pointer-sized integer before any bounds check runs. In a release build it wraps
+and the archive is refused, so nobody notices; in a debug build it panics.
+Reaching it needs an offset near the top of the 64-bit range, which is a
+hand-built archive, not a bit-flip of a committed one.
 
-Every corpus fixture is well-formed, including the ones that must be refused —
-they are refused for *format* reasons rather than for being damaged. So no tier
-asks what happens to a truncated download or a corrupt archive. Sweep for it
+Every corpus fixture is well-formed, including the ones that must be refused;
+they are refused for *format* reasons, not for being damaged. So no tier asks
+what happens to a truncated download or a corrupt archive. Sweep for it
 yourself, and require a refusal or a clean read, never a crash.
 
 ---
@@ -533,34 +522,31 @@ writer is asked anything.
 
 `corpus/write/` decodes an input and calls the write path, so the shortest
 spelling of a position is reachable. An implementation exposing no write path
-fails it by name rather than by a confusing diff.
+fails it by name, not by a confusing diff.
 
-The entry is worth keeping for what happened to the claim attached to it. The
-writer boundary was described, in this document and elsewhere, as permanently
-beyond the corpus's reach. It was beyond the reach of the tiers that existed, and
-a new tier reached it.
-
-> An unreachability claim is a claim about the current state of somebody's
-> ingenuity, not about the format.
+The writer boundary was described, in this document and elsewhere, as permanently beyond
+the corpus's reach. It was beyond the reach of the tiers that existed, and a new
+tier reached it. An unreachability claim is a claim about the current state of
+somebody's ingenuity, not about the format.
 
 The opposite failure looks like tidying up. An artefact can be emptied by an act
 that reads as conformance: sixty decorative tie rows, a sorted attachment pair.
-**Before regenerating a fixture, say which rule each existing one is the only
-witness for.**
+Before regenerating a fixture, say which rule each existing one is the only
+witness for.
 
 A related trap, and the one condition here that care does not fix: a wrong reason
 under a right conclusion has nothing with a motive to check it. A wrong reason
 under a wrong conclusion is caught by whoever tests the conclusion; under a right
-one it holds everything up while being false. Which gives the rule: **a reason
-that has only ever answered one kind of question has never been tested.**
+one it holds everything up while being false. A reason that has only ever
+answered one kind of question has never been tested.
 
 So the question is not which rules are unreachable but which are unreached
 today, and what shape a case would take. Where two readings of a rule produce a
 different document for one input, the accept tier reaches it. Where a rule takes
 effect only when a model becomes a document, a write tier does. Where neither is
 true, the prose is the only statement of the rule and your own tests the only
-enforcement: the tolerance boundary at exactly 50 metres is one, because no two
-distance models land on exactly 50.
+enforcement. The tolerance boundary at exactly 50 metres is one: no two distance
+models land on exactly 50.
 
 ### 10.2 A case only separates the readings its own data can separate
 
@@ -568,13 +554,13 @@ A fixture that *contains* a construct is not a test *of* it. What a case can
 discriminate is decided by the data in the case, not by the construct it holds or
 the note it carries.
 
-The instances that have turned up fall into three mechanisms rather than one. The
-symptom is shared and the repairs are not.
+The instances that have turned up fall into three mechanisms. The symptom is
+shared and the repairs are not.
 
 #### A case whose data cannot separate the readings
 
-These were never checking the thing they named, because no answer they could
-produce would differ between a correct implementation and a wrong one.
+These were never checking the thing they named. No answer they could produce
+would differ between a correct implementation and a wrong one.
 
 **A node-key comparison.** `SPEC §6.2` resolves a node key to its position before
 comparing chain continuity, demoting key equality to a fast path. Compare the keys
@@ -586,16 +572,17 @@ the fix was as invisible as the defect.
 `corpus/diagnose/chain-does-not-join.vnx` varies the node keys *and* the
 positions together, so both comparators return the same verdict on it. It looks
 like coverage, being in `diagnose/` and named for continuity, and it cannot
-attribute its verdict to either reading. **Any fixture that changes two variables
-together tests neither.**
+attribute its verdict to either reading. Any fixture that changes two variables
+together tests neither.
 
 **A ZIP64 fixture** that masked sizes in the local header only, so disabling the
 extra-field parser left the test green (section 9.2).
 
 **A tie table.** Sixty rows labelled as ties, mined by a detector that asked
 whether a neighbouring spelling of the same length also round-trips. That
-question does not identify a tie (section 6.3). Every one of the sixty stayed
-green when the tie rule was reverted.
+question does not identify a tie; it asks whether the value is the nearest
+double to a decimal, and many decimals share one nearest double. Every one of
+the sixty stayed green when the tie rule was reverted.
 
 #### A check that was discriminating and quietly stopped
 
@@ -609,32 +596,31 @@ checking half of what it pinned.
 **Absence-proofs that go stale.** A proof that no tier catches some defect is
 true until a case reaches it. See 10.3.
 
-**A fixture retired by a rule change**, and this one actually happened. A test
-used two positions that collide once rounded, to prove that arc-boundary
-de-duplication compares full values. `SPEC §4.1` then stopped requiring a writer
-to round at all, so the two never collide and the test asserts that a
-de-duplication has not merged two points it could not have merged. Nothing about
-it looks wrong at any point. When a rule leaves a format, search for the fixtures
-that were built on it rather than waiting for one to fail.
+**A fixture retired by a rule change.** A test used two positions that collide
+once rounded, to prove that arc-boundary de-duplication compares full values.
+`SPEC §4.1` then stopped requiring a writer to round at all, so the two never
+collide and the test asserts that a de-duplication has not merged two points it
+could not have merged. Nothing about it looks wrong at any point. When a rule
+leaves a format, search for the fixtures that were built on it; do not wait for
+one to fail.
 
 #### A guard that was never connected to what it names
 
-The sharpest of the three, because the other two at least once measured
-something.
+The sharpest of the three; the other two at least once measured something.
 
 **A test named for a fixture that never reads the fixture.** One called
 `the_corpus_fixtures_land_where_their_names_say` would have passed with both
-corpus files deleted, because it restated numbers rather than reading the
+corpus files deleted, because it restated numbers instead of reading the
 artefact. Beside it, a test asserting that the wrong cosine reference changes
 neither verdict passed green while asserting something false of the corpus it
-named. **A test that restates a number cannot notice when the artefact moves.**
+named. A test that restates a number cannot notice when the artefact moves.
 
 **A diagnose tier that cannot see a code.** Every `diagnose/` fixture carries at
 most one diagnostic and its path identifies it, so no case can separate a matcher
-that compares the reason code from one that ignores it — measured: weakening the
+that compares the reason code from one that ignores it. Measured: weakening the
 matcher to compare the path alone leaves the whole tier green. The tier cannot
 fix this for you, so the runner has to self-test its own matcher. Right path with
-the wrong code must fail, and a sidecar carrying no code must fail rather than be
+the wrong code must fail, and a sidecar carrying no code must fail, not be
 silently ignored.
 
 The repair for all three is to make the test read the artefact. Mutate the
@@ -642,11 +628,11 @@ implementation, run the real corpus, and assert exactly which cases fail. That
 turns "the corpus discriminates" from a restated number into a measurement, and
 it goes red when a fixture moves.
 
-Five implementations hit this class and each wrote a different guard, which is
-the useful part, because the guards compose:
+Five implementations hit this class and each wrote a different guard. The guards
+compose:
 
-- fail a sidecar carrying a field the runner does not compare, rather than
-  ignoring it *(JavaScript, Python)*;
+- fail a sidecar carrying a field the runner does not compare; do not ignore it
+  *(JavaScript, Python)*;
 - red-proof right-path, right-English, wrong-cause *(Kotlin)*;
 - assert your cause table against a live corpus run in both directions, so a
   table entry the corpus stopped exercising fails as loudly as a corpus
@@ -661,9 +647,9 @@ one, ask which readings it can separate at all.
 
 That recipe found three real gaps in one afternoon: the continuity fixture above;
 `corpus/diagnose/link-names-absent-arc.vnx`, whose two links made "one defect
-must not become two" a guarantee of arity rather than of the reader; and a
-tolerance pair whose arc spanned too little latitude to separate the distance
-models it existed to separate (section 7.2).
+must not become two" a guarantee of arity, not of the reader; and a tolerance
+pair whose arc spanned too little latitude to separate the distance models it
+existed to separate (section 7.2).
 
 ### 10.3 Red-proof everything, and check the proof reached its target
 
@@ -677,9 +663,9 @@ module had bound the name at import, so the assertion was calling the real one
 and the guard stayed green. "The red proof stayed green" is the evidence someone
 uses to throw a good test away.
 
-**Its mutation can match nothing.** Which is why one suite makes each mutation
-assert that its own search string was found: a substitution matching nothing
-makes the whole file a test of nothing.
+**Its mutation can match nothing.** One suite makes each mutation assert that
+its own search string was found: a substitution matching nothing makes the whole
+file a test of nothing.
 
 **The mutation can be broader than the rule it claims to test.** An
 away-from-zero rounder built on a round-trip tie detector moves phantoms as well
@@ -692,26 +678,26 @@ mutation came back green because it patched only the first of several call sites
 and no accept fixture had a folder carrying `notes`. A mutation that misses its
 target is indistinguishable from a runner finding nothing wrong.
 
-**It may not come back green** — the only one leaving a proof that measures
-nothing. One patched two modules and left one active during the restore, so the
-check it named was permanently red, which reads as confidence rather than as a
-broken instrument. A red-proof author watches for the red, so the revert is the
-half nobody tests. Assert both directions.
+**It may not come back green.** This is the only one leaving a proof that
+measures nothing. One patched two modules and left one active during the
+restore, so the check it named was permanently red, which reads as confidence,
+not as a broken instrument. A red-proof author watches for the red, so the revert
+is the half nobody tests. Assert both directions.
 
-And a proof whose conclusion is an absence needs re-running whenever the thing it
+A proof whose conclusion is an absence needs re-running whenever the thing it
 claims to be absent from grows. A red proof asserting that no tier catches some
 defect is a green-asserting proof, and those rot silently as the corpus gains
 cases. Rounding is the worked example: the claim that no tier reached the writer
 boundary was true when it was written and false once the write tier existed.
 
 Write those deliberately. A mutation carrying an expected verdict of *green*
-records a gap in the corpus rather than assuming one, and it goes red the moment
+records a gap in the corpus instead of assuming one, and it goes red the moment
 a fixture closes the gap, which is how its author finds out. That mechanism has
 paid for itself: one entry reaching inward to a segment's first and last *timed*
 pip survived, because `corpus/accept/track-partly-timed.vnx` carried no times at
 all in its untimed segment and both readings returned unknown. The fixture gained
-a timed middle pip, and the entry went red on the next run — so the promotion was
-noticed rather than remembered.
+a timed middle pip, and the entry went red on the next run. The promotion was
+noticed, not remembered.
 
 The mutations that come back green are the ones worth the exercise. Of the 34
 injected into one implementation, 26 went red as designed and taught their author
@@ -722,23 +708,23 @@ They come back green for three reasons that are indistinguishable from the
 console and call for three different actions.
 
 **The mutation was bad.** It assigned a field overwritten three lines later, or
-it deleted an assertion rather than injecting a defect, and removing a check
+it deleted an assertion instead of injecting a defect, and removing a check
 cannot make a suite fail. Fix the mutation.
 
 **The mutation was fine and the guard was not there.** A ZIP64 test stayed green
 with the extra-field parser deleted (section 9.2). A rounding oracle reached
 neither the 64-shift arm of its 128-bit arithmetic nor the subnormal exponent, so
 deleting either left the suite green; regenerating it to reach every arm
-immediately found a real defect — rounding was one double wrong above about 9e14,
+immediately found a real defect. Rounding was one double wrong above about 9e14,
 because an identity branch tested a power of two where the true boundary is a
 power of ten, so past it the rounded integer exceeded 2^53. The green proof did
 not merely reveal a weak test; it forced a better instrument, which then caught a
 bug. Fix the test.
 
-⚠ The oracle was 4,110 lines of 128-bit arithmetic and it is gone, deleted with
+The oracle was 4,110 lines of 128-bit arithmetic and it is gone, deleted with
 the rounding rule it certified. Both the defect it found and the defect it had
-existed only because the rule did. That is the honest arithmetic of a rule: it
-does not only cost the words that state it.
+existed only because the rule did. That is the arithmetic of a rule: it does not
+only cost the words that state it.
 
 **The branch is unreachable.** A mutation of the version rule for 1.0 and above
 is a provable no-op in a 0.1 reader, which can never take that branch
@@ -747,13 +733,13 @@ nor a bad mutation. Record the proof in the code, so the next person does not ru
 the same mutation, see green, and conclude the guard is weak.
 
 An unreachable branch and an untested one look identical forever unless somebody
-writes down which was proved. So: **when a red proof comes back green, you have
-learned nothing until you have said which of the three it is.**
+writes down which was proved. When a red proof comes back green, you have
+learned nothing until you have said which of the three it is.
 
 ### 10.4 Red-proof the instrument, not only the code
 
-> A comparison that has never been seen to fail is not a comparison. It is a
-> green light with no bulb in it.
+A comparison that has never been seen to fail is not a comparison. It is a
+green light with no bulb in it.
 
 Build such a check from two halves that share no code: one language writes raw
 IEEE 754 bits and its own answers to a table, and the other bit-casts each row
@@ -762,15 +748,15 @@ constructor, add dense small magnitudes, and add every value the specification
 and the corpus name.
 
 Zero disagreements is worth nothing on its own. What makes the check worth having
-is the count of disagreements that reappear when the tie mode is reverted, and a
+is the count of disagreements that reappear when the tie mode is reverted. A
 check that cannot produce that number is indistinguishable from one that is not
 running.
 
 An agreement certifies only what its shared input varies. Four implementations
 agreed on a container built from one input and cited it as their strongest
 cross-language evidence. That input carried a single attachment, so the one rule
-all four were breaking was a rule about several: **obeying it changed nothing
-about the artefact they agreed on.** Silent on exactly the field in question, and
+all four were breaking was a rule about several: obeying it changed nothing
+about the artefact they agreed on. Silent on exactly the field in question, and
 a matching hash offers no surface on which that silence shows. A note can be
 doubted; a SHA-256 reads as agreement.
 
@@ -780,15 +766,13 @@ Four writers fed one input is one measurement, four times.
 Three traps in building such a table *(Kotlin implementation)*: bits must travel
 as bits, since an unsigned parser fails on every negative double and, with the
 error ignored, scores every one of them as a disagreement against `0`; a mining
-criterion can decorate rather than discriminate (section 6.3); and the generator
+criterion can decorate instead of discriminate (section 10.2); and the generator
 must be deterministic, because a table nobody can diff is useless.
 
-`corpus/numbers/numbers.tsv` was the shipped form of that idea: a set of doubles
-as IEEE 754 hex,
-with two reference answers each, rounded to 6 places and to 1. About ten lines to
-read in any language, and it was compared **by bit pattern, never by text** —
-comparing a spelling would have put a rendering rule this format does not have back
-into the measurement through the side door.
+The shipped form of that idea is a table: a set of doubles as IEEE 754 hex with
+a reference answer for each, about ten lines to read in any language. Compare it
+by bit pattern and never by text. Comparing a spelling puts a rendering rule this
+format does not have back into the measurement through the side door.
 
 ---
 
@@ -802,7 +786,7 @@ and it is the one made invisible by its own clarity.
 A rule that is unambiguous, stated in the normative document, and enforced by
 nothing produces total confidence and zero enforcement. An open question makes
 people uneasy, so it stays on a list and gets checked. A settled one does not,
-and nobody asks whether anything checks it, because the question feels answered.
+and nobody asks whether anything checks it. The question feels answered.
 
 The evidence is the partly-timed track. Three implementations summed a partial
 moving time with every corpus tier green, and that was a rule `SPEC §3.5` stated.
@@ -833,8 +817,8 @@ parses those.
 
 **Carry a well-formed control.** Without one, two refusal tests prove only that
 the parser rejects *something*, not that it rejects the thing they name. The
-control is a valid sidecar asserted to parse and to yield the expected values,
-and it is what makes the refusals discriminate rather than merely fail.
+control is a valid sidecar asserted to parse and to yield the expected values.
+It is what makes the refusals discriminate instead of merely fail.
 
 **Pin the state of the world the strictness assumes.** A separate test walks
 every tier and asserts that no sidecar carries the field the strict parser
@@ -845,19 +829,17 @@ what it hit.
 
 Two caveats came with it. The third property is a source scan, so it sees a
 literal spelling and a sidecar spelling it differently escapes: a tripwire for
-one regression rather than a validator. And it rests on a measurement of the
-corpus as it stands. If the corpus deliberately reintroduces what the guard
-refuses, the answer is to change the rule rather than loosen the guard back into
-a fallback.
+one regression, not a validator. And it rests on a measurement of the corpus as
+it stands. If the corpus deliberately reintroduces what the guard refuses, change
+the rule; do not loosen the guard back into a fallback.
 
 One note on what a guard's comment is for. Where a check's shape looks arbitrary
 without the argument that produced it, the comment earns that argument: a reader
 who finds a rule and its check agreeing should be able to see why the check is
-spelled as it is, and the alternative is somebody simplifying it back. That is
-not licence for a published document to narrate its own past, since a reader of
-the prose has no stake in which draft came first. The two get confused because
-both look like history. **The test is whether a reader needs it to avoid undoing
-the check.**
+spelled as it is, or somebody will simplify it back. That is not licence for a
+published document to narrate its own past; a reader of the prose has no stake
+in which draft came first. The two get confused because both look like history.
+The test is whether a reader needs it to avoid undoing the check.
 
 ---
 
@@ -865,49 +847,47 @@ the check.**
 
 Where each of the six met the traps above, with the section that covers each in
 brackets. The link on each name goes to that library's page, which documents the
-library rather than repeating what is here.
+library and does not repeat what is here.
 
-**Go** — [`go/README.md`](go/README.md). `math.Round` is half
-away from zero (6.2), and the reference implementation rounded by scaling, which
-is a different operation (6.1). `encoding/json` accepts `1e400` into
-`json.Number` and refuses it only into `float64` (5.1).
+**Go**: [`go/README.md`](go/README.md). `math.Round` is half away from zero,
+and the reference implementation rounded by scaling, which is a different
+operation (6). `encoding/json` accepts `1e400` into `json.Number` and refuses it
+only into `float64` (5.1).
 
-**Python** — [`python/README.md`](python/README.md). `json`
-accepts `NaN` and `Infinity` by default, so a Python reader either makes its
-parser strict or refuses under `SPEC §4.2` with wording the `reject/` sidecars do
-not expect (5.1). Decimal intuition about which way a value rounds is wrong in
-the same way in every language, and Python is where it was measured (6.1).
+**Python**: [`python/README.md`](python/README.md). `json` accepts `NaN` and
+`Infinity` by default, so a Python reader either makes its parser strict or
+refuses under `SPEC §4.2` with wording the `reject/` sidecars do not expect
+(5.1). Decimal intuition about which way a value rounds is wrong in the same way
+in every language, and Python is where it was measured (6).
 
-**Swift** — [`swift/README.md`](swift/README.md). `.rounded()`
-does not round half to even; the emit boundary needs `.toNearestOrEven` (6.2).
-`JSONSerialization` spells `-3.67` as `-3.6699999999999999`, so the renderer is
-`JSONEncoder` while the parser is hand-written (3).
+**Swift**: [`swift/README.md`](swift/README.md). `.rounded()` does not round
+half to even; half to even is `.toNearestOrEven` (6). `JSONSerialization` spells
+`-3.67` as `-3.6699999999999999`, so the renderer is `JSONEncoder` while the
+parser is hand-written (3).
 
-**Kotlin** — [`kotlin/README.md`](kotlin/README.md).
-`BigDecimal.HALF_UP` is half away from zero and `Math.round(x * 10) / 10` is
-half-up on the JVM, so a guard testing only negative ties passes either. That is
-a trap for an implementation that rounds by choice; the format asks for no
-rounding. The JVM standard library has no JSON API at all, which
-makes the reader-versus-renderer split of section 3 an explicit decision rather
-than a default.
+**Kotlin**: [`kotlin/README.md`](kotlin/README.md). `BigDecimal.HALF_UP` is
+half away from zero and `Math.round(x * 10) / 10` is half-up on the JVM, so a
+guard testing only negative ties passes either. That is a trap for an
+implementation that rounds by choice; the format asks for no rounding (6). The
+JVM standard library has no JSON API at all, which makes the reader-versus-
+renderer split of section 3 an explicit decision, not a default.
 
-**JavaScript** — [`js/README.md`](js/README.md). `toFixed`
-rounds ties away from zero on both signs, and `Math.round(x * 10) / 10` is
-half-up (6.2). `1e400` parses to infinity rather than failing, so a reviver or an
-equivalent post-parse check is the only thing between it and a coordinate of
-infinity (5.1).
+**JavaScript**: [`js/README.md`](js/README.md). `toFixed` rounds ties away from
+zero on both signs, and `Math.round(x * 10) / 10` is half-up (6). `1e400` parses
+to infinity instead of failing, so a reviver or an equivalent post-parse check is
+the only thing between it and a coordinate of infinity (5.1).
 
-**Rust** — [`rust/README.md`](rust/README.md). `f64::round` is
-half away from zero, and `round_ties_even` is the right rounding mode applied to
-the wrong operation (6.1, 6.2). `serde_json` needs an opt-in feature to keep the
-last bit of a full-precision coordinate (3). The idiomatic model of a collection
-loses a distinction the format carries (4.1). A lone surrogate cannot be
-represented in a `String`, so the parser refuses one for free.
+**Rust**: [`rust/README.md`](rust/README.md). `f64::round` is half away from
+zero, and `round_ties_even` is the right rounding mode applied to the wrong
+operation (6). `serde_json` needs an opt-in feature to keep the last bit of a
+full-precision coordinate (3). The idiomatic model of a collection loses a
+distinction the format carries (4.1). A lone surrogate cannot be represented in
+a `String`, so the parser refuses one for free.
 
 ---
 
 One last thing, from the implementations that found two invisible defects in a
-day, both by comparing against another implementation rather than by reasoning:
+day, both by comparing against another implementation and not by reasoning:
 
 > When you have a choice between arguing about a specification clause and
 > measuring two implementations, measure.

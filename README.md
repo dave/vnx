@@ -95,7 +95,6 @@ corpus/
   reject/     files a reader must refuse, with the reason
   diagnose/   files a reader must read while reporting something
   write/      a document, and the document a writer must produce from it
-  numbers/    reference roundings to 6 and to 1 decimal places
   tools/      the generator for the .vnz archives
 ```
 

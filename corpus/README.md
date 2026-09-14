@@ -10,13 +10,10 @@ accept/    a document a reader must read, with zero diagnostics
 reject/    a document a reader must refuse, with the refusal naming its cause
 diagnose/  a document a reader must read, reporting exactly the listed diagnostics
 write/     an input document, and the document a conforming writer produces from it
-numbers/   a table of doubles and their reference roundings to 6 and to 1 places
 tools/     the generator for the committed .vnz archives
 ```
 
-The four document tiers hold fixtures and share the sidecar described below.
-`numbers/` is a table rather than a directory, because the properties it pins
-are per value rather than per document; it has its own README and no sidecars.
+The four tiers hold fixtures and share the sidecar described below.
 
 This list, the one in the repository root README and `SPEC §8` have to agree
 with the tree and with each other.
@@ -27,7 +24,7 @@ with the tree and with each other.
 |---|---|
 | Fixture | The input file of a case: a `.vnx` document or a `.vnz` archive. |
 | Sidecar | The `foo.expect.json` beside `foo.vnx` or `foo.vnz`, holding the expected result. |
-| Case | One named unit of the corpus: a fixture and its sidecar in a document tier, or one row of `numbers/`. |
+| Case | One named unit of the corpus: a fixture and its sidecar in a tier. |
 | Tier | A directory of cases sharing one operation and one requirement, listed above. |
 | Runner | The program an implementation writes to walk the corpus and compare its library's behaviour against each sidecar. |
 | Tolerance | The 50 m projection distance within which an inline link endpoint counts as meeting its arc (`SPEC §3.3.3`). |
@@ -149,8 +146,8 @@ every arc pip, node, area vertex and track pip unchecked. Keep the list wide.
 1.  Walk each tier directory and pair every fixture with its sidecar. A fixture
     with no sidecar fails the run.
 2.  Perform the tier's operation: decode for `accept/`, `reject/` and
-    `diagnose/`; decode-then-write for `write/`; bit-cast and round for
-    `numbers/`. Check the outcome against the tier's requirement.
+    `diagnose/`; decode-then-write for `write/`. Check the outcome against the
+    tier's requirement.
 3.  Resolve every sidecar expectation by something the document says, never by
     position. Look a `tracks` entry up by `name`, a `positions` entry up by its
     `at` pointer, and a `counts` entry up by its collection key or pointer. An
@@ -386,10 +383,10 @@ print(len(ps), min(p['lon'] for p in ps), max(p['lon'] for p in ps), min(p['lat'
 
 Not one channel of one pinned position is zero, every longitude is negative and
 every latitude is northern. Three things therefore sit outside this corpus: a
-decoder that turned `0.0` into `-0.0` passes every tier, and negative zero has
-exactly one instrument here, the table in `numbers/`; a sign error that shows
-only on a positive longitude or a southern latitude is untested; and nothing
-goes near the antimeridian.
+decoder that turned `0.0` into `-0.0` passes every tier, and no fixture pins a
+zero in any channel, so nothing here can see it; a sign error that shows only on
+a positive longitude or a southern latitude is untested; and nothing goes near
+the antimeridian.
 
 That is recorded rather than closed, deliberately. A coordinate moved or added
 to give a test something to bite on is the failure this corpus keeps catching: a
@@ -419,9 +416,9 @@ the format.
 > ingenuity.
 
 The working rule is narrower and more useful: **a property is reachable by the
-accept tier whenever the two readings put a different value in the tree.**
-Rounding is not, because the accept tier's normalisation rounds both sides
-alike; it needs the `write/` tier and `numbers/`.
+accept tier whenever the two readings put a different value in the tree.** The
+shortest spelling of a position is not, because the accept tier's normalisation
+shortens both sides alike; it needs the `write/` tier.
 
 So a test in an implementation that concludes something is unreachable asserts
 nothing the moment the corpus grows, and nothing will tell it. Re-run those

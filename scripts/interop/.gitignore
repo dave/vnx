@@ -1,0 +1,21 @@
+# Build output of the six interop drivers. Every language builds in place,
+# beside its source, and the working tree is measured rather than a published
+# version, so the artefacts land inside the repository.
+#
+# There are roughly 530,000 lines of them. They are output, not source: the
+# runner rebuilds all six on every run unless told not to.
+
+# Go: `go build -o interop .`
+/go/interop
+
+# Rust: `cargo build`
+/rust/target/
+
+# Swift: `swift build`. The root .gitignore already excludes `.build/`
+# anywhere; this entry states the intent locally rather than depending on it.
+/swift/.build/
+
+# Kotlin: `gradlew installDist`, plus Gradle's own caches and daemon state.
+/kotlin/build/
+/kotlin/.gradle/
+/kotlin/.kotlin/

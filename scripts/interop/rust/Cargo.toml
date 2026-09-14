@@ -1,0 +1,16 @@
+# A crate of its own, depending on the library by path, so the matrix measures
+# the working tree rather than a published version. It is not a member of any
+# workspace and the library's own Cargo.toml does not know it exists: a driver
+# nobody consumes has no business in the shipped crate.
+[package]
+name = "vnx-interop"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+vnx = { path = "../../../rust" }
+
+[[bin]]
+name = "interop"
+path = "src/main.rs"

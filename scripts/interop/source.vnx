@@ -1,0 +1,555 @@
+{
+  "created": "2026-08-31T06:45:12Z",
+  "generator": "Viatrail 0.1.93",
+  "profile": "full",
+  "vnx": "0.1.0",
+  "areas": [
+    {
+      "folder": "cairngorms",
+      "name": "Deer stalking estate",
+      "notes": "Access restricted 1 Jul - 20 Oct.",
+      "polygon": [
+        [
+          -3.74,
+          57.09
+        ],
+        [
+          -3.72,
+          57.09
+        ],
+        [
+          -3.72,
+          57.075
+        ],
+        [
+          -3.74,
+          57.075
+        ],
+        [
+          -3.74,
+          57.09
+        ]
+      ],
+      "style": {
+        "fill-color": "#8d5524",
+        "fill-opacity": 0.2,
+        "stroke-color": "#8d5524",
+        "stroke-width": 2
+      }
+    }
+  ],
+  "folders": [
+    {
+      "id": "cairngorms",
+      "name": "Cairngorms"
+    },
+    {
+      "id": "approaches",
+      "name": "Approaches",
+      "parent": "cairngorms"
+    }
+  ],
+  "networks": [
+    {
+      "folder": "approaches",
+      "name": "Lairig Ghru approaches",
+      "notes": "Two ways in from the north.",
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "engine",
+              "config": {
+                "cross-country-weight": 0.2,
+                "hill-avoidance": 0.5,
+                "max-slope-deg": 30
+              }
+            }
+          ],
+          "pips": [
+            [
+              -3.6712,
+              57.118,
+              340
+            ],
+            [
+              -3.669,
+              57.1131,
+              388.2
+            ],
+            [
+              -3.6644,
+              57.1085,
+              451.9
+            ],
+            [
+              -3.6605,
+              57.1042,
+              512.5
+            ]
+          ]
+        },
+        "arc-2": {
+          "from": "node-2",
+          "to": "node-3",
+          "pips": [
+            [
+              -3.6605,
+              57.1042,
+              512.5
+            ],
+            [
+              -3.654,
+              57.1009,
+              561
+            ],
+            [
+              -3.6488,
+              57.0977,
+              604
+            ]
+          ]
+        },
+        "arc-3": {
+          "from": "node-3",
+          "to": "node-4",
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "engine",
+              "config": {
+                "cross-country-weight": 0.2
+              }
+            },
+            {
+              "@type": "app.viatrail.compute-failed"
+            }
+          ],
+          "pips": [
+            [
+              -3.6488,
+              57.0977,
+              604
+            ],
+            [
+              -3.6402,
+              57.0931
+            ]
+          ]
+        }
+      },
+      "areas": [
+        {
+          "hidden": true,
+          "name": "Boggy ground",
+          "data": [
+            {
+              "@type": "app.viatrail.navigation",
+              "strength": 3,
+              "value": "avoid"
+            }
+          ],
+          "polygon": [
+            [
+              -3.67,
+              57.115
+            ],
+            [
+              -3.666,
+              57.115
+            ],
+            [
+              -3.666,
+              57.112
+            ],
+            [
+              -3.67,
+              57.112
+            ],
+            [
+              -3.67,
+              57.115
+            ]
+          ],
+          "style": {
+            "fill-color": "#3a7d44",
+            "fill-opacity": 0.25,
+            "stroke-color": "#3a7d44",
+            "stroke-width": 2
+          }
+        }
+      ],
+      "chains": [
+        {
+          "name": "Chalamain Gap",
+          "data": [
+            {
+              "@type": "app.viatrail.tag",
+              "value": "day-walk"
+            }
+          ],
+          "links": [
+            {
+              "arc": "arc-1",
+              "from": "node-1",
+              "to": "node-2"
+            },
+            {
+              "arc": "arc-2",
+              "from": "node-2",
+              "to": [
+                -3.6521,
+                57.1
+              ]
+            }
+          ],
+          "style": {
+            "color": "#c1440e",
+            "line-style": "solid",
+            "opacity": 0.9,
+            "width": 4
+          }
+        },
+        {
+          "name": "Rock fall",
+          "notes": "Path completely blocked by rock fall, 2026-06-20",
+          "data": [
+            {
+              "@type": "app.viatrail.navigation",
+              "strength": 5,
+              "value": "avoid"
+            }
+          ],
+          "links": [
+            {
+              "arc": "arc-2",
+              "from": [
+                -3.6521,
+                57.1
+              ],
+              "to": [
+                -3.6582,
+                57.103
+              ]
+            }
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "app.viatrail.tag",
+          "value": "scotland"
+        },
+        {
+          "@type": "app.viatrail.tag",
+          "value": "highlands"
+        }
+      ],
+      "nodes": {
+        "node-1": [
+          -3.6712,
+          57.118,
+          340
+        ],
+        "node-2": [
+          -3.6605,
+          57.1042,
+          512.5
+        ],
+        "node-3": [
+          -3.6488,
+          57.0977,
+          604
+        ],
+        "node-4": [
+          -3.6402,
+          57.0931
+        ]
+      },
+      "points": [
+        {
+          "name": "Spring",
+          "at": [
+            -3.665,
+            57.109,
+            470
+          ],
+          "data": [
+            {
+              "@type": "app.viatrail.water",
+              "seasonal": true
+            }
+          ],
+          "style": {
+            "color": "#1e6091",
+            "icon": "water",
+            "icon-size": 21,
+            "importance": 3,
+            "label-position": "right",
+            "label-visible": true,
+            "pin-shape": "teardrop"
+          }
+        },
+        {
+          "name": "Clearing",
+          "notes": "Nice clearing for a camp, very flat but 10min walk to water.",
+          "at": [
+            -3.645,
+            57.129,
+            420
+          ],
+          "data": [
+            {
+              "@type": "app.viatrail.camp",
+              "flat": true,
+              "sheltered": true,
+              "water": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "folder": "cairngorms",
+      "name": "Braeriach direct",
+      "notes": "Drawn by hand; not snapped to any network.",
+      "arcs": [
+        {
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "user-drawn"
+            }
+          ],
+          "pips": [
+            [
+              -3.728,
+              57.0782,
+              1296
+            ],
+            [
+              -3.719,
+              57.074,
+              1221.5
+            ],
+            [
+              -3.7101,
+              57.0699,
+              1150
+            ]
+          ]
+        },
+        {
+          "data": [
+            {
+              "@type": "app.viatrail.routing",
+              "source": "engine",
+              "config": {
+                "cross-country-weight": 0.4
+              }
+            }
+          ],
+          "pips": [
+            [
+              -3.7101,
+              57.0699,
+              1150
+            ],
+            [
+              -3.702,
+              57.0655,
+              1044
+            ]
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "app.viatrail.tag",
+          "value": "winter"
+        }
+      ],
+      "style": {
+        "color": "#0b7a75",
+        "line-style": "dashed",
+        "opacity": 1,
+        "width": 4
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "enabled": true,
+      "name": "Hide low-importance waypoints",
+      "rules": [
+        {
+          "name": "Minor springs",
+          "priority": 10,
+          "applies-to": [
+            "waypoints"
+          ],
+          "conditions": [
+            {
+              "data-type": "app.viatrail.tag",
+              "field": "value",
+              "op": "equals",
+              "value": "minor"
+            }
+          ],
+          "style": {
+            "label-visible": false,
+            "size": "small"
+          }
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "ended": "2026-05-12T16:41:02Z",
+      "folder": "cairngorms",
+      "name": "Lairig Ghru, 12 May",
+      "started": "2026-05-12T07:03:11Z",
+      "data": [
+        {
+          "@type": "app.viatrail.tag",
+          "value": "long-day"
+        }
+      ],
+      "segments": [
+        {
+          "pips": [
+            [
+              -3.6712,
+              57.118,
+              341,
+              1778569391000
+            ],
+            [
+              -3.6699,
+              57.1158,
+              352.4,
+              1778569442000
+            ],
+            [
+              -3.6681,
+              57.1139,
+              366.9,
+              1778569494000
+            ]
+          ]
+        },
+        {
+          "pips": [
+            [
+              -3.6644,
+              57.1085,
+              452,
+              1778571280000
+            ],
+            [
+              -3.6605,
+              57.1042,
+              513.1,
+              1778571344000
+            ]
+          ]
+        }
+      ],
+      "style": {
+        "color": "#6a4c93",
+        "width": 3
+      }
+    }
+  ],
+  "waypoints": [
+    {
+      "folder": "cairngorms",
+      "name": "Car park",
+      "notes": "Pay and display, closes 22:00.",
+      "at": [
+        -3.675,
+        57.1201,
+        320
+      ],
+      "data": [
+        {
+          "@type": "com.myapp.checked",
+          "value": true
+        },
+        {
+          "@type": "com.myapp.last-visit",
+          "value": "2026-05-12"
+        }
+      ],
+      "style": {
+        "color": "#444444",
+        "icon": "parking",
+        "icon-size": 16,
+        "importance": 2
+      }
+    },
+    {
+      "folder": "cairngorms",
+      "name": "Full precision — hütte été 山",
+      "notes": "A coordinate that only survives at full binary64 precision.",
+      "at": [
+        -3.6712345678901235,
+        57.11812345678901,
+        341.0512
+      ],
+      "data": [
+        {
+          "@type": "com.example.unrecognised",
+          "string": "slash / quote \" backslash \\ tab \t",
+          "unicode": "é山🏔",
+          "true": true,
+          "false": false,
+          "null": null,
+          "integer": 42,
+          "negative": -17,
+          "big": 1778569391000,
+          "tiny": 1e-07,
+          "small": 1e-06,
+          "full-precision": -3.6712345678901235,
+          "integral-double": 1.0,
+          "nested": {
+            "empty-object": {},
+            "empty-array": [],
+            "array": [
+              1,
+              2.5,
+              "three",
+              null,
+              true,
+              {
+                "deep": [
+                  [
+                    -3.6712345678901235
+                  ]
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "@type": "app.viatrail.tag",
+          "value": "interop"
+        }
+      ],
+      "style": {
+        "color": "#112233",
+        "icon": "flag",
+        "icon-size": 18,
+        "importance": 1,
+        "label-visible": true,
+        "opacity": 0.75
+      }
+    }
+  ]
+}

@@ -20,9 +20,8 @@ import (
 func f(v float64) *float64 { return &v }
 func ms(v int64) *int64    { return &v }
 
-func tptr(y int, m time.Month, d int) *time.Time {
-	t := time.Date(y, m, d, 6, 30, 0, 0, time.UTC)
-	return &t
+func tstamp(y int, m time.Month, d int) vnx.Timestamp {
+	return vnx.TimestampOf(time.Date(y, m, d, 6, 30, 0, 0, time.UTC))
 }
 
 func tagRecord(v string) vnx.Record {
@@ -77,8 +76,8 @@ func fixture() *vnx.Document {
 			// Started/Ended reach no lossy writer at all, and they are the ONLY
 			// times a track imported from a GPX has. Deliberately not the first
 			// and last pip times: they are a different channel (track.go).
-			Started:  tptr(2024, 8, 31),
-			Ended:    tptr(2024, 9, 2),
+			Started:  tstamp(2024, 8, 31),
+			Ended:    tstamp(2024, 9, 2),
 			Hidden:   true,
 			Style:    vnx.Style{"color": "#E08A1A", "width": float64(3), "line-style": "dashed"},
 			Data:     []vnx.Record{tagRecord("solo")},

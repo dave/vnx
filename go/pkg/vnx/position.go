@@ -1,11 +1,9 @@
 package vnx
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"strings"
-	"time"
 )
 
 // Position is one point on the wire: spec §4.1's fixed positional channels
@@ -132,22 +130,4 @@ func optionalNumber(v any, path, what string) (n float64, ok bool, err error) {
 		return 0, false, err
 	}
 	return n, true, nil
-}
-
-// parseTimestamp reads a record-level timestamp. Spec §4.3 permits ISO 8601 in
-// UTC with a Z suffix and optional fractional seconds — nothing else. An offset
-// like +01:00 is refused deliberately: pinning one grammar is cheaper than five
-// implementations each discovering their platform's date parser the hard way.
-func parseTimestamp(s string) (time.Time, error) {
-	if s == "" {
-		return time.Time{}, errors.New("empty timestamp")
-	}
-	if !strings.HasSuffix(s, "Z") {
-		return time.Time{}, fmt.Errorf("timestamp %q must be UTC with a Z suffix", s)
-	}
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("timestamp %q: %w", s, err)
-	}
-	return t.UTC(), nil
 }

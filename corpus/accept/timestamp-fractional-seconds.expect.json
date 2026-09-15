@@ -1,0 +1,16 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "A track whose started and ended carry fractional seconds, .250 and .750 (spec 4.3 permits ISO 8601 with a literal Z and OPTIONAL fractional seconds). Every other timestamp in the corpus is whole seconds, so a reader whose timestamp grammar has no fraction passes all of them. A record-level timestamp is a JSON string, so the accept tier's tree comparison checks it exactly: a reader that refuses or diagnoses the fraction fails the no-diagnostics rule, and one that parses the string and writes it back re-spelled, as .25 or .75 or with the fraction dropped, fails the round trip. Section 8.1 permits two normalisations and re-spelling a string is not one of them; the freedom it gives number spelling applies to JSON numbers only. The trailing zero in each fraction is what separates a reader that keeps the string from one that parses and trims it, so neither value may be shortened. No sidecar field asserts the value itself: the round trip compares the string exactly, which is the stronger check. The pip times are epoch milliseconds matching the two stamps, so moving time is 103500 ms and a reader that rounds the pips to seconds fails too.",
+  "counts": {
+    "tracks": 1,
+    "/tracks/0/segments": 1,
+    "/tracks/0/segments/0/pips": 3
+  },
+  "tracks": [
+    {
+      "name": "Timed to the millisecond",
+      "moving_time_ms": 103500
+    }
+  ]
+}

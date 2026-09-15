@@ -156,11 +156,11 @@ func TestTimestampsKeepTheirMilliseconds(t *testing.T) {
 		{"trailing zeros trimmed", time.Date(2026, 5, 12, 7, 3, 11, 500000000, time.UTC), "2026-05-12T07:03:11.5Z"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got := formatTimestamp(c.in); got != c.want {
+			if got := TimestampOf(c.in); string(got) != c.want {
 				t.Fatalf("got %q, want %q", got, c.want)
 			}
 			// And what we write, we must read back to the same instant.
-			back, err := parseTimestamp(c.want)
+			back, err := Timestamp(c.want).Time()
 			if err != nil {
 				t.Fatalf("our own output does not parse: %v", err)
 			}

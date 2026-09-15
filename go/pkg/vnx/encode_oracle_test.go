@@ -633,8 +633,8 @@ func oracleTiming() *Document {
 		Generator: "timing",
 		Tracks: []Track{{
 			Name:    "mixed timing",
-			Started: tp(utc("2026-05-11T09:00:00Z")),
-			Ended:   tp(utc("2026-05-11T17:30:00.25Z")),
+			Started: TimestampOf(utc("2026-05-11T09:00:00Z")),
+			Ended:   TimestampOf(utc("2026-05-11T17:30:00.25Z")),
 			Segments: []Segment{
 				// Fully timed and elevated: [lon, lat, ele, t].
 				{Pips: []Position{
@@ -835,15 +835,15 @@ func oracleTrackTimestamps() *Document {
 		Generator: "track-timestamps",
 		Tracks: []Track{
 			// Whole seconds: no fractional part emitted (encode.go:203-211).
-			{Name: "whole seconds", Started: tp(utc("2026-01-02T03:04:05Z")), Ended: tp(utc("2026-01-02T04:05:06Z")),
+			{Name: "whole seconds", Started: TimestampOf(utc("2026-01-02T03:04:05Z")), Ended: TimestampOf(utc("2026-01-02T04:05:06Z")),
 				Segments: []Segment{{Pips: pips}}},
 			// Milliseconds, which a seconds-only layout silently truncated once.
-			{Name: "milliseconds", Started: tp(utc("2026-01-02T03:04:05.123Z")), Ended: tp(utc("2026-01-02T03:04:05.100Z")),
+			{Name: "milliseconds", Started: TimestampOf(utc("2026-01-02T03:04:05.123Z")), Ended: TimestampOf(utc("2026-01-02T03:04:05.100Z")),
 				Segments: []Segment{{Pips: pips}}},
-			{Name: "nanoseconds", Started: tp(utc("2026-01-02T03:04:05.123456789Z")),
+			{Name: "nanoseconds", Started: TimestampOf(utc("2026-01-02T03:04:05.123456789Z")),
 				Segments: []Segment{{Pips: pips}}},
 			// Not UTC on the way in; it must be UTC on the way out.
-			{Name: "offset input", Ended: tp(utc("2026-01-02T03:04:05+01:00")),
+			{Name: "offset input", Ended: TimestampOf(utc("2026-01-02T03:04:05+01:00")),
 				Segments: []Segment{{Pips: pips}}},
 			{Name: "neither stamp", Segments: []Segment{{Pips: pips}}},
 		},

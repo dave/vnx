@@ -40,8 +40,8 @@ type Track struct {
 	Name     string
 	Notes    string
 	Hidden   bool
-	Started  *time.Time
-	Ended    *time.Time
+	Started  Timestamp // "" is absent
+	Ended    Timestamp // "" is absent
 	Style    Style
 	Segments []Segment
 	Data     []Record
@@ -227,21 +227,22 @@ func decodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagnosti
 // timeField reads an optional record-level timestamp. An unusable one drops the
 // TIMESTAMP and keeps the item: a track whose `started` is malformed still has
 // all its geometry, and losing that would be a wildly disproportionate response
-// to a bad date.
-func timeField(obj map[string]any, key, path string, diags []Diagnostic) (*time.Time, []Diagnostic) {
+// to a bad date. The check is §4.3's shape and nothing more: a value that names
+// no calendar instant is kept, verbatim.
+func timeField(obj map[string]any, key, path string, diags []Diagnostic) (Timestamp, []Diagnostic) {
 	v, present := obj[key]
 	if !present {
-		return nil, diags
+		return "", diags
 	}
 	s, ok := v.(string)
 	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
+		return "", append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
 			Message: fmt.Sprintf("expected a timestamp string, found %s — ignored", jsonKind(v))})
 	}
-	t, err := parseTimestamp(s)
-	if err != nil {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
+	t := Timestamp(s)
+	if err := t.Valid(); err != nil {
+		return "", append(diags, Diagnostic{Severity: Warning, Path: path + "/" + key,
 			Code: CodeTimestampNotUTC, Message: err.Error() + " — ignored"})
 	}
-	return &t, diags
+	return t, diags
 }

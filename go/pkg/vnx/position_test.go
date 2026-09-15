@@ -1,9 +1,11 @@
 package vnx
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"testing"
+	"time"
 )
 
 func f(v float64) *float64 { return &v }
@@ -82,19 +84,68 @@ func TestNonFiniteRefused(t *testing.T) {
 
 // §4.3: ISO 8601, UTC with a Z suffix. Offsets are not permitted — pinning the
 // grammar is cheaper than five libraries each discovering Swift's
-// ISO8601DateFormatter behaviour independently.
+// ISO8601DateFormatter behaviour independently. SHAPE ONLY: a value naming no
+// calendar instant matches the grammar and is valid.
 func TestTimestampGrammar(t *testing.T) {
-	ok := []string{"2026-05-12T07:03:11Z", "2026-05-12T07:03:11.250Z"}
-	bad := []string{"2026-05-12T07:03:11+01:00", "2026-05-12T07:03:11", "2026-05-12", "12/05/2026", ""}
+	ok := []string{"2026-05-12T07:03:11Z", "2026-05-12T07:03:11.250Z",
+		"2026-13-45T99:99:99Z", "0000-00-00T00:00:00Z", "9999-99-99T99:99:99.000Z"}
+	bad := []string{"2026-05-12T07:03:11+01:00", "2026-05-12T07:03:11", "2026-05-12", "12/05/2026", "",
+		"2026-05-12 07:03:11Z", "2026-05-12T07:03:11.Z", "2026-5-12T07:03:11Z", "２０２６-05-12T07:03:11Z"}
 	for _, s := range ok {
-		if _, err := parseTimestamp(s); err != nil {
-			t.Errorf("%q should parse: %v", s, err)
+		if err := Timestamp(s).Valid(); err != nil {
+			t.Errorf("%q should be valid: %v", s, err)
 		}
 	}
 	for _, s := range bad {
-		if _, err := parseTimestamp(s); err == nil {
+		if err := Timestamp(s).Valid(); err == nil {
 			t.Errorf("%q should be refused", s)
 		}
+	}
+}
+
+// The calendar is the caller's question: Time answers it, Valid does not.
+func TestTimestampTimeRefusesWhatNoCalendarHas(t *testing.T) {
+	if _, err := Timestamp("2026-13-45T99:99:99Z").Time(); err == nil {
+		t.Fatal("Time must fail on a calendar-invalid value")
+	}
+	got, err := Timestamp("2026-05-12T07:03:11.250Z").Time()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Date(2026, 5, 12, 7, 3, 11, 250000000, time.UTC); !got.Equal(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// Decode keeps a record-level timestamp verbatim, calendar or not, and Encode
+// writes it back unchanged: the trailing zero of .250 survives.
+func TestTimestampsAreKeptVerbatim(t *testing.T) {
+	for _, s := range []string{"2026-05-12T07:03:11.250Z", "2026-13-45T99:99:99Z"} {
+		src := `{"vnx":"0.1.0","tracks":[{"started":"` + s + `","segments":[{"pips":[[-3.67,57.11]]}]}]}`
+		doc, diags, err := Decode([]byte(src))
+		if err != nil || len(diags) != 0 {
+			t.Fatalf("%s: err %v, diags %v", s, err, diags)
+		}
+		if doc.Tracks[0].Started != Timestamp(s) {
+			t.Fatalf("decoded %q, want %q", doc.Tracks[0].Started, s)
+		}
+		out, err := Encode(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(out, []byte(`"`+s+`"`)) {
+			t.Fatalf("%s was not written verbatim:\n%s", s, out)
+		}
+	}
+}
+
+// A caller-built value outside the grammar is an error at Encode, never a
+// document §4.3 forbids.
+func TestEncodeRefusesAMalformedTimestamp(t *testing.T) {
+	doc := &Document{Version: "0.1.0", Tracks: []Track{{Name: "t", Ended: "2026-05-12T07:03:11+01:00",
+		Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}}}}
+	if _, err := Encode(doc); err == nil {
+		t.Fatal("Encode wrote a timestamp outside §4.3's grammar")
 	}
 }
 

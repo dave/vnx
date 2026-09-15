@@ -435,7 +435,10 @@ test('accepting a duplicate entry name is caught by the reject tier', async () =
     from: '    if (seen.has(key)) {',
     to: '    if (false) {',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['reject/container-duplicate-entries.vnz']);
+  assert.deepEqual(await failingDelta(cases), [
+    'reject/container-duplicate-entries-case.vnz',
+    'reject/container-duplicate-entries.vnz',
+  ]);
 });
 
 test('treating `..` as a substring rather than a segment still passes; the corpus has no case for it', async () => {

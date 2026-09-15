@@ -203,7 +203,7 @@ func TestMatrixTimestampsAreNotCarried(t *testing.T) {
 	started := mustTime(t, "2024-05-01T09:00:00Z")
 	ended := mustTime(t, "2024-05-01T17:00:00Z")
 	out, report := writeDoc(t, &vnx.Document{Tracks: []vnx.Track{{
-		Name: "T", Started: &started, Ended: &ended,
+		Name: "T", Started: vnx.TimestampOf(started), Ended: vnx.TimestampOf(ended),
 		Segments: []vnx.Segment{{Pips: []vnx.Position{
 			posTime(0, 0, 1_714_554_000_000), posTime(0, 1, 1_714_582_800_000),
 		}}},

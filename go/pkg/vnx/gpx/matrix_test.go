@@ -267,7 +267,7 @@ func TestMatrixTrackStartedAndEndedReachNoGPX(t *testing.T) {
 
 	t.Run("a timed track keeps its pip times and loses both stamps", func(t *testing.T) {
 		out, rep := write(t, &vnx.Document{Tracks: []vnx.Track{{
-			Name: "Walk", Started: &started, Ended: &ended,
+			Name: "Walk", Started: vnx.TimestampOf(started), Ended: vnx.TimestampOf(ended),
 			Segments: []vnx.Segment{{Pips: []vnx.Position{
 				{Lon: 1, Lat: 2, Time: ms(1725200000000)},
 				{Lon: 3, Lat: 4, Time: ms(1725203600000)},
@@ -295,7 +295,7 @@ func TestMatrixTrackStartedAndEndedReachNoGPX(t *testing.T) {
 		// track has no pip times, so Started/Ended are the only two times it
 		// has and the export keeps neither.
 		d := &vnx.Document{Tracks: []vnx.Track{{
-			Name: "Imported walk", Started: &started, Ended: &ended,
+			Name: "Imported walk", Started: vnx.TimestampOf(started), Ended: vnx.TimestampOf(ended),
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}}},
 		}}}
 		if _, known := d.Tracks[0].MovingTime(); known {

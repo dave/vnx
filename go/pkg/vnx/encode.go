@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"time"
 )
 
 // The wire shapes, and the builders that fill them from the model.
@@ -167,12 +166,22 @@ func areaWire(a Area, inNetwork bool) (wireArea, error) {
 
 func trackWire(t Track) (wireTrack, error) {
 	out := wireTrack{Name: t.Name, Notes: t.Notes, Folder: t.Folder, Hidden: t.Hidden, Style: t.Style}
-	if t.Started != nil {
-		out.Started = formatTimestamp(*t.Started)
+	// Written verbatim, so what was read is what is written. A caller-built
+	// value outside §4.3's grammar is an error rather than a document the
+	// format forbids.
+	for _, ts := range []struct {
+		key string
+		v   Timestamp
+	}{{"started", t.Started}, {"ended", t.Ended}} {
+		if ts.v == "" {
+			continue
+		}
+		if err := ts.v.Valid(); err != nil {
+			return wireTrack{}, fmt.Errorf("track %q %s: %w", t.Name, ts.key, err)
+		}
 	}
-	if t.Ended != nil {
-		out.Ended = formatTimestamp(*t.Ended)
-	}
+	out.Started = string(t.Started)
+	out.Ended = string(t.Ended)
 	out.Segments = make([]wireSegment, 0, len(t.Segments))
 	for _, s := range t.Segments {
 		pips, err := positionsWire(s.Pips)
@@ -187,24 +196,6 @@ func trackWire(t Track) (wireTrack, error) {
 	}
 	out.Data = data
 	return out, nil
-}
-
-// formatTimestamp writes §4.3's grammar: UTC, `Z`, and OPTIONAL fractional
-// seconds — emitted only when there are any.
-//
-// ⚠ A SECONDS-ONLY LAYOUT TRUNCATES SILENTLY. The column behind these is
-// UnixMilli, and formatting with a seconds-only layout throws the milliseconds
-// away on the way out; the reader then parses back a different instant.
-// Bounded at under a second, and wrong for no reason — the grammar already
-// allows the digits.
-func formatTimestamp(t time.Time) string {
-	t = t.UTC()
-	if t.Nanosecond() == 0 {
-		return t.Format("2006-01-02T15:04:05Z")
-	}
-	// Trailing zeros trimmed, so a whole number of milliseconds does not
-	// render as .123000000 — one fact, one spelling.
-	return t.Format("2006-01-02T15:04:05.999999999Z")
 }
 
 func routeWire(r Route) (wireRoute, error) {

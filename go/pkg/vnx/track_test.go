@@ -26,7 +26,7 @@ func TestTrackRoundTrip(t *testing.T) {
 	if len(tr.Segments) != 2 || len(tr.Segments[0].Pips) != 3 || len(tr.Segments[1].Pips) != 2 {
 		t.Fatalf("segments wrong: %+v", tr.Segments)
 	}
-	if tr.Started == nil || tr.Ended == nil {
+	if tr.Started == "" || tr.Ended == "" {
 		t.Fatal("started/ended must be carried")
 	}
 }
@@ -49,7 +49,15 @@ func TestMovingTimeExcludesThePause(t *testing.T) {
 	if moving.Seconds() != 167 {
 		t.Fatalf("moving time = %v, want 167s", moving)
 	}
-	wall := tr.Ended.Sub(*tr.Started)
+	started, err := tr.Started.Time()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ended, err := tr.Ended.Time()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wall := ended.Sub(started)
 	if moving >= wall {
 		t.Fatalf("moving time %v must be less than the wall clock %v — the pause is not geometry", moving, wall)
 	}
@@ -111,7 +119,7 @@ func TestTrackWithBadTimestampIsDiagnosedNotDropped(t *testing.T) {
 	if len(doc.Tracks) != 1 {
 		t.Fatal("a bad timestamp drops the timestamp, not the track and its geometry")
 	}
-	if doc.Tracks[0].Started != nil {
+	if doc.Tracks[0].Started != "" {
 		t.Fatal("the unusable timestamp must not be kept")
 	}
 	if len(diags) != 1 || diags[0].Path != "/tracks/0/started" {

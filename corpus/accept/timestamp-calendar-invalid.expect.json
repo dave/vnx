@@ -1,0 +1,16 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "A track whose started is 2026-13-45T99:99:99Z: it matches the grammar of spec 4.3 and names no instant on any calendar. Section 4.3 checks a record-level timestamp for shape only, states that this value is accepted, and forbids a reader to refuse or diagnose one on calendar grounds. Every other timestamp in the corpus is a real instant, so a reader that hands the string to its platform's date parser passes all of them and fails here, by a refusal, by a diagnostic, or by dropping the stamp, which the round trip sees as a missing key. The value is kept as a string through decode and encode, so a reader cannot pass by normalising it into a real date either. Month 13, day 45 and hour, minute and second 99 are each out of range, so a parser that is lenient about one field, as some roll an overflowing day into the next month, still fails on another. The track has no ended on purpose: diagnose/timestamp-with-offset.vnx pins the shape rule on started, and one stamp here keeps any failure attributable to the calendar rule alone.",
+  "counts": {
+    "tracks": 1,
+    "/tracks/0/segments": 1,
+    "/tracks/0/segments/0/pips": 2
+  },
+  "tracks": [
+    {
+      "name": "A date no calendar has",
+      "moving_time_ms": 103000
+    }
+  ]
+}

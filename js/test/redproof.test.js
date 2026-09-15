@@ -403,7 +403,10 @@ test('refusing a timestamp with an offset, rather than diagnosing it, is caught'
     from: "    ctx.diag(`${path}/${esc(k)}`, `\"${k}\" must be UTC with a Z suffix`, 'timestamp-not-utc');\n    return undefined;",
     to: "    throw new VnxRefusal('timestamp-not-utc', 'must be UTC with a Z suffix');",
   }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/timestamp-with-offset.vnx']);
+  assert.deepEqual(await failingDelta(cases), [
+    'diagnose/created-with-offset.vnx',
+    'diagnose/timestamp-with-offset.vnx',
+  ]);
 });
 
 test('skipping an unknown key silently is caught by the diagnose tier', async () => {

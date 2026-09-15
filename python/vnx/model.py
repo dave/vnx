@@ -213,7 +213,6 @@ class Area:
 @dataclass(slots=True)
 class Document:
     vnx: str = "0.1.0"
-    profile: Union[str, None] = None
     generator: Union[str, None] = None
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None

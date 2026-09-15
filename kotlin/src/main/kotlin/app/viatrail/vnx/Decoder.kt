@@ -21,7 +21,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
     private object Keys {
         val DOCUMENT_REQUIRED = setOf("vnx")
         val DOCUMENT_OPTIONAL = setOf(
-            "profile", "generator", "created",
+            "generator", "created",
             "folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets",
         )
         val FOLDER_REQUIRED = setOf("id")
@@ -97,7 +97,6 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
         val document = VnxDocument(
             vnx = versionText,
-            profile = optionalString(doc, "profile", at),
             generator = optionalString(doc, "generator", at),
             created = optionalTimestamp(doc, "created", at),
             folders = folders,

@@ -211,7 +211,6 @@ export class Document {
   constructor() {
     /** @type {string} the version the document declared (SPEC.md 2.2) */
     this.vnx = undefined;
-    /** @type {string|undefined} */ this.profile = undefined;
     /** @type {string|undefined} */ this.generator = undefined;
     /** @type {string|undefined} */ this.created = undefined;
     /** @type {Folder[]|undefined} */ this.folders = undefined;

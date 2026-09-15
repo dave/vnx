@@ -66,7 +66,6 @@ enum Slot {
 
 const DOCUMENT_KEYS: &[&str] = &[
     "vnx",
-    "profile",
     "generator",
     "created",
     "folders",
@@ -475,7 +474,6 @@ impl Decoder {
 
         let mut document = Document {
             vnx: Some(version),
-            profile: self.opt_string(entries, "profile", &root),
             generator: self.opt_string(entries, "generator", &root),
             created: self.timestamp(entries, "created", &root),
             ..Document::default()
@@ -1223,7 +1221,7 @@ mod tests {
     #[test]
     fn a_document_that_is_not_one() {
         assert!(matches!(
-            refuse(r#"{"profile": "full"}"#),
+            refuse(r#"{"generator": "x"}"#),
             Refusal::NotAVnxDocument { .. }
         ));
         assert!(matches!(refuse("[]"), Refusal::NotAVnxDocument { .. }));

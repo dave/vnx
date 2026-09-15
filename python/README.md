@@ -94,7 +94,7 @@ refused: this document is version 0.0.9 and this reader does not support the 0.0
 | `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
 | `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `profile`, `generator`, `created`, and `counts()` |
+| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `generator`, `created`, and `counts()` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `chains`, `points`, `areas` |
 | `Arc`, `RouteArc` | `pips: list[Position]`; an `Arc` also has `from_` and `to` |
 | `Chain` | `links: list[Link]`, each `Link` carrying `arc`, `from_`, `to` |

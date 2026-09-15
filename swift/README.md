@@ -86,7 +86,7 @@ try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
 | `Attachment` | `path: String`, `bytes: Data` |
 | `Diagnostic` | `path: String`, `message: String`, `cause: Cause`, `code: String` |
 | `Refusal` | `message: String`, `cause: Cause`; conforms to `Error` |
-| `Document` | `vnx`, `profile`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
 | `Position` | `lon`, `lat`, `elevation: Double?`, `timeMilliseconds: Double?`, `isSamePlace(as:)` |
 | `Track` | `segments: [TrackSegment]`, `movingTimeMilliseconds: Double?` |
 

@@ -17,7 +17,7 @@ enum Keys {
 
     static let document = Shape(
         required: ["vnx"],
-        optional: ["profile", "generator", "created", "folders", "networks",
+        optional: ["generator", "created", "folders", "networks",
                    "routes", "tracks", "waypoints", "areas", "rulesets"])
 
     static let folder = Shape(

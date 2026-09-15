@@ -321,14 +321,13 @@ function pips(kv, path, ctx) {
 
 // --- structure --------------------------------------------------------------
 
-const DOC_OPTIONAL = ['profile', 'generator', 'created', 'folders', 'networks',
-  'routes', 'tracks', 'waypoints', 'areas', 'rulesets'];
+const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'routes',
+  'tracks', 'waypoints', 'areas', 'rulesets'];
 
 function readDocument(raw, ctx) {
   const kv = known(raw, '', ['vnx'], DOC_OPTIONAL, ctx);
   const doc = new Document();
   doc.vnx = kv.vnx;
-  doc.profile = str('profile', '', kv, false, ctx);
   doc.generator = str('generator', '', kv, false, ctx);
   doc.created = timestamp('created', '', kv, ctx);
   doc.folders = collection('folders', kv, ctx, readFolder);

@@ -530,8 +530,8 @@ class Records(unittest.TestCase):
         self.assertEqual(result.document.waypoints[0].data, [])
 
     def test_a_type_differing_only_by_case_is_a_different_type(self) -> None:
-        # SPEC 5.3: a @type value is compared exactly everywhere except the
-        # namespace test, so `App.viatrail.tag` is not `app.viatrail.tag`.
+        # SPEC 5: a @type value is compared exactly, including case, so
+        # `App.viatrail.tag` is not `app.viatrail.tag`.
         document = read(
             '{"vnx": "0.1.0", "waypoints": [{"at": [0,0], "data":'
             ' [{"@type": "App.viatrail.tag", "value": "x"}]}]}'

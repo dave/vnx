@@ -104,7 +104,7 @@ fun main(args: Array<String>) {
 | `Attachment` | `path: String`, `bytes: ByteArray`; equality is by value |
 | `Diagnostic` | `path: String`, `message: String`, `cause: DiagnosticCause`, `code: String?` |
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
-| `VnxDocument` | `vnx`, `profile`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
 | `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?`, `meets()` |
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
 | `Segment` | `pips: List<Position>` |

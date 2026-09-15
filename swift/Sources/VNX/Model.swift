@@ -52,15 +52,6 @@ public struct DataRecord: Equatable, Sendable {
         self.type = type
         self.body = body
     }
-
-    /// SPEC 5.3: the `app.viatrail.` namespace is reserved without regard to
-    /// case, so a near-miss produced by a capitalising keyboard is not
-    /// classified as another program's extension. This is a rule about the
-    /// namespace only — `@type` is compared exactly everywhere else, and
-    /// `App.viatrail.tag` is a different type from `app.viatrail.tag`.
-    public var isInViatrailNamespace: Bool {
-        type.lowercased().hasPrefix("app.viatrail.")
-    }
 }
 
 public struct Folder: Equatable, Sendable {
@@ -202,7 +193,6 @@ public struct Document: Equatable, Sendable {
     /// The version the document declared. A reader that re-encodes writes this
     /// back, not its own (SPEC 2.2).
     public var vnx: String
-    public var profile: String?
     public var generator: String?
     public var created: String?
 

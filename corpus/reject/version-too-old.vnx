@@ -1,6 +1,5 @@
 {
   "vnx": "0.0.9",
-  "profile": "full",
   "waypoints": [
     {
       "name": "From a series this reader does not implement",

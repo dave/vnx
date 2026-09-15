@@ -25,7 +25,6 @@ type entry struct {
 // The document inside the archives is a plain accept-tier document,
 // like every other accept file in the corpus.
 const doc = `{
-  "profile": "full",
   "vnx": "0.1.0",
   "waypoints": [
     {

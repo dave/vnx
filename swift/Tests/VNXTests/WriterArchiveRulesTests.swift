@@ -20,7 +20,6 @@ final class WriterArchiveRulesTests: XCTestCase {
 
     private func document() -> Document {
         var document = Document()
-        document.profile = "full"
         document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201),
                                        name: "In a container", notes: nil, folder: nil,
                                        hidden: nil, style: nil, data: nil)]

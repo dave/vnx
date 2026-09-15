@@ -51,7 +51,6 @@ final class DocumentDecoder {
         report(unknownKeysIn: top, against: Keys.document, at: "")
 
         var document = Document(vnx: versionText)
-        document.profile = optionalString(top, "profile", at: "")
         document.generator = optionalString(top, "generator", at: "")
         document.created = optionalTimestamp(top, "created", at: "")
 

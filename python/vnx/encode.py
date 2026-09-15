@@ -182,7 +182,6 @@ def _track(track: Track) -> JSONValue:
 
 def encode_document(document: Document) -> JSONValue:
     obj: dict[str, JSONValue] = {"vnx": document.vnx}
-    _put(obj, "profile", document.profile)
     _put(obj, "generator", document.generator)
     _put(obj, "created", document.created)
     if document.folders is not None:

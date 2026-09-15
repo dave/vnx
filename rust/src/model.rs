@@ -138,26 +138,11 @@ impl Record {
     pub fn entries(&self) -> &[(String, Json)] {
         &self.entries
     }
-
-    /// True when this record's type is inside the reserved `app.viatrail.`
-    /// namespace (SPEC 5.3).
-    ///
-    /// The prefix is matched without regard to case, deliberately: a near-miss
-    /// produced by a capitalising keyboard is inside the namespace, not
-    /// another program's extension. Identity is still compared exactly — see
-    /// [`Record::type_name`] — so `App.viatrail.tag` remains a different type
-    /// from `app.viatrail.tag` and has no row in SPEC 5.2's table.
-    pub fn is_reserved_namespace(&self) -> bool {
-        let name = self.type_name();
-        name.len() >= "app.viatrail.".len()
-            && name[.."app.viatrail.".len()].eq_ignore_ascii_case("app.viatrail.")
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Document {
     pub vnx: Option<Version>,
-    pub profile: Option<String>,
     pub generator: Option<String>,
     pub created: Option<String>,
     /// An absent collection and an empty one carry the same content and a
@@ -383,16 +368,11 @@ mod tests {
     }
 
     #[test]
-    fn the_reserved_namespace_is_matched_without_regard_to_case() {
+    fn a_type_differing_only_by_case_is_a_different_type() {
         let record = |t: &str| {
             Record::new(vec![("@type".to_string(), Json::String(t.to_string()))])
         };
-        assert!(record("app.viatrail.tag").is_reserved_namespace());
-        assert!(record("App.viatrail.tag").is_reserved_namespace());
-        assert!(record("APP.VIATRAIL.X").is_reserved_namespace());
-        assert!(!record("com.example.tag").is_reserved_namespace());
-        assert!(!record("app.viatrai").is_reserved_namespace());
-        // Identity is still exact: the two spellings are different types.
+        // SPEC 5: `@type` is compared exactly, including case.
         assert_ne!(record("App.viatrail.tag").type_name(), record("app.viatrail.tag").type_name());
     }
 

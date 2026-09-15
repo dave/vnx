@@ -1,6 +1,5 @@
 {
   "vnx": "0.1.0",
-  "profile": "full",
   "networks": [
     {
       "name": "Two arcs that do not meet",

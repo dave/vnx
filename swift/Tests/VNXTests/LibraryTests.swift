@@ -263,14 +263,8 @@ final class LibraryTests: XCTestCase {
 
     // MARK: - Data records (SPEC 5)
 
-    /// SPEC 5.3: the `app.viatrail.` prefix is matched case-insensitively for
-    /// the purposes of profile classification, and NOWHERE else. `@type` itself
-    /// is compared exactly.
-    func testNamespaceIsCaseInsensitiveButTypeIdentityIsNot() {
-        XCTAssertTrue(DataRecord(type: "app.viatrail.tag").isInViatrailNamespace)
-        XCTAssertTrue(DataRecord(type: "App.viatrail.x").isInViatrailNamespace)
-        XCTAssertTrue(DataRecord(type: "APP.VIATRAIL.X").isInViatrailNamespace)
-        XCTAssertFalse(DataRecord(type: "com.example.tag").isInViatrailNamespace)
+    /// SPEC 5: `@type` is compared exactly, including case.
+    func testTypeIdentityIsCaseSensitive() {
         XCTAssertNotEqual(DataRecord(type: "App.viatrail.tag"), DataRecord(type: "app.viatrail.tag"))
     }
 

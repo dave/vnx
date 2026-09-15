@@ -52,7 +52,6 @@ var (
 // Document is a decoded VNX document. Later tasks add the seven collections.
 type Document struct {
 	Version   string
-	Profile   string
 	Generator string
 	Created   Timestamp // "" is absent
 
@@ -74,7 +73,7 @@ type Document struct {
 
 // DocumentIsEmpty reports whether a document holds no library content at all.
 //
-// The header fields — Version, Profile, Generator, Created — are present in
+// The header fields — Version, Generator, Created — are present in
 // every document including this one, so they say nothing about whether it
 // carries anything. Only the collections do.
 //
@@ -141,7 +140,6 @@ func Decode(data []byte) (*Document, []Diagnostic, error) {
 
 	var diags []Diagnostic
 	doc := &Document{Version: declared}
-	doc.Profile, diags = stringField(obj, "profile", diags)
 	doc.Generator, diags = stringField(obj, "generator", diags)
 	doc.Created, diags = timeField(obj, "created", "", diags)
 	if v, present := obj["folders"]; present {
@@ -195,7 +193,7 @@ func collection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, boo
 // key the format defines as "unknown" would train a caller to ignore
 // diagnostics, and that is the one habit this channel cannot survive.
 var documentKeys = map[string]bool{
-	"vnx": true, "profile": true, "generator": true, "created": true,
+	"vnx": true, "generator": true, "created": true,
 	"folders": true, "networks": true, "routes": true,
 	"tracks": true, "waypoints": true, "areas": true, "rulesets": true,
 }

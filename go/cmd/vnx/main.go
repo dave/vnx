@@ -198,7 +198,6 @@ func cmdOutline(args []string) error {
 	}
 	out := struct {
 		Version   string       `json:"vnx"`
-		Profile   string       `json:"profile,omitempty"`
 		Folders   int          `json:"folders"`
 		Networks  []netOutline `json:"networks"`
 		Routes    int          `json:"routes"`
@@ -206,7 +205,7 @@ func cmdOutline(args []string) error {
 		Waypoints int          `json:"waypoints"`
 		Areas     int          `json:"areas"`
 	}{
-		Version: doc.Version, Profile: doc.Profile, Folders: len(doc.Folders),
+		Version: doc.Version, Folders: len(doc.Folders),
 		Routes: len(doc.Routes), Tracks: len(doc.Tracks),
 		Waypoints: len(doc.Waypoints), Areas: len(doc.Areas),
 	}
@@ -221,9 +220,6 @@ func cmdOutline(args []string) error {
 		return enc.Encode(out)
 	}
 	fmt.Printf("vnx %s", out.Version)
-	if out.Profile != "" {
-		fmt.Printf(" (%s)", out.Profile)
-	}
 	fmt.Printf("\n  folders   %d\n", out.Folders)
 	for _, n := range out.Networks {
 		fmt.Printf("  network   %q — %d nodes, %d arcs, %d chains, %d points, %d areas\n",

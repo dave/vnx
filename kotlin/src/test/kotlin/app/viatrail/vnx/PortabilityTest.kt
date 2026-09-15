@@ -13,12 +13,10 @@ import kotlin.test.assertTrue
 class PortabilityTest {
 
     /**
-     * Every case-insensitive comparison in this format is over ASCII vocabulary —
-     * `app.viatrail.`, `doc.vnx`, `.vnx` — and every one of them contains the
-     * letter `i`. In a Turkish locale `"I".lowercase()` is a dotless `ı`, so a
-     * reader that folded case through the default locale would stop recognising
-     * `DOC.VNX`, and would classify `APP.VIATRAIL.TAG` as another program's
-     * extension in a portable export that was meant to strip it.
+     * The container reader compares entry names without regard to case, and the
+     * writer formats numbers. In a Turkish or Azeri locale `"I".lowercase()` is a
+     * dotless `ı`, and in many locales the decimal separator is a comma, so
+     * neither may go through the JVM's default locale.
      */
     @Test
     fun `case-insensitive comparison is locale-independent`() {
@@ -26,14 +24,6 @@ class PortabilityTest {
         try {
             for (locale in listOf(Locale.forLanguageTag("tr-TR"), Locale.forLanguageTag("az"), Locale.ROOT)) {
                 Locale.setDefault(locale)
-                assertTrue(
-                    DataRecord("APP.VIATRAIL.TAG", JsonObject()).isViatrailNamespace,
-                    "the reserved namespace stopped matching under $locale",
-                )
-                assertTrue(
-                    DataRecord("App.Viatrail.Camp", JsonObject()).isViatrailNamespace,
-                    "the reserved namespace stopped matching under $locale",
-                )
                 val corpus = File(System.getProperty("vnx.corpus")!!)
                 val r = Vnx.readContainer(File(corpus, "accept/container-root-doc.vnz").readBytes())
                 assertEquals("In a container", r.document.waypoints!![0].name, "container reading broke under $locale")

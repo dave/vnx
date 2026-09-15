@@ -15,7 +15,6 @@ import Foundation
 enum DocumentEncoder {
     static func encode(_ d: Document) -> JSONValue {
         var o: [String: JSONValue] = ["vnx": .string(d.vnx)]
-        put(&o, "profile", d.profile)
         put(&o, "generator", d.generator)
         put(&o, "created", d.created)
         putArray(&o, "folders", d.folders) { folder($0) }

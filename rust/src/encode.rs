@@ -33,7 +33,6 @@ pub fn to_json(document: &Document) -> Json {
         // SPEC 2.2: write the version the DOCUMENT declared, not the reader's.
         o.str("vnx", Some(&version.text));
     }
-    o.str("profile", document.profile.as_deref());
     o.str("generator", document.generator.as_deref());
     o.str("created", document.created.as_deref());
     o.list("folders", &document.folders, folder);

@@ -182,8 +182,7 @@ holding an untyped value is the correct model.
 
 An opaque body can hold a normative *value* without ceasing to be opaque. A
 style body is opaque by ruling, and `SPEC §3.6` puts a normative range on its
-`importance`. A normative range is a rule about a value, not about a key set,
-exactly as `SPEC §5.2` gives typed payloads to records whose bodies stay opaque.
+`importance`. A normative range is a rule about a value, not about a key set.
 
 ### 4.3 A position's arity is a spelling, not a fact
 

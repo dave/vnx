@@ -240,7 +240,7 @@ fn the_declared_size_bounds_the_output_while_it_is_produced() {
 /// never panic.
 #[test]
 fn no_truncation_or_corruption_of_a_document_panics() {
-    let source: &[u8] = br#"{"vnx":"0.1.0","profile":"full","networks":[{"nodes":{"n1":[-3.68,57.12]},
+    let source: &[u8] = br#"{"vnx":"0.1.0","networks":[{"nodes":{"n1":[-3.68,57.12]},
         "arcs":{"a":{"from":"n1","to":"n1","pips":[[-3.68,57.12],[-3.66,57.1,340,1778914991000]]}},
         "chains":[{"links":[{"arc":"a","from":"n1","to":[-3.67,57.11]}]}]}],
         "tracks":[{"segments":[{"pips":[[-3.6,57.1,1,2]]}]}],

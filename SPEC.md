@@ -255,7 +255,6 @@ A VNX document is a JSON object.
 ```json
 {
   "vnx": "0.1.0",
-  "profile": "full",
   "generator": "Viatrail 0.1.93",
   "created": "2026-08-31T06:45:12Z",
 
@@ -297,8 +296,6 @@ key being absent.
 
 `generator` carries the application version. The format version is the value of
 `vnx` (Section 2.2). The two are unrelated.
-
-`profile` selects which data records are present; see Section 5.3.
 
 ### 3.2 Folders
 
@@ -592,7 +589,7 @@ empty array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
-| document | `vnx` | `profile`, `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `chains`, `points`, `areas`, `data` |
 | arc, in a network | `from`, `to`, `pips` | `data` |
@@ -751,7 +748,10 @@ track. The order of positions in a line is the shape of the line.
 
 Every item, and every arc, MAY carry a `data` key holding an array of records.
 Each record is a JSON object carrying an `@type` key whose value is a
-reverse-DNS identifier, plus arbitrary sibling fields.
+reverse-DNS identifier, plus arbitrary sibling fields. A record holds whatever
+an application attaches to an item or arc, such as a tag, a note, a rating or a
+routing preference. This format defines no record type. `@type` values are
+compared exactly, including case.
 
 ```json
 "data": [
@@ -762,7 +762,7 @@ reverse-DNS identifier, plus arbitrary sibling fields.
 
 `@type` is the only key in this format carrying a sigil. The sigil marks the key
 as structural rather than payload, and leaves the plain name `type` available to
-any vocabulary entry that needs a field so named.
+any record that needs a field so named.
 
 Note: the spelling is borrowed from JSON-LD, and a VNX document is not JSON-LD.
 No `@context` is emitted, so a JSON-LD processor fails visibly rather than
@@ -775,115 +775,17 @@ misreading a VNX document.
    type is not defined by this format: a writer MAY emit as many records of a
    type as it means, and a reader MAY take all, one or none as its own semantics
    require.
-2. A record body is an opaque JSON object apart from `@type`. A vocabulary entry
-   MAY carry a field named `type`.
+2. A record body is an opaque JSON object apart from `@type`. A record body MAY
+   carry a field named `type`.
 3. A record of an unrecognised type is inert. It MUST NOT be treated as an
    error on any host, the item or arc whose `data` carries it, including a host
    on which the reader did not expect it.
 4. A record of an unrecognised type MUST survive a read-modify-write at value
    level.
 5. The meaning of a record is the pair of its type and its host, not the type
-   alone. `app.viatrail.navigation` with `value: "avoid"` on a chain means
-   avoid this stretch of path; on an area it means avoid this region. This
-   specification defines a type's meaning per host.
+   alone. One type can mean one thing on a chain and another on an area.
 6. A type with a single primary payload names it `value`. A type with several
    fields keeps its own names, and MAY carry `value` alongside modifiers.
-
-### 5.2 The `app.viatrail` vocabulary
-
-| Type | Hosts | Payload | Profile |
-|---|---|---|---|
-| `app.viatrail.camp` | network-point, library-waypoint | `rating` (stars), `flat` (stars), `sheltered` (stars), `water` (stars), `booking` (boolean) | core |
-| `app.viatrail.compute-failed` | arc | none | vendor |
-| `app.viatrail.hazard` | network-point, library-waypoint, network-chain, network-area, library-area | `value` (markdown) | core |
-| `app.viatrail.hotel` | network-point, library-waypoint | `rating` (stars), `booking` (boolean), `rooms` (integer) | core |
-| `app.viatrail.navigation` | network-chain, library-route, network-area, library-area | `value`, `strength` | vendor |
-| `app.viatrail.note` | any item host | `value` (markdown) | core |
-| `app.viatrail.photo` | any item host | `id` (reference) | core |
-| `app.viatrail.route` | network-chain | `rating` (stars) | core |
-| `app.viatrail.routing` | network-chain | `avoid` (boolean), `one-way` (`forward` or `reverse`) | core |
-| `app.viatrail.routing-internal` | arc | `source`, `config` | vendor |
-| `app.viatrail.settlement` | network-point, library-waypoint, network-area, library-area | `hotels` (boolean), `resupply` (`kiosk`, `grocery` or `supermarket`) | core |
-| `app.viatrail.shelter` | network-point, library-waypoint | `rating` (stars), `booking` (boolean), `beds` (integer) | core |
-| `app.viatrail.shop` | network-point, library-waypoint | `resupply` (`kiosk`, `grocery` or `supermarket`) | core |
-| `app.viatrail.tag` | any item host | `value` (text) | core |
-| `app.viatrail.terrain` | network-chain | `type` (`major-road`, `minor-road`, `trail`, `cross-country` or `bush-bash`) | core |
-| `app.viatrail.water` | network-point, library-waypoint | `rating` (stars), `seasonal` (boolean) | core |
-
-This table is normative and defines the core and vendor boundary. It is
-maintained as the vocabulary grows.
-
-A host names where in a document the record's `data` array sits:
-
-| Host | The `data` array of |
-|---|---|
-| `library-network` | a member of the top-level `networks` collection |
-| `network-point` | a member of a network's `points` |
-| `network-chain` | a member of a network's `chains` |
-| `network-area` | a member of a network's `areas` |
-| `library-waypoint` | a member of the top-level `waypoints` collection |
-| `library-route` | a member of the top-level `routes` collection |
-| `library-area` | a member of the top-level `areas` collection |
-| `library-track` | a member of the top-level `tracks` collection |
-| `arc` | an arc, in a network or in a route |
-
-"Any item host" is every host in that table except `arc`. A folder is not a
-host.
-
-A payload field's kind names the value it holds:
-
-| Kind | Value |
-|---|---|
-| boolean | a JSON `true` or `false` |
-| text | a string on one line |
-| markdown | a string, which a consumer renders as Markdown |
-| integer | a JSON number with no fractional part |
-| stars | a rating: a JSON number, a whole number from 1 to 5 |
-| reference | a string naming another object, such as a photo identifier |
-
-A field shown with its values in brackets holds exactly one of those strings. A
-rating that is not set is absent from the record, and 0 is not a rating.
-
-These kinds describe what a writer emits. They are not a validation rule for a
-reader (Section 6.2).
-
-`app.viatrail.routing` records a routing preference for a chain inside a
-network: `avoid` asks that the chain be avoided, and `one-way` states the one
-direction in which it may be travelled, `forward` along the order of its links
-(Section 3.3.3) or `reverse` against it.
-
-`app.viatrail.routing-internal` carries `source`, and carries `config` only when
-the routing engine has parameters to record. The record carries `source` and
-nothing derivable from it.
-
-The following is a requirement on Viatrail's export path rather than on a
-library: an exporter verifies that an arc's stored kind follows from its source,
-and reports a diagnostic for an arc where it does not.
-
-`app.viatrail.navigation` records an intent. Nothing in this format states
-that a routing engine acted on it, so a reader does not expect the record to
-have influenced any geometry in the document.
-
-`app.viatrail.compute-failed` marks an arc whose route computation failed. Such
-an arc still carries `pips`, holding its two endpoint positions, because a
-straight line between them is what is drawn. A reader that recognises the type
-SHOULD disclose the failure rather than present the geometry as computed.
-
-### 5.3 Profiles
-
-`profile` is an optional string stating which records its writer chose to
-include. Two values are defined: `full`, every record present, and `portable`,
-records marked vendor in Section 5.2 omitted.
-
-`profile` records a choice already made. A reader MUST preserve the value and
-MUST NOT act on it: the records a profile would have removed are already absent.
-A reader MUST accept an unrecognised value and an absent one, and MUST NOT
-refuse either.
-
-A record outside the `app.viatrail.` namespace is kept under both values. The
-namespace is matched without regard to case for this purpose only; `@type` is
-compared exactly everywhere else, so `App.viatrail.tag` is a different type from
-`app.viatrail.tag` and Rules 3 and 4 of Section 5.1 govern it.
 
 ## 6. Reading
 
@@ -937,9 +839,9 @@ A reader is tolerant of damage and silent about nothing.
   key, so the reader MUST drop the field and MUST keep the item.
 
   A reader checks a value only where this document states a normative range or
-  enumeration for it. The field lists in Section 5.2 are a vocabulary, not a
-  validation rule: a record body is opaque apart from `@type` (Section 5.1), and
-  a reader MUST NOT check the type, range or enumeration of a field inside one.
+  enumeration for it. A record body is opaque apart from `@type` (Section 5.1),
+  and a reader MUST NOT check the type, range or enumeration of a field inside
+  one.
 - A refusal. A plain document is refused for exactly four causes, and a reader
   MUST NOT refuse one for any other:
 

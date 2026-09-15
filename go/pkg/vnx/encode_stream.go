@@ -144,7 +144,6 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 		}
 	}
 	for _, h := range []struct{ key, value string }{
-		{"profile", doc.Profile},
 		{"generator", doc.Generator},
 		{"created", string(doc.Created)},
 	} {

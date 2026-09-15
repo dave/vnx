@@ -362,11 +362,9 @@ limitation is revisited rather than outliving its cause.
 Everything else in a document reaches the runner only through the accept tier's
 tree comparison, which asks whether a value survived the round trip and never
 whether it is the right value. A `data` record body is opaque to the decoder, so
-a record's fields are compared against nothing at all. The star ratings
-`accept/example-network.vnx` writes on `app.viatrail.camp` match the vocabulary
-of `SPEC §5.2`, and no tier here is what makes that so. A second implementation
-reading a fixture infers a record's shape as though the fixture were the
-format, so check a record against `SPEC §5.2` rather than against a case.
+a record's fields are compared against nothing at all. The records in a fixture are
+examples of what a record can hold, not a definition of any type. This format
+defines no record type, so do not infer a record's shape from a case.
 
 ### Where the coordinates are
 

@@ -27,7 +27,7 @@ __all__ = [
 
 # SPEC 3.1.
 DOCUMENT = frozenset({
-    "vnx", "profile", "generator", "created",
+    "vnx", "generator", "created",
     "folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets",
 })
 
@@ -126,9 +126,8 @@ REQUIRED_AREA = frozenset({"polygon"})
 #
 # "Styles are opaque, so why is `importance` checked?"  Because opacity is a
 # rule about the KEY SET and a normative range is a rule about a VALUE, and the
-# two do not collide.  SPEC 5.2 already has exactly this shape: a data record
-# body stays opaque while a recognised type carries a typed payload.  So a style
-# whose keys are not enumerated can still have a stated range on one of them --
+# two do not collide.  So a style whose keys are not enumerated can still have a
+# stated range on one of them --
 # SPEC 3.6's `importance`, 1 to 5, ruled normative on 2026-09-09 in the same
 # breath as `icon-size`'s list of sizes being ruled informative.  The check is
 # `decode._Reader._check_importance`.

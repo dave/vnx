@@ -209,8 +209,7 @@ test('a data record with no @type is dropped; the item survives', () => {
 
 test('a record body is never inspected, whatever its type says', () => {
   // SPEC.md 5.1: a record body is opaque apart from `@type`. A codec has no
-  // vocabulary layer, so `size` here is neither validated nor dropped even
-  // though SPEC.md 5.2 names an enumeration for it.
+  // vocabulary layer, so `size` here is neither validated nor dropped.
   const { document, diagnostics } = decodeText(doc({
     networks: [{ points: [{ at: [1, 2], data: [{ '@type': 'app.viatrail.settlement', size: 'metropolis' }] }] }],
   }));

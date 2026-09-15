@@ -67,7 +67,7 @@ root.
 | `Attachment` | `path: String`, `bytes: Vec<u8>` |
 | `Diagnostic` | `path: String`, `cause: Cause`, and `code()` / `message()` |
 | `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `profile`, `generator`, `created` |
+| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `generator`, `created` |
 | `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()` |
 | `Track` | `segments: Vec<Segment>`, and `moving_time_ms() -> Option<f64>` |
 

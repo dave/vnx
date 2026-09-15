@@ -13,9 +13,6 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
       "description": "The specification version, MAJOR.MINOR.PATCH. All three components are required: the two-component spelling is refused, not coerced. Whether a reader can READ this version is reader-relative and outside a schema's reach. THIS FILE IS NAMED FOR THE MINOR SERIES and covers every patch of it, because a patch bump is additive by definition (spec §2.1); a new minor gets a new schema file."
     },
-    "profile": {
-      "type": "string"
-    },
     "generator": {
       "type": "string"
     },

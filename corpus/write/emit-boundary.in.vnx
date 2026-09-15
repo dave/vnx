@@ -1,6 +1,5 @@
 {
   "vnx": "0.1.99",
-  "profile": "full",
   "networks": [
     {
       "name": "Every emit-boundary rule in one document",

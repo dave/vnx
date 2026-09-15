@@ -11,7 +11,7 @@ import (
 )
 
 func TestDecodeEnvelope(t *testing.T) {
-	src := `{"vnx":"0.1.0","profile":"full","generator":"Viatrail 0.1.93","created":"2026-08-31T06:45:12Z"}`
+	src := `{"vnx":"0.1.0","generator":"Viatrail 0.1.93","created":"2026-08-31T06:45:12Z"}`
 	doc, diags, err := Decode([]byte(src))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
@@ -19,7 +19,7 @@ func TestDecodeEnvelope(t *testing.T) {
 	if len(diags) != 0 {
 		t.Fatalf("clean document produced %d diagnostics: %v", len(diags), diags)
 	}
-	if doc.Version != "0.1.0" || doc.Profile != "full" || doc.Generator != "Viatrail 0.1.93" {
+	if doc.Version != "0.1.0" || doc.Generator != "Viatrail 0.1.93" {
 		t.Fatalf("envelope not carried: %+v", doc)
 	}
 }

@@ -451,7 +451,6 @@ func generatedOracleCases() []oracleCase {
 		{"empty-document", &Document{}},
 		{"scalars-only", &Document{
 			Version:   "0.1.0",
-			Profile:   "library",
 			Generator: "viatrail/oracle",
 			Created:   "2026-09-02T10:00:00Z",
 		}},
@@ -854,7 +853,6 @@ func oracleTrackTimestamps() *Document {
 func oracleEverything() *Document {
 	d := &Document{
 		Version:   "0.1.0",
-		Profile:   "library",
 		Generator: "viatrail/oracle everything",
 		Created:   "2026-09-02T12:00:00Z",
 	}

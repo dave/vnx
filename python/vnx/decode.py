@@ -338,7 +338,6 @@ class _Reader:
         assert obj is not None
 
         document = Document(vnx=version)
-        document.profile = self._string(obj, "profile", "")
         document.generator = self._string(obj, "generator", "")
         document.created = self._timestamp(obj, "created", "")
 

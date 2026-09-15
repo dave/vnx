@@ -9,7 +9,7 @@ import (
 // dropped". A reader that returns a document and nothing else has discarded the
 // only evidence anything was wrong.
 func TestCleanDocumentHasNoDiagnostics(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.1.0","profile":"full","created":"2026-08-31T06:45:12Z"}`))
+	_, diags, err := Decode([]byte(`{"vnx":"0.1.0","created":"2026-08-31T06:45:12Z"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,11 +23,11 @@ func TestCleanDocumentHasNoDiagnostics(t *testing.T) {
 // count is surfaced, one bad character does not kill the file. Applied at KEY
 // granularity here: an unknown key is not an unusable value, so the item lives.
 func TestUnknownKeyIsDiagnosedAndSkipped(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","profile":"full","nmae":"typo"}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","nmae":"typo"}`))
 	if err != nil {
 		t.Fatalf("an unknown key must not refuse the document: %v", err)
 	}
-	if doc == nil || doc.Profile != "full" {
+	if doc == nil || doc.Version != "0.1.0" {
 		t.Fatalf("the rest of the document must survive, got %+v", doc)
 	}
 	if len(diags) != 1 {
@@ -64,7 +64,7 @@ func TestUnknownKeysEachGetTheirOwnDiagnostic(t *testing.T) {
 // read is worse than none: a caller that checks the document before the error
 // would act on it.
 func TestRefusalReturnsNoPartialDocument(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"9.9","profile":"full"}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"9.9"}`))
 	if !errors.Is(err, ErrUnsupportedVersion) {
 		t.Fatalf("err = %v", err)
 	}
@@ -124,7 +124,7 @@ func TestDecodeDiagnosticsCarryACodeOnlyWhereTheCorpusPinsOne(t *testing.T) {
 		known[c] = true
 	}
 
-	const src = `{"vnx":"0.1.0","profile":"full",` +
+	const src = `{"vnx":"0.1.0",` +
 		`"folders":[{"id":"f1","name":"F"},{"name":"no id"}],` +
 		`"nonsense":[1,2,3]}`
 	_, diags, err := Decode([]byte(src))

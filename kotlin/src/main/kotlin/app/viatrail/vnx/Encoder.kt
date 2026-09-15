@@ -13,7 +13,6 @@ internal class Encoder {
 
     fun encode(doc: VnxDocument): JsonValue = JsonObject.Builder()
         .putString("vnx", doc.vnx)
-        .putString("profile", doc.profile)
         .putString("generator", doc.generator)
         .putString("created", doc.created)
         .put("folders", doc.folders?.let { array(it, ::folder) })

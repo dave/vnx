@@ -12,7 +12,6 @@ package app.viatrail.vnx
  */
 data class VnxDocument(
     val vnx: String,
-    val profile: String? = null,
     val generator: String? = null,
     val created: String? = null,
     val folders: List<Folder>? = null,
@@ -70,25 +69,7 @@ data class Position(
  * from `@type`, and must survive a read-modify-write at value level whether or
  * not the reader recognises the type.
  */
-data class DataRecord(val type: String, val body: JsonObject) {
-    companion object {
-        /** SPEC.md section 5.3: the namespace is reserved without regard to case. */
-        const val VIATRAIL_PREFIX = "app.viatrail."
-    }
-
-    /**
-     * Whether this record is inside the reserved `app.viatrail.` namespace, which
-     * section 5.3 matches case-insensitively so that a near-miss produced by a
-     * capitalising keyboard is not classified as a third party's extension.
-     *
-     * ASCII folding rather than `lowercase()`: `lowercase()` is locale-sensitive
-     * in the JVM's default locale for the letter `i`, and there is an `i` in
-     * `viatrail`.
-     */
-    val isViatrailNamespace: Boolean
-        get() = type.length >= VIATRAIL_PREFIX.length &&
-            type.regionMatches(0, VIATRAIL_PREFIX, 0, VIATRAIL_PREFIX.length, ignoreCase = true)
-}
+data class DataRecord(val type: String, val body: JsonObject)
 
 data class Folder(
     val id: String,

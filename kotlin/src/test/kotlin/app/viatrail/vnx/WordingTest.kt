@@ -128,7 +128,7 @@ class WordingTest {
         // one of its two claimed substrings unprovoked and fail below.
         val provoked = listOf(
             RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.1.0","waypoints":[{"at":[NaN,57]}]}"""),
-            RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"profile":"full"}"""),
+            RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"generator":"x"}"""),
             RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.1"}"""),
             RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"9.9.9"}"""),
             RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"0.0.9"}"""),

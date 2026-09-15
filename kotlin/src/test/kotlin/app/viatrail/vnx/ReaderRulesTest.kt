@@ -283,21 +283,6 @@ class ReaderRulesTest {
         }
     }
 
-    // ----------------------------------------------------------- profiles
-
-    @Test
-    fun `an unrecognised profile is preserved and not acted on`() {
-        // Section 5.3: a reader MUST preserve the value and MUST NOT act on it.
-        // The records a profile would have removed are already absent.
-        val r = read(
-            """{"vnx":"0.1.0","profile":"something-else",
-               "waypoints":[{"at":[-3,57],"data":[{"@type":"app.viatrail.navigation","value":"avoid"}]}]}""",
-        )
-        assertEquals(emptyList(), r.diagnostics)
-        assertEquals("something-else", r.document.profile)
-        assertEquals(1, r.document.waypoints!![0].data!!.size, "a reader must not filter by profile")
-    }
-
     // ------------------------------------------------------- absent vs empty
 
     @Test
@@ -508,15 +493,11 @@ class ReaderRulesTest {
         assertEquals(60000L, r.document.tracks!![0].movingTimeMs())
     }
 
-    // ------------------------------------------------------------ namespace
+    // -------------------------------------------------------- type identity
 
     @Test
-    fun `the app-viatrail namespace is matched without regard to case, and identity is not`() {
-        // Section 5.3: a type differing from the prefix only by case is INSIDE the
-        // namespace, and is still a different type from the one it resembles.
-        assertTrue(DataRecord("App.viatrail.tag", JsonObject()).isViatrailNamespace)
-        assertTrue(DataRecord("APP.VIATRAIL.X", JsonObject()).isViatrailNamespace)
-        assertTrue(!DataRecord("com.example.app.viatrail.x", JsonObject()).isViatrailNamespace)
+    fun `a type differing only by case is a different type`() {
+        // Section 5: `@type` is compared exactly, including case.
         val r = read("""{"vnx":"0.1.0","waypoints":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
         assertEquals(emptyList(), r.diagnostics, "an unrecognised type is inert on any host")
         assertEquals("App.viatrail.tag", r.document.waypoints!![0].data!![0].type, "case is never folded for identity")

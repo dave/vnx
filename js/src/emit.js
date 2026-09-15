@@ -59,7 +59,6 @@ export function emitDocument(doc) {
   // SPEC.md 2.2: a reader that re-encodes a document writes the version the
   // DOCUMENT declared, not the reader's own.
   o.vnx = doc.vnx;
-  put(o, 'profile', doc.profile);
   put(o, 'generator', doc.generator);
   put(o, 'created', doc.created);
   if (doc.folders !== undefined) o.folders = doc.folders.map((f) => emitFolder(f));

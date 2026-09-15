@@ -52,6 +52,16 @@ func main() {
 		{name: "doc.vnx", body: doc, method: zip.Deflate},
 		{name: "doc.vnx", body: `{"vnx":"0.1.0"}`, method: zip.Deflate},
 	})
+	// The two names differ only in case. §7 compares entry names
+	// case-insensitively, so this is a duplicate exactly as the identical pair
+	// above is, and a duplicate check keyed on the exact name accepts it. The
+	// attachment rather than the root document carries the collision, so the
+	// root-document rule's own case-insensitive match cannot refuse it first.
+	write("reject/container-duplicate-entries-case.vnz", []entry{
+		{name: "doc.vnx", body: doc, method: zip.Deflate},
+		{name: "photos/summit.jpg", body: "not really a photo\n", method: zip.Deflate},
+		{name: "photos/Summit.jpg", body: "not really a photo either\n", method: zip.Deflate},
+	})
 	// The root document is deliberately NOT the first entry. At offset 0 a
 	// reader that loses the local-header offset altogether and defaults to
 	// zero still finds it, so the masked offset would be untested on the one

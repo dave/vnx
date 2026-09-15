@@ -1,0 +1,5 @@
+{
+  "kind": "reject",
+  "note": "A .vnz whose two attachments are named photos/summit.jpg and photos/Summit.jpg, differing only in case (spec 7: duplicate entry names MUST be refused, compared case-insensitively). reject/container-duplicate-entries.vnz repeats one name exactly, so a duplicate check keyed on the exact name passes it; this case is what separates that check from the one section 7 requires. A case-insensitive filesystem extracts both entries to one file, so the archive yields different contents on different machines as well as in different languages. The collision is on attachments rather than on doc.vnx deliberately: a pair of root-document names differing in case can be refused by a reader's case-insensitive root-document match alone, which would leave an exact-name duplicate check untested.",
+  "refusal": "duplicate entry"
+}

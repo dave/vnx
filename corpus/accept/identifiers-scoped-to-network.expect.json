@@ -1,0 +1,25 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "Two networks that reuse the node keys n1 and n2 and the arc key a1 (spec 4.4: identifiers are scoped to the object that contains them, and a reader MUST NOT build one document-wide identifier map). Every other document in the corpus has at most one network, so a reader keying nodes and arcs by document passes all of them. The reused keys sit at different coordinates in each network and the two networks differ in shape, which is what makes a merge visible: a last-wins map puts the second network's n1 and a1 into the first, and the first network's positions and its a1 pip count come out wrong; a first-wins map does the same to the second network. The second network's chain names a2 and n3, which the first network lacks, so a reader that resolves a link against the wrong network also fails the terminal-pip and link checks and reports diagnostics this tier forbids. Positions are pinned on both networks, for a node and an arc pip each, because pinning one network only catches one of the two merge orders.",
+  "counts": {
+    "networks": 2,
+    "/networks/0/nodes": 2,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/a1/pips": 2,
+    "/networks/0/chains": 1,
+    "/networks/0/chains/0/links": 1,
+    "/networks/1/nodes": 3,
+    "/networks/1/arcs": 2,
+    "/networks/1/arcs/a1/pips": 3,
+    "/networks/1/arcs/a2/pips": 2,
+    "/networks/1/chains": 1,
+    "/networks/1/chains/0/links": 2
+  },
+  "positions": [
+    {"at": "/networks/0/nodes/n1", "lon": -3.5831, "lat": 57.0203},
+    {"at": "/networks/0/arcs/a1/pips/1", "lon": -3.5762, "lat": 57.0391},
+    {"at": "/networks/1/nodes/n1", "lon": -3.6247, "lat": 57.0118},
+    {"at": "/networks/1/arcs/a1/pips/1", "lon": -3.6333, "lat": 57.0189}
+  ]
+}

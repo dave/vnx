@@ -437,7 +437,9 @@ not, for three reader rules and one instrument problem.
   both. `corpus/diagnose/container-unusable-method.vnz` is the case.
 - **A duplicate entry name is seen twice, not resolved.** Every library
   resolves it; resolving it is what an archive reader is for.
-  `corpus/reject/container-duplicate-entries.vnz` is the case.
+  `corpus/reject/container-duplicate-entries.vnz` is the case, and
+  `corpus/reject/container-duplicate-entries-case.vnz` is the one whose names
+  differ only in case, which a comparison on the exact name accepts.
 
 Add ZIP64: `SPEC §7` requires a reader to accept it. Writing it is optional, and
 every implementation here writes plain archives.

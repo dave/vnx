@@ -370,8 +370,8 @@ format, so check a record against `SPEC §5.2` rather than against a case.
 
 ### Where the coordinates are
 
-Nineteen positions are pinned, longitude -3.74 to -2.998942483187279, latitude
-57.0704 to 67.5. Measure it:
+Twenty-three positions are pinned, longitude -3.74 to -2.998942483187279,
+latitude 57.0118 to 67.5. Measure it:
 
 ```sh
 cd corpus && python3 -c "

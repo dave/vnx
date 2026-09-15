@@ -136,11 +136,17 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 		return err
 	}
 	// An empty header field is OMITTED. Writing "" would turn "not known" into
-	// a value.
+	// a value. `created` is written verbatim, and a caller-built value outside
+	// §4.3's grammar is an error rather than a document the format forbids.
+	if doc.Created != "" {
+		if err := doc.Created.Valid(); err != nil {
+			return fmt.Errorf("created: %w", err)
+		}
+	}
 	for _, h := range []struct{ key, value string }{
 		{"profile", doc.Profile},
 		{"generator", doc.Generator},
-		{"created", doc.Created},
+		{"created", string(doc.Created)},
 	} {
 		if h.value == "" {
 			continue

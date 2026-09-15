@@ -1,0 +1,10 @@
+{
+  "profile": "full",
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Derry Lodge",
+      "at": [-3.5831, 57.0203, 430]
+    }
+  ]
+}

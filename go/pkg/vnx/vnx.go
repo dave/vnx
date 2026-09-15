@@ -54,7 +54,7 @@ type Document struct {
 	Version   string
 	Profile   string
 	Generator string
-	Created   string
+	Created   Timestamp // "" is absent
 
 	Folders   []Folder
 	Waypoints []Waypoint
@@ -143,7 +143,7 @@ func Decode(data []byte) (*Document, []Diagnostic, error) {
 	doc := &Document{Version: declared}
 	doc.Profile, diags = stringField(obj, "profile", diags)
 	doc.Generator, diags = stringField(obj, "generator", diags)
-	doc.Created, diags = stringField(obj, "created", diags)
+	doc.Created, diags = timeField(obj, "created", "", diags)
 	if v, present := obj["folders"]; present {
 		if arr, ok := v.([]any); ok {
 			doc.Folders, diags = decodeFolders(arr, diags)

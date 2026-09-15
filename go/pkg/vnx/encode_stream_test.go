@@ -170,10 +170,10 @@ func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 // written in the order [Document] declares them.
 func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
 	var b bytes.Buffer
-	if err := EncodeTo(&b, &Document{Version: "0.1.0", Generator: "g", Created: "c"}); err != nil {
+	if err := EncodeTo(&b, &Document{Version: "0.1.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\"vnx\":\"0.1.0\",\"generator\":\"g\",\"created\":\"c\"}\n"
+	want := "{\"vnx\":\"0.1.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}

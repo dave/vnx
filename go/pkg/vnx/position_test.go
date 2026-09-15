@@ -140,12 +140,36 @@ func TestTimestampsAreKeptVerbatim(t *testing.T) {
 }
 
 // A caller-built value outside the grammar is an error at Encode, never a
-// document §4.3 forbids.
+// document §4.3 forbids — on a track and on the document header alike.
 func TestEncodeRefusesAMalformedTimestamp(t *testing.T) {
-	doc := &Document{Version: "0.1.0", Tracks: []Track{{Name: "t", Ended: "2026-05-12T07:03:11+01:00",
-		Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}}}}
-	if _, err := Encode(doc); err == nil {
-		t.Fatal("Encode wrote a timestamp outside §4.3's grammar")
+	for name, doc := range map[string]*Document{
+		"track ended": {Version: "0.1.0", Tracks: []Track{{Name: "t", Ended: "2026-05-12T07:03:11+01:00",
+			Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}}}},
+		"document created": {Version: "0.1.0", Created: "2026-05-12T07:03:11+01:00"},
+	} {
+		if _, err := Encode(doc); err == nil {
+			t.Errorf("%s: Encode wrote a timestamp outside §4.3's grammar", name)
+		}
+	}
+}
+
+// §4.3 names `created` beside `started` and `ended`: the same shape check, the
+// same drop-and-diagnose, and a calendar-invalid value kept verbatim.
+func TestCreatedIsARecordLevelTimestamp(t *testing.T) {
+	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","created":"2026-05-12T08:03:11+01:00"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Created != "" {
+		t.Fatalf("the unusable stamp must not be kept, got %q", doc.Created)
+	}
+	if len(diags) != 1 || diags[0].Path != "/created" || diags[0].Code != CodeTimestampNotUTC {
+		t.Fatalf("got %v", diags)
+	}
+	const odd = "2026-13-45T99:99:99Z"
+	doc, diags, err = Decode([]byte(`{"vnx":"0.1.0","created":"` + odd + `"}`))
+	if err != nil || len(diags) != 0 || doc.Created != odd {
+		t.Fatalf("err %v, diags %v, created %q", err, diags, doc.Created)
 	}
 }
 

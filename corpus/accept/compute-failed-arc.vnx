@@ -8,7 +8,7 @@
         {
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "engine"
             },
             {

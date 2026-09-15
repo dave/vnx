@@ -8,7 +8,7 @@
         {
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "user-drawn"
             }
           ],
@@ -21,7 +21,7 @@
         {
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "engine",
               "config": {
                 "cross-country-weight": 0.4

@@ -45,7 +45,7 @@
           "to": "node-2",
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "engine",
               "config": {
                 "cross-country-weight": 0.2,
@@ -75,7 +75,7 @@
           "to": "node-4",
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "engine",
               "config": {
                 "cross-country-weight": 0.2
@@ -207,9 +207,9 @@
           "data": [
             {
               "@type": "app.viatrail.camp",
-              "flat": true,
-              "sheltered": true,
-              "water": false
+              "flat": 5,
+              "sheltered": 4,
+              "water": 2
             }
           ]
         }
@@ -225,7 +225,7 @@
         {
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "user-drawn"
             }
           ],
@@ -238,7 +238,7 @@
         {
           "data": [
             {
-              "@type": "app.viatrail.routing",
+              "@type": "app.viatrail.routing-internal",
               "source": "engine",
               "config": {
                 "cross-country-weight": 0.4

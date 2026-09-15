@@ -793,23 +793,68 @@ misreading a VNX document.
 
 | Type | Hosts | Payload | Profile |
 |---|---|---|---|
-| `app.viatrail.camp` | point | `flat` (boolean), `sheltered` (boolean), `water` (boolean), `capacity` (number) | core |
+| `app.viatrail.camp` | network-point, library-waypoint | `rating` (stars), `flat` (stars), `sheltered` (stars), `water` (stars), `booking` (boolean) | core |
 | `app.viatrail.compute-failed` | arc | none | vendor |
-| `app.viatrail.hotel` | point | `phone` (string), `url` (string), `booking-required` (boolean) | core |
-| `app.viatrail.navigation` | chain, area | `value`, `strength` | vendor |
-| `app.viatrail.routing` | arc | `source`, `config` | vendor |
-| `app.viatrail.settlement` | point, area | `size` (`hamlet`, `village` or `town`), `shop` (boolean), `resupply` (boolean) | core |
-| `app.viatrail.shelter` | point | `kind` (`bothy`, `hut`, `refuge` or `lean-to`), `capacity` (number), `locked` (boolean) | core |
-| `app.viatrail.tag` | any item | `value` (string) | core |
-| `app.viatrail.trail-note` | any item | `value` (string, may contain line breaks) | core |
-| `app.viatrail.water` | point | `seasonal` (boolean), `flow` (`trickle`, `steady` or `strong`), `verified` (timestamp) | core |
+| `app.viatrail.hazard` | network-point, library-waypoint, network-chain, network-area, library-area | `value` (markdown) | core |
+| `app.viatrail.hotel` | network-point, library-waypoint | `rating` (stars), `booking` (boolean), `rooms` (integer) | core |
+| `app.viatrail.navigation` | network-chain, library-route, network-area, library-area | `value`, `strength` | vendor |
+| `app.viatrail.note` | any item host | `value` (markdown) | core |
+| `app.viatrail.photo` | any item host | `id` (reference) | core |
+| `app.viatrail.route` | network-chain | `rating` (stars) | core |
+| `app.viatrail.routing` | network-chain | `avoid` (boolean), `one-way` (`forward` or `reverse`) | core |
+| `app.viatrail.routing-internal` | arc | `source`, `config` | vendor |
+| `app.viatrail.settlement` | network-point, library-waypoint, network-area, library-area | `hotels` (boolean), `resupply` (`kiosk`, `grocery` or `supermarket`) | core |
+| `app.viatrail.shelter` | network-point, library-waypoint | `rating` (stars), `booking` (boolean), `beds` (integer) | core |
+| `app.viatrail.shop` | network-point, library-waypoint | `resupply` (`kiosk`, `grocery` or `supermarket`) | core |
+| `app.viatrail.tag` | any item host | `value` (text) | core |
+| `app.viatrail.terrain` | network-chain | `type` (`major-road`, `minor-road`, `trail`, `cross-country` or `bush-bash`) | core |
+| `app.viatrail.water` | network-point, library-waypoint | `rating` (stars), `seasonal` (boolean) | core |
 
 This table is normative and defines the core and vendor boundary. It is
 maintained as the vocabulary grows.
 
-`app.viatrail.routing` carries `source`, and carries `config` only when the
-routing engine has parameters to record. The record carries `source` and nothing
-derivable from it.
+A host names where in a document the record's `data` array sits:
+
+| Host | The `data` array of |
+|---|---|
+| `library-network` | a member of the top-level `networks` collection |
+| `network-point` | a member of a network's `points` |
+| `network-chain` | a member of a network's `chains` |
+| `network-area` | a member of a network's `areas` |
+| `library-waypoint` | a member of the top-level `waypoints` collection |
+| `library-route` | a member of the top-level `routes` collection |
+| `library-area` | a member of the top-level `areas` collection |
+| `library-track` | a member of the top-level `tracks` collection |
+| `arc` | an arc, in a network or in a route |
+
+"Any item host" is every host in that table except `arc`. A folder is not a
+host.
+
+A payload field's kind names the value it holds:
+
+| Kind | Value |
+|---|---|
+| boolean | a JSON `true` or `false` |
+| text | a string on one line |
+| markdown | a string, which a consumer renders as Markdown |
+| integer | a JSON number with no fractional part |
+| stars | a rating: a JSON number, a whole number from 1 to 5 |
+| reference | a string naming another object, such as a photo identifier |
+
+A field shown with its values in brackets holds exactly one of those strings. A
+rating that is not set is absent from the record, and 0 is not a rating.
+
+These kinds describe what a writer emits. They are not a validation rule for a
+reader (Section 6.2).
+
+`app.viatrail.routing` records a routing preference for a chain inside a
+network: `avoid` asks that the chain be avoided, and `one-way` states the one
+direction in which it may be travelled, `forward` along the order of its links
+(Section 3.3.3) or `reverse` against it.
+
+`app.viatrail.routing-internal` carries `source`, and carries `config` only when
+the routing engine has parameters to record. The record carries `source` and
+nothing derivable from it.
 
 The following is a requirement on Viatrail's export path rather than on a
 library: an exporter verifies that an arc's stored kind follows from its source,

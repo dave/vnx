@@ -102,7 +102,9 @@ enum Corpus {
             self.kind = kind
             self.note = note
             if let c = o["counts"]?.objectValue {
-                self.counts = c.compactMapValues { $0.numberValue.map(Int.init) }
+                self.counts = Dictionary(uniqueKeysWithValues: c.compactMap { k, v in
+                    v.numberValue.map { (k.string, Int($0)) }
+                })
             } else {
                 self.counts = nil
             }
@@ -121,12 +123,12 @@ enum Corpus {
             }
             self.attachments = o["attachments"]?.arrayValue?.compactMap { $0.stringValue }
             if let c = o["attachment_contents"]?.objectValue {
-                self.attachmentContents = try c.mapValues { value in
+                self.attachmentContents = try Dictionary(uniqueKeysWithValues: c.map { k, value in
                     guard let text = value.stringValue else {
                         throw SidecarError("an `attachment_contents` entry in \(url.lastPathComponent) is \(value.typeName); the corpus states each one as UTF-8 text")
                     }
-                    return text
-                }
+                    return (k.string, text)
+                })
             } else {
                 self.attachmentContents = nil
             }
@@ -260,9 +262,9 @@ extension Document {
             switch next() {
             case "nodes":
                 guard let key = next() else { return nil }
-                return network.nodes?[key]
+                return network.nodes?[JSONKey(key)]
             case "arcs":
-                guard let key = next(), let arc = network.arcs?[key], next() == "pips",
+                guard let key = next(), let arc = network.arcs?[JSONKey(key)], next() == "pips",
                       let p = index(), arc.pips.indices.contains(p) else { return nil }
                 return arc.pips[p]
             case "points":
@@ -280,7 +282,7 @@ extension Document {
                 let link = chains[c].links[l]
                 let endpoint = field == "from" ? link.from : link.to
                 if case .inline(let p) = endpoint { return p }
-                if case .node(let key) = endpoint { return network.nodes?[key] }
+                if case .node(let key) = endpoint { return network.nodes?[JSONKey(key)] }
                 return nil
             default:
                 return nil

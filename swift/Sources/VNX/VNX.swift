@@ -68,13 +68,10 @@ public enum VNX {
     /// `ApplicationKeyError` for an application key without a full stop or
     /// held twice (SPEC 3.9).
     public static func write(_ document: Document) throws -> Data {
-        let encoder = JSONEncoder()
-        // Sorted keys, because a `[String: JSONValue]` has no order of its own
-        // and an output that changed between runs could not be compared with
-        // itself. Key order is not significant to a reader (SPEC 4.4), so any
-        // fixed order will do and this one costs nothing.
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(try DocumentEncoder.encode(document))
+        // Members sorted by code point, because an object has no order of its
+        // own and an output that changed between runs could not be compared
+        // with itself. Key order is not significant to a reader (SPEC 4.4).
+        return try JSONWriter.render(try DocumentEncoder.encode(document))
     }
 
     /// Writes a `.vnz` container holding `document` as `doc.vnx` plus its

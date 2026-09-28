@@ -14,7 +14,7 @@ import Foundation
 /// file, and SPEC 4.1's rules apply on the way out.
 enum DocumentEncoder {
     static func encode(_ d: Document) throws -> JSONValue {
-        var o: [String: JSONValue] = ["vnx": .string(d.vnx)]
+        var o: [JSONKey: JSONValue] = ["vnx": .string(d.vnx)]
         put(&o, "generator", d.generator)
         put(&o, "created", d.created)
         putArray(&o, "folders", d.folders) { folder($0) }
@@ -30,11 +30,11 @@ enum DocumentEncoder {
                 throw ApplicationKeyError(key: k.key,
                     message: "application key \"\(k.key)\" contains no full stop (SPEC 3.9)")
             }
-            guard o[k.key] == nil else {
+            guard o[JSONKey(k.key)] == nil else {
                 throw ApplicationKeyError(key: k.key,
                     message: "application key \"\(k.key)\" appears twice")
             }
-            o[k.key] = k.value
+            o[JSONKey(k.key)] = k.value
         }
         return .object(o)
     }
@@ -42,7 +42,7 @@ enum DocumentEncoder {
     // MARK: - Items
 
     private static func folder(_ f: Folder) -> JSONValue {
-        var o: [String: JSONValue] = ["id": .string(f.id)]
+        var o: [JSONKey: JSONValue] = ["id": .string(f.id)]
         put(&o, "parent", f.parent)
         put(&o, "name", f.name)
         put(&o, "notes", f.notes)
@@ -52,7 +52,7 @@ enum DocumentEncoder {
     }
 
     private static func waypoint(_ w: Waypoint, allowsFolder: Bool) -> JSONValue {
-        var o: [String: JSONValue] = ["at": position(w.at)]
+        var o: [JSONKey: JSONValue] = ["at": position(w.at)]
         put(&o, "name", w.name)
         put(&o, "notes", w.notes)
         if allowsFolder { put(&o, "folder", w.folder) }
@@ -63,7 +63,7 @@ enum DocumentEncoder {
     }
 
     private static func area(_ a: Area, allowsFolder: Bool) -> JSONValue {
-        var o: [String: JSONValue] = ["polygon": .array(a.polygon.map { position($0) })]
+        var o: [JSONKey: JSONValue] = ["polygon": .array(a.polygon.map { position($0) })]
         put(&o, "name", a.name)
         put(&o, "notes", a.notes)
         if allowsFolder { put(&o, "folder", a.folder) }
@@ -74,7 +74,7 @@ enum DocumentEncoder {
     }
 
     private static func network(_ n: Network) -> JSONValue {
-        var o: [String: JSONValue] = [:]
+        var o: [JSONKey: JSONValue] = [:]
         put(&o, "name", n.name)
         put(&o, "notes", n.notes)
         put(&o, "folder", n.folder)
@@ -93,7 +93,7 @@ enum DocumentEncoder {
     }
 
     private static func networkArc(_ a: NetworkArc) -> JSONValue {
-        var o: [String: JSONValue] = [
+        var o: [JSONKey: JSONValue] = [
             "from": .string(a.from),
             "to": .string(a.to),
             "pips": .array(a.pips.map { position($0) }),
@@ -103,7 +103,7 @@ enum DocumentEncoder {
     }
 
     private static func chain(_ c: Chain) -> JSONValue {
-        var o: [String: JSONValue] = ["links": .array(c.links.map { link($0) })]
+        var o: [JSONKey: JSONValue] = ["links": .array(c.links.map { link($0) })]
         put(&o, "name", c.name)
         put(&o, "notes", c.notes)
         putHidden(&o, c.hidden)
@@ -128,7 +128,7 @@ enum DocumentEncoder {
     }
 
     private static func route(_ r: Route) -> JSONValue {
-        var o: [String: JSONValue] = ["arcs": .array(r.arcs.map { routeArc($0) })]
+        var o: [JSONKey: JSONValue] = ["arcs": .array(r.arcs.map { routeArc($0) })]
         put(&o, "name", r.name)
         put(&o, "notes", r.notes)
         put(&o, "folder", r.folder)
@@ -139,13 +139,13 @@ enum DocumentEncoder {
     }
 
     private static func routeArc(_ a: RouteArc) -> JSONValue {
-        var o: [String: JSONValue] = ["pips": .array(a.pips.map { position($0) })]
+        var o: [JSONKey: JSONValue] = ["pips": .array(a.pips.map { position($0) })]
         putData(&o, a.data)
         return .object(o)
     }
 
     private static func track(_ t: Track) -> JSONValue {
-        var o: [String: JSONValue] = [
+        var o: [JSONKey: JSONValue] = [
             "segments": .array(t.segments.map { .object(["pips": .array($0.pips.map { position($0) })]) })
         ]
         put(&o, "name", t.name)
@@ -193,8 +193,8 @@ enum DocumentEncoder {
 
     // MARK: - Field helpers
 
-    private static func put(_ o: inout [String: JSONValue], _ key: String, _ value: String?) {
-        if let value { o[key] = .string(value) }
+    private static func put(_ o: inout [JSONKey: JSONValue], _ key: String, _ value: String?) {
+        if let value { o[JSONKey(key)] = .string(value) }
     }
 
     /// SPEC 3.8: "Absence means visible. A writer MUST emit the key only when
@@ -204,16 +204,16 @@ enum DocumentEncoder {
     /// So a `false` the reader was handed is read, kept in the model, and NOT
     /// written back. Pinned by `corpus/write/emit-boundary`, whose input
     /// carries one.
-    private static func putHidden(_ o: inout [String: JSONValue], _ hidden: Bool?) {
+    private static func putHidden(_ o: inout [JSONKey: JSONValue], _ hidden: Bool?) {
         guard let hidden, hidden else { return }
         o["hidden"] = .bool(true)
     }
 
-    private static func putStyle(_ o: inout [String: JSONValue], _ style: OpaqueObject?) {
+    private static func putStyle(_ o: inout [JSONKey: JSONValue], _ style: OpaqueObject?) {
         if let style { o["style"] = .object(style) }
     }
 
-    private static func putData(_ o: inout [String: JSONValue], _ data: [DataRecord]?) {
+    private static func putData(_ o: inout [JSONKey: JSONValue], _ data: [DataRecord]?) {
         guard let data else { return }
         o["data"] = .array(data.map { record in
             var body = record.body
@@ -222,9 +222,9 @@ enum DocumentEncoder {
         })
     }
 
-    private static func putArray<T>(_ o: inout [String: JSONValue], _ key: String, _ items: [T]?,
+    private static func putArray<T>(_ o: inout [JSONKey: JSONValue], _ key: String, _ items: [T]?,
                                     _ encode: (T) -> JSONValue) {
         guard let items else { return }
-        o[key] = .array(items.map(encode))
+        o[JSONKey(key)] = .array(items.map(encode))
     }
 }

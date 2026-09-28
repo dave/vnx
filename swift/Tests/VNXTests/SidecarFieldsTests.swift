@@ -44,7 +44,7 @@ final class SidecarFieldsTests: XCTestCase {
                     XCTFail("\(name) is not a JSON object")
                     continue
                 }
-                out.append((name, Array(object.keys)))
+                out.append((name, object.keys.map(\.string)))
             }
         }
         return out

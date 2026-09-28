@@ -85,7 +85,7 @@ struct JSONParser {
 
     private mutating func parseObject(depth: Int) throws -> JSONValue {
         i += 1 // {
-        var out: [String: JSONValue] = [:]
+        var out: [JSONKey: JSONValue] = [:]
         skipWhitespace()
         if !atEnd, bytes[i] == UInt8(ascii: "}") { i += 1; return .object(out) }
         while true {
@@ -97,7 +97,7 @@ struct JSONParser {
             i += 1
             skipWhitespace()
             // Last-wins on a duplicate key: SPEC 6.4.
-            out[key] = try parseValue(depth: depth + 1)
+            out[JSONKey(key)] = try parseValue(depth: depth + 1)
             skipWhitespace()
             guard !atEnd else { throw fail("unexpected end of input inside an object") }
             if bytes[i] == UInt8(ascii: ",") { i += 1; continue }

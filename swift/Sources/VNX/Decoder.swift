@@ -69,9 +69,9 @@ final class DocumentDecoder {
         // verbatim, never inspected and never reported. Sorted by code point,
         // the order the other implementations hold them in.
         document.applicationKeys = top.keys
-            .filter(Keys.isApplicationKey)
-            .sorted(by: codePointLess)
-            .map { ApplicationKey(key: $0, value: top[$0]!) }
+            .filter { Keys.isApplicationKey($0.string) }
+            .sorted { codePointLess($0.string, $1.string) }
+            .map { ApplicationKey(key: $0.string, value: top[$0]!) }
 
         resolveFolderReferences(in: &document)
         return document
@@ -138,7 +138,7 @@ final class DocumentDecoder {
         case .array(let a):
             for (i, e) in a.enumerated() { try refuseIfAnyNumberIsNotFinite(e, at: "\(path)/\(i)") }
         case .object(let o):
-            for (k, v) in o { try refuseIfAnyNumberIsNotFinite(v, at: pointer(path, k)) }
+            for (k, v) in o { try refuseIfAnyNumberIsNotFinite(v, at: pointer(path, k.string)) }
         default:
             break
         }
@@ -197,7 +197,7 @@ final class DocumentDecoder {
     /// additional ring drops the item — never silently keeping the outer ring,
     /// which would draw an area whose hole had vanished with nothing anywhere
     /// to say so.
-    private func ring(_ o: [String: JSONValue], at path: String) -> [Position]? {
+    private func ring(_ o: [JSONKey: JSONValue], at path: String) -> [Position]? {
         let polygonPath = pointer(path, "polygon")
         guard let raw = o["polygon"] else {
             diagnose(.requiredKeyMissing, at: path, "an area with no `polygon` cannot exist and was dropped")
@@ -324,30 +324,30 @@ final class DocumentDecoder {
         return network
     }
 
-    private func decodeNodes(_ o: [String: JSONValue], at path: String) -> [String: Position]? {
+    private func decodeNodes(_ o: [JSONKey: JSONValue], at path: String) -> [JSONKey: Position]? {
         guard let raw = o["nodes"] else { return nil }
         guard let dict = raw.objectValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "nodes"),
                      "`nodes` is \(raw.typeName); expected an object keyed by node identifier")
             return nil
         }
-        var nodes: [String: Position] = [:]
+        var nodes: [JSONKey: Position] = [:]
         for (key, v) in dict {
-            if let p = position(v, at: pointer(pointer(path, "nodes"), key)) { nodes[key] = p }
+            if let p = position(v, at: pointer(pointer(path, "nodes"), key.string)) { nodes[key] = p }
         }
         return nodes
     }
 
-    private func decodeArcs(_ o: [String: JSONValue], at path: String, nodes: [String: Position]) -> [String: NetworkArc]? {
+    private func decodeArcs(_ o: [JSONKey: JSONValue], at path: String, nodes: [JSONKey: Position]) -> [JSONKey: NetworkArc]? {
         guard let raw = o["arcs"] else { return nil }
         guard let dict = raw.objectValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "arcs"),
                      "`arcs` is \(raw.typeName); expected an object keyed by arc identifier")
             return nil
         }
-        var arcs: [String: NetworkArc] = [:]
+        var arcs: [JSONKey: NetworkArc] = [:]
         for (key, v) in dict {
-            let arcPath = pointer(pointer(path, "arcs"), key)
+            let arcPath = pointer(pointer(path, "arcs"), key.string)
             guard let ao = object(v, at: arcPath, what: "an arc") else { continue }
             report(unknownKeysIn: ao, against: Keys.networkArc, at: arcPath)
             guard let from = requiredString(ao, "from", at: arcPath),
@@ -356,7 +356,7 @@ final class DocumentDecoder {
             // SPEC 6.2's remedy table: an arc naming a node that is not in its
             // network keeps the arc, because its geometry is real. Reported all
             // the same — nothing tolerated here is silent.
-            for (field, name) in [("from", from), ("to", to)] where nodes[name] == nil {
+            for (field, name) in [("from", from), ("to", to)] where nodes[JSONKey(name)] == nil {
                 diagnose(.arcNodeNotInNetwork, at: pointer(arcPath, field),
                          "`\(field)` names the node \"\(name)\", which is not in this network; the arc was kept because its geometry is real")
             }
@@ -371,7 +371,7 @@ final class DocumentDecoder {
             // one identical path, and 6.3 forbids telling them apart by their
             // English.
             for (field, name, terminal) in [("from", from, pips.first), ("to", to, pips.last)] {
-                guard let node = nodes[name], let terminal,
+                guard let node = nodes[JSONKey(name)], let terminal,
                       let metres = Projection.distance(from: node, toPolyline: [terminal]),
                       !Projection.isWithinTolerance(metres) else { continue }
                 diagnose(.terminalPipOffNode, at: pointer(arcPath, field),
@@ -382,7 +382,7 @@ final class DocumentDecoder {
         return arcs
     }
 
-    private func decodeChain(_ value: JSONValue, at path: String, nodes: [String: Position], arcs: [String: NetworkArc]) -> Chain? {
+    private func decodeChain(_ value: JSONValue, at path: String, nodes: [JSONKey: Position], arcs: [JSONKey: NetworkArc]) -> Chain? {
         guard let o = object(value, at: path, what: "a chain") else { return nil }
         report(unknownKeysIn: o, against: Keys.chain, at: path)
         guard let rawLinks = o["links"] else {
@@ -416,11 +416,11 @@ final class DocumentDecoder {
         return chain
     }
 
-    private func decodeLink(_ value: JSONValue, at path: String, nodes: [String: Position], arcs: [String: NetworkArc]) -> Link? {
+    private func decodeLink(_ value: JSONValue, at path: String, nodes: [JSONKey: Position], arcs: [JSONKey: NetworkArc]) -> Link? {
         guard let o = object(value, at: path, what: "a link") else { return nil }
         report(unknownKeysIn: o, against: Keys.link, at: path)
         guard let arcName = requiredString(o, "arc", at: path) else { return nil }
-        guard let arc = arcs[arcName] else {
+        guard let arc = arcs[JSONKey(arcName)] else {
             // SPEC 6.2: a link's whole meaning is the arc it traverses, so
             // there is no geometry to keep.
             diagnose(.linkArcNotInNetwork, at: path,
@@ -432,9 +432,9 @@ final class DocumentDecoder {
         return Link(arc: arcName, from: from, to: to)
     }
 
-    private func endpoint(_ o: [String: JSONValue], _ key: String, at path: String, arcName: String, arc: NetworkArc, nodes: [String: Position]) -> LinkEndpoint? {
+    private func endpoint(_ o: [JSONKey: JSONValue], _ key: String, at path: String, arcName: String, arc: NetworkArc, nodes: [JSONKey: Position]) -> LinkEndpoint? {
         let fieldPath = pointer(path, key)
-        guard let raw = o[key] else {
+        guard let raw = o[JSONKey(key)] else {
             diagnose(.requiredKeyMissing, at: path, "a link with no `\(key)` cannot exist and was dropped")
             return nil
         }
@@ -442,7 +442,7 @@ final class DocumentDecoder {
             // SPEC 6.2's remedy table: keep the link, and exclude that end from
             // the continuity comparison. The link still names an arc, so it
             // still carries geometry; only the junction is unknowable.
-            if nodes[name] == nil {
+            if nodes[JSONKey(name)] == nil {
                 diagnose(.linkNodeNotInNetwork, at: fieldPath,
                          "`\(key)` names the node \"\(name)\", which is not in this network; the link was kept and this end takes no part in the continuity comparison")
             }
@@ -478,7 +478,7 @@ final class DocumentDecoder {
     /// reader cannot tell how much is actually wrong." Closing the gap left by
     /// a dropped link and comparing across it would manufacture a second
     /// defect out of the first.
-    private func reportBreaks(in surviving: [(index: Int, link: Link)], at linksPath: String, nodes: [String: Position]) {
+    private func reportBreaks(in surviving: [(index: Int, link: Link)], at linksPath: String, nodes: [JSONKey: Position]) {
         guard surviving.count > 1 else { return }
         for i in 1..<surviving.count {
             let previous = surviving[i - 1], current = surviving[i]
@@ -490,7 +490,7 @@ final class DocumentDecoder {
         }
     }
 
-    private func meets(_ a: LinkEndpoint, _ b: LinkEndpoint, nodes: [String: Position]) -> Bool {
+    private func meets(_ a: LinkEndpoint, _ b: LinkEndpoint, nodes: [JSONKey: Position]) -> Bool {
         // SPEC 6.2: two node keys meet when the keys are equal; a node key and
         // an inline position meet when the node's position and the inline
         // position are equal by value. A reader that refused to compare the two
@@ -508,9 +508,9 @@ final class DocumentDecoder {
         return pa.isSamePlace(as: pb)
     }
 
-    private func resolve(_ e: LinkEndpoint, nodes: [String: Position]) -> Position? {
+    private func resolve(_ e: LinkEndpoint, nodes: [JSONKey: Position]) -> Position? {
         switch e {
-        case .node(let k): return nodes[k]
+        case .node(let k): return nodes[JSONKey(k)]
         case .inline(let p): return p
         }
     }
@@ -570,13 +570,13 @@ final class DocumentDecoder {
         String((d * 1000).rounded() / 1000)
     }
 
-    private func report(unknownKeysIn o: [String: JSONValue], against shape: Keys.Shape, at path: String) {
+    private func report(unknownKeysIn o: [JSONKey: JSONValue], against shape: Keys.Shape, at path: String) {
         let known = shape.all
-        report(unknownKeysIn: o, recognised: { known.contains($0) }, at: path)
+        report(unknownKeysIn: o, recognised: { known.contains(JSONKey($0)) }, at: path)
     }
 
-    private func report(unknownKeysIn o: [String: JSONValue], recognised: (String) -> Bool, at path: String) {
-        for key in o.keys.sorted(by: codePointLess) where !recognised(key) {
+    private func report(unknownKeysIn o: [JSONKey: JSONValue], recognised: (String) -> Bool, at path: String) {
+        for key in o.keys.map(\.string).sorted(by: codePointLess) where !recognised(key) {
             // SPEC 6.2: record a diagnostic, skip the key, keep the item. An
             // unrecognised key is not an unusable value.
             diagnose(.unknownKey, at: pointer(path, key),
@@ -584,7 +584,7 @@ final class DocumentDecoder {
         }
     }
 
-    private func object(_ value: JSONValue, at path: String, what: String) -> [String: JSONValue]? {
+    private func object(_ value: JSONValue, at path: String, what: String) -> [JSONKey: JSONValue]? {
         guard let o = value.objectValue else {
             diagnose(.wrongTypeRequired, at: path, "expected \(what) but found \(value.typeName); the item was dropped")
             return nil
@@ -592,8 +592,8 @@ final class DocumentDecoder {
         return o
     }
 
-    private func optionalString(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
-        guard let raw = o[key] else { return nil }
+    private func optionalString(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> String? {
+        guard let raw = o[JSONKey(key)] else { return nil }
         guard let s = raw.stringValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a string, so the field was dropped and the item kept")
@@ -602,8 +602,8 @@ final class DocumentDecoder {
         return s
     }
 
-    private func requiredString(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
-        guard let raw = o[key] else {
+    private func requiredString(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> String? {
+        guard let raw = o[JSONKey(key)] else {
             diagnose(.requiredKeyMissing, at: path, "no `\(key)`; the item cannot exist without it and was dropped")
             return nil
         }
@@ -615,8 +615,8 @@ final class DocumentDecoder {
         return s
     }
 
-    private func optionalBool(_ o: [String: JSONValue], _ key: String, at path: String) -> Bool? {
-        guard let raw = o[key] else { return nil }
+    private func optionalBool(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> Bool? {
+        guard let raw = o[JSONKey(key)] else { return nil }
         guard let b = raw.boolValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a boolean, so the field was dropped and the item kept")
@@ -625,9 +625,9 @@ final class DocumentDecoder {
         return b
     }
 
-    private func optionalItems<T>(_ o: [String: JSONValue], _ key: String, at path: String,
+    private func optionalItems<T>(_ o: [JSONKey: JSONValue], _ key: String, at path: String,
                                   decode: (JSONValue, String) -> T?) -> [T]? {
-        guard let raw = o[key] else { return nil }
+        guard let raw = o[JSONKey(key)] else { return nil }
         guard let array = raw.arrayValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected an array, so the field was dropped and the item kept")
@@ -644,8 +644,8 @@ final class DocumentDecoder {
     /// literal `Z` and OPTIONAL fractional seconds. An offset other than `Z` is
     /// an unusable value in an optional key, so the field goes and the item —
     /// every pip of a track, in the corpus case — stays.
-    private func optionalTimestamp(_ o: [String: JSONValue], _ key: String, at path: String) -> String? {
-        guard let raw = o[key] else { return nil }
+    private func optionalTimestamp(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> String? {
+        guard let raw = o[JSONKey(key)] else { return nil }
         guard let text = raw.stringValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, key),
                      "`\(key)` is \(raw.typeName); expected a timestamp string, so the field was dropped and the item kept")
@@ -691,7 +691,7 @@ final class DocumentDecoder {
     /// is checked even though it lives inside an otherwise opaque object.
     /// Nothing else in a style is checked, and no key in a data record body is
     /// checked at all.
-    private func style(_ o: [String: JSONValue], at path: String) -> OpaqueObject? {
+    private func style(_ o: [JSONKey: JSONValue], at path: String) -> OpaqueObject? {
         guard let raw = o["style"] else { return nil }
         guard var s = raw.objectValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "style"),
@@ -714,7 +714,7 @@ final class DocumentDecoder {
     /// that a reader MUST NOT check the type, range or enumeration of a field
     /// inside one — doing so would break the mechanism by which a record of an
     /// unrecognised type survives a read-modify-write.
-    private func dataRecords(_ o: [String: JSONValue], at path: String) -> [DataRecord]? {
+    private func dataRecords(_ o: [JSONKey: JSONValue], at path: String) -> [DataRecord]? {
         guard let raw = o["data"] else { return nil }
         guard let array = raw.arrayValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "data"),
@@ -740,7 +740,7 @@ final class DocumentDecoder {
         return out
     }
 
-    private func pips(_ o: [String: JSONValue], at path: String) -> [Position]? {
+    private func pips(_ o: [JSONKey: JSONValue], at path: String) -> [Position]? {
         let pipsPath = pointer(path, "pips")
         guard let raw = o["pips"] else {
             diagnose(.requiredKeyMissing, at: path, "no `pips`; the item cannot exist without geometry and was dropped")

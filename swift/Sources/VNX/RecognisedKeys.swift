@@ -15,9 +15,9 @@ import Foundation
 /// fixed shape, so a dotted key on an item is still unrecognised.
 enum Keys {
     struct Shape {
-        let required: Set<String>
-        let optional: Set<String>
-        var all: Set<String> { required.union(optional) }
+        let required: Set<JSONKey>
+        let optional: Set<JSONKey>
+        var all: Set<JSONKey> { required.union(optional) }
     }
 
     static let document = Shape(
@@ -27,14 +27,19 @@ enum Keys {
 
     /// SPEC 3.9: whether a top-level key is an application key. No key the
     /// format defines contains a full stop.
+    ///
+    /// ⚠ ON UNICODE SCALARS, NOT `Character`s. `String.contains(".")` asks
+    /// for a grapheme, and a full stop followed by a combining mark is one
+    /// grapheme that is not `"."`, so it would miss `"a.\u{301}b"`. SPEC 3.9's
+    /// test is U+002E anywhere in the name.
     static func isApplicationKey(_ key: String) -> Bool {
-        key.contains(".")
+        key.unicodeScalars.contains(".")
     }
 
     /// Whether a top-level key is recognised: one the format defines, or an
     /// application key. Top level only.
     static func isDocumentKey(_ key: String) -> Bool {
-        document.all.contains(key) || isApplicationKey(key)
+        document.all.contains(JSONKey(key)) || isApplicationKey(key)
     }
 
     static let folder = Shape(

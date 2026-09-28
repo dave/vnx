@@ -40,7 +40,7 @@ public struct Position: Equatable, Sendable {
 
 /// An opaque JSON object: a style, or a data record body. SPEC 3.10 forbids
 /// applying the unrecognised-key rule inside either.
-public typealias OpaqueObject = [String: JSONValue]
+public typealias OpaqueObject = [JSONKey: JSONValue]
 
 /// A data record (SPEC 5). Everything but `@type` is opaque and survives a
 /// read-modify-write at value level.
@@ -122,8 +122,8 @@ public struct Network: Equatable, Sendable {
     public var notes: String?
     public var folder: String?
     public var hidden: Bool?
-    public var nodes: [String: Position]?
-    public var arcs: [String: NetworkArc]?
+    public var nodes: [JSONKey: Position]?
+    public var arcs: [JSONKey: NetworkArc]?
     public var chains: [Chain]?
     public var points: [Waypoint]?
     public var areas: [Area]?

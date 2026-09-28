@@ -136,7 +136,7 @@ enum Tree {
             // An endpoint is a node key or an inline position (SPEC 3.3.3).
             // Only the second is a position, and `normPosition` leaves a string
             // alone.
-            for side in ["from", "to"] {
+            for side: JSONKey in ["from", "to"] {
                 if let v = l[side] { l[side] = normPosition(v, opt) }
             }
         }
@@ -146,7 +146,7 @@ enum Tree {
 
     /// Normalises an array of objects under `key`, and drops the key when the
     /// array is empty.
-    private static func normItems(_ o: inout OpaqueObject, _ key: String, _ opt: Options,
+    private static func normItems(_ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options,
                                   _ each: (inout OpaqueObject, Options) -> Void) {
         guard let arr = o[key]?.arrayValue else { return }
         if arr.isEmpty {
@@ -160,7 +160,7 @@ enum Tree {
         })
     }
 
-    private static func normPositionList(_ o: inout OpaqueObject, _ key: String, _ opt: Options) {
+    private static func normPositionList(_ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options) {
         guard let arr = o[key]?.arrayValue else { return }
         if arr.isEmpty {
             o.removeValue(forKey: key)
@@ -192,7 +192,7 @@ enum Tree {
     /// SPEC 3.1: an absent collection and an empty one carry the same content,
     /// and a reader MUST treat them alike. So the comparison does too, which is
     /// what keeps a writer that omits an empty collection conforming.
-    private static func dropEmptyContainer(_ o: inout OpaqueObject, _ key: String) {
+    private static func dropEmptyContainer(_ o: inout OpaqueObject, _ key: JSONKey) {
         switch o[key] {
         case .array(let a) where a.isEmpty: o.removeValue(forKey: key)
         case .object(let m) where m.isEmpty: o.removeValue(forKey: key)
@@ -208,13 +208,13 @@ enum Tree {
             guard let g = got.objectValue else {
                 return "\(pathOrRoot(path)): got \(describe(got)), want an object"
             }
-            for key in w.keys.sorted(by: codePointLess) {
+            for key in w.keys.sorted(by: { codePointLess($0.string, $1.string) }) {
                 guard let gv = g[key] else {
                     return "\(pathOrRoot(path)): key \"\(key)\" is missing"
                 }
-                if let d = diff(got: gv, want: w[key]!, path: path + "/" + escapePointer(key)) { return d }
+                if let d = diff(got: gv, want: w[key]!, path: path + "/" + escapePointer(key.string)) { return d }
             }
-            let extra = g.keys.filter { w[$0] == nil }.sorted(by: codePointLess)
+            let extra = g.keys.filter { w[$0] == nil }.map(\.string).sorted(by: codePointLess)
             if !extra.isEmpty {
                 return "\(pathOrRoot(path)): unexpected key(s) \(extra)"
             }

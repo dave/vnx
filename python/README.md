@@ -82,10 +82,10 @@ refused: this document is version 0.0.9 and this reader does not support the 0.0
 | `vnx.decode_document` | a parsed JSON value | `ReadResult` | `VNXRefusal` |
 | `vnx.read_container_file` | a path | `ContainerReadResult` | `VNXRefusal` |
 | `vnx.read_container_bytes` | `bytes` | `ContainerReadResult` | `VNXRefusal` |
-| `vnx.encode_file` | a path, a `Document` | `None` | — |
-| `vnx.encode_bytes` | a `Document` | `bytes` | — |
-| `vnx.encode_document` | a `Document` | a JSON value | — |
-| `vnx.encode_container_bytes` | a `Document`, `dict[str, bytes]` of attachments | `bytes` | `VNXRefusal` |
+| `vnx.encode_file` | a path, a `Document` | `None` | `ValueError` |
+| `vnx.encode_bytes` | a `Document` | `bytes` | `ValueError` |
+| `vnx.encode_document` | a `Document` | a JSON value | `ValueError` |
+| `vnx.encode_container_bytes` | a `Document`, `dict[str, bytes]` of attachments | `bytes` | `VNXRefusal`, `ValueError` |
 | `vnx.parse_json` | `bytes` | a JSON value | `VNXRefusal` |
 
 | Type | Fields |
@@ -104,7 +104,10 @@ refused: this document is version 0.0.9 and this reader does not support the 0.0
 | `Position` | `lon`, `lat`, `ele`, `time_ms` |
 
 `app_keys` is sorted by key on decode, and nothing inspects a value. Encoding
-raises `ValueError` for a key with no full stop or a key held twice.
+raises `ValueError` for a key with no full stop, a key held twice, or a number
+that is not finite. `encode_file` encodes in full before it writes, and
+replaces the file only once the bytes are on disk, so a refused encode leaves an
+existing file unchanged.
 
 Items also carry `name`, `notes`, `folder`, `hidden`, `style` and `data` where
 SPEC §3 gives them. `from_` takes the underscore because `from` is a keyword.

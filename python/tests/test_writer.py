@@ -165,6 +165,49 @@ class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
             encode_bytes(document)
 
 
+class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
+    """A refused encode must not cost the caller the file already there."""
+
+    def test_a_refused_encode_leaves_the_existing_file_unchanged(self) -> None:
+        import os
+        import tempfile
+
+        import vnx
+
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "out.vnx")
+            with open(target, "wb") as handle:
+                handle.write(b"previous bytes")
+            bad = Document(vnx="0.1.0", app_keys=[AppKey("nodot", 1)])
+            with self.assertRaises(ValueError):
+                vnx.encode_file(target, bad)
+            with open(target, "rb") as handle:
+                self.assertEqual(handle.read(), b"previous bytes")
+            self.assertEqual(os.listdir(directory), ["out.vnx"], "a temporary file was left behind")
+
+    def test_a_good_encode_replaces_the_file(self) -> None:
+        import os
+        import tempfile
+
+        import vnx
+
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "out.vnx")
+            with open(target, "wb") as handle:
+                handle.write(b"previous bytes")
+            document = Document(vnx="0.1.0", app_keys=[AppKey("a.b", None)])
+            vnx.encode_file(target, document)
+            with open(target, "rb") as handle:
+                self.assertEqual(handle.read(), encode_bytes(document))
+            self.assertEqual(os.listdir(directory), ["out.vnx"])
+
+
+class AppKeyValueIsRequired(unittest.TestCase):
+    def test_an_app_key_without_a_value_is_a_type_error(self) -> None:
+        with self.assertRaises(TypeError):
+            AppKey("a.b")  # type: ignore[call-arg]
+
+
 class WriterOutputIsStable(unittest.TestCase):
     def test_encoding_twice_is_stable(self) -> None:
         document = waypoint_at(-3.6712345678901235, 57.11812345678901, 340.26)

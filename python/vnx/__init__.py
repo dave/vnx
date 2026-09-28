@@ -25,6 +25,7 @@ different channels on purpose (SPEC 6.3).
 from __future__ import annotations
 
 import os
+import tempfile
 from typing import Union
 
 from .container import (
@@ -66,6 +67,19 @@ def read_container_file(path: Union[str, os.PathLike[str]]) -> ContainerReadResu
 
 
 def encode_file(path: Union[str, os.PathLike[str]], document: Document) -> None:
-    """Write *document*: shortest-spelled positions, values unchanged."""
-    with open(path, "wb") as handle:
-        handle.write(encode_bytes(document))
+    """Write *document*: shortest-spelled positions, values unchanged.
+
+    The document is encoded in full before the file is touched, then written to
+    a temporary file beside *path* and renamed over it.  A refused encode
+    (``ValueError``) or a failed write leaves an existing file as it was.
+    """
+    data = encode_bytes(document)
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, temp = tempfile.mkstemp(dir=directory, prefix=".vnx-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(temp, path)
+    except BaseException:
+        os.unlink(temp)
+        raise

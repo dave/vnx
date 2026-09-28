@@ -215,7 +215,8 @@ class AppKey:
     """One application key (SPEC 3.9): a top-level key with a full stop."""
 
     key: str
-    value: JSONValue = None
+    # Required: a JSON `null` is written `None` on purpose, never by default.
+    value: JSONValue
 
 
 def is_app_key(key: str) -> bool:

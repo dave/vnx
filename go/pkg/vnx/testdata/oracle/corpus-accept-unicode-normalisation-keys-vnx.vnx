@@ -1,0 +1,24 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Caf\u00e9",
+      "at": [-3.675, 57.1201],
+      "data": [
+        {"@type": "com.example.note", "\u00e9": "precomposed", "e\u0301": "decomposed"}
+      ],
+      "style": {"\u00e9": 1, "e\u0301": 2}
+    }
+  ],
+  "networks": [
+    {
+      "name": "Paths",
+      "nodes": {"\u00e9": [1, 1], "e\u0301": [1, 2]},
+      "arcs": {
+        "a1": {"from": "\u00e9", "to": "e\u0301", "pips": [[1, 1], [1, 2]]}
+      }
+    }
+  ],
+  "com.example.\u00e9": {"\u00e9": "precomposed", "e\u0301": "decomposed"},
+  "com.example.e\u0301": "a second application key"
+}

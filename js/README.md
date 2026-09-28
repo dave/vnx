@@ -49,7 +49,7 @@ console.log(encode(document));
 |---|---|---|---|
 | `decodeText` | document text | a reading | `VnxRefusal` |
 | `decodeValue` | a parsed JSON value | a reading | `VnxRefusal` |
-| `encode` | a `Document` | document text | |
+| `encode` | a `Document` | document text | `Error`: an application key with no full stop or listed twice, or a value JSON cannot carry |
 | `emitDocument` | a `Document` | a plain JSON value | |
 | `decodeContainer` | a `Buffer` of `.vnz` bytes | a container | `VnxRefusal` |
 | `writeContainer` | a container | a `Buffer` | |
@@ -68,7 +68,9 @@ A `Document` carries `folders`, `networks`, `routes`, `tracks`, `waypoints`,
 `areas`, `appKeys` and `counts`. `appKeys` is a list of `AppKey` pairs, `key`
 and `value`, sorted by key: the application keys of
 [SPEC §3.9](../SPEC.md). A `null` value is a present key, and `encode` throws on
-a key with no full stop or a key listed twice. A `Network` carries `nodes`, `arcs`, `chains`,
+a key with no full stop or a key listed twice. `encode` also throws on
+`undefined`, a function, a symbol, a bigint or a non-finite number anywhere in
+the document, where `JSON.stringify` would drop the value or write `null`. A `Network` carries `nodes`, `arcs`, `chains`,
 `points` and `areas`, and a chain's `links` traverse those arcs by reference.
 Model classes are exported from the package root; `src/model.js` has the
 fields.

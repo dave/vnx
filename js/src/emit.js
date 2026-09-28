@@ -16,11 +16,39 @@
 
 /**
  * Encode a document as VNX text.
+ *
+ * Throws an `Error` for a value JSON cannot carry — `undefined`, a function, a
+ * symbol, a bigint, or a number that is not finite — wherever it sits,
+ * including inside an application key's value, a record body or a style.
+ * `JSON.stringify` alone would drop the first three from an object, write them
+ * as `null` in an array, and write `NaN` and `Infinity` as `null`: a document
+ * silently different from the model. A `null` is a value and is written.
  * @param {import('./model.js').Document} doc
  * @returns {string}
  */
 export function encode(doc) {
-  return JSON.stringify(emitDocument(doc));
+  return JSON.stringify(emitDocument(doc), refuseUnwritable);
+}
+
+// The replacer sees every value `JSON.stringify` is about to write, after
+// `toJSON`. Model fields left unset never reach it: `put` omits them.
+function refuseUnwritable(key, value) {
+  const where = key === '' ? 'the document' : `key ${JSON.stringify(key)}`;
+  switch (typeof value) {
+    case 'undefined':
+    case 'function':
+    case 'symbol':
+    case 'bigint':
+      throw new Error(`vnx: ${where} holds a ${typeof value}, which JSON cannot carry`);
+    case 'number':
+      if (!Number.isFinite(value)) {
+        throw new Error(`vnx: ${where} holds ${value}, which is not finite (SPEC.md 4.2)`);
+      }
+      break;
+    default:
+      break;
+  }
+  return value;
 }
 
 function emitPosition(position) {

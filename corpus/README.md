@@ -82,8 +82,9 @@ Three fields do work that is not evident from their names.
 returned an empty document for every input satisfies "no error, no diagnostics"
 on all of them.
 
-It carries two kinds of key. A **bare name** is one of the seven top-level
-collections. A name **starting with `/`** is a container nested inside one,
+It carries two kinds of key. A **bare name** is one of the six top-level
+collections. An application key (`SPEC §3.9`) is not a collection and has no
+entry in `counts`: the tree comparison of an accept case is what checks it. A name **starting with `/`** is a container nested inside one,
 addressed by the same JSON Pointer vocabulary `positions` uses —
 `/networks/0/nodes`, `/routes/0/arcs/1/pips`, `/tracks/0/segments`,
 `/networks/0/chains/2/links`, `/areas/0/polygon`.
@@ -207,8 +208,8 @@ writer's own business, and two implementations using their own standard JSON
 libraries differ in all three while carrying the same document.
 
 Compare against the tree parsed from the **file**, never one decoded model
-against another. A reader that discarded every data record, every ruleset, every
-style and every `notes` field produces a model that compares equal to itself and
+against another. A reader that discarded every data record, every application key,
+every style and every `notes` field produces a model that compares equal to itself and
 passes this tier on the sidecar assertions alone. The tree comparison is what
 proves a reader kept what it read, including data records of types no
 implementation recognises.

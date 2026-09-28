@@ -58,8 +58,9 @@ red and this list gets corrected rather than quietly going stale.
 makes an unrecognised key on an object a reader diagnostic that keeps the item,
 so a schema refusing them would disagree with every conforming reader. The same
 applies to `data` record bodies, which are opaque by design — constraining them
-would break the extensibility the bag exists for — and to the `rulesets` block,
-which a 0.1 reader preserves verbatim and interprets not at all (section 3.9).
+would break the extensibility the bag exists for — and to the value of an
+application key, a top-level key containing a full stop, which a reader
+preserves verbatim and interprets not at all (section 3.9).
 
 ## Where the schema and a reader disagree
 

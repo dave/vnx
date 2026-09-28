@@ -64,8 +64,8 @@ Two properties of that order:
 
 `accept/` is the hardest tier and the one to build first. Its comparison is
 against the tree parsed from the original file, never against a second model. A
-reader that discarded every data record, every ruleset, every style and every
-`notes` produces a model equal to itself and passes a model-versus-model tier
+reader that discarded every data record, every application key, every style and
+every `notes` produces a model equal to itself and passes a model-versus-model tier
 green: the whole extensibility mechanism, all styling and all user prose,
 dropped by an implementation that reports itself conforming. *(Frozen as a
 proof by the Rust, Swift, Python and JavaScript implementations independently.)*
@@ -157,7 +157,7 @@ a reader that treats it as `false` flattens Auto to hidden with nothing to repor
 
 The language pulls here. A plain list for every collection, where absent and
 empty are one value, is more idiomatic in Rust than an optional list, and every
-reviewer would suggest the change. For the seven document collections that
+reviewer would suggest the change. For the six document collections that
 change is safe: `SPEC §3.1` puts the two shapes on the same footing. It is not
 safe for a required key. A model that cannot tell an absent `links` from an
 empty one cannot report the object as malformed.
@@ -168,9 +168,25 @@ read-modify-write.
 
 ### 4.2 Opaque bodies survive at value level
 
-Data records (`SPEC §5.1`), `rulesets` (`SPEC §3.9`) and style objects
+Data records (`SPEC §5.1`), application keys (`SPEC §3.9`) and style objects
 (`SPEC §3.10`) are opaque: no key inside them is ever unrecognised, and each has
 to survive a read-modify-write untouched.
+
+An application key differs from the other two in three ways, and each is a
+place to go wrong:
+
+- The rule is about position, not about the key. A key containing a full stop
+  is an application key only at the top level of a document. Anywhere else it
+  is an unrecognised key and is reported. A decoder that tests every object's
+  keys for a full stop skips diagnostics the corpus expects, and
+  `corpus/diagnose/dotted-key-on-item.vnx` is what catches it.
+- The value is any JSON value, not only an array or an object. A `null` has to
+  come back as `null`, and an empty array as an empty array. The absent-equals-
+  empty normalisation of `SPEC §8.1` does not apply, so a model that drops a
+  key whose value is empty or `null` fails `corpus/accept/application-keys.vnx`.
+- The key set is open. Hold application keys as a list of key-value pairs in the
+  document model, not as one field per known key. A field per key is the
+  derive-macro failure of section 3 again, one level up.
 
 That is a modelling decision, not a serialisation one. Decode a record body into
 a typed structure and you lose the fields your type does not name. The accept

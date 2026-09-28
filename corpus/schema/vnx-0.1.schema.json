@@ -54,11 +54,11 @@
       "items": {
         "$ref": "#/$defs/network"
       }
-    },
-    "rulesets": {
-      "type": "array",
-      "description": "Carried VERBATIM and never interpreted (spec §3.7). The subsystem is being redesigned; a 0.1 reader preserves the block so a later one can read it, and validates nothing inside it. So this schema does not either.",
-      "items": true
+    }
+  },
+  "patternProperties": {
+    "\\.": {
+      "description": "An application key (spec §3.9): a top-level key containing a full stop, named in reverse-DNS form by the owner of the domain. Its value is any JSON value, carried VERBATIM and never interpreted, so this schema constrains nothing about it. The rule is top-level only: on any other object a dotted key is an unrecognised key, which a reader diagnoses."
     }
   },
   "$defs": {

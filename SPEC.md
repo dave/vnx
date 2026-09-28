@@ -59,8 +59,8 @@ differs from this document, this one decides.
 This section is informative. Each term is defined by the section it cites, and
 a term is listed after every term its definition uses.
 
-- A **document** is a JSON object carrying a `vnx` version key and up to seven
-  collections (Section 3.1).
+- A **document** is a JSON object carrying a `vnx` version key, up to six
+  collections and any number of application keys (Section 3.1).
 - An **item** is an object that can carry `name`, `notes`, `hidden` and `data`
   (Section 3.10). An item is top-level when it is a member of one of the
   document's collections; every other item sits inside a top-level one.
@@ -96,8 +96,8 @@ a term is listed after every term its definition uses.
   points have the same shape (Section 3.6).
 - An **area** is an item carrying one closed ring of positions, `polygon`,
   either at the top level or within a network (Section 3.7).
-- A **ruleset** is one entry of the top-level `rulesets` array, opaque in this
-  version (Section 3.9).
+- An **application key** is a top-level key of a document that contains a full
+  stop. Its name is in reverse-DNS form and its value is opaque (Section 3.9).
 - A **data record** is one object in the `data` array of an item or of an arc,
   identified by its `@type` and otherwise opaque (Section 5).
 - A **container** is a ZIP archive, the VNZ file, carrying one document and its
@@ -264,7 +264,8 @@ A VNX document is a JSON object.
   "tracks":    [ ],
   "waypoints": [ ],
   "areas":     [ ],
-  "rulesets":  [ ]
+
+  "app.viatrail.rulesets": [ ]
 }
 ```
 
@@ -275,7 +276,7 @@ Absence means "not known". It MUST NOT be read as a default value, with two
 exceptions stated where they arise: `label-visible`, where absence means Auto
 (Section 3.6), and `hidden`, where absence means visible (Section 3.8).
 
-All seven collections are OPTIONAL. An absent collection and an empty one carry
+All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
 wherever a container appears in this format: an empty `data` bag, an empty
 `links` array and an empty `nodes` object each carry the same content as the
@@ -568,15 +569,32 @@ areas and tracks. It is user-visible state rather than a rendering cache.
 Absence means visible. A writer MUST emit the key only when its value is `true`,
 and a document SHOULD NOT contain `"hidden": false`.
 
-### 3.9 Rulesets
+### 3.9 Application keys
 
-Rulesets are not defined in version 0.1.
+A top-level key of a document that contains a full stop is an application key.
+It adds a kind of content that this format does not define. Its name is in
+reverse-DNS form, and the owner of the domain chooses it: `app.viatrail.rulesets`
+belongs to whoever owns `viatrail.app`. No key this format defines contains a
+full stop, so an application key can never collide with one.
 
-A document MAY carry a `rulesets` key, whose value is an array. Its contents are
-opaque, but the value itself has a shape, and a value of the wrong JSON type is
-handled under Section 6.2 like any other. A 0.1.x reader MUST treat its contents
-as opaque and MUST preserve them through a read-modify-write, under the same
-rules as an unknown data record (Section 5.1).
+The value of an application key is any JSON value, and it is opaque. A reader:
+
+- MUST preserve the key and its value unchanged through a read-modify-write. A
+  `null` value stays `null`, and an empty array or object stays empty: the
+  normalisation of Section 8.1 that makes an absent container equal to an empty
+  one does not apply to an application key or to anything inside its value.
+- MUST NOT record a diagnostic for an application key, whatever its value.
+- MUST NOT inspect the value, as Section 5.1 forbids for a record body.
+
+The rule applies only at the top level of a document. On any other object a key
+that contains a full stop is an unrecognised key, and Section 6.2 applies to it.
+Information about one object belongs in that object's `data` array (Section 5).
+A data record attaches information to the object it sits on; an application key
+adds a new kind of thing.
+
+A writer MUST give every application key it writes a name that contains a full
+stop. Without one the key would be read back as an unrecognised key and
+dropped.
 
 ### 3.10 Recognised keys
 
@@ -589,7 +607,7 @@ empty array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
-| document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `chains`, `points`, `areas`, `data` |
 | arc, in a network | `from`, `to`, `pips` | `data` |
@@ -627,7 +645,7 @@ Two kinds of object are opaque, and a reader MUST NOT apply Section 6.2's
 unrecognised-key rule inside either:
 
 - A data record, apart from its `@type` (Section 5.1).
-- Everything under `rulesets` (Section 3.9).
+- The value of an application key (Section 3.9).
 
 A style object is opaque for the same reason. A reader MUST carry every key in a
 style object through a read-modify-write, and MUST NOT report an unrecognised
@@ -729,8 +747,8 @@ Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 - Identifiers appear only where something references them: on folders, and as
   the keys of a network's `nodes` and `arcs` objects.
 - Keys defined by this format are lower kebab-case. `@type` (Section 5) is the
-  single exception and is the only key in the format carrying a
-  non-alphanumeric character.
+  single exception. No key this format defines contains a full stop; an
+  application key always does (Section 3.9).
 - A writer SHOULD derive an identifier from the name of the object it
   identifies, where that object has one: lower kebab-case, about ten
   characters, with a numeric suffix for uniqueness. Where there is no name, a
@@ -812,7 +830,9 @@ A reader is tolerant of damage and silent about nothing.
 
 - An unrecognised key on an object defined by this format: the reader MUST
   record a diagnostic, MUST skip the key, and MUST keep the object. An
-  unrecognised key is not an unusable value.
+  unrecognised key is not an unusable value. An application key (Section 3.9)
+  is recognised, so a reader records no diagnostic for it; a key containing a
+  full stop anywhere below the top level is unrecognised.
 - An unusable value, such as a position that will not parse, a link naming an
   arc that is absent from the document, a `polygon` carrying a ring beyond the
   first, or a record-level timestamp carrying an offset other than `Z`: the
@@ -1121,9 +1141,11 @@ For every file in `accept/`, a runner MUST decode it, encode the decoded
 document, and compare the tree parsed from the original file against the tree
 parsed from the encoded output. It MUST NOT be reduced to a comparison of one
 decoded model against another: a reader that discarded every data record, every
-ruleset, every style and every `notes` field produces a model equal to itself.
-Two normalisations are permitted and no others — trailing `null` channels
-dropped from a position, and an absent container equal to an empty one. Files in
+application key, every style and every `notes` field produces a model equal to
+itself. Two normalisations are permitted and no others — trailing `null` channels
+dropped from a position, and an absent container equal to an empty one. The
+second does not apply to an application key or inside its value, which the
+comparison matches exactly (Section 3.9). Files in
 `reject/` and `diagnose/` are not subject to this check.
 
 The comparison is over trees because the bytes of a document are not

@@ -1,0 +1,10 @@
+{
+  "vnx": "0.1.0",
+  "app.viatrail.datatypes": [],
+  "waypoints": [
+    {
+      "name": "Car park",
+      "at": [-3.675, 57.1201]
+    }
+  ]
+}

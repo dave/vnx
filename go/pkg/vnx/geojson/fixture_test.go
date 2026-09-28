@@ -110,7 +110,7 @@ func fixture() *vnx.Document {
 				},
 			}},
 		}},
-		Rulesets: []any{map[string]any{"name": "Munros"}},
+		AppKeys: []vnx.AppKey{{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "Munros"}}}},
 	}
 }
 

@@ -1,0 +1,15 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "The application-key rule of SPEC 3.9 applies at the top level of a document only. A key containing a full stop on any other object is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the item. The top-level app.viatrail.datatypes in the same file is an application key and is not reported, so a reader that tests every object's keys for a full stop, and one that tests none, both fail this case. Information about one object belongs in its data array.",
+  "counts": {
+    "waypoints": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/waypoints/0/app.viatrail.note",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    }
+  ]
+}

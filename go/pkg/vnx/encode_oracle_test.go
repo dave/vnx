@@ -133,7 +133,8 @@ func TestOracleCorpusCoversEveryCollectionFullAndEmpty(t *testing.T) {
 	cases := oracleCases(t)
 	names := documentCollectionFields()
 	if len(names) < 7 {
-		t.Fatalf("reflection found %d collections on Document, expected at least the 7 the format defines: %v", len(names), names)
+		t.Fatalf("reflection found %d slice fields on Document, expected at least the 6 collections "+
+			"and the application keys: %v", len(names), names)
 	}
 	full := map[string]bool{}
 	empty := map[string]bool{}
@@ -148,12 +149,66 @@ func TestOracleCorpusCoversEveryCollectionFullAndEmpty(t *testing.T) {
 		}
 	}
 	for _, n := range names {
+		if n == "AppKeys" {
+			oracleAppKeyArm(t, cases)
+		}
 		if !full[n] {
 			t.Errorf("no case has a non-empty %s", n)
 		}
 		if !empty[n] {
 			t.Errorf("no case has an empty %s — the key-omission rule is unguarded for it", n)
 		}
+	}
+}
+
+// oracleAppKeyArm is the application-key arm of the coverage guard above.
+//
+// ⚠ A NON-EMPTY AppKeys IN A CASE IS NOT ENOUGH. The reflection above counts
+// slice lengths in the MODEL, and a writer that dropped application keys would
+// leave every model full while every file lost them. So this arm fills one
+// dotted key through the reflected field and asserts Encode wrote it. It also
+// asserts that every key a case holds is in that case's frozen expectation, so
+// the expectations cannot lose one without a red here.
+func oracleAppKeyArm(t *testing.T, cases []oracleCase) {
+	t.Helper()
+	const key = "com.example.oracle-arm"
+	doc := &Document{}
+	reflect.ValueOf(doc).Elem().FieldByName("AppKeys").Set(
+		reflect.ValueOf([]AppKey{{Key: key, Value: nil}}))
+	out, err := Encode(doc)
+	if err != nil {
+		t.Fatalf("encoding a document holding one application key: %v", err)
+	}
+	var tree map[string]any
+	if err := json.Unmarshal(out, &tree); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := tree[key]; !ok || v != nil {
+		t.Errorf("a document holding the application key %q = null encoded as %s", key, out)
+	}
+
+	checked := 0
+	for _, c := range cases {
+		if len(c.doc.AppKeys) == 0 {
+			continue
+		}
+		want, err := os.ReadFile(filepath.Join(oracleDir, c.name+".vnx"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var frozen map[string]any
+		if err := json.Unmarshal(want, &frozen); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		for _, k := range c.doc.AppKeys {
+			if _, ok := frozen[k.Key]; !ok {
+				t.Errorf("%s holds application key %q and its frozen expectation does not", c.name, k.Key)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no oracle case holds an application key — this arm checked nothing")
 	}
 }
 
@@ -185,7 +240,9 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 		nilTime         bool
 		mixedTiming     bool // timed and untimed pips in ONE track
 		signedZero      bool
-		rulesets        bool
+		appKey          bool
+		appKeyNull      bool
+		appKeyEmpty     bool
 		dataRecord      bool
 		emptyArray      bool // an emitted [] somewhere
 		singleElemArray bool
@@ -201,8 +258,14 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 
 	for _, c := range cases {
 		d := c.doc
-		if len(d.Rulesets) > 0 {
-			rulesets = true
+		for _, k := range d.AppKeys {
+			appKey = true
+			if k.Value == nil {
+				appKeyNull = true
+			}
+			if arr, ok := k.Value.([]any); ok && len(arr) == 0 {
+				appKeyEmpty = true
+			}
 		}
 		depth := map[string]int{}
 		for _, fo := range d.Folders {
@@ -348,7 +411,9 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 		{nilTime, "a position with nil Time"},
 		{mixedTiming, "timed and untimed pips in one track"},
 		{signedZero, "a negative-zero coordinate or elevation"},
-		{rulesets, "a rulesets block (neither golden has one)"},
+		{appKey, "an application key (neither golden has one)"},
+		{appKeyNull, "an application key whose value is null"},
+		{appKeyEmpty, "an application key whose value is an empty array"},
 		{dataRecord, "an item carrying a data record"},
 		{emptyArray, "an emitted empty array"},
 		{singleElemArray, "a single-element array"},
@@ -462,7 +527,7 @@ func generatedOracleCases() []oracleCase {
 			Tracks:    []Track{},
 			Routes:    []Route{},
 			Networks:  []Network{},
-			Rulesets:  []any{},
+			AppKeys:   []AppKey{},
 		}},
 		{"folders-deeply-nested", oracleFolders()},
 		{"waypoint-styles", oracleWaypointStyles()},
@@ -472,7 +537,7 @@ func generatedOracleCases() []oracleCase {
 		{"int64-beyond-2-53", oracleBigInt64()},
 		{"timed-and-untimed-pips", oracleTiming()},
 		{"single-element-and-empty-arrays", oracleDegenerateArrays()},
-		{"rulesets", oracleRulesets()},
+		{"application-keys", oracleAppKeys()},
 		{"data-records-everywhere", oracleData()},
 		{"network-full", &Document{Generator: "network-full", Networks: []Network{oracleNetwork()}}},
 		{"network-minimal", &Document{Generator: "network-minimal", Networks: []Network{{Name: "bare"}}}},
@@ -569,7 +634,8 @@ func oracleNegativeZero() *Document {
 		}},
 		// Verbatim blocks recurse through the same writer, so the rule must
 		// hold inside them too.
-		Rulesets: []any{map[string]any{"threshold": nz, "range": []any{nz, 0.0}}},
+		AppKeys: []AppKey{{Key: "com.example.signed-zero",
+			Value: []any{map[string]any{"threshold": nz, "range": []any{nz, 0.0}}}}},
 	}
 }
 
@@ -679,13 +745,17 @@ func oracleDegenerateArrays() *Document {
 	}
 }
 
-func oracleRulesets() *Document {
-	// Carried VERBATIM and uninspected (vnx.go:57-63), but the encoder still
-	// recurses into it — so every writer rule applies inside a block this
-	// package refuses to understand. NEITHER GOLDEN HAS ONE.
+func oracleAppKeys() *Document {
+	// Carried VERBATIM and uninspected (SPEC §3.9), but the encoder still
+	// recurses into each value — so every writer rule applies inside a value
+	// this package refuses to understand. NEITHER GOLDEN HAS ONE.
+	//
+	// ⚠ THE null AND THE EMPTY VALUES ARE THE POINT. §3.9 exempts an
+	// application key from absent-equals-empty, so a writer that skipped a key
+	// holding null, [] or {} would drop content; each must come back.
 	return &Document{
-		Generator: "rulesets",
-		Rulesets: []any{
+		Generator: "application-keys",
+		AppKeys: []AppKey{{Key: "app.viatrail.rulesets", Value: []any{
 			map[string]any{
 				"id":   "r1",
 				"name": "شرط",
@@ -705,6 +775,12 @@ func oracleRulesets() *Document {
 			nil,
 			true,
 			[]any{},
+		}},
+			{Key: "com.example.empty-array", Value: []any{}},
+			{Key: "com.example.empty-object", Value: map[string]any{}},
+			{Key: "com.example.null", Value: nil},
+			{Key: "com.example.number", Value: 42.0},
+			{Key: "com.example.string", Value: "a bare string"},
 		},
 	}
 }
@@ -862,7 +938,7 @@ func oracleEverything() *Document {
 	d.Tracks = oracleTiming().Tracks
 	d.Routes = oracleExtremeNumbers().Routes
 	d.Networks = []Network{oracleNetwork()}
-	d.Rulesets = oracleRulesets().Rulesets
+	d.AppKeys = oracleAppKeys().AppKeys
 	return d
 }
 

@@ -1,7 +1,7 @@
 {
-  "generator": "rulesets",
+  "generator": "application-keys",
   "vnx": "0.1.0",
-  "rulesets": [
+  "app.viatrail.rulesets": [
     {
       "flag": true,
       "id": "r1",
@@ -30,5 +30,10 @@
     null,
     true,
     []
-  ]
+  ],
+  "com.example.empty-array": [],
+  "com.example.empty-object": {},
+  "com.example.null": null,
+  "com.example.number": 42,
+  "com.example.string": "a bare string"
 }

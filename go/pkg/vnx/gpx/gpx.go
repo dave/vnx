@@ -2,7 +2,7 @@
 //
 // ⚠ IT IS AN INTERCHANGE FORMAT, NOT A BACKUP. GPX carries points and lines
 // and nothing else, so tags, styles, hidden state, arc boundaries, routing
-// config, networks, areas and rulesets do not survive. That is the ruling
+// config, networks, areas and application keys do not survive. That is the ruling
 // (§2.3), not a gap to be closed with an <extensions> block: every byte of a
 // Viatrail-flavoured extension would be ignored by the Garmins and Gaias this
 // format exists to talk to, and VNX already answers "I want all of it back".
@@ -69,7 +69,7 @@ type writer struct {
 	trackDiags    []vnx.Diagnostic
 	routeDiags    []vnx.Diagnostic
 	networkDiags  []vnx.Diagnostic
-	rulesetDiags  []vnx.Diagnostic
+	appKeyDiags   []vnx.Diagnostic
 }
 
 // run walks the document once and streams as it goes.
@@ -92,14 +92,14 @@ func (g *writer) run() {
 	g.b.WriteString(footer)
 	g.collectAreaDiagnostics()
 	g.collectNetworkDiagnostics()
-	g.collectRulesetDiagnostics()
+	g.appKeyDiags = vnx.AppKeyDiagnostics(g.doc, "GPX")
 }
 
 // diagnostics concatenates in [vnx.Document] field order: folders, waypoints,
-// areas, tracks, routes, networks, rulesets.
+// areas, tracks, routes, networks, application keys.
 func (g *writer) diagnostics() []vnx.Diagnostic {
 	n := len(g.folderDiags) + len(g.waypointDiags) + len(g.areaDiags) +
-		len(g.trackDiags) + len(g.routeDiags) + len(g.networkDiags) + len(g.rulesetDiags)
+		len(g.trackDiags) + len(g.routeDiags) + len(g.networkDiags) + len(g.appKeyDiags)
 	if n == 0 {
 		return nil
 	}
@@ -110,7 +110,7 @@ func (g *writer) diagnostics() []vnx.Diagnostic {
 	out = append(out, g.trackDiags...)
 	out = append(out, g.routeDiags...)
 	out = append(out, g.networkDiags...)
-	out = append(out, g.rulesetDiags...)
+	out = append(out, g.appKeyDiags...)
 	return out
 }
 
@@ -279,19 +279,6 @@ func (g *writer) collectNetworkDiagnostics() {
 			Path:     fmt.Sprintf("/networks/%d", i),
 			Args:     []string{g.doc.Networks[i].Name},
 			Message:  "GPX cannot express a shared-arc network — network not exported",
-		})
-	}
-}
-
-func (g *writer) collectRulesetDiagnostics() {
-	for i := range g.doc.Rulesets {
-		// No args: Document.Rulesets is []any, carried verbatim and never
-		// interpreted, so there is no name to pass (writer.go convention 3).
-		g.rulesetDiags = append(g.rulesetDiags, vnx.Diagnostic{
-			Severity: vnx.Warning,
-			Code:     vnx.CodeRulesetUnsupported,
-			Path:     fmt.Sprintf("/rulesets/%d", i),
-			Message:  "no interchange format carries a ruleset — not exported",
 		})
 	}
 }

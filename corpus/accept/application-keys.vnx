@@ -1,0 +1,29 @@
+{
+  "vnx": "0.1.0",
+  "waypoints": [
+    {
+      "name": "Car park",
+      "at": [-3.675, 57.1201]
+    }
+  ],
+  "app.viatrail.rulesets": [
+    {
+      "name": "Hide minor springs",
+      "rules": [
+        {
+          "priority": 10,
+          "style": {"label-visible": false}
+        }
+      ]
+    }
+  ],
+  "app.viatrail.datatypes": [],
+  "com.example.settings": {
+    "units": "metric",
+    "empty": {},
+    "list": []
+  },
+  "com.example.nothing-set": {},
+  "org.example.label": "a string value",
+  "org.example.cleared": null
+}

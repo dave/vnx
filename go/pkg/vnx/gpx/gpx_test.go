@@ -95,7 +95,7 @@ func fixture() *vnx.Document {
 			},
 		}},
 		Networks: []vnx.Network{{Folder: "f-scot", Name: "Cairngorms Paths"}},
-		Rulesets: []any{map[string]any{"name": "Hard climbs"}},
+		AppKeys:  []vnx.AppKey{{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "Hard climbs"}}}},
 	}
 	return d
 }
@@ -255,18 +255,23 @@ func TestNetworkRaisesExactlyTheNetworkDiagnostic(t *testing.T) {
 	}
 }
 
-func TestRulesetRaisesExactlyTheRulesetDiagnostic(t *testing.T) {
-	d := &vnx.Document{Rulesets: []any{map[string]any{"name": "r"}, "opaque"}}
+// Every application key is dropped and reported once, a null one included —
+// it is present, so it is content (SPEC §3.9). Args[0] is the key, which is
+// what the bridge maps to a kind; the path escapes it as a JSON Pointer.
+func TestAppKeyRaisesExactlyTheAppKeyDiagnostic(t *testing.T) {
+	d := &vnx.Document{AppKeys: []vnx.AppKey{
+		{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "r"}}},
+		{Key: "com.example/x~y", Value: nil},
+	}}
 	_, rep := write(t, d)
-	wantCodes(t, rep, vnx.CodeRulesetUnsupported, vnx.CodeRulesetUnsupported)
-	if rep.Diagnostics[1].Path != "/rulesets/1" {
-		t.Errorf("path %q, want /rulesets/1", rep.Diagnostics[1].Path)
+	wantCodes(t, rep, vnx.CodeAppKeyUnsupported, vnx.CodeAppKeyUnsupported)
+	if rep.Diagnostics[1].Path != "/com.example~1x~0y" {
+		t.Errorf("path %q, want /com.example~1x~0y", rep.Diagnostics[1].Path)
 	}
-	// A ruleset carries no name at all, so it passes NO args (writer.go
-	// convention 3). An empty-string arg would reach the bridge as a template
-	// parameter it would happily interpolate as nothing.
-	if len(rep.Diagnostics[0].Args) != 0 {
-		t.Errorf("args %v, want none", rep.Diagnostics[0].Args)
+	for i, k := range d.AppKeys {
+		if got := rep.Diagnostics[i].Args; len(got) != 1 || got[0] != k.Key {
+			t.Errorf("args %v, want [%s]", got, k.Key)
+		}
 	}
 }
 
@@ -369,13 +374,13 @@ func TestOnlyUnsupportedItemsEmitNothing(t *testing.T) {
 	d := &vnx.Document{
 		Areas:    []vnx.Area{{Name: "A", Polygon: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}, {Lon: 1, Lat: 1}}}},
 		Networks: []vnx.Network{{Name: "N"}},
-		Rulesets: []any{"r"},
+		AppKeys:  []vnx.AppKey{{Key: "app.viatrail.rulesets", Value: []any{"r"}}},
 	}
 	_, rep := write(t, d)
 	if rep.Emitted != 0 {
-		t.Fatalf("emitted %d for a document of only networks, areas and rulesets", rep.Emitted)
+		t.Fatalf("emitted %d for a document of only networks, areas and application keys", rep.Emitted)
 	}
-	wantCodes(t, rep, vnx.CodeGPXAreaUnsupported, vnx.CodeGPXNetworkUnsupported, vnx.CodeRulesetUnsupported)
+	wantCodes(t, rep, vnx.CodeGPXAreaUnsupported, vnx.CodeGPXNetworkUnsupported, vnx.CodeAppKeyUnsupported)
 }
 
 // TestDiagnosticsAreInDocumentOrder pins writer.go convention 6 against the
@@ -386,7 +391,7 @@ func TestDiagnosticsAreInDocumentOrder(t *testing.T) {
 		vnx.CodeEmptyFolderDropped,    // /folders/2
 		vnx.CodeGPXAreaUnsupported,    // /areas/0
 		vnx.CodeGPXNetworkUnsupported, // /networks/0
-		vnx.CodeRulesetUnsupported,    // /rulesets/0
+		vnx.CodeAppKeyUnsupported,     // /app.viatrail.rulesets
 	)
 }
 
@@ -425,7 +430,7 @@ func TestEveryCodeRaisedIsRegistered(t *testing.T) {
 	}
 	for _, c := range []string{
 		vnx.CodeGPXNetworkUnsupported, vnx.CodeGPXAreaUnsupported,
-		vnx.CodeRulesetUnsupported, vnx.CodeEmptyFolderDropped,
+		vnx.CodeAppKeyUnsupported, vnx.CodeEmptyFolderDropped,
 		vnx.CodeFolderPathUnavailable, vnx.CodeItemNoGeometry,
 	} {
 		if !registered[c] {

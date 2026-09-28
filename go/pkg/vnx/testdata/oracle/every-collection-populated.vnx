@@ -320,7 +320,7 @@
       }
     }
   ],
-  "rulesets": [
+  "app.viatrail.rulesets": [
     {
       "flag": true,
       "id": "r1",
@@ -425,5 +425,10 @@
       "notes": "note",
       "at": [-3.6712, 57.118]
     }
-  ]
+  ],
+  "com.example.empty-array": [],
+  "com.example.empty-object": {},
+  "com.example.null": null,
+  "com.example.number": 42,
+  "com.example.string": "a bare string"
 }

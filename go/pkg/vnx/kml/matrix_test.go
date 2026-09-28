@@ -237,29 +237,32 @@ func TestMatrixMovingTimeIsNotCarried(t *testing.T) {
 	}
 }
 
-// Row: Rulesets — "❌", dropped and DIAGNOSED. This is the one ❌ row in the
-// KML column that raises a per-item diagnostic, because a ruleset is a whole
-// thing the user selected, not an attribute of something else.
-func TestMatrixRulesetIsDroppedAndDiagnosed(t *testing.T) {
+// Row: Application keys — "❌", dropped and DIAGNOSED. This is the one ❌ row
+// in the KML column that raises a per-item diagnostic, because an application
+// key is a whole kind of content, not an attribute of something else.
+func TestMatrixAppKeyIsDroppedAndDiagnosed(t *testing.T) {
+	keys := []vnx.AppKey{
+		{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"id": "r1"}}},
+		{Key: "com.example.r2", Value: nil},
+	}
 	out, report := writeDoc(t, &vnx.Document{
 		Waypoints: []vnx.Waypoint{{Name: "W", At: pos(1, 2)}},
-		Rulesets:  []any{map[string]any{"id": "r1"}, map[string]any{"id": "r2"}},
+		AppKeys:   keys,
 	})
 	if strings.Contains(out, "r1") || strings.Contains(out, "r2") {
-		t.Errorf("a ruleset reached the file\n%s", out)
+		t.Errorf("an application key reached the file\n%s", out)
 	}
 	got := codes(report)
-	if len(got) != 2 || got[0] != vnx.CodeRulesetUnsupported || got[1] != vnx.CodeRulesetUnsupported {
-		t.Fatalf("diagnostics = %v, want two %s", got, vnx.CodeRulesetUnsupported)
+	if len(got) != 2 || got[0] != vnx.CodeAppKeyUnsupported || got[1] != vnx.CodeAppKeyUnsupported {
+		t.Fatalf("diagnostics = %v, want two %s", got, vnx.CodeAppKeyUnsupported)
 	}
 	for i, dg := range report.Diagnostics {
-		// ⚠ NO ARGS: Document.Rulesets is []any, opaque by ruling, so there is
-		// no name to pass and inventing one is not an option.
-		if len(dg.Args) != 0 {
-			t.Errorf("ruleset diagnostic %d carries Args %v; a ruleset has no name", i, dg.Args)
+		// Args[0] is the key: it is the application key's only name.
+		if len(dg.Args) != 1 || dg.Args[0] != keys[i].Key {
+			t.Errorf("application-key diagnostic %d carries Args %v, want [%s]", i, dg.Args, keys[i].Key)
 		}
-		if dg.Path == "" {
-			t.Errorf("ruleset diagnostic %d has no Path", i)
+		if dg.Path != "/"+keys[i].Key {
+			t.Errorf("application-key diagnostic %d has Path %q, want /%s", i, dg.Path, keys[i].Key)
 		}
 	}
 }

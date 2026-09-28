@@ -49,7 +49,7 @@ func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
 	}
 }
 
-// §3.9: omitted means visible, and a writer emits the key only when true.
+// §3.8: omitted means visible, and a writer emits the key only when true.
 func TestHiddenAbsentMeansVisible(t *testing.T) {
 	doc, _, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[
 	  {"name":"plain","at":[-3.6,57.1]},

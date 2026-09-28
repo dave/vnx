@@ -1,0 +1,8 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "Application keys (SPEC 3.9): top-level keys containing a full stop, whose values are any JSON value, carried verbatim and never reported. The file holds an array, an object, a string and a null, and an empty array and an empty object beside them. The null and the two empty values are load-bearing: section 8.1's absent-equals-empty normalisation does not apply to an application key, so the round trip catches a reader or writer that drops a key because its value is null or empty. The rule set inside app.viatrail.rulesets carries a style with label-visible false, which must survive untouched: nothing inside an application key's value is inspected. Application keys have no entry in counts, so the tree comparison is the only check on them.",
+  "counts": {
+    "waypoints": 1
+  }
+}

@@ -114,7 +114,7 @@ func writerCode(s string) string {
 //
 // ⚠ THE PREFIX NAMES THE SCOPE OF THE RULE, NOT THE WRITER THAT HAPPENS TO
 // RAISE IT. A format prefix — "gpx." — means only that format drops the
-// thing. A noun prefix — "ruleset.", "folder.", "item." — means every format
+// thing. A noun prefix — "app-key.", "folder.", "item." — means every format
 // does, and one Code there is one catalogue key and one English sentence
 // instead of three identical ones under three names. The user already knows
 // which format they asked for; the Code does not have to tell them again.
@@ -127,11 +127,13 @@ var (
 	CodeGPXNetworkUnsupported = writerCode("gpx.network-unsupported")
 	// CodeGPXAreaUnsupported: GPX has no polygon (§3.1).
 	CodeGPXAreaUnsupported = writerCode("gpx.area-unsupported")
-	// CodeRulesetUnsupported: no target format can carry a ruleset, so all
-	// three raise this one. Its diagnostics pass NO args — Document.Rulesets
-	// is []any, carried verbatim and never interpreted, so there is no name to
-	// pass.
-	CodeRulesetUnsupported = writerCode("ruleset.unsupported")
+	// CodeAppKeyUnsupported: no target format can carry an application key
+	// (SPEC §3.9), so all three raise this one, once per key, through
+	// [AppKeyDiagnostics]. Args[0] is the key itself, verbatim: it is the
+	// application key's only name, and it is what a caller maps to a kind of
+	// content ("app.viatrail.rulesets" is style rules). The code is generic on
+	// purpose — this package knows no application's keys.
+	CodeAppKeyUnsupported = writerCode("app-key.unsupported")
 	// CodeEmptyFolderDropped: an EMPTY folder is a casualty in the flattened
 	// formats; a non-empty one is NOT (§2.7). If every item the folder held
 	// carries the folder's name in its own, nothing was lost and a diagnostic

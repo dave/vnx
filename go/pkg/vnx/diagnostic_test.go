@@ -76,12 +76,12 @@ func TestRefusalReturnsNoPartialDocument(t *testing.T) {
 	}
 }
 
-// The known collections are not implemented yet (F4-F8). Until they are, their
-// keys must NOT be reported as unknown — that would train a caller to ignore
-// diagnostics, which is the one habit this channel cannot survive.
+// The format's collections and an application key must NOT be reported as
+// unknown — that would train a caller to ignore diagnostics, which is the one
+// habit this channel cannot survive.
 func TestKnownCollectionsAreNotReportedAsUnknown(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.1.0","folders":[],"networks":[],"routes":[],
-	  "tracks":[],"waypoints":[],"areas":[],"rulesets":[]}`))
+	  "tracks":[],"waypoints":[],"areas":[],"app.viatrail.rulesets":[]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

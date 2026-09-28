@@ -2,6 +2,7 @@ package vnx
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,10 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 			continue
 		}
 		slices++
+		if f.Name == "AppKeys" {
+			appKeyArm(t, f)
+			continue
+		}
 		c, ok := byField[f.Name]
 		if !ok {
 			t.Errorf("Document.%s has no entry in documentCollections — every document carrying "+
@@ -70,8 +75,43 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 	// LIVENESS. Zero slice fields and every slice field covered are the same
 	// green, and the reflection is the half that can break silently.
 	if slices < 7 {
-		t.Fatalf("found only %d slice fields on vnx.Document, expected at least the 7 the format "+
-			"defines — the reflection is broken, not the table", slices)
+		t.Fatalf("found only %d slice fields on vnx.Document, expected at least the 6 collections "+
+			"and the application keys — the reflection is broken, not the table", slices)
+	}
+}
+
+// appKeyArm is the application-key arm of the structural guard above.
+//
+// ⚠ AppKeys HAS NO ENTRY IN documentCollections, AND MUST NOT. A collection is
+// one fixed key holding an array; application keys are an open set of keys,
+// each holding any value, written by streamAppKeys. So the table cannot vouch
+// for them, and this arm fills one dotted key through the reflected field and
+// asserts that EncodeTo wrote it. Its value is an empty array because SPEC §3.9
+// exempts an application key from absent-equals-empty: a writer that skipped
+// an "empty" one would drop content.
+func appKeyArm(t *testing.T, f reflect.StructField) {
+	t.Helper()
+	const key = "com.example.arm"
+	doc := &Document{}
+	reflect.ValueOf(doc).Elem().FieldByIndex(f.Index).Set(
+		reflect.ValueOf([]AppKey{{Key: key, Value: []any{}}}))
+	var b bytes.Buffer
+	if err := EncodeTo(&b, doc); err != nil {
+		t.Errorf("encoding a document holding one application key: %v", err)
+		return
+	}
+	var tree map[string]any
+	if err := json.Unmarshal(b.Bytes(), &tree); err != nil {
+		t.Fatalf("EncodeTo wrote something that is not a JSON object: %v\n%s", err, b.String())
+	}
+	v, ok := tree[key]
+	if !ok {
+		t.Errorf("a document holding the application key %q emitted no such key — every document "+
+			"carrying one would be exported with it silently missing:\n%s", key, b.String())
+		return
+	}
+	if arr, isArr := v.([]any); !isArr || len(arr) != 0 {
+		t.Errorf("application key %q was written as %#v, want the empty array it holds", key, v)
 	}
 }
 

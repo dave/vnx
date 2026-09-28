@@ -13,7 +13,8 @@ import "github.com/dave/vnx/go/pkg/vnx"
 // things that are easy to drop silently: an empty folder, a name with an XML
 // metacharacter in it, a hidden item, a pip with no elevation beside pips that
 // have one, pip times (which KML cannot carry), a two-arc route, a two-segment
-// track, in-network points AND areas, two chains SHARING an arc, and a ruleset.
+// track, in-network points AND areas, two chains SHARING an arc, and an
+// application key.
 // A fixture without them makes a golden that cannot see the losses this format
 // is supposed to have.
 
@@ -123,6 +124,7 @@ func fixture() *vnx.Document {
 				Style: vnx.Style{"fill-color": "#888888"},
 			}},
 		}},
-		Rulesets: []any{map[string]any{"id": "r1", "name": "Munros"}},
+		AppKeys: []vnx.AppKey{{Key: "app.viatrail.rulesets",
+			Value: []any{map[string]any{"id": "r1", "name": "Munros"}}}},
 	}
 }

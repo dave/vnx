@@ -108,7 +108,7 @@ func TestEveryWriterCodeIsRegisteredAndDistinct(t *testing.T) {
 	const floor = 6
 	if len(codes) < floor {
 		t.Fatalf("WriterCodes returned %d codes, expected at least %d — spec 5b T3 declares the "+
-			"whole set (GPX network, GPX area, ruleset, empty folder, folder path, no geometry) so "+
+			"whole set (GPX network, GPX area, application key, empty folder, folder path, no geometry) so "+
 			"that three parallel writer agents never edit diagnostic.go at once", len(codes), floor)
 	}
 	seen := map[string]bool{}
@@ -122,7 +122,7 @@ func TestEveryWriterCodeIsRegisteredAndDistinct(t *testing.T) {
 		seen[c] = true
 	}
 	for _, want := range []string{
-		CodeGPXNetworkUnsupported, CodeGPXAreaUnsupported, CodeRulesetUnsupported,
+		CodeGPXNetworkUnsupported, CodeGPXAreaUnsupported, CodeAppKeyUnsupported,
 		CodeEmptyFolderDropped, CodeFolderPathUnavailable, CodeItemNoGeometry,
 	} {
 		if !seen[want] {
@@ -136,7 +136,7 @@ func TestEveryWriterCodeIsRegisteredAndDistinct(t *testing.T) {
 // must follow, because "which prefix" is exactly the question three parallel
 // agents answer three ways.
 func TestWriterCodePrefixesNameTheScopeOfTheRule(t *testing.T) {
-	allowed := map[string]bool{"gpx": true, "kml": true, "geojson": true, "ruleset": true, "folder": true, "item": true}
+	allowed := map[string]bool{"gpx": true, "kml": true, "geojson": true, "app-key": true, "folder": true, "item": true}
 	for _, c := range WriterCodes() {
 		prefix, rest, found := strings.Cut(c, ".")
 		if !found || rest == "" {

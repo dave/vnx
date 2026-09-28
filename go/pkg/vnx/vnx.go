@@ -49,7 +49,8 @@ var (
 	ErrUnsupportedVersion = errors.New("vnx: unsupported version")
 )
 
-// Document is a decoded VNX document. Later tasks add the seven collections.
+// Document is a decoded VNX document: the header fields, the six collections,
+// and the application keys.
 type Document struct {
 	Version   string
 	Generator string
@@ -62,20 +63,46 @@ type Document struct {
 	Routes    []Route
 	Networks  []Network
 
-	// Rulesets is carried VERBATIM and never interpreted. Spec §3.7 defers the
-	// subsystem: it is being redesigned around selection over data elements, and
-	// the current shape — {field, operator, value} with no `equals`, per-kind
-	// prefixed style overlays — is not worth freezing on its way out. A 0.1
-	// reader preserves the block so a later one can read it, and validates
-	// nothing inside it.
-	Rulesets []any
+	// AppKeys are the document's application keys (SPEC §3.9): every
+	// top-level key containing a full stop, each value carried VERBATIM and
+	// never interpreted.
+	//
+	// ⚠ A LIST, NOT A MAP, so that the reflection guards over Document's slice
+	// fields see it: TestEncodeToCoversEveryCollectionTheDocumentDeclares and
+	// its siblings enumerate slices, and a map field would walk past them.
+	//
+	// Decode leaves it SORTED BY KEY. Key order is not significant (SPEC §4.4)
+	// and Go's JSON decoder has already lost the document's order by the time
+	// this package sees the object, so sorted is the one order that is the
+	// same on every run. [EncodeTo] writes the list in the order it is given.
+	AppKeys []AppKey
+}
+
+// AppKey is one application key (SPEC §3.9).
+//
+// Value is whatever encoding/json produced for it, and a JSON `null` is a nil
+// Value. The key is present either way: a nil Value is a key whose value is
+// null, not an absent key, and it is written back as `null`.
+type AppKey struct {
+	Key   string
+	Value any
+}
+
+// IsAppKey reports whether a top-level key is an application key: whether it
+// contains a full stop (SPEC §3.9). No key the format defines contains one.
+func IsAppKey(key string) bool {
+	return strings.Contains(key, ".")
 }
 
 // DocumentIsEmpty reports whether a document holds no library content at all.
 //
 // The header fields — Version, Generator, Created — are present in
 // every document including this one, so they say nothing about whether it
-// carries anything. Only the collections do.
+// carries anything. Only the collections and the application keys do.
+//
+// ⚠ AN APPLICATION KEY COUNTS WHEN IT IS PRESENT, whatever its value. A key
+// holding `null` or `[]` is still content the caller asked to write: SPEC §3.9
+// exempts it from the absent-equals-empty rule, so it is not "empty".
 //
 // ⚠ IT LIVES HERE, IN pkg/vnx, BECAUSE THREE PLACES NEED ONE ANSWER (spec 5b,
 // 2026-09-02). vnxbridge asks it to tell an honestly-empty export from a format
@@ -101,7 +128,7 @@ func DocumentIsEmpty(d *Document) bool {
 		len(d.Tracks) == 0 &&
 		len(d.Routes) == 0 &&
 		len(d.Networks) == 0 &&
-		len(d.Rulesets) == 0
+		len(d.AppKeys) == 0
 }
 
 // Decode reads a VNX document.
@@ -165,14 +192,26 @@ func Decode(data []byte) (*Document, []Diagnostic, error) {
 	if arr, ok := collection(obj, "areas", &diags); ok {
 		doc.Areas, diags = decodeAreas(arr, "/areas", diags)
 	}
-	if arr, ok := collection(obj, "rulesets", &diags); ok {
-		doc.Rulesets = arr
-	}
-	diags = reportUnknownKeys(obj, "", documentKeys, diags)
+	doc.AppKeys = decodeAppKeys(obj)
+	diags = reportUnknownKeysBy(obj, "", isDocumentKey, diags)
 	return doc, diags, nil
 }
 
-// collection reads one of the seven top-level arrays. Absence is normal; a key
+// decodeAppKeys collects every application key, sorted by key. Every value is
+// kept, `null` included, and none is inspected (SPEC §3.9), so this cannot
+// raise a diagnostic.
+func decodeAppKeys(obj map[string]any) []AppKey {
+	var out []AppKey
+	for k, v := range obj {
+		if IsAppKey(k) {
+			out = append(out, AppKey{Key: k, Value: v})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out
+}
+
+// collection reads one of the six top-level arrays. Absence is normal; a key
 // present but holding something other than an array is a diagnostic.
 func collection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, bool) {
 	v, present := obj[key]
@@ -188,14 +227,21 @@ func collection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, boo
 	return arr, true
 }
 
-// documentKeys is every key this reader knows at the top level. The seven
-// collections are listed even though F4-F8 have not built them yet: reporting a
-// key the format defines as "unknown" would train a caller to ignore
-// diagnostics, and that is the one habit this channel cannot survive.
-var documentKeys = map[string]bool{
+// documentFormatKeys is every key the format defines at the top level.
+var documentFormatKeys = map[string]bool{
 	"vnx": true, "generator": true, "created": true,
 	"folders": true, "networks": true, "routes": true,
-	"tracks": true, "waypoints": true, "areas": true, "rulesets": true,
+	"tracks": true, "waypoints": true, "areas": true,
+}
+
+// isDocumentKey reports whether a top-level key is recognised: one the format
+// defines, or an application key.
+//
+// ⚠ IT IS A PREDICATE AND NOT A TABLE because the application-key half is an
+// open set. It applies to the TOP LEVEL ONLY: every other object keeps its
+// fixed table, so a dotted key on an item is reported as unknown (SPEC §3.9).
+func isDocumentKey(k string) bool {
+	return documentFormatKeys[k] || IsAppKey(k)
 }
 
 // reportUnknownKeys implements the §6.2 rule for an unknown key on a core
@@ -212,12 +258,18 @@ var documentKeys = map[string]bool{
 // because the value is unusable, whereas an unknown key is merely unrecognised,
 // so only the key goes.
 func reportUnknownKeys(obj map[string]any, path string, known map[string]bool, diags []Diagnostic) []Diagnostic {
+	return reportUnknownKeysBy(obj, path, func(k string) bool { return known[k] }, diags)
+}
+
+// reportUnknownKeysBy is [reportUnknownKeys] over a predicate, for the one
+// object whose key set is open: the document itself.
+func reportUnknownKeysBy(obj map[string]any, path string, known func(string) bool, diags []Diagnostic) []Diagnostic {
 	// Sorted so that a document with several unknown keys produces diagnostics
 	// in a stable order; Go map iteration would otherwise vary run to run and
 	// make a caller's output nondeterministic.
 	unknown := make([]string, 0)
 	for k := range obj {
-		if !known[k] {
+		if !known(k) {
 			unknown = append(unknown, k)
 		}
 	}

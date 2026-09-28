@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// The fixture holds one of nearly everything: an area, a network and a ruleset
-// (none of which GPX can carry), plus a waypoint, a route and a track (all of
+// The fixture holds one of nearly everything: an area, a network and an
+// application key (none of which GPX can carry), plus a waypoint, a route and a track (all of
 // which it can). Converting it therefore exercises BOTH halves of §2.2 —
 // "write what fits" and "diagnose the rest" — in one run, which a fixture of
 // only-supported or only-unsupported items could not.
@@ -82,14 +82,14 @@ func TestConvertWritesTheDocumentToStdoutWhenOutIsOmitted(t *testing.T) {
 		}
 		t.Fatalf("stdout does not begin with the document: %q", head)
 	}
-	// The fixture's area, network and ruleset are all dropped, so this run
+	// The fixture's area, network and application key are all dropped, so this run
 	// definitely HAS diagnostics — which is what makes the next assertion
 	// meaningful rather than vacuous.
 	if stderr == "" {
-		t.Fatal("no diagnostics on stderr for a fixture holding an area, a network and a " +
-			"ruleset — the check below would then prove nothing")
+		t.Fatal("no diagnostics on stderr for a fixture holding an area, a network and an " +
+			"application key — the check below would then prove nothing")
 	}
-	for _, code := range []string{"gpx.area-unsupported", "gpx.network-unsupported", "ruleset.unsupported"} {
+	for _, code := range []string{"gpx.area-unsupported", "gpx.network-unsupported", "app-key.unsupported"} {
 		if strings.Contains(stdout, code) {
 			t.Errorf("diagnostic code %q reached STDOUT — a redirected `convert` would write it "+
 				"into the middle of the user's .gpx file", code)
@@ -109,7 +109,7 @@ func TestConvertDiagnosticsCarryTheirCode(t *testing.T) {
 	for _, want := range []string{
 		"gpx.area-unsupported", "/areas/0",
 		"gpx.network-unsupported", "/networks/0",
-		"ruleset.unsupported",
+		"app-key.unsupported", "/app.viatrail.rulesets",
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr does not carry %q:\n%s", want, stderr)

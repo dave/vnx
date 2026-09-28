@@ -165,8 +165,37 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 			return err
 		}
 	}
+	if err := streamAppKeys(o, doc.AppKeys); err != nil {
+		return err
+	}
 	o.close()
 	return b.Err()
+}
+
+// streamAppKeys writes the application keys (SPEC §3.9), each value handed to
+// encoding/json exactly as it is held. A nil Value is written as `null`: the
+// key is present, and §3.9 keeps a null a null.
+//
+// ⚠ A KEY WITH NO FULL STOP IS REFUSED, NOT WRITTEN. A reader would take it
+// for an unrecognised key and drop it, or for one of the format's own keys and
+// misread it. A key written twice is refused too: which of two equal members
+// a reader keeps is its JSON parser's choice (SPEC §6.4), so the second would
+// be lost or would silently win.
+func streamAppKeys(o *object, keys []AppKey) error {
+	seen := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		if !IsAppKey(k.Key) {
+			return fmt.Errorf("vnx: application key %q contains no full stop (SPEC §3.9)", k.Key)
+		}
+		if seen[k.Key] {
+			return fmt.Errorf("vnx: application key %q appears twice", k.Key)
+		}
+		seen[k.Key] = true
+		if err := o.value(k.Key, k.Value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // documentCollection is one of the document's container keys.
@@ -208,13 +237,6 @@ var documentCollections = []documentCollection{
 	{"Networks", "networks", func(d *Document) int { return len(d.Networks) },
 		func(b *StickyWriter, d *Document) error {
 			return streamNetworks(b, d.Networks)
-		}},
-	{"Rulesets", "rulesets", func(d *Document) int { return len(d.Rulesets) },
-		// Verbatim and uninspected (vnx.go): a ruleset is an arbitrary value
-		// this package refuses to understand, so it is handed to encoding/json
-		// exactly as it was read.
-		func(b *StickyWriter, d *Document) error {
-			return streamArray(b, len(d.Rulesets), func(i int) (any, error) { return d.Rulesets[i], nil })
 		}},
 }
 

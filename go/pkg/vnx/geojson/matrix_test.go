@@ -57,25 +57,27 @@ func wantDiag(t *testing.T, got []vnx.Diagnostic, i int, code, path string, args
 	}
 }
 
-// CELL: Ruleset → dropped, diagnosed.
-func TestCellRulesetIsDroppedAndDiagnosed(t *testing.T) {
+// CELL: Application key → dropped, diagnosed, one per key.
+func TestCellAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
 		Waypoints: []vnx.Waypoint{{Name: "keep", At: pos(1, 2, nil)}},
-		Rulesets:  []any{map[string]any{"name": "Munros"}, map[string]any{"name": "Corbetts"}},
+		AppKeys: []vnx.AppKey{
+			{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "Munros"}}},
+			{Key: "com.example.corbetts", Value: []any{}},
+		},
 	})
-	if strings.Contains(out, "Munros") || strings.Contains(out, "Corbetts") {
-		t.Errorf("a ruleset reached the file: %s", out)
+	if strings.Contains(out, "Munros") || strings.Contains(out, "corbetts") {
+		t.Errorf("an application key reached the file: %s", out)
 	}
 	if report.Emitted != 1 {
 		t.Errorf("emitted %d, wanted only the waypoint", report.Emitted)
 	}
 	if len(report.Diagnostics) != 2 {
-		t.Fatalf("wanted one diagnostic per ruleset, got %v", report.Diagnostics)
+		t.Fatalf("wanted one diagnostic per application key, got %v", report.Diagnostics)
 	}
-	// No args: Document.Rulesets is []any, opaque by ruling, so there is no
-	// name to pass (writer.go convention 3).
-	wantDiag(t, report.Diagnostics, 0, vnx.CodeRulesetUnsupported, "/rulesets/0")
-	wantDiag(t, report.Diagnostics, 1, vnx.CodeRulesetUnsupported, "/rulesets/1")
+	// Args[0] is the key: it is the application key's only name.
+	wantDiag(t, report.Diagnostics, 0, vnx.CodeAppKeyUnsupported, "/app.viatrail.rulesets", "app.viatrail.rulesets")
+	wantDiag(t, report.Diagnostics, 1, vnx.CodeAppKeyUnsupported, "/com.example.corbetts", "com.example.corbetts")
 }
 
 // CELL: Folder → path folded into the name; diagnosed ONLY if empty.
@@ -431,7 +433,7 @@ func TestFixtureDiagnostics(t *testing.T) {
 	wantDiag(t, report.Diagnostics, 1, vnx.CodeFolderPathUnavailable, "/waypoints/2", "Orphan Cairn")
 	wantDiag(t, report.Diagnostics, 2, vnx.CodeItemNoGeometry, "/areas/1/polygon", "Sliver")
 	wantDiag(t, report.Diagnostics, 3, vnx.CodePartialGeometry, "/tracks/0/segments/1", "Lairig Ghru walk")
-	wantDiag(t, report.Diagnostics, 4, vnx.CodeRulesetUnsupported, "/rulesets/0")
+	wantDiag(t, report.Diagnostics, 4, vnx.CodeAppKeyUnsupported, "/app.viatrail.rulesets", "app.viatrail.rulesets")
 }
 
 // Every Code this writer raises must be one pkg/vnx declared. A Code minted

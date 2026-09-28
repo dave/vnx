@@ -88,15 +88,9 @@ func (x *writer) document() {
 	// diagnosed. Dropping content over a lost position in a tree would be a far
 	// larger loss than the one being reported.
 	x.bucket(l, &l.loose, true)
-	// Rulesets are last because they have no folder and no geometry: they are
-	// not written in any format (§3.2), only reported.
-	for i := range x.d.Rulesets {
-		// ⚠ NO ARGS. Document.Rulesets is []any, carried verbatim and never
-		// interpreted, so there is no name to pass (the convention in
-		// vnx/writer.go says so explicitly).
-		x.diag(vnx.CodeRulesetUnsupported, fmt.Sprintf("/rulesets/%d", i), "",
-			"KML cannot carry a ruleset")
-	}
+	// Application keys are last because they have no folder and no geometry:
+	// they are not written in any format, only reported.
+	x.report.Diagnostics = append(x.report.Diagnostics, vnx.AppKeyDiagnostics(x.d, "KML")...)
 	x.close("Document")
 	x.close("kml")
 }

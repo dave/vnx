@@ -52,7 +52,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 	f.tracks(d)
 	f.routes(d)
 	f.networks(d)
-	f.rulesets(d)
+	f.diags = append(f.diags, vnx.AppKeyDiagnostics(d, "GeoJSON")...)
 
 	f.sw.WriteString("\n]}\n")
 	if f.err != nil {
@@ -253,17 +253,6 @@ func (f *features) routes(d *vnx.Document) {
 		f.begin(f.flatName(d, at, r.Folder, r.Name), r.Notes)
 		f.lineString(line)
 		f.end()
-	}
-}
-
-func (f *features) rulesets(d *vnx.Document) {
-	// ⚠ NO ARGS. Document.Rulesets is []any, carried verbatim and never
-	// interpreted (format-spec §3.7), so there is no name to pass — the
-	// convention in writer.go says so explicitly and the bridge's key declares
-	// no params.
-	for i := range d.Rulesets {
-		f.warn(vnx.CodeRulesetUnsupported, fmt.Sprintf("/rulesets/%d", i), nil,
-			"GeoJSON has no way to carry a ruleset")
 	}
 }
 

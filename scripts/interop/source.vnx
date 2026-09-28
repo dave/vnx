@@ -381,7 +381,7 @@
       }
     }
   ],
-  "rulesets": [
+  "app.viatrail.rulesets": [
     {
       "enabled": true,
       "name": "Hide low-importance waypoints",

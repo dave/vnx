@@ -57,8 +57,8 @@ func determinismDocument(t *testing.T) *Document {
 			"a small map is trivially ordered and this test would be vacuous",
 			len(n.Nodes), len(n.Arcs))
 	}
-	if len(doc.Rulesets) == 0 {
-		t.Fatal("the determinism document has no rulesets block; the verbatim map path is then untested")
+	if len(doc.AppKeys) == 0 {
+		t.Fatal("the determinism document has no application keys; the verbatim map path is then untested")
 	}
 	return doc
 }

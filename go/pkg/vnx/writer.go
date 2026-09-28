@@ -17,7 +17,7 @@ import "strings"
 //     bridge can only translate it through the Code. An empty Code is refused
 //     at the boundary (vnxbridge.writerDiagnostic), not defaulted.
 //  2. **Path is always set**, to the document pointer of the thing that was
-//     dropped — "/areas/3", "/networks/1", "/folders/2", "/rulesets/0" — the
+//     dropped — "/areas/3", "/networks/1", "/folders/2", "/app.viatrail.rulesets" — the
 //     same JSON-pointer convention the decode sites use. It is what lets an
 //     agent reading `vnx convert`'s stderr go straight to the offending
 //     element instead of hunting by name.
@@ -27,8 +27,8 @@ import "strings"
 //     diagnostic read differently per format for no gain. An unnamed item
 //     passes its empty name rather than a substitute — inventing "(untitled)"
 //     in this package would be untranslatable English on a French screen.
-//     A ruleset carries no name at all ([Document.Rulesets] is []any, opaque
-//     by ruling), so its diagnostics pass NO args.
+//     An application key's name is its key, so [AppKeyDiagnostics] passes the
+//     key.
 //  4. **Severity is Warning at every writer site.** Every one of them reports
 //     something DROPPED, which is exactly what Warning is documented to mean.
 //  5. **One diagnostic per dropped ITEM, never per dropped attribute.** A
@@ -159,4 +159,31 @@ func FlatName(d *Document, folderID, name string) (string, bool) {
 		return name, ok
 	}
 	return path + PathSeparator + name, true
+}
+
+// AppKeyDiagnostics is one [CodeAppKeyUnsupported] diagnostic per application
+// key in the document, in the order [Document.AppKeys] holds them. Every lossy
+// writer drops every application key, and calls this rather than building its
+// own, so the three cannot disagree about the path, the args or the count.
+//
+// Path is the key as a JSON Pointer ([RFC 6901]) — "/app.viatrail.rulesets" —
+// and Args[0] is the key verbatim. A key holding `null` or `[]` is reported
+// like any other: it is present, so it is dropped (SPEC §3.9).
+//
+// format names the target format in the English Message only.
+func AppKeyDiagnostics(d *Document, format string) []Diagnostic {
+	if len(d.AppKeys) == 0 {
+		return nil
+	}
+	out := make([]Diagnostic, 0, len(d.AppKeys))
+	for _, k := range d.AppKeys {
+		out = append(out, Diagnostic{
+			Severity: Warning,
+			Code:     CodeAppKeyUnsupported,
+			Path:     "/" + escapePointerToken(k.Key),
+			Args:     []string{k.Key},
+			Message:  format + " cannot carry an application key — not exported",
+		})
+	}
+	return out
 }

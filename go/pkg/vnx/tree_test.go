@@ -12,8 +12,8 @@ import (
 // a document are not constrained (spec §8.1).
 //
 // ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the tier rests on.
-// A reader that discarded every data record, every ruleset, every style and
-// every `notes` produces a model that compares equal to itself, and passes an
+// A reader that discarded every data record, every application key, every style
+// and every `notes` produces a model that compares equal to itself, and passes an
 // accept tier built that way green — that is the whole extensibility mechanism,
 // all styling and all user prose. Comparing the tree parsed from the ORIGINAL
 // FILE against the tree parsed from encode(decode(file)) is what proves a reader
@@ -63,7 +63,9 @@ func normaliseDocument(v any, opt treeOptions) any {
 	normItems(out, "tracks", opt, normTrack)
 	normItems(out, "routes", opt, normRoute)
 	normItems(out, "networks", opt, normNetwork)
-	dropEmptyContainer(out, "rulesets")
+	// Application keys are not touched: SPEC §3.9 exempts them from §8.1's
+	// absent-equals-empty normalisation, so an empty value is compared as
+	// written and a key dropped for holding one is a difference.
 	return out
 }
 

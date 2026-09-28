@@ -171,7 +171,7 @@ func runAccept(t *testing.T, c corpusCase) {
 	// and require the two JSON TREES equal.
 	//
 	// ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER. A reader that
-	// discarded every data record, every ruleset, every style and every `notes`
+	// discarded every data record, every application key, every style and every `notes`
 	// produces a model that compares equal to itself and passes such a tier
 	// green — that is the whole extensibility mechanism, all styling and all
 	// user prose. Comparing against the tree parsed from the ORIGINAL FILE is
@@ -374,7 +374,6 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 		"tracks":    len(doc.Tracks),
 		"waypoints": len(doc.Waypoints),
 		"areas":     len(doc.Areas),
-		"rulesets":  len(doc.Rulesets),
 	}
 	// The nested containers, addressed by the same JSON Pointer vocabulary
 	// `positions` uses. A bare name is a top-level collection; a name starting

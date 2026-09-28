@@ -64,9 +64,9 @@ func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 	if n := countOf(out, "<Folder>"); n != 4 {
 		t.Errorf("<Folder> count = %d, want 4", n)
 	}
-	// The only casualty in the fixture is its ruleset.
-	if got := codes(report); len(got) != 1 || got[0] != vnx.CodeRulesetUnsupported {
-		t.Errorf("diagnostics = %v, want exactly [%s]", got, vnx.CodeRulesetUnsupported)
+	// The only casualty in the fixture is its application key.
+	if got := codes(report); len(got) != 1 || got[0] != vnx.CodeAppKeyUnsupported {
+		t.Errorf("diagnostics = %v, want exactly [%s]", got, vnx.CodeAppKeyUnsupported)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestNetworkCarriesArcsPointsAreasAndChains(t *testing.T) {
 	// carried, so only their attributes are lost, and attribute-level losses
 	// are matrix facts rather than per-item diagnostics (writer.go rule 5).
 	if len(report.Diagnostics) != 1 {
-		t.Errorf("diagnostics = %v, want only the ruleset one", codes(report))
+		t.Errorf("diagnostics = %v, want only the application-key one", codes(report))
 	}
 }
 
@@ -631,7 +631,7 @@ func TestEveryCodeThisWriterRaisesIsRegistered(t *testing.T) {
 	// The whole set this package can raise, listed by hand so that adding a
 	// raise site without listing it here is visible in review.
 	for _, c := range []string{
-		vnx.CodeRulesetUnsupported,
+		vnx.CodeAppKeyUnsupported,
 		vnx.CodeFolderPathUnavailable,
 		vnx.CodeItemNoGeometry,
 		vnx.CodePartialGeometry,

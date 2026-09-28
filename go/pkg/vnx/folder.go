@@ -116,7 +116,7 @@ func walkToRoot(folders []Folder, index map[string]int, start int) bool {
 }
 
 // boolField reads an optional boolean. Absence is not false-by-default in
-// general — `hidden` happens to mean visible when absent (§3.9), which is why
+// general — `hidden` happens to mean visible when absent (§3.8), which is why
 // the caller, not this helper, owns that meaning.
 func boolField(obj map[string]any, key, path string, diags []Diagnostic) (bool, []Diagnostic) {
 	v, present := obj[key]

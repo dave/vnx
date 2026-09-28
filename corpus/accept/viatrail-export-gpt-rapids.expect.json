@@ -1,7 +1,7 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "A real export written by an application, not a hand-built fixture: Viatrail's export of one folder holding a network whose two in-network areas carry records of a third-party type, org.gpt.rapid. It carries two application keys (SPEC 3.9), app.viatrail.datatypes and app.viatrail.rulesets, whose values nest objects, arrays, numbers, empty strings and non-ASCII text several levels deep. Every reader must read it with no diagnostic and write back an equal tree. One of the two data types inside app.viatrail.datatypes has a field with no English label, which the application treats as a fault of its own; nothing inside an application key's value is a rule of this format, so a reader that inspects it and reports anything fails here.",
+  "note": "A real export written by an application, not a hand-built fixture: Viatrail's export of one folder holding a network whose two in-network areas carry records of a third-party type, org.gpt.rapid. It carries two application keys (SPEC 3.9), app.viatrail.datatypes and app.viatrail.rulesets, whose values nest objects, arrays, numbers, empty strings and non-ASCII text several levels deep. Every reader must read it with no diagnostic and write back an equal tree; nothing inside an application key's value is a rule of this format, so a reader that inspects it and reports anything fails here.",
   "counts": {
     "folders": 1,
     "networks": 1,

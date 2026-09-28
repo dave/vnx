@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import re
+import struct
 import zipfile
 import zlib
 from dataclasses import dataclass, field
@@ -329,26 +330,17 @@ def _container(
         # otherwise emit different archives for the same document.
         for name in sorted(attachments or {}):
             archive.writestr(_zip_info(name), (attachments or {})[name])
-    return buffer.getvalue()
+    return _set_utf8_flags(buffer.getvalue())
 
 
 class _UTF8Info(zipfile.ZipInfo):
-    """A ZipInfo whose UTF-8 filename flag cannot be cleared.
+    """A ZipInfo whose external attributes cannot be set.
 
-    SPEC 7 requires the flag to be set.  ``ZipFile._open_to_write`` assigns
-    ``flag_bits = 0`` on the way past, so setting the bit before the write does
-    not survive; shadowing the slot with a property does.
+    The UTF-8 filename flag is not set here: `_set_utf8_flags` writes it into
+    the finished bytes.
     """
 
-    __slots__ = ("_flag_bits", "_external_attr")
-
-    @property
-    def flag_bits(self) -> int:
-        return self._flag_bits | 0x800
-
-    @flag_bits.setter
-    def flag_bits(self, value: int) -> None:
-        self._flag_bits = value
+    __slots__ = ("_external_attr",)
 
     @property
     def external_attr(self) -> int:
@@ -356,14 +348,70 @@ class _UTF8Info(zipfile.ZipInfo):
 
         ``ZipFile.writestr`` assigns file mode 0o600 here even when it is handed
         a ``ZipInfo`` that already set it, so an archive would otherwise carry
-        the writing platform's permission bits.  Shadowing the slot is the same
-        remedy the UTF-8 flag needs, and for the same reason.
+        the writing platform's permission bits.  Shadowing the slot keeps it
+        out.
         """
         return 0
 
     @external_attr.setter
     def external_attr(self, value: int) -> None:
         self._external_attr = value
+
+
+_UTF8_FLAG = 0x0800
+_EOCD = b"PK\x05\x06"
+_ZIP64_EOCD = b"PK\x06\x06"
+_ZIP64_LOCATOR = b"PK\x06\x07"
+_CENTRAL = b"PK\x01\x02"
+_LOCAL = b"PK\x03\x04"
+
+
+def _set_utf8_flags(data: bytes) -> bytes:
+    """Set general-purpose bit 11, UTF-8 names, on every header of an archive.
+
+    SPEC 7 requires the flag.  `zipfile` decides it for itself when it writes a
+    header, and the decision differs by version: 3.11 sets it only for a name
+    that is not ASCII, and 3.14 clears it for any name that encodes as ASCII
+    even when the caller set it.  So it is written here, into the finished
+    bytes, where no version of `zipfile` can take it back.  Every name this
+    library writes is valid UTF-8, ASCII included, so the flag is always true.
+    The flag is outside the CRC and the sizes, so nothing else changes.
+    """
+    out = bytearray(data)
+    eocd = len(out) - 22
+    if eocd < 0 or bytes(out[eocd:eocd + 4]) != _EOCD:
+        # This writer adds no archive comment, so the end record is last.
+        raise AssertionError("the archive does not end in its end-of-central-directory record")
+    count, _, cd_offset = struct.unpack_from("<HII", out, eocd + 10)
+    if cd_offset == 0xFFFFFFFF or count == 0xFFFF:
+        locator = eocd - 20
+        if bytes(out[locator:locator + 4]) != _ZIP64_LOCATOR:
+            raise AssertionError("a ZIP64 archive with no ZIP64 locator")
+        (zip64_eocd,) = struct.unpack_from("<Q", out, locator + 8)
+        if bytes(out[zip64_eocd:zip64_eocd + 4]) != _ZIP64_EOCD:
+            raise AssertionError("the ZIP64 locator names no ZIP64 end record")
+        (count,) = struct.unpack_from("<Q", out, zip64_eocd + 32)
+        (cd_offset,) = struct.unpack_from("<Q", out, zip64_eocd + 48)
+
+    at = cd_offset
+    for _ in range(count):
+        if bytes(out[at:at + 4]) != _CENTRAL:
+            raise AssertionError(f"no central directory header at byte {at}")
+        (flags,) = struct.unpack_from("<H", out, at + 8)
+        struct.pack_into("<H", out, at + 8, flags | _UTF8_FLAG)
+        name_len, extra_len, comment_len = struct.unpack_from("<HHH", out, at + 28)
+        at += 46 + name_len + extra_len + comment_len
+
+    # The local headers, located by the offsets `zipfile` itself resolved
+    # (ZIP64 included) rather than by a second parse of the central directory.
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        for info in archive.infolist():
+            local = info.header_offset
+            if bytes(out[local:local + 4]) != _LOCAL:
+                raise AssertionError(f"no local header at byte {local} for {info.filename!r}")
+            (flags,) = struct.unpack_from("<H", out, local + 6)
+            struct.pack_into("<H", out, local + 6, flags | _UTF8_FLAG)
+    return bytes(out)
 
 
 def _zip_info(name: str) -> zipfile.ZipInfo:

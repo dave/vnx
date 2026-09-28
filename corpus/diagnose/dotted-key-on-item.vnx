@@ -1,11 +1,54 @@
 {
   "vnx": "0.1.0",
   "app.viatrail.datatypes": [],
+  "folders": [
+    {"id": "f1", "name": "Hills", "x.folder": 1}
+  ],
+  "networks": [
+    {
+      "name": "Paths",
+      "x.network": 1,
+      "nodes": {"n1": [1, 1], "n2": [1, 2]},
+      "arcs": {
+        "a1": {"from": "n1", "to": "n2", "pips": [[1, 1], [1, 2]], "x.arc": 1}
+      },
+      "chains": [
+        {
+          "name": "Walk",
+          "x.chain": 1,
+          "links": [{"arc": "a1", "from": "n1", "to": "n2", "x.link": 1}]
+        }
+      ],
+      "points": [
+        {"name": "Spring", "at": [1, 1.5], "x.point": 1}
+      ],
+      "areas": [
+        {"name": "Bog", "polygon": [[1, 1], [2, 1], [2, 2], [1, 1]], "x.network-area": 1}
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "name": "Road",
+      "x.route": 1,
+      "arcs": [{"pips": [[3, 3], [3, 4]], "x.route-arc": 1}]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Day out",
+      "x.track": 1,
+      "segments": [{"pips": [[4, 4], [4, 5]], "x.segment": 1}]
+    }
+  ],
   "waypoints": [
     {
       "name": "Car park",
       "at": [-3.675, 57.1201],
       "app.viatrail.note": "a dotted key on an item is not an application key"
     }
+  ],
+  "areas": [
+    {"name": "Wood", "polygon": [[5, 5], [6, 5], [6, 6], [5, 5]], "x.area": 1}
   ]
 }

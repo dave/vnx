@@ -181,7 +181,7 @@ func decodeNamedArcs(v any, path string, nodes map[string]Position, diags []Diag
 		a.Data, diags = dataField(aObj, at, diags)
 		from, _ := aObj["from"].(string)
 		to, _ := aObj["to"].(string)
-		diags = reportUnknownKeys(aObj, at, arcKeys, diags)
+		diags = reportUnknownKeys(aObj, at, networkArcKeys, diags)
 		if a.Pips == nil {
 			// decodePips already reported the unusable position and returned
 			// nil to say "drop the arc". Reporting a pip count here as well

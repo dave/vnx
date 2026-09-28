@@ -2,6 +2,7 @@ package vnx
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -190,5 +191,29 @@ func TestWriterCodeRegistryRegistersAndCopies(t *testing.T) {
 	if writerCodes[before] != probe {
 		t.Errorf("WriterCodes() handed out the live slice — a caller mutating it would be " +
 			"editing the registry the mapping guard reads")
+	}
+}
+
+// A segment and a route's arc have fixed key sets too (SPEC §3.10), and an
+// unknown key on either is reported rather than dropped in silence. A route's
+// arc names no nodes, so `from` and `to` are unknown there.
+func TestUnknownKeysOnASegmentAndARouteArcAreReported(t *testing.T) {
+	_, diags, err := Decode([]byte(`{"vnx":"0.1.0",
+	  "tracks":[{"segments":[{"pips":[[1,2],[1,3]],"zz":1}]}],
+	  "routes":[{"arcs":[{"pips":[[1,2],[1,3]],"from":"n1","to":"n2"}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, d := range diags {
+		got[d.Path] = d.Code
+	}
+	want := map[string]string{
+		"/tracks/0/segments/0/zz": CodeUnknownKey,
+		"/routes/0/arcs/0/from":   CodeUnknownKey,
+		"/routes/0/arcs/0/to":     CodeUnknownKey,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("diagnostics %v, want %v", got, want)
 	}
 }

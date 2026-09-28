@@ -64,7 +64,10 @@ type Route struct {
 
 var (
 	routeKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "style": true, "arcs": true, "data": true}
-	arcKeys   = map[string]bool{"pips": true, "data": true, "from": true, "to": true}
+	// A route's arc names no nodes (SPEC §3.4, §3.10), so `from` and `to` are
+	// unrecognised on it; only a network's arc carries them.
+	routeArcKeys   = map[string]bool{"pips": true, "data": true}
+	networkArcKeys = map[string]bool{"pips": true, "data": true, "from": true, "to": true}
 )
 
 func decodeRoutes(arr []any, path string, diags []Diagnostic) ([]Route, []Diagnostic) {
@@ -113,7 +116,7 @@ func decodeArcList(v any, path string, diags []Diagnostic) ([]Arc, []Diagnostic)
 		var a Arc
 		a.Pips, diags = decodePips(obj["pips"], at+"/pips", diags)
 		a.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, arcKeys, diags)
+		diags = reportUnknownKeys(obj, at, routeArcKeys, diags)
 		if len(a.Pips) < 2 {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
 				Message: fmt.Sprintf("arc has %d usable pips, needs at least 2 to be geometry — dropped", len(a.Pips))})

@@ -145,6 +145,9 @@ func decodeTracks(arr []any, path string, diags []Diagnostic) ([]Track, []Diagno
 	return out, diags
 }
 
+// segmentKeys is the one key a segment carries (SPEC §3.10).
+var segmentKeys = map[string]bool{"pips": true}
+
 func decodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagnostic) {
 	if v == nil {
 		return nil, diags
@@ -163,6 +166,7 @@ func decodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagno
 				Message: fmt.Sprintf("segment is %s, expected an object — dropped", jsonKind(item))})
 			continue
 		}
+		diags = reportUnknownKeys(obj, at, segmentKeys, diags)
 		pips, diags2 := decodePips(obj["pips"], at+"/pips", diags)
 		diags = diags2
 		if pips == nil && obj["pips"] != nil {

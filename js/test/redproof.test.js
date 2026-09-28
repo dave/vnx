@@ -442,7 +442,8 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     to: '    else { /* silently skipped */ }',
   }]);
   assert.deepEqual(await failingDelta(cases),
-    ['diagnose/dotted-key-on-item.vnx', 'diagnose/unknown-key.vnx']);
+    ['diagnose/dotted-key-on-item.vnx', 'diagnose/route-arc-carries-node-keys.vnx',
+      'diagnose/unknown-key.vnx']);
 });
 
 test('a container matching its root document on the base name is caught', async () => {

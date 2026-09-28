@@ -550,5 +550,8 @@
         "opacity": 0.75
       }
     }
-  ]
+  ],
+  "com.example.cleared": null,
+  "com.example.empty-array": [],
+  "com.example.empty-object": {}
 }

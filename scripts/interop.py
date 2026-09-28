@@ -32,6 +32,10 @@ Two normalisations are applied, the two Section 8.1 permits, and no others:
   - An absent container and an empty one are the same value, so a key whose
     value is `[]` or `{}` equals that key being absent.
 
+Neither applies to an application key (Section 3.9): a top-level key containing
+a full stop, and everything inside its value, is compared exactly, so a writer
+that dropped one holding `null`, `[]` or `{}` fails its cell.
+
 No value is normalised here, and since Section 4.1 stopped constraining a
 writer's precision, none should be.
 
@@ -224,12 +228,15 @@ class Comparison:
     leaves: int = 0
 
 
-def compare(a: object, b: object, path: str, out: Comparison) -> None:
+def compare(a: object, b: object, path: str, out: Comparison, exact: bool = False) -> None:
     """Compare two parsed trees by value, recording every difference found.
 
     Traversal does not stop at the first mismatch, so `out.leaves` is a
     complete count for a tree that matches. That is what makes the leaf count
     usable as a vacuity guard on a passing cell.
+
+    `exact` turns off both normalisations. It is set for a top-level
+    application key and holds for everything beneath it (Section 3.9).
     """
     if isinstance(a, dict) or isinstance(b, dict):
         if not (isinstance(a, dict) and isinstance(b, dict)):
@@ -237,24 +244,25 @@ def compare(a: object, b: object, path: str, out: Comparison) -> None:
             return
         for key in sorted(set(a) | set(b)):
             child = f"{path}/{escape(key)}"
+            child_exact = exact or (path == "" and "." in key)
             if key not in a:
                 # Section 3.1: an absent container and an empty one are the
                 # same value. Anything else present on one side only differs.
-                if not is_empty_container(b[key]):
+                if child_exact or not is_empty_container(b[key]):
                     out.mismatches.append((child, f"absent vs {render(b[key])}"))
                 continue
             if key not in b:
-                if not is_empty_container(a[key]):
+                if child_exact or not is_empty_container(a[key]):
                     out.mismatches.append((child, f"{render(a[key])} vs absent"))
                 continue
-            compare(a[key], b[key], child, out)
+            compare(a[key], b[key], child, out, child_exact)
         return
 
     if isinstance(a, list) or isinstance(b, list):
         if not (isinstance(a, list) and isinstance(b, list)):
             out.mismatches.append((path, f"array vs {type_name(b if isinstance(a, list) else a)}"))
             return
-        if is_position(a) and is_position(b):
+        if not exact and is_position(a) and is_position(b):
             a = drop_trailing_nulls(a)
             b = drop_trailing_nulls(b)
         if len(a) != len(b):
@@ -262,7 +270,7 @@ def compare(a: object, b: object, path: str, out: Comparison) -> None:
             # Still compare the common prefix; a length difference is usually
             # one inserted or dropped element and the rest lines up.
         for i in range(min(len(a), len(b))):
-            compare(a[i], b[i], f"{path}/{i}", out)
+            compare(a[i], b[i], f"{path}/{i}", out, exact)
         return
 
     out.leaves += 1

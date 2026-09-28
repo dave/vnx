@@ -553,5 +553,6 @@
   ],
   "com.example.cleared": null,
   "com.example.empty-array": [],
-  "com.example.empty-object": {}
+  "com.example.empty-object": {},
+  "com.example.normalisation": {"\u00e9": "precomposed", "e\u0301": "decomposed"}
 }

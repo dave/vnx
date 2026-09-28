@@ -5,7 +5,7 @@ import Foundation
 /// This is a reconstruction from the model, not a reformat of the bytes the
 /// reader was handed. SPEC 8.1 rules the second one out and says why: it "never
 /// builds a model, so it cannot observe anything about what a model kept — a
-/// reader that discarded every data record, every ruleset, every style and
+/// reader that discarded every data record, every application key, every style and
 /// every `notes` passes such a check". Everything below therefore has to come
 /// out of the model or it is gone.
 ///
@@ -13,7 +13,7 @@ import Foundation
 /// wants an unrounded, unshortened emit: every caller turns a model into a
 /// file, and SPEC 4.1's rules apply on the way out.
 enum DocumentEncoder {
-    static func encode(_ d: Document) -> JSONValue {
+    static func encode(_ d: Document) throws -> JSONValue {
         var o: [String: JSONValue] = ["vnx": .string(d.vnx)]
         put(&o, "generator", d.generator)
         put(&o, "created", d.created)
@@ -23,7 +23,19 @@ enum DocumentEncoder {
         putArray(&o, "tracks", d.tracks) { track($0) }
         putArray(&o, "waypoints", d.waypoints) { waypoint($0, allowsFolder: true) }
         putArray(&o, "areas", d.areas) { area($0, allowsFolder: true) }
-        if let r = d.rulesets { o["rulesets"] = .array(r) }
+        // SPEC 3.9: each application key verbatim, `null` and empty values
+        // included. A key without a full stop, or held twice, is refused.
+        for k in d.applicationKeys {
+            guard Keys.isApplicationKey(k.key) else {
+                throw ApplicationKeyError(key: k.key,
+                    message: "application key \"\(k.key)\" contains no full stop (SPEC 3.9)")
+            }
+            guard o[k.key] == nil else {
+                throw ApplicationKeyError(key: k.key,
+                    message: "application key \"\(k.key)\" appears twice")
+            }
+            o[k.key] = k.value
+        }
         return .object(o)
     }
 

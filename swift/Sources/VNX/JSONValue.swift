@@ -3,7 +3,7 @@ import Foundation
 /// A JSON value.
 ///
 /// A tree of its own rather than `Any`: a document's opaque regions — data
-/// record bodies, style objects, `rulesets` — must survive a read-modify-write
+/// record bodies, style objects, application keys — must survive a read-modify-write
 /// at value level (SPEC 5.1 rule 4), and `Any` cannot be compared, hashed or
 /// carried across a concurrency boundary. `JSONEncoder` renders it; `JSONParser`
 /// reads it.

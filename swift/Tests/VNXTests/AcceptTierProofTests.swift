@@ -6,8 +6,8 @@ import XCTest
 /// for it.
 ///
 /// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
-/// ANOTHER MODEL. A reader that discarded every data record, every ruleset,
-/// every style or every `notes` produces a model that compares equal to itself
+/// ANOTHER MODEL. A reader that discarded every data record, every application
+/// key, every style or every `notes` produces a model that compares equal to itself
 /// and passes a model-versus-model tier GREEN. That is the entire extensibility
 /// mechanism, all styling and all user prose, silently droppable by a
 /// "conforming" implementation. Measured in Python, re-proved in Go, and each
@@ -38,7 +38,7 @@ final class AcceptTierProofTests: XCTestCase {
                     }
                 }
             }),
-            ("drops every ruleset", { d in d.rulesets = nil }),
+            ("drops every application key", { d in d.applicationKeys = [] }),
             ("drops every style", { d in
                 for i in d.networks?.indices ?? (0..<0) {
                     for j in d.networks?[i].chains?.indices ?? (0..<0) {

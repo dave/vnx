@@ -196,7 +196,7 @@ public struct Document: Equatable, Sendable {
     public var generator: String?
     public var created: String?
 
-    /// All seven collections are OPTIONAL, and `nil` and `[]` are both held.
+    /// All six collections are OPTIONAL, and `nil` and `[]` are both held.
     /// SPEC 3.1 has a READER treat an absent collection and an empty one alike,
     /// so either spelling is conforming and a writer may emit either; this model
     /// writes back what it was given, which is what makes a read-write-read a
@@ -207,10 +207,36 @@ public struct Document: Equatable, Sendable {
     public var tracks: [Track]?
     public var waypoints: [Waypoint]?
     public var areas: [Area]?
-    /// Opaque through 0.1.x (SPEC 3.9), preserved through a read-modify-write.
-    public var rulesets: [JSONValue]?
+    /// The application keys (SPEC 3.9): every top-level key containing a full
+    /// stop, each value opaque and preserved through a read-modify-write. A
+    /// list rather than a dictionary; the reader leaves it sorted by code
+    /// point, and the writer writes each key it holds. A JSON `null` is a
+    /// present key whose value is `.null`, and an empty value stays empty.
+    public var applicationKeys: [ApplicationKey] = []
 
     public init(vnx: String = VNX.version) {
         self.vnx = vnx
     }
+}
+
+/// One application key (SPEC 3.9). `value` is any JSON value; `.null` is a key
+/// whose value is `null`, not an absent key.
+public struct ApplicationKey: Equatable, Sendable {
+    public var key: String
+    public var value: JSONValue
+
+    public init(key: String, value: JSONValue) {
+        self.key = key
+        self.value = value
+    }
+}
+
+/// Thrown by `VNX.write` for an application key it cannot write: one whose
+/// name contains no full stop, which a reader would take for an unrecognised
+/// key (SPEC 3.9), or one held twice, where which value a reader keeps would be
+/// its JSON parser's choice (SPEC 6.4).
+public struct ApplicationKeyError: Error, Equatable, Sendable, CustomStringConvertible {
+    public let key: String
+    public let message: String
+    public var description: String { message }
 }

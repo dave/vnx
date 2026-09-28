@@ -5,9 +5,14 @@ import Foundation
 /// implemented without it".
 ///
 /// Two objects are deliberately absent, and their absence is the rule: a data
-/// record body and everything under `rulesets` are opaque, and so is a style
-/// object, so a reader must not apply the unrecognised-key rule inside any of
-/// them.
+/// record body and the value of an application key are opaque, and so is a
+/// style object, so a reader must not apply the unrecognised-key rule inside
+/// any of them.
+///
+/// The document's key set is open: every top-level key containing a full stop
+/// is an application key (SPEC 3.9), so the document is checked with
+/// `isDocumentKey` rather than with a `Shape`. Every other object keeps its
+/// fixed shape, so a dotted key on an item is still unrecognised.
 enum Keys {
     struct Shape {
         let required: Set<String>
@@ -18,7 +23,19 @@ enum Keys {
     static let document = Shape(
         required: ["vnx"],
         optional: ["generator", "created", "folders", "networks",
-                   "routes", "tracks", "waypoints", "areas", "rulesets"])
+                   "routes", "tracks", "waypoints", "areas"])
+
+    /// SPEC 3.9: whether a top-level key is an application key. No key the
+    /// format defines contains a full stop.
+    static func isApplicationKey(_ key: String) -> Bool {
+        key.contains(".")
+    }
+
+    /// Whether a top-level key is recognised: one the format defines, or an
+    /// application key. Top level only.
+    static func isDocumentKey(_ key: String) -> Bool {
+        document.all.contains(key) || isApplicationKey(key)
+    }
 
     static let folder = Shape(
         required: ["id"],

@@ -821,7 +821,11 @@ final class LibraryTests: XCTestCase {
             Position(lon: 1, lat: 1, elevation: 2, timeMilliseconds: 4000)])],
             name: "T", notes: nil, folder: nil, hidden: nil, style: nil,
             started: "2026-09-09T12:00:00Z", ended: "2026-09-09T12:00:04Z", data: nil)]
-        document.rulesets = [.object(["name": .string("r")])]
+        document.applicationKeys = [
+            ApplicationKey(key: "app.viatrail.rulesets", value: .array([.object(["name": .string("r")])])),
+            ApplicationKey(key: "com.example.empty", value: .array([])),
+            ApplicationKey(key: "com.example.null", value: .null),
+        ]
 
         let bytes = try VNX.write(document)
         let read = try VNX.read(bytes)

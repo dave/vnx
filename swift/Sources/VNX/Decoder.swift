@@ -48,7 +48,7 @@ final class DocumentDecoder {
         // well-formed literal that overflows binary64, such as `1e400`.
         try refuseIfAnyNumberIsNotFinite(root, at: "")
 
-        report(unknownKeysIn: top, against: Keys.document, at: "")
+        report(unknownKeysIn: top, recognised: Keys.isDocumentKey, at: "")
 
         var document = Document(vnx: versionText)
         document.generator = optionalString(top, "generator", at: "")
@@ -64,17 +64,14 @@ final class DocumentDecoder {
         document.areas = optionalItems(top, "areas", at: "") { v, p in
             self.decodeArea(v, at: p, shape: Keys.topLevelArea, allowsFolder: true)
         }
-        // SPEC 3.9: rulesets are not defined in 0.1, and a 0.1.x reader treats
-        // the contents as opaque and preserves them through a
-        // read-modify-write.
-        if let raw = top["rulesets"] {
-            if let array = raw.arrayValue {
-                document.rulesets = array
-            } else {
-                diagnose(.wrongTypeOptional, at: "/rulesets",
-                         "`rulesets` is \(raw.typeName); expected an array")
-            }
-        }
+        // SPEC 3.9: every top-level key containing a full stop is an
+        // application key. Its value is any JSON value, `null` included, kept
+        // verbatim, never inspected and never reported. Sorted by code point,
+        // the order the other implementations hold them in.
+        document.applicationKeys = top.keys
+            .filter(Keys.isApplicationKey)
+            .sorted(by: codePointLess)
+            .map { ApplicationKey(key: $0, value: top[$0]!) }
 
         resolveFolderReferences(in: &document)
         return document
@@ -575,7 +572,11 @@ final class DocumentDecoder {
 
     private func report(unknownKeysIn o: [String: JSONValue], against shape: Keys.Shape, at path: String) {
         let known = shape.all
-        for key in o.keys.sorted(by: codePointLess) where !known.contains(key) {
+        report(unknownKeysIn: o, recognised: { known.contains($0) }, at: path)
+    }
+
+    private func report(unknownKeysIn o: [String: JSONValue], recognised: (String) -> Bool, at path: String) {
+        for key in o.keys.sorted(by: codePointLess) where !recognised(key) {
             // SPEC 6.2: record a diagnostic, skip the key, keep the item. An
             // unrecognised key is not an unusable value.
             diagnose(.unknownKey, at: pointer(path, key),

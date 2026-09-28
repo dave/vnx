@@ -64,7 +64,9 @@ public enum VNX {
     /// 4.4), and indenting costs about three times the file. Pretty-printing
     /// belongs to a tool, not to the format.
     ///
-    /// Throws where the model holds a number JSON cannot spell (SPEC 4.2).
+    /// Throws where the model holds a number JSON cannot spell (SPEC 4.2), and
+    /// `ApplicationKeyError` for an application key without a full stop or
+    /// held twice (SPEC 3.9).
     public static func write(_ document: Document) throws -> Data {
         let encoder = JSONEncoder()
         // Sorted keys, because a `[String: JSONValue]` has no order of its own
@@ -72,7 +74,7 @@ public enum VNX {
         // itself. Key order is not significant to a reader (SPEC 4.4), so any
         // fixed order will do and this one costs nothing.
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(DocumentEncoder.encode(document))
+        return try encoder.encode(try DocumentEncoder.encode(document))
     }
 
     /// Writes a `.vnz` container holding `document` as `doc.vnx` plus its

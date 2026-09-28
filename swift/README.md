@@ -86,7 +86,9 @@ try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
 | `Attachment` | `path: String`, `bytes: Data` |
 | `Diagnostic` | `path: String`, `message: String`, `cause: Cause`, `code: String` |
 | `Refusal` | `message: String`, `cause: Cause`; conforms to `Error` |
-| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `applicationKeys: [ApplicationKey]` |
+| `ApplicationKey` | `key: String`, `value: JSONValue`; one top-level key containing a full stop (SPEC §3.9), `.null` for a JSON `null` |
+| `ApplicationKeyError` | `key: String`, `message: String`; thrown by `VNX.write` for a key without a full stop or held twice; conforms to `Error` |
 | `Position` | `lon`, `lat`, `elevation: Double?`, `timeMilliseconds: Double?`, `isSamePlace(as:)` |
 | `Track` | `segments: [TrackSegment]`, `movingTimeMilliseconds: Double?` |
 

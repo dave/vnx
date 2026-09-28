@@ -299,7 +299,6 @@ extension Document {
             "tracks": tracks?.count ?? 0,
             "waypoints": waypoints?.count ?? 0,
             "areas": areas?.count ?? 0,
-            "rulesets": rulesets?.count ?? 0,
         ]
     }
 
@@ -307,7 +306,7 @@ extension Document {
     /// by a JSON Pointer in the wire's own key names — the same vocabulary
     /// `positions` uses.
     ///
-    /// It exists because `counts` counted only the seven top-level collections.
+    /// It exists because `counts` counted only the top-level collections.
     /// A reader that dropped every route's arcs, truncated an arc's pips, or
     /// lost a chain's links changed nothing a sidecar could see: the document
     /// still carried one route, one network, one track. That matters most in

@@ -304,13 +304,52 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `rulesets are opaque and survive a read-modify-write untouched`() {
-        // Section 3.9: a 0.1.x reader treats the contents as opaque and preserves
-        // them, under the same rules as an unknown data record.
-        val json = """{"vnx":"0.1.0","rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}]}"""
+    fun `application keys are opaque and survive a read-modify-write untouched`() {
+        // Section 3.9: a top-level key containing a full stop is an application
+        // key. Its value is kept verbatim and never reported: a null stays null
+        // and an empty value stays empty. Decode sorts the keys by key.
+        val json = """{"vnx":"0.1.0","app.viatrail.rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}],""" +
+            """"com.example.empty":[],"com.example.null":null,"org.example.s":"text"}"""
         val r = read(json)
         assertEquals(emptyList(), r.diagnostics)
+        assertEquals(
+            listOf("app.viatrail.rulesets", "com.example.empty", "com.example.null", "org.example.s"),
+            r.document.appKeys.map { it.key },
+        )
+        assertEquals(JsonNull, r.document.appKeys[2].value)
         assertEquals(json + "\n", Vnx.write(r.document))
+    }
+
+    @Test
+    fun `application keys are decoded sorted by key`() {
+        val r = read("""{"vnx":"0.1.0","z.b":1,"a.b":2,"m.b":3}""")
+        assertEquals(listOf("a.b", "m.b", "z.b"), r.document.appKeys.map { it.key })
+    }
+
+    @Test
+    fun `a dotted key below the top level is an unrecognised key`() {
+        // Section 3.9 applies at the top level only. An undotted unknown key at
+        // the top level is still unknown too.
+        val r = read("""{"vnx":"0.1.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}""")
+        assertEquals(
+            setOf("/rulesets", "/waypoints/0/app.viatrail.x"),
+            r.diagnostics.map { it.path }.toSet(),
+        )
+        assertEquals(setOf(DiagnosticCause.UNKNOWN_KEY), r.diagnostics.map { it.cause }.toSet())
+    }
+
+    @Test
+    fun `the writer refuses an application key it cannot write`() {
+        for (keys in listOf(
+            listOf(AppKey("rulesets", JsonArray(emptyList()))),
+            listOf(AppKey("folders", JsonArray(emptyList()))),
+            listOf(AppKey("", JsonNull)),
+            listOf(AppKey("a.b", JsonNumber(1.0)), AppKey("a.b", JsonNumber(2.0))),
+        )) {
+            assertFailsWith<IllegalArgumentException>("$keys") {
+                Vnx.write(VnxDocument(vnx = "0.1.0", appKeys = keys))
+            }
+        }
     }
 
     // ------------------------------------------------------------ positions

@@ -104,7 +104,8 @@ fun main(args: Array<String>) {
 | `Attachment` | `path: String`, `bytes: ByteArray`; equality is by value |
 | `Diagnostic` | `path: String`, `message: String`, `cause: DiagnosticCause`, `code: String?` |
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
-| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `rulesets` |
+| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
+| `AppKey` | `key: String`, `value: JsonValue`; a JSON `null` is `JsonNull`; `AppKey.isAppKey(key)` |
 | `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?`, `meets()` |
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
 | `Segment` | `pips: List<Position>` |

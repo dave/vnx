@@ -21,12 +21,27 @@ data class VnxDocument(
     val waypoints: List<Waypoint>? = null,
     val areas: List<Area>? = null,
     /**
-     * Opaque. SPEC.md section 3.9: rulesets are not defined in 0.1, and a 0.1.x
-     * reader treats the contents as opaque and preserves them through a
-     * read-modify-write.
+     * The application keys (SPEC.md section 3.9): every top-level key that
+     * contains a full stop, each value opaque and preserved verbatim.
+     *
+     * A LIST OF PAIRS, NOT A MAP, sorted by key on decode. Key order is not
+     * significant (section 4.4), and sorted is the order every implementation
+     * can agree on. A JSON `null` is [JsonNull]: the key is present, and it is
+     * written back as `null`. There is no absent-versus-empty distinction here,
+     * so the list is never null.
      */
-    val rulesets: JsonValue? = null,
+    val appKeys: List<AppKey> = emptyList(),
 )
+
+/**
+ * One application key (SPEC.md section 3.9). [value] is never inspected.
+ */
+data class AppKey(val key: String, val value: JsonValue) {
+    companion object {
+        /** Whether a top-level key is an application key: it contains a full stop. */
+        fun isAppKey(key: String): Boolean = '.' in key
+    }
+}
 
 /**
  * A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC.md section 4.1).

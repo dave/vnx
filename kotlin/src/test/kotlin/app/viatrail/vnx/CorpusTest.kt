@@ -120,7 +120,6 @@ class CorpusTest {
         actual["tracks"] = document.tracks?.size ?: 0
         actual["waypoints"] = document.waypoints?.size ?: 0
         actual["areas"] = document.areas?.size ?: 0
-        actual["rulesets"] = (document.rulesets as? JsonArray)?.elements?.size ?: 0
         // The nested containers, addressed by the same JSON Pointer vocabulary
         // `positions` uses. A bare name is a top-level collection; a name
         // starting with `/` is a container inside one.

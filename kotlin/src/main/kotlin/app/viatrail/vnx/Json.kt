@@ -4,7 +4,7 @@ package app.viatrail.vnx
  * The JSON value model this library parses into and renders from.
  *
  * It exists because VNX carries opaque regions — data record bodies, style
- * objects and `rulesets` (SPEC.md sections 5.1, 3.9, 3.10) — that a reader must
+ * objects and application keys (SPEC.md sections 5.1, 3.9, 3.10) — that a reader must
  * preserve at value level through a read-modify-write without understanding
  * them. Those regions need a value tree, and the rest of the format is decoded
  * into the typed model in Model.kt.

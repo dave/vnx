@@ -39,8 +39,11 @@ class Sidecar(val file: File, private val root: JsonObject) {
             "schema",
         )
 
-        /** The seven top-level collections `counts` may name (SPEC.md section 3.1). */
-        val COLLECTIONS = listOf("folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets")
+        /**
+         * The six top-level collections `counts` may name (SPEC.md section 3.1).
+         * An application key is not a collection and has no entry.
+         */
+        val COLLECTIONS = listOf("folders", "networks", "routes", "tracks", "waypoints", "areas")
 
         fun read(file: File): Sidecar {
             val value = JsonParser.parse(file.readText())

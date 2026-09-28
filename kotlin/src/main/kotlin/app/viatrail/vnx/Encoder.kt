@@ -11,18 +11,39 @@ package app.viatrail.vnx
  */
 internal class Encoder {
 
-    fun encode(doc: VnxDocument): JsonValue = JsonObject.Builder()
-        .putString("vnx", doc.vnx)
-        .putString("generator", doc.generator)
-        .putString("created", doc.created)
-        .put("folders", doc.folders?.let { array(it, ::folder) })
-        .put("networks", doc.networks?.let { array(it, ::network) })
-        .put("routes", doc.routes?.let { array(it, ::route) })
-        .put("tracks", doc.tracks?.let { array(it, ::track) })
-        .put("waypoints", doc.waypoints?.let { array(it) { w -> waypoint(w, inNetwork = false) } })
-        .put("areas", doc.areas?.let { array(it) { a -> area(a, inNetwork = false) } })
-        .put("rulesets", doc.rulesets)
-        .build()
+    fun encode(doc: VnxDocument): JsonValue {
+        checkAppKeys(doc.appKeys)
+        return JsonObject.Builder()
+            .putString("vnx", doc.vnx)
+            .putString("generator", doc.generator)
+            .putString("created", doc.created)
+            .put("folders", doc.folders?.let { array(it, ::folder) })
+            .put("networks", doc.networks?.let { array(it, ::network) })
+            .put("routes", doc.routes?.let { array(it, ::route) })
+            .put("tracks", doc.tracks?.let { array(it, ::track) })
+            .put("waypoints", doc.waypoints?.let { array(it) { w -> waypoint(w, inNetwork = false) } })
+            .put("areas", doc.areas?.let { array(it) { a -> area(a, inNetwork = false) } })
+            .apply { for (k in doc.appKeys) put(k.key, k.value) }
+            .build()
+    }
+
+    /**
+     * Section 3.9: each application key is written verbatim, a `null` as `null`.
+     *
+     * A KEY WITH NO FULL STOP IS REFUSED, NOT WRITTEN: a reader would take it
+     * for an unrecognised key and drop it, or for one of the format's own keys.
+     * A key given twice is refused too: which of two equal members a reader
+     * keeps is its JSON parser's choice (section 6.4).
+     */
+    private fun checkAppKeys(keys: List<AppKey>) {
+        val seen = HashSet<String>()
+        for (k in keys) {
+            require(AppKey.isAppKey(k.key)) {
+                "application key \"${k.key}\" contains no full stop (SPEC.md section 3.9)"
+            }
+            require(seen.add(k.key)) { "application key \"${k.key}\" appears twice" }
+        }
+    }
 
     private fun <T> array(items: List<T>, f: (T) -> JsonValue) = JsonArray(items.map(f))
 

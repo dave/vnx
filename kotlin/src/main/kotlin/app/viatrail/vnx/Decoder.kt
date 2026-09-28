@@ -22,7 +22,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val DOCUMENT_REQUIRED = setOf("vnx")
         val DOCUMENT_OPTIONAL = setOf(
             "generator", "created",
-            "folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets",
+            "folders", "networks", "routes", "tracks", "waypoints", "areas",
         )
         val FOLDER_REQUIRED = setOf("id")
         val FOLDER_OPTIONAL = setOf("parent", "name", "notes", "hidden", "data")
@@ -88,7 +88,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         }
 
         val at = Pointer.ROOT
-        recogniseKeys(doc, at, Keys.DOCUMENT_REQUIRED, Keys.DOCUMENT_OPTIONAL)
+        // Section 3.9: at the TOP LEVEL ONLY, a key containing a full stop is an
+        // application key and is recognised. Every other object keeps its fixed
+        // key set, so a dotted key on an item is still reported.
+        recogniseKeys(doc, at, Keys.DOCUMENT_REQUIRED, Keys.DOCUMENT_OPTIONAL, AppKey::isAppKey)
 
         // Folders first: every other item's `folder` is checked against these ids,
         // and a folder that was itself dropped must not resolve.
@@ -106,7 +109,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             waypoints = optionalItems(doc, "waypoints", at) { o, p -> waypoint(o, p, inNetwork = false) },
             areas = optionalItems(doc, "areas", at) { o, p -> area(o, p, inNetwork = false) },
             // Section 3.9: opaque, preserved verbatim, interpreted not at all.
-            rulesets = doc["rulesets"],
+            // A `null` value is kept as JsonNull; it is a present key.
+            appKeys = doc.entries()
+                .filter { (k, _) -> AppKey.isAppKey(k) }
+                .map { (k, v) -> AppKey(k, v) }
+                .sortedBy { it.key },
         )
         return ReadResult(document, diagnostics.toList())
     }
@@ -122,9 +129,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * recorded, skipped, and the item kept. An unrecognised key is not an
      * unusable value.
      */
-    private fun recogniseKeys(obj: JsonObject, at: Pointer, required: Set<String>, optional: Set<String>) {
+    private fun recogniseKeys(
+        obj: JsonObject,
+        at: Pointer,
+        required: Set<String>,
+        optional: Set<String>,
+        alsoRecognised: (String) -> Boolean = { false },
+    ) {
         for (key in obj.keys) {
-            if (key !in required && key !in optional) {
+            if (key !in required && key !in optional && !alsoRecognised(key)) {
                 report(at.child(key), "unknown key `$key`, skipped", DiagnosticCause.UNKNOWN_KEY)
             }
         }

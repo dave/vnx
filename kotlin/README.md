@@ -94,8 +94,8 @@ fun main(args: Array<String>) {
 | `Vnx.read` | `File`, read as a container where the extension is `.vnz` | `ReadResult` | `VnxRefusal`, and whatever reading the file raises |
 | `Vnx.readDocument` | `String` or `ByteArray`, a byte order mark tolerated | `ReadResult` | `VnxRefusal`, one of the four document causes |
 | `Vnx.readContainer` | `ByteArray` | `ReadResult` | `VnxRefusal`, a document or a container cause |
-| `Vnx.write` | `VnxDocument` | `String` | `VnxRefusal`, for a number JSON cannot spell |
-| `Vnx.writeContainer` | `VnxDocument`, `Map<String, ByteArray>` of entry name to bytes | `ByteArray` | the same, from the document it carries |
+| `Vnx.write` | `VnxDocument` | `String` | `IllegalArgumentException`, for a number JSON cannot spell, an application key with no full stop, or one listed twice (`SPEC §3.9`) |
+| `Vnx.writeContainer` | `VnxDocument`, `Map<String, ByteArray>` of entry name to bytes | `ByteArray` | the same, from the document it carries; `VnxRefusal`, for an attachment name a reader would refuse |
 | `Vnx.version` | — | `Version` | — |
 
 | Type | Members |

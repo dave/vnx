@@ -25,8 +25,8 @@ data class VnxDocument(
      * contains a full stop, each value opaque and preserved verbatim.
      *
      * A LIST OF PAIRS, NOT A MAP, sorted by key on decode. Key order is not
-     * significant (section 4.4), and sorted is the order every implementation
-     * can agree on. A JSON `null` is [JsonNull]: the key is present, and it is
+     * significant (section 4.4); sorting makes one document decode to one list,
+     * whatever order its keys were written in. A JSON `null` is [JsonNull]: the key is present, and it is
      * written back as `null`. There is no absent-versus-empty distinction here,
      * so the list is never null.
      */

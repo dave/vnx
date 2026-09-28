@@ -33,8 +33,11 @@ Two normalisations are applied, the two Section 8.1 permits, and no others:
     value is `[]` or `{}` equals that key being absent.
 
 Neither applies to an application key (Section 3.9): a top-level key containing
-a full stop, and everything inside its value, is compared exactly, so a writer
-that dropped one holding `null`, `[]` or `{}` fails its cell.
+a full stop, and everything inside its value, is compared exactly. A READER that
+drops one holding `null`, `[]` or `{}` then fails every cell in its column. A
+writer that drops one is not caught here: each cell compares a writer's output
+with a reader's reproduction of that output, so a key the writer never wrote is
+missing from both sides. The corpus accept tier is what catches that writer.
 
 No value is normalised here, and since Section 4.1 stopped constraining a
 writer's precision, none should be.

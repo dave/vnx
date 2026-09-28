@@ -21,7 +21,7 @@ from typing import Any, Union
 __all__ = [
     "Position", "DataRecord", "Folder", "Arc", "Link", "Chain", "Network",
     "RouteArc", "Route", "Segment", "Track", "Waypoint", "Area", "Document",
-    "Endpoint", "Style", "JSONValue",
+    "Endpoint", "Style", "JSONValue", "AppKey", "is_app_key",
 ]
 
 JSONValue = Any
@@ -211,6 +211,22 @@ class Area:
 
 
 @dataclass(slots=True)
+class AppKey:
+    """One application key (SPEC 3.9): a top-level key with a full stop."""
+
+    key: str
+    value: JSONValue = None
+
+
+def is_app_key(key: str) -> bool:
+    """Whether a top-level key is an application key: it contains a full stop.
+
+    No key the format defines contains one (SPEC 3.9).
+    """
+    return "." in key
+
+
+@dataclass(slots=True)
 class Document:
     vnx: str = "0.1.0"
     generator: Union[str, None] = None
@@ -221,9 +237,11 @@ class Document:
     tracks: Union[list[Track], None] = None
     waypoints: Union[list[Waypoint], None] = None
     areas: Union[list[Area], None] = None
-    # SPEC 3.9: rulesets are not defined in 0.1.  Their contents are opaque and
-    # MUST survive a read-modify-write, so they are kept as raw JSON.
-    rulesets: Union[list[JSONValue], None] = None
+    # SPEC 3.9: every top-level key containing a full stop, in key order.  A
+    # list of pairs rather than a dict, matching the other implementations.
+    # Each value is raw JSON, never inspected; a JSON null is a present key
+    # whose value is None, not an absent key.
+    app_keys: list[AppKey] = field(default_factory=list)
 
     def counts(self) -> dict[str, int]:
         """Item counts per top-level collection, as the corpus sidecar spells them."""
@@ -234,5 +252,4 @@ class Document:
             "tracks": len(self.tracks or []),
             "waypoints": len(self.waypoints or []),
             "areas": len(self.areas or []),
-            "rulesets": len(self.rulesets or []),
         }

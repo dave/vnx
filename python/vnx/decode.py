@@ -25,6 +25,7 @@ from .jsonio import parse_json
 from .model import (
     Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
     Network, Position, Route, RouteArc, Segment, Style, Track, Waypoint,
+    AppKey, is_app_key,
 )
 from .pointer import join
 
@@ -334,7 +335,10 @@ class _Reader:
             )
         self._check_version(version)
 
-        obj = self._object(value, "", K.DOCUMENT, "a document")
+        # SPEC 3.9: an application key is recognised at the top level only,
+        # so the document's known set is widened here and nowhere else.
+        known = K.DOCUMENT | {key for key in value if is_app_key(key)}
+        obj = self._object(value, "", known, "a document")
         assert obj is not None
 
         document = Document(vnx=version)
@@ -350,11 +354,13 @@ class _Reader:
         )
         document.areas = self._collection(obj, "areas", self._area)
 
-        # SPEC 3.9: rulesets are opaque in 0.1 and MUST survive a
-        # read-modify-write.  Nothing inside them is inspected, so nothing
-        # inside them can be unknown.
-        rulesets = self._array(obj, "rulesets", "")
-        document.rulesets = rulesets
+        # SPEC 3.9: application keys are opaque and MUST survive a
+        # read-modify-write, a null and an empty value included.  Nothing
+        # inside them is inspected, so nothing inside them can be unknown.
+        # Sorted by key, as the reference implementation keeps them.
+        document.app_keys = [
+            AppKey(key, obj[key]) for key in sorted(obj) if is_app_key(key)
+        ]
         self._check_folder_references(document)
         return document
 

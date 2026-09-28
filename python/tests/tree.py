@@ -5,7 +5,7 @@ whitespace are the writer's own business.  So two documents are compared as the
 trees they parse to.
 
 ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier rests
-on.  A reader that discarded every data record, every ruleset, every style and
+on.  A reader that discarded every data record, every application key, every style and
 every ``notes`` produces a model that compares equal to itself, and passes an
 accept tier built that way green -- that is the whole extensibility mechanism,
 all styling and all user prose.  Comparing the tree parsed from the ORIGINAL
@@ -81,7 +81,9 @@ def _normalise_document(value: Any, options: Options) -> Any:
     _items(out, "tracks", options, _track)
     _items(out, "routes", options, _route)
     _items(out, "networks", options, _network)
-    _drop_empty(out, "rulesets")
+    # Application keys are left alone: SPEC 3.9 exempts them from SPEC 8.1's
+    # absent-equals-empty normalisation, so a key dropped for holding null or
+    # an empty value is a difference.
     return out
 
 

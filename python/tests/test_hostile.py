@@ -309,7 +309,7 @@ class RunnerContainment(unittest.TestCase):
         with mock.patch.object(decode, "read_bytes", explodes), \
              mock.patch.object(vnx, "read_bytes", explodes), \
              mock.patch.object(model.Document, "counts", lambda self: {
-                 key: 0 for key in test_corpus.COLLECTIONS + ("rulesets",)}):
+                 key: 0 for key in test_corpus.COLLECTIONS}):
             suite = unittest.TestLoader().loadTestsFromName(
                 "AcceptTier.test_accept", test_corpus
             )

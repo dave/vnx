@@ -25,10 +25,12 @@ __all__ = [
 # examples and constrained from below by the accept corpus.  They are now the
 # published table, checked against it key by key.
 
-# SPEC 3.1.
+# SPEC 3.1.  The document's key set is open: every key containing a full stop
+# is an application key (SPEC 3.9), which the decoder recognises separately, and
+# at the top level only.
 DOCUMENT = frozenset({
     "vnx", "generator", "created",
-    "folders", "networks", "routes", "tracks", "waypoints", "areas", "rulesets",
+    "folders", "networks", "routes", "tracks", "waypoints", "areas",
 })
 
 # SPEC 3.10.  `notes` and `data` were missing from this implementation's reading

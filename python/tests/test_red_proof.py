@@ -107,33 +107,48 @@ class RedProof(unittest.TestCase):
         """`counts` stops an accept file passing vacuously."""
         self.assertGoesRed(
             mock.patch.object(model.Document, "counts", lambda self: {
-                key: 0 for key in test_corpus.COLLECTIONS + ("rulesets",)
+                key: 0 for key in test_corpus.COLLECTIONS
             }),
             "AcceptTier.test_accept",
             "decoder that returns an empty document",
         )
 
-    def test_an_invented_ruleset_is_caught(self) -> None:
+    def test_an_invented_item_is_caught(self) -> None:
         """`counts` completeness, ruled 2026-09-09.
 
         The defect this closes: a decoder that invents items in a collection no
-        sidecar names.  Inventing a ruleset in every document that has none was
-        invisible until `counts` had to name every collection its document
-        carries -- `rulesets` was the one collection no accept sidecar pinned,
-        and it is the collection whose contents nothing else inspects.
+        sidecar names.  Inventing an area in every document that has none is
+        invisible unless `counts` has to name every collection its document
+        carries: most accept sidecars pin no `areas` at all.
         """
         original = decode._Reader.document
 
         def inventive(self: Any, value: Any) -> Any:
             got = original(self, value)
-            if not got.rulesets:
-                got.rulesets = [{"invented": True}]
+            if not got.areas:
+                got.areas = [model.Area(name="invented")]
             return got
 
         self.assertGoesRed(
             mock.patch.object(decode._Reader, "document", inventive),
             "AcceptTier.test_accept",
-            "decoder that invents a ruleset",
+            "decoder that invents an area",
+        )
+
+    def test_an_invented_application_key_is_caught(self) -> None:
+        """SPEC 3.9: application keys have no `counts` entry, so the tree
+        comparison is the only check on them, and it must see one invented."""
+        original = decode._Reader.document
+
+        def inventive(self: Any, value: Any) -> Any:
+            got = original(self, value)
+            got.app_keys = got.app_keys + [model.AppKey("com.example.invented", None)]
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(decode._Reader, "document", inventive),
+            "AcceptTier.test_accept_files_survive_a_read_and_a_write",
+            "decoder that invents an application key",
         )
 
     def test_the_old_counts_rule_could_not_see_that(self) -> None:
@@ -146,8 +161,8 @@ class RedProof(unittest.TestCase):
 
         def inventive(self: Any, value: Any) -> Any:
             got = original(self, value)
-            if not got.rulesets:
-                got.rulesets = [{"invented": True}]
+            if not got.areas:
+                got.areas = [model.Area(name="invented")]
             return got
 
         def named_keys_only(
@@ -379,15 +394,35 @@ class RedProof(unittest.TestCase):
             "writer that drops every null rather than the trailing ones",
         )
 
-    def test_a_dropped_ruleset_is_caught(self) -> None:
-        """SPEC 3.9: a ruleset is opaque and MUST survive read-modify-write."""
+    def test_a_dropped_application_key_is_caught(self) -> None:
+        """SPEC 3.9: an application key is opaque and MUST survive a
+        read-modify-write."""
         # Patched where the WRITER reaches it: `writer.py` imported the name,
         # so patching `vnx.encode` would leave the writer calling the original
         # and report a blind test that is not blind.
         self.assertGoesRed(
-            mock.patch.object(vnx.writer, "encode_document", _without("rulesets")),
+            mock.patch.object(vnx.writer, "encode_document", _without_app_keys()),
             "AcceptTier.test_accept_files_survive_a_read_and_a_write",
-            "encoder that drops rulesets",
+            "encoder that drops application keys",
+        )
+
+    def test_an_emptied_application_key_is_caught(self) -> None:
+        """SPEC 3.9: a key holding null or an empty value is content.  An
+        encoder that skips such a key must go red, which it can only do if the
+        tree comparison does not normalise the empty value away."""
+        original = vnx.encode.encode_document
+
+        def skips_empty(document: Any) -> Any:
+            obj = original(document)
+            for key in [k for k in obj if model.is_app_key(k)]:
+                if obj[key] in (None, [], {}):
+                    del obj[key]
+            return obj
+
+        self.assertGoesRed(
+            mock.patch.object(vnx.writer, "encode_document", skips_empty),
+            "AcceptTier.test_accept_files_survive_a_read_and_a_write",
+            "encoder that skips an application key holding null or an empty value",
         )
 
     def test_a_flattened_data_record_is_caught(self) -> None:
@@ -411,7 +446,7 @@ class RedProof(unittest.TestCase):
     ) -> None:
         """⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE.
 
-        A reader that discarded every data record, every ruleset, every style or
+        A reader that discarded every data record, every application key, every style or
         every `notes` produces a model that compares equal to itself.  That is
         the whole extensibility mechanism, all styling and all user prose,
         silently droppable by a "conforming" implementation.
@@ -838,13 +873,13 @@ def _drops_data() -> Any:
     return mock.patch.object(decode._Reader, "_data", lambda self, obj, path: None)
 
 
-def _drops_rulesets() -> Any:
-    """A reader that discards every ruleset (SPEC 3.9)."""
+def _drops_app_keys() -> Any:
+    """A reader that discards every application key (SPEC 3.9)."""
     original = decode._Reader.document
 
     def forgetful(self: Any, value: Any) -> Any:
         got = original(self, value)
-        got.rulesets = None
+        got.app_keys = []
         return got
 
     return mock.patch.object(decode._Reader, "document", forgetful)
@@ -869,18 +904,19 @@ def _drops_notes() -> Any:
 
 _SPOILED_READERS = (
     ("discards every data record", _drops_data),
-    ("discards every ruleset", _drops_rulesets),
+    ("discards every application key", _drops_app_keys),
     ("discards every style", _drops_styles),
     ("discards every `notes`", _drops_notes),
 )
 
 
-def _without(key: str) -> Callable[[Any], Any]:
+def _without_app_keys() -> Callable[[Any], Any]:
     original = vnx.encode.encode_document
 
     def encode(document: Any) -> Any:
         obj = original(document)
-        obj.pop(key, None)
+        for key in [k for k in obj if model.is_app_key(k)]:
+            del obj[key]
         return obj
 
     return encode

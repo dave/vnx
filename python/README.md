@@ -94,13 +94,17 @@ refused: this document is version 0.0.9 and this reader does not support the 0.0
 | `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
 | `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `generator`, `created`, and `counts()` |
+| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
+| `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `chains`, `points`, `areas` |
 | `Arc`, `RouteArc` | `pips: list[Position]`; an `Arc` also has `from_` and `to` |
 | `Chain` | `links: list[Link]`, each `Link` carrying `arc`, `from_`, `to` |
 | `Route` | `arcs: list[RouteArc]` |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
 | `Position` | `lon`, `lat`, `ele`, `time_ms` |
+
+`app_keys` is sorted by key on decode, and nothing inspects a value. Encoding
+raises `ValueError` for a key with no full stop or a key held twice.
 
 Items also carry `name`, `notes`, `folder`, `hidden`, `style` and `data` where
 SPEC §3 gives them. `from_` takes the underscore because `from` is a keyword.

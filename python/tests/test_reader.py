@@ -178,6 +178,50 @@ class UnknownKeys(unittest.TestCase):
         self.assertEqual(messages(result), [])
 
 
+class ApplicationKeys(unittest.TestCase):
+    """SPEC 3.9.  The corpus round-trips application keys; it cannot see the
+    model's order or its spelling of a null."""
+
+    def test_they_are_kept_sorted_by_key_with_null_as_none(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "org.example.z": {"a": []}, "com.example.null": null,'
+            ' "app.viatrail.rulesets": [], "com.example.s": "text"}'
+        )
+        self.assertEqual(messages(result), [])
+        self.assertEqual(
+            [(k.key, k.value) for k in result.document.app_keys],
+            [
+                ("app.viatrail.rulesets", []),
+                ("com.example.null", None),
+                ("com.example.s", "text"),
+                ("org.example.z", {"a": []}),
+            ],
+        )
+
+    def test_the_rule_is_top_level_only(self) -> None:
+        result = read(
+            '{"vnx": "0.1.0", "rulesets": [],'
+            ' "waypoints": [{"at": [1,2], "app.viatrail.x": 1}]}'
+        )
+        self.assertEqual(
+            sorted((d.path, d.code) for d in result.diagnostics),
+            [("/rulesets", "unknown-key"), ("/waypoints/0/app.viatrail.x", "unknown-key")],
+        )
+
+    def test_null_and_empty_values_survive_a_round_trip(self) -> None:
+        source = (
+            '{"vnx":"0.1.0","com.example.null":null,"com.example.a":[],'
+            '"com.example.o":{},"com.example.n":0}'
+        )
+        document = read(source).document
+        self.assertEqual(
+            tree.compare_documents(
+                vnx.encode_bytes(document), source.encode(), _ROUND_TRIP
+            ),
+            "",
+        )
+
+
 class Positions(unittest.TestCase):
     """SPEC 4.1.  The corpus has no malformed position anywhere."""
 

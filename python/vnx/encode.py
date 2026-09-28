@@ -15,7 +15,7 @@ from typing import Any, Union
 
 from .model import (
     Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
-    Network, Position, Route, RouteArc, Segment, Track, Waypoint,
+    Network, Position, Route, RouteArc, Segment, Track, Waypoint, is_app_key,
 )
 
 __all__ = ["encode_document"]
@@ -196,6 +196,15 @@ def encode_document(document: Document) -> JSONValue:
         obj["waypoints"] = [_waypoint(item) for item in document.waypoints]
     if document.areas is not None:
         obj["areas"] = [_area(item) for item in document.areas]
-    if document.rulesets is not None:
-        obj["rulesets"] = document.rulesets
+    for app_key in document.app_keys:
+        # SPEC 3.9.  A key without a full stop would be read back as an
+        # unrecognised key and dropped, or as one of the format's own keys; a
+        # key written twice would leave the reader's parser to pick one.
+        if not is_app_key(app_key.key):
+            raise ValueError(
+                f"application key {app_key.key!r} contains no full stop (SPEC 3.9)"
+            )
+        if app_key.key in obj:
+            raise ValueError(f"application key {app_key.key!r} appears twice")
+        obj[app_key.key] = app_key.value
     return obj

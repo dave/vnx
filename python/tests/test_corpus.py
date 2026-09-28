@@ -277,8 +277,10 @@ class _CorpusCase(unittest.TestCase):
     def _check_counts(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
         """SPEC 8.1's `counts`, under the completeness rule ruled 2026-09-09.
 
-        A sidecar must name every collection its document carries, `rulesets`
-        included.  Before that, an omitted collection meant "unchecked", so a
+        A sidecar must name every collection its document carries.  An
+        application key is not a collection and has no entry (SPEC 3.9); the
+        tree comparison of `test_accept_files_survive_a_read_and_a_write` is
+        what checks it.  Before that, an omitted collection meant "unchecked", so a
         decoder could invent or drop items in a collection no sidecar named and
         stay green.  Enforcing it is the point: a rule most files satisfy by
         accident is one the next file breaks silently.
@@ -382,7 +384,7 @@ class AcceptTier(_CorpusCase):
         two JSON TREES equal.
 
         ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER.  A reader that
-        discarded every data record, every ruleset, every style and every
+        discarded every data record, every application key, every style and every
         `notes` produces a model that compares equal to itself and passes such a
         tier green -- that is the whole extensibility mechanism, all styling and
         all user prose.  Comparing against the tree parsed from the ORIGINAL

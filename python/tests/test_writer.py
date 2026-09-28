@@ -17,7 +17,7 @@ import unittest
 
 import vnx
 from vnx.encode import _position
-from vnx.model import Area, Document, Position, Waypoint
+from vnx.model import AppKey, Area, Document, Position, Waypoint
 from vnx.writer import encode_bytes, normalised_document
 
 
@@ -141,6 +141,28 @@ class HiddenIsWrittenOnlyWhenTrue(unittest.TestCase):
     def test_a_true_hidden_is_kept(self) -> None:
         document = Document(vnx="0.1.0", areas=[Area(hidden=True)])
         self.assertIn(b'"hidden":true', encode_bytes(document))
+
+
+class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
+    """SPEC 3.9. A null is written as null, and a key the encoder cannot write
+    is refused rather than lost."""
+
+    def test_a_null_value_is_written(self) -> None:
+        document = Document(vnx="0.1.0", app_keys=[AppKey("com.example.x", None)])
+        self.assertEqual(encode_bytes(document), b'{"vnx":"0.1.0","com.example.x":null}')
+
+    def test_a_key_with_no_full_stop_is_refused(self) -> None:
+        for key in ("rulesets", "folders", ""):
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError, "no full stop"):
+                    encode_bytes(Document(vnx="0.1.0", app_keys=[AppKey(key, [])]))
+
+    def test_a_key_written_twice_is_refused(self) -> None:
+        document = Document(
+            vnx="0.1.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)]
+        )
+        with self.assertRaisesRegex(ValueError, "twice"):
+            encode_bytes(document)
 
 
 class WriterOutputIsStable(unittest.TestCase):

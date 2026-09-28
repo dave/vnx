@@ -35,7 +35,7 @@
 //! assert!(reading.diagnostics.is_empty());
 //! assert_eq!(reading.document.waypoints.as_ref().unwrap().len(), 1);
 //!
-//! let out = vnx::encode(&reading.document);
+//! let out = vnx::encode(&reading.document).expect("encodable");
 //! assert!(out.contains(r#""at":[-3.6521,57.1,940]"#));
 //! ```
 
@@ -55,6 +55,6 @@ pub mod zip;
 pub use decode::{decode, decode_json, Reading};
 pub use diag::{AttachmentFault, Cause, Diagnostic};
 pub use encode::encode;
-pub use error::Refusal;
+pub use error::{EncodeError, Refusal};
 pub use json::Json;
 pub use model::Document;

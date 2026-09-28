@@ -161,7 +161,7 @@ fn a_zip64_container_reads() {
     // than merely that the archive opened. Trees, because the bytes of a
     // document are not constrained (SPEC 8.1).
     assert_eq!(
-        vnx::json::parse(vnx::encode(&container.reading.document).as_bytes())
+        vnx::json::parse(vnx::encode(&container.reading.document).expect("encodable").as_bytes())
             .expect("the encoded document parses"),
         vnx::json::parse(DOCUMENT).expect("the fixture parses")
     );

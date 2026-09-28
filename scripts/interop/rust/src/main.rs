@@ -37,7 +37,13 @@ fn main() -> ExitCode {
     if !reading.diagnostics.is_empty() {
         return ExitCode::from(1);
     }
-    let text = vnx::encode(&reading.document);
+    let text = match vnx::encode(&reading.document) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("interop: encode: {e}");
+            return ExitCode::from(1);
+        }
+    };
     if let Err(e) = std::fs::write(&args[2], text) {
         eprintln!("interop: write: {e}");
         return ExitCode::from(1);

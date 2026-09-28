@@ -10,6 +10,7 @@
 //! (SPEC 8.1); the write tier does not, because there it is the rule under
 //! test.
 
+use crate::error::EncodeError;
 use crate::json::{self, Json};
 use crate::model::*;
 
@@ -17,8 +18,10 @@ use crate::model::*;
 ///
 /// The bytes are compact. Nothing about a VNX document's whitespace is
 /// constrained (SPEC 8.1), and indenting costs about three times the file.
-pub fn encode(document: &Document) -> String {
-    json::to_string(&to_json(document))
+///
+/// It fails only on an application key it cannot write: see [`EncodeError`].
+pub fn encode(document: &Document) -> Result<String, EncodeError> {
+    Ok(json::to_string(&to_json(document)?))
 }
 
 /// Build the JSON tree for a document.
@@ -27,7 +30,7 @@ pub fn encode(document: &Document) -> String {
 /// order SPEC 3.10 tabulates them: identity first, geometry next, opaque
 /// payload last. That is a property of THIS implementation's output and is not
 /// promised to any other.
-pub fn to_json(document: &Document) -> Json {
+pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
     let mut o = Obj::new();
     if let Some(version) = &document.vnx {
         // SPEC 2.2: write the version the DOCUMENT declared, not the reader's.
@@ -41,10 +44,24 @@ pub fn to_json(document: &Document) -> Json {
     o.list("tracks", &document.tracks, track);
     o.list("waypoints", &document.waypoints, waypoint);
     o.list("areas", &document.areas, area);
-    if let Some(rulesets) = &document.rulesets {
-        o.raw("rulesets", rulesets.clone());
+    // SPEC 3.9: each application key as held, `null` and empty values
+    // included. A key with no full stop, or one written twice, is refused
+    // rather than written into a document that would lose it.
+    let mut seen = std::collections::HashSet::new();
+    for app_key in &document.app_keys {
+        if !is_app_key(&app_key.key) {
+            return Err(EncodeError::AppKeyWithoutFullStop {
+                key: app_key.key.clone(),
+            });
+        }
+        if !seen.insert(app_key.key.as_str()) {
+            return Err(EncodeError::AppKeyRepeated {
+                key: app_key.key.clone(),
+            });
+        }
+        o.raw(&app_key.key, app_key.value.clone());
     }
-    o.done()
+    Ok(o.done())
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +285,7 @@ impl Obj {
         }
     }
 
-    /// A style object, `rulesets`, or anything else this format carries
+    /// A style object, or anything else this format carries
     /// through untouched.
     fn opaque(&mut self, key: &str, value: Option<&Json>) {
         if let Some(v) = value {
@@ -307,7 +324,7 @@ mod tests {
 
     fn encode_text(text: &str) -> String {
         let reading = decode(text.as_bytes()).expect("accepted");
-        encode(&reading.document)
+        encode(&reading.document).expect("encodable")
     }
 
     #[test]

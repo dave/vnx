@@ -12,7 +12,7 @@
 //!   file against the tree parsed from `encode(decode(file))` (SPEC 8.1). It
 //!   does not compare bytes, because nothing constrains them, and it does not
 //!   compare one model against another, because a reader that discarded every
-//!   data record, ruleset, style and `notes` produces a model equal to itself
+//!   data record, application key, style and `notes` produces a model equal to itself
 //!   and would pass green. See `tests/support/tree.rs`.
 //! * `positions` is resolved against the DECODED MODEL, never against the raw
 //!   JSON. Resolving it against the file compares the file to itself and
@@ -97,7 +97,7 @@ fn accept_tier() {
         // boundary is normalised on both sides, because this compares a
         // document against a re-encoding of itself and a writer shortens.
         // Values are compared exactly: nothing here rounds.
-        let encoded = encode(&document);
+        let encoded = encode(&document).expect("encodable");
         if let Some(difference) = tree::compare(
             encoded.as_bytes(),
             &original_bytes,
@@ -462,7 +462,7 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     // one that does.
     let mut fed: Vec<vnz::Attachment> = attachments.clone();
     fed.reverse();
-    let written = vnz::write(encode(&reading.document).as_bytes(), &fed)
+    let written = vnz::write(encode(&reading.document).expect("encodable").as_bytes(), &fed)
         .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
     let got = archive_entries(&written);
 
@@ -525,7 +525,7 @@ fn a_container_is_smaller_than_the_document_it_holds() {
     let path = corpus_root().join("accept").join("example-network.vnx");
     let bytes = std::fs::read(&path).expect("the worked example reads");
     let document = decode(&bytes).expect("the worked example is accepted").document;
-    let encoded = encode(&document);
+    let encoded = encode(&document).expect("encodable");
     let archive = vnz::write(encoded.as_bytes(), &[]).expect("the container is written");
     assert!(
         archive.len() < encoded.len(),
@@ -666,7 +666,7 @@ fn write_tier() {
             "write/{stem}.in.vnx reported {}",
             render_diagnostics(&reading.diagnostics)
         );
-        let written = encode(&reading.document);
+        let written = encode(&reading.document).expect("encodable");
         if let Some(difference) =
             tree::compare(written.as_bytes(), &expected, EmitBoundary::Keep)
         {
@@ -680,7 +680,7 @@ fn write_tier() {
             &decode(&expected)
                 .unwrap_or_else(|e| panic!("write/{stem}.written.vnx: {e}"))
                 .document,
-        );
+        ).expect("encodable");
         if let Some(difference) = tree::compare(again.as_bytes(), &expected, EmitBoundary::Keep) {
             panic!("write/{stem}: the expected output is not a fixed point of the writer: {difference}");
         }
@@ -692,8 +692,8 @@ fn write_tier() {
 /// claims for it.
 ///
 /// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
-/// ANOTHER MODEL. A reader that discarded every data record, every ruleset,
-/// every style or every `notes` produces a model that compares equal to itself
+/// ANOTHER MODEL. A reader that discarded every data record, every application
+/// key, every style or every `notes` produces a model that compares equal to itself
 /// and passes a model-versus-model tier GREEN. That is the entire extensibility
 /// mechanism, all styling and all user prose, silently droppable by a
 /// "conforming" implementation.
@@ -727,7 +727,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
                 }
             }
         }),
-        ("drops every ruleset", |d| d.rulesets = None),
+        ("drops every application key", |d| d.app_keys.clear()),
         ("drops every style", |d| {
             for n in d.networks.iter_mut().flatten() {
                 for c in n.chains.iter_mut().flatten() {
@@ -753,7 +753,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
         spoil(&mut document);
         assert_ne!(document, before, "the `{what}` spoiler changed nothing");
 
-        let encoded = encode(&document);
+        let encoded = encode(&document).expect("encodable");
         assert!(
             tree::compare(encoded.as_bytes(), &bytes, EmitBoundary::Normalise).is_some(),
             "a reader that {what} reproduced the file — the accept tier cannot see it"
@@ -764,7 +764,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
     // hold for a comparison that never agrees with anything.
     let document = decode(&bytes).expect("accepted").document;
     assert_eq!(
-        tree::compare(encode(&document).as_bytes(), &bytes, EmitBoundary::Normalise),
+        tree::compare(encode(&document).expect("encodable").as_bytes(), &bytes, EmitBoundary::Normalise),
         None
     );
 }
@@ -1001,14 +1001,6 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
     got.insert("tracks".into(), document.tracks.as_ref().map_or(0, Vec::len));
     got.insert("waypoints".into(), document.waypoints.as_ref().map_or(0, Vec::len));
     got.insert("areas".into(), document.areas.as_ref().map_or(0, Vec::len));
-    got.insert(
-        "rulesets".into(),
-        document
-            .rulesets
-            .as_ref()
-            .and_then(Json::as_array)
-            .map_or(0, <[Json]>::len),
-    );
     // The nested containers, addressed by the same JSON Pointer vocabulary
     // `positions` uses. A bare name is a top-level collection; a name starting
     // with `/` is a container inside one.

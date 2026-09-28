@@ -74,7 +74,6 @@ const DOCUMENT_KEYS: &[&str] = &[
     "tracks",
     "waypoints",
     "areas",
-    "rulesets",
 ];
 const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "notes", "hidden", "data"];
 const NETWORK_KEYS: &[&str] = &[
@@ -113,11 +112,23 @@ impl Decoder {
     /// SPEC 6.2: an unrecognised key is diagnosed, skipped, and the item kept.
     ///
     /// Applied only to objects this format defines. It is NOT applied inside a
-    /// data record, a style object, `rulesets`, or the identifier-keyed
-    /// `nodes` and `arcs` maps.
+    /// data record, a style object, an application key's value, or the
+    /// identifier-keyed `nodes` and `arcs` maps. The document itself is checked
+    /// by [`Decoder::check_document_keys`], because its key set is open.
     fn check_keys(&mut self, entries: &[(String, Json)], known: &[&str], path: &Path) {
         for (key, _) in entries {
             if !known.contains(&key.as_str()) {
+                self.report(&path.key(key), Cause::UnknownKey);
+            }
+        }
+    }
+
+    /// SPEC 3.9: at the TOP LEVEL ONLY, a key containing a full stop is an
+    /// application key and is recognised. Every other object keeps its fixed
+    /// table, so a dotted key on an item is reported as unknown.
+    fn check_document_keys(&mut self, entries: &[(String, Json)], path: &Path) {
+        for (key, _) in entries {
+            if !DOCUMENT_KEYS.contains(&key.as_str()) && !is_app_key(key) {
                 self.report(&path.key(key), Cause::UnknownKey);
             }
         }
@@ -470,7 +481,7 @@ impl Decoder {
             }
         };
 
-        self.check_keys(entries, DOCUMENT_KEYS, &root);
+        self.check_document_keys(entries, &root);
 
         let mut document = Document {
             vnx: Some(version),
@@ -539,10 +550,18 @@ impl Decoder {
                     .collect(),
             );
         }
-        // SPEC 3.9: opaque, preserved verbatim, interpreted not at all.
-        if let Some(items) = self.opt_array(entries, "rulesets", &root) {
-            document.rulesets = Some(Json::Array(items.to_vec()));
-        }
+        // SPEC 3.9: every application key, whatever its value — `null` and
+        // empty included — preserved verbatim and interpreted not at all.
+        let mut app_keys: Vec<AppKey> = entries
+            .iter()
+            .filter(|(k, _)| is_app_key(k))
+            .map(|(k, v)| AppKey {
+                key: k.clone(),
+                value: v.clone(),
+            })
+            .collect();
+        app_keys.sort_by(|a, b| a.key.cmp(&b.key));
+        document.app_keys = app_keys;
 
         self.resolve_folder_references(&mut document);
         Ok(document)

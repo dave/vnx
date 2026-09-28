@@ -8,9 +8,9 @@
 //!   time into the elevation channel (SPEC 4.1). An `Option<f64>` elevation
 //!   field — the first shape most implementations reach for — cannot express
 //!   that.
-//! * A [`Record`] body, a `style` object and `rulesets` are kept as raw
-//!   [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and must survive
-//!   a read-modify-write at value level.
+//! * A [`Record`] body, a `style` object and an application key's value are
+//!   kept as raw [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and
+//!   must survive a read-modify-write at value level.
 
 use crate::json::Json;
 
@@ -155,8 +155,28 @@ pub struct Document {
     pub tracks: Option<Vec<Track>>,
     pub waypoints: Option<Vec<Waypoint>>,
     pub areas: Option<Vec<Area>>,
-    /// Opaque (SPEC 3.9). A 0.1 reader preserves it and interprets none of it.
-    pub rulesets: Option<Json>,
+    /// The application keys (SPEC 3.9): every top-level key containing a full
+    /// stop, each value kept verbatim and interpreted not at all. A JSON
+    /// `null` is a present key holding [`Json::Null`], and an empty value
+    /// stays empty: SPEC 3.9 exempts these keys from absent-equals-empty.
+    ///
+    /// A list, not a map, and sorted by key on decode. Key order is not
+    /// significant (SPEC 4.4); sorted is the order the Go reference keeps.
+    /// [`encode`](crate::encode) writes the list in the order it is given.
+    pub app_keys: Vec<AppKey>,
+}
+
+/// One application key (SPEC 3.9).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppKey {
+    pub key: String,
+    pub value: Json,
+}
+
+/// Whether a top-level key is an application key: whether it contains a full
+/// stop (SPEC 3.9). No key the format defines contains one.
+pub fn is_app_key(key: &str) -> bool {
+    key.contains('.')
 }
 
 #[derive(Debug, Clone, PartialEq)]

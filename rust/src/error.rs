@@ -119,6 +119,36 @@ impl std::fmt::Display for Refusal {
 
 impl std::error::Error for Refusal {}
 
+/// Why a document could not be encoded.
+///
+/// Only an application key can make a model unwritable: every other field has
+/// a type that already confines it to what the format can say.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EncodeError {
+    /// SPEC 3.9: an application key's name contains a full stop. One without
+    /// would be read back as an unrecognised key, or as a key of the format.
+    AppKeyWithoutFullStop { key: String },
+    /// The same application key twice. Which of two equal members a reader
+    /// keeps is its JSON parser's choice (SPEC 6.4), so one would be lost.
+    AppKeyRepeated { key: String },
+}
+
+impl std::fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EncodeError::AppKeyWithoutFullStop { key } => write!(
+                f,
+                "application key {key:?} contains no full stop (SPEC 3.9)"
+            ),
+            EncodeError::AppKeyRepeated { key } => {
+                write!(f, "application key {key:?} appears twice")
+            }
+        }
+    }
+}
+
+impl std::error::Error for EncodeError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

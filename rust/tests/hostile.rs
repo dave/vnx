@@ -276,7 +276,7 @@ fn no_truncation_or_corruption_of_a_document_panics() {
 fn deep_nesting_is_refused_rather_than_overflowing_the_stack() {
     for depth in [300usize, 10_000, 1_000_000] {
         let document = format!(
-            "{{\"vnx\":\"0.1.0\",\"rulesets\":[{}{}]}}",
+            "{{\"vnx\":\"0.1.0\",\"com.example.deep\":[{}{}]}}",
             "[".repeat(depth),
             "]".repeat(depth)
         );

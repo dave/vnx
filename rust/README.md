@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{} {}: {}", d.code(), d.path, d.message());
     }
 
-    fs::write("out.vnx", vnx::encode(doc))?;
+    fs::write("out.vnx", vnx::encode(doc)?)?;
     Ok(())
 }
 ```
@@ -52,8 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 |---|---|---|---|
 | `vnx::decode` | `&[u8]` | `Reading` | `Refusal`, one of the four document causes |
 | `vnx::decode_json` | `&Json` | `Reading` | `Refusal`, for an already-parsed value |
-| `vnx::encode` | `&Document` | `String` | — |
-| `vnx::encode::to_json` | `&Document` | `Json` | — |
+| `vnx::encode` | `&Document` | `String` | `EncodeError`, for an application key it cannot write (SPEC §3.9) |
+| `vnx::encode::to_json` | `&Document` | `Json` | `EncodeError`, as `encode` |
 | `vnx::vnz::read` | `&[u8]` | `Container` | `Refusal`, a document or container cause |
 | `vnx::vnz::write` | `&[u8]`, `&[Attachment]` | `Vec<u8>` | `Refusal`, for an attachment path a reader would reject |
 
@@ -67,7 +67,8 @@ root.
 | `Attachment` | `path: String`, `bytes: Vec<u8>` |
 | `Diagnostic` | `path: String`, `cause: Cause`, and `code()` / `message()` |
 | `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `rulesets`, `vnx`, `generator`, `created` |
+| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
+| `AppKey` | `key: String`, `value: Json`: one application key (SPEC §3.9), `Json::Null` for a `null`; `Document::app_keys` is sorted by key on decode |
 | `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()` |
 | `Track` | `segments: Vec<Segment>`, and `moving_time_ms() -> Option<f64>` |
 

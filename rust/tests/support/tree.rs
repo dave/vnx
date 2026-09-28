@@ -2,7 +2,7 @@
 //! of a document are not constrained (SPEC 8.1).
 //!
 //! ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier
-//! rests on. A reader that discarded every data record, every ruleset, every
+//! rests on. A reader that discarded every data record, every application key, every
 //! style and every `notes` produces a model that compares equal to itself, and
 //! passes an accept tier built that way GREEN — that is the whole extensibility
 //! mechanism, all styling and all user prose. Comparing the tree parsed from
@@ -67,7 +67,9 @@ fn document(value: &Json, emit: EmitBoundary) -> Json {
     items(&mut out, "tracks", emit, track);
     items(&mut out, "waypoints", emit, waypoint);
     items(&mut out, "areas", emit, area);
-    drop_empty(&mut out, "rulesets");
+    // Application keys are not touched: SPEC 3.9 exempts them from SPEC 8.1's
+    // absent-equals-empty normalisation, so an empty or `null` value is
+    // compared as written and a key dropped for holding one is a difference.
     Json::Object(out)
 }
 

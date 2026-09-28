@@ -9,7 +9,7 @@
 //!
 //! An object keeps its entries in a `Vec` rather than a map, so it holds the
 //! order the document used. `serde_json::Value` sorts, and the regions this
-//! format carries through untouched — a style, `rulesets`, a data record's body
+//! format carries through untouched — a style, an application key, a data record's body
 //! (SPEC 5.1, 3.9) — are read back out and written again. Keeping the order
 //! costs one conversion and means a third party's object leaves this crate
 //! spelled the way it arrived.

@@ -6,8 +6,9 @@
 //   * A position keeps its ARITY, including a trailing `null` (SPEC.md 4.1).
 //     An `ele` field that is merely optional is the model that cannot re-render
 //     `accept/absent-elevation-and-time.vnx`.
-//   * Opaque values — data record bodies, `style` objects, `rulesets` — are
-//     kept as the parsed JSON value, whole. Nothing here inspects them.
+//   * Opaque values — data record bodies, `style` objects, the values of
+//     application keys — are kept as the parsed JSON value, whole. Nothing
+//     here inspects them.
 //
 // Absent is `undefined` throughout, and is never a default (SPEC.md 3.1).
 
@@ -219,7 +220,24 @@ export class Document {
     /** @type {Track[]|undefined} */ this.tracks = undefined;
     /** @type {Waypoint[]|undefined} */ this.waypoints = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;
-    /** @type {unknown[]|undefined} opaque; preserved, never interpreted (3.9) */
-    this.rulesets = undefined;
+    /**
+     * The application keys (SPEC.md 3.9), sorted by key on decode. A list of
+     * pairs rather than an object, so a key's presence never depends on its
+     * value: a `null` value is a present key.
+     * @type {AppKey[]}
+     */
+    this.appKeys = [];
+  }
+}
+
+/** One application key: a top-level key containing a full stop (SPEC.md 3.9). */
+export class AppKey {
+  /**
+   * @param {string} key
+   * @param {unknown} value the parsed JSON value, `null` included; opaque
+   */
+  constructor(key, value) {
+    this.key = key;
+    this.value = value;
   }
 }

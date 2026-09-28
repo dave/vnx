@@ -162,8 +162,8 @@ test('dropping a TRAILING null in the model is permitted; dropping an INTERIOR o
 });
 
 // ⚠ THE FOUR SPOILED READERS. Each of the next four cases is a reader that
-// silently drops one thing it read: every data record, every ruleset, every
-// style, every `notes`. That is the entire extensibility mechanism, all styling
+// silently drops one thing it read: every data record, every application key,
+// every style, every `notes`. That is the entire extensibility mechanism, all styling
 // and all user prose. Every one of them produces a MODEL EQUAL TO ITSELF and
 // passes a model-versus-model accept tier green — measured in Python, re-proved
 // in Go. Comparing against the tree parsed from the ORIGINAL FILE is what
@@ -179,14 +179,40 @@ test('a reader that discards data records is caught by the accept tier', async (
   assert.ok(red.includes('accept/unknown-data-on-unexpected-hosts.vnx'), red.join(', '));
 });
 
-test('a reader that discards rulesets is caught by the accept tier', async () => {
+test('a reader that discards application keys is caught by the accept tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
-    from: "  doc.rulesets = arr('rulesets', '', kv, false, ctx);",
-    to: '  doc.rulesets = undefined;',
+    from: '  doc.appKeys = readAppKeys(kv);',
+    to: '  doc.appKeys = [];',
   }]);
   const red = await failingDelta(cases);
   assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
+  assert.ok(red.includes('accept/application-keys.vnx'), red.join(', '));
+});
+
+// SPEC.md 3.9 exempts an application key from absent-equals-empty. A writer
+// that skipped a key whose value is null or empty would drop content, and
+// accept/application-keys.vnx carries all three to catch it.
+test('a writer that drops null and empty application keys is caught by the accept tier', async () => {
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '    o[key] = value;',
+    to: '    if (value !== null && !(typeof value === \'object\' && Object.keys(value).length === 0)) o[key] = value;',
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('accept/application-keys.vnx'), red.join(', '));
+});
+
+// The rule is TOP-LEVEL ONLY. A reader that recognised a dotted key on every
+// object would stop reporting one on an item.
+test('a reader that recognises dotted keys below the top level is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '    if (required.includes(k) || optional.includes(k) || alsoKnown(k)) out[k] = obj[k];',
+    to: '    if (required.includes(k) || optional.includes(k) || k.includes(\'.\')) out[k] = obj[k];',
+  }]);
+  const red = await failingDelta(cases);
+  assert.ok(red.includes('diagnose/dotted-key-on-item.vnx'), red.join(', '));
 });
 
 test('a reader that discards every style is caught by the accept tier', async () => {
@@ -415,7 +441,8 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     from: "    else ctx.diag(`${path}/${esc(k)}`, `unknown key \"${k}\"`, 'unknown-key');",
     to: '    else { /* silently skipped */ }',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/unknown-key.vnx']);
+  assert.deepEqual(await failingDelta(cases),
+    ['diagnose/dotted-key-on-item.vnx', 'diagnose/unknown-key.vnx']);
 });
 
 test('a container matching its root document on the base name is caught', async () => {

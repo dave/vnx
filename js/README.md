@@ -65,7 +65,10 @@ entry name, and `attachments`, a **`Map`** from entry name to `Buffer`. Its size
 is `attachments.size`, not `.length`.
 
 A `Document` carries `folders`, `networks`, `routes`, `tracks`, `waypoints`,
-`areas`, `rulesets` and `counts`. A `Network` carries `nodes`, `arcs`, `chains`,
+`areas`, `appKeys` and `counts`. `appKeys` is a list of `AppKey` pairs, `key`
+and `value`, sorted by key: the application keys of
+[SPEC §3.9](../SPEC.md). A `null` value is a present key, and `encode` throws on
+a key with no full stop or a key listed twice. A `Network` carries `nodes`, `arcs`, `chains`,
 `points` and `areas`, and a chain's `links` traverse those arcs by reference.
 Model classes are exported from the package root; `src/model.js` has the
 fields.
@@ -86,7 +89,7 @@ consequences for a caller:
   array; `lon`, `lat`, `ele` and `time` are the channels.
 - `Track#movingTimeMs()` returns `null` for unknown. Unknown is not zero.
 - Opaque values come back whole. Data record bodies, `style` objects and
-  `rulesets` are the parsed JSON value, and nothing inspects them.
+  application-key values are the parsed JSON value, and nothing inspects them.
 - A backslash in an archive entry name is refused outright, which is stricter
   than the ZIP specification. An archive authored on Windows can carry one.
 

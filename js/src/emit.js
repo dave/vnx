@@ -67,8 +67,30 @@ export function emitDocument(doc) {
   if (doc.tracks !== undefined) o.tracks = doc.tracks.map((t) => emitTrack(t));
   if (doc.waypoints !== undefined) o.waypoints = doc.waypoints.map((w) => emitPointLike(w));
   if (doc.areas !== undefined) o.areas = doc.areas.map((a) => emitArea(a));
-  if (doc.rulesets !== undefined) o.rulesets = doc.rulesets;
+  emitAppKeys(o, doc.appKeys);
   return o;
+}
+
+/**
+ * The application keys (SPEC.md 3.9), each value written exactly as held, so a
+ * `null` is written as `null` and an empty value as empty.
+ *
+ * ⚠ A KEY WITH NO FULL STOP IS REFUSED, NOT WRITTEN: a reader would take it for
+ * an unrecognised key, or for one of the format's own. A key held twice is
+ * refused too, because a JSON object keeps only one of them.
+ */
+function emitAppKeys(o, appKeys) {
+  const seen = new Set();
+  for (const { key, value } of appKeys) {
+    if (!key.includes('.')) {
+      throw new Error(`vnx: application key ${JSON.stringify(key)} contains no full stop (SPEC.md 3.9)`);
+    }
+    if (seen.has(key)) {
+      throw new Error(`vnx: application key ${JSON.stringify(key)} appears twice`);
+    }
+    seen.add(key);
+    o[key] = value;
+  }
 }
 
 function emitFolder(f) {

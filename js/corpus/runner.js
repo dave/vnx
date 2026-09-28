@@ -19,7 +19,7 @@ import { compareDocuments } from './tree.js';
 // archive, which the accept and diagnose tiers already cover.
 import { readEntries, readEntryData } from '../src/zip.js';
 
-const COLLECTIONS = ['folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas', 'rulesets'];
+const COLLECTIONS = ['folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas'];
 
 export class Case {
   constructor(name) {
@@ -116,7 +116,7 @@ function runSidecarCase(kind, dir, file, api) {
     // emit-boundary rule applied to both sides.
     //
     // ⚠ AGAINST THE ORIGINAL FILE, never against another model. A reader that
-    // discarded every data record, ruleset, style and `notes` produces a model
+    // discarded every data record, application key, style and `notes` produces a model
     // equal to itself and would pass a model-versus-model tier green.
     let encoded = null;
     try {

@@ -10,7 +10,7 @@
 import { VnxRefusal, Diagnostic } from './errors.js';
 import {
   Position, Folder, Network, NetworkArc, Chain, Link, Endpoint,
-  Route, RouteArc, Track, Segment, Waypoint, Area, Document,
+  Route, RouteArc, Track, Segment, Waypoint, Area, Document, AppKey,
 } from './model.js';
 import { distanceToPolylineM, PROJECTION_TOLERANCE_M } from './geo.js';
 
@@ -149,10 +149,10 @@ export function decodeValue(value) {
  * not, diagnosing the latter (SPEC.md 6.2). An unrecognised key is skipped and
  * the item is KEPT: unrecognised is not unusable.
  */
-function known(obj, path, required, optional, ctx) {
+function known(obj, path, required, optional, ctx, alsoKnown = () => false) {
   const out = Object.create(null);
   for (const k of Object.keys(obj)) {
-    if (required.includes(k) || optional.includes(k)) out[k] = obj[k];
+    if (required.includes(k) || optional.includes(k) || alsoKnown(k)) out[k] = obj[k];
     else ctx.diag(`${path}/${esc(k)}`, `unknown key "${k}"`, 'unknown-key');
   }
   return out;
@@ -322,10 +322,20 @@ function pips(kv, path, ctx) {
 // --- structure --------------------------------------------------------------
 
 const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'routes',
-  'tracks', 'waypoints', 'areas', 'rulesets'];
+  'tracks', 'waypoints', 'areas'];
+
+/**
+ * SPEC.md 3.9: a TOP-LEVEL key containing a full stop is an application key.
+ * No key the format defines contains one. The test is applied to the document
+ * only; every other object keeps its fixed key list, so a dotted key on an item
+ * is reported as unknown.
+ */
+export function isAppKey(k) {
+  return k.includes('.');
+}
 
 function readDocument(raw, ctx) {
-  const kv = known(raw, '', ['vnx'], DOC_OPTIONAL, ctx);
+  const kv = known(raw, '', ['vnx'], DOC_OPTIONAL, ctx, isAppKey);
   const doc = new Document();
   doc.vnx = kv.vnx;
   doc.generator = str('generator', '', kv, false, ctx);
@@ -336,9 +346,25 @@ function readDocument(raw, ctx) {
   doc.tracks = collection('tracks', kv, ctx, readTrack);
   doc.waypoints = collection('waypoints', kv, ctx, (r, p, c) => readPointLike(r, p, c, true));
   doc.areas = collection('areas', kv, ctx, (r, p, c) => readArea(r, p, c, true));
-  // SPEC.md 3.9: rulesets are opaque in 0.1 and preserved verbatim.
-  doc.rulesets = arr('rulesets', '', kv, false, ctx);
+  doc.appKeys = readAppKeys(kv);
   return doc;
+}
+
+/**
+ * Every application key, sorted by key. Each value is kept as parsed — `null`
+ * and an empty value included — and never inspected (SPEC.md 3.9), so this
+ * raises no diagnostic. Sorted rather than in document order to match the Go
+ * reference, whose JSON decoder has lost the order by the time it sees keys.
+ */
+function readAppKeys(kv) {
+  const out = [];
+  for (const k of Object.keys(kv)) {
+    if (isAppKey(k)) out.push(new AppKey(k, kv[k]));
+  }
+  // By UTF-8 bytes, as Go's sort.Strings orders them. `<` on strings compares
+  // UTF-16 code units, which disagrees above U+FFFF.
+  out.sort((a, b) => Buffer.compare(Buffer.from(a.key, 'utf8'), Buffer.from(b.key, 'utf8')));
+  return out;
 }
 
 function collection(key, kv, ctx, read) {

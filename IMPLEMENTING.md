@@ -176,17 +176,21 @@ An application key differs from the other two in three ways, and each is a
 place to go wrong:
 
 - The rule is about position, not about the key. A key containing a full stop
-  is an application key only at the top level of a document. Anywhere else it
-  is an unrecognised key and is reported. A decoder that tests every object's
-  keys for a full stop skips diagnostics the corpus expects, and
-  `corpus/diagnose/dotted-key-on-item.vnx` is what catches it.
+  is an application key only at the top level of a document. On any other
+  object the format defines it is an unrecognised key and is reported, except
+  inside the opaque objects of `SPEC §3.10`, where it is carried. A decoder
+  that tests every object's keys for a full stop skips diagnostics the corpus
+  expects, and `corpus/diagnose/dotted-key-on-item.vnx` is what catches it.
+  One that reports a dotted key inside a record body, a style or an
+  application key's value fails `corpus/accept/application-keys.vnx`.
 - The value is any JSON value, not only an array or an object. A `null` has to
   come back as `null`, and an empty array as an empty array. The absent-equals-
   empty normalisation of `SPEC §8.1` does not apply, so a model that drops a
   key whose value is empty or `null` fails `corpus/accept/application-keys.vnx`.
 - The key set is open. Hold application keys as a list of key-value pairs in the
   document model, not as one field per known key. A field per key is the
-  derive-macro failure of section 3 again, one level up.
+  derive-macro failure of section 3 again, one level up. A list can hold one
+  key twice, so refusing a repeated key is the writer's job (`SPEC §3.9`).
 
 That is a modelling decision, not a serialisation one. Decode a record body into
 a typed structure and you lose the fields your type does not name. The accept

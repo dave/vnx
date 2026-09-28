@@ -278,7 +278,8 @@ exceptions stated where they arise: `label-visible`, where absence means Auto
 
 All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
-wherever a container appears in this format: an empty `data` bag, an empty
+wherever a container appears in this format, except an application key and
+anything inside its value (Section 3.9): an empty `data` bag, an empty
 `links` array and an empty `nodes` object each carry the same content as the
 key being absent.
 
@@ -571,30 +572,41 @@ and a document SHOULD NOT contain `"hidden": false`.
 
 ### 3.9 Application keys
 
-A top-level key of a document that contains a full stop is an application key.
-It adds a kind of content that this format does not define. Its name is in
-reverse-DNS form, and the owner of the domain chooses it: `app.viatrail.rulesets`
-belongs to whoever owns `viatrail.app`. No key this format defines contains a
-full stop, so an application key can never collide with one.
+A top-level key of a document whose name contains a full stop is an application
+key. It adds a kind of content that this format does not define. The test is
+exact: after JSON string unescaping, the name contains the character U+002E
+FULL STOP. It is case-sensitive, and nothing else about the name is examined.
+No key this format defines contains a full stop, so an application key can
+never collide with one.
+
+A name SHOULD be in reverse-DNS form, chosen by the owner of the domain:
+`app.viatrail.rulesets` belongs to whoever owns `viatrail.app`. That is
+guidance for whoever names a key. A reader MUST NOT validate it, so `.` and
+`waypoints.` are application keys.
 
 The value of an application key is any JSON value, and it is opaque. A reader:
 
 - MUST preserve the key and its value unchanged through a read-modify-write. A
-  `null` value stays `null`, and an empty array or object stays empty: the
-  normalisation of Section 8.1 that makes an absent container equal to an empty
-  one does not apply to an application key or to anything inside its value.
+  `null` value stays `null`, and an empty array or object stays empty: the rule
+  of Sections 3.1 and 8.1 that makes an absent container equal to an empty one
+  does not apply to an application key or to anything inside its value.
 - MUST NOT record a diagnostic for an application key, whatever its value.
-- MUST NOT inspect the value, as Section 5.1 forbids for a record body.
+- MUST NOT apply any rule of this format inside the value. A value under
+  `waypoints.` that would be unusable as a waypoint is carried as written, and
+  so is an `importance` outside 1 to 5.
 
-The rule applies only at the top level of a document. On any other object a key
-that contains a full stop is an unrecognised key, and Section 6.2 applies to it.
-Information about one object belongs in that object's `data` array (Section 5).
-A data record attaches information to the object it sits on; an application key
-adds a new kind of thing.
+The rule applies only at the top level of a document. On any other object this
+format defines, except the opaque objects of Section 3.10, a key that contains
+a full stop is an unrecognised key, and Section 6.2 applies to it. Inside an
+opaque object a dotted key is carried like any other key. Information about one
+object belongs in that object's `data` array (Section 5). A data record
+attaches information to the object it sits on; an application key adds a new
+kind of thing.
 
 A writer MUST give every application key it writes a name that contains a full
-stop. Without one the key would be read back as an unrecognised key and
-dropped.
+stop, and MUST NOT write one application key twice. A key without a full stop
+would be read back as an unrecognised key and dropped. Of a key written twice,
+which member a reader keeps is its JSON parser's choice (Section 6.4).
 
 ### 3.10 Recognised keys
 
@@ -660,7 +672,9 @@ untouched, because no other style key has a stated range.
 
 A field named `importance` inside a data record body is not checked. Section
 6.2's prohibition on inspecting a record body is the mechanism by which a record
-of an unrecognised type survives a read-modify-write, and it wins.
+of an unrecognised type survives a read-modify-write, and it wins. The same
+holds inside an application key's value, where no rule of this format applies
+(Section 3.9).
 
 ## 4. Values
 
@@ -831,8 +845,9 @@ A reader is tolerant of damage and silent about nothing.
 - An unrecognised key on an object defined by this format: the reader MUST
   record a diagnostic, MUST skip the key, and MUST keep the object. An
   unrecognised key is not an unusable value. An application key (Section 3.9)
-  is recognised, so a reader records no diagnostic for it; a key containing a
-  full stop anywhere below the top level is unrecognised.
+  is recognised, so a reader records no diagnostic for it. On any other object
+  this format defines, except the opaque objects of Section 3.10, a key
+  containing a full stop is unrecognised.
 - An unusable value, such as a position that will not parse, a link naming an
   arc that is absent from the document, a `polygon` carrying a ring beyond the
   first, or a record-level timestamp carrying an offset other than `Z`: the

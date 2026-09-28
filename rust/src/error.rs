@@ -131,6 +131,10 @@ pub enum EncodeError {
     /// The same application key twice. Which of two equal members a reader
     /// keeps is its JSON parser's choice (SPEC 6.4), so one would be lost.
     AppKeyRepeated { key: String },
+    /// A number that is not finite, at `path` (a JSON Pointer into the
+    /// document). JSON cannot spell one (SPEC 4.2), so writing it would put a
+    /// value in the file that no reader accepts.
+    NonFiniteNumber { path: String },
 }
 
 impl std::fmt::Display for EncodeError {
@@ -142,6 +146,12 @@ impl std::fmt::Display for EncodeError {
             ),
             EncodeError::AppKeyRepeated { key } => {
                 write!(f, "application key {key:?} appears twice")
+            }
+            EncodeError::NonFiniteNumber { path } => {
+                write!(
+                    f,
+                    "the number at {path:?} is not finite, and JSON cannot spell it (SPEC 4.2)"
+                )
             }
         }
     }

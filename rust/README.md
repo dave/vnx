@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 |---|---|---|---|
 | `vnx::decode` | `&[u8]` | `Reading` | `Refusal`, one of the four document causes |
 | `vnx::decode_json` | `&Json` | `Reading` | `Refusal`, for an already-parsed value |
-| `vnx::encode` | `&Document` | `String` | `EncodeError`, for an application key it cannot write (SPEC §3.9) |
+| `vnx::encode` | `&Document` | `String` | `EncodeError`, for an application key it cannot write (SPEC §3.9) or a number that is not finite (SPEC §4.2) |
 | `vnx::encode::to_json` | `&Document` | `Json` | `EncodeError`, as `encode` |
 | `vnx::vnz::read` | `&[u8]` | `Container` | `Refusal`, a document or container cause |
 | `vnx::vnz::write` | `&[u8]`, `&[Attachment]` | `Vec<u8>` | `Refusal`, for an attachment path a reader would reject |

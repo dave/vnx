@@ -19,9 +19,10 @@ use crate::model::*;
 /// The bytes are compact. Nothing about a VNX document's whitespace is
 /// constrained (SPEC 8.1), and indenting costs about three times the file.
 ///
-/// It fails only on an application key it cannot write: see [`EncodeError`].
+/// It fails on an application key it cannot write, and on a number that is
+/// not finite: see [`EncodeError`].
 pub fn encode(document: &Document) -> Result<String, EncodeError> {
-    Ok(json::to_string(&to_json(document)?))
+    json::to_string(&to_json(document)?)
 }
 
 /// Build the JSON tree for a document.
@@ -30,6 +31,8 @@ pub fn encode(document: &Document) -> Result<String, EncodeError> {
 /// order SPEC 3.10 tabulates them: identity first, geometry next, opaque
 /// payload last. That is a property of THIS implementation's output and is not
 /// promised to any other.
+///
+/// It fails as [`encode`] does.
 pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
     let mut o = Obj::new();
     if let Some(version) = &document.vnx {
@@ -61,7 +64,11 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
         }
         o.raw(&app_key.key, app_key.value.clone());
     }
-    Ok(o.done())
+    // SPEC 4.2: JSON cannot spell a non-finite number, and a model field or
+    // an opaque value can hold one. Refused here, with where it is.
+    let tree = o.done();
+    json::check_finite(&tree)?;
+    Ok(tree)
 }
 
 // ---------------------------------------------------------------------------

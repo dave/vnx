@@ -17,13 +17,15 @@
 //! Duplicate keys are resolved by `serde_json` on the way in, last-wins, which
 //! is SPEC 6.4's rule.
 
+use crate::error::EncodeError;
+
 /// A JSON value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Json {
     Null,
     Bool(bool),
-    /// Always finite. The parser refuses a literal that is not, and nothing
-    /// else in this crate constructs one.
+    /// Finite when parsed: the parser refuses a literal that is not. A caller
+    /// can still build a non-finite one, and [`to_string`] refuses it.
     Number(f64),
     String(String),
     Array(Vec<Json>),
@@ -108,8 +110,45 @@ pub fn parse(bytes: &[u8]) -> Result<Json, String> {
 /// OMISSION. Nothing about a VNX document's whitespace is constrained and
 /// indenting costs about three times the file. Pretty-printing belongs to a
 /// tool, not to the format.
-pub fn to_string(value: &Json) -> String {
-    serde_json::to_string(&to_serde(value)).expect("a JSON tree of finite numbers serialises")
+///
+/// It fails on a number that is not finite, naming where it is: see
+/// [`check_finite`].
+pub fn to_string(value: &Json) -> Result<String, EncodeError> {
+    check_finite(value)?;
+    Ok(serde_json::to_string(&to_serde(value)).expect("a JSON tree of finite numbers serialises"))
+}
+
+/// Refuse a tree holding a number that is not finite (SPEC 4.2). The error
+/// names the first one found as a JSON Pointer.
+pub fn check_finite(value: &Json) -> Result<(), EncodeError> {
+    fn walk(value: &Json, path: &mut String) -> Result<(), EncodeError> {
+        match value {
+            Json::Number(n) if !n.is_finite() => {
+                Err(EncodeError::NonFiniteNumber { path: path.clone() })
+            }
+            Json::Array(items) => {
+                for (i, item) in items.iter().enumerate() {
+                    let len = path.len();
+                    path.push_str(&format!("/{i}"));
+                    walk(item, path)?;
+                    path.truncate(len);
+                }
+                Ok(())
+            }
+            Json::Object(entries) => {
+                for (k, v) in entries {
+                    let len = path.len();
+                    path.push('/');
+                    path.push_str(&crate::diag::escape_token(k));
+                    walk(v, path)?;
+                    path.truncate(len);
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    walk(value, &mut String::new())
 }
 
 fn from_serde(value: serde_json::Value) -> Json {
@@ -159,12 +198,9 @@ fn to_serde(value: &Json) -> serde_json::Value {
 /// no longer rounds, so the only way one reaches here is a document that
 /// stated it.
 ///
-/// # Panics
-///
-/// Panics on a non-finite value. JSON cannot spell one, and returning
-/// something else would put a number in the file that no reader accepts.
+/// Only [`to_string`] reaches this, after [`check_finite`] has refused a
+/// tree holding a non-finite value, so every value here is finite.
 fn number(value: f64) -> serde_json::Number {
-    assert!(value.is_finite(), "VNX carries no non-finite number");
     if value.fract() == 0.0 && value.abs() <= i64::MAX as f64 {
         return serde_json::Number::from(value as i64);
     }
@@ -258,7 +294,10 @@ mod tests {
             Json::Number(-0.0),
             Json::Number(57.118123),
         ]);
-        assert_eq!(to_string(&value), "[1778914991000,340,0,57.118123]");
+        assert_eq!(
+            to_string(&value).expect("finite"),
+            "[1778914991000,340,0,57.118123]"
+        );
     }
 
     /// Deep nesting is refused rather than overflowing the stack. `serde_json`

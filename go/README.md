@@ -142,12 +142,14 @@ Everything below is in `package vnx`.
 | `DocumentIsEmpty` | `d *Document` | `bool` |
 | `WriterCodes` | — | `[]string`, every `Code` the conversion writers emit |
 | `IsAppKey` | `key string` | `bool`, whether a top-level key is an application key (`SPEC §3.9`) |
+| `(*Document).GetAppKey` / `SetAppKey` / `DeleteAppKey` | `key string` (and `value any` to set) | read, store or remove one application key; `SetAppKey` keeps the list sorted and refuses what `EncodeTo` refuses |
 | `AppKeyDiagnostics` | `d *Document`, `format string` | `[]Diagnostic`, one per application key a conversion writer drops |
 
 `Document` holds the header fields, the item collections and `AppKeys`, the
 application keys as a list of `AppKey{Key, Value}` sorted by key. `Value` is
 the parsed JSON value, `nil` for a JSON `null`, and nothing inspects it.
-`EncodeTo` refuses a key without a full stop. `Container` holds a
+`EncodeTo` refuses a key without a full stop, a key held twice, and a nil
+slice or map as a value, before it writes anything. `Container` holds a
 `*Document` and the files stored beside it, each a `ContainerAttachment` with a
 `Path` and its `Bytes` — the same shape the JavaScript, Rust and Swift
 implementations return. `EncodeTo` streams, so a document is never held in

@@ -26,6 +26,11 @@ func EncodeTo(w io.Writer, doc *Document) error {
 	if doc == nil {
 		return fmt.Errorf("vnx: nothing to encode")
 	}
+	// Checked before the first byte, so a refused document writes nothing
+	// rather than a truncated object.
+	if err := validateAppKeys(doc.AppKeys); err != nil {
+		return err
+	}
 	b := Stick(w)
 	if err := streamDocument(b, doc); err != nil {
 		return err
@@ -176,21 +181,13 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 // encoding/json exactly as it is held. A nil Value is written as `null`: the
 // key is present, and §3.9 keeps a null a null.
 //
-// ⚠ A KEY WITH NO FULL STOP IS REFUSED, NOT WRITTEN. A reader would take it
-// for an unrecognised key and drop it, or for one of the format's own keys and
-// misread it. A key written twice is refused too: which of two equal members
-// a reader keeps is its JSON parser's choice (SPEC §6.4), so the second would
-// be lost or would silently win.
+// The keys were checked by [validateAppKeys] before EncodeTo wrote anything: a
+// key with no full stop, a key written twice and a typed-nil value are each
+// refused rather than written. A reader would take an undotted key for an
+// unrecognised one and drop it, and which of two equal members it keeps is its
+// JSON parser's choice (SPEC §6.4).
 func streamAppKeys(o *object, keys []AppKey) error {
-	seen := make(map[string]bool, len(keys))
 	for _, k := range keys {
-		if !IsAppKey(k.Key) {
-			return fmt.Errorf("vnx: application key %q contains no full stop (SPEC §3.9)", k.Key)
-		}
-		if seen[k.Key] {
-			return fmt.Errorf("vnx: application key %q appears twice", k.Key)
-		}
-		seen[k.Key] = true
 		if err := o.value(k.Key, k.Value); err != nil {
 			return err
 		}
@@ -202,7 +199,7 @@ func streamAppKeys(o *object, keys []AppKey) error {
 //
 // ⚠ THE TABLE IS GUARDED, NOT TRUSTED. `field` names the [Document] field it
 // covers, and TestEncodeToCoversEveryCollectionTheDocumentDeclares reflects over
-// the struct and fails if a slice field has no entry — so an eighth collection
+// the struct and fails if a slice field has no entry — so a seventh collection
 // added to the model and forgotten here cannot ship as a document that silently
 // omits it.
 type documentCollection struct {

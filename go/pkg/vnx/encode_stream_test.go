@@ -15,7 +15,7 @@ import (
 // TestEncodeToCoversEveryCollectionTheDocumentDeclares is the structural guard
 // on documentCollections.
 //
-// documentCollections names its collections one by one. An eighth added to
+// documentCollections names its collections one by one. A seventh added to
 // vnx.Document and forgotten there would be SILENTLY DROPPED from every
 // exported file — still valid VNX, and the data simply gone. Reflection finds
 // the omission instead of trusting the next author to remember.
@@ -180,7 +180,8 @@ func sortedArcNames(m map[string]Arc) []string {
 // An absent collection and an empty one carry the same content and a reader
 // must treat them alike, so a writer may spell either — and this one spells
 // both as absence. The rule is asserted directly because both goldens carry all
-// seven containers populated and can catch neither half of it.
+// six collections populated and can catch neither half of it. Application keys
+// are not in the table and not in this rule: SPEC §3.9 exempts them.
 func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 	const headerOnly = "{\"vnx\":\"0.1.0\"}\n"
 	for _, c := range documentCollections {

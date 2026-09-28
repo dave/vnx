@@ -123,10 +123,10 @@ func TestEveryOracleExpectationHasACase(t *testing.T) {
 // Every top-level collection must appear NON-EMPTY in at least one case AND
 // EMPTY in at least one. The empty half is the one the goldens cannot do:
 // documentTree guards every branch with `if len(...) > 0` (encode.go:46-121),
-// so an empty collection OMITS ITS KEY, and both goldens carry all seven
-// containers. A rewrite that emitted `"areas": []` would pass both goldens.
+// so an empty collection OMITS ITS KEY, and both goldens carry all six
+// collections populated. A rewrite that emitted `"areas": []` would pass both goldens.
 //
-// The collection list is derived by reflection over Document, so a tenth
+// The collection list is derived by reflection over Document, so another
 // collection added to the model and forgotten here fails instead of being
 // quietly uncovered.
 func TestOracleCorpusCoversEveryCollectionFullAndEmpty(t *testing.T) {

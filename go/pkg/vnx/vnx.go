@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -80,12 +81,110 @@ type Document struct {
 
 // AppKey is one application key (SPEC §3.9).
 //
-// Value is whatever encoding/json produced for it, and a JSON `null` is a nil
-// Value. The key is present either way: a nil Value is a key whose value is
-// null, not an absent key, and it is written back as `null`.
+// Value is whatever encoding/json produced for it: nil, bool, float64, string,
+// []any or map[string]any.
+//
+// ⚠ A nil Value MEANS JSON null. The key is present: a nil Value is a key whose
+// value is null, not an absent key, and it is written back as `null`. A TYPED
+// nil — a nil []any or a nil map[string]any — is refused by [EncodeTo] and
+// [Document.SetAppKey] rather than written: encoding/json spells it `null`,
+// and a caller who built an empty slice by accident would lose an empty array
+// with no error.
 type AppKey struct {
 	Key   string
 	Value any
+}
+
+// validateAppKey is the one check every application key must pass before it is
+// written or stored: its name contains a full stop, and its value is not a
+// typed nil.
+func validateAppKey(k AppKey) error {
+	if !IsAppKey(k.Key) {
+		return fmt.Errorf("vnx: application key %q contains no full stop (SPEC §3.9)", k.Key)
+	}
+	if k.Value != nil {
+		v := reflect.ValueOf(k.Value)
+		switch v.Kind() {
+		case reflect.Slice, reflect.Map, reflect.Pointer:
+			if v.IsNil() {
+				return fmt.Errorf("vnx: application key %q holds a nil %T; use a nil Value for JSON null", k.Key, k.Value)
+			}
+		}
+	}
+	return nil
+}
+
+// validateAppKeys checks every key, and that no key appears twice (SPEC §3.9).
+func validateAppKeys(keys []AppKey) error {
+	seen := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		if err := validateAppKey(k); err != nil {
+			return err
+		}
+		if seen[k.Key] {
+			return fmt.Errorf("vnx: application key %q appears twice", k.Key)
+		}
+		seen[k.Key] = true
+	}
+	return nil
+}
+
+// GetAppKey returns the value of one application key, and whether it is
+// present. A present key holding JSON null returns (nil, true).
+func (d *Document) GetAppKey(key string) (any, bool) {
+	for _, k := range d.AppKeys {
+		if k.Key == key {
+			return k.Value, true
+		}
+	}
+	return nil, false
+}
+
+// SetAppKey stores one application key. A key already present has its value
+// replaced in place; a new key is inserted before the first key that sorts
+// after it, so a list sorted by key, as [Decode] leaves it, stays sorted.
+//
+// It refuses what [EncodeTo] would refuse: a key with no full stop, or a typed
+// nil value.
+func (d *Document) SetAppKey(key string, value any) error {
+	k := AppKey{Key: key, Value: value}
+	if err := validateAppKey(k); err != nil {
+		return err
+	}
+	for i := range d.AppKeys {
+		if d.AppKeys[i].Key == key {
+			d.AppKeys[i].Value = value
+			return nil
+		}
+	}
+	at := len(d.AppKeys)
+	for i := range d.AppKeys {
+		if d.AppKeys[i].Key > key {
+			at = i
+			break
+		}
+	}
+	d.AppKeys = append(d.AppKeys, AppKey{})
+	copy(d.AppKeys[at+1:], d.AppKeys[at:])
+	d.AppKeys[at] = k
+	return nil
+}
+
+// DeleteAppKey removes one application key, and reports whether it was
+// present. Every copy goes, so a hand-built list holding the key twice is left
+// holding it not at all.
+func (d *Document) DeleteAppKey(key string) bool {
+	var kept []AppKey
+	found := false
+	for _, k := range d.AppKeys {
+		if k.Key == key {
+			found = true
+			continue
+		}
+		kept = append(kept, k)
+	}
+	d.AppKeys = kept
+	return found
 }
 
 // IsAppKey reports whether a top-level key is an application key: whether it
@@ -114,7 +213,7 @@ func IsAppKey(key string) bool {
 // to prevent. A shared rule that both a database path and the pure CLI must
 // obey belongs in this package; that is the general form.
 //
-// ⚠ EVERY COLLECTION [Document] DECLARES MUST BE COUNTED HERE. A tenth one
+// ⚠ EVERY COLLECTION [Document] DECLARES MUST BE COUNTED HERE. Another one
 // added to the document and forgotten here would make a file holding only that
 // collection "empty", and the export carrying it would be refused as a failure.
 // vnxbridge's TestDocumentIsEmptyCountsEveryCollectionTheDocumentDeclares
@@ -275,7 +374,9 @@ func reportUnknownKeysBy(obj map[string]any, path string, known func(string) boo
 	}
 	sort.Strings(unknown)
 	for _, k := range unknown {
-		diags = append(diags, Diagnostic{Severity: Warning, Path: path + "/" + k,
+		// The key is a JSON Pointer reference token, so `~` and `/` in it are
+		// escaped (RFC 6901); unescaped, "a/b" would name a key "b" inside "a".
+		diags = append(diags, Diagnostic{Severity: Warning, Path: path + "/" + escapePointerToken(k),
 			Code: CodeUnknownKey, Message: "unknown key — ignored"})
 	}
 	return diags

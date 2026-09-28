@@ -36,7 +36,9 @@ import "strings"
 //     styles and hidden state are lost on every item in the library — one
 //     diagnostic each would bury the real casualties under hundreds of rows
 //     nobody can act on. Attribute-level losses are matrix facts, proven by
-//     the per-cell tests of §6.3, not per-item diagnostics.
+//     the per-cell tests of §6.3, not per-item diagnostics. An application
+//     key counts as an item here: each dropped key raises one diagnostic,
+//     however much its value holds ([AppKeyDiagnostics]).
 //  6. **Diagnostics come out in document order**, because the walk is in
 //     document order and a stable order is what makes them comparable
 //     between runs.

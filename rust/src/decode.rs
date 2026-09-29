@@ -139,12 +139,7 @@ impl Decoder {
     }
 
     /// A string-valued optional key.
-    fn opt_string(
-        &mut self,
-        entries: &[(String, Json)],
-        key: &str,
-        path: &Path,
-    ) -> Option<String> {
+    fn opt_string(&mut self, entries: &[(String, Json)], key: &str, path: &Path) -> Option<String> {
         let value = self.field(entries, key)?;
         match value {
             Json::String(s) => Some(s.clone()),
@@ -335,7 +330,12 @@ impl Decoder {
     ///
     /// This is not the required-key rule: `pips` is an array and is perfectly
     /// usable; one element inside it is not.
-    fn pips(&mut self, items: &[Json], path: &Path, dropped: &'static str) -> Option<Vec<Position>> {
+    fn pips(
+        &mut self,
+        items: &[Json],
+        path: &Path,
+        dropped: &'static str,
+    ) -> Option<Vec<Position>> {
         let mut out = Vec::with_capacity(items.len());
         for (i, item) in items.iter().enumerate() {
             out.push(self.position(item, &path.index(i), dropped)?);
@@ -562,9 +562,7 @@ impl Decoder {
                 items
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, item)| {
-                        self.waypoint(item, &points_path.index(i), POINT_KEYS)
-                    })
+                    .filter_map(|(i, item)| self.waypoint(item, &points_path.index(i), POINT_KEYS))
                     .collect(),
             );
         }
@@ -649,7 +647,12 @@ impl Decoder {
         )
     }
 
-    fn arc(&mut self, value: &Json, path: &Path, nodes: &Option<Vec<(String, Vertex)>>) -> Option<Arc> {
+    fn arc(
+        &mut self,
+        value: &Json,
+        path: &Path,
+        nodes: &Option<Vec<(String, Vertex)>>,
+    ) -> Option<Arc> {
         let entries = self.object(value, path)?;
         self.check_keys(entries, ARC_KEYS, path);
         let from = self.req_string(entries, "from", path)?;
@@ -687,7 +690,12 @@ impl Decoder {
         })
     }
 
-    fn chain(&mut self, value: &Json, path: &Path, arcs: &Option<Vec<(String, Arc)>>) -> Option<Chain> {
+    fn chain(
+        &mut self,
+        value: &Json,
+        path: &Path,
+        arcs: &Option<Vec<(String, Arc)>>,
+    ) -> Option<Chain> {
         let entries = self.object(value, path)?;
         self.check_keys(entries, CHAIN_KEYS, path);
         let chain = Chain {
@@ -748,7 +756,11 @@ impl Decoder {
         arcs: &'a Option<Vec<(String, Arc)>>,
     ) -> Result<(Pass, &'a Arc), WalkFault> {
         let at = walk_path.index(i);
-        let fault = |key: Option<&'static str>, cause: Cause| WalkFault { pass: i, key, cause };
+        let fault = |key: Option<&'static str>, cause: Cause| WalkFault {
+            pass: i,
+            key,
+            cause,
+        };
 
         // 1. The pass is an object naming an arc of its owner. A pass whose
         // arc is absent resolves in no part, so the pass itself is named.
@@ -1231,14 +1243,13 @@ mod tests {
         for text in ["0.1.0", "0.1.9", "0.0.9", "0.0.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
-                matches!(
-                    refuse(&document),
-                    Refusal::VersionUnsupportedSeries { .. }
-                ),
+                matches!(refuse(&document), Refusal::VersionUnsupportedSeries { .. }),
                 "{text:?} was not refused as a series this reader does not implement"
             );
         }
-        for text in ["0.2", "0.2.0.0", "0.2.x", "0.2.+1", "", "0.2.", ".2.0", "0.2.0 "] {
+        for text in [
+            "0.2", "0.2.0.0", "0.2.x", "0.2.+1", "", "0.2.", ".2.0", "0.2.0 ",
+        ] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
                 matches!(refuse(&document), Refusal::VersionMalformed { .. }),
@@ -1409,9 +1420,7 @@ mod tests {
         let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
         assert_eq!(
             reading.diagnostics[0].cause,
-            Cause::FolderAbsent {
-                id: "ghost".into()
-            }
+            Cause::FolderAbsent { id: "ghost".into() }
         );
         assert_eq!(reading.document.waypoints.expect("kept")[0].folder, None);
     }
@@ -1451,7 +1460,10 @@ mod tests {
         let reading = read(
             r#"{"vnx":"0.2.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
         );
-        assert_eq!(pairs(&reading), vec![("/areas/0/polygon/3".into(), "ring-closed")]);
+        assert_eq!(
+            pairs(&reading),
+            vec![("/areas/0/polygon/3".into(), "ring-closed")]
+        );
         let areas = reading.document.areas.expect("kept");
         assert_eq!(areas[0].polygon.len(), 3, "only the repeat goes");
     }
@@ -1499,10 +1511,14 @@ mod tests {
         let found = pairs(&reading);
         // A walk is used whole or not at all: a fault that drops the chain
         // leaves no chain, and a clean walk leaves one.
-        let drops = found.iter().any(|(_, c)| {
-            !matches!(*c, "unknown-key" | "wrong-type-optional" | "extra-channel")
-        });
-        assert_eq!(kept, usize::from(!drops), "{walk} kept {kept} chain(s) with {found:?}");
+        let drops = found
+            .iter()
+            .any(|(_, c)| !matches!(*c, "unknown-key" | "wrong-type-optional" | "extra-channel"));
+        assert_eq!(
+            kept,
+            usize::from(!drops),
+            "{walk} kept {kept} chain(s) with {found:?}"
+        );
         found
     }
 
@@ -1510,7 +1526,9 @@ mod tests {
     /// exactly one rule, and the path says which part broke it.
     #[test]
     fn each_walk_rule_takes_its_own_code_at_its_own_path() {
-        let at = |path: &str, code: &'static str| vec![(format!("/networks/0/chains/0/walk/{path}"), code)];
+        let at = |path: &str, code: &'static str| {
+            vec![(format!("/networks/0/chains/0/walk/{path}"), code)]
+        };
         let cases: Vec<(&str, Vec<(String, &'static str)>)> = vec![
             // Valid: every form in one walk.
             (
@@ -1520,30 +1538,69 @@ mod tests {
             ),
             (r#"[]"#, vec![]),
             // 1. pass-arc-absent, at the pass.
-            (r#"[{"arc":"ghost","from":"a","to":"b"}]"#, at("0", "pass-arc-absent")),
+            (
+                r#"[{"arc":"ghost","from":"a","to":"b"}]"#,
+                at("0", "pass-arc-absent"),
+            ),
             (r#"[7]"#, at("0", "pass-arc-absent")),
             (r#"[{"from":"a","to":"b"}]"#, at("0", "pass-arc-absent")),
             // 2. an unknown key is reported and the chain kept.
-            (r#"[{"arc":"ab","from":"a","to":"b","via":1}]"#, at("0/via", "unknown-key")),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b","via":1}]"#,
+                at("0/via", "unknown-key"),
+            ),
             // 3. `pinned` of the wrong type drops the field only.
-            (r#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#, at("0/pinned", "wrong-type-optional")),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#,
+                at("0/pinned", "wrong-type-optional"),
+            ),
             // 4. a position that will not parse, or a node key as a turn.
-            (r#"[{"arc":"ab","from":"a","to":"b","turn":"b"}]"#, at("0/turn", "position-unusable")),
-            (r#"[{"arc":"ab","from":[null,57.1],"to":"b"}]"#, at("0/from", "position-unusable")),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b","turn":"b"}]"#,
+                at("0/turn", "position-unusable"),
+            ),
+            (
+                r#"[{"arc":"ab","from":[null,57.1],"to":"b"}]"#,
+                at("0/from", "position-unusable"),
+            ),
             // 4. an elevation on a walk position is dropped, the pass kept.
-            (r#"[{"arc":"ab","from":[-3.597,57.1005,410],"to":"b"}]"#, at("0/from", "extra-channel")),
+            (
+                r#"[{"arc":"ab","from":[-3.597,57.1005,410],"to":"b"}]"#,
+                at("0/from", "extra-channel"),
+            ),
             // 6. a turn and a pin together.
-            (r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.101],"pinned":true}]"#, at("0", "pinned-turn")),
+            (
+                r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.101],"pinned":true}]"#,
+                at("0", "pinned-turn"),
+            ),
             // 7. the rule for `from` and `to`.
             (r#"[{"arc":"ab","to":"b"}]"#, at("0", "walk-spelling")),
             (r#"[{"arc":"ab","from":"a"}]"#, at("0", "walk-spelling")),
-            (r#"[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]"#, at("0/to", "walk-spelling")),
-            (r#"[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]"#, at("1/from", "walk-spelling")),
-            (r#"[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]"#, at("0", "walk-spelling")),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]"#,
+                at("0/to", "walk-spelling"),
+            ),
+            (
+                r#"[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]"#,
+                at("1/from", "walk-spelling"),
+            ),
+            (
+                r#"[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]"#,
+                at("0", "walk-spelling"),
+            ),
             // 8. the walk is connected.
-            (r#"[{"arc":"ab","from":"c","to":"b"}]"#, at("0/from", "walk-not-connected")),
-            (r#"[{"arc":"ab","from":"a","to":"d"}]"#, at("0/to", "walk-not-connected")),
-            (r#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#, at("1", "walk-not-connected")),
+            (
+                r#"[{"arc":"ab","from":"c","to":"b"}]"#,
+                at("0/from", "walk-not-connected"),
+            ),
+            (
+                r#"[{"arc":"ab","from":"a","to":"d"}]"#,
+                at("0/to", "walk-not-connected"),
+            ),
+            (
+                r#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#,
+                at("1", "walk-not-connected"),
+            ),
             (
                 r#"[{"arc":"ab","from":[-3.597,57.1005],"to":[-3.596,57.1005]},{"arc":"cb","to":"c"}]"#,
                 at("0/to", "walk-not-connected"),
@@ -1576,10 +1633,15 @@ mod tests {
     #[test]
     fn a_pass_leaves_where_its_turn_and_arc_say() {
         // Enter ab at a, no turn: leave at b, so cb is next and cd is not.
-        assert_eq!(walk_verdict(r#"[{"arc":"ab","from":"a"},{"arc":"cb","to":"c"}]"#), vec![]);
+        assert_eq!(
+            walk_verdict(r#"[{"arc":"ab","from":"a"},{"arc":"cb","to":"c"}]"#),
+            vec![]
+        );
         // Enter ab at a and turn: leave at a again, so cb (b-c) does not join.
         assert_eq!(
-            walk_verdict(r#"[{"arc":"ab","from":"a","turn":[-3.595,57.101]},{"arc":"cb","to":"c"}]"#),
+            walk_verdict(
+                r#"[{"arc":"ab","from":"a","turn":[-3.595,57.101]},{"arc":"cb","to":"c"}]"#
+            ),
             vec![("/networks/0/chains/0/walk/1".into(), "walk-not-connected")]
         );
     }
@@ -1602,8 +1664,14 @@ mod tests {
         for (walk, key) in [
             (r#"[{"arc":"ab","from":[-3.6,57.1],"to":"b"}]"#, "from"),
             (r#"[{"arc":"ab","from":"a","to":[-3.595,57.1]}]"#, "to"),
-            (r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.1]}]"#, "turn"),
-            (r#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#, "pinned"),
+            (
+                r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.1]}]"#,
+                "turn",
+            ),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#,
+                "pinned",
+            ),
         ] {
             let reading = route(walk);
             assert_eq!(
@@ -1614,7 +1682,12 @@ mod tests {
             assert_eq!(reading.document.routes.expect("kept").len(), 0, "{walk}");
         }
         // `"pinned": false` is absent (SPEC 3.3.3), so it is no pin.
-        assert_eq!(pairs(&route(r#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#)), vec![]);
+        assert_eq!(
+            pairs(&route(
+                r#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#
+            )),
+            vec![]
+        );
     }
 
     /// SPEC 3.3.1, 3.3.2: a node and an arc pip carry no time. The time goes,
@@ -1638,7 +1711,11 @@ mod tests {
         let network = &reading.document.networks.expect("kept")[0];
         assert_eq!(
             network.node("a"),
-            Some(&Vertex { lon: -3.60, lat: 57.10, ele: Some(410.0) }),
+            Some(&Vertex {
+                lon: -3.60,
+                lat: 57.10,
+                ele: Some(410.0)
+            }),
             "the elevation stays"
         );
         assert_eq!(network.arc("ab").expect("kept").pips.len(), 2);
@@ -1670,7 +1747,11 @@ mod tests {
         );
         let network = &reading.document.networks.expect("kept")[0];
         assert_eq!(network.arcs.as_ref().expect("arcs").len(), 1);
-        assert_eq!(network.chains.as_ref().expect("chains").len(), 1, "only the sound chain stays");
+        assert_eq!(
+            network.chains.as_ref().expect("chains").len(),
+            1,
+            "only the sound chain stays"
+        );
     }
 
     /// A node that will not parse is dropped, and the arc naming it goes with
@@ -1695,7 +1776,8 @@ mod tests {
     /// one, and the diagnostic names the key.
     #[test]
     fn an_absent_required_key_is_reported_at_the_key() {
-        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x"}],"networks":[{"chains":[{}]}]}"#);
+        let reading =
+            read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x"}],"networks":[{"chains":[{}]}]}"#);
         assert_eq!(
             pairs(&reading),
             vec![
@@ -1725,7 +1807,9 @@ mod tests {
         assert_eq!(reading.diagnostics.len(), 1);
         assert_eq!(reading.diagnostics[0].code(), "position-unusable");
         assert!(
-            reading.diagnostics[0].message().contains("the segment is dropped"),
+            reading.diagnostics[0]
+                .message()
+                .contains("the segment is dropped"),
             "the message must name WHAT was dropped: {}",
             reading.diagnostics[0].message()
         );
@@ -1744,11 +1828,13 @@ mod tests {
         let arcs = network.arcs.as_ref().expect("arcs");
         assert_eq!(arcs.len(), 1, "the bad arc goes, whole");
         assert_eq!(arcs[0].0, "good");
-        assert!(reading
-            .diagnostics
-            .iter()
-            .any(|d| d.code() == "position-unusable"
-                && d.message().contains("the arc is dropped")));
+        assert!(
+            reading
+                .diagnostics
+                .iter()
+                .any(|d| d.code() == "position-unusable"
+                    && d.message().contains("the arc is dropped"))
+        );
     }
 
     /// A ring vertex that will not parse drops the AREA, for the same reason:
@@ -1762,7 +1848,12 @@ mod tests {
         );
         let areas = reading.document.areas.as_ref().expect("kept");
         assert_eq!(areas.len(), 1, "the drop is scoped to the offending area");
-        assert_eq!(pairs(&reading), vec![("/areas/0/polygon/1".into(), "position-unusable")]);
-        assert!(reading.diagnostics[0].message().contains("the area is dropped"));
+        assert_eq!(
+            pairs(&reading),
+            vec![("/areas/0/polygon/1".into(), "position-unusable")]
+        );
+        assert!(reading.diagnostics[0]
+            .message()
+            .contains("the area is dropped"));
     }
 }

@@ -92,7 +92,9 @@ fn area(o: &mut Entries, emit: EmitBoundary) {
 }
 
 fn track(o: &mut Entries, emit: EmitBoundary) {
-    items(o, "segments", emit, |s, emit| position_list(s, "pips", emit));
+    items(o, "segments", emit, |s, emit| {
+        position_list(s, "pips", emit)
+    });
     drop_empty(o, "style");
     drop_empty(o, "data");
 }

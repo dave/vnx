@@ -161,9 +161,12 @@ fn from_serde(value: serde_json::Value) -> Json {
         ),
         serde_json::Value::String(s) => Json::String(s),
         serde_json::Value::Array(items) => Json::Array(items.into_iter().map(from_serde).collect()),
-        serde_json::Value::Object(members) => {
-            Json::Object(members.into_iter().map(|(k, v)| (k, from_serde(v))).collect())
-        }
+        serde_json::Value::Object(members) => Json::Object(
+            members
+                .into_iter()
+                .map(|(k, v)| (k, from_serde(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -257,14 +260,13 @@ mod tests {
             assert_eq!(
                 parse(pair.0.as_bytes()).expect("parses"),
                 parse(pair.1.as_bytes()).expect("parses"),
-                "{} and {} are the same value", pair.0, pair.1
+                "{} and {} are the same value",
+                pair.0,
+                pair.1
             );
         }
         // And two different values still differ, or the above passes vacuously.
-        assert_ne!(
-            parse(b"1").expect("parses"),
-            parse(b"2").expect("parses")
-        );
+        assert_ne!(parse(b"1").expect("parses"), parse(b"2").expect("parses"));
     }
 
     /// SPEC 6.4: a repeated key resolves last-wins, and it resolves in the

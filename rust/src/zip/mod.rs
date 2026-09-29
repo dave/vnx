@@ -171,7 +171,10 @@ impl<'a> Archive<'a> {
         let extra_len = u16(self.bytes, at + 28)? as usize;
         let data_at = at + 30 + name_len + extra_len;
         if data_at as u64 > entry.payload_bound {
-            return bad(format!("`{}` starts past where its payload must end", entry.name));
+            return bad(format!(
+                "`{}` starts past where its payload must end",
+                entry.name
+            ));
         }
         // The declared size is a CEILING. See `Entry::payload_bound`.
         let available = entry.payload_bound - data_at as u64;
@@ -192,12 +195,7 @@ impl<'a> Archive<'a> {
             0 => data.to_vec(),
             8 => inflate(data, entry.uncompressed_size as usize)
                 .map_err(|e| ZipError(format!("`{}`: {e}", entry.name)))?,
-            method => {
-                return bad(format!(
-                    "`{}` uses compression method {method}",
-                    entry.name
-                ))
-            }
+            method => return bad(format!("`{}` uses compression method {method}", entry.name)),
         };
 
         let crc = crc32(&out);

@@ -448,11 +448,13 @@ mod tests {
 
     #[test]
     fn a_type_differing_only_by_case_is_a_different_type() {
-        let record = |t: &str| {
-            Record::new(vec![("@type".to_string(), Json::String(t.to_string()))])
-        };
+        let record =
+            |t: &str| Record::new(vec![("@type".to_string(), Json::String(t.to_string()))]);
         // SPEC 5: `@type` is compared exactly, including case.
-        assert_ne!(record("App.viatrail.tag").type_name(), record("app.viatrail.tag").type_name());
+        assert_ne!(
+            record("App.viatrail.tag").type_name(),
+            record("app.viatrail.tag").type_name()
+        );
     }
 
     #[test]

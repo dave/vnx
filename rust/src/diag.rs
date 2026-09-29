@@ -175,7 +175,10 @@ impl std::fmt::Display for Cause {
                  because it cannot exist without this key"
             ),
             Cause::MissingRequiredKey { key } => {
-                write!(f, "the required key `{key}` is absent, so the object is dropped")
+                write!(
+                    f,
+                    "the required key `{key}` is absent, so the object is dropped"
+                )
             }
             Cause::PositionUnusable { detail, dropped } => {
                 write!(f, "not a position: {detail}; {dropped} is dropped")
@@ -359,11 +362,22 @@ mod tests {
         let text = String::new;
         vec![
             Cause::UnknownKey,
-            Cause::WrongTypeOptional { expected: "a", found: "b" },
-            Cause::WrongTypeRequired { expected: "a", found: "b" },
+            Cause::WrongTypeOptional {
+                expected: "a",
+                found: "b",
+            },
+            Cause::WrongTypeRequired {
+                expected: "a",
+                found: "b",
+            },
             Cause::MissingRequiredKey { key: "at" },
-            Cause::PositionUnusable { detail: text(), dropped: "the arc" },
-            Cause::ExtraChannel { what: "a node carries no time" },
+            Cause::PositionUnusable {
+                detail: text(),
+                dropped: "the arc",
+            },
+            Cause::ExtraChannel {
+                what: "a node carries no time",
+            },
             Cause::ArcPipTime,
             Cause::SelfLoopArc { node: text() },
             Cause::ArcNodeAbsent { node: text() },
@@ -431,10 +445,17 @@ mod tests {
     #[test]
     fn only_the_table_s_own_rows_share_a_code() {
         let shared: &[(&str, &[&str])] = &[
-            ("wrong-type-optional", &["WrongTypeOptional", "ImportanceOutOfRange"]),
+            (
+                "wrong-type-optional",
+                &["WrongTypeOptional", "ImportanceOutOfRange"],
+            ),
             (
                 "wrong-type-required",
-                &["WrongTypeRequired", "MissingRequiredKey", "RecordTypeMissing"],
+                &[
+                    "WrongTypeRequired",
+                    "MissingRequiredKey",
+                    "RecordTypeMissing",
+                ],
             ),
         ];
         let mut by_code: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
@@ -461,10 +482,7 @@ mod tests {
         for cause in every_cause() {
             let code = cause.code();
             assert!(
-                !code.is_empty()
-                    && code
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b == b'-'),
+                !code.is_empty() && code.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'),
                 "{code:?} is not a short stable token"
             );
         }

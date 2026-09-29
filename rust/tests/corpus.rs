@@ -98,11 +98,9 @@ fn accept_tier() {
         // document against a re-encoding of itself and a writer shortens.
         // Values are compared exactly: nothing here rounds.
         let encoded = encode(&document).expect("encodable");
-        if let Some(difference) = tree::compare(
-            encoded.as_bytes(),
-            &original_bytes,
-            EmitBoundary::Normalise,
-        ) {
+        if let Some(difference) =
+            tree::compare(encoded.as_bytes(), &original_bytes, EmitBoundary::Normalise)
+        {
             panic!(
                 "{}: encoding the decoded document does not give the tree the file carries: {difference}",
                 case.name
@@ -125,9 +123,8 @@ fn reject_tier() {
             "vnz" => vnz::read(&case.bytes).err(),
             _ => decode(&case.bytes).err(),
         };
-        let refusal = refusal.unwrap_or_else(|| {
-            panic!("{}: read cleanly, and the corpus says refuse", case.name)
-        });
+        let refusal = refusal
+            .unwrap_or_else(|| panic!("{}: read cleanly, and the corpus says refuse", case.name));
         let text = refusal.to_string();
         assert!(
             text.contains(expected),
@@ -147,11 +144,15 @@ fn diagnose_tier() {
             "vnz" => {
                 let c = vnz::read(&case.bytes)
                     .unwrap_or_else(|e| panic!("{}: refused: {e}", case.name));
-                (c.reading.document, c.reading.diagnostics, Some(c.attachments))
+                (
+                    c.reading.document,
+                    c.reading.diagnostics,
+                    Some(c.attachments),
+                )
             }
             _ => {
-                let r = decode(&case.bytes)
-                    .unwrap_or_else(|e| panic!("{}: refused: {e}", case.name));
+                let r =
+                    decode(&case.bytes).unwrap_or_else(|e| panic!("{}: refused: {e}", case.name));
                 (r.document, r.diagnostics, None)
             }
         };
@@ -194,10 +195,16 @@ fn well_formed(reported: &[vnx::Diagnostic]) -> Result<(), String> {
         distinct.sort_unstable();
         distinct.dedup();
         if distinct.len() > 1 {
-            return Err(format!("the path {path:?} carries {} distinct codes: {distinct:?}", distinct.len()));
+            return Err(format!(
+                "the path {path:?} carries {} distinct codes: {distinct:?}",
+                distinct.len()
+            ));
         }
         if codes.len() > 1 && codes.iter().any(|c| c.is_empty()) {
-            return Err(format!("the path {path:?} carries {} reports, and one has no code", codes.len()));
+            return Err(format!(
+                "the path {path:?} carries {} reports, and one has no code",
+                codes.len()
+            ));
         }
     }
     Ok(())
@@ -241,10 +248,12 @@ fn read_expected_diagnostics(sidecar: &Json) -> Result<Vec<Expected>, String> {
     let mut out = Vec::with_capacity(list.len());
     for want in list {
         if want.get("message").is_some() {
-            return Err("an expected diagnostic carries a `message` field. SPEC 6.3 \
+            return Err(
+                "an expected diagnostic carries a `message` field. SPEC 6.3 \
                         forbids comparing English, and the field is called \
                         `message_advisory` for exactly that reason."
-                .to_string());
+                    .to_string(),
+            );
         }
         let path = want
             .get("path")
@@ -296,8 +305,7 @@ fn pair_diagnostics(expected: &[Expected], reported: &[vnx::Diagnostic]) -> Resu
         }
     }
     if !unclaimed.is_empty() {
-        let extra: Vec<vnx::Diagnostic> =
-            unclaimed.iter().map(|&i| reported[i].clone()).collect();
+        let extra: Vec<vnx::Diagnostic> = unclaimed.iter().map(|&i| reported[i].clone()).collect();
         return Err(format!(
             "reported {} diagnostic(s) the corpus does not expect: {}",
             extra.len(),
@@ -335,11 +343,7 @@ fn the_diagnostic_matcher_has_been_seen_to_fail() {
 
     // Right path, WRONG code. This is the hole an English substring could not
     // see and a path-only match cannot see either.
-    assert!(pair_diagnostics(
-        &[expect("/waypoints/0/nmae", "unknown-key")],
-        &[not_utc]
-    )
-    .is_err());
+    assert!(pair_diagnostics(&[expect("/waypoints/0/nmae", "unknown-key")], &[not_utc]).is_err());
 
     // Right code, wrong path.
     assert!(pair_diagnostics(
@@ -440,8 +444,9 @@ fn a_sidecar_that_pins_less_than_it_looks_is_refused() {
 /// order it was handed, and feeding them in manifest order cannot see one that
 /// does.
 fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
-    let expected = std::fs::read(dir.join(format!("{stem}.written.vnz")))
-        .unwrap_or_else(|_| panic!("write/{stem}: the manifest promises {stem}.written.vnz and there is none"));
+    let expected = std::fs::read(dir.join(format!("{stem}.written.vnz"))).unwrap_or_else(|_| {
+        panic!("write/{stem}: the manifest promises {stem}.written.vnz and there is none")
+    });
 
     // A case with no sidecar is a failure, not a skip, as everywhere else.
     let sidecar_bytes = std::fs::read(dir.join(format!("{stem}.expect.json")))
@@ -465,7 +470,6 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
         "write/{stem}: this runner writes the document as doc.vnx"
     );
 
-
     // ⚠ THE ARCHIVE'S BYTES ARE NOT COMPARED. SPEC 7.1 constrains five rules
     // and leaves every other field to the writer, so two conforming writers
     // are not expected to agree byte for byte. What is compared is what 7.1
@@ -480,7 +484,10 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     // not on LOSS is the signature — this one is measured both ways in
     // `redproof.py`.
     let want = archive_entries(&expected);
-    assert!(!want.is_empty(), "write/{stem}: the expected archive holds no entries");
+    assert!(
+        !want.is_empty(),
+        "write/{stem}: the expected archive holds no entries"
+    );
     assert_eq!(
         want[0].0, "doc.vnx",
         "write/{stem}: SPEC 7.1 requires the root document first"
@@ -501,11 +508,17 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     // one that does.
     let mut fed: Vec<vnz::Attachment> = attachments.clone();
     fed.reverse();
-    let written = vnz::write(encode(&reading.document).expect("encodable").as_bytes(), &fed)
-        .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
+    let written = vnz::write(
+        encode(&reading.document).expect("encodable").as_bytes(),
+        &fed,
+    )
+    .unwrap_or_else(|e| panic!("write/{stem}: writing the container: {e}"));
     let got = archive_entries(&written);
 
-    assert!(!got.is_empty(), "write/{stem}: the archive holds no entries");
+    assert!(
+        !got.is_empty(),
+        "write/{stem}: the archive holds no entries"
+    );
     assert_eq!(
         got[0].0, "doc.vnx",
         "write/{stem}: SPEC 7.1 requires the root document first, and this is {:?}",
@@ -531,8 +544,9 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
     );
 
     // And the archive reads back through this library's own reader.
-    let back = vnz::read(&written)
-        .unwrap_or_else(|e| panic!("write/{stem}: the archive this library wrote is one it cannot read: {e}"));
+    let back = vnz::read(&written).unwrap_or_else(|e| {
+        panic!("write/{stem}: the archive this library wrote is one it cannot read: {e}")
+    });
     assert!(
         back.reading.diagnostics.is_empty(),
         "write/{stem}: the archive this library wrote reported {}",
@@ -563,7 +577,9 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
 fn a_container_is_smaller_than_the_document_it_holds() {
     let path = corpus_root().join("accept").join("example-network.vnx");
     let bytes = std::fs::read(&path).expect("the worked example reads");
-    let document = decode(&bytes).expect("the worked example is accepted").document;
+    let document = decode(&bytes)
+        .expect("the worked example is accepted")
+        .document;
     let encoded = encode(&document).expect("encodable");
     let archive = vnz::write(encoded.as_bytes(), &[]).expect("the container is written");
     assert!(
@@ -606,7 +622,9 @@ fn archive_entries(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
         .map(|e| {
             (
                 e.name.clone(),
-                archive.read(e).unwrap_or_else(|err| panic!("reading `{}`: {err}", e.name)),
+                archive
+                    .read(e)
+                    .unwrap_or_else(|err| panic!("reading `{}`: {err}", e.name)),
             )
         })
         .collect()
@@ -717,10 +735,10 @@ fn write_tier() {
         let reading = decode(&input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
         check_write_diagnostics(&sidecar, &reading.diagnostics, stem);
         let written = encode(&reading.document).expect("encodable");
-        if let Some(difference) =
-            tree::compare(written.as_bytes(), &expected, EmitBoundary::Keep)
-        {
-            panic!("write/{stem}: the written document is not the one the case expects: {difference}");
+        if let Some(difference) = tree::compare(written.as_bytes(), &expected, EmitBoundary::Keep) {
+            panic!(
+                "write/{stem}: the written document is not the one the case expects: {difference}"
+            );
         }
 
         // The written form is a fixed point: shortening is idempotent, so a
@@ -730,7 +748,8 @@ fn write_tier() {
             &decode(&expected)
                 .unwrap_or_else(|e| panic!("write/{stem}.written.vnx: {e}"))
                 .document,
-        ).expect("encodable");
+        )
+        .expect("encodable");
         if let Some(difference) = tree::compare(again.as_bytes(), &expected, EmitBoundary::Keep) {
             panic!("write/{stem}: the expected output is not a fixed point of the writer: {difference}");
         }
@@ -796,7 +815,9 @@ fn a_reader_that_discards_what_it_read_is_caught() {
     ];
 
     for (what, spoil) in spoilers {
-        let mut document = decode(&bytes).expect("the worked example is accepted").document;
+        let mut document = decode(&bytes)
+            .expect("the worked example is accepted")
+            .document;
         // LIVENESS. A spoiler that changed nothing would be caught by nothing,
         // and would look exactly like a check that works.
         let before = document.clone();
@@ -814,7 +835,11 @@ fn a_reader_that_discards_what_it_read_is_caught() {
     // hold for a comparison that never agrees with anything.
     let document = decode(&bytes).expect("accepted").document;
     assert_eq!(
-        tree::compare(encode(&document).expect("encodable").as_bytes(), &bytes, EmitBoundary::Normalise),
+        tree::compare(
+            encode(&document).expect("encodable").as_bytes(),
+            &bytes,
+            EmitBoundary::Normalise
+        ),
         None
     );
 }
@@ -860,7 +885,10 @@ fn every_corpus_document_is_reached_by_a_tier() {
                 walk.push(path);
                 continue;
             }
-            let name = path.file_name().expect("a file has a name").to_string_lossy();
+            let name = path
+                .file_name()
+                .expect("a file has a name")
+                .to_string_lossy();
             if !(name.ends_with(".vnx") || name.ends_with(".vnz")) {
                 continue;
             }
@@ -956,7 +984,10 @@ fn run_tier(tier: &str, check: impl Fn(&Case) + std::panic::RefUnwindSafe) {
 
     for entry in read_dir_sorted(&dir) {
         let path = entry.path();
-        let name = path.file_name().expect("a file has a name").to_string_lossy();
+        let name = path
+            .file_name()
+            .expect("a file has a name")
+            .to_string_lossy();
         if !(name.ends_with(".vnx") || name.ends_with(".vnz")) {
             continue;
         }
@@ -1045,11 +1076,26 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
         return;
     };
     let mut got: BTreeMap<String, usize> = BTreeMap::new();
-    got.insert("folders".into(), document.folders.as_ref().map_or(0, Vec::len));
-    got.insert("networks".into(), document.networks.as_ref().map_or(0, Vec::len));
-    got.insert("routes".into(), document.routes.as_ref().map_or(0, Vec::len));
-    got.insert("tracks".into(), document.tracks.as_ref().map_or(0, Vec::len));
-    got.insert("waypoints".into(), document.waypoints.as_ref().map_or(0, Vec::len));
+    got.insert(
+        "folders".into(),
+        document.folders.as_ref().map_or(0, Vec::len),
+    );
+    got.insert(
+        "networks".into(),
+        document.networks.as_ref().map_or(0, Vec::len),
+    );
+    got.insert(
+        "routes".into(),
+        document.routes.as_ref().map_or(0, Vec::len),
+    );
+    got.insert(
+        "tracks".into(),
+        document.tracks.as_ref().map_or(0, Vec::len),
+    );
+    got.insert(
+        "waypoints".into(),
+        document.waypoints.as_ref().map_or(0, Vec::len),
+    );
     got.insert("areas".into(), document.areas.as_ref().map_or(0, Vec::len));
     // The nested containers, addressed by the same JSON Pointer vocabulary
     // `positions` uses. A bare name is a top-level collection; a name starting
@@ -1152,10 +1198,19 @@ fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
         }
     }
     for (i, route) in document.routes.iter().flatten().enumerate() {
-        out.insert(format!("/routes/{i}/nodes"), route.nodes.as_ref().map_or(0, Vec::len));
-        out.insert(format!("/routes/{i}/arcs"), route.arcs.as_ref().map_or(0, Vec::len));
+        out.insert(
+            format!("/routes/{i}/nodes"),
+            route.nodes.as_ref().map_or(0, Vec::len),
+        );
+        out.insert(
+            format!("/routes/{i}/arcs"),
+            route.arcs.as_ref().map_or(0, Vec::len),
+        );
         for (key, arc) in route.arcs.iter().flatten() {
-            out.insert(format!("/routes/{i}/arcs/{}/pips", escape(key)), arc.pips.len());
+            out.insert(
+                format!("/routes/{i}/arcs/{}/pips", escape(key)),
+                arc.pips.len(),
+            );
         }
         out.insert(format!("/routes/{i}/walk"), route.walk.len());
     }
@@ -1233,12 +1288,9 @@ fn check_tracks(sidecar: &Json, document: &Document, case: &Case) {
                 "{}: {name:?} must report moving time as UNKNOWN, not {got:?}",
                 case.name
             ),
-            Some(Json::Number(expected)) => assert_eq!(
-                got,
-                Some(*expected),
-                "{}: {name:?} moving time",
-                case.name
-            ),
+            Some(Json::Number(expected)) => {
+                assert_eq!(got, Some(*expected), "{}: {name:?} moving time", case.name)
+            }
             _ => panic!("{}: {name:?} has no `moving_time_ms`", case.name),
         }
     }
@@ -1285,9 +1337,9 @@ fn check_attachments(sidecar: &Json, got: Option<&[vnz::Attachment]>, case: &Cas
     let Some(want) = sidecar.get("attachment_contents") else {
         return;
     };
-    let want = want.as_object().unwrap_or_else(|| {
-        panic!("{}: `attachment_contents` is not an object", case.name)
-    });
+    let want = want
+        .as_object()
+        .unwrap_or_else(|| panic!("{}: `attachment_contents` is not an object", case.name));
     let want: BTreeMap<String, String> = want
         .iter()
         .map(|(name, body)| {
@@ -1336,7 +1388,11 @@ fn resolve_position(document: &Document, pointer: &str) -> Option<(f64, f64)> {
 
     match token(0)? {
         "waypoints" => waypoint_at(document.waypoints.as_ref()?.get(index(1)?)?, token(2)?),
-        "areas" => ring_vertex(document.areas.as_ref()?.get(index(1)?)?, token(2)?, index(3)?),
+        "areas" => ring_vertex(
+            document.areas.as_ref()?.get(index(1)?)?,
+            token(2)?,
+            index(3)?,
+        ),
         "tracks" => track_pip(document.tracks.as_ref()?.get(index(1)?)?, &tokens),
         "routes" => {
             let route = document.routes.as_ref()?.get(index(1)?)?;
@@ -1418,7 +1474,11 @@ fn network_position(network: &Network, tokens: &[String]) -> Option<(f64, f64)> 
                 .get(tokens.get(5)?.parse::<usize>().ok()?)?;
             let at = match tokens.get(6)?.as_str() {
                 "from" | "to" => {
-                    let endpoint = if tokens[6] == "from" { &pass.from } else { &pass.to };
+                    let endpoint = if tokens[6] == "from" {
+                        &pass.from
+                    } else {
+                        &pass.to
+                    };
                     match endpoint.as_ref()? {
                         Endpoint::At(p) => *p,
                         // A node key is not a position of its own; the corpus

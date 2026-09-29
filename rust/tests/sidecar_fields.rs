@@ -18,8 +18,16 @@ use vnx::json::{parse, Json};
 
 /// Fields this runner compares. `kind` and `note` are structural.
 const CHECKED: &[&str] = &[
-    "kind", "note", "counts", "positions", "tracks", "attachments",
-    "attachment_contents", "root", "refusal", "diagnostics",
+    "kind",
+    "note",
+    "counts",
+    "positions",
+    "tracks",
+    "attachments",
+    "attachment_contents",
+    "root",
+    "refusal",
+    "diagnostics",
 ];
 
 /// Fields this runner knowingly does not compare, and why.
@@ -45,7 +53,9 @@ fn sidecars() -> Vec<(String, Vec<String>)> {
     let mut out = Vec::new();
     for kind in ["accept", "reject", "diagnose", "write"] {
         let dir = corpus_root().join(kind);
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         let mut names: Vec<_> = entries
             .filter_map(|e| e.ok())
             .map(|e| e.file_name().to_string_lossy().into_owned())
@@ -53,9 +63,12 @@ fn sidecars() -> Vec<(String, Vec<String>)> {
             .collect();
         names.sort();
         for name in names {
-            let bytes = std::fs::read(dir.join(&name)).expect("a sidecar the directory just listed");
+            let bytes =
+                std::fs::read(dir.join(&name)).expect("a sidecar the directory just listed");
             let value = parse(&bytes).unwrap_or_else(|e| panic!("{name}: {e:?}"));
-            let Json::Object(members) = value else { panic!("{name} is not a JSON object") };
+            let Json::Object(members) = value else {
+                panic!("{name} is not a JSON object")
+            };
             out.push((name, members.into_iter().map(|(k, _)| k).collect()));
         }
     }
@@ -66,7 +79,11 @@ fn sidecars() -> Vec<(String, Vec<String>)> {
 fn the_runner_knows_every_sidecar_field() {
     let found = sidecars();
     // The control. A sweep that read no sidecars would report a clean result.
-    assert!(found.len() >= 20, "read only {} sidecars — dead probe, not a clean sweep", found.len());
+    assert!(
+        found.len() >= 20,
+        "read only {} sidecars — dead probe, not a clean sweep",
+        found.len()
+    );
     let known: BTreeSet<&str> = CHECKED.iter().chain(UNCHECKED).copied().collect();
     for (name, fields) in &found {
         for field in fields {

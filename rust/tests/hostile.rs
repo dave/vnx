@@ -150,8 +150,7 @@ fn inflate_refuses_rubbish_and_truncation_without_panicking() {
     let mut stream = vec![0x01, 0x05, 0x00, 0xfa, 0xff];
     stream.extend_from_slice(b"hello");
     for length in 0..stream.len() {
-        let outcome =
-            std::panic::catch_unwind(|| zip::inflate(&stream[..length], 5).is_ok());
+        let outcome = std::panic::catch_unwind(|| zip::inflate(&stream[..length], 5).is_ok());
         assert_eq!(
             outcome.map_err(|_| "panicked"),
             Ok(false),
@@ -401,8 +400,7 @@ fn a_corrupt_attachment_is_dropped_and_diagnosed() {
     // intact, and only the attachment's content has changed.
     let mut damaged = good.clone();
     damaged[at + 3] ^= 0x01;
-    let intact = vnz::read(&good)
-        .expect("the undamaged archive must read, or this proves nothing");
+    let intact = vnz::read(&good).expect("the undamaged archive must read, or this proves nothing");
     let container = vnz::read(&damaged)
         .expect("a corrupt ATTACHMENT does not refuse the archive; the document is intact");
 

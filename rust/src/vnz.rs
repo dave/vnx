@@ -131,11 +131,7 @@ fn attachment_pointer(name: &str) -> String {
 fn check_paths(entries: &[Entry]) -> Result<(), Refusal> {
     for entry in entries {
         let name = &entry.name;
-        let refuse = || {
-            Err(Refusal::ContainerPathEscapes {
-                name: name.clone(),
-            })
-        };
+        let refuse = || Err(Refusal::ContainerPathEscapes { name: name.clone() });
         if name.contains('\\') {
             return refuse();
         }
@@ -356,9 +352,6 @@ mod tests {
                 bytes: vec![],
             }],
         );
-        assert!(matches!(
-            refused,
-            Err(Refusal::ContainerPathEscapes { .. })
-        ));
+        assert!(matches!(refused, Err(Refusal::ContainerPathEscapes { .. })));
     }
 }

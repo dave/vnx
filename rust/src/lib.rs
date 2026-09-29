@@ -46,10 +46,10 @@ pub mod decode;
 pub mod diag;
 pub mod encode;
 pub mod error;
-pub mod walk;
 pub mod json;
 pub mod model;
 pub mod vnz;
+pub mod walk;
 pub mod zip;
 
 pub use decode::{decode, decode_json, Reading};

@@ -268,7 +268,9 @@ fn check_ring(ring: &[Position], path: &Path) -> Result<(), EncodeError> {
         })
     };
     if ring.len() >= 2 && ring[0].same_point(&ring[ring.len() - 1]) {
-        return refuse("a ring is written open, and this one's last position repeats its first".into());
+        return refuse(
+            "a ring is written open, and this one's last position repeats its first".into(),
+        );
     }
     let mut distinct: Vec<&Position> = Vec::with_capacity(3);
     for p in ring {
@@ -526,7 +528,10 @@ mod tests {
     /// refusal names where the fault is.
     #[test]
     fn a_writer_refuses_what_its_reader_would_drop() {
-        assert!(encode(&network_document()).is_ok(), "the sound document is written");
+        assert!(
+            encode(&network_document()).is_ok(),
+            "the sound document is written"
+        );
 
         let refused = |spoil: &dyn Fn(&mut Document)| {
             let mut document = network_document();
@@ -540,20 +545,34 @@ mod tests {
             &mut d.routes.as_mut().expect("routes")[0]
         }
 
-        let loop_arc = refused(&|d: &mut Document| network(d).arcs.as_mut().unwrap()[0].1.to = "a".into());
-        assert!(matches!(&loop_arc, EncodeError::Arc { path, .. } if path == "/networks/0/arcs/ab"), "{loop_arc:?}");
+        let loop_arc =
+            refused(&|d: &mut Document| network(d).arcs.as_mut().unwrap()[0].1.to = "a".into());
+        assert!(
+            matches!(&loop_arc, EncodeError::Arc { path, .. } if path == "/networks/0/arcs/ab"),
+            "{loop_arc:?}"
+        );
 
-        let absent = refused(&|d: &mut Document| route(d).arcs.as_mut().unwrap()[0].1.from = "x".into());
-        assert!(matches!(&absent, EncodeError::Arc { path, .. } if path == "/routes/0/arcs/ab"), "{absent:?}");
+        let absent =
+            refused(&|d: &mut Document| route(d).arcs.as_mut().unwrap()[0].1.from = "x".into());
+        assert!(
+            matches!(&absent, EncodeError::Arc { path, .. } if path == "/routes/0/arcs/ab"),
+            "{absent:?}"
+        );
 
-        let spelling = refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].to = None);
+        let spelling =
+            refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].to = None);
         assert!(
             matches!(&spelling, EncodeError::Walk { path, cause } if path == "/networks/0/chains/0/walk/0" && cause.code() == "walk-spelling"),
             "{spelling:?}"
         );
 
-        let ghost = refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].arc = "ghost".into());
-        assert!(matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"), "{ghost:?}");
+        let ghost = refused(&|d: &mut Document| {
+            network(d).chains.as_mut().unwrap()[0].walk[0].arc = "ghost".into()
+        });
+        assert!(
+            matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"),
+            "{ghost:?}"
+        );
 
         let pinned_route = refused(&|d: &mut Document| route(d).walk[0].pinned = true);
         assert!(
@@ -565,7 +584,10 @@ mod tests {
             let ring = &mut d.areas.as_mut().unwrap()[0].polygon;
             ring.push(ring[0].clone());
         });
-        assert!(matches!(&closed, EncodeError::Ring { path, .. } if path == "/areas/0/polygon"), "{closed:?}");
+        assert!(
+            matches!(&closed, EncodeError::Ring { path, .. } if path == "/areas/0/polygon"),
+            "{closed:?}"
+        );
 
         let thin = refused(&|d: &mut Document| {
             let ring = &mut d.areas.as_mut().unwrap()[0].polygon;
@@ -585,8 +607,17 @@ mod tests {
                  "chains":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,
         );
         assert!(!out.contains("pinned"), "{out}");
-        assert!(out.contains(r#""a":[-3.6,57.1,410]"#), "the node's time is gone: {out}");
-        assert!(out.contains(r#""pips":[[-3.595,57.101]]"#), "the pip's time is gone: {out}");
-        assert!(out.contains(r#""from":[-3.597,57.1005]"#), "the walk position is lon and lat: {out}");
+        assert!(
+            out.contains(r#""a":[-3.6,57.1,410]"#),
+            "the node's time is gone: {out}"
+        );
+        assert!(
+            out.contains(r#""pips":[[-3.595,57.101]]"#),
+            "the pip's time is gone: {out}"
+        );
+        assert!(
+            out.contains(r#""from":[-3.597,57.1005]"#),
+            "the walk position is lon and lat: {out}"
+        );
     }
 }

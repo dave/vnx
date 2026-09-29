@@ -56,8 +56,17 @@ impl Cursor {
     /// Check pass `i` against the rules that span more than the pass's own
     /// values, in SPEC 6.2's order (steps 5 to 8), and move to where the pass
     /// leaves. Returns the pass's entry and exit.
-    pub fn step(&mut self, i: usize, p: &Pass, arc: &Arc) -> Result<(Endpoint, Endpoint), WalkFault> {
-        let fault = |key: Option<&'static str>, cause: Cause| WalkFault { pass: i, key, cause };
+    pub fn step(
+        &mut self,
+        i: usize,
+        p: &Pass,
+        arc: &Arc,
+    ) -> Result<(Endpoint, Endpoint), WalkFault> {
+        let fault = |key: Option<&'static str>, cause: Cause| WalkFault {
+            pass: i,
+            key,
+            cause,
+        };
 
         // 5. A route's walk carries no position, turn or pin.
         if self.route {
@@ -246,7 +255,9 @@ pub(crate) fn check_arcs(
         }
         for node in [&arc.from, &arc.to] {
             if !known(node) {
-                return refuse(format!("the arc names node `{node}`, which is not in its owner's nodes"));
+                return refuse(format!(
+                    "the arc names node `{node}`, which is not in its owner's nodes"
+                ));
             }
         }
     }

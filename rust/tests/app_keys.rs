@@ -27,7 +27,12 @@ fn app_keys_are_preserved_opaquely_and_sorted() {
     let Json::Object(tree) = parse(src.as_bytes()).expect("JSON") else {
         panic!("not an object");
     };
-    let keys: Vec<&str> = reading.document.app_keys.iter().map(|k| k.key.as_str()).collect();
+    let keys: Vec<&str> = reading
+        .document
+        .app_keys
+        .iter()
+        .map(|k| k.key.as_str())
+        .collect();
     assert_eq!(
         keys,
         [
@@ -40,20 +45,27 @@ fn app_keys_are_preserved_opaquely_and_sorted() {
     );
     for app_key in &reading.document.app_keys {
         let want = &tree.iter().find(|(k, _)| *k == app_key.key).unwrap().1;
-        assert_eq!(&app_key.value, want, "{} not preserved verbatim", app_key.key);
+        assert_eq!(
+            &app_key.value, want,
+            "{} not preserved verbatim",
+            app_key.key
+        );
     }
     let null = &reading.document.app_keys[2];
-    assert_eq!(null.value, Json::Null, "a null value is a present key holding null");
+    assert_eq!(
+        null.value,
+        Json::Null,
+        "a null value is a present key holding null"
+    );
 }
 
 /// The rule is TOP-LEVEL ONLY. On any other object a dotted key is an
 /// unrecognised key; an undotted unknown key at the top level is still unknown.
 #[test]
 fn a_dotted_key_below_the_top_level_is_reported() {
-    let reading = decode(
-        br#"{"vnx":"0.2.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}"#,
-    )
-    .expect("accepted");
+    let reading =
+        decode(br#"{"vnx":"0.2.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}"#)
+            .expect("accepted");
     let mut got: Vec<(String, &str)> = reading
         .diagnostics
         .iter()
@@ -78,7 +90,10 @@ fn app_keys_survive_a_read_modify_write() {
       "com.example.null":null,"com.example.empty-array":[],"com.example.empty-object":{},"com.example.n":0}"#;
     let document = decode(src).expect("accepted").document;
     let out = encode(&document).expect("encodable");
-    assert_eq!(tree::compare(out.as_bytes(), src, EmitBoundary::Normalise), None);
+    assert_eq!(
+        tree::compare(out.as_bytes(), src, EmitBoundary::Normalise),
+        None
+    );
 }
 
 /// The comparison must not normalise an application key's empty value away,

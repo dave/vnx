@@ -31,7 +31,7 @@ use vnx::{decode, vnz, zip};
 /// A small, valid container, built by this crate's own writer.
 fn container() -> Vec<u8> {
     vnz::write(
-        b"{\n  \"vnx\": \"0.1.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
+        b"{\n  \"vnx\": \"0.2.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
         &[vnz::Attachment {
             path: "attachments/photo.txt".into(),
             bytes: b"not really a photo\n".to_vec(),
@@ -240,13 +240,20 @@ fn the_declared_size_bounds_the_output_while_it_is_produced() {
 /// never panic.
 #[test]
 fn no_truncation_or_corruption_of_a_document_panics() {
-    let source: &[u8] = br#"{"vnx":"0.1.0","networks":[{"nodes":{"n1":[-3.68,57.12]},
-        "arcs":{"a":{"from":"n1","to":"n1","pips":[[-3.68,57.12],[-3.66,57.1,340,1778914991000]]}},
-        "chains":[{"links":[{"arc":"a","from":"n1","to":[-3.67,57.11]}]}]}],
+    let source: &[u8] = br#"{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+        "arcs":{"a":{"from":"n1","to":"n2","pips":[[-3.67,57.11,340]]}},
+        "chains":[{"walk":[{"arc":"a","from":"n1","turn":[-3.67,57.11]},{"arc":"a","pinned":true},
+                           {"arc":"a","to":[-3.67,57.11]}]}]}],
+        "routes":[{"nodes":{"a":[-3.6,57.1]},"arcs":{},"walk":[]}],
         "tracks":[{"segments":[{"pips":[[-3.6,57.1,1,2]]}]}],
-        "areas":[{"polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.0],[-3.7,57.09]]}],
+        "areas":[{"polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.0]]}],
         "waypoints":[{"at":[-3.6,57.1],"style":{"importance":3},"data":[{"@type":"x.y","v":[1,2,3]}]}]}"#;
-    assert!(decode(source).is_ok(), "the sample must itself be valid");
+    let clean = decode(source).expect("the sample must itself be read");
+    assert!(
+        clean.diagnostics.is_empty(),
+        "the sample must read cleanly, or its walk is not reached: {:?}",
+        clean.diagnostics
+    );
 
     for length in 0..source.len() {
         let outcome = std::panic::catch_unwind(|| {
@@ -276,7 +283,7 @@ fn no_truncation_or_corruption_of_a_document_panics() {
 fn deep_nesting_is_refused_rather_than_overflowing_the_stack() {
     for depth in [300usize, 10_000, 1_000_000] {
         let document = format!(
-            "{{\"vnx\":\"0.1.0\",\"com.example.deep\":[{}{}]}}",
+            "{{\"vnx\":\"0.2.0\",\"com.example.deep\":[{}{}]}}",
             "[".repeat(depth),
             "]".repeat(depth)
         );

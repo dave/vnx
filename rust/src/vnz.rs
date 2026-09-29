@@ -311,7 +311,7 @@ mod tests {
     /// attachment, whatever its name ends in. No extension-sniffing.
     #[test]
     fn a_second_vnx_in_an_archive_is_an_attachment() {
-        let document = b"{\n  \"vnx\": \"0.1.0\"\n}\n";
+        let document = b"{\n  \"vnx\": \"0.2.0\"\n}\n";
         let bytes = write(
             document,
             &[Attachment {
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn a_container_this_crate_writes_is_one_it_reads() {
-        let document = b"{\n  \"vnx\": \"0.1.0\"\n}\n";
+        let document = b"{\n  \"vnx\": \"0.2.0\"\n}\n";
         let bytes = write(
             document,
             &[Attachment {

@@ -1,11 +1,11 @@
-# vnx — the VNX format in Rust
+# vnx for Rust
 
 `vnx` reads and writes VNX documents and VNZ containers in Rust, and reports
 diagnostics.
 
 Rust 1.77 or later. Two dependencies, resolved by cargo: `serde_json` and
-`flate2`. Implements VNX 0.1.0 — [`SPEC.md`](../SPEC.md) is the format
-definition.
+`flate2`. Implements VNX 0.2.0, and reads the 0.2 series only —
+[`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
 
@@ -30,11 +30,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let doc = &reading.document;
 
     for route in doc.routes.as_deref().unwrap_or(&[]) {
-        println!("route {:?}: {} arcs", route.name, route.arcs.len());
+        println!("route {:?}: {} passes", route.name, route.walk.len());
     }
     for network in doc.networks.as_deref().unwrap_or(&[]) {
         for chain in network.chains.as_deref().unwrap_or(&[]) {
-            println!("chain {:?}: {} links", chain.name, chain.links.len());
+            println!("chain {:?}: {} passes", chain.name, chain.walk.len());
         }
     }
     for d in &reading.diagnostics {
@@ -46,13 +46,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Command-line tool
+
+This library has none. The reference command-line tool is Go's; see
+[`go/README.md`](../go/README.md#command-line-tool).
+
 ## API
 
 | Call | Takes | Returns | Refuses with |
 |---|---|---|---|
 | `vnx::decode` | `&[u8]` | `Reading` | `Refusal`, one of the four document causes |
 | `vnx::decode_json` | `&Json` | `Reading` | `Refusal`, for an already-parsed value |
-| `vnx::encode` | `&Document` | `String` | `EncodeError`, for an application key it cannot write (SPEC §3.9) or a number that is not finite (SPEC §4.2) |
+| `vnx::encode` | `&Document` | `String` | `EncodeError`, for an application key it cannot write (SPEC §3.9), a number that is not finite (SPEC §4.2), or an arc, a walk or a ring its own reader would drop or repair (SPEC §3.3, §3.7) |
 | `vnx::encode::to_json` | `&Document` | `Json` | `EncodeError`, as `encode` |
 | `vnx::vnz::read` | `&[u8]` | `Container` | `Refusal`, a document or container cause |
 | `vnx::vnz::write` | `&[u8]`, `&[Attachment]` | `Vec<u8>` | `Refusal`, for an attachment path a reader would reject |
@@ -69,7 +74,14 @@ root.
 | `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
 | `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
 | `AppKey` | `key: String`, `value: Json`: one application key (SPEC §3.9), `Json::Null` for a `null`; `Document::app_keys` is sorted by key on decode |
-| `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()` |
+| `Network`, `Route` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `chains`, a route its own `walk` |
+| `Arc` | `from`, `to`, `pips: Vec<Vertex>` (the interior points only), `data` |
+| `Chain` | `walk: Vec<Pass>`, and `name`, `notes`, `hidden`, `style`, `data` |
+| `Pass` | `arc`, `from` and `to` (`Option<Endpoint>`), `turn: Option<LonLat>`, `pinned: bool` |
+| `Endpoint` | `Node(String)` or `At(LonLat)` |
+| `Vertex` | `lon`, `lat`, `ele: Option<f64>`: a node or an arc pip, which carries no time |
+| `LonLat` | `lon`, `lat`: a position in a walk |
+| `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()`: a waypoint's `at`, a track pip, a ring position |
 | `Track` | `segments: Vec<Segment>`, and `moving_time_ms() -> Option<f64>` |
 
 Encoding what you decoded is legitimately not the bytes you read, because a
@@ -88,11 +100,13 @@ is `Err` against the `diagnostics` list returned beside a document.
   compared (SPEC §6.3). `src/diag.rs` holds every code.
 - **An absent collection is `None`, not an empty `Vec`.** On `Document` each
   collection is `Option<Vec<_>>`, so `None` means the key was absent. Inside an
-  item — `Route::arcs`, `Chain::links`, `Track::segments`, an arc's `pips` — the
+  item — `Chain::walk`, `Route::walk`, `Track::segments`, an arc's `pips` — the
   collection is a plain `Vec`.
 - **`Track::moving_time_ms()` returns `None` for unknown.** Unknown is not zero.
 - **A position keeps the arity the document spelled**, and `Position::ele()` and
-  `time_ms()` return `None` for a channel that was absent or `null`.
+  `time_ms()` return `None` for a channel that was absent or `null`. A node and
+  an arc pip are a `Vertex` and a walk position is a `LonLat`, so a channel the
+  format does not give them cannot be built.
 - **A damaged attachment costs only itself.** An entry compressed by a method
   other than stored or deflate, and an entry whose bytes will not decompress,
   are both dropped with an `attachment-unreadable` diagnostic while the
@@ -101,9 +115,13 @@ is `Err` against the `diagnostics` list returned beside a document.
   SPEC §7 rules on the method. It does not rule on a corrupt stream, which
   takes the same remedy by the reasoning SPEC §7 gives for the method.
 - **Damaged geometry costs its container.** A position inside `pips` that will
-  not parse drops the arc or segment holding it, while a link that cannot be
-  used is dropped and its chain survives (SPEC §6.2). `position-unusable` names
-  what was dropped, so a caller need not derive it from the pointer.
+  not parse drops the arc or segment holding it, and one in a ring drops the
+  area (SPEC §6.2). `position-unusable` names what was dropped, so a caller need
+  not derive it from the pointer.
+- **A walk is used whole or not at all.** The first pass that breaks a rule
+  drops the chain, or the route, and is the only fault reported for that walk.
+  A dropped arc takes every chain that walks it, each under its own
+  `pass-arc-absent`.
 
 ## Run the tests
 
@@ -125,7 +143,7 @@ reader in turn and requires the corpus runner to notice each break.
 | `encode` | the emit boundary: the shortest spelling of a position (SPEC §4.1) |
 | `diag` | diagnostic causes and their codes (SPEC §6.3) |
 | `error` | the refusal causes (SPEC §6.2, §7) |
-| `geo` | the projection tolerance of SPEC §3.3.3 |
+| `walk` | the rules of a walk (SPEC §3.3.3, §3.4), one copy for the reader and the writer |
 | `zip` | a ZIP reader and writer, with `flate2` under both |
 | `vnz` | the container (SPEC §7) |
 

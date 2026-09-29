@@ -10,17 +10,20 @@
 //! (SPEC 8.1); the write tier does not, because there it is the rule under
 //! test.
 
+use crate::diag::Path;
 use crate::error::EncodeError;
 use crate::json::{self, Json};
 use crate::model::*;
+use crate::walk::{check_arcs, check_walk};
 
 /// Encode a document.
 ///
 /// The bytes are compact. Nothing about a VNX document's whitespace is
 /// constrained (SPEC 8.1), and indenting costs about three times the file.
 ///
-/// It fails on an application key it cannot write, and on a number that is
-/// not finite: see [`EncodeError`].
+/// It fails on an application key it cannot write, on a number that is not
+/// finite, and on an arc, a walk or a ring its own reader would drop or
+/// repair: see [`EncodeError`].
 pub fn encode(document: &Document) -> Result<String, EncodeError> {
     json::to_string(&to_json(document)?)
 }
@@ -41,12 +44,13 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
     }
     o.str("generator", document.generator.as_deref());
     o.str("created", document.created.as_deref());
-    o.list("folders", &document.folders, folder);
-    o.list("networks", &document.networks, network);
-    o.list("routes", &document.routes, route);
-    o.list("tracks", &document.tracks, track);
-    o.list("waypoints", &document.waypoints, waypoint);
-    o.list("areas", &document.areas, area);
+    let root = Path::root();
+    o.list("folders", &document.folders, &root, folder)?;
+    o.list("networks", &document.networks, &root, network)?;
+    o.list("routes", &document.routes, &root, route)?;
+    o.list("tracks", &document.tracks, &root, track)?;
+    o.list("waypoints", &document.waypoints, &root, waypoint)?;
+    o.list("areas", &document.areas, &root, area)?;
     // SPEC 3.9: each application key as held, `null` and empty values
     // included. A key with no full stop, or one written twice, is refused
     // rather than written into a document that would lose it.
@@ -73,7 +77,9 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
 
 // ---------------------------------------------------------------------------
 
-fn folder(f: &Folder) -> Json {
+type Built = Result<Json, EncodeError>;
+
+fn folder(f: &Folder, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("id", Some(&f.id));
     o.str("parent", f.parent.as_deref());
@@ -81,104 +87,125 @@ fn folder(f: &Folder) -> Json {
     o.str("notes", f.notes.as_deref());
     o.hidden(f.hidden);
     o.records(&f.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn network(n: &Network) -> Json {
+fn network(n: &Network, path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", n.name.as_deref());
     o.str("notes", n.notes.as_deref());
     o.str("folder", n.folder.as_deref());
     o.hidden(n.hidden);
-    if let Some(nodes) = &n.nodes {
-        o.raw(
-            "nodes",
-            Json::Object(
-                nodes
-                    .iter()
-                    .map(|(k, p)| (k.clone(), position(p)))
-                    .collect(),
-            ),
-        );
+    graph(&mut o, &n.nodes, &n.arcs, path)?;
+    let chains_path = path.key("chains");
+    if let Some(chains) = &n.chains {
+        let mut out = Vec::with_capacity(chains.len());
+        for (i, c) in chains.iter().enumerate() {
+            out.push(chain(c, &n.arcs, &chains_path.index(i))?);
+        }
+        o.raw("chains", Json::Array(out));
     }
-    if let Some(arcs) = &n.arcs {
-        o.raw(
-            "arcs",
-            Json::Object(
-                arcs.iter()
-                    .map(|(k, a)| (k.clone(), network_arc(a)))
-                    .collect(),
-            ),
-        );
-    }
-    o.list("chains", &n.chains, chain);
-    o.list("points", &n.points, waypoint);
-    o.list("areas", &n.areas, area);
+    o.list("points", &n.points, path, waypoint)?;
+    o.list("areas", &n.areas, path, area)?;
     o.records(&n.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn network_arc(a: &NetworkArc) -> Json {
+/// A network's or a route's `nodes` and `arcs`, checked first: a writer never
+/// emits an arc its own reader would drop.
+fn graph(
+    o: &mut Obj,
+    nodes: &Option<Vec<(String, Vertex)>>,
+    arcs: &Option<Vec<(String, Arc)>>,
+    path: &Path,
+) -> Result<(), EncodeError> {
+    check_arcs(nodes, arcs, &path.key("arcs"))?;
+    if let Some(nodes) = nodes {
+        o.raw(
+            "nodes",
+            Json::Object(nodes.iter().map(|(k, v)| (k.clone(), vertex(v))).collect()),
+        );
+    }
+    if let Some(arcs) = arcs {
+        o.raw(
+            "arcs",
+            Json::Object(arcs.iter().map(|(k, a)| (k.clone(), arc(a))).collect()),
+        );
+    }
+    Ok(())
+}
+
+fn arc(a: &Arc) -> Json {
     let mut o = Obj::new();
     o.str("from", Some(&a.from));
     o.str("to", Some(&a.to));
-    o.raw("pips", pips(&a.pips));
+    o.raw("pips", Json::Array(a.pips.iter().map(vertex).collect()));
     o.records(&a.data);
     o.done()
 }
 
-fn chain(c: &Chain) -> Json {
+/// A chain of a network whose arcs are `arcs`. The walk is checked against
+/// them first: a writer never emits a walk its own reader would drop.
+fn chain(c: &Chain, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> Built {
+    check_walk(&c.walk, arcs, false, &path.key("walk"))?;
     let mut o = Obj::new();
     o.str("name", c.name.as_deref());
     o.str("notes", c.notes.as_deref());
     o.hidden(c.hidden);
     o.opaque("style", c.style.as_ref());
-    o.raw(
-        "links",
-        Json::Array(c.links.iter().map(link).collect()),
-    );
+    o.raw("walk", walk(&c.walk));
     o.records(&c.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn link(l: &Link) -> Json {
-    let mut o = Obj::new();
-    o.str("arc", Some(&l.arc));
-    o.raw("from", endpoint(&l.from));
-    o.raw("to", endpoint(&l.to));
-    o.done()
+fn walk(passes: &[Pass]) -> Json {
+    Json::Array(
+        passes
+            .iter()
+            .map(|p| {
+                let mut o = Obj::new();
+                o.str("arc", Some(&p.arc));
+                if let Some(from) = &p.from {
+                    o.raw("from", endpoint(from));
+                }
+                if let Some(to) = &p.to {
+                    o.raw("to", endpoint(to));
+                }
+                if let Some(turn) = &p.turn {
+                    o.raw("turn", lon_lat(turn));
+                }
+                // SPEC 3.3.3: `pinned` is written only when it is `true`.
+                if p.pinned {
+                    o.raw("pinned", Json::Bool(true));
+                }
+                o.done()
+            })
+            .collect(),
+    )
 }
 
 fn endpoint(e: &Endpoint) -> Json {
     match e {
         Endpoint::Node(key) => Json::String(key.clone()),
-        Endpoint::Inline(p) => position(p),
+        Endpoint::At(p) => lon_lat(p),
     }
 }
 
-fn route(r: &Route) -> Json {
+fn route(r: &Route, path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", r.name.as_deref());
     o.str("notes", r.notes.as_deref());
     o.str("folder", r.folder.as_deref());
     o.hidden(r.hidden);
     o.opaque("style", r.style.as_ref());
-    o.raw(
-        "arcs",
-        Json::Array(r.arcs.iter().map(route_arc).collect()),
-    );
+    graph(&mut o, &r.nodes, &r.arcs, path)?;
+    check_walk(&r.walk, &r.arcs, true, &path.key("walk"))?;
+    o.raw("walk", walk(&r.walk));
     o.records(&r.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn route_arc(a: &RouteArc) -> Json {
-    let mut o = Obj::new();
-    o.raw("pips", pips(&a.pips));
-    o.records(&a.data);
-    o.done()
-}
-
-fn track(t: &Track) -> Json {
+fn track(t: &Track, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", t.name.as_deref());
     o.str("notes", t.notes.as_deref());
@@ -201,10 +228,10 @@ fn track(t: &Track) -> Json {
         ),
     );
     o.records(&t.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn waypoint(w: &Waypoint) -> Json {
+fn waypoint(w: &Waypoint, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", w.name.as_deref());
     o.str("notes", w.notes.as_deref());
@@ -213,10 +240,11 @@ fn waypoint(w: &Waypoint) -> Json {
     o.opaque("style", w.style.as_ref());
     o.raw("at", position(&w.at));
     o.records(&w.data);
-    o.done()
+    Ok(o.done())
 }
 
-fn area(a: &Area) -> Json {
+fn area(a: &Area, path: &Path) -> Built {
+    check_ring(&a.polygon, &path.key("polygon"))?;
     let mut o = Obj::new();
     o.str("name", a.name.as_deref());
     o.str("notes", a.notes.as_deref());
@@ -225,11 +253,58 @@ fn area(a: &Area) -> Json {
     o.opaque("style", a.style.as_ref());
     o.raw("polygon", pips(&a.polygon));
     o.records(&a.data);
-    o.done()
+    Ok(o.done())
+}
+
+/// SPEC 3.7: a writer emits a ring open, with at least three distinct
+/// positions. It refuses a ring its own reader would repair or drop, and does
+/// not open a closed ring itself: that would guess that the caller meant the
+/// repeat, which is the caller's to fix.
+fn check_ring(ring: &[Position], path: &Path) -> Result<(), EncodeError> {
+    let refuse = |detail: String| {
+        Err(EncodeError::Ring {
+            path: path.as_str().to_string(),
+            detail,
+        })
+    };
+    if ring.len() >= 2 && ring[0].same_point(&ring[ring.len() - 1]) {
+        return refuse("a ring is written open, and this one's last position repeats its first".into());
+    }
+    let mut distinct: Vec<&Position> = Vec::with_capacity(3);
+    for p in ring {
+        if distinct.len() == 3 {
+            break;
+        }
+        if !distinct.iter().any(|q| q.same_point(p)) {
+            distinct.push(p);
+        }
+    }
+    if distinct.len() < 3 {
+        return refuse(format!(
+            "a ring needs at least 3 distinct positions, and this one has {}",
+            distinct.len()
+        ));
+    }
+    Ok(())
 }
 
 fn pips(list: &[Position]) -> Json {
     Json::Array(list.iter().map(position).collect())
+}
+
+/// A node or an arc pip: `[lon, lat]`, or `[lon, lat, ele]` when the elevation
+/// is known. It has no time to write.
+fn vertex(v: &Vertex) -> Json {
+    let mut channels = vec![Json::Number(v.lon), Json::Number(v.lat)];
+    if let Some(ele) = v.ele {
+        channels.push(Json::Number(ele));
+    }
+    Json::Array(channels)
+}
+
+/// A walk position: `[lon, lat]` and nothing else (SPEC 3.3.3).
+fn lon_lat(p: &LonLat) -> Json {
+    Json::Array(vec![Json::Number(p.lon), Json::Number(p.lat)])
 }
 
 /// SPEC 4.1: a writer emits the shortest spelling of a position, and this is
@@ -313,10 +388,24 @@ impl Obj {
         }
     }
 
-    fn list<T>(&mut self, key: &str, items: &Option<Vec<T>>, f: impl Fn(&T) -> Json) {
+    /// A collection of items under `key`, each built with its own JSON
+    /// Pointer so that a refusal can say where it is.
+    fn list<T>(
+        &mut self,
+        key: &str,
+        items: &Option<Vec<T>>,
+        path: &Path,
+        f: impl Fn(&T, &Path) -> Built,
+    ) -> Result<(), EncodeError> {
         if let Some(list) = items {
-            self.raw(key, Json::Array(list.iter().map(f).collect()));
+            let at = path.key(key);
+            let mut out = Vec::with_capacity(list.len());
+            for (i, item) in list.iter().enumerate() {
+                out.push(f(item, &at.index(i))?);
+            }
+            self.raw(key, Json::Array(out));
         }
+        Ok(())
     }
 
     fn done(self) -> Json {
@@ -336,14 +425,14 @@ mod tests {
 
     #[test]
     fn a_writer_emits_the_shortest_spelling_of_a_position() {
-        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
+        let out = encode_text(r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
         assert!(out.contains("[-3.6712,57.118]"), "{out}");
     }
 
     #[test]
     fn an_interior_null_is_never_dropped() {
         let out = encode_text(
-            r#"{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
+            r#"{"vnx":"0.2.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
         );
         assert!(out.contains("[-3.6,57.1,null,1778914991000]"), "{out}");
     }
@@ -358,7 +447,7 @@ mod tests {
     #[test]
     fn a_writer_changes_no_value_it_was_handed() {
         let out = encode_text(
-            r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
         );
         assert!(
             out.contains("[-3.6712345678901235,57.11812345678901,340.06]"),
@@ -373,7 +462,7 @@ mod tests {
     #[test]
     fn the_values_that_used_to_need_a_tie_rule_pass_through() {
         let out = encode_text(
-            r#"{"vnx":"0.1.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[340.75,1.85,-0.04]}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[340.75,1.85,-0.04]}]}"#,
         );
         assert!(out.contains("[-4e-8,0.15,340.25]"), "{out}");
         assert!(out.contains("[340.75,1.85,-0.04]"), "{out}");
@@ -384,7 +473,7 @@ mod tests {
     /// the half of it that is still a REQUIREMENT rather than a choice.
     #[test]
     fn a_reader_keeps_the_precision_the_document_carried() {
-        let text = r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
+        let text = r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
         let document = decode(text.as_bytes()).expect("accepted").document;
         let at = &document.waypoints.as_ref().expect("waypoints")[0].at;
         assert_eq!(
@@ -398,23 +487,106 @@ mod tests {
     /// writer emits neither. `corpus/write/emit-boundary` pins it.
     #[test]
     fn a_false_hidden_is_not_written() {
-        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
+        let out = encode_text(r#"{"vnx":"0.2.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
         assert!(!out.contains("hidden"), "{out}");
-        let shown = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
+        let shown = encode_text(r#"{"vnx":"0.2.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
         assert!(shown.contains(r#""hidden":true"#), "{shown}");
     }
 
     #[test]
     fn the_declared_version_is_written_back_not_the_readers() {
-        assert!(encode_text(r#"{"vnx":"0.1.99"}"#).contains("0.1.99"));
-        assert!(encode_text(r#"{"vnx":"00.01.0000"}"#).contains("00.01.0000"));
+        assert!(encode_text(r#"{"vnx":"0.2.99"}"#).contains("0.2.99"));
+        assert!(encode_text(r#"{"vnx":"00.02.0000"}"#).contains("00.02.0000"));
     }
 
     /// The output is compact. Nothing constrains a document's whitespace
     /// (SPEC 8.1), and this pins the decision rather than the rule.
     #[test]
     fn the_output_carries_no_whitespace() {
-        let out = encode_text(r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
+        let out = encode_text(r#"{"vnx":"0.2.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
         assert!(!out.contains('\n') && !out.contains("  "), "{out}");
+    }
+
+    fn network_document() -> Document {
+        decode(
+            br#"{"vnx":"0.2.0","networks":[{
+                 "nodes":{"a":[-3.60,57.10,410],"b":[-3.59,57.10]},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
+                 "chains":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
+                 "routes":[{"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
+                 "walk":[{"arc":"ab","from":"b","to":"a"}]}],
+                 "areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0]]}]}"#,
+        )
+        .expect("accepted")
+        .document
+    }
+
+    /// A writer never emits what its own reader would drop or repair, and its
+    /// refusal names where the fault is.
+    #[test]
+    fn a_writer_refuses_what_its_reader_would_drop() {
+        assert!(encode(&network_document()).is_ok(), "the sound document is written");
+
+        let refused = |spoil: &dyn Fn(&mut Document)| {
+            let mut document = network_document();
+            spoil(&mut document);
+            encode(&document).expect_err("refused")
+        };
+        fn network(d: &mut Document) -> &mut Network {
+            &mut d.networks.as_mut().expect("networks")[0]
+        }
+        fn route(d: &mut Document) -> &mut Route {
+            &mut d.routes.as_mut().expect("routes")[0]
+        }
+
+        let loop_arc = refused(&|d: &mut Document| network(d).arcs.as_mut().unwrap()[0].1.to = "a".into());
+        assert!(matches!(&loop_arc, EncodeError::Arc { path, .. } if path == "/networks/0/arcs/ab"), "{loop_arc:?}");
+
+        let absent = refused(&|d: &mut Document| route(d).arcs.as_mut().unwrap()[0].1.from = "x".into());
+        assert!(matches!(&absent, EncodeError::Arc { path, .. } if path == "/routes/0/arcs/ab"), "{absent:?}");
+
+        let spelling = refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].to = None);
+        assert!(
+            matches!(&spelling, EncodeError::Walk { path, cause } if path == "/networks/0/chains/0/walk/0" && cause.code() == "walk-spelling"),
+            "{spelling:?}"
+        );
+
+        let ghost = refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].arc = "ghost".into());
+        assert!(matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"), "{ghost:?}");
+
+        let pinned_route = refused(&|d: &mut Document| route(d).walk[0].pinned = true);
+        assert!(
+            matches!(&pinned_route, EncodeError::Walk { path, cause } if path == "/routes/0/walk/0/pinned" && cause.code() == "route-pin-or-position"),
+            "{pinned_route:?}"
+        );
+
+        let closed = refused(&|d: &mut Document| {
+            let ring = &mut d.areas.as_mut().unwrap()[0].polygon;
+            ring.push(ring[0].clone());
+        });
+        assert!(matches!(&closed, EncodeError::Ring { path, .. } if path == "/areas/0/polygon"), "{closed:?}");
+
+        let thin = refused(&|d: &mut Document| {
+            let ring = &mut d.areas.as_mut().unwrap()[0].polygon;
+            ring[2] = Position::new(vec![Some(-3.6), Some(57.09), Some(12.0)]);
+        });
+        assert!(matches!(&thin, EncodeError::Ring { .. }), "{thin:?}");
+    }
+
+    /// SPEC 3.3.3: `pinned` is written only when true, and a walk position,
+    /// a node and an arc pip carry no channel the format does not give them.
+    #[test]
+    fn a_walk_is_written_in_its_one_spelling() {
+        let out = encode_text(
+            r#"{"vnx":"0.2.0","networks":[{
+                 "nodes":{"a":[-3.60,57.10,410,5],"b":[-3.59,57.10]},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101,null,9]]}},
+                 "chains":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,
+        );
+        assert!(!out.contains("pinned"), "{out}");
+        assert!(out.contains(r#""a":[-3.6,57.1,410]"#), "the node's time is gone: {out}");
+        assert!(out.contains(r#""pips":[[-3.595,57.101]]"#), "the pip's time is gone: {out}");
+        assert!(out.contains(r#""from":[-3.597,57.1005]"#), "the walk position is lon and lat: {out}");
     }
 }

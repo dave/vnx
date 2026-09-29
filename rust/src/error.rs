@@ -61,7 +61,7 @@ impl std::fmt::Display for Refusal {
             Refusal::VersionMalformed { found } => write!(
                 f,
                 "the version `{found}` is not MAJOR.MINOR.PATCH — three runs of \
-                 decimal digits separated by full stops, as in `0.1.0`"
+                 decimal digits separated by full stops, as in `0.2.0`"
             ),
             Refusal::VersionUnsupportedSeries {
                 found,
@@ -121,8 +121,9 @@ impl std::error::Error for Refusal {}
 
 /// Why a document could not be encoded.
 ///
-/// Only an application key can make a model unwritable: every other field has
-/// a type that already confines it to what the format can say.
+/// A writer never emits what its own reader would drop or repair. The model's
+/// types rule out most of that, such as a time on a node; the rest is checked
+/// here, and each variant names where the fault is.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EncodeError {
     /// SPEC 3.9: an application key's name contains a full stop. One without
@@ -135,6 +136,20 @@ pub enum EncodeError {
     /// document). JSON cannot spell one (SPEC 4.2), so writing it would put a
     /// value in the file that no reader accepts.
     NonFiniteNumber { path: String },
+    /// SPEC 3.3.2: an arc that is a self-loop, or that names a node its owner
+    /// does not have. `path` is the arc's JSON Pointer.
+    Arc { path: String, detail: String },
+    /// SPEC 3.3.3, 3.4: a walk a reader would drop. `path` and `cause` are the
+    /// ones the reader's diagnostic would carry.
+    Walk {
+        path: String,
+        cause: crate::diag::Cause,
+    },
+    /// SPEC 3.7: a ring that is closed, or that holds fewer than three
+    /// distinct positions. The writer does not open a closed ring itself:
+    /// that would guess that its caller meant the repeat, which is the
+    /// caller's to fix. `path` is the `polygon`'s JSON Pointer.
+    Ring { path: String, detail: String },
 }
 
 impl std::fmt::Display for EncodeError {
@@ -153,6 +168,13 @@ impl std::fmt::Display for EncodeError {
                     "the number at {path:?} is not finite, and JSON cannot spell it (SPEC 4.2)"
                 )
             }
+            EncodeError::Arc { path, detail } => write!(f, "{path}: {detail} (SPEC 3.3.2)"),
+            EncodeError::Walk { path, cause } => write!(
+                f,
+                "{path}: a reader would drop this walk under `{}` (SPEC 3.3.3): {cause}",
+                cause.code()
+            ),
+            EncodeError::Ring { path, detail } => write!(f, "{path}: {detail} (SPEC 3.7)"),
         }
     }
 }

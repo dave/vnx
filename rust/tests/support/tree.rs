@@ -98,7 +98,8 @@ fn track(o: &mut Entries, emit: EmitBoundary) {
 }
 
 fn route(o: &mut Entries, emit: EmitBoundary) {
-    items(o, "arcs", emit, arc);
+    graph(o, emit);
+    walk(o, emit);
     drop_empty(o, "style");
     drop_empty(o, "data");
 }
@@ -109,6 +110,16 @@ fn arc(o: &mut Entries, emit: EmitBoundary) {
 }
 
 fn network(o: &mut Entries, emit: EmitBoundary) {
+    graph(o, emit);
+    items(o, "chains", emit, chain);
+    items(o, "points", emit, waypoint);
+    items(o, "areas", emit, area);
+    drop_empty(o, "data");
+}
+
+/// A network's or a route's `nodes` and `arcs`, which are objects keyed by
+/// identifier (SPEC 3.3).
+fn graph(o: &mut Entries, emit: EmitBoundary) {
     map_value(o, "nodes", |v| match v {
         Json::Object(nodes) => Json::Object(
             nodes
@@ -133,24 +144,24 @@ fn network(o: &mut Entries, emit: EmitBoundary) {
         ),
         other => other.clone(),
     });
-    items(o, "chains", emit, chain);
-    items(o, "points", emit, waypoint);
-    items(o, "areas", emit, area);
     drop_empty(o, "nodes");
     drop_empty(o, "arcs");
-    drop_empty(o, "data");
 }
 
 fn chain(o: &mut Entries, emit: EmitBoundary) {
-    items(o, "links", emit, |l, emit| {
-        // An endpoint is a node key or an inline position (SPEC 3.3.3). Only
-        // the second is a position, and `position` leaves a string alone.
-        for side in ["from", "to"] {
-            map_value(l, side, |v| position(v, emit));
-        }
-    });
+    walk(o, emit);
     drop_empty(o, "style");
     drop_empty(o, "data");
+}
+
+/// A walk's passes. `from` and `to` are a node key or a position (SPEC 3.3.3);
+/// only the second is a position, and `position` leaves a string alone.
+fn walk(o: &mut Entries, emit: EmitBoundary) {
+    items(o, "walk", emit, |pass, emit| {
+        for key in ["from", "to", "turn"] {
+            map_value(pass, key, |v| position(v, emit));
+        }
+    });
 }
 
 /// Normalise an array of objects under `key`, and drop the key when the array

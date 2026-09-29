@@ -30,7 +30,7 @@
 //! # Example
 //!
 //! ```
-//! let bytes = br#"{"waypoints":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.1.0"}"#;
+//! let bytes = br#"{"waypoints":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.2.0"}"#;
 //! let reading = vnx::decode(bytes).expect("a VNX document");
 //! assert!(reading.diagnostics.is_empty());
 //! assert_eq!(reading.document.waypoints.as_ref().unwrap().len(), 1);
@@ -46,7 +46,7 @@ pub mod decode;
 pub mod diag;
 pub mod encode;
 pub mod error;
-pub mod geo;
+pub mod walk;
 pub mod json;
 pub mod model;
 pub mod vnz;

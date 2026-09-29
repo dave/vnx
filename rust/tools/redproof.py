@@ -12,43 +12,48 @@ It edits files in place and restores them from a snapshot after each mutation,
 so it must be run on a clean tree. It needs no dependencies beyond cargo and
 Python 3.
 
-Measured 2026-09-09, and re-measured 2026-09-14 when SPEC 4.1 stopped
-requiring a writer to round and the five rounding mutations, the number table
-they were measured against, and `tests/numbers.rs` all went with it:
+Measured 2026-09-29, when format 0.2 replaced a chain's `links` with a `walk`.
+The 50 m tolerance, the terminal-pip check and the chain continuity check went
+with it, and so did their mutations; continuity is now valid-walk rule 4, and
+the walk mutations below hold it. `take a stored entry's compressed size` went
+too: `6d58c62` removed the check it broke, so its pattern no longer exists.
 
-    transpose lon and lat                accept, format
-    normalise [lon, lat, null]           accept
-    discard every data record            accept, format
-    discard rulesets                     accept
-    discard every style object           accept, format
-    discard every notes field            accept, format
-    answer 0 for an unknown moving time  accept
-    skip the chain continuity check      diagnose
-    skip the unrecognised-key rule       diagnose
-    refuse on a newer PATCH too          accept
-    compare the version series with `>`  reject (version-too-old is the only case)
-    return every attachment empty        accept AND diagnose (attachment_contents)
-    resolve a tie away from zero         format
-    escape < > and & as Go does          format
-    render a position over several lines accept, format
-    sort keys plain lexicographically    accept, format
-    round coordinates while decoding     accept, format (a reader MUST NOT round)
-    keep only a nested polygon's ring    diagnose
+    transpose lon and lat                accept, diagnose, write, unit
+    normalise [lon, lat, null]           GREEN, expected (SPEC 8.1 permits it)
+    discard data / app keys / style / notes   accept
+    answer 0 for an unknown moving time  accept, unit
+    skip the unrecognised-key rule       diagnose, unit
+    refuse on a newer PATCH too          accept, write, unit
+    compare the version series with `>`  reject (version-too-old), unit
+    round coordinates while decoding     accept, write, unit
     compare a diagnostic's path only     the runner's own self-test
     ignore a stale `message` sidecar     the runner's own self-test
-    skip the ZIP64 extra-field parser    zip64 (no corpus fixture reaches it)
-    ignore the ZIP64 end record          zip64
-    take the segment-start cosine        accept AND diagnose, in opposite directions
-    conflate the two wrong-type codes    diagnose
-    keep the good pips, drop one         unit tests only — NO corpus case reaches it
-    add an offset without checking       hostile (a real defect, found this way)
-    trust a declared uncompressed size   hostile
-    reserve the declared size up front   unit test (would ABORT, not error)
-    skip the CRC check                   hostile (a corrupt attachment reads clean)
-    refuse a corrupt attachment          hostile + corpus diagnose/container-corrupt-attachment
-    ignore a stored entry's second size  hostile
-    skip the terminal-pip check          diagnose
-    report it on every arc               diagnose (the sound arc is what catches this)
+    skip the ZIP64 parser / end record   zip64, accept
+    reach inward to the TIMED pips       accept
+    keep the good pips, drop one         diagnose, unit
+    conflate the two wrong-type codes    diagnose, unit
+    the hostile-archive mutations        hostile
+    skip the CRC check                   hostile, diagnose
+    make the tree comparison blind       write, the runner's own self-test
+    write a false `hidden`               write, unit
+    emit attachments in reverse order    GREEN, expected (SPEC 7.1 leaves it)
+    the attachment mutations             accept, diagnose, write, unit
+    keep only a nested polygon's ring    diagnose
+    walk: pass not entered where the last left      diagnose, unit
+    walk: `from` node not an end of its arc         unit only
+    walk: a pass before the last leaves at a position   unit only
+    walk: ignore a turn when finding the exit       accept (walk-forms), unit
+    walk: `from` on a pass after the first          diagnose, unit
+    walk: skip pinned-turn / the route rule         diagnose, unit
+    walk: drop the bad pass, keep the chain         diagnose, unit
+    skip extra-channel (walk, node) / arc-pip-time  diagnose, unit
+    report arc-pip-time on every arc                accept, diagnose, write
+    keep a self-loop / an arc naming an absent node diagnose, unit
+    keep a ring's repeat / a ring under 3 points    diagnose, unit
+    count distinct ring positions by every channel  unit only
+    write a false `pinned`               accept, unit
+    write without the arc/walk/ring checks   unit only (no tier writes a model
+                                         the reader did not produce)
 
 A mutation may carry "expect-green", meaning it documents a hole in the CORPUS
 rather than in this crate and fails the script if it ever goes red. None does
@@ -63,7 +68,7 @@ import atexit, datetime, io, os, shutil, subprocess, sys, tempfile
 # is the opposite of what the reader was trying to do.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/encode.rs",
-         "src/zip/mod.rs", "src/geo.rs", "src/diag.rs", "src/vnz.rs",
+         "src/zip/mod.rs", "src/walk.rs", "src/diag.rs", "src/vnz.rs",
          "tests/corpus.rs", "tests/support/tree.rs"]
 
 MUTATIONS = [
@@ -79,17 +84,17 @@ MUTATIONS = [
     # indistinguishable at every boundary the format defines. The accept tier
     # caught this while it compared bytes; nothing can now, and nothing should.
     ("normalise [lon, lat, null] to [lon, lat]", "src/decode.rs",
-     "        Some(Position::new(channels))",
-     "        while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n        Some(Position::new(channels))",
+     "    Ok(Position::new(channels))",
+     "    while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n    Ok(Position::new(channels))",
      "expect-green"),
 
     ("discard every data record", "src/decode.rs",
      "        let items = self.opt_array(entries, \"data\", path)?;",
      "        let items = self.opt_array(entries, \"data\", path)?; if true { return None; }"),
 
-    ("discard rulesets", "src/decode.rs",
-     "            document.rulesets = Some(Json::Array(items.to_vec()));",
-     "            let _ = items;"),
+    ("discard every application key", "src/decode.rs",
+     "        document.app_keys = app_keys;",
+     "        let _ = app_keys;"),
 
     ("discard every style object", "src/decode.rs",
      "        let members = self.opt_object(entries, \"style\", path)?;",
@@ -105,9 +110,6 @@ MUTATIONS = [
      "            total += last.time_ms()? - first.time_ms()?;",
      "            total += last.time_ms().unwrap_or(0.0) - first.time_ms().unwrap_or(0.0);"),
 
-    ("skip the chain continuity check", "src/decode.rs",
-     "        self.check_continuity(&slots, &links_path, network);",
-     "        let _ = &links_path;"),
 
     ("skip the unrecognised-key rule", "src/decode.rs",
      "                self.report(&path.key(key), Cause::UnknownKey);",
@@ -127,8 +129,8 @@ MUTATIONS = [
      "    if (version.major, version.minor) > SUPPORTED {"),
 
     ("round coordinates while decoding", "src/decode.rs",
-     "                Json::Number(n) => channels.push(Some(*n)),",
-     "                Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
+     "            Json::Number(n) => channels.push(Some(*n)),",
+     "            Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
 
     # This one is caught by the runner's own SELF-TEST, not by any corpus
     # fixture: every diagnose fixture carries at most one diagnostic and its
@@ -152,15 +154,6 @@ MUTATIONS = [
     ("ignore the ZIP64 end of central directory record", "src/zip/mod.rs",
      "        if count == 0xffff || cd_offset == 0xffff_ffff || cd_size == 0xffff_ffff {",
      "        if false {"),
-
-    # The tolerance pair, measured against the LIVE corpus rather than against
-    # a copy of its coordinates. An earlier version of this crate hard-coded the
-    # superseded three-degree fixture in a unit test named for the corpus files
-    # and asserted, green, a statement that was false of the corpus it named.
-    # This mutation reads whatever is committed today.
-    ("take the cosine of the segment's start latitude", "src/geo.rs",
-     "    let cos_lat = point.lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };",
-     "    let cos_lat = pips[0].lat().to_radians().cos();\n    let project = |p: &Position| -> (f64, f64) {\n        (\n            p.lon().to_radians() * EARTH_RADIUS_M * cos_lat,\n            p.lat().to_radians() * EARTH_RADIUS_M,\n        )\n    };"),
 
     # `accept/track-partly-timed.vnx` separates "read a segment's END pips" from
     # "read its first and last TIMED pip". This was an expected-SURVIVOR from
@@ -190,8 +183,8 @@ MUTATIONS = [
      "            if let Some(p) = self.position(item, &path.index(i), dropped) { out.push(p); }"),
 
     ("conflate the optional and required wrong-type codes", "src/diag.rs",
-     '            Cause::WrongTypeRequired { .. } => "wrong-type-required",',
-     '            Cause::WrongTypeRequired { .. } => "wrong-type-optional",'),
+     '            | Cause::RecordTypeMissing => "wrong-type-required",',
+     '            | Cause::RecordTypeMissing => "wrong-type-optional",'),
 
     # Hostile input, which no corpus tier reaches: every fixture is well-formed,
     # including the ones that must be refused. A panic is not a refusal.
@@ -203,30 +196,12 @@ MUTATIONS = [
      "        .take(ceiling)",
      "        .take(u64::MAX)"),
 
-    # SPEC 3.3.2's terminal-pip check. Nothing is dropped and nothing is
-    # corrected, so `counts` cannot see it and the diagnostics are the whole
-    # expectation — which makes skipping the check entirely invisible except to
-    # the case that pins it.
     # A CRC is a claim the archive makes about its own bytes. Without the check,
     # a corrupt ATTACHMENT is returned as content — the document keeps parsing,
     # so nothing else notices.
     ("skip the CRC check", "src/zip/mod.rs",
      "        if crc != entry.crc32 {",
      "        if false && crc != entry.crc32 {"),
-
-    ("take a stored entry's compressed size and ignore the other", "src/zip/mod.rs",
-     "                if entry.compressed_size != entry.uncompressed_size {",
-     "                if false {"),
-
-    ("skip the terminal-pip check", "src/decode.rs",
-     "                if metres > TOLERANCE_M {",
-     "                if false && metres > TOLERANCE_M {"),
-
-    # And the other direction: diagnosing every arc rather than the drifted one.
-    # `diagnose/terminal-pip-off-node.vnx` carries a sound arc for exactly this.
-    ("report a terminal-pip disagreement on every arc", "src/decode.rs",
-     "                if metres > TOLERANCE_M {",
-     "                if metres >= 0.0 {"),
 
     # SPEC 8.1: the accept tier compares against the ORIGINAL FILE. A
     # comparison that sees nothing passes every reader, including one that threw
@@ -282,7 +257,106 @@ MUTATIONS = [
 
     ("keep only the outer ring of a nested polygon", "src/decode.rs",
      "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
-     "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), \"the item\")).collect());"),
+     "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), \"the area\")).collect());"),
+
+    # ---- Format 0.2: the walk (SPEC 3.3.3, 3.4, 6.2) ----
+    #
+    # Walk continuity is valid-walk rule 4 in the new shape: a pass after the
+    # first enters its arc at the node where the previous pass left.
+    ("skip the check that a pass enters where the last one left", "src/walk.rs",
+     "                if !is_end(&self.at) {",
+     "                if false && !is_end(&self.at) {"),
+
+    ("skip the check that a `from` node is an end of its arc", "src/walk.rs",
+     "            Some(Endpoint::Node(node)) if !is_end(node) => {\n                return Err(not_connected(\n                    Some(\"from\"),",
+     "            Some(Endpoint::Node(node)) if false && !is_end(node) => {\n                return Err(not_connected(\n                    Some(\"from\"),"),
+
+    ("let a pass other than the last leave at a position", "src/walk.rs",
+     "            (Some(Endpoint::At(_)), _, _) if i != self.last => {",
+     "            (Some(Endpoint::At(_)), _, _) if false && i != self.last => {"),
+
+    # A pass with a turn and no `to` leaves by the node it entered by. A
+    # reader that ignores the turn walks on to the far end of the arc.
+    ("ignore a turn when deriving where a pass leaves", "src/walk.rs",
+     "            (None, Some(_), entry) => entry.clone(),",
+     "            (None, Some(_), Endpoint::Node(node)) if *node == arc.from => Endpoint::Node(arc.to.clone()),\n            (None, Some(_), _) => Endpoint::Node(arc.from.clone()),"),
+
+    ("let a pass after the first carry `from`", "src/walk.rs",
+     "        if i > 0 && p.from.is_some() {",
+     "        if false && i > 0 && p.from.is_some() {"),
+
+    ("skip the pinned-turn check", "src/walk.rs",
+     "        if p.turn.is_some() && p.pinned {",
+     "        if false && p.turn.is_some() && p.pinned {"),
+
+    ("skip the route rule", "src/walk.rs",
+     "        if self.route {",
+     "        if false && self.route {"),
+
+    # SPEC 6.2: a walk is used whole or not at all. Keeping the passes that
+    # read and dropping the one that did not hands the caller a different walk.
+    ("drop the bad pass and keep the chain", "src/decode.rs",
+     "                    self.report(&fault.path(&walk_path), fault.cause);\n                    return None;",
+     "                    self.report(&fault.path(&walk_path), fault.cause);\n                    continue;"),
+
+    ("skip the elevation-or-time check on a walk position", "src/decode.rs",
+     "                    if position.ele().is_some() || position.time_ms().is_some() {",
+     "                    if false {"),
+
+    ("skip the time check on a node", "src/decode.rs",
+     "            if position.time_ms().is_some() {\n                self.report(\n                    &at,",
+     "            if false {\n                self.report(\n                    &at,"),
+
+    ("skip the time check on an arc pip", "src/decode.rs",
+     "        if positions.iter().any(|p| p.time_ms().is_some()) {",
+     "        if false {"),
+
+    # The other direction: `arc-pip-time` on every arc, timed or not.
+    ("report a pip time on every arc", "src/decode.rs",
+     "        if positions.iter().any(|p| p.time_ms().is_some()) {",
+     "        if true {"),
+
+    ("keep a self-loop arc", "src/decode.rs",
+     "        if from == to {",
+     "        if false && from == to {"),
+
+    # Report the absent node and keep the arc, which was the 0.1 remedy.
+    ("keep an arc that names an absent node", "src/decode.rs",
+     "        if absent {\n            return None;",
+     "        if false && absent {\n            return None;"),
+
+    ("keep a ring's closing repeat", "src/decode.rs",
+     "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);\n            ring.pop();",
+     "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);"),
+
+    ("keep a ring of fewer than three distinct positions", "src/decode.rs",
+     "        if distinct < 3 {",
+     "        if false && distinct < 3 {"),
+
+    # SPEC 3.7: distinct is longitude and latitude only. Comparing every
+    # channel counts two positions that differ only in elevation as two.
+    ("count a ring's distinct positions by every channel", "src/decode.rs",
+     "        if !seen.iter().any(|q| q.same_point(p)) {",
+     "        if !seen.iter().any(|q| *q == p) {"),
+
+    # SPEC 3.3.3: a writer emits `pinned` only when it is true.
+    ("write a false `pinned`", "src/encode.rs",
+     "                if p.pinned {\n                    o.raw(\"pinned\", Json::Bool(true));\n                }",
+     "                o.raw(\"pinned\", Json::Bool(p.pinned));"),
+
+    # The writer's checks. No corpus tier writes a model the reader did not
+    # produce, so the unit tests in `encode.rs` are what hold these.
+    ("write a walk without checking it", "src/encode.rs",
+     "    check_walk(&c.walk, arcs, false, &path.key(\"walk\"))?;",
+     "    let _ = check_walk;"),
+
+    ("write arcs without checking them", "src/encode.rs",
+     "    check_arcs(nodes, arcs, &path.key(\"arcs\"))?;",
+     "    let _ = check_arcs;"),
+
+    ("write a closed ring", "src/encode.rs",
+     "    check_ring(&a.polygon, &path.key(\"polygon\"))?;",
+     "    let _ = check_ring;"),
 ]
 
 

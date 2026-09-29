@@ -18,7 +18,7 @@ use crate::json::Json;
 ///
 /// The declared text is kept because SPEC 2.2 requires a reader that
 /// re-encodes a document to write the version the document declared, not its
-/// own: `00.01.0000` is a legal spelling of 0.1.0 and is written back as it
+/// own: `00.02.0000` is a legal spelling of 0.2.0 and is written back as it
 /// was read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
@@ -29,7 +29,7 @@ pub struct Version {
 }
 
 /// The version this crate implements.
-pub const SUPPORTED: (u64, u64) = (0, 1);
+pub const SUPPORTED: (u64, u64) = (0, 2);
 
 /// A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC 4.1).
 ///
@@ -93,13 +93,9 @@ impl Position {
         &self.channels
     }
 
-    /// Two positions meet when their longitude and latitude are equal.
-    ///
-    /// SPEC 3.3.3 compares inline chain endpoints "by value". Only longitude
-    /// and latitude are compared: an inline endpoint carries no elevation —
-    /// "elevation is taken from the polyline and is never stored on the
-    /// endpoint" — so a node at arity 3 and an inline endpoint at arity 2 name
-    /// the same point and must be found equal.
+    /// Two positions are the same point when their longitude and latitude are
+    /// equal. No other channel takes part: SPEC 3.7 counts a ring's distinct
+    /// positions this way, and finds a closed ring this way.
     pub fn same_point(&self, other: &Position) -> bool {
         self.lon() == other.lon() && self.lat() == other.lat()
     }
@@ -198,8 +194,8 @@ pub struct Network {
     /// Keyed by identifier, scoped to this network (SPEC 4.4). A `Vec` rather
     /// than a map: entries are few, the key order is not significant, and the
     /// crate takes no dependency on a hasher.
-    pub nodes: Option<Vec<(String, Position)>>,
-    pub arcs: Option<Vec<(String, NetworkArc)>>,
+    pub nodes: Option<Vec<(String, Vertex)>>,
+    pub arcs: Option<Vec<(String, Arc)>>,
     pub chains: Option<Vec<Chain>>,
     pub points: Option<Vec<Waypoint>>,
     pub areas: Option<Vec<Area>>,
@@ -207,57 +203,115 @@ pub struct Network {
 }
 
 impl Network {
-    pub fn node(&self, key: &str) -> Option<&Position> {
-        self.nodes
-            .as_ref()?
-            .iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, p)| p)
+    pub fn node(&self, key: &str) -> Option<&Vertex> {
+        find(&self.nodes, key)
     }
 
-    pub fn arc(&self, key: &str) -> Option<&NetworkArc> {
-        self.arcs
-            .as_ref()?
-            .iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, a)| a)
+    pub fn arc(&self, key: &str) -> Option<&Arc> {
+        find(&self.arcs, key)
     }
 }
 
-/// An arc inside a network. `pips` is its COMPLETE point list, endpoints
-/// included (SPEC 3.3.2): a reader must not prepend or append node positions.
+fn find<'a, T>(list: &'a Option<Vec<(String, T)>>, key: &str) -> Option<&'a T> {
+    list.as_ref()?
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+}
+
+/// A node or an arc pip: a point that carries no time (SPEC 3.3.1, 3.3.2).
+///
+/// A type of its own rather than a [`Position`], so that a time on a node or an
+/// arc pip cannot be built and so cannot be written. The reader drops such a
+/// time with a diagnostic, and nothing downstream has to remember to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vertex {
+    pub lon: f64,
+    pub lat: f64,
+    /// Elevation in metres, `None` when unknown.
+    pub ele: Option<f64>,
+}
+
+/// A position in a walk: a pass's `from`, `to` or `turn` (SPEC 3.3.3).
+///
+/// Longitude and latitude only. Its elevation is the arc line's at the point it
+/// identifies, so a stored one would be a second copy of a fact the arc holds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LonLat {
+    pub lon: f64,
+    pub lat: f64,
+}
+
+/// A line between two DIFFERENT nodes of its owner, a network or a route.
+///
+/// `pips` holds the INTERIOR points only (SPEC 3.3.2): the line runs from the
+/// `from` node's position, through `pips`, to the `to` node's. An arc with no
+/// pips is the straight line between its nodes.
 #[derive(Debug, Clone, PartialEq)]
-pub struct NetworkArc {
+pub struct Arc {
     pub from: String,
     pub to: String,
-    pub pips: Vec<Position>,
+    pub pips: Vec<Vertex>,
     pub data: Option<Vec<Record>>,
 }
 
+/// A chain walks arcs its network owns. Its geometry is by reference: two
+/// chains on one trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Chain {
     pub name: Option<String>,
     pub notes: Option<String>,
     pub hidden: Option<bool>,
     pub style: Option<Json>,
-    pub links: Vec<Link>,
+    pub walk: Vec<Pass>,
     pub data: Option<Vec<Record>>,
 }
 
+/// One entry of a walk (SPEC 3.3.3): the arc it covers, and where on it the
+/// walk enters, turns and leaves.
+///
+/// ⚠ `from` AND `to` ARE PRESENT ONLY WHERE SPEC 3.3.3's RULE PUTS THEM: on the
+/// first pass, on the last pass, and on a pass whose `from` is a position.
+/// Everywhere else the entry is the node the walk is at and the exit is
+/// derived. `None` is that absence, not "unknown".
 #[derive(Debug, Clone, PartialEq)]
-pub struct Link {
+pub struct Pass {
     pub arc: String,
-    pub from: Endpoint,
-    pub to: Endpoint,
+    pub from: Option<Endpoint>,
+    pub to: Option<Endpoint>,
+    pub turn: Option<LonLat>,
+    /// `false` is written as nothing: SPEC 3.3.3 has a writer emit `pinned`
+    /// only when it is `true`, and a reader treat `false` as absent.
+    pub pinned: bool,
 }
 
-/// A link endpoint: a node key, or a position on the named arc (SPEC 3.3.3).
+impl Pass {
+    /// A pass over `arc` with no `from`, `to`, `turn` or pin.
+    pub fn over(arc: &str) -> Self {
+        Pass {
+            arc: arc.to_string(),
+            from: None,
+            to: None,
+            turn: None,
+            pinned: false,
+        }
+    }
+}
+
+/// Where a pass enters or leaves its arc: a node key, or a position on the arc
+/// (SPEC 3.3.3).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Endpoint {
     Node(String),
-    Inline(Position),
+    At(LonLat),
 }
 
+/// A top-level route OWNS its graph (SPEC 3.4): nodes and arcs of a network's
+/// shape, and one walk over them.
+///
+/// Nothing outside the route can reference its nodes or arcs. Its walk runs
+/// node to node, with no position, turn or pin. Where a reader would drop a
+/// chain, it drops the route: the route is its own chain.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Route {
     pub name: Option<String>,
@@ -265,16 +319,20 @@ pub struct Route {
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     pub style: Option<Json>,
-    /// Ordered. An arc boundary is meaning — it is where the user changed how
-    /// the line was made — so the array is not a chunking of one polyline.
-    pub arcs: Vec<RouteArc>,
+    pub nodes: Option<Vec<(String, Vertex)>>,
+    pub arcs: Option<Vec<(String, Arc)>>,
+    pub walk: Vec<Pass>,
     pub data: Option<Vec<Record>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RouteArc {
-    pub pips: Vec<Position>,
-    pub data: Option<Vec<Record>>,
+impl Route {
+    pub fn node(&self, key: &str) -> Option<&Vertex> {
+        find(&self.nodes, key)
+    }
+
+    pub fn arc(&self, key: &str) -> Option<&Arc> {
+        find(&self.arcs, key)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -356,8 +414,9 @@ pub struct Area {
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     pub style: Option<Json>,
-    /// One closed ring of at least four positions (SPEC 3.7). Holes and
-    /// multiple rings are not expressible.
+    /// One OPEN ring of at least three distinct positions (SPEC 3.7): the last
+    /// position does not repeat the first, and the boundary runs from the last
+    /// back to the first. Holes and multiple rings are not expressible.
     pub polygon: Vec<Position>,
     pub data: Option<Vec<Record>>,
 }

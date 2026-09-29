@@ -9,9 +9,9 @@
 
 use crate::diag::{Cause, Diagnostic, Path};
 use crate::error::Refusal;
-use crate::geo::{distance_to_polyline, TOLERANCE_M};
 use crate::json::{self, Json};
 use crate::model::*;
+use crate::walk::{Cursor, WalkFault};
 
 /// What a reader returns: the document, and the list of everything it could
 /// not use as written (SPEC 6.3).
@@ -79,13 +79,13 @@ const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "notes", "hidden", "data"
 const NETWORK_KEYS: &[&str] = &[
     "name", "notes", "folder", "hidden", "nodes", "arcs", "chains", "points", "areas", "data",
 ];
-const NETWORK_ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
-const CHAIN_KEYS: &[&str] = &["links", "name", "notes", "hidden", "style", "data"];
-const LINK_KEYS: &[&str] = &["arc", "from", "to"];
+/// An arc, in a network or a route.
+const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
+const CHAIN_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
+const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pinned"];
 const ROUTE_KEYS: &[&str] = &[
-    "arcs", "name", "notes", "folder", "hidden", "style", "data",
+    "walk", "name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data",
 ];
-const ROUTE_ARC_KEYS: &[&str] = &["pips", "data"];
 const TRACK_KEYS: &[&str] = &[
     "segments", "name", "notes", "folder", "hidden", "style", "started", "ended", "data",
 ];
@@ -222,8 +222,10 @@ impl Decoder {
         }
     }
 
-    /// A REQUIRED array. Absence or the wrong type takes the item with it
-    /// (SPEC 6.2), so the caller drops on `None`.
+    /// A REQUIRED array. Absence or the wrong type takes the object with it
+    /// (SPEC 6.2), so the caller drops on `None`. Both are reported at the
+    /// key, present or not, under one code: SPEC 6.2's table puts them in one
+    /// row.
     fn req_array<'a>(
         &mut self,
         entries: &'a [(String, Json)],
@@ -232,7 +234,7 @@ impl Decoder {
     ) -> Option<&'a [Json]> {
         match self.field(entries, key) {
             None => {
-                self.report(path, Cause::MissingRequiredKey { key });
+                self.report(&path.key(key), Cause::MissingRequiredKey { key });
                 None
             }
             Some(Json::Array(items)) => Some(items),
@@ -257,7 +259,7 @@ impl Decoder {
     ) -> Option<String> {
         match self.field(entries, key) {
             None => {
-                self.report(path, Cause::MissingRequiredKey { key });
+                self.report(&path.key(key), Cause::MissingRequiredKey { key });
                 None
             }
             Some(Json::String(s)) => Some(s.clone()),
@@ -317,63 +319,19 @@ impl Decoder {
             Slot::RequiredKey => "the item",
             Slot::Element { dropped } => dropped,
         };
-        if items.len() < 2 {
-            self.report(
-                path,
-                Cause::PositionUnusable {
-                    detail: format!(
-                        "a position carries at least longitude and latitude, found {} channel(s)",
-                        items.len()
-                    ),
-                    dropped,
-                },
-            );
-            return None;
-        }
-        let mut channels = Vec::with_capacity(items.len());
-        for (index, item) in items.iter().enumerate() {
-            match item {
-                Json::Number(n) => channels.push(Some(*n)),
-                // SPEC 4.1: `null` marks an absent value from index 2 upward.
-                Json::Null if index >= 2 => channels.push(None),
-                Json::Null => {
-                    self.report(
-                        path,
-                        Cause::PositionUnusable {
-                            detail: format!(
-                                "channel {index} is null, and {} is never absent",
-                                if index == 0 { "longitude" } else { "latitude" }
-                            ),
-                            dropped,
-                        },
-                    );
-                    return None;
-                }
-                other => {
-                    self.report(
-                        path,
-                        Cause::PositionUnusable {
-                            detail: format!("channel {index} is {}", other.type_name()),
-                            dropped,
-                        },
-                    );
-                    return None;
-                }
+        match parse_position(items) {
+            Ok(position) => Some(position),
+            Err(detail) => {
+                self.report(path, Cause::PositionUnusable { detail, dropped });
+                None
             }
         }
-        Some(Position::new(channels))
     }
 
     /// A `pips` array. One position that will not parse drops the ARC or the
-    /// SEGMENT that holds it, NOT the position (SPEC 6.2).
-    ///
-    /// That reads as the opposite of the rule for a link, which is dropped
-    /// while its chain survives, and it is not:
-    ///
-    /// > GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex changes
-    /// > the shape of a line and leaves nothing to indicate it — a shorter,
-    /// > plausible, wrong line. A missing link leaves a gap between two
-    /// > endpoints that the continuity rule of Section 3.3.3 can see.
+    /// SEGMENT that holds it, NOT the position (SPEC 6.2): a missing vertex
+    /// would leave a shorter, plausible, wrong line with nothing to indicate
+    /// it.
     ///
     /// This is not the required-key rule: `pips` is an array and is perfectly
     /// usable; one element inside it is not.
@@ -595,34 +553,9 @@ impl Decoder {
             data: self.records(entries, path),
             ..Network::default()
         };
+        network.nodes = self.nodes(entries, path);
+        network.arcs = self.arcs(entries, path, &network.nodes);
 
-        // `nodes` and `arcs` are keyed by identifier, so their keys are data
-        // rather than format vocabulary and the unrecognised-key rule of
-        // SPEC 6.2 does not apply to them.
-        if let Some(members) = self.opt_object(entries, "nodes", path) {
-            let nodes_path = path.key("nodes");
-            network.nodes = Some(
-                members
-                    .iter()
-                    .filter_map(|(key, value)| {
-                        let position = self.required_position(value, &nodes_path.key(key))?;
-                        Some((key.clone(), position))
-                    })
-                    .collect(),
-            );
-        }
-        if let Some(members) = self.opt_object(entries, "arcs", path) {
-            let arcs_path = path.key("arcs");
-            network.arcs = Some(
-                members
-                    .iter()
-                    .filter_map(|(key, value)| {
-                        let arc = self.network_arc(value, &arcs_path.key(key))?;
-                        Some((key.clone(), arc))
-                    })
-                    .collect(),
-            );
-        }
         if let Some(items) = self.opt_array(entries, "points", path) {
             let points_path = path.key("points");
             network.points = Some(
@@ -648,253 +581,290 @@ impl Decoder {
             );
         }
 
-        // Chains reference arcs and nodes, so they are decoded once the graph
-        // is in hand.
+        // A walk can only be checked against the arcs that survived, so the
+        // chains are read once the graph is in hand.
         if let Some(items) = self.opt_array(entries, "chains", path) {
             let chains_path = path.key("chains");
             let chains: Vec<Chain> = items
                 .iter()
                 .enumerate()
-                .filter_map(|(i, item)| self.chain(item, &chains_path.index(i), &network))
+                .filter_map(|(i, item)| self.chain(item, &chains_path.index(i), &network.arcs))
                 .collect();
             network.chains = Some(chains);
         }
-
-        self.check_arc_endpoints(&network, path);
         Some(network)
     }
 
-    /// Two checks on an arc's endpoints, both of which KEEP the arc.
+    /// A network's or a route's `nodes`. The keys are identifiers rather than
+    /// format vocabulary, so the unrecognised-key rule does not apply to them.
     ///
-    /// SPEC 6.2: an arc naming a node that is not in its network keeps the arc,
-    /// because its geometry is real without the node — but the unresolved
-    /// reference is a relationship the reader could not resolve, so it is
-    /// reported.
-    ///
-    /// SPEC 3.3.2: the first pip states the position of the node `from` names
-    /// and the last states `to`'s. Where they disagree by more than SPEC
-    /// 3.3.3's 50 m, a reader MUST record a diagnostic and keep both. Nothing
-    /// is corrected and nothing is dropped, so `counts` cannot see this rule at
-    /// all and the diagnostics are the entire expectation.
-    ///
-    /// The distance is measured with SPEC 3.3.3's own projection, about the
-    /// NODE's latitude: the pips are authoritative, so the pip is the reference
-    /// geometry and the node is the query point — the same roles the projection
-    /// gives an arc and an inline endpoint.
-    fn check_arc_endpoints(&mut self, network: &Network, path: &Path) {
-        let Some(arcs) = network.arcs.as_ref() else {
-            return;
-        };
-        let arcs_path = path.key("arcs");
-        let mut found = Vec::new();
-        for (key, arc) in arcs {
-            for (field, which, node_key, pip) in [
-                ("from", "first", &arc.from, arc.pips.first()),
-                ("to", "last", &arc.to, arc.pips.last()),
-            ] {
-                let at = arcs_path.key(key).key(field);
-                let Some(node) = network.node(node_key) else {
-                    found.push((
-                        at,
-                        Cause::ArcNodeAbsent {
-                            node: node_key.clone(),
-                        },
-                    ));
-                    continue;
-                };
-                // An arc with no pips states no terminal position, so there is
-                // nothing to disagree with.
-                let Some(pip) = pip else { continue };
-                let Some(metres) = distance_to_polyline(node, std::slice::from_ref(pip)) else {
-                    continue;
-                };
-                if metres > TOLERANCE_M {
-                    found.push((
-                        at,
-                        Cause::TerminalPipOffNode {
-                            node: node_key.clone(),
-                            which,
-                            metres,
-                        },
-                    ));
-                }
+    /// A node that will not parse is dropped (SPEC 6.2). An arc naming it is
+    /// then dropped under `arc-node-absent`, so the loss shows on everything
+    /// that depended on it.
+    fn nodes(&mut self, entries: &[(String, Json)], path: &Path) -> Option<Vec<(String, Vertex)>> {
+        let members = self.opt_object(entries, "nodes", path)?;
+        let nodes_path = path.key("nodes");
+        let mut out = Vec::with_capacity(members.len());
+        for (key, value) in members {
+            let at = nodes_path.key(key);
+            let Some(position) = self.position(value, &at, "the node") else {
+                continue;
+            };
+            // SPEC 3.3.1: a node carries no time. The channel goes and the
+            // node stays.
+            if position.time_ms().is_some() {
+                self.report(
+                    &at,
+                    Cause::ExtraChannel {
+                        what: "a node carries no time",
+                    },
+                );
             }
+            out.push((key.clone(), vertex(&position)));
         }
-        for (at, cause) in found {
-            self.report(&at, cause);
-        }
+        Some(out)
     }
 
-    fn network_arc(&mut self, value: &Json, path: &Path) -> Option<NetworkArc> {
+    /// A network's or a route's `arcs`.
+    ///
+    /// ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not
+    /// here: the chain goes when its walk is read, under `pass-arc-absent`,
+    /// with a diagnostic of its own (SPEC 6.2).
+    fn arcs(
+        &mut self,
+        entries: &[(String, Json)],
+        path: &Path,
+        nodes: &Option<Vec<(String, Vertex)>>,
+    ) -> Option<Vec<(String, Arc)>> {
+        let members = self.opt_object(entries, "arcs", path)?;
+        let arcs_path = path.key("arcs");
+        Some(
+            members
+                .iter()
+                .filter_map(|(key, value)| {
+                    let arc = self.arc(value, &arcs_path.key(key), nodes)?;
+                    Some((key.clone(), arc))
+                })
+                .collect(),
+        )
+    }
+
+    fn arc(&mut self, value: &Json, path: &Path, nodes: &Option<Vec<(String, Vertex)>>) -> Option<Arc> {
         let entries = self.object(value, path)?;
-        self.check_keys(entries, NETWORK_ARC_KEYS, path);
+        self.check_keys(entries, ARC_KEYS, path);
         let from = self.req_string(entries, "from", path)?;
         let to = self.req_string(entries, "to", path)?;
         let pip_items = self.req_array(entries, "pips", path)?.to_vec();
-        let pips = self.pips(&pip_items, &path.key("pips"), "the arc")?;
-        Some(NetworkArc {
+        let pips_path = path.key("pips");
+        let positions = self.pips(&pip_items, &pips_path, "the arc")?;
+        // SPEC 3.3.2: an arc pip carries no time. One diagnostic for the arc,
+        // however many pips carried one.
+        if positions.iter().any(|p| p.time_ms().is_some()) {
+            self.report(&pips_path, Cause::ArcPipTime);
+        }
+        let data = self.records(entries, path);
+        if from == to {
+            self.report(path, Cause::SelfLoopArc { node: from });
+            return None;
+        }
+        // Both ends are checked, so an arc naming two absent nodes reports
+        // both.
+        let mut absent = false;
+        for (key, node) in [("from", &from), ("to", &to)] {
+            if !nodes.iter().flatten().any(|(k, _)| k == node) {
+                self.report(&path.key(key), Cause::ArcNodeAbsent { node: node.clone() });
+                absent = true;
+            }
+        }
+        if absent {
+            return None;
+        }
+        Some(Arc {
             from,
             to,
-            pips,
-            data: self.records(entries, path),
+            pips: positions.iter().map(vertex).collect(),
+            data,
         })
     }
 
-    fn chain(&mut self, value: &Json, path: &Path, network: &Network) -> Option<Chain> {
+    fn chain(&mut self, value: &Json, path: &Path, arcs: &Option<Vec<(String, Arc)>>) -> Option<Chain> {
         let entries = self.object(value, path)?;
         self.check_keys(entries, CHAIN_KEYS, path);
-        let link_items = self.req_array(entries, "links", path)?.to_vec();
-        let links_path = path.key("links");
-
-        // Decoded positionally, so a link that is dropped leaves a hole. The
-        // continuity check below then compares only pairs that were adjacent
-        // in the document AND both survived: dropping one link must not turn
-        // one defect into two by reporting a break that the drop created.
-        let mut slots: Vec<Option<Link>> = Vec::with_capacity(link_items.len());
-        for (i, item) in link_items.iter().enumerate() {
-            slots.push(self.link(item, &links_path.index(i), network));
-        }
-        self.check_continuity(&slots, &links_path, network);
-
-        Some(Chain {
+        let chain = Chain {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             hidden: self.opt_bool(entries, "hidden", path),
             style: self.style(entries, path),
-            links: slots.into_iter().flatten().collect(),
             data: self.records(entries, path),
-        })
-    }
-
-    fn link(&mut self, value: &Json, path: &Path, network: &Network) -> Option<Link> {
-        let entries = self.object(value, path)?;
-        self.check_keys(entries, LINK_KEYS, path);
-        let arc_key = self.req_string(entries, "arc", path)?;
-
-        // SPEC 6.2: a link naming an arc absent from the document is dropped.
-        // Checked before the endpoints, so one defect stays one diagnostic.
-        let Some(arc) = network.arc(&arc_key) else {
-            self.report(path, Cause::LinkArcAbsent { arc: arc_key });
-            return None;
+            walk: Vec::new(),
         };
-
-        let from = self.endpoint(entries, "from", path, arc, network)?;
-        let to = self.endpoint(entries, "to", path, arc, network)?;
-        Some(Link {
-            arc: arc_key,
-            from,
-            to,
-        })
+        let walk = self.walk(entries, path, arcs, false)?;
+        Some(Chain { walk, ..chain })
     }
 
-    /// A link endpoint is a node key or an inline position (SPEC 3.3.3).
-    /// `None` drops the whole link, which is SPEC 6.2's remedy — dropping the
-    /// endpoint alone would leave a malformed link.
-    fn endpoint(
+    /// A chain's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+    /// `None` drops the owner.
+    ///
+    /// ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC 6.2). A walk with one pass
+    /// removed is a different walk, not a shorter one: two arcs joined that do
+    /// not meet, a direction reversed by a lost turn, a start moved to a node.
+    /// So the first fault drops the chain, it alone is reported, and nothing
+    /// after it in the walk is examined. Diagnostics that do not drop the
+    /// chain are recorded as they are met.
+    fn walk(
         &mut self,
         entries: &[(String, Json)],
-        key: &'static str,
-        path: &Path,
-        arc: &NetworkArc,
-        network: &Network,
-    ) -> Option<Endpoint> {
-        let field_path = path.key(key);
-        match self.field(entries, key) {
-            None => {
-                self.report(path, Cause::MissingRequiredKey { key });
-                None
-            }
-            Some(Json::String(node)) => {
-                // SPEC 6.2: KEEP the link, and exclude that end from the
-                // continuity comparison. Dropping it would be a second defect
-                // manufactured out of the first.
-                if network.node(node).is_none() {
-                    self.report(
-                        &field_path,
-                        Cause::LinkNodeAbsent {
-                            node: node.clone(),
-                        },
-                    );
+        owner: &Path,
+        arcs: &Option<Vec<(String, Arc)>>,
+        route: bool,
+    ) -> Option<Vec<Pass>> {
+        let items = self.req_array(entries, "walk", owner)?.to_vec();
+        let walk_path = owner.key("walk");
+        let mut cursor = Cursor::new(items.len(), route);
+        let mut walk = Vec::with_capacity(items.len());
+        for (i, item) in items.iter().enumerate() {
+            let pass = match self.pass(item, i, &walk_path, arcs) {
+                Ok((pass, arc)) => cursor.step(i, &pass, arc).map(|_| pass),
+                Err(fault) => Err(fault),
+            };
+            match pass {
+                Ok(pass) => walk.push(pass),
+                Err(fault) => {
+                    self.report(&fault.path(&walk_path), fault.cause);
+                    return None;
                 }
-                Some(Endpoint::Node(node.clone()))
-            }
-            Some(array @ Json::Array(_)) => {
-                let position = self.position(array, &field_path, "the link")?;
-                match distance_to_polyline(&position, &arc.pips) {
-                    None => {
-                        self.report(&field_path, Cause::InlineEndpointOnEmptyArc);
-                        None
-                    }
-                    Some(metres) if metres > TOLERANCE_M => {
-                        self.report(
-                            &field_path,
-                            Cause::InlineEndpointBeyondTolerance { metres },
-                        );
-                        None
-                    }
-                    Some(_) => Some(Endpoint::Inline(position)),
-                }
-            }
-            Some(other) => {
-                self.report(
-                    &field_path,
-                    Cause::WrongTypeRequired {
-                        expected: "a node key or an inline position",
-                        found: other.type_name(),
-                    },
-                );
-                None
             }
         }
+        Some(walk)
     }
 
-    /// SPEC 6.2: a chain's links must form one connected walk. The diagnostic
-    /// addresses the SECOND link of the pair.
-    fn check_continuity(&mut self, slots: &[Option<Link>], links_path: &Path, network: &Network) {
-        let mut breaks = Vec::new();
-        for i in 1..slots.len() {
-            let (Some(before), Some(after)) = (&slots[i - 1], &slots[i]) else {
+    /// Read one pass: SPEC 6.2's steps 1 to 4. Steps 5 to 8 need the walk
+    /// around it and are the [`Cursor`]'s.
+    fn pass<'a>(
+        &mut self,
+        item: &Json,
+        i: usize,
+        walk_path: &Path,
+        arcs: &'a Option<Vec<(String, Arc)>>,
+    ) -> Result<(Pass, &'a Arc), WalkFault> {
+        let at = walk_path.index(i);
+        let fault = |key: Option<&'static str>, cause: Cause| WalkFault { pass: i, key, cause };
+
+        // 1. The pass is an object naming an arc of its owner. A pass whose
+        // arc is absent resolves in no part, so the pass itself is named.
+        let Json::Object(members) = item else {
+            return Err(fault(
+                None,
+                Cause::PassArcAbsent {
+                    detail: format!("the pass is {}, not an object", item.type_name()),
+                },
+            ));
+        };
+        let named = members.iter().find(|(k, _)| k == "arc").map(|(_, v)| v);
+        let arc = match named {
+            Some(Json::String(key)) => arcs
+                .iter()
+                .flatten()
+                .find(|(k, _)| k == key)
+                .map(|(k, a)| (k.clone(), a)),
+            _ => None,
+        };
+        let Some((arc_key, arc)) = arc else {
+            let what = match named {
+                None => "no arc".to_string(),
+                Some(Json::String(key)) => format!("arc `{key}`, which is not here"),
+                Some(other) => format!("{} for its arc", other.type_name()),
+            };
+            return Err(fault(
+                None,
+                Cause::PassArcAbsent {
+                    detail: format!("the pass names {what}"),
+                },
+            ));
+        };
+
+        // 2. Unrecognised keys. 3. `pinned`, which reads `false` as absent.
+        self.check_keys(members, PASS_KEYS, &at);
+        let mut pass = Pass::over(&arc_key);
+        pass.pinned = self.opt_bool(members, "pinned", &at).unwrap_or(false);
+
+        // 4. `from`, `to` and `turn`, in that order: each parses.
+        for key in ["from", "to", "turn"] {
+            let Some(value) = self.field(members, key) else {
                 continue;
             };
-            if !endpoints_meet(&before.to, &after.from, network) {
-                breaks.push(i);
+            let endpoint = match value {
+                Json::String(node) if key != "turn" => Endpoint::Node(node.clone()),
+                Json::Array(channels) => {
+                    let position = parse_position(channels).map_err(|detail| {
+                        fault(
+                            Some(key),
+                            Cause::PositionUnusable {
+                                detail,
+                                dropped: "the chain",
+                            },
+                        )
+                    })?;
+                    // SPEC 3.3.3: longitude and latitude only. The rest goes
+                    // and the pass stays.
+                    if position.ele().is_some() || position.time_ms().is_some() {
+                        self.report(
+                            &at.key(key),
+                            Cause::ExtraChannel {
+                                what: "a walk position carries longitude and latitude only",
+                            },
+                        );
+                    }
+                    Endpoint::At(LonLat {
+                        lon: position.lon(),
+                        lat: position.lat(),
+                    })
+                }
+                other => {
+                    let expected = if key == "turn" {
+                        "a position"
+                    } else {
+                        "a node key or a position"
+                    };
+                    return Err(fault(
+                        Some(key),
+                        Cause::PositionUnusable {
+                            detail: format!("expected {expected} but found {}", other.type_name()),
+                            dropped: "the chain",
+                        },
+                    ));
+                }
+            };
+            match (key, endpoint) {
+                ("from", e) => pass.from = Some(e),
+                ("to", e) => pass.to = Some(e),
+                (_, Endpoint::At(p)) => pass.turn = Some(p),
+                (_, Endpoint::Node(_)) => unreachable!("a turn is never read as a node key"),
             }
         }
-        for i in breaks {
-            self.report(&links_path.index(i), Cause::ChainNotConnected);
-        }
+        Ok((pass, arc))
     }
 
     fn route(&mut self, value: &Json, path: &Path) -> Option<Route> {
         let entries = self.object(value, path)?;
         self.check_keys(entries, ROUTE_KEYS, path);
-        let arc_items = self.req_array(entries, "arcs", path)?.to_vec();
-        let arcs_path = path.key("arcs");
-        let arcs = arc_items
-            .iter()
-            .enumerate()
-            .filter_map(|(i, item)| self.route_arc(item, &arcs_path.index(i)))
-            .collect();
-        Some(Route {
+        let nodes = self.nodes(entries, path);
+        let arcs = self.arcs(entries, path, &nodes);
+        let route = Route {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             style: self.style(entries, path),
+            data: self.records(entries, path),
+            walk: Vec::new(),
+            nodes,
             arcs,
-            data: self.records(entries, path),
-        })
-    }
-
-    fn route_arc(&mut self, value: &Json, path: &Path) -> Option<RouteArc> {
-        let entries = self.object(value, path)?;
-        self.check_keys(entries, ROUTE_ARC_KEYS, path);
-        let pip_items = self.req_array(entries, "pips", path)?.to_vec();
-        let pips = self.pips(&pip_items, &path.key("pips"), "the arc")?;
-        Some(RouteArc {
-            pips,
-            data: self.records(entries, path),
-        })
+        };
+        // Where a chain would be dropped, the route is: it IS the chain
+        // (SPEC 3.4).
+        let walk = self.walk(entries, path, &route.arcs, true)?;
+        Some(Route { walk, ..route })
     }
 
     fn track(&mut self, value: &Json, path: &Path) -> Option<Track> {
@@ -939,7 +909,7 @@ impl Decoder {
         self.check_keys(entries, known, path);
         let at = match self.field(entries, "at") {
             None => {
-                self.report(path, Cause::MissingRequiredKey { key: "at" });
+                self.report(&path.key("at"), Cause::MissingRequiredKey { key: "at" });
                 return None;
             }
             Some(value) => self.required_position(value, &path.key("at"))?,
@@ -971,43 +941,39 @@ impl Decoder {
         })
     }
 
-    /// SPEC 3.7: one closed ring of at least four positions. A nested or
-    /// additional ring drops the ITEM — not the extra ring, which would keep
-    /// an area whose hole had vanished with nothing anywhere to say so.
+    /// SPEC 3.7: one OPEN ring of at least three distinct positions.
+    ///
+    /// A nested or additional ring drops the AREA, not the extra ring, which
+    /// would keep an area whose hole had vanished with nothing to say so.
+    ///
+    /// ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED. A last position repeating the
+    /// first is one fact written twice, so dropping the repeat loses nothing;
+    /// the diagnostic is what makes a writer that closes rings visible. The
+    /// distinct positions are counted after that, so `[A, B, A]` is two points
+    /// and its area goes.
     fn ring(&mut self, items: &[Json], path: &Path) -> Option<Vec<Position>> {
-        let nested = items.iter().any(|item| {
-            item.as_array()
-                .is_some_and(|inner| inner.iter().any(|c| matches!(c, Json::Array(_))))
-        });
+        let nested = items
+            .first()
+            .and_then(Json::as_array)
+            .and_then(|first| first.first())
+            .is_some_and(|c| matches!(c, Json::Array(_)));
         if nested {
             self.report(path, Cause::PolygonNestedRings);
             return None;
         }
-        if items.len() < 4 {
-            self.report(
-                path,
-                Cause::PolygonNotARing {
-                    detail: format!("a ring holds at least four positions, found {}", items.len()),
-                },
-            );
-            return None;
-        }
         let mut ring = Vec::with_capacity(items.len());
         for (i, item) in items.iter().enumerate() {
-            // A ring vertex that will not parse drops the ITEM, for SPEC 6.2's
-            // stated reason and because SPEC 3.7 makes a polygon ONE closed
-            // ring of at least four positions: dropping a vertex both moves the
-            // boundary and can turn a four-vertex ring into a three-vertex
-            // non-ring. Ruled 2026-09-10.
-            ring.push(self.position(item, &path.index(i), "the item")?);
+            // A ring position that will not parse drops the AREA: a dropped
+            // vertex would move the boundary with nothing to say so.
+            ring.push(self.position(item, &path.index(i), "the area")?);
         }
-        if !ring[0].same_point(ring.last().expect("the ring is non-empty")) {
-            self.report(
-                path,
-                Cause::PolygonNotARing {
-                    detail: "the last position does not repeat the first".to_string(),
-                },
-            );
+        if ring.len() >= 2 && ring[0].same_point(&ring[ring.len() - 1]) {
+            self.report(&path.index(ring.len() - 1), Cause::RingClosed);
+            ring.pop();
+        }
+        let distinct = distinct_points(&ring, 3);
+        if distinct < 3 {
+            self.report(path, Cause::RingTooFewPoints { distinct });
             return None;
         }
         Some(ring)
@@ -1082,30 +1048,65 @@ impl Decoder {
     }
 }
 
-/// Two node keys meet when the keys are equal; otherwise the endpoints are
-/// compared by resolved position. Comparing a node key by its position rather
-/// than refusing to compare it is what stops a walk that is continuous being
-/// reported as broken.
-fn endpoints_meet(a: &Endpoint, b: &Endpoint, network: &Network) -> bool {
-    if let (Endpoint::Node(x), Endpoint::Node(y)) = (a, b) {
-        if x == y {
-            return true;
+/// SPEC 4.1. Every channel is kept, including one this reader does not know,
+/// so that a future channel is additive. `Err` carries why the array is not a
+/// position.
+fn parse_position(items: &[Json]) -> Result<Position, String> {
+    if items.len() < 2 {
+        return Err(format!(
+            "a position carries at least longitude and latitude, found {} channel(s)",
+            items.len()
+        ));
+    }
+    let mut channels = Vec::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        match item {
+            Json::Number(n) => channels.push(Some(*n)),
+            // SPEC 4.1: `null` marks an absent value from index 2 upward.
+            Json::Null if index >= 2 => channels.push(None),
+            Json::Null => {
+                return Err(format!(
+                    "channel {index} is null, and {} is never absent",
+                    if index == 0 { "longitude" } else { "latitude" }
+                ))
+            }
+            other => return Err(format!("channel {index} is {}", other.type_name())),
         }
     }
-    let resolve = |e: &Endpoint| match e {
-        Endpoint::Inline(p) => Some(p.clone()),
-        Endpoint::Node(k) => network.node(k).cloned(),
-    };
-    match (resolve(a), resolve(b)) {
-        (Some(x), Some(y)) => x.same_point(&y),
-        // A node this reader could not resolve already carries its own
-        // diagnostic; it does not also make the chain broken.
-        _ => true,
+    Ok(Position::new(channels))
+}
+
+/// A node or an arc pip: longitude, latitude and elevation. A time channel,
+/// and any channel after it, is not carried (SPEC 3.3.1, 3.3.2); the caller
+/// reports a time.
+fn vertex(position: &Position) -> Vertex {
+    Vertex {
+        lon: position.lon(),
+        lat: position.lat(),
+        ele: position.ele(),
     }
 }
 
+/// How many of `ring`'s positions differ in longitude or latitude, counting no
+/// further than `enough`. SPEC 3.7 lets no other channel take part.
+///
+/// The count stops at `enough` because the only question asked is whether a
+/// ring reaches three, and a long ring would otherwise cost a quadratic scan.
+fn distinct_points(ring: &[Position], enough: usize) -> usize {
+    let mut seen: Vec<&Position> = Vec::with_capacity(enough);
+    for p in ring {
+        if seen.len() == enough {
+            break;
+        }
+        if !seen.iter().any(|q| q.same_point(p)) {
+            seen.push(p);
+        }
+    }
+    seen.len()
+}
+
 /// SPEC 2.2. Three runs of decimal digits separated by full stops. A leading
-/// zero is legal and the comparison is numeric, so `00.01.0000` is 0.1.0.
+/// zero is legal and the comparison is numeric, so `00.02.0000` is 0.2.0.
 fn parse_version(text: &str) -> Result<Version, Refusal> {
     let malformed = || Refusal::VersionMalformed {
         found: text.to_string(),
@@ -1199,7 +1200,7 @@ mod tests {
     fn versions_that_refuse_and_versions_that_do_not() {
         // Above this reader's series.
         assert!(matches!(
-            refuse(r#"{"vnx": "0.2.0"}"#),
+            refuse(r#"{"vnx": "0.3.0"}"#),
             Refusal::VersionUnsupportedSeries { .. }
         ));
         assert!(matches!(
@@ -1208,7 +1209,8 @@ mod tests {
         ));
         // And BELOW it, which is the same refusal for the same reason: a
         // reader comparing with `>` reads these and passes everything above.
-        for text in ["0.0.9", "0.0.0"] {
+        // A 0.2 reader reads the 0.2 series only (SPEC 2.2), so 0.1 is refused.
+        for text in ["0.1.0", "0.1.9", "0.0.9", "0.0.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
                 matches!(
@@ -1218,7 +1220,7 @@ mod tests {
                 "{text:?} was not refused as a series this reader does not implement"
             );
         }
-        for text in ["0.1", "0.1.0.0", "0.1.x", "0.1.+1", "", "0.1.", ".1.0", "0.1.0 "] {
+        for text in ["0.2", "0.2.0.0", "0.2.x", "0.2.+1", "", "0.2.", ".2.0", "0.2.0 "] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
                 matches!(refuse(&document), Refusal::VersionMalformed { .. }),
@@ -1226,7 +1228,7 @@ mod tests {
             );
         }
         // PATCH never refuses, and a leading zero is a legal spelling.
-        for text in ["0.1.99", "0.1.4294967296", "00.01.0000", "0.1.0"] {
+        for text in ["0.2.99", "0.2.4294967296", "00.02.0000", "0.2.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             let reading = read(&document);
             assert_eq!(
@@ -1250,7 +1252,7 @@ mod tests {
     #[test]
     fn an_unknown_key_is_diagnosed_and_the_item_kept() {
         let reading = read(
-            r#"{"vnx":"0.1.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
         );
         assert_eq!(reading.diagnostics.len(), 1);
         assert_eq!(reading.diagnostics[0].path, "/waypoints/0/nmae");
@@ -1260,28 +1262,28 @@ mod tests {
 
     #[test]
     fn a_wrong_type_drops_an_optional_field_and_takes_a_required_one() {
-        let reading = read(r#"{"vnx":"0.1.0","waypoints":[{"name":7,"at":[-3.6,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"name":7,"at":[-3.6,57.1]}]}"#);
         assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
         assert_eq!(reading.document.waypoints.expect("kept")[0].name, None);
         assert_eq!(reading.diagnostics.len(), 1);
 
-        let reading = read(r#"{"vnx":"0.1.0","waypoints":[{"name":"x","at":"here"}]}"#);
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x","at":"here"}]}"#);
         assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
         assert_eq!(reading.diagnostics.len(), 1);
     }
 
     #[test]
     fn an_absent_collection_is_not_an_empty_one() {
-        assert_eq!(read(r#"{"vnx":"0.1.0"}"#).document.waypoints, None);
+        assert_eq!(read(r#"{"vnx":"0.2.0"}"#).document.waypoints, None);
         assert_eq!(
-            read(r#"{"vnx":"0.1.0","waypoints":[]}"#).document.waypoints,
+            read(r#"{"vnx":"0.2.0","waypoints":[]}"#).document.waypoints,
             Some(vec![])
         );
     }
 
     #[test]
     fn a_position_keeps_every_channel_it_was_given() {
-        let reading = read(r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6,57.1,null,5,99]}]}"#);
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1,null,5,99]}]}"#);
         let at = &reading.document.waypoints.expect("kept")[0].at;
         assert_eq!(at.arity(), 5, "an unknown channel is kept, not truncated");
         assert_eq!(at.ele(), None);
@@ -1290,7 +1292,7 @@ mod tests {
 
     #[test]
     fn longitude_and_latitude_are_never_null() {
-        let reading = read(r#"{"vnx":"0.1.0","waypoints":[{"at":[null,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"at":[null,57.1]}]}"#);
         assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
         assert!(matches!(
             reading.diagnostics[0].cause,
@@ -1338,7 +1340,7 @@ mod tests {
     #[test]
     fn an_out_of_range_importance_is_dropped_and_the_rest_of_the_style_kept() {
         let reading = read(
-            r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
         );
         let style = reading.document.waypoints.expect("kept")[0]
             .style
@@ -1355,7 +1357,7 @@ mod tests {
     #[test]
     fn a_record_body_is_never_inspected() {
         let reading = read(
-            r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6,57.1],"data":[
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1],"data":[
                  {"@type":"app.viatrail.settlement","size":"metropolis"},
                  {"@type":"com.example.x","nmae":1,"deep":{"a":[1,2,{"b":null}]}}]}]}"#,
         );
@@ -1371,7 +1373,7 @@ mod tests {
     #[test]
     fn a_record_with_no_type_is_dropped_and_the_bag_survives() {
         let reading = read(
-            r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
         );
         assert_eq!(reading.diagnostics[0].cause, Cause::RecordTypeMissing);
         assert_eq!(
@@ -1386,7 +1388,7 @@ mod tests {
 
     #[test]
     fn an_absent_folder_leaves_the_item_at_the_top_level() {
-        let reading = read(r#"{"vnx":"0.1.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
         assert_eq!(
             reading.diagnostics[0].cause,
             Cause::FolderAbsent {
@@ -1399,27 +1401,290 @@ mod tests {
     #[test]
     fn a_folder_with_no_id_is_dropped_and_its_contents_survive() {
         let reading = read(
-            r#"{"vnx":"0.1.0","folders":[{"name":"Nameless"}],"waypoints":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
+            r#"{"vnx":"0.2.0","folders":[{"name":"Nameless"}],"waypoints":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
         );
-        assert_eq!(reading.document.folders.expect("kept").len(), 0);
-        assert_eq!(reading.document.waypoints.expect("kept").len(), 1);
-        assert_eq!(reading.diagnostics.len(), 2);
+        assert_eq!(reading.document.folders.as_ref().expect("kept").len(), 0);
+        assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/folders/0/id".into(), "wrong-type-required"),
+                ("/waypoints/0/folder".into(), "folder-absent"),
+            ]
+        );
     }
 
+    /// The diagnostics as `(path, code)` pairs, sorted, which is all SPEC 6.3
+    /// lets a caller compare.
+    fn pairs(reading: &Reading) -> Vec<(String, &'static str)> {
+        let mut out: Vec<(String, &'static str)> = reading
+            .diagnostics
+            .iter()
+            .map(|d| (d.path.clone(), d.code()))
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// SPEC 3.7: a ring is stored open. A closed one loses its repeat and
+    /// keeps its area, and the diagnostic names the repeat by its index.
     #[test]
-    fn a_ring_must_close_and_must_hold_four_positions() {
-        let short = read(
-            r#"{"vnx":"0.1.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.7,57.09]]}]}"#,
+    fn a_closed_ring_loses_its_repeat_and_keeps_its_area() {
+        let reading = read(
+            r#"{"vnx":"0.2.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
         );
-        assert_eq!(short.document.areas.expect("kept").len(), 0);
-        let open = read(
-            r#"{"vnx":"0.1.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.65,57.05]]}]}"#,
+        assert_eq!(pairs(&reading), vec![("/areas/0/polygon/3".into(), "ring-closed")]);
+        let areas = reading.document.areas.expect("kept");
+        assert_eq!(areas[0].polygon.len(), 3, "only the repeat goes");
+    }
+
+    /// SPEC 3.7: fewer than three distinct positions drops the area. Distinct
+    /// is longitude and latitude only, and it is counted after a closing
+    /// repeat is gone, so `[A, B, A]` is two points and takes both codes.
+    #[test]
+    fn a_ring_of_fewer_than_three_distinct_positions_drops_its_area() {
+        let reading = read(
+            r#"{"vnx":"0.2.0","areas":[
+                 {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.7,57.09]]},
+                 {"polygon":[[-3.7,57.09,1],[-3.7,57.09,2],[-3.6,57.09]]},
+                 {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0]]}]}"#,
         );
-        assert_eq!(open.document.areas.expect("kept").len(), 0);
-        assert!(matches!(
-            open.diagnostics[0].cause,
-            Cause::PolygonNotARing { .. }
-        ));
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/areas/0/polygon".into(), "ring-too-few-points"),
+                ("/areas/0/polygon/2".into(), "ring-closed"),
+                ("/areas/1/polygon".into(), "ring-too-few-points"),
+            ]
+        );
+        assert_eq!(reading.document.areas.expect("kept").len(), 1);
+    }
+
+    fn network_with(chains: &str) -> String {
+        format!(
+            r#"{{"vnx":"0.2.0","networks":[{{
+                 "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10]}},
+                 "arcs":{{"ab":{{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
+                          "cb":{{"from":"c","to":"b","pips":[]}},
+                          "cd":{{"from":"c","to":"d","pips":[]}}}},
+                 "chains":{chains}}}]}}"#
+        )
+    }
+
+    fn walk_verdict(walk: &str) -> Vec<(String, &'static str)> {
+        let reading = read(&network_with(&format!(r#"[{{"walk":{walk}}}]"#)));
+        let kept = reading.document.networks.as_ref().expect("kept")[0]
+            .chains
+            .as_ref()
+            .expect("chains")
+            .len();
+        let found = pairs(&reading);
+        // A walk is used whole or not at all: a fault that drops the chain
+        // leaves no chain, and a clean walk leaves one.
+        let drops = found.iter().any(|(_, c)| {
+            !matches!(*c, "unknown-key" | "wrong-type-optional" | "extra-channel")
+        });
+        assert_eq!(kept, usize::from(!drops), "{walk} kept {kept} chain(s) with {found:?}");
+        found
+    }
+
+    /// SPEC 6.2's check order for a walk, one rule at a time. Each walk breaks
+    /// exactly one rule, and the path says which part broke it.
+    #[test]
+    fn each_walk_rule_takes_its_own_code_at_its_own_path() {
+        let at = |path: &str, code: &'static str| vec![(format!("/networks/0/chains/0/walk/{path}"), code)];
+        let cases: Vec<(&str, Vec<(String, &'static str)>)> = vec![
+            // Valid: every form in one walk.
+            (
+                r#"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pinned":true},
+                    {"arc":"cd","turn":[-3.574,57.1]},{"arc":"cb"},{"arc":"ab","to":[-3.598,57.1]}]"#,
+                vec![],
+            ),
+            (r#"[]"#, vec![]),
+            // 1. pass-arc-absent, at the pass.
+            (r#"[{"arc":"ghost","from":"a","to":"b"}]"#, at("0", "pass-arc-absent")),
+            (r#"[7]"#, at("0", "pass-arc-absent")),
+            (r#"[{"from":"a","to":"b"}]"#, at("0", "pass-arc-absent")),
+            // 2. an unknown key is reported and the chain kept.
+            (r#"[{"arc":"ab","from":"a","to":"b","via":1}]"#, at("0/via", "unknown-key")),
+            // 3. `pinned` of the wrong type drops the field only.
+            (r#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#, at("0/pinned", "wrong-type-optional")),
+            // 4. a position that will not parse, or a node key as a turn.
+            (r#"[{"arc":"ab","from":"a","to":"b","turn":"b"}]"#, at("0/turn", "position-unusable")),
+            (r#"[{"arc":"ab","from":[null,57.1],"to":"b"}]"#, at("0/from", "position-unusable")),
+            // 4. an elevation on a walk position is dropped, the pass kept.
+            (r#"[{"arc":"ab","from":[-3.597,57.1005,410],"to":"b"}]"#, at("0/from", "extra-channel")),
+            // 6. a turn and a pin together.
+            (r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.101],"pinned":true}]"#, at("0", "pinned-turn")),
+            // 7. the rule for `from` and `to`.
+            (r#"[{"arc":"ab","to":"b"}]"#, at("0", "walk-spelling")),
+            (r#"[{"arc":"ab","from":"a"}]"#, at("0", "walk-spelling")),
+            (r#"[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]"#, at("0/to", "walk-spelling")),
+            (r#"[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]"#, at("1/from", "walk-spelling")),
+            (r#"[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]"#, at("0", "walk-spelling")),
+            // 8. the walk is connected.
+            (r#"[{"arc":"ab","from":"c","to":"b"}]"#, at("0/from", "walk-not-connected")),
+            (r#"[{"arc":"ab","from":"a","to":"d"}]"#, at("0/to", "walk-not-connected")),
+            (r#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#, at("1", "walk-not-connected")),
+            (
+                r#"[{"arc":"ab","from":[-3.597,57.1005],"to":[-3.596,57.1005]},{"arc":"cb","to":"c"}]"#,
+                at("0/to", "walk-not-connected"),
+            ),
+        ];
+        for (walk, want) in cases {
+            assert_eq!(walk_verdict(walk), want, "{walk}");
+        }
+    }
+
+    /// SPEC 6.2: the first fault drops the chain, and NOTHING after it in the
+    /// walk is examined, so a second fault further on is not reported.
+    #[test]
+    fn only_the_first_fault_in_a_walk_is_reported() {
+        assert_eq!(
+            walk_verdict(r#"[{"arc":"ab","to":"b"},{"arc":"ghost"},{"arc":"cd","turn":"x"}]"#),
+            vec![("/networks/0/chains/0/walk/0".into(), "walk-spelling")]
+        );
+        // Within one pass, the steps run in order: an absent arc is found
+        // before the unknown key on the same pass, and the key is not reported.
+        assert_eq!(
+            walk_verdict(r#"[{"arc":"ghost","via":1}]"#),
+            vec![("/networks/0/chains/0/walk/0".into(), "pass-arc-absent")]
+        );
+    }
+
+    /// SPEC 3.3.3: a pass without `to` leaves by the other end of its arc, or
+    /// by the node it entered when it has a turn. The next pass must enter
+    /// there.
+    #[test]
+    fn a_pass_leaves_where_its_turn_and_arc_say() {
+        // Enter ab at a, no turn: leave at b, so cb is next and cd is not.
+        assert_eq!(walk_verdict(r#"[{"arc":"ab","from":"a"},{"arc":"cb","to":"c"}]"#), vec![]);
+        // Enter ab at a and turn: leave at a again, so cb (b-c) does not join.
+        assert_eq!(
+            walk_verdict(r#"[{"arc":"ab","from":"a","turn":[-3.595,57.101]},{"arc":"cb","to":"c"}]"#),
+            vec![("/networks/0/chains/0/walk/1".into(), "walk-not-connected")]
+        );
+    }
+
+    /// SPEC 3.4: a route's walk runs node to node. A position, a turn or a
+    /// pin drops the ROUTE, at the key that carries it.
+    #[test]
+    fn a_route_walk_carries_no_position_turn_or_pin() {
+        let route = |walk: &str| {
+            read(&format!(
+                r#"{{"vnx":"0.2.0","routes":[{{
+                     "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10]}},
+                     "arcs":{{"ab":{{"from":"a","to":"b","pips":[]}}}},
+                     "walk":{walk}}}]}}"#
+            ))
+        };
+        let clean = route(r#"[{"arc":"ab","from":"b","to":"a"}]"#);
+        assert_eq!(pairs(&clean), vec![]);
+        assert_eq!(clean.document.routes.expect("kept").len(), 1);
+        for (walk, key) in [
+            (r#"[{"arc":"ab","from":[-3.6,57.1],"to":"b"}]"#, "from"),
+            (r#"[{"arc":"ab","from":"a","to":[-3.595,57.1]}]"#, "to"),
+            (r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.1]}]"#, "turn"),
+            (r#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#, "pinned"),
+        ] {
+            let reading = route(walk);
+            assert_eq!(
+                pairs(&reading),
+                vec![(format!("/routes/0/walk/0/{key}"), "route-pin-or-position")],
+                "{walk}"
+            );
+            assert_eq!(reading.document.routes.expect("kept").len(), 0, "{walk}");
+        }
+        // `"pinned": false` is absent (SPEC 3.3.3), so it is no pin.
+        assert_eq!(pairs(&route(r#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#)), vec![]);
+    }
+
+    /// SPEC 3.3.1, 3.3.2: a node and an arc pip carry no time. The time goes,
+    /// the node or pip stays, and an arc is reported ONCE however many of its
+    /// pips carried one.
+    #[test]
+    fn a_time_on_a_node_or_an_arc_pip_is_dropped_and_reported_once() {
+        let reading = read(
+            r#"{"vnx":"0.2.0","networks":[{
+                 "nodes":{"a":[-3.60,57.10,410,1778914991000],"b":[-3.59,57.10,null,5]},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.597,57.1,1,2],[-3.595,57.1,null,3]]}}}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/networks/0/arcs/ab/pips".into(), "arc-pip-time"),
+                ("/networks/0/nodes/a".into(), "extra-channel"),
+                ("/networks/0/nodes/b".into(), "extra-channel"),
+            ]
+        );
+        let network = &reading.document.networks.expect("kept")[0];
+        assert_eq!(
+            network.node("a"),
+            Some(&Vertex { lon: -3.60, lat: 57.10, ele: Some(410.0) }),
+            "the elevation stays"
+        );
+        assert_eq!(network.arc("ab").expect("kept").pips.len(), 2);
+    }
+
+    /// SPEC 3.3.2, 6.2: a self-loop, or an arc naming an absent node, drops
+    /// the ARC now, and each chain walking it goes under `pass-arc-absent`.
+    #[test]
+    fn a_dropped_arc_takes_the_chains_that_walk_it() {
+        let reading = read(
+            r#"{"vnx":"0.2.0","networks":[{
+                 "nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[]},
+                         "loop":{"from":"a","to":"a","pips":[[-3.6,57.2]]},
+                         "gone":{"from":"x","to":"y","pips":[]}},
+                 "chains":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},
+                           {"walk":[{"arc":"loop","from":"a","to":"a"}]},
+                           {"walk":[{"arc":"ab","from":"a"},{"arc":"gone","to":"y"}]}]}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/networks/0/arcs/gone/from".into(), "arc-node-absent"),
+                ("/networks/0/arcs/gone/to".into(), "arc-node-absent"),
+                ("/networks/0/arcs/loop".into(), "self-loop-arc"),
+                ("/networks/0/chains/1/walk/0".into(), "pass-arc-absent"),
+                ("/networks/0/chains/2/walk/1".into(), "pass-arc-absent"),
+            ]
+        );
+        let network = &reading.document.networks.expect("kept")[0];
+        assert_eq!(network.arcs.as_ref().expect("arcs").len(), 1);
+        assert_eq!(network.chains.as_ref().expect("chains").len(), 1, "only the sound chain stays");
+    }
+
+    /// A node that will not parse is dropped, and the arc naming it goes with
+    /// it under `arc-node-absent`.
+    #[test]
+    fn a_dropped_node_takes_the_arcs_that_name_it() {
+        let reading = read(
+            r#"{"vnx":"0.2.0","networks":[{
+                 "nodes":{"a":[-3.60,57.10],"b":"here"},
+                 "arcs":{"ab":{"from":"a","to":"b","pips":[]}}}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/networks/0/arcs/ab/to".into(), "arc-node-absent"),
+                ("/networks/0/nodes/b".into(), "position-unusable"),
+            ]
+        );
+    }
+
+    /// SPEC 6.2's table puts an absent REQUIRED key in the row of a wrong-typed
+    /// one, and the diagnostic names the key.
+    #[test]
+    fn an_absent_required_key_is_reported_at_the_key() {
+        let reading = read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x"}],"networks":[{"chains":[{}]}]}"#);
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/networks/0/chains/0/walk".into(), "wrong-type-required"),
+                ("/waypoints/0/at".into(), "wrong-type-required"),
+            ]
+        );
     }
 
     /// SPEC 6.2: a position inside `pips` that will not parse drops the ARC or
@@ -1432,7 +1697,7 @@ mod tests {
     #[test]
     fn one_unusable_pip_drops_the_segment_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.1.0","tracks":[{"segments":[
+            r#"{"vnx":"0.2.0","tracks":[{"segments":[
                  {"pips":[[-3.6,57.1],["x",1],[-3.5,57.2]]},
                  {"pips":[[-3.4,57.3],[-3.3,57.4]]}]}]}"#,
         );
@@ -1448,16 +1713,14 @@ mod tests {
         );
     }
 
-    /// The same rule on an arc, where SPEC 6.2 states it in those words. The
-    /// arc's entry leaves the network, so a chain traversing it then reports
-    /// the arc as absent — one real consequence, not a second defect.
+    /// The same rule on an arc, where SPEC 6.2 states it in those words.
     #[test]
     fn one_unusable_pip_drops_the_arc_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.1.0","networks":[{
+            r#"{"vnx":"0.2.0","networks":[{
                  "nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
-                 "arcs":{"bad":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[null,57.11]]},
-                         "good":{"from":"n1","to":"n2","pips":[[-3.68,57.12],[-3.66,57.1]]}}}]}"#,
+                 "arcs":{"bad":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
+                         "good":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}}}]}"#,
         );
         let network = &reading.document.networks.expect("kept")[0];
         let arcs = network.arcs.as_ref().expect("arcs");
@@ -1470,20 +1733,18 @@ mod tests {
                 && d.message().contains("the arc is dropped")));
     }
 
-    /// A ring vertex that will not parse drops the ITEM, for the same reason
-    /// plus SPEC 3.7: a polygon is ONE closed ring of at least four positions,
-    /// so dropping a vertex both moves the boundary and can turn a four-vertex
-    /// ring into a three-vertex non-ring. Ruled 2026-09-10.
+    /// A ring vertex that will not parse drops the AREA, for the same reason:
+    /// dropping the vertex would move the boundary with nothing to say so.
     #[test]
-    fn one_unusable_ring_vertex_drops_the_item() {
+    fn one_unusable_ring_vertex_drops_the_area() {
         let reading = read(
-            r#"{"vnx":"0.1.0","areas":[
-                 {"polygon":[[-3.7,57.09],[-3.6],[-3.6,57.0],[-3.7,57.09]]},
-                 {"polygon":[[-3.5,57.09],[-3.4,57.09],[-3.4,57.0],[-3.5,57.09]]}]}"#,
+            r#"{"vnx":"0.2.0","areas":[
+                 {"polygon":[[-3.7,57.09],[-3.6],[-3.6,57.0]]},
+                 {"polygon":[[-3.5,57.09],[-3.4,57.09],[-3.4,57.0]]}]}"#,
         );
-        let areas = reading.document.areas.expect("kept");
-        assert_eq!(areas.len(), 1, "the drop is scoped to the offending item");
-        assert_eq!(reading.diagnostics[0].code(), "position-unusable");
-        assert!(reading.diagnostics[0].message().contains("the item is dropped"));
+        let areas = reading.document.areas.as_ref().expect("kept");
+        assert_eq!(areas.len(), 1, "the drop is scoped to the offending area");
+        assert_eq!(pairs(&reading), vec![("/areas/0/polygon/1".into(), "position-unusable")]);
+        assert!(reading.diagnostics[0].message().contains("the area is dropped"));
     }
 }

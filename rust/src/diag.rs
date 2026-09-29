@@ -7,91 +7,94 @@
 //! diagnostic cannot carry a code that disagrees with its message.
 
 /// Why a reader could not use something as written.
+///
+/// SPEC 6.2's remedy table gives each row a code, and SPEC 6.3 makes that code
+/// the one a reader MUST put on the diagnostic. Where two causes here share a
+/// code, it is because the table puts both in one row; they stay two causes
+/// because their English differs.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Cause {
     /// SPEC 6.2: an unrecognised key on an object this format defines. The key
-    /// is skipped and the item is kept.
+    /// is skipped and the object is kept.
     UnknownKey,
     /// SPEC 6.2: a value of the wrong JSON type in an OPTIONAL key. The field
-    /// is dropped and the item is kept.
+    /// is dropped and the object is kept.
     WrongTypeOptional {
         expected: &'static str,
         found: &'static str,
     },
-    /// SPEC 6.2: a value of the wrong JSON type in a REQUIRED key. The ITEM is
-    /// dropped, because dropping the field would leave a waypoint that is
-    /// nowhere, a link that traverses nothing, or an arc with no geometry.
+    /// SPEC 6.2: a value of the wrong JSON type in a REQUIRED key. The OBJECT
+    /// is dropped, because it cannot exist without the key.
     ///
-    /// Separate from [`Cause::WrongTypeOptional`] because the remedies differ
-    /// in whether the rest of the item survives, and a consumer told only that
-    /// a type was wrong would have to re-derive required-ness from SPEC 3.10's
-    /// table to find out which happened. That lookup is what a code exists to
-    /// save.
-    ///
-    /// Not the same fact as [`Cause::MissingRequiredKey`], which takes the same
-    /// remedy: absent and present-but-wrong-typed are different documents.
+    /// Separate from [`Cause::WrongTypeOptional`] because "a field is gone"
+    /// and "the object is gone" are different outcomes for whoever holds the
+    /// file, and a caller must tell them apart without parsing English.
     WrongTypeRequired {
         expected: &'static str,
         found: &'static str,
     },
-    /// SPEC 3.10: a REQUIRED key is absent, so the object cannot exist.
+    /// SPEC 3.10: a REQUIRED key is absent, so the object is dropped. SPEC
+    /// 6.2's table puts this in the row of [`Cause::WrongTypeRequired`], so
+    /// the two share a code: absent and wrong-typed are two documents with one
+    /// outcome.
     MissingRequiredKey { key: &'static str },
     /// SPEC 4.1: a position that will not parse.
     ///
-    /// `dropped` names what goes, because that is the fact a caller needs and
-    /// the remedy is not the same everywhere: inside `pips` the ARC or SEGMENT
-    /// holding it is dropped, and inside a `polygon` ring the ITEM is.
-    ///
-    /// SPEC 6.2: "GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT. A missing vertex
-    /// changes the shape of a line and leaves nothing to indicate it — a
-    /// shorter, plausible, wrong line."
+    /// `dropped` names what goes, because the remedy is not the same
+    /// everywhere: SPEC 6.2's table drops the node, the arc, the segment, the
+    /// area or the chain that owns the position.
     PositionUnusable {
         detail: String,
         dropped: &'static str,
     },
-    /// SPEC 6.2: a link naming an arc absent from its network.
-    LinkArcAbsent { arc: String },
-    /// SPEC 6.2: a link endpoint naming a node absent from its network. The
-    /// link is KEPT; that end takes no part in the continuity comparison.
-    LinkNodeAbsent { node: String },
-    /// SPEC 3.3.3: an inline endpoint that does not project onto its arc
-    /// within 50 m.
-    InlineEndpointBeyondTolerance { metres: f64 },
-    /// SPEC 3.3.3: an inline endpoint on an arc with no pips at all, which has
-    /// no distance to measure.
-    InlineEndpointOnEmptyArc,
-    /// SPEC 6.2: consecutive links in a chain that do not meet.
-    ChainNotConnected,
-    /// SPEC 3.7: a `polygon` holding rings rather than positions.
+    /// SPEC 3.3.1, 3.3.3: a time on a node, or an elevation or a time on a
+    /// walk's `from`, `to` or `turn`. The channel is dropped and the node or
+    /// the pass is kept.
+    ExtraChannel { what: &'static str },
+    /// SPEC 3.3.2: a time on an arc pip. Every time channel on the arc is
+    /// dropped and its pips kept. Reported ONCE for the arc, however many
+    /// pips carried a time.
+    ArcPipTime,
+    /// SPEC 3.3.2: an arc whose `from` and `to` name the same node. The arc is
+    /// dropped, and every chain walking it with it.
+    SelfLoopArc { node: String },
+    /// SPEC 3.3.2: an arc naming a node its owner does not have. The arc is
+    /// dropped, and every chain walking it with it.
+    ArcNodeAbsent { node: String },
+    /// SPEC 3.3.3: a pass that is not an object, or that names no arc of its
+    /// owner, including an arc another rule dropped. The chain is dropped.
+    PassArcAbsent { detail: String },
+    /// SPEC 3.3.3: a walk that breaks the rule for where `from` and `to`
+    /// appear. The chain is dropped.
+    WalkSpelling { detail: String },
+    /// SPEC 3.3.3: valid-walk rules 3, 4 and 5. The chain is dropped.
+    WalkNotConnected { detail: String },
+    /// SPEC 3.3.3: a pass carrying both `turn` and `pinned`. The chain is
+    /// dropped.
+    PinnedTurn,
+    /// SPEC 3.4: a position, a `turn` or `pinned` in a route's walk. The route
+    /// is dropped.
+    RoutePinOrPosition { detail: String },
+    /// SPEC 3.7: a `polygon` holding rings rather than positions. The area is
+    /// dropped.
     PolygonNestedRings,
-    /// SPEC 3.7: a ring that does not close, or holds fewer than four
-    /// positions.
-    PolygonNotARing { detail: String },
+    /// SPEC 3.7: a ring whose last position repeats its first. The repeated
+    /// position is dropped and the area kept.
+    RingClosed,
+    /// SPEC 3.7: a ring with fewer than three distinct positions. The area is
+    /// dropped.
+    RingTooFewPoints { distinct: usize },
     /// SPEC 4.3: a record-level timestamp carrying an offset other than `Z`.
     TimestampNotUtc,
     /// SPEC 6.2: a `folder` naming a folder absent from the document. The key
     /// is treated as absent and the item sits at the top level.
     FolderAbsent { id: String },
-    /// SPEC 6.2: an arc naming a node absent from its network. The arc is
-    /// kept; its geometry is real.
-    ArcNodeAbsent { node: String },
-    /// SPEC 3.3.2: a terminal pip and the node it states disagree by more than
-    /// SPEC 3.3.3's 50 m. BOTH are kept and nothing is corrected — the pips
-    /// are authoritative, so there is nothing to fix, only something to say.
-    ///
-    /// The same 50 metres as the projection tolerance, deliberately: the same
-    /// question about a different pair of objects, and two thresholds for one
-    /// question is worse than one slightly loose one.
-    TerminalPipOffNode {
-        node: String,
-        /// `"first"` or `"last"`, which is also which of `from` and `to` the
-        /// pointer addresses.
-        which: &'static str,
-        metres: f64,
-    },
     /// SPEC 5: a data record with no `@type`, or one that is not a string.
+    /// SPEC 6.2's table gives it the code of [`Cause::WrongTypeRequired`].
     RecordTypeMissing,
     /// SPEC 3.6: an `importance` outside the range 1 to 5, or not an integer.
+    /// SPEC 6.2 makes it an unusable value in an optional key, so it takes the
+    /// code of [`Cause::WrongTypeOptional`].
     ImportanceOutOfRange,
     /// SPEC 7: an ATTACHMENT this reader could not produce bytes for. The
     /// attachment is dropped and the document is returned; refusing a whole
@@ -124,38 +127,35 @@ pub enum AttachmentFault {
 }
 
 impl Cause {
-    /// The stable token SPEC 6.3 requires on any diagnostic a corpus case
-    /// pins, and which is what the case compares. The English is never
-    /// compared: a corpus matching prose across implementations would be
-    /// pinning translations of a rule rather than the rule.
+    /// The stable token SPEC 6.3 requires, and which is what a corpus case
+    /// compares. The English is never compared.
     ///
-    /// Seven of these are pinned by `corpus/diagnose/` today and are wire
-    /// commitments. The rest are this crate's own, offered because a caller
-    /// switching on a cause is better served by a token than by a string
-    /// search, and SPEC 6.3 permits a code on any diagnostic.
+    /// Every code but one is a row of SPEC 6.2's remedy table. `folder-absent`
+    /// is this crate's own: SPEC 6.2 states that remedy outside the table, and
+    /// SPEC 6.3 permits a code on any diagnostic.
     pub fn code(&self) -> &'static str {
         match self {
-            // Pinned by the corpus.
             Cause::UnknownKey => "unknown-key",
-            Cause::LinkArcAbsent { .. } => "link-arc-absent",
-            Cause::ChainNotConnected => "chain-discontinuity",
-            Cause::PolygonNestedRings => "polygon-nested-rings",
-            Cause::TimestampNotUtc => "timestamp-not-utc",
-            Cause::InlineEndpointBeyondTolerance { .. } => "endpoint-off-arc",
-            Cause::AttachmentUnreadable { .. } => "attachment-unreadable",
-            // Not pinned anywhere; this crate's own tokens.
-            Cause::WrongTypeOptional { .. } => "wrong-type-optional",
-            Cause::WrongTypeRequired { .. } => "wrong-type-required",
-            Cause::MissingRequiredKey { .. } => "missing-required-key",
+            Cause::WrongTypeOptional { .. } | Cause::ImportanceOutOfRange => "wrong-type-optional",
+            Cause::WrongTypeRequired { .. }
+            | Cause::MissingRequiredKey { .. }
+            | Cause::RecordTypeMissing => "wrong-type-required",
             Cause::PositionUnusable { .. } => "position-unusable",
-            Cause::LinkNodeAbsent { .. } => "link-node-absent",
-            Cause::InlineEndpointOnEmptyArc => "endpoint-on-empty-arc",
-            Cause::PolygonNotARing { .. } => "polygon-not-a-ring",
-            Cause::FolderAbsent { .. } => "folder-absent",
+            Cause::ExtraChannel { .. } => "extra-channel",
+            Cause::ArcPipTime => "arc-pip-time",
+            Cause::SelfLoopArc { .. } => "self-loop-arc",
             Cause::ArcNodeAbsent { .. } => "arc-node-absent",
-            Cause::TerminalPipOffNode { .. } => "terminal-pip-off-node",
-            Cause::RecordTypeMissing => "record-type-missing",
-            Cause::ImportanceOutOfRange => "importance-out-of-range",
+            Cause::PassArcAbsent { .. } => "pass-arc-absent",
+            Cause::WalkSpelling { .. } => "walk-spelling",
+            Cause::WalkNotConnected { .. } => "walk-not-connected",
+            Cause::PinnedTurn => "pinned-turn",
+            Cause::RoutePinOrPosition { .. } => "route-pin-or-position",
+            Cause::PolygonNestedRings => "polygon-nested-rings",
+            Cause::RingClosed => "ring-closed",
+            Cause::RingTooFewPoints { .. } => "ring-too-few-points",
+            Cause::TimestampNotUtc => "timestamp-not-utc",
+            Cause::AttachmentUnreadable { .. } => "attachment-unreadable",
+            Cause::FolderAbsent { .. } => "folder-absent",
         }
     }
 }
@@ -167,50 +167,63 @@ impl std::fmt::Display for Cause {
             Cause::WrongTypeOptional { expected, found } => write!(
                 f,
                 "expected {expected} but found {found}; the field is dropped and \
-                 the item is kept"
+                 the object is kept"
             ),
             Cause::WrongTypeRequired { expected, found } => write!(
                 f,
-                "expected {expected} but found {found}; the item is dropped, \
+                "expected {expected} but found {found}; the object is dropped, \
                  because it cannot exist without this key"
             ),
             Cause::MissingRequiredKey { key } => {
-                write!(f, "the required key `{key}` is absent, so the item is dropped")
+                write!(f, "the required key `{key}` is absent, so the object is dropped")
             }
             Cause::PositionUnusable { detail, dropped } => {
                 write!(f, "not a position: {detail}; {dropped} is dropped")
             }
-            Cause::LinkArcAbsent { arc } => {
-                write!(f, "the arc `{arc}` is not in this network, so the link is dropped")
+            Cause::ExtraChannel { what } => write!(
+                f,
+                "{what}; the extra channel is dropped and the rest is kept"
+            ),
+            Cause::ArcPipTime => write!(
+                f,
+                "an arc pip carries no time; every time channel on this arc is \
+                 dropped and its pips are kept"
+            ),
+            Cause::SelfLoopArc { node } => write!(
+                f,
+                "the arc runs from node `{node}` to itself, and a self-loop cannot \
+                 be walked; the arc is dropped"
+            ),
+            Cause::ArcNodeAbsent { node } => write!(
+                f,
+                "the node `{node}` is not in this network or route, so the arc is dropped"
+            ),
+            Cause::PassArcAbsent { detail } => write!(f, "{detail}; the chain is dropped"),
+            Cause::WalkSpelling { detail } => write!(f, "{detail}; the chain is dropped"),
+            Cause::WalkNotConnected { detail } => write!(f, "{detail}; the chain is dropped"),
+            Cause::PinnedTurn => write!(
+                f,
+                "a pass with a turn is never pinned, because the turn already fixes it; \
+                 the chain is dropped"
+            ),
+            Cause::RoutePinOrPosition { detail } => {
+                write!(f, "{detail}; the route is dropped")
             }
-            Cause::LinkNodeAbsent { node } => write!(
-                f,
-                "the node `{node}` is not in this network; the link is kept, and \
-                 that end takes no part in the continuity comparison"
-            ),
-            Cause::InlineEndpointBeyondTolerance { metres } => write!(
-                f,
-                "the inline endpoint is {metres:.0} m from its arc, beyond the 50 m tolerance, \
-                 so the link is dropped"
-            ),
-            Cause::InlineEndpointOnEmptyArc => write!(
-                f,
-                "the arc has no pips, so the inline endpoint has no distance to it; \
-                 the link is dropped"
-            ),
-            Cause::ChainNotConnected => write!(
-                f,
-                "this link does not begin where the one before it ended, \
-                 so the chain is not one connected walk"
-            ),
             Cause::PolygonNestedRings => write!(
                 f,
                 "a polygon holds one ring of positions; nested rings are not expressible, \
-                 so the item is dropped"
+                 so the area is dropped"
             ),
-            Cause::PolygonNotARing { detail } => {
-                write!(f, "not a closed ring: {detail}; the item is dropped")
-            }
+            Cause::RingClosed => write!(
+                f,
+                "a ring is stored open, and this last position repeats the first; \
+                 the repeat is dropped"
+            ),
+            Cause::RingTooFewPoints { distinct } => write!(
+                f,
+                "the ring holds {distinct} distinct position(s) and needs at least 3, \
+                 so the area is dropped"
+            ),
             Cause::TimestampNotUtc => write!(
                 f,
                 "a record-level timestamp must be UTC with a Z suffix, so the field is dropped"
@@ -218,18 +231,6 @@ impl std::fmt::Display for Cause {
             Cause::FolderAbsent { id } => write!(
                 f,
                 "the folder `{id}` is not in this document, so the item sits at the top level"
-            ),
-            Cause::ArcNodeAbsent { node } => {
-                write!(f, "the node `{node}` is not in this network; the arc is kept")
-            }
-            Cause::TerminalPipOffNode {
-                node,
-                which,
-                metres,
-            } => write!(
-                f,
-                "node `{node}` is {metres:.0} m from the {which} pip, beyond the 50 m \
-                 tolerance; both are kept and the pips are authoritative"
             ),
             Cause::RecordTypeMissing => write!(
                 f,
@@ -353,87 +354,112 @@ mod tests {
         assert_eq!(p.as_str(), "/networks/0/arcs/arc-1/pips/0");
     }
 
-    /// The six codes `corpus/diagnose/` pins. These are wire commitments: a
-    /// corpus case compares the code and never the English, so a typo here
-    /// fails a tier while a reworded message does not.
-    #[test]
-    fn the_pinned_codes_are_spelled_as_the_corpus_spells_them() {
-        let cases: Vec<(Cause, &str)> = vec![
-            (Cause::UnknownKey, "unknown-key"),
-            (
-                Cause::WrongTypeOptional {
-                    expected: "a boolean",
-                    found: "a string",
-                },
-                "wrong-type-optional",
-            ),
-            (
-                Cause::WrongTypeRequired {
-                    expected: "a position array",
-                    found: "a string",
-                },
-                "wrong-type-required",
-            ),
-            (
-                Cause::LinkArcAbsent {
-                    arc: "ghost".into(),
-                },
-                "link-arc-absent",
-            ),
-            (Cause::ChainNotConnected, "chain-discontinuity"),
-            (Cause::PolygonNestedRings, "polygon-nested-rings"),
-            (Cause::TimestampNotUtc, "timestamp-not-utc"),
-            (
-                Cause::InlineEndpointBeyondTolerance { metres: 55.0 },
-                "endpoint-off-arc",
-            ),
-        ];
-        for (cause, expected) in cases {
-            assert_eq!(cause.code(), expected);
-        }
-    }
-
-    /// Every cause has its own code. Two causes sharing one would make a
-    /// corpus case pass on the wrong diagnostic.
-    #[test]
-    fn no_two_causes_share_a_code() {
-        let all = [
+    /// One cause of each kind, so the tests below see every code.
+    fn every_cause() -> Vec<Cause> {
+        let text = String::new;
+        vec![
             Cause::UnknownKey,
             Cause::WrongTypeOptional { expected: "a", found: "b" },
             Cause::WrongTypeRequired { expected: "a", found: "b" },
             Cause::MissingRequiredKey { key: "at" },
-            Cause::PositionUnusable {
-                detail: String::new(),
-                dropped: "the arc",
-            },
-            Cause::LinkArcAbsent { arc: String::new() },
-            Cause::LinkNodeAbsent { node: String::new() },
-            Cause::InlineEndpointBeyondTolerance { metres: 0.0 },
-            Cause::InlineEndpointOnEmptyArc,
-            Cause::ChainNotConnected,
+            Cause::PositionUnusable { detail: text(), dropped: "the arc" },
+            Cause::ExtraChannel { what: "a node carries no time" },
+            Cause::ArcPipTime,
+            Cause::SelfLoopArc { node: text() },
+            Cause::ArcNodeAbsent { node: text() },
+            Cause::PassArcAbsent { detail: text() },
+            Cause::WalkSpelling { detail: text() },
+            Cause::WalkNotConnected { detail: text() },
+            Cause::PinnedTurn,
+            Cause::RoutePinOrPosition { detail: text() },
             Cause::PolygonNestedRings,
-            Cause::PolygonNotARing { detail: String::new() },
+            Cause::RingClosed,
+            Cause::RingTooFewPoints { distinct: 2 },
             Cause::TimestampNotUtc,
-            Cause::FolderAbsent { id: String::new() },
-            Cause::ArcNodeAbsent { node: String::new() },
-            Cause::TerminalPipOffNode {
-                node: String::new(),
-                which: "first",
-                metres: 0.0,
-            },
+            Cause::FolderAbsent { id: text() },
             Cause::RecordTypeMissing,
             Cause::ImportanceOutOfRange,
             Cause::AttachmentUnreadable {
                 fault: AttachmentFault::UnusableMethod(99),
             },
+        ]
+    }
+
+    /// SPEC 6.2's remedy table, one code per row. These are wire commitments:
+    /// a corpus case compares the code and never the English.
+    const TABLE: &[&str] = &[
+        "unknown-key",
+        "wrong-type-optional",
+        "wrong-type-required",
+        "timestamp-not-utc",
+        "position-unusable",
+        "extra-channel",
+        "arc-pip-time",
+        "self-loop-arc",
+        "arc-node-absent",
+        "pass-arc-absent",
+        "walk-spelling",
+        "walk-not-connected",
+        "pinned-turn",
+        "route-pin-or-position",
+        "polygon-nested-rings",
+        "ring-closed",
+        "ring-too-few-points",
+        "attachment-unreadable",
+    ];
+
+    /// Every row of the table has a cause that carries its code, and every
+    /// code a cause carries is a row of the table or this crate's one own code.
+    #[test]
+    fn the_codes_are_the_rows_of_the_remedy_table() {
+        let codes: std::collections::BTreeSet<&str> =
+            every_cause().iter().map(Cause::code).collect();
+        for row in TABLE {
+            assert!(codes.contains(row), "no cause carries the code {row:?}");
+        }
+        for code in &codes {
+            assert!(
+                TABLE.contains(code) || *code == "folder-absent",
+                "{code:?} is neither a row of SPEC 6.2's table nor this crate's own code"
+            );
+        }
+    }
+
+    /// Two causes share a code only where SPEC 6.2's table puts them in one
+    /// row. A share nobody listed here would let a corpus case pass on the
+    /// wrong diagnostic.
+    #[test]
+    fn only_the_table_s_own_rows_share_a_code() {
+        let shared: &[(&str, &[&str])] = &[
+            ("wrong-type-optional", &["WrongTypeOptional", "ImportanceOutOfRange"]),
+            (
+                "wrong-type-required",
+                &["WrongTypeRequired", "MissingRequiredKey", "RecordTypeMissing"],
+            ),
         ];
-        let mut codes: Vec<&str> = all.iter().map(Cause::code).collect();
-        let total = codes.len();
-        codes.sort_unstable();
-        codes.dedup();
-        assert_eq!(codes.len(), total, "two causes share a code");
-        // And every code is a kebab-case token, as SPEC 6.3 describes.
-        for code in codes {
+        let mut by_code: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
+        for cause in every_cause() {
+            let name = format!("{cause:?}");
+            let name = name
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .expect("a variant name")
+                .to_string();
+            by_code.entry(cause.code()).or_default().push(name);
+        }
+        for (code, causes) in by_code {
+            let allowed = shared.iter().find(|(c, _)| *c == code).map(|(_, v)| *v);
+            match allowed {
+                Some(names) => assert_eq!(causes, names, "the causes sharing {code:?}"),
+                None => assert_eq!(causes.len(), 1, "{causes:?} share {code:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn every_code_is_a_short_stable_token() {
+        for cause in every_cause() {
+            let code = cause.code();
             assert!(
                 !code.is_empty()
                     && code

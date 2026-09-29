@@ -30,7 +30,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use vnx::json::{parse, Json};
-use vnx::model::{Area, Document, Network, Position, Route, Track, Waypoint};
+use vnx::model::{Arc, Area, Document, Endpoint, Network, Position, Track, Vertex, Waypoint};
 use vnx::{decode, encode, vnz};
 
 #[path = "support/tree.rs"]
@@ -331,9 +331,9 @@ fn the_diagnostic_matcher_has_been_seen_to_fail() {
 
     // Order is not significant (SPEC 6.3).
     let a = Diagnostic::new("/a", Cause::UnknownKey);
-    let b = Diagnostic::new("/b", Cause::ChainNotConnected);
+    let b = Diagnostic::new("/b", Cause::PinnedTurn);
     assert!(pair_diagnostics(
-        &[expect("/b", "chain-discontinuity"), expect("/a", "unknown-key")],
+        &[expect("/b", "pinned-turn"), expect("/a", "unknown-key")],
         &[a, b]
     )
     .is_ok());
@@ -780,8 +780,8 @@ fn a_reader_that_discards_what_it_read_is_caught() {
 /// task that has each of them read every other's output.
 #[test]
 fn a_number_compares_by_value_and_not_by_spelling() {
-    let integers = br#"{"vnx":"0.1.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
-    let floats = br#"{"vnx":"0.1.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
+    let integers = br#"{"vnx":"0.2.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
+    let floats = br#"{"vnx":"0.2.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
     for emit in [EmitBoundary::Normalise, EmitBoundary::Keep] {
         assert_eq!(
             tree::compare(integers, floats, emit),
@@ -791,7 +791,7 @@ fn a_number_compares_by_value_and_not_by_spelling() {
     }
 
     // And a real difference is still seen, or the above passes vacuously.
-    let different = br#"{"vnx":"0.1.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
+    let different = br#"{"vnx":"0.2.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
     assert!(tree::compare(integers, different, EmitBoundary::Keep).is_some());
 }
 
@@ -1084,7 +1084,7 @@ fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
             network.chains.as_ref().map_or(0, Vec::len),
         );
         for (j, chain) in network.chains.iter().flatten().enumerate() {
-            out.insert(format!("/networks/{i}/chains/{j}/links"), chain.links.len());
+            out.insert(format!("/networks/{i}/chains/{j}/walk"), chain.walk.len());
         }
         out.insert(
             format!("/networks/{i}/points"),
@@ -1102,10 +1102,12 @@ fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
         }
     }
     for (i, route) in document.routes.iter().flatten().enumerate() {
-        out.insert(format!("/routes/{i}/arcs"), route.arcs.len());
-        for (j, arc) in route.arcs.iter().enumerate() {
-            out.insert(format!("/routes/{i}/arcs/{j}/pips"), arc.pips.len());
+        out.insert(format!("/routes/{i}/nodes"), route.nodes.as_ref().map_or(0, Vec::len));
+        out.insert(format!("/routes/{i}/arcs"), route.arcs.as_ref().map_or(0, Vec::len));
+        for (key, arc) in route.arcs.iter().flatten() {
+            out.insert(format!("/routes/{i}/arcs/{}/pips", escape(key)), arc.pips.len());
         }
+        out.insert(format!("/routes/{i}/walk"), route.walk.len());
     }
     for (i, track) in document.tracks.iter().flatten().enumerate() {
         out.insert(format!("/tracks/{i}/segments"), track.segments.len());
@@ -1142,7 +1144,7 @@ fn check_positions(sidecar: &Json, document: &Document, case: &Case) {
                 case.name
             )
         });
-        for (channel, reading) in [("lon", position.lon()), ("lat", position.lat())] {
+        for (channel, reading) in [("lon", position.0), ("lat", position.1)] {
             let Some(expected) = want.get(channel).and_then(Json::as_f64) else {
                 continue;
             };
@@ -1267,12 +1269,13 @@ fn check_attachments(sidecar: &Json, got: Option<&[vnz::Attachment]>, case: &Cas
 // Resolving a JSON Pointer against the DECODED MODEL
 // ---------------------------------------------------------------------------
 
-/// Walk a `positions` pointer through the model, in the wire's own key names.
+/// Walk a `positions` pointer through the model, in the wire's own key names,
+/// and answer the longitude and latitude found there.
 ///
 /// Deliberately not a walk over the raw JSON. Resolving against the file
 /// compares the file to itself and cannot see a decoder that swapped two
 /// channels, which is the entire point of the check.
-fn resolve_position<'a>(document: &'a Document, pointer: &str) -> Option<&'a Position> {
+fn resolve_position(document: &Document, pointer: &str) -> Option<(f64, f64)> {
     let tokens: Vec<String> = pointer
         .strip_prefix('/')?
         .split('/')
@@ -1285,24 +1288,31 @@ fn resolve_position<'a>(document: &'a Document, pointer: &str) -> Option<&'a Pos
         "waypoints" => waypoint_at(document.waypoints.as_ref()?.get(index(1)?)?, token(2)?),
         "areas" => ring_vertex(document.areas.as_ref()?.get(index(1)?)?, token(2)?, index(3)?),
         "tracks" => track_pip(document.tracks.as_ref()?.get(index(1)?)?, &tokens),
-        "routes" => route_pip(document.routes.as_ref()?.get(index(1)?)?, &tokens),
+        "routes" => {
+            let route = document.routes.as_ref()?.get(index(1)?)?;
+            graph_position(&route.nodes, &route.arcs, &tokens)
+        }
         "networks" => network_position(document.networks.as_ref()?.get(index(1)?)?, &tokens),
         _ => None,
     }
 }
 
-fn waypoint_at<'a>(waypoint: &'a Waypoint, key: &str) -> Option<&'a Position> {
-    (key == "at").then_some(&waypoint.at)
+fn lon_lat(p: &Position) -> (f64, f64) {
+    (p.lon(), p.lat())
 }
 
-fn ring_vertex<'a>(area: &'a Area, key: &str, index: usize) -> Option<&'a Position> {
+fn waypoint_at(waypoint: &Waypoint, key: &str) -> Option<(f64, f64)> {
+    (key == "at").then(|| lon_lat(&waypoint.at))
+}
+
+fn ring_vertex(area: &Area, key: &str, index: usize) -> Option<(f64, f64)> {
     if key != "polygon" {
         return None;
     }
-    area.polygon.get(index)
+    area.polygon.get(index).map(lon_lat)
 }
 
-fn track_pip<'a>(track: &'a Track, tokens: &[String]) -> Option<&'a Position> {
+fn track_pip(track: &Track, tokens: &[String]) -> Option<(f64, f64)> {
     // /tracks/N/segments/S/pips/P
     if tokens.get(2)? != "segments" || tokens.get(4)? != "pips" {
         return None;
@@ -1312,56 +1322,64 @@ fn track_pip<'a>(track: &'a Track, tokens: &[String]) -> Option<&'a Position> {
         .get(tokens.get(3)?.parse::<usize>().ok()?)?
         .pips
         .get(tokens.get(5)?.parse::<usize>().ok()?)
+        .map(lon_lat)
 }
 
-fn route_pip<'a>(route: &'a Route, tokens: &[String]) -> Option<&'a Position> {
-    // /routes/N/arcs/A/pips/P
-    if tokens.get(2)? != "arcs" || tokens.get(4)? != "pips" {
-        return None;
-    }
-    route
-        .arcs
-        .get(tokens.get(3)?.parse::<usize>().ok()?)?
-        .pips
-        .get(tokens.get(5)?.parse::<usize>().ok()?)
-}
-
-fn network_position<'a>(network: &'a Network, tokens: &[String]) -> Option<&'a Position> {
-    match tokens.get(2)?.as_str() {
-        // /networks/N/nodes/KEY
-        "nodes" => network.node(tokens.get(3)?),
-        // /networks/N/arcs/KEY/pips/P
+/// A node or an arc pip of a network or a route, keyed by its own key:
+/// `/…/nodes/KEY` or `/…/arcs/KEY/pips/P`.
+fn graph_position(
+    nodes: &Option<Vec<(String, Vertex)>>,
+    arcs: &Option<Vec<(String, Arc)>>,
+    tokens: &[String],
+) -> Option<(f64, f64)> {
+    let key = tokens.get(3)?.as_str();
+    let vertex = match tokens.get(2)?.as_str() {
+        "nodes" => nodes.iter().flatten().find(|(k, _)| k == key)?.1,
         "arcs" => {
             if tokens.get(4)? != "pips" {
                 return None;
             }
-            network
-                .arc(tokens.get(3)?)?
+            *arcs
+                .iter()
+                .flatten()
+                .find(|(k, _)| k == key)?
+                .1
                 .pips
-                .get(tokens.get(5)?.parse::<usize>().ok()?)
+                .get(tokens.get(5)?.parse::<usize>().ok()?)?
         }
-        // /networks/N/chains/C/links/L/{from,to}
+        _ => return None,
+    };
+    Some((vertex.lon, vertex.lat))
+}
+
+fn network_position(network: &Network, tokens: &[String]) -> Option<(f64, f64)> {
+    match tokens.get(2)?.as_str() {
+        "nodes" | "arcs" => graph_position(&network.nodes, &network.arcs, tokens),
+        // /networks/N/chains/C/walk/P/{from,to,turn}
         "chains" => {
-            if tokens.get(4)? != "links" {
+            if tokens.get(4)? != "walk" {
                 return None;
             }
-            let link = network
+            let pass = network
                 .chains
                 .as_ref()?
                 .get(tokens.get(3)?.parse::<usize>().ok()?)?
-                .links
+                .walk
                 .get(tokens.get(5)?.parse::<usize>().ok()?)?;
-            let endpoint = match tokens.get(6)?.as_str() {
-                "from" => &link.from,
-                "to" => &link.to,
+            let at = match tokens.get(6)?.as_str() {
+                "from" | "to" => {
+                    let endpoint = if tokens[6] == "from" { &pass.from } else { &pass.to };
+                    match endpoint.as_ref()? {
+                        Endpoint::At(p) => *p,
+                        // A node key is not a position of its own; the corpus
+                        // points at nodes through /nodes/KEY.
+                        Endpoint::Node(_) => return None,
+                    }
+                }
+                "turn" => pass.turn?,
                 _ => return None,
             };
-            match endpoint {
-                vnx::model::Endpoint::Inline(position) => Some(position),
-                // A node key is not a position of its own; the corpus points
-                // at nodes through /nodes/KEY.
-                vnx::model::Endpoint::Node(_) => None,
-            }
+            Some((at.lon, at.lat))
         }
         // /networks/N/points/P/at
         "points" => waypoint_at(

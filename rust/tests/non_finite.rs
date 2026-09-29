@@ -6,7 +6,7 @@ use vnx::json::Json;
 use vnx::model::{AppKey, Position};
 use vnx::{decode, encode, EncodeError};
 
-const SRC: &str = r#"{"vnx":"0.1.0","waypoints":[{"at":[1,2],"style":{"importance":3}}]}"#;
+const SRC: &str = r#"{"vnx":"0.2.0","waypoints":[{"at":[1,2],"style":{"importance":3}}]}"#;
 
 fn refused_at(doc: &vnx::Document, want: &str) {
     match encode(doc) {

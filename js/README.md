@@ -45,8 +45,8 @@ console.log(encode(document));
 
 ## Command-line tool
 
-This library has no command-line tool. The Go library carries the reference
-one, `vnx`; see [`go/README.md`](../go/README.md).
+This library has none. The reference command-line tool is Go's; see
+[`go/README.md`](../go/README.md#command-line-tool).
 
 ## API
 

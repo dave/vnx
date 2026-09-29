@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Any, Union
 
+from . import walk as W
 from .model import (
-    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
-    Network, Position, Route, RouteArc, Segment, Track, Waypoint, is_app_key,
+    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue,
+    Network, Pass, Position, Route, Segment, Track, Waypoint, is_app_key,
 )
 
 __all__ = ["encode_document"]
@@ -89,6 +90,10 @@ def _waypoint(point: Waypoint) -> JSONValue:
 
 
 def _area(area: Area) -> JSONValue:
+    if area.polygon is not None:
+        problem = W.check_ring(area.polygon)
+        if problem is not None:
+            raise ValueError(f"area {area.name!r}: {problem} (SPEC 3.7)")
     obj: dict[str, JSONValue] = {}
     _common(obj, area)
     _put(obj, "polygon", _positions(area.polygon))
@@ -106,37 +111,66 @@ def _arc(arc: Arc) -> JSONValue:
     return obj
 
 
-def _link(link: Link) -> JSONValue:
-    obj: dict[str, JSONValue] = {}
-    _put(obj, "arc", link.arc)
-    _put(obj, "from", _endpoint(link.from_))
-    _put(obj, "to", _endpoint(link.to))
+def _pass(p: Pass) -> JSONValue:
+    obj: dict[str, JSONValue] = {"arc": p.arc}
+    _put(obj, "from", _endpoint(p.from_))
+    _put(obj, "to", _endpoint(p.to))
+    _put(obj, "turn", _endpoint(p.turn))
+    # SPEC 3.3.3: `pinned` is written only when it is true.
+    if p.pinned:
+        obj["pinned"] = True
     return obj
 
 
-def _chain(chain: Chain) -> JSONValue:
+def _walk(walk: Union[list[Pass], None], arcs: dict[str, Arc], route: bool, owner: str) -> Union[list[JSONValue], None]:
+    """A walk, checked first: a writer never emits one its own reader drops."""
+    if walk is None:
+        return None
+    fault = W.check_walk(walk, arcs, route)
+    if fault is not None:
+        raise ValueError(f"{owner}: {fault.describe()} (SPEC 3.3.3)")
+    return [_pass(p) for p in walk]
+
+
+def _chain(chain: Chain, arcs: dict[str, Arc]) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _put(obj, "name", chain.name)
     _put(obj, "notes", chain.notes)
     _put(obj, "hidden", chain.hidden)
     _put(obj, "style", chain.style)
-    if chain.links is not None:
-        obj["links"] = [_link(link) for link in chain.links]
+    _put(obj, "walk", _walk(chain.walk, arcs, False, f"chain {chain.name!r}"))
     _put(obj, "data", _records(chain.data))
     return obj
+
+
+def _graph(
+    obj: dict[str, JSONValue],
+    nodes: Union[dict[str, Position], None],
+    arcs: Union[dict[str, Arc], None],
+    owner: str,
+) -> None:
+    """The `nodes` and `arcs` a network and a route share (SPEC 3.4)."""
+    problem = W.check_arcs(nodes or {}, arcs or {})
+    if problem is not None:
+        raise ValueError(f"{owner}: {problem} (SPEC 3.3.2)")
+    if nodes is not None:
+        for key, position in nodes.items():
+            if position.time_ms is not None:
+                raise ValueError(
+                    f"{owner}: node {key!r} carries a time, and a node carries "
+                    "none (SPEC 3.3.1)"
+                )
+        obj["nodes"] = {key: _position(position) for key, position in nodes.items()}
+    if arcs is not None:
+        obj["arcs"] = {key: _arc(arc) for key, arc in arcs.items()}
 
 
 def _network(network: Network) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, network)
-    if network.nodes is not None:
-        obj["nodes"] = {
-            key: _position(position) for key, position in network.nodes.items()
-        }
-    if network.arcs is not None:
-        obj["arcs"] = {key: _arc(arc) for key, arc in network.arcs.items()}
+    _graph(obj, network.nodes, network.arcs, f"network {network.name!r}")
     if network.chains is not None:
-        obj["chains"] = [_chain(chain) for chain in network.chains]
+        obj["chains"] = [_chain(chain, network.arcs or {}) for chain in network.chains]
     if network.points is not None:
         obj["points"] = [_waypoint(point) for point in network.points]
     if network.areas is not None:
@@ -145,19 +179,13 @@ def _network(network: Network) -> JSONValue:
     return obj
 
 
-def _route_arc(arc: RouteArc) -> JSONValue:
-    obj: dict[str, JSONValue] = {}
-    _put(obj, "pips", _positions(arc.pips))
-    _put(obj, "data", _records(arc.data))
-    return obj
-
-
 def _route(route: Route) -> JSONValue:
     obj: dict[str, JSONValue] = {}
+    owner = f"route {route.name!r}"
     _common(obj, route)
     _put(obj, "style", route.style)
-    if route.arcs is not None:
-        obj["arcs"] = [_route_arc(arc) for arc in route.arcs]
+    _graph(obj, route.nodes, route.arcs, owner)
+    _put(obj, "walk", _walk(route.walk, route.arcs or {}, True, owner))
     _put(obj, "data", _records(route.data))
     return obj
 

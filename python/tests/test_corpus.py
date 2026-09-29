@@ -45,7 +45,7 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
     `positions` uses.
 
     ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS.  A
-    reader that dropped a chain's links, or truncated an arc's pips, changed
+    reader that dropped a chain's passes, or truncated an arc's pips, changed
     nothing a sidecar could see: the document still carried one network, one
     route, one track.  The accept tier's decode->encode->tree comparison catches
     most of that already, but the DIAGNOSE tier is exempt from the round trip
@@ -69,8 +69,8 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
     implementation's dict iteration order as a conformance requirement.
 
     A sidecar MAY name a container the document carries empty (see
-    `corpus/diagnose/inline-endpoint-beyond-tolerance.expect.json`, which
-    records `/networks/0/chains/0/links: 0`).  Failing to name a NON-empty
+    `corpus/diagnose/self-loop-arc.expect.json`, which records
+    `/networks/0/chains: 0`).  Failing to name a NON-empty
     container is the error; naming a zero is legal.
 
     ⚠ EVERY CONTAINER IS EMITTED UNCONDITIONALLY, ZERO-COUNT ONES INCLUDED, and
@@ -91,15 +91,17 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
             out[f"/networks/{i}/arcs/{key}/pips"] = len(arc.pips or [])
         out[f"/networks/{i}/chains"] = len(network.chains or [])
         for j, chain in enumerate(network.chains or []):
-            out[f"/networks/{i}/chains/{j}/links"] = len(chain.links or [])
+            out[f"/networks/{i}/chains/{j}/walk"] = len(chain.walk or [])
         out[f"/networks/{i}/points"] = len(network.points or [])
         out[f"/networks/{i}/areas"] = len(network.areas or [])
         for j, area in enumerate(network.areas or []):
             out[f"/networks/{i}/areas/{j}/polygon"] = len(area.polygon or [])
     for i, route in enumerate(document.routes or []):
-        out[f"/routes/{i}/arcs"] = len(route.arcs or [])
-        for j, arc in enumerate(route.arcs or []):
-            out[f"/routes/{i}/arcs/{j}/pips"] = len(arc.pips or [])
+        out[f"/routes/{i}/nodes"] = len(route.nodes or {})
+        out[f"/routes/{i}/arcs"] = len(route.arcs or {})
+        for key, arc in (route.arcs or {}).items():
+            out[f"/routes/{i}/arcs/{key}/pips"] = len(arc.pips or [])
+        out[f"/routes/{i}/walk"] = len(route.walk or [])
     for i, track in enumerate(document.tracks or []):
         out[f"/tracks/{i}/segments"] = len(track.segments or [])
         for j, segment in enumerate(track.segments or []):
@@ -158,7 +160,7 @@ class CorpusStructure(unittest.TestCase):
         # `diagnostics` list which IS checked.
         "cannot_detect",
         # The verdict the JSON Schema reaches on this case.  It is about
-        # `corpus/schema/vnx-0.1.schema.json`, not about any reader, so no
+        # `corpus/schema/vnx-0.2.schema.json`, not about any reader, so no
         # implementation runner compares it; `go/internal/vnxschema` is the one
         # thing that does, and it fails if a sidecar records no verdict.
         "schema",

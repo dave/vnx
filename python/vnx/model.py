@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from typing import Any, Union
 
 __all__ = [
-    "Position", "DataRecord", "Folder", "Arc", "Link", "Chain", "Network",
-    "RouteArc", "Route", "Segment", "Track", "Waypoint", "Area", "Document",
+    "Position", "DataRecord", "Folder", "Arc", "Pass", "Chain", "Network",
+    "Route", "Segment", "Track", "Waypoint", "Area", "Document",
     "Endpoint", "Style", "JSONValue", "AppKey", "is_app_key",
 ]
 
@@ -44,7 +44,7 @@ class Position:
     time_ms: Union[float, None] = None
 
     def same_point(self, other: "Position") -> bool:
-        """Value equality in longitude and latitude (SPEC 3.3.3)."""
+        """Value equality in longitude and latitude, the test SPEC 3.7 uses."""
         return self.lon == other.lon and self.lat == other.lat
 
 
@@ -61,7 +61,8 @@ class DataRecord:
     body: dict[str, JSONValue] = field(default_factory=dict)
 
 
-# A chain link endpoint is a node key or an inline position (SPEC 3.3.3).
+# Where a pass enters or leaves its arc: a node key, or a position on the arc
+# (SPEC 3.3.3).
 Endpoint = Union[str, Position]
 
 
@@ -79,7 +80,13 @@ class Folder:
 
 @dataclass(slots=True)
 class Arc:
-    """An arc owned by a network's ``arcs`` object (SPEC 3.3.2)."""
+    """An arc of a network or a route (SPEC 3.3.2).
+
+    Its line runs from the ``from_`` node's position, through ``pips``, to the
+    ``to`` node's position.  ``pips`` holds the INTERIOR points only, and an
+    empty list is the straight line between the two nodes.  A pip carries no
+    time: the reader drops one with a diagnostic, and the writer refuses one.
+    """
 
     from_: Union[str, None] = None
     to: Union[str, None] = None
@@ -88,10 +95,25 @@ class Arc:
 
 
 @dataclass(slots=True)
-class Link:
-    arc: Union[str, None] = None
+class Pass:
+    """One entry of a walk (SPEC 3.3.3): the arc it covers, and where on it the
+    walk enters, turns and leaves.
+
+    ``from_`` and ``to`` are present only where SPEC 3.3.3's rule puts them: on
+    the first pass, on the last pass, and on a pass whose ``from_`` is a
+    position.  Everywhere else the entry is the node the walk is at and the
+    exit is derived, so ``None`` there is that absence, not "unknown".
+
+    A position here carries longitude and latitude only: its elevation is the
+    arc line's.  ``pinned`` is a plain boolean because SPEC 3.3.3 has a reader
+    treat ``"pinned": false`` as absent, so the two are one model.
+    """
+
+    arc: str
     from_: Union[Endpoint, None] = None
     to: Union[Endpoint, None] = None
+    turn: Union[Position, None] = None
+    pinned: bool = False
 
 
 @dataclass(slots=True)
@@ -100,7 +122,7 @@ class Chain:
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     style: Union[Style, None] = None
-    links: Union[list[Link], None] = None
+    walk: Union[list[Pass], None] = None
     data: Union[list[DataRecord], None] = None
 
 
@@ -119,21 +141,18 @@ class Network:
 
 
 @dataclass(slots=True)
-class RouteArc:
-    """An arc owned outright by a route (SPEC 3.4): no identifier, no endpoints."""
-
-    pips: Union[list[Position], None] = None
-    data: Union[list[DataRecord], None] = None
-
-
-@dataclass(slots=True)
 class Route:
+    """A route owns its graph (SPEC 3.4): nodes and arcs of a network's shape,
+    and one walk over them that runs node to node."""
+
     folder: Union[str, None] = None
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     style: Union[Style, None] = None
-    arcs: Union[list[RouteArc], None] = None
+    nodes: Union[dict[str, Position], None] = None
+    arcs: Union[dict[str, Arc], None] = None
+    walk: Union[list[Pass], None] = None
     data: Union[list[DataRecord], None] = None
 
 
@@ -229,7 +248,7 @@ def is_app_key(key: str) -> bool:
 
 @dataclass(slots=True)
 class Document:
-    vnx: str = "0.1.0"
+    vnx: str = "0.2.0"
     generator: Union[str, None] = None
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None

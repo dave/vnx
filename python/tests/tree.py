@@ -114,7 +114,8 @@ def _track(obj: dict[str, Any], options: Options) -> None:
 
 
 def _route(obj: dict[str, Any], options: Options) -> None:
-    _items(obj, "arcs", options, _arc)
+    _graph(obj, options)
+    _walk(obj, options)
     _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
@@ -124,7 +125,8 @@ def _arc(obj: dict[str, Any], options: Options) -> None:
     _drop_empty(obj, "data")
 
 
-def _network(obj: dict[str, Any], options: Options) -> None:
+def _graph(obj: dict[str, Any], options: Options) -> None:
+    """The `nodes` and `arcs` a network and a route share (SPEC 3.4)."""
     nodes = obj.get("nodes")
     if isinstance(nodes, dict):
         obj["nodes"] = {
@@ -139,23 +141,43 @@ def _network(obj: dict[str, Any], options: Options) -> None:
                 _arc(value, options)
             out[key] = value
         obj["arcs"] = out
+    _drop_empty(obj, "nodes")
+    _drop_empty(obj, "arcs")
+
+
+def _walk(obj: dict[str, Any], options: Options) -> None:
+    """A walk's positions.  `from` and `to` are a node key or a position
+    (SPEC 3.3.3); only the second is a position, and `_position` leaves a
+    string alone.  `turn` is always a position.
+
+    ⚠ AN EMPTY WALK IS KEPT.  `walk` is REQUIRED (SPEC 3.10), so `"walk": []`
+    and an absent walk are different documents, and folding one into the other
+    would hide a writer that drops the key.
+    """
+    items = obj.get("walk")
+    if not isinstance(items, list):
+        return
+    out = []
+    for item in items:
+        if isinstance(item, dict):
+            item = dict(item)
+            for key in ("from", "to", "turn"):
+                if key in item:
+                    item[key] = _position(item[key], options)
+        out.append(item)
+    obj["walk"] = out
+
+
+def _network(obj: dict[str, Any], options: Options) -> None:
+    _graph(obj, options)
     _items(obj, "chains", options, _chain)
     _items(obj, "points", options, _waypoint)
     _items(obj, "areas", options, _area)
-    _drop_empty(obj, "nodes")
-    _drop_empty(obj, "arcs")
     _drop_empty(obj, "data")
 
 
 def _chain(obj: dict[str, Any], options: Options) -> None:
-    def link(item: dict[str, Any], options: Options) -> None:
-        # An endpoint is a node key or an inline position (SPEC 3.3.3).  Only
-        # the second is a position, and `_position` leaves a string alone.
-        for side in ("from", "to"):
-            if side in item:
-                item[side] = _position(item[side], options)
-
-    _items(obj, "links", options, link)
+    _walk(obj, options)
     _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 

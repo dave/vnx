@@ -14,8 +14,8 @@ Where a set is wider than any single example, the widening is noted.
 from __future__ import annotations
 
 __all__ = [
-    "DOCUMENT", "FOLDER", "NETWORK", "ARC", "CHAIN", "LINK", "ROUTE",
-    "ROUTE_ARC", "TRACK", "SEGMENT", "WAYPOINT", "AREA",
+    "DOCUMENT", "FOLDER", "NETWORK", "ARC", "CHAIN", "PASS", "ROUTE",
+    "TRACK", "SEGMENT", "WAYPOINT", "AREA",
     "WAYPOINT_IN_NETWORK", "AREA_IN_NETWORK",
 ]
 
@@ -44,20 +44,21 @@ NETWORK = frozenset({
     "nodes", "arcs", "chains", "points", "areas", "data",
 })
 
-# SPEC 3.3.2.  An arc inside a network's graph is not one of the items SPEC 3.8
-# lists as carrying `hidden`, and has no name of its own.
+# SPEC 3.3.2.  One shape for an arc of a network and an arc of a route.  An
+# arc is not one of the items SPEC 3.8 lists as carrying `hidden`, and has no
+# name of its own.
 ARC = frozenset({"from", "to", "pips", "data"})
 
-# SPEC 3.3.3.  `notes` is not in the section's example; `example-network.vnx`
-# carries one on the "Rock fall" chain and is an accept case, so it is legal.
-CHAIN = frozenset({"name", "notes", "hidden", "style", "links", "data"})
+# SPEC 3.3.3.
+CHAIN = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
 
-LINK = frozenset({"arc", "from", "to"})
+# SPEC 3.3.3.  A pass of a chain's walk or of a route's.
+PASS = frozenset({"arc", "from", "to", "turn", "pinned"})
 
-# SPEC 3.4.
-ROUTE = frozenset({"folder", "name", "notes", "hidden", "style", "arcs", "data"})
-
-ROUTE_ARC = frozenset({"pips", "data"})
+# SPEC 3.4.  A route owns a graph of a network's shape, and one walk over it.
+ROUTE = frozenset({
+    "folder", "name", "notes", "hidden", "style", "nodes", "arcs", "walk", "data",
+})
 
 # SPEC 3.5.  `notes` is not in the section's example.  Dave ruled it legal on
 # 2026-09-09, after this implementation had assumed it on no evidence at all.
@@ -93,18 +94,17 @@ AREA_IN_NETWORK = AREA - {"folder"}
 # type means the reader MUST drop the ITEM, not the field, because dropping the
 # field would leave a waypoint that is nowhere or an arc with no geometry.
 #
-# Requiring a key does not require a non-empty value: `"links": []` satisfies
-# `links`.  This implementation distinguishes them -- absent is None, present
+# Requiring a key does not require a non-empty value: `"walk": []` satisfies
+# `walk`.  This implementation distinguishes them -- absent is None, present
 # and empty is an empty list -- so the two cannot be confused.
 #
 # No corpus case omits a required key, so nothing here is constrained by the
 # corpus; it is constrained by the table.
 REQUIRED_FOLDER = frozenset({"id"})
 REQUIRED_ARC = frozenset({"from", "to", "pips"})
-REQUIRED_CHAIN = frozenset({"links"})
-REQUIRED_LINK = frozenset({"arc", "from", "to"})
-REQUIRED_ROUTE = frozenset({"arcs"})
-REQUIRED_ROUTE_ARC = frozenset({"pips"})
+REQUIRED_CHAIN = frozenset({"walk"})
+REQUIRED_PASS = frozenset({"arc"})
+REQUIRED_ROUTE = frozenset({"walk"})
 REQUIRED_TRACK = frozenset({"segments"})
 REQUIRED_SEGMENT = frozenset({"pips"})
 REQUIRED_WAYPOINT = frozenset({"at"})

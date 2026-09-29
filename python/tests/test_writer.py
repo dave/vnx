@@ -17,7 +17,9 @@ import unittest
 
 import vnx
 from vnx.encode import _position
-from vnx.model import AppKey, Area, Document, Position, Waypoint
+from vnx.model import (
+    AppKey, Arc, Area, Chain, Document, Network, Pass, Position, Route, Waypoint,
+)
 from vnx.writer import encode_bytes, normalised_document
 
 
@@ -28,7 +30,7 @@ def waypoint_at(
     time_ms: float | None = None,
 ) -> Document:
     return Document(
-        vnx="0.1.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
+        vnx="0.2.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
     )
 
 
@@ -55,7 +57,7 @@ class TheEmitBoundary(unittest.TestCase):
     def test_the_writer_does_not_touch_the_caller_s_model(self) -> None:
         """The `hidden` normalisation builds a new model rather than editing
         the caller's."""
-        document = Document(vnx="0.1.0", areas=[Area(hidden=False)])
+        document = Document(vnx="0.2.0", areas=[Area(hidden=False)])
         encode_bytes(document)
         assert document.areas is not None
         self.assertIs(document.areas[0].hidden, False)
@@ -135,11 +137,11 @@ class HiddenIsWrittenOnlyWhenTrue(unittest.TestCase):
     """SPEC 3.8. Absence already means visible, so a false carries nothing."""
 
     def test_a_false_hidden_is_dropped(self) -> None:
-        document = Document(vnx="0.1.0", areas=[Area(hidden=False)])
+        document = Document(vnx="0.2.0", areas=[Area(hidden=False)])
         self.assertNotIn(b"hidden", encode_bytes(document))
 
     def test_a_true_hidden_is_kept(self) -> None:
-        document = Document(vnx="0.1.0", areas=[Area(hidden=True)])
+        document = Document(vnx="0.2.0", areas=[Area(hidden=True)])
         self.assertIn(b'"hidden":true', encode_bytes(document))
 
 
@@ -148,18 +150,18 @@ class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
     is refused rather than lost."""
 
     def test_a_null_value_is_written(self) -> None:
-        document = Document(vnx="0.1.0", app_keys=[AppKey("com.example.x", None)])
-        self.assertEqual(encode_bytes(document), b'{"vnx":"0.1.0","com.example.x":null}')
+        document = Document(vnx="0.2.0", app_keys=[AppKey("com.example.x", None)])
+        self.assertEqual(encode_bytes(document), b'{"vnx":"0.2.0","com.example.x":null}')
 
     def test_a_key_with_no_full_stop_is_refused(self) -> None:
         for key in ("rulesets", "folders", ""):
             with self.subTest(key=key):
                 with self.assertRaisesRegex(ValueError, "no full stop"):
-                    encode_bytes(Document(vnx="0.1.0", app_keys=[AppKey(key, [])]))
+                    encode_bytes(Document(vnx="0.2.0", app_keys=[AppKey(key, [])]))
 
     def test_a_key_written_twice_is_refused(self) -> None:
         document = Document(
-            vnx="0.1.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)]
+            vnx="0.2.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)]
         )
         with self.assertRaisesRegex(ValueError, "twice"):
             encode_bytes(document)
@@ -178,7 +180,7 @@ class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
             target = os.path.join(directory, "out.vnx")
             with open(target, "wb") as handle:
                 handle.write(b"previous bytes")
-            bad = Document(vnx="0.1.0", app_keys=[AppKey("nodot", 1)])
+            bad = Document(vnx="0.2.0", app_keys=[AppKey("nodot", 1)])
             with self.assertRaises(ValueError):
                 vnx.encode_file(target, bad)
             with open(target, "rb") as handle:
@@ -195,7 +197,7 @@ class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
             target = os.path.join(directory, "out.vnx")
             with open(target, "wb") as handle:
                 handle.write(b"previous bytes")
-            document = Document(vnx="0.1.0", app_keys=[AppKey("a.b", None)])
+            document = Document(vnx="0.2.0", app_keys=[AppKey("a.b", None)])
             vnx.encode_file(target, document)
             with open(target, "rb") as handle:
                 self.assertEqual(handle.read(), encode_bytes(document))
@@ -221,6 +223,96 @@ class WriterOutputIsStable(unittest.TestCase):
         encoded = encode_bytes(waypoint_at(1.0, 2.0))
         self.assertNotIn(b" ", encoded)
         self.assertNotIn(b"\n", encoded)
+
+
+def _network(walk: list[Pass], **overrides: object) -> Document:
+    """A network whose arcs are `ab` (a to b) and `cb` (c to b)."""
+    nodes = {"a": Position(-3.60, 57.10), "b": Position(-3.59, 57.10),
+             "c": Position(-3.58, 57.10)}
+    arcs = {"ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101)]),
+            "cb": Arc(from_="c", to="b", pips=[])}
+    network = Network(nodes=nodes, arcs=arcs, chains=[Chain(name="C", walk=walk)])
+    for key, value in overrides.items():
+        setattr(network, key, value)
+    return Document(networks=[network])
+
+
+class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
+    """SPEC 3.3.2, 3.3.3, 3.4 and 3.7: a writer never emits an element its own
+    reader would drop or repair.  Each refusal names the element and the rule.
+
+    The walk, arc and ring checks are the reader's own functions
+    (`vnx/walk.py`), so these tests pin that the writer calls them.
+    """
+
+    def refused(self, document: Document) -> str:
+        with self.assertRaises(ValueError) as caught:
+            encode_bytes(document)
+        return str(caught.exception)
+
+    def test_a_valid_walk_is_written(self) -> None:
+        # A position start, a pinned pass leaving `cb` at c, and an out-and-back
+        # turn on `cb` that leaves by c, the node it entered.
+        document = _network([
+            Pass("ab", from_=Position(-3.597, 57.1005), to="b"),
+            Pass("cb", pinned=True),
+            Pass("cb", turn=Position(-3.585, 57.10), to="c"),
+        ])
+        encoded = encode_bytes(document)
+        self.assertIn(b'"pinned":true', encoded)
+        self.assertEqual(vnx.read_bytes(encoded).diagnostics, [])
+
+    def test_pinned_false_is_not_written(self) -> None:
+        encoded = encode_bytes(_network([Pass("ab", from_="a", to="b", pinned=False)]))
+        self.assertNotIn(b"pinned", encoded)
+
+    def test_a_walk_that_breaks_a_rule_is_refused_naming_pass_and_code(self) -> None:
+        for walk, code in (
+            ([Pass("ghost", from_="a", to="b")], "pass-arc-absent"),
+            ([Pass("ab", to="b")], "walk-spelling"),
+            ([Pass("ab", from_="b"), Pass("cb", to="c")], "walk-not-connected"),
+            ([Pass("ab", from_="a", turn=Position(-3.595, 57.1), pinned=True, to="a")],
+             "pinned-turn"),
+            ([Pass("ab", from_=Position(-3.597, 57.1005, 400.0), to="b")], "extra-channel"),
+        ):
+            with self.subTest(code=code):
+                message = self.refused(_network(walk))
+                self.assertIn("pass 0" if code != "walk-not-connected" else "pass 1", message)
+                self.assertIn(code, message)
+
+    def test_a_route_carrying_a_position_is_refused(self) -> None:
+        route = Route(
+            name="R",
+            nodes={"a": Position(-3.60, 57.10), "b": Position(-3.59, 57.10)},
+            arcs={"ab": Arc(from_="a", to="b", pips=[])},
+            walk=[Pass("ab", from_="a", to=Position(-3.595, 57.10))],
+        )
+        self.assertIn("route-pin-or-position", self.refused(Document(routes=[route])))
+        route.walk = [Pass("ab", from_="a", to="b")]
+        self.assertEqual(vnx.read_bytes(encode_bytes(Document(routes=[route]))).diagnostics, [])
+
+    def test_a_self_loop_is_refused(self) -> None:
+        arcs = {"loop": Arc(from_="a", to="a", pips=[])}
+        self.assertIn("self-loop", self.refused(_network([], arcs=arcs)))
+
+    def test_an_arc_naming_an_absent_node_is_refused(self) -> None:
+        arcs = {"ax": Arc(from_="a", to="x", pips=[])}
+        self.assertIn("'x'", self.refused(_network([], arcs=arcs)))
+
+    def test_a_time_on_a_node_or_an_arc_pip_is_refused(self) -> None:
+        nodes = {"a": Position(-3.60, 57.10, None, 1000.0), "b": Position(-3.59, 57.10),
+                 "c": Position(-3.58, 57.10)}
+        self.assertIn("node 'a'", self.refused(_network([], nodes=nodes)))
+        arcs = {"ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101, None, 5.0)])}
+        self.assertIn("arc 'ab'", self.refused(_network([], arcs=arcs)))
+
+    def test_a_closed_ring_is_refused_not_opened(self) -> None:
+        ring = [Position(0, 0), Position(1, 0), Position(1, 1), Position(0, 0)]
+        self.assertIn("open", self.refused(Document(areas=[Area(polygon=ring)])))
+
+    def test_a_ring_of_two_distinct_positions_is_refused(self) -> None:
+        ring = [Position(0, 0), Position(1, 0), Position(1, 0, 5.0)]
+        self.assertIn("3 distinct", self.refused(Document(areas=[Area(polygon=ring)])))
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
-# vnx — the VNX format in Python
+# vnx for Python
 
 `vnx` reads and writes VNX documents and VNZ containers in Python, and reports
 diagnostics.
 
-Python 3.11 or later, and no dependencies. Implements VNX 0.1.0 —
+Python 3.11 or later, and no dependencies. Implements VNX 0.2.0 —
 [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -30,10 +30,10 @@ reading = vnx.read_file("corpus/accept/example-network.vnx")
 doc = reading.document
 
 for route in doc.routes or []:
-    print("route", route.name, len(route.arcs or []), "arcs")
+    print("route", route.name, len(route.arcs or {}), "arcs", len(route.walk or []), "passes")
 for network in doc.networks or []:
     for chain in network.chains or []:
-        print("chain", chain.name, len(chain.links or []), "links")
+        print("chain", chain.name, len(chain.walk or []), "passes")
 for track in doc.tracks or []:
     print("track", track.name, "moving", track.moving_time_ms())
 for d in reading.diagnostics:
@@ -43,9 +43,9 @@ vnx.encode_file("out.vnx", doc)
 ```
 
 ```
-route Braeriach direct 2 arcs
-chain Chalamain Gap 2 links
-chain Rock fall 1 links
+route Braeriach direct 2 arcs 2 passes
+chain Chalamain Gap 2 passes
+chain Rock fall 1 passes
 track Lairig Ghru, 12 May moving 167000.0
 ```
 
@@ -62,7 +62,7 @@ for attachment in container.attachments:
     print("attachment", attachment.path, len(attachment.bytes), "bytes")
 
 try:
-    vnx.read_bytes(b'{"vnx": "0.0.9"}')
+    vnx.read_bytes(b'{"vnx": "0.1.9"}')
 except vnx.VNXRefusal as refusal:
     print("refused:", refusal)
 ```
@@ -70,8 +70,13 @@ except vnx.VNXRefusal as refusal:
 ```
 document entry doc.vnx
 attachment attachments/photo.txt 19 bytes
-refused: this document is version 0.0.9 and this reader does not support the 0.0 series: it reads 0.1.x
+refused: this document is version 0.1.9 and this reader does not support the 0.1 series: it reads 0.2.x
 ```
+
+## Command-line tool
+
+This library has none. The reference command-line tool is Go's; see
+[`go/README.md`](../go/README.md#command-line-tool).
 
 ## API
 
@@ -97,15 +102,22 @@ refused: this document is version 0.0.9 and this reader does not support the 0.0
 | `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `chains`, `points`, `areas` |
-| `Arc`, `RouteArc` | `pips: list[Position]`; an `Arc` also has `from_` and `to` |
-| `Chain` | `links: list[Link]`, each `Link` carrying `arc`, `from_`, `to` |
-| `Route` | `arcs: list[RouteArc]` |
+| `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
+| `Chain` | `walk: list[Pass]` |
+| `Pass` | `arc`, `from_`, `to`, `turn`, `pinned: bool`; `from_` and `to` are a node key or a `Position` |
+| `Route` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a chain's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
 | `Position` | `lon`, `lat`, `ele`, `time_ms` |
 
 `app_keys` is sorted by key on decode, and nothing inspects a value. Encoding
 raises `ValueError` for a key with no full stop, a key held twice, or a number
-that is not finite. `encode_file` encodes in full before it writes, and
+that is not finite. It also raises `ValueError` for anything its own reader
+would drop or repair: a walk that breaks a rule of SPEC §3.3.3 (the message
+names the pass and the code), a self-loop arc, an arc naming a node its owner
+does not have, a time on a node or an arc pip, an elevation or a time on a walk
+position, and a ring that is closed or holds fewer than three distinct
+positions. The writer does not repair any of these, because a repair would be a
+guess about what the caller meant. `encode_file` encodes in full before it writes, and
 replaces the file only once the bytes are on disk, so a refused encode leaves an
 existing file unchanged.
 
@@ -139,12 +151,16 @@ is a raised exception against the `diagnostics` list returned beside a document.
   is not zero. `Position.ele` and `time_ms` are `None` for a channel that was
   `null` or left off.
 - **A version outside this reader's series is refused, in either direction.**
-  Through 0.x each MINOR is its own series (SPEC §2.2), so `0.0.9` is refused
-  exactly as `0.2.0` is, and the message names the series. Any PATCH within
-  `0.1` reads.
+  Through 0.x each MINOR is its own series (SPEC §2.2), so `0.1.9` is refused
+  exactly as `0.3.0` is, and the message names the series. Any PATCH within
+  `0.2` reads.
 - **Damaged geometry costs its container.** A position inside `pips` that will
-  not parse drops the arc or segment holding it, while a link that cannot be
-  used is dropped and its chain survives (SPEC §6.2).
+  not parse drops the arc or segment holding it (SPEC §6.2).
+- **A walk is used whole or not at all.** The first problem in a walk drops the
+  chain, or the route, and is the only one reported for that walk (SPEC §6.2).
+  A dropped node or arc cascades: the arc naming the node goes under
+  `arc-node-absent`, then each chain walking the arc under `pass-arc-absent`,
+  each with its own diagnostic.
 
 ## Run the tests
 
@@ -166,7 +182,7 @@ breaks the reader in turn and requires the corpus check to notice each break.
 | `encode` | model to JSON tree |
 | `writer` | the emit boundary: shortest spelling, `hidden` (SPEC §4.1, §3.8) |
 | `container` | the VNZ container (SPEC §7, §9) |
-| `geo` | the projection tolerance of SPEC §3.3.3 |
+| `walk` | the walk, arc and ring rules the reader and the writer share (SPEC §3.3, §3.7) |
 | `pointer` | RFC 6901 |
 | `errors` | `VNXRefusal` and `Diagnostic` |
 

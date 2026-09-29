@@ -19,12 +19,12 @@ from dataclasses import dataclass
 from typing import Any, Union
 
 from . import keys as K
+from . import walk as W
 from .errors import Diagnostic, VNXRefusal
-from .geo import distance_between, distance_to_polyline
 from .jsonio import parse_json
 from .model import (
-    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue, Link,
-    Network, Position, Route, RouteArc, Segment, Style, Track, Waypoint,
+    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue,
+    Network, Pass, Position, Route, Segment, Style, Track, Waypoint,
     AppKey, is_app_key,
 )
 from .pointer import join
@@ -32,10 +32,7 @@ from .pointer import join
 __all__ = ["ReadResult", "read_bytes", "decode_document", "SUPPORTED_VERSION"]
 
 # The MAJOR.MINOR this reader implements (SPEC 2.2).
-SUPPORTED_VERSION = (0, 1)
-
-# SPEC 3.3.3.  An inline chain endpoint must project onto its arc within this.
-PROJECTION_TOLERANCE_M = 50.0
+SUPPORTED_VERSION = (0, 2)
 
 _VERSION = re.compile(r"\A(\d+)\.(\d+)\.(\d+)\Z")
 # SPEC 4.3: ISO 8601 in UTC, a literal Z suffix, optional fractional seconds.
@@ -111,12 +108,15 @@ class _Reader:
         Returns False when the item must be dropped.  A key that was present but
         unusable has already been diagnosed where it was read, so only a key
         genuinely ABSENT from the source object is reported here -- otherwise one
-        defect would produce two diagnostics.
+        defect would produce two diagnostics.  SPEC 6.2 gives an absent REQUIRED
+        key the same code as a wrong-typed one: the object is gone either way.
         """
         missing = [key for key, value in fields.items() if value is None]
         for key in missing:
             if key not in obj:
-                self.note(join(path, key), f"{what} must carry `{key}`")
+                self.note(
+                    join(path, key), f"{what} must carry `{key}`", "wrong-type-required"
+                )
         return not missing
 
     def _string(
@@ -239,7 +239,9 @@ class _Reader:
                 # has no meaning at all, so it is dropped rather than kept as an
                 # anonymous body.  A record body is otherwise opaque, so no key
                 # inside it is ever unknown.
-                self.note(at, "a data record must carry a string @type")
+                self.note(
+                    at, "a data record must carry a string @type", "wrong-type-required"
+                )
                 continue
             body = {k: v for k, v in item.items() if k != "@type"}
             records.append(DataRecord(type_name, body))
@@ -311,7 +313,9 @@ class _Reader:
             return None
         out: list[Position] = []
         for index, item in enumerate(items):
-            position = self._position(item, join(path, key, index))
+            position = self._position(
+                item, join(path, key, index), "position-unusable"
+            )
             if position is None:
                 # SPEC 6.2: the container goes, not the position.  Geometry is
                 # continuous -- dropping one vertex leaves a shorter line that
@@ -404,11 +408,11 @@ class _Reader:
         major, minor = int(match.group(1)), int(match.group(2))
         # SPEC 2.2: PATCH never refuses.  Through 0.x, MAJOR and MINOR are both
         # breaking axes, and each MINOR is ITS OWN SERIES -- so the test is "not
-        # the series this reader implements", not "above it".  0.0 is not an
-        # older spelling of 0.1; this reader has no rules for it and refuses it
-        # for the same reason it refuses 0.2.  Written as `>` -- the shape five
-        # of the six implementations had -- a 0.0.9 document reads as though it
-        # were 0.1, under rules it was never written to.
+        # the series this reader implements", not "above it".  0.1 is not an
+        # older spelling of 0.2; this reader has no rules for it and refuses it
+        # for the same reason it refuses 0.3.  Written as `>` -- the shape five
+        # of the six implementations once had -- a 0.1.9 document reads as
+        # though it were 0.2, under rules it was never written to.
         if (major, minor) == SUPPORTED_VERSION:
             return
         supported = f"{SUPPORTED_VERSION[0]}.{SUPPORTED_VERSION[1]}"
@@ -514,28 +518,46 @@ class _Reader:
         )
 
     def _polygon(self, value: JSONValue, path: str) -> Union[list[Position], None]:
-        """One closed ring (SPEC 3.7).  None means the area must be dropped."""
+        """One OPEN ring (SPEC 3.7).  None means the area must be dropped.
+
+        ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED.  Its last position repeating
+        its first is one fact written twice, so dropping the repeat loses
+        nothing; the diagnostic is kept so that a writer that closes rings can
+        be seen.  The distinct positions are counted after that, so
+        ``[A, B, A]`` is two points and its area goes, with both diagnostics.
+        """
         if not isinstance(value, list):
-            self.note(path, "a polygon must be an array of positions")
+            self.note(
+                path, "a polygon must be an array of positions", "wrong-type-required"
+            )
             return None
         if any(
             isinstance(item, list) and item and isinstance(item[0], list)
             for item in value
         ):
-            self.note(path, "nested rings: this format carries one closed ring",
+            self.note(path, "nested rings: this format carries one ring",
                       "polygon-nested-rings")
             return None
         ring: list[Position] = []
         for index, item in enumerate(value):
-            position = self._position(item, join(path, index))
+            position = self._position(item, join(path, index), "position-unusable")
             if position is None:
                 return None
             ring.append(position)
-        if len(ring) < 4:
-            self.note(path, "a ring must hold at least four positions")
-            return None
-        if not ring[0].same_point(ring[-1]):
-            self.note(path, "a ring must close: its first and last positions differ")
+        if W.ring_is_closed(ring):
+            self.note(
+                join(path, len(ring) - 1),
+                "a ring is stored open, and this last position repeats the first",
+                "ring-closed",
+            )
+            ring.pop()
+        count = W.distinct_lon_lat(ring)
+        if count < 3:
+            self.note(
+                path,
+                f"a ring holds {count} distinct position(s), and needs at least 3",
+                "ring-too-few-points",
+            )
             return None
         return ring
 
@@ -577,39 +599,26 @@ class _Reader:
         )
 
     def _route(self, value: JSONValue, path: str) -> Union[Route, None]:
+        """SPEC 3.4.  A route is its own chain: where a chain would be dropped,
+        the whole route is."""
         obj = self._object(value, path, K.ROUTE, "a route")
         if obj is None:
             return None
-        arcs = None
-        items = self._array(obj, "arcs", path)
-        if items is not None:
-            arcs = []
-            for index, item in enumerate(items):
-                at = join(path, "arcs", index)
-                arc = self._object(item, at, K.ROUTE_ARC, "a route arc")
-                if arc is None:
-                    continue
-                pips = self._positions(arc, "pips", at)
-                if pips is None and "pips" in arc:
-                    # SPEC 6.2: an unusable position drops the container that
-                    # holds the geometry, and the diagnostic is already
-                    # reported at the position.  Reporting `pips` absent here
-                    # too would turn one defect into two.
-                    continue
-                if not self._complete(arc, at, "a route arc", {"pips": pips}):
-                    continue
-                arcs.append(RouteArc(pips=pips, data=self._data(arc, at)))
-        if not self._complete(obj, path, "a route", {"arcs": arcs}):
-            return None
-        return Route(
+        route = Route(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             style=self._style(obj, path),
-            arcs=arcs,
-            data=self._data(obj, path),
         )
+        route.nodes = self._nodes(obj, path)
+        route.arcs = self._arcs(obj, path, route.nodes or {})
+        route.data = self._data(obj, path)
+        walk = self._walk(obj, path, route.arcs or {}, route=True)
+        if walk is None:
+            return None
+        route.walk = walk
+        return route
 
     # -- networks ------------------------------------------------------
 
@@ -647,12 +656,19 @@ class _Reader:
                 if area is not None:
                     network.areas.append(area)
 
-        network.chains = self._chains(obj, path, network)
+        network.chains = self._chains(obj, path, network.arcs or {})
         return network
 
     def _nodes(
         self, obj: dict[str, JSONValue], path: str
     ) -> Union[dict[str, Position], None]:
+        """A network's or a route's `nodes` (SPEC 3.3.1).
+
+        A node that will not parse is dropped, and an arc naming it is then
+        dropped under `arc-node-absent`, so the loss surfaces on everything
+        that depended on it.  A node carries no time: the time is dropped and
+        the node kept.
+        """
         if "nodes" not in obj:
             return None
         value = obj["nodes"]
@@ -662,14 +678,23 @@ class _Reader:
             return None
         nodes: dict[str, Position] = {}
         for key, item in value.items():
-            position = self._position(item, join(at, key))
-            if position is not None:
-                nodes[key] = position
+            here = join(at, key)
+            position = self._position(item, here, "position-unusable")
+            if position is None:
+                continue
+            nodes[key] = self._extra_channel(position, here, keep_ele=True)
         return nodes
 
     def _arcs(
         self, obj: dict[str, JSONValue], path: str, nodes: dict[str, Position]
     ) -> Union[dict[str, Arc], None]:
+        """A network's or a route's `arcs` (SPEC 3.3.2).
+
+        ⚠ A DROPPED ARC TAKES EVERY CHAIN WALKING IT WITH IT, but not here: the
+        chain is dropped when its walk is read, under `pass-arc-absent`, with a
+        diagnostic of its own (SPEC 6.2).  That is why nodes and arcs are read
+        before any walk.
+        """
         if "arcs" not in obj:
             return None
         value = obj["arcs"]
@@ -683,88 +708,87 @@ class _Reader:
             entry = self._object(item, here, K.ARC, "an arc")
             if entry is None:
                 continue
-            pips = self._positions(entry, "pips", here)
-            if pips is None and "pips" in entry:
-                # SPEC 6.2: an unusable pip drops the ARC.  The arc then leaves
-                # the network, and a link naming it reports `link-arc-absent` --
-                # a gap the continuity rule can see, where a shorter polyline
-                # would have looked right.
-                continue
-            arc = Arc(
-                from_=self._string(entry, "from", here),
-                to=self._string(entry, "to", here),
-                pips=pips,
-                data=self._data(entry, here),
-            )
-            # An arc's endpoints name nodes in the same network (SPEC 3.3.2).
-            # A name that is not there is an unusable value under SPEC 6.2, but
-            # the arc's geometry is still real, so the arc is kept.
-            for field_name, node_key in (("from", arc.from_), ("to", arc.to)):
-                if node_key is not None and node_key not in nodes:
-                    self.note(
-                        join(here, field_name), "not a node in this network"
-                    )
-            self._check_terminal_pips(arc, here, nodes)
-            if not self._complete(
-                entry, here, "an arc",
-                {"from": arc.from_, "to": arc.to, "pips": arc.pips},
-            ):
-                continue
-            arcs[key] = arc
+            arc = self._arc(entry, here, nodes)
+            if arc is not None:
+                arcs[key] = arc
         return arcs
 
-    def _check_terminal_pips(
-        self, arc: Arc, path: str, nodes: dict[str, Position]
-    ) -> None:
-        """SPEC 3.3.2: a terminal pip and its node are one fact written twice.
-
-        The pips are authoritative, so nothing is corrected and both are kept --
-        but a reader MUST compare them and MUST record a diagnostic where they
-        are further apart than SPEC 3.3.3's tolerance.
-        """
-        pips = arc.pips
-        if not pips:
-            return
-        for field_name, node_key, pip, which in (
-            ("from", arc.from_, pips[0], "first"),
-            ("to", arc.to, pips[-1], "last"),
-        ):
-            if node_key is None:
-                continue
-            node = nodes.get(node_key)
-            if node is None:
-                # An absent node is already reported as an unusable value, and
-                # there is no second position to compare against.
-                continue
-            distance = distance_between((pip.lon, pip.lat), (node.lon, node.lat))
-            if distance > PROJECTION_TOLERANCE_M:
-                # `diagnose/terminal-pip-off-node.vnx` pins the code, so the
-                # spelling is the corpus's rather than this reader's.  The
-                # metres are NOT pinned: what a reader reports depends on its
-                # distance model, and only the code and the path are compared.
+    def _arc(
+        self, entry: dict[str, JSONValue], here: str, nodes: dict[str, Position]
+    ) -> Union[Arc, None]:
+        ends: list[str] = []
+        for end in ("from", "to"):
+            name = entry.get(end)
+            if not isinstance(name, str):
+                what = "is missing" if end not in entry else "is not a node key"
                 self.note(
-                    join(path, field_name),
-                    f"node `{node_key}` is {distance:.0f} m from the "
-                    f"{which} pip, beyond the "
-                    f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
-                    "terminal-pip-off-node",
+                    join(here, end), f"arc `{end}` {what}", "wrong-type-required"
                 )
+                return None
+            ends.append(name)
+        if not isinstance(entry.get("pips"), list):
+            what = "is missing" if "pips" not in entry else "is not an array"
+            self.note(join(here, "pips"), f"arc `pips` {what}", "wrong-type-required")
+            return None
+        pips = self._positions(entry, "pips", here)
+        if pips is None:
+            # SPEC 6.2: an unusable pip drops the ARC, reported at the pip.
+            return None
+        arc = Arc(
+            from_=ends[0], to=ends[1], pips=self._pip_times(pips, here),
+            data=self._data(entry, here),
+        )
+        if W.is_self_loop(arc):
+            self.note(
+                here,
+                f"arc runs from node {arc.from_!r} to itself; a self-loop cannot "
+                "be walked",
+                "self-loop-arc",
+            )
+            return None
+        return arc if self._ends_present(arc, here, nodes) else None
+
+    def _ends_present(self, arc: Arc, here: str, nodes: dict[str, Position]) -> bool:
+        """SPEC 3.3.2: an arc naming a node its owner does not have is dropped.
+        Each absent end is its own diagnostic, at that end."""
+        present = True
+        for end, name in (("from", arc.from_), ("to", arc.to)):
+            if name not in nodes:
+                present = False
+                self.note(
+                    join(here, end),
+                    f"arc names {end} node {name!r}, which is not here",
+                    "arc-node-absent",
+                )
+        return present
+
+    def _pip_times(self, pips: list[Position], here: str) -> list[Position]:
+        """SPEC 3.3.2: an arc pip carries no time.  Every time on the arc is
+        dropped and the pips kept, with ONE diagnostic at the arc's `pips`."""
+        if all(pip.time_ms is None for pip in pips):
+            return pips
+        self.note(
+            join(here, "pips"),
+            "an arc pip carries no time: every time on this arc is dropped",
+            "arc-pip-time",
+        )
+        return [Position(pip.lon, pip.lat, pip.ele) for pip in pips]
 
     def _chains(
-        self, obj: dict[str, JSONValue], path: str, network: Network
+        self, obj: dict[str, JSONValue], path: str, arcs: dict[str, Arc]
     ) -> Union[list[Chain], None]:
         items = self._array(obj, "chains", path)
         if items is None:
             return None
         chains: list[Chain] = []
         for index, item in enumerate(items):
-            chain = self._chain(item, join(path, "chains", index), network)
+            chain = self._chain(item, join(path, "chains", index), arcs)
             if chain is not None:
                 chains.append(chain)
         return chains
 
     def _chain(
-        self, value: JSONValue, path: str, network: Network
+        self, value: JSONValue, path: str, arcs: dict[str, Arc]
     ) -> Union[Chain, None]:
         obj = self._object(value, path, K.CHAIN, "a chain")
         if obj is None:
@@ -776,138 +800,114 @@ class _Reader:
             style=self._style(obj, path),
             data=self._data(obj, path),
         )
-        items = self._array(obj, "links", path)
-        if items is None:
-            if not self._complete(obj, path, "a chain", {"links": None}):
-                return None
-            return chain
-        chain.links = []
-        # `kept` records which source indices survived, so that a break is only
-        # reported between links that were adjacent in the document.  Reporting
-        # one across a dropped link would turn one defect into two.
-        kept: list[tuple[int, Link]] = []
-        for index, item in enumerate(items):
-            at = join(path, "links", index)
-            link = self._link(item, at, network)
-            if link is not None:
-                chain.links.append(link)
-                kept.append((index, link))
-        self._check_continuity(kept, path, network)
+        walk = self._walk(obj, path, arcs, route=False)
+        if walk is None:
+            return None
+        chain.walk = walk
         return chain
 
-    def _link(
-        self, value: JSONValue, path: str, network: Network
-    ) -> Union[Link, None]:
-        obj = self._object(value, path, K.LINK, "a link")
-        if obj is None:
-            return None
-        arc_key = self._string(obj, "arc", path)
-        arcs = network.arcs or {}
-        if arc_key is None or arc_key not in arcs:
-            # SPEC 6.2 names this exactly: a link naming an arc that is absent
-            # from the document is an unusable value.  A link's whole meaning is
-            # the arc it traverses, so there is no geometry to keep.
-            self.note(
-            path,
-            "not in this network: this link names no arc it can traverse",
-            "link-arc-absent",
-        )
-            return None
-        arc = arcs[arc_key]
-        link = Link(arc=arc_key)
-        for field_name in ("from", "to"):
-            endpoint = self._endpoint(obj, field_name, path, arc, network)
-            if field_name == "from":
-                link.from_ = endpoint
-            else:
-                link.to = endpoint
-        if not self._complete(
-            obj, path, "a link", {"from": link.from_, "to": link.to}
-        ):
-            return None
-        return link
-
-    def _endpoint(
+    def _walk(
         self,
         obj: dict[str, JSONValue],
-        key: str,
-        path: str,
-        arc: Arc,
-        network: Network,
-    ) -> Union[Endpoint, None]:
-        if key not in obj:
+        owner: str,
+        arcs: dict[str, Arc],
+        route: bool,
+    ) -> Union[list[Pass], None]:
+        """A chain's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+
+        None means the owner is dropped: a missing or wrong-typed `walk`, or the
+        first pass that breaks a rule, which is reported alone -- nothing after
+        it in the walk is examined.
+
+        ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC 6.2).  Dropping a pass would
+        hand the caller a different walk that reads as valid -- two arcs joined
+        that do not meet, a direction reversed by a lost turn, a start moved to
+        a node -- so any fault drops the owner.
+        """
+        path = join(owner, "walk")
+        items = obj.get("walk")
+        if not isinstance(items, list):
+            what = "is missing" if "walk" not in obj else "is not an array"
+            self.note(path, f"`walk` {what}", "wrong-type-required")
             return None
-        value = obj[key]
-        at = join(path, key)
-        if isinstance(value, str):
-            if value not in (network.nodes or {}):
-                self.note(at, "not a node in this network")
+        walk: list[Pass] = []
+        cursor = W.Cursor(last=len(items) - 1, route=route)
+        for index, item in enumerate(items):
+            at = join(path, index)
+            # 1. The pass is an object naming an arc of its owner.
+            arc_key = self._pass_arc(item, at, arcs)
+            if arc_key is None:
+                return None
+            assert isinstance(item, dict)
+            # 2. Unrecognised keys.  3. `pinned`.
+            self._object(item, at, K.PASS, "a pass")
+            p = Pass(arc=arc_key, pinned=self._bool(item, "pinned", at) is True)
+            # 4. `from`, `to` and `turn` each parse.
+            for key in ("from", "to", "turn"):
+                if key not in item:
+                    continue
+                endpoint = self._walk_position(item[key], join(at, key), key)
+                if endpoint is None:
+                    return None
+                if key == "from":
+                    p.from_ = endpoint
+                elif key == "to":
+                    p.to = endpoint
+                else:
+                    assert isinstance(endpoint, Position)
+                    p.turn = endpoint
+            # 5 to 8: the route rule, pin and turn, spelling, connection.
+            stepped = cursor.step(index, p, arcs[arc_key])
+            if isinstance(stepped, W.WalkFault):
+                self.note(stepped.path(path), stepped.message, stepped.code)
+                return None
+            walk.append(p)
+        return walk
+
+    def _pass_arc(
+        self, item: JSONValue, at: str, arcs: dict[str, Arc]
+    ) -> Union[str, None]:
+        """SPEC 6.2's first check on a pass: it is an object, and its `arc`
+        names an arc of its owner -- including one another rule dropped.  When
+        it does not, nothing about the pass resolves, so the pass is named."""
+        if not isinstance(item, dict):
+            self.note(at, "a pass must be an object", "pass-arc-absent")
+            return None
+        arc_key = item.get("arc")
+        if not isinstance(arc_key, str) or arc_key not in arcs:
+            self.note(at, f"pass names arc {arc_key!r}, which is not here", "pass-arc-absent")
+            return None
+        return arc_key
+
+    def _walk_position(
+        self, value: JSONValue, path: str, key: str
+    ) -> Union[Endpoint, None]:
+        """A pass's `from`, `to` or `turn`: a node key where one is allowed, or
+        a position carrying longitude and latitude only (SPEC 3.3.3).
+
+        A position identifies the nearest point of its arc's line, at ANY
+        distance, so nothing here measures one against the arc.
+        """
+        if isinstance(value, str) and key != "turn":
             return value
-        position = self._position(value, at)
+        position = self._position(value, path, "position-unusable")
         if position is None:
             return None
-        # SPEC 3.3.3: an inline position MUST lie on the named arc, within a
-        # projection tolerance of 50 metres.  One that does not is an unusable
-        # value under SPEC 6.2.
-        polyline = [(pip.lon, pip.lat) for pip in (arc.pips or [])]
-        if not polyline:
-            self.note(at, "the named arc carries no pips to project onto")
-            return None
-        distance = distance_to_polyline((position.lon, position.lat), polyline)
-        if distance > PROJECTION_TOLERANCE_M:
-            # The corpus pins the substring "beyond the 50 m tolerance" and
-            # deliberately does NOT pin the measured distance, since the metres
-            # a reader reports depend on its distance model.  The distance is
-            # still worth reporting -- it is what tells a holder whether the
-            # document is nearly right or nowhere near.
-            self.note(
-                at,
-                f"does not lie on arc `{arc_name(network, arc)}`: "
-                f"{distance:.0f} m, beyond the "
-                f"{PROJECTION_TOLERANCE_M:.0f} m tolerance",
-                "endpoint-off-arc",
-            )
-            return None
-        return position
+        return self._extra_channel(position, path, keep_ele=False)
 
-    def _check_continuity(
-        self, kept: list[tuple[int, Link]], path: str, network: Network
-    ) -> None:
-        """Consecutive links must meet (SPEC 8, diagnose tier).
-
-        Endpoints are compared by value, never by identity: SPEC 3.3.3 requires
-        value-equal inline positions to be treated as the same endpoint, and
-        without that a turnaround handle reads as a break that is not there.
-        """
-        for (index_a, first), (index_b, second) in zip(kept, kept[1:]):
-            if index_b != index_a + 1:
-                continue
-            if first.to is None or second.from_ is None:
-                continue
-            if not self._same_endpoint(first.to, second.from_, network):
-                self.note(
-                    join(path, "links", index_b),
-                    "not one connected walk: this link does not start where the "
-                    "previous one ended",
-                    "chain-discontinuity",
-                )
-
-    def _same_endpoint(
-        self, first: Endpoint, second: Endpoint, network: Network
-    ) -> bool:
-        if isinstance(first, str) and isinstance(second, str) and first == second:
-            return True
-        a = self._resolve(first, network)
-        b = self._resolve(second, network)
-        if a is None or b is None:
-            return False
-        return a.same_point(b)
-
-    @staticmethod
-    def _resolve(endpoint: Endpoint, network: Network) -> Union[Position, None]:
-        if isinstance(endpoint, Position):
-            return endpoint
-        return (network.nodes or {}).get(endpoint)
+    def _extra_channel(self, position: Position, path: str, keep_ele: bool) -> Position:
+        """A channel the element may not carry: a time on a node (SPEC 3.3.1),
+        or an elevation or a time on a walk position (SPEC 3.3.3).  The channel
+        is dropped, the element kept, and the diagnostic names the element."""
+        ele = position.ele if keep_ele else None
+        if position.ele == ele and position.time_ms is None:
+            return position
+        self.note(
+            path,
+            "this position carries a channel it may not: the channel is dropped",
+            "extra-channel",
+        )
+        return Position(position.lon, position.lat, ele)
 
 
 def _json_type(value: JSONValue) -> str:
@@ -930,9 +930,3 @@ def _is_importance(value: JSONValue) -> bool:
         return False
     return float(value).is_integer() and 1 <= value <= 5
 
-
-def arc_name(network: Network, arc: Arc) -> str:
-    for key, candidate in (network.arcs or {}).items():
-        if candidate is arc:
-            return key
-    return "?"

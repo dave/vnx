@@ -37,23 +37,22 @@ from .encode import encode_document
 from .errors import Diagnostic, VNXRefusal
 from .jsonio import parse_json
 from .model import (
-    AppKey, Area, Arc, Chain, DataRecord, Document, Folder, Link, Network, Position,
-    Route, RouteArc, Segment, Track, Waypoint, is_app_key,
+    AppKey, Area, Arc, Chain, DataRecord, Document, Folder, Network, Pass,
+    Position, Route, Segment, Track, Waypoint, is_app_key,
 )
 from .writer import encode_bytes, normalised_document
 
 __all__ = [
     "AppKey", "Area", "Arc", "Attachment", "Chain", "ContainerReadResult", "DataRecord",
-    "Diagnostic", "Document", "Folder", "Link", "Network", "Position",
-    "ReadResult", "Route",
-    "RouteArc", "SUPPORTED_VERSION", "Segment", "Track", "VNXRefusal",
+    "Diagnostic", "Document", "Folder", "Network", "Pass", "Position",
+    "ReadResult", "Route", "SUPPORTED_VERSION", "Segment", "Track", "VNXRefusal",
     "Waypoint", "decode_document", "encode_document", "encode_bytes",
     "encode_container_bytes", "encode_file", "parse_json", "read_bytes",
     "read_container_bytes", "read_container_file", "read_file",
     "normalised_document", "is_app_key",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def read_file(path: Union[str, os.PathLike[str]]) -> ReadResult:

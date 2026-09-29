@@ -12,6 +12,7 @@ catch, plus the ones this implementation had to decide for itself.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import pathlib
 import unittest
@@ -19,7 +20,8 @@ from typing import Any, Callable
 from unittest import mock
 
 import vnx
-from vnx import decode, geo, model
+from vnx import decode, model
+from vnx import walk as W
 from vnx.model import Position
 
 from . import test_corpus, test_reader, test_writer, tree
@@ -71,7 +73,34 @@ def _round_positions(value: Any) -> Any:
     return value
 
 
+def _red_cases(result: unittest.TestResult) -> set[str]:
+    """The corpus cases a run failed, by name.  A failure outside a subtest
+    names the test method instead, so it is never mistaken for a case."""
+    out: set[str] = set()
+    for test, _ in result.failures + result.errors:
+        params = getattr(test, "params", {})
+        out.add(str(params.get("case", test.id())))
+    return out
+
+
 class RedProof(unittest.TestCase):
+    def assertRedCases(self, defect: Any, check: str, cases: set[str], because: str) -> None:
+        """Like `assertGoesRed`, and the defect reddens EXACTLY *cases*.
+
+        corpus/README.md, step 8: a mutation that reddens three cases cannot
+        say which rule it broke, and one that reddens a case other than its own
+        says the case is not checking what its note claims.
+        """
+        with defect:
+            result = _run(check)
+        self.assertEqual(
+            _red_cases(result), cases,
+            f"{check} with a broken {because} reddened the wrong set of cases",
+        )
+        self.assertTrue(
+            _run(check).wasSuccessful(), f"{check} did not come back green"
+        )
+
     def assertGoesRed(self, defect: Any, check: str, because: str) -> None:
         with defect:
             result = _run(check)
@@ -89,13 +118,19 @@ class RedProof(unittest.TestCase):
         """`positions` is the only defence against a lon/lat transposition."""
         original = decode._Reader._position
 
-        def transposing(self: Any, value: Any, path: str) -> Any:
-            got = original(self, value, path)
+        # ⚠ THIS DEFECT ONCE READ `got.channels`, WHICH `Position` DOES NOT
+        # HAVE.  Every call raised, the accept tier went red on the exception,
+        # and the proof passed without ever transposing anything.  The swap is
+        # now real, and the second assertion below shows it moved a value.
+        def transposing(self: Any, value: Any, path: str, code: Any = None) -> Any:
+            got = original(self, value, path, code)
             if got is None:
                 return None
-            channels = list(got.channels)
-            channels[0], channels[1] = channels[1], channels[0]
-            return Position(tuple(channels))
+            return dataclasses.replace(got, lon=got.lat, lat=got.lon)
+
+        with mock.patch.object(decode._Reader, "_position", transposing):
+            swapped = vnx.read_bytes(b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}')
+        self.assertEqual(swapped.document.waypoints, [model.Waypoint(at=Position(2.0, 1.0))])
 
         self.assertGoesRed(
             mock.patch.object(decode._Reader, "_position", transposing),
@@ -188,87 +223,61 @@ class RedProof(unittest.TestCase):
 
     # -- the nested `counts` containers (D2) ----------------------------
     #
-    # What these three freeze, and why it is not what the plan for D2 said.
-    #
-    # The plan claimed `counts` counted only the six top-level arrays, "so a
-    # reader that drops every route's arcs passes".  It does not.  The accept
-    # tier re-encodes the decoded document and compares the two trees, and that
-    # comparison sees a missing route arc on its own -- see
-    # `test_a_dropped_route_arc_was_already_caught_without_counts`, which takes
-    # `counts` out of the picture entirely and watches accept go red anyway.
-    #
-    # The hole D2 actually closes is the `diagnose/` tier.  SPEC 8.1 exempts it
-    # from the round trip, for the good reason that a diagnose case is a
-    # document the reader is SUPPOSED to come back from with less than it was
-    # given.  That exemption is the hole: with no round trip and only top-level
-    # counts, nothing looked at how much less.  A reader that drops a dangling
-    # link AND the rest of its chain with it -- a scoped drop made over-broad --
-    # passed the whole corpus green.
+    # What these freeze.  SPEC 8.1 exempts the `diagnose/` tier from the round
+    # trip, for the good reason that a diagnose case is a document the reader
+    # is SUPPOSED to come back from with less than it was given.  That
+    # exemption is the hole: with no round trip and only top-level counts,
+    # nothing looked at how much less.  In 0.2 the scoped drop that matters is
+    # one chain of several: a reader whose dropped chain takes its siblings
+    # with it passes every top-level count, because the network is still there.
 
     @staticmethod
     def _over_broad_chain_drop() -> Any:
-        """A reader whose scoped drop is over-broad: a dropped link takes the
-        rest of its chain with it.
+        """A reader whose scoped drop is over-broad: one dropped chain takes
+        every chain of its network with it."""
+        original = decode._Reader._chains
 
-        This is the defect in its smallest honest form.  In the decoder the
-        difference is one keyword -- the loop in `_Reader._chain` keeps going
-        past a link it could not use, and a `break` there would not.  Patched
-        from outside rather than by re-writing `_chain`, so the test does not
-        carry a stale copy of the decoder's continuity bookkeeping.
-        """
-        dropped: list[str] = []
-        original_link = decode._Reader._link
-        original_chain = decode._Reader._chain
+        def emptying(self: Any, obj: Any, path: str, arcs: Any) -> Any:
+            chains = original(self, obj, path, arcs)
+            if chains is not None and len(chains) < len(obj.get("chains") or []):
+                return []
+            return chains
 
-        def recording(self: Any, value: Any, path: str, network: Any) -> Any:
-            got = original_link(self, value, path, network)
-            if got is None:
-                dropped.append(path)
-            return got
-
-        def truncating(self: Any, value: Any, path: str, network: Any) -> Any:
-            before = len(dropped)
-            chain = original_chain(self, value, path, network)
-            if chain is not None and len(dropped) > before:
-                # Every link before the first dropped one was kept, so the index
-                # of that drop is how many links survive an over-broad one.
-                first = int(dropped[before].rsplit("/", 1)[1])
-                chain.links = (chain.links or [])[:first]
-            return chain
-
-        return _both(
-            mock.patch.object(decode._Reader, "_link", recording),
-            mock.patch.object(decode._Reader, "_chain", truncating),
-        )
+        return mock.patch.object(decode._Reader, "_chains", emptying)
 
     def test_an_over_broad_scoped_drop_is_caught(self) -> None:
         """The nested `counts` containers, ruled 2026-09-14.
 
-        Two corpus cases carry the two shapes of the same defect, and the
-        runner names the container in both:
+        Every case that drops one chain of two names
+        `/networks/0/chains: 1`, and the over-broad reader leaves 0.
 
-          link-names-absent-arc.vnx  /networks/0/chains/0/links  1, want 2
-          position-unusable.vnx      /networks/0/chains/0/links  0, want 1
-
-        The second is the more alarming one -- its dangling link is the FIRST in
-        the chain, so the over-broad drop empties the chain outright rather than
-        truncating it -- and it is the one a red proof aimed only at the first
-        case would never have shown.
+        ⚠ `positions` IS A SECOND GUARD HERE, and it is switched off so that
+        this proof credits `counts` alone.  The 0.2 cases pin a position on
+        the SURVIVING chain (`/networks/0/chains/0/walk/0/to`), which an
+        over-broad reader no longer has.  Measured: with `counts` cut back to
+        the top level, those pins still redden all six cases.
         """
-        self.assertGoesRed(
-            self._over_broad_chain_drop(),
+        unchecked = mock.patch.object(
+            test_corpus._CorpusCase, "_check_positions",
+            lambda self, expect, document, name: None,
+        )
+        self.assertRedCases(
+            _both(self._over_broad_chain_drop(), unchecked),
             "DiagnoseTier.test_diagnose",
-            "reader whose dropped link takes the rest of its chain with it",
+            {"arc-names-absent-node.vnx", "pass-names-absent-arc.vnx",
+             "pinned-turn.vnx", "walk-not-connected.vnx",
+             "walk-position-unusable.vnx", "walk-spelling.vnx"},
+            "reader whose dropped chain takes its siblings with it",
         )
 
     def test_the_top_level_counts_rule_could_not_see_that(self) -> None:
         """The finding, frozen, so the weaker rule is not reintroduced.
 
         Counting only the six top-level collections, the over-broad drop above
-        is invisible: the document still carries one network, one chain, one of
-        everything a pre-D2 sidecar named.  And `diagnose/` has no round trip to
-        catch what `counts` misses.  If this ever goes red, the nested
-        containers have stopped being counted.
+        is invisible to `counts`: the document still carries one network.  And
+        `diagnose/` has no round trip to catch what `counts` misses.  With
+        `positions` also off -- see the note above -- nothing else sees it.  If
+        this ever goes red, something new is guarding the scoped drop; say so.
         """
         def top_level_only(
             self: Any, expect: Any, document: Any, name: str
@@ -287,6 +296,9 @@ class RedProof(unittest.TestCase):
 
         with self._over_broad_chain_drop(), mock.patch.object(
             test_corpus._CorpusCase, "_check_counts", top_level_only
+        ), mock.patch.object(
+            test_corpus._CorpusCase, "_check_positions",
+            lambda self, expect, document, name: None,
         ):
             self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
 
@@ -314,7 +326,8 @@ class RedProof(unittest.TestCase):
             got = original(self, value)
             for route in got.routes or []:
                 if route.arcs:
-                    route.arcs = route.arcs[:1]
+                    first = sorted(route.arcs)[0]
+                    route.arcs = {first: route.arcs[first]}
             return got
 
         def unchecked(self: Any, expect: Any, document: Any, name: str) -> None:
@@ -556,7 +569,9 @@ class RedProof(unittest.TestCase):
 
     def test_a_reader_that_reports_nothing_is_caught(self) -> None:
         self.assertGoesRed(
-            mock.patch.object(decode._Reader, "note", lambda self, path, message: None),
+            # `*args`: a defect with the wrong signature raises on every call,
+            # and the tier goes red on the exception rather than the defect.
+            mock.patch.object(decode._Reader, "note", lambda self, *args: None),
             "DiagnoseTier.test_diagnose",
             "reader that records no diagnostics",
         )
@@ -616,13 +631,203 @@ class RedProof(unittest.TestCase):
                 "a diagnostic's English is being compared; it must not be",
             )
 
+    # -- the walk rules (SPEC 3.3.3, 6.2) --------------------------------
+    #
+    # One proof per check.  Each switches off exactly one rule and requires
+    # EXACTLY its own corpus case to go red, then the unit tests that pin the
+    # rule's other clauses, then the writer's refusal, because the writer runs
+    # the same function (`vnx/walk.py`).
+
     def test_a_reader_with_no_continuity_check_is_caught(self) -> None:
+        """Walk continuity: SPEC 3.3.3's valid-walk rules 3 to 5.
+
+        The defect trusts every pass: it enters where the walk says and leaves
+        by the other end, and never asks whether the arc touches either.
+        """
+        def trusting(at: Any, index: int, last: int, p: Any, arc: Any) -> Any:
+            entry = p.from_ if p.from_ is not None else at
+            if p.to is not None:
+                return entry, p.to
+            if p.turn is not None:
+                return entry, entry
+            return entry, arc.to if entry == arc.from_ else arc.from_
+
+        defect = lambda: mock.patch.object(W, "connection", trusting)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"walk-not-connected.vnx"},
+            "walk continuity check",
+        )
+        for test in ("test_8_a_from_node_that_is_not_an_end",
+                     "test_8_a_pass_that_does_not_join",
+                     "test_8_a_to_node_that_is_not_an_end",
+                     "test_8_a_position_exit_before_the_last_pass",
+                     "test_a_turn_leaves_by_the_node_it_entered"):
+            with self.subTest(test=test):
+                self.assertGoesRed(defect(), f"reader:Walks.{test}", "walk continuity check")
         self.assertGoesRed(
+            defect(),
+            "writer:TheWriterRefusesWhatItsReaderDrops."
+            "test_a_walk_that_breaks_a_rule_is_refused_naming_pass_and_code",
+            "writer's walk continuity check",
+        )
+
+    def test_a_reader_with_no_spelling_rule_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "spelling", lambda i, last, p: None)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"walk-spelling.vnx"},
+            "rule for `from` and `to`",
+        )
+        for test in ("test_7_the_first_pass_lacks_from", "test_7_a_later_pass_carries_from",
+                     "test_7_the_last_pass_lacks_to", "test_7_a_middle_pass_carries_to",
+                     "test_7_a_position_from_needs_a_to"):
+            with self.subTest(test=test):
+                self.assertGoesRed(defect(), f"reader:Walks.{test}", "rule for `from` and `to`")
+
+    def test_a_reader_that_allows_a_pinned_turn_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "pinned_turn", lambda p: None)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"pinned-turn.vnx"},
+            "pinned-turn check",
+        )
+        self.assertGoesRed(
+            defect(), "reader:Walks.test_a_pinned_turn_is_found_before_the_spelling",
+            "pinned-turn check",
+        )
+
+    def test_a_reader_that_lets_a_route_carry_a_position_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "route_rule", lambda p: None)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"route-pin-or-position.vnx"},
+            "route rule",
+        )
+        self.assertGoesRed(
+            defect(), "reader:Routes.test_each_forbidden_key_names_itself", "route rule"
+        )
+        self.assertGoesRed(
+            defect(),
+            "writer:TheWriterRefusesWhatItsReaderDrops."
+            "test_a_route_carrying_a_position_is_refused",
+            "writer's route rule",
+        )
+
+    def test_a_reader_that_trusts_every_arc_name_is_caught(self) -> None:
+        """`pass-arc-absent`, and the cascade that ends in it.
+
+        A pass naming a missing arc cannot be stepped at all, so the defect is
+        the nearest one that runs: the chain is still dropped, and the
+        diagnostic saying why is lost.  Four cases end in this code, three of
+        them as the second half of a cascade.
+        """
+        original = decode._Reader._pass_arc
+
+        def lenient(self: Any, item: Any, at: str, arcs: Any) -> Any:
+            got = original(self, item, at, arcs)
+            if got is None:
+                self.diagnostics.pop()
+            return got
+
+        self.assertRedCases(
+            mock.patch.object(decode._Reader, "_pass_arc", lenient),
+            "DiagnoseTier.test_diagnose",
+            {"arc-names-absent-node.vnx", "pass-names-absent-arc.vnx",
+             "position-unusable.vnx", "self-loop-arc.vnx"},
+            "check that a pass names an arc of its owner",
+        )
+
+    def test_only_the_first_fault_in_a_walk_is_reported(self) -> None:
+        """SPEC 6.2: at the first check that drops the chain, nothing further
+        in the walk is examined.  A reader that reported every fault it could
+        find would be more informative and non-conforming, and no corpus case
+        carries two faults in one walk, so the unit test is the guard."""
+        original = W.Cursor.step
+
+        def keeps_going(self: Any, index: int, p: Any, arc: Any) -> Any:
+            got = original(self, index, p, arc)
+            if isinstance(got, W.WalkFault) and got.code == "walk-spelling":
+                # Report the connection fault behind the spelling fault too.
+                self.at = p.from_ if isinstance(p.from_, str) else self.at
+                leg = W.connection(self.at, index, self.last, p, arc)
+                if isinstance(leg, W.Broken):
+                    return W.WalkFault(index, leg.key, "walk-not-connected", leg.message)
+            return got
+
+        self.assertGoesRed(
+            mock.patch.object(W.Cursor, "step", keeps_going),
+            "reader:Walks.test_only_the_first_fault_is_reported",
+            "reader that looks past the first fault in a walk",
+        )
+
+    # -- the graph and ring rules (SPEC 3.3.1, 3.3.2, 3.7) ---------------
+
+    def test_a_reader_that_keeps_a_self_loop_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "is_self_loop", lambda arc: False)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"self-loop-arc.vnx"},
+            "self-loop check",
+        )
+        self.assertGoesRed(
+            defect(), "writer:TheWriterRefusesWhatItsReaderDrops.test_a_self_loop_is_refused",
+            "writer's self-loop check",
+        )
+
+    def test_a_reader_that_keeps_an_arc_naming_an_absent_node_is_caught(self) -> None:
+        self.assertRedCases(
             mock.patch.object(
-                decode._Reader, "_check_continuity", lambda self, kept, path, net: None
+                decode._Reader, "_ends_present", lambda self, arc, here, nodes: True
             ),
             "DiagnoseTier.test_diagnose",
-            "reader with no chain continuity check",
+            {"arc-names-absent-node.vnx"},
+            "check that an arc's nodes are present",
+        )
+
+    def test_a_reader_that_keeps_a_time_on_an_arc_pip_is_caught(self) -> None:
+        self.assertRedCases(
+            mock.patch.object(
+                decode._Reader, "_pip_times", lambda self, pips, here: pips
+            ),
+            "DiagnoseTier.test_diagnose",
+            {"arc-pip-time.vnx"},
+            "arc pip time check",
+        )
+
+    def test_a_reader_that_keeps_an_extra_channel_is_caught(self) -> None:
+        self.assertRedCases(
+            mock.patch.object(
+                decode._Reader, "_extra_channel",
+                lambda self, position, path, keep_ele: position,
+            ),
+            "DiagnoseTier.test_diagnose",
+            {"extra-channel.vnx"},
+            "extra-channel check",
+        )
+
+    def test_a_reader_that_keeps_a_closed_ring_closed_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "ring_is_closed", lambda ring: False)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"ring-closed.vnx"},
+            "closed-ring check",
+        )
+        self.assertGoesRed(
+            defect(),
+            "writer:TheWriterRefusesWhatItsReaderDrops.test_a_closed_ring_is_refused_not_opened",
+            "writer's closed-ring check",
+        )
+
+    def test_a_reader_that_keeps_a_short_ring_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "distinct_lon_lat", lambda ring: 3)  # noqa: E731
+        self.assertRedCases(
+            defect(), "DiagnoseTier.test_diagnose", {"ring-too-few-points.vnx"},
+            "distinct-positions check",
+        )
+        self.assertGoesRed(
+            defect(), "reader:Polygons.test_a_repeated_interior_position_is_not_distinct",
+            "distinct-positions check",
+        )
+        self.assertGoesRed(
+            defect(),
+            "writer:TheWriterRefusesWhatItsReaderDrops."
+            "test_a_ring_of_two_distinct_positions_is_refused",
+            "writer's distinct-positions check",
         )
 
     def test_a_reader_that_keeps_the_outer_ring_is_caught(self) -> None:
@@ -640,48 +845,6 @@ class RedProof(unittest.TestCase):
             "DiagnoseTier.test_diagnose",
             "reader that flattens a nested polygon to its outer ring",
         )
-
-    def test_a_second_diagnostic_from_one_defect_is_caught(self) -> None:
-        """Dropping a dangling link must not then also report a broken chain.
-
-        Red-proofed against a unit test, not against the corpus: the corpus
-        case for this, `diagnose/link-names-absent-arc.vnx`, carries a two-link
-        chain, so after the drop no reader has a consecutive pair left to
-        misjudge.  The defect below leaves that case green.
-        """
-        original = decode._Reader._check_continuity
-
-        def across_the_hole(self: Any, kept: Any, path: str, network: Any) -> None:
-            renumbered = [(index, link) for index, (_, link) in enumerate(kept)]
-            original(self, renumbered, path, network)
-
-        self.assertGoesRed(
-            mock.patch.object(decode._Reader, "_check_continuity", across_the_hole),
-            "reader:Chains.test_one_dropped_link_reports_one_diagnostic",
-            "reader that checks continuity across a dropped link",
-        )
-
-    def test_the_corpus_alone_cannot_see_that_defect(self) -> None:
-        """The finding above, frozen so it is not rediscovered.
-
-        `diagnose/link-names-absent-arc.expect.json` says its point is that
-        "dropping the second link must not then also report the chain as
-        broken".  Its fixture cannot show that.  If the fixture ever gains a
-        third link this goes red and the note stops overstating the case.
-        """
-        original = decode._Reader._check_continuity
-
-        def across_the_hole(self: Any, kept: Any, path: str, network: Any) -> None:
-            renumbered = [(index, link) for index, (_, link) in enumerate(kept)]
-            original(self, renumbered, path, network)
-
-        with mock.patch.object(
-            decode._Reader, "_check_continuity", across_the_hole
-        ):
-            self.assertFalse(
-                _run("DiagnoseTier.test_diagnose").wasSuccessful(),
-                "the corpus stopped seeing this; has the chain been simplified?",
-            )
 
     def test_a_duplicate_key_diagnostic_would_go_red(self) -> None:
         """SPEC 6.4's limitation is recorded, not assumed permanent.
@@ -763,34 +926,6 @@ class RedProof(unittest.TestCase):
         )
 
 
-    # -- rules no corpus case reaches ------------------------------------
-
-    def test_a_reader_that_skips_the_terminal_pip_check_is_caught(self) -> None:
-        """SPEC 3.3.2 is a MUST that no fixture exercises.
-
-        Which makes these unit tests the only guard, so they are the ones that
-        have to be red-proofed: a rule with no fixture and no red proof is a
-        rule nothing is holding.
-        """
-        self.assertGoesRed(
-            mock.patch.object(
-                decode._Reader, "_check_terminal_pips",
-                lambda self, arc, path, nodes: None,
-            ),
-            "reader:TerminalPips.test_a_node_far_from_its_terminal_pip_is_diagnosed",
-            "reader that never compares a terminal pip against its node",
-        )
-
-    def test_a_terminal_pip_check_that_always_fires_is_caught(self) -> None:
-        """The other half: a check that reports everything guards nothing."""
-        self.assertGoesRed(
-            mock.patch.object(
-                vnx.decode, "PROJECTION_TOLERANCE_M", 0.0
-            ),
-            "reader:TerminalPips.test_a_node_within_tolerance_is_silent",
-            "tolerance of zero metres",
-        )
-
     def test_a_reader_that_drops_the_pip_instead_of_the_container_is_caught(
         self,
     ) -> None:
@@ -820,36 +955,25 @@ class RedProof(unittest.TestCase):
 
 
     def test_two_reports_a_runner_cannot_tell_apart_are_caught(self) -> None:
-        """SPEC 6.3's invariant, red-proofed by restoring the arc-level path.
+        """SPEC 6.3's invariant, red-proofed by reporting per pip.
 
-        `diagnose/terminal-pip-off-node.vnx` has BOTH terminals of one arc
-        drifted, so a reader reporting at the arc rather than at the end emits
-        two diagnostics with one path and one code -- and the set matcher would
-        pass a reader that found one of the two faults twice.
+        `arc-pip-time` is reported ONCE for the arc, at its `pips`.
+        `diagnose/arc-pip-time.vnx` has two timed pips on one arc, so a reader
+        that reported once per timed pip at that path emits two diagnostics
+        with one path and one code -- and the set matcher alone would pass a
+        reader that found one fault twice.
         """
-        def arc_level(
-            self: Any, arc: Any, path: str, nodes: Any
-        ) -> None:
-            pips = arc.pips
-            if not pips:
-                return
-            for node_key, pip in ((arc.from_, pips[0]), (arc.to, pips[-1])):
-                if node_key is None:
-                    continue
-                node = nodes.get(node_key)
-                if node is None:
-                    continue
-                far = geo.distance_between(
-                    (pip.lon, pip.lat), (node.lon, node.lat)
-                )
-                if far > decode.PROJECTION_TOLERANCE_M:
-                    self.note(path, "drifted", "terminal-pip-off-node")
+        def per_pip(self: Any, pips: Any, here: str) -> Any:
+            for pip in pips:
+                if pip.time_ms is not None:
+                    self.note(f"{here}/pips", "a time", "arc-pip-time")
+            return [Position(pip.lon, pip.lat, pip.ele) for pip in pips]
 
         self.assertGoesRed(
-            mock.patch.object(decode._Reader, "_check_terminal_pips", arc_level),
+            mock.patch.object(decode._Reader, "_pip_times", per_pip),
             "DiagnosticsAreDistinguishable."
             "test_every_corpus_document_reports_distinguishable_diagnostics",
-            "reader reporting a drifted pip at the arc instead of at the end",
+            "reader reporting an arc's pip times once per pip",
         )
 
     def test_a_walk_that_finds_nothing_is_caught(self) -> None:

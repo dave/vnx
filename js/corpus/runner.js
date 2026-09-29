@@ -463,8 +463,9 @@ function runWriteCases(dir, api) {
     // total collapse.
     try {
       const decoded = decodeText(input);
-      c.check(decoded.diagnostics.length === 0,
-        `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
+      // A write sidecar's `diagnostics` is what the input's decode must
+      // report, compared as the diagnose tier compares it; absent, nothing.
+      matchDiagnostics(c, decoded.diagnostics, expect.diagnostics ?? []);
       const diff = compareDocuments(encode(decoded.document), want, {});
       c.check(diff === '', `the written document is not the one the case expects: ${diff}`);
       // Shortening is idempotent, so the written form must be
@@ -550,8 +551,7 @@ function runWriteContainerCase(dir, base, api) {
 
   try {
     const decoded = decodeText(input);
-    c.check(decoded.diagnostics.length === 0,
-      `the input must read cleanly; got ${JSON.stringify(decoded.diagnostics.map((d) => d.code))}`);
+    matchDiagnostics(c, decoded.diagnostics, expect.diagnostics ?? []);
     const packed = encodeContainer(encode(decoded.document), [...listed].reverse());
     checkArchive(c, packed, wanted, manifest);
     // This case does NOT check that the archive is smaller than the document it

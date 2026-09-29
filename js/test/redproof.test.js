@@ -181,7 +181,7 @@ test('dropping a TRAILING null in the model is permitted; dropping an INTERIOR o
     from: '  return new Position(v.slice());',
     to: '  return new Position(v.filter((channel) => channel !== null));',
   }]);
-  assert.deepEqual(await failingDelta(interior), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(interior), ['write/arc-pip-time', 'write/emit-boundary']);
 });
 
 // ⚠ THE FOUR SPOILED READERS. Each of the next four cases is a reader that
@@ -537,7 +537,7 @@ test('shortening a position is caught by the write tier', async () => {
     from: '  while (n > 2 && out[n - 1] === null) n--;',
     to: '  // no shortening',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
+  assert.deepEqual(await failingDelta(cases), ['write/arc-pip-time', 'write/emit-boundary']);
 });
 
 test('shortening past an interior null is caught by the write tier', async () => {
@@ -744,16 +744,14 @@ test('a reader that keeps an arc naming an absent node is caught', async () => {
   assert.deepEqual(await failingDelta(cases), ['diagnose/arc-names-absent-node.vnx', 'diagnose/position-out-of-range.vnx']);
 });
 
-test('a reader that reports an arc pip time and keeps it is NOT caught by the corpus', async () => {
+test('a reader that reports an arc pip time and keeps it is caught by the write tier', async () => {
   const edits = [{ file: 'decode.js', from: '  a.pips = read.map(vertex);', to: '  a.pips = read;' }];
   const cases = await runMutated(edits);
-  // ⚠ NO CORPUS CASE REACHES THIS, measured 2026-09-29. diagnose/arc-pip-time
-  // .vnx is exempt from the round trip (SPEC.md 8.1), and `positions` compares
-  // longitude and latitude only, so a time left in the model is invisible. The
-  // encoder refuses such a pip, which is the second line; the check below is
-  // the first.
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now reaches this rule; assert the failure instead of the gap');
+  // diagnose/arc-pip-time.vnx cannot see this: it is exempt from the round
+  // trip (SPEC.md 8.1), and `positions` compares longitude and latitude only.
+  // write/arc-pip-time writes the document back, so a time left in the model
+  // reaches the writer, which refuses it, and the case fails.
+  assert.deepEqual(await failingDelta(cases), ['write/arc-pip-time']);
   const text = JSON.stringify({
     vnx: '0.2.0',
     networks: [{ nodes: { a: [0, 0], b: [1, 0] }, arcs: { ab: { from: 'a', to: 'b', pips: [[0.5, 0, 3, 100]] } } }],
@@ -765,7 +763,7 @@ test('a reader that reports an arc pip time and keeps it is NOT caught by the co
 
 test('a reader that drops an arc pip time silently is caught', async () => {
   const cases = await runMutated([{ file: 'decode.js', from: '  if (read.some(timed)) {', to: '  if (false) {' }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-pip-time.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-pip-time.vnx', 'write/arc-pip-time']);
 });
 
 test('a reader that drops a node time silently is caught', async () => {

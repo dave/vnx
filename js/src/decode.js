@@ -9,14 +9,14 @@
 
 import { VnxRefusal, Diagnostic } from './errors.js';
 import {
-  Position, Folder, Network, NetworkArc, Chain, Link, Endpoint,
-  Route, RouteArc, Track, Segment, Waypoint, Area, Document, AppKey,
+  Position, Folder, Network, Arc, Chain, Pass, Endpoint,
+  Route, Track, Segment, Waypoint, Area, Document, AppKey,
 } from './model.js';
-import { distanceToPolylineM, PROJECTION_TOLERANCE_M } from './geo.js';
+import { WalkCursor } from './walk.js';
 
 /** The MAJOR.MINOR this reader implements (SPEC.md 2.2). */
 export const READER_MAJOR = 0;
-export const READER_MINOR = 1;
+export const READER_MINOR = 2;
 
 const DROP = Symbol('drop');
 
@@ -117,7 +117,7 @@ export function decodeValue(value) {
   // SPEC.md 2.2: through 0.x each MINOR is its own series, so the question is
   // whether the document is in THIS reader's series, not whether it is newer
   // than it. A lower minor is refused for the same reason as a higher one: a
-  // 0.1 reader has no rules for 0.0, exactly as it has none for 0.2. PATCH
+  // 0.2 reader has no rules for 0.1, exactly as it has none for 0.3. PATCH
   // never refuses, at any version, because a patch increment is additive.
   if (major !== READER_MAJOR || minor !== READER_MINOR) {
     const newer = major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR);
@@ -172,13 +172,14 @@ function typeName(v) {
 /**
  * A value of the wrong JSON type is an unusable value (SPEC.md 6.2). Where the
  * key is OPTIONAL the field is dropped and the item kept; where it is REQUIRED
- * the item goes, because the object cannot exist without it.
+ * the item goes, because the object cannot exist without it. An absent
+ * REQUIRED key takes the same code as a wrong-typed one, at the key's path.
  */
 function field(k, path, kv, want, check, required, ctx) {
   const v = kv[k];
   if (v === undefined) {
     if (required) {
-      ctx.diag(path, `missing required key "${k}"`, 'missing-required-key');
+      ctx.diag(`${path}/${esc(k)}`, `missing required key "${k}"`, 'wrong-type-required');
       return DROP;
     }
     return undefined;
@@ -227,10 +228,12 @@ function style(path, kv, ctx) {
   if (!Object.prototype.hasOwnProperty.call(s, 'importance')) return s;
   const imp = s.importance;
   if (typeof imp === 'number' && Number.isInteger(imp) && imp >= 1 && imp <= 5) return s;
+  // SPEC.md 6.2: a value outside a stated range is an unusable value in an
+  // optional key, so it takes that code.
   ctx.diag(
     `${path}/style/importance`,
     '"importance" must be an integer from 1 to 5',
-    'importance-out-of-range',
+    'wrong-type-optional',
   );
   const copy = { ...s };
   delete copy.importance;
@@ -253,7 +256,7 @@ function data(path, kv, ctx) {
       return;
     }
     if (typeof rec['@type'] !== 'string') {
-      ctx.diag(p, 'a data record must carry a string "@type"', 'record-type-missing');
+      ctx.diag(p, 'a data record must carry a string "@type"', 'wrong-type-required');
       return;
     }
     out.push(rec);
@@ -265,7 +268,8 @@ function data(path, kv, ctx) {
  * A position (SPEC.md 4.1). The channel array is kept WHOLE, at the arity the
  * document carried. A reader MUST NOT round — decoding preserves the binary64
  * value the document states — and MUST NOT shorten, which is an emit rule.
- * Endpoint snapping and ring winding compare positions by full value.
+ * A node, an arc pip and a walk position then keep only the channels SPEC.md
+ * 3.3 lets them carry, and their callers report what they drop.
  */
 /**
  * @param {string} [code] the diagnostic code to report a failure under.
@@ -298,13 +302,12 @@ function position(v, path, ctx, code = 'position-unusable', consequence = 'so it
 }
 
 /**
- * An ordered pip list. A pip that will not parse drops the CONTAINER holding it
- * — the arc, or the segment — and not the pip (SPEC.md 6.2).
+ * A track segment's ordered pip list. A pip that will not parse drops the
+ * SEGMENT holding it, not the pip (SPEC.md 6.2).
  *
  * Geometry is continuous and structure is not. A missing vertex leaves a
  * shorter, plausible, wrong line with nothing to indicate it, while a missing
- * arc leaves a gap the continuity rule of 3.3.3 can see and report. The loss is
- * moved to where something downstream will notice it.
+ * segment is a gap SPEC.md 3.5 already makes a pause.
  */
 function pips(kv, path, ctx) {
   const a = arr('pips', path, kv, true, ctx);
@@ -312,12 +315,22 @@ function pips(kv, path, ctx) {
   const out = [];
   for (const [i, v] of a.entries()) {
     const p = position(v, `${path}/pips/${i}`, ctx, 'position-unusable',
-      'so the geometry holding it is dropped');
+      'so the segment holding it is dropped');
     if (p === DROP) return DROP;
     out.push(p);
   }
   return out;
 }
+
+/** True when a position carries a time: channel 3 is present and not null. */
+const timed = (p) => p.channels.length > 3 && p.channels[3] !== null;
+
+/**
+ * A node or an arc pip carries longitude, latitude and optionally elevation,
+ * and no time (SPEC.md 3.3.1, 3.3.2). The caller has diagnosed any time; this
+ * keeps the first three channels and drops the rest.
+ */
+const vertex = (p) => new Position(p.channels.slice(0, 3));
 
 // --- structure --------------------------------------------------------------
 
@@ -408,42 +421,96 @@ function readNetwork(raw, path, ctx) {
   n.folder = str('folder', path, kv, false, ctx);
   n.hidden = bool('hidden', path, kv, false, ctx);
   n.data = data(path, kv, ctx);
-
-  const nodes = objField('nodes', path, kv, false, ctx);
-  if (nodes !== undefined) {
-    n.nodes = new Map();
-    for (const key of Object.keys(nodes)) {
-      const p = position(nodes[key], `${path}/nodes/${esc(key)}`, ctx, 'position-unusable', 'so the node is dropped');
-      if (p !== DROP) n.nodes.set(key, p);
-    }
-  }
-
-  const arcs = objField('arcs', path, kv, false, ctx);
-  if (arcs !== undefined) {
-    n.arcs = new Map();
-    for (const key of Object.keys(arcs)) {
-      const p = `${path}/arcs/${esc(key)}`;
-      const raw2 = arcs[key];
-      if (!isPlainObject(raw2)) {
-        ctx.diag(p, `an arc must be an object, not ${typeName(raw2)}`, 'item-unusable');
-        continue;
-      }
-      const akv = known(raw2, p, ['from', 'to', 'pips'], ['data'], ctx);
-      const a = new NetworkArc();
-      a.from = str('from', p, akv, true, ctx);
-      a.to = str('to', p, akv, true, ctx);
-      a.pips = pips(akv, p, ctx);
-      if (a.from === DROP || a.to === DROP || a.pips === DROP) continue;
-      a.data = data(p, akv, ctx);
-      ctx.paths.set(a, p);
-      n.arcs.set(key, a);
-    }
-  }
-
-  n.chains = subCollection(kv, path, 'chains', ctx, readChain);
+  // Nodes, then arcs, then walks: a walk is checked against the arcs that
+  // survived, and an arc against the nodes that survived (SPEC.md 6.2).
+  n.nodes = readNodes(kv, path, ctx);
+  n.arcs = readArcs(kv, path, n.nodes, ctx);
+  n.chains = subCollection(kv, path, 'chains', ctx, (r, p, c) => readChain(r, p, c, n.arcs));
   n.points = subCollection(kv, path, 'points', ctx, (r, p, c) => readPointLike(r, p, c, false));
   n.areas = subCollection(kv, path, 'areas', ctx, (r, p, c) => readArea(r, p, c, false));
   return n;
+}
+
+/**
+ * The `nodes` of a network or a route. A node that will not parse is dropped,
+ * and an arc naming it is then dropped under `arc-node-absent`. A time on a
+ * node is dropped with `extra-channel`, and the node kept (SPEC.md 3.3.1).
+ */
+function readNodes(kv, path, ctx) {
+  const nodes = objField('nodes', path, kv, false, ctx);
+  if (nodes === undefined) return undefined;
+  const out = new Map();
+  for (const key of Object.keys(nodes)) {
+    const p = `${path}/nodes/${esc(key)}`;
+    const v = position(nodes[key], p, ctx, 'position-unusable', 'so the node is dropped');
+    if (v === DROP) continue;
+    if (timed(v)) {
+      ctx.diag(p, 'a node carries no time, so the time channel is dropped and the node kept', 'extra-channel');
+    }
+    out.set(key, vertex(v));
+  }
+  return out;
+}
+
+/**
+ * The `arcs` of a network or a route (SPEC.md 3.3.2).
+ *
+ * ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
+ * the chain goes when its walk is read, under `pass-arc-absent`, with a
+ * diagnostic of its own (SPEC.md 6.2).
+ */
+function readArcs(kv, path, nodes, ctx) {
+  const arcs = objField('arcs', path, kv, false, ctx);
+  if (arcs === undefined) return undefined;
+  const out = new Map();
+  for (const key of Object.keys(arcs)) {
+    const p = `${path}/arcs/${esc(key)}`;
+    const raw = arcs[key];
+    if (!isPlainObject(raw)) {
+      ctx.diag(p, `an arc must be an object, not ${typeName(raw)}`, 'item-unusable');
+      continue;
+    }
+    const a = readArc(raw, p, nodes, ctx);
+    if (a !== DROP) out.set(key, a);
+  }
+  return out;
+}
+
+function readArc(raw, p, nodes, ctx) {
+  const akv = known(raw, p, ['from', 'to', 'pips'], ['data'], ctx);
+  const a = new Arc();
+  a.from = str('from', p, akv, true, ctx);
+  if (a.from === DROP) return DROP;
+  a.to = str('to', p, akv, true, ctx);
+  if (a.to === DROP) return DROP;
+  const list = arr('pips', p, akv, true, ctx);
+  if (list === DROP) return DROP;
+  const read = [];
+  for (const [i, v] of list.entries()) {
+    const pip = position(v, `${p}/pips/${i}`, ctx, 'position-unusable', 'so the arc is dropped');
+    if (pip === DROP) return DROP;
+    read.push(pip);
+  }
+  // One diagnostic for the arc, however many pips carried a time (SPEC.md 6.3).
+  if (read.some(timed)) {
+    ctx.diag(`${p}/pips`,
+      'an arc pip carries no time, so every time channel on this arc is dropped and its pips kept', 'arc-pip-time');
+  }
+  a.pips = read.map(vertex);
+  a.data = data(p, akv, ctx);
+  if (a.from === a.to) {
+    ctx.diag(p, `the arc runs from node ${JSON.stringify(a.from)} to itself, and a self-loop cannot be walked, so the arc is dropped`,
+      'self-loop-arc');
+    return DROP;
+  }
+  let absent = false;
+  for (const which of ['from', 'to']) {
+    if (nodes !== undefined && nodes.has(a[which])) continue;
+    ctx.diag(`${p}/${which}`,
+      `"${which}" names node ${JSON.stringify(a[which])}, which is not here, so the arc is dropped`, 'arc-node-absent');
+    absent = true;
+  }
+  return absent ? DROP : a;
 }
 
 function subCollection(kv, path, key, ctx, read) {
@@ -465,81 +532,95 @@ function subCollection(kv, path, key, ctx, read) {
   return out;
 }
 
-function readChain(raw, path, ctx) {
-  const kv = known(raw, path, ['links'], ['name', 'notes', 'hidden', 'style', 'data'], ctx);
+function readChain(raw, path, ctx, arcs) {
+  const kv = known(raw, path, ['walk'], ['name', 'notes', 'hidden', 'style', 'data'], ctx);
   const c = new Chain();
-  const links = arr('links', path, kv, true, ctx);
-  if (links === DROP) return DROP;
-  c.links = [];
-  links.forEach((raw2, i) => {
-    const p = `${path}/links/${i}`;
-    if (!isPlainObject(raw2)) {
-      ctx.diag(p, `a link must be an object, not ${typeName(raw2)}`, 'item-unusable');
-      return;
-    }
-    const lkv = known(raw2, p, ['arc', 'from', 'to'], [], ctx);
-    const l = new Link();
-    l.arc = str('arc', p, lkv, true, ctx);
-    l.from = endpoint('from', p, lkv, ctx);
-    l.to = endpoint('to', p, lkv, ctx);
-    if (l.arc === DROP || l.from === DROP || l.to === DROP) return;
-    ctx.paths.set(l, p);
-    c.links.push(l);
-  });
   c.name = str('name', path, kv, false, ctx);
   c.notes = str('notes', path, kv, false, ctx);
   c.hidden = bool('hidden', path, kv, false, ctx);
   c.style = style(path, kv, ctx);
   c.data = data(path, kv, ctx);
-  return c;
+  c.walk = readWalk(kv, path, arcs, false, ctx);
+  return c.walk === DROP ? DROP : c;
 }
 
-/** A link endpoint is a node key (string) or an inline position (array). */
-function endpoint(k, path, kv, ctx) {
-  const v = kv[k];
-  if (v === undefined) {
-    ctx.diag(path, `missing required key "${k}"`, 'missing-required-key');
-    return DROP;
-  }
-  if (typeof v === 'string') return new Endpoint('node', v);
-  if (Array.isArray(v)) {
-    const p = position(v, `${path}/${esc(k)}`, ctx, 'wrong-type-required', 'so the link is dropped');
-    if (p === DROP) return DROP;
-    return new Endpoint('inline', p);
-  }
-  ctx.diag(`${path}/${esc(k)}`,
-    `"${k}" must be a node key or an inline position, not ${typeName(v)}`, 'wrong-type-required');
-  return DROP;
-}
-
-function readRoute(raw, path, ctx) {
-  const kv = known(raw, path, ['arcs'],
-    ['name', 'notes', 'folder', 'hidden', 'style', 'data'], ctx);
-  const r = new Route();
-  const arcs = arr('arcs', path, kv, true, ctx);
-  if (arcs === DROP) return DROP;
-  r.arcs = [];
-  arcs.forEach((raw2, i) => {
-    const p = `${path}/arcs/${i}`;
-    if (!isPlainObject(raw2)) {
-      ctx.diag(p, `an arc must be an object, not ${typeName(raw2)}`, 'item-unusable');
-      return;
+/**
+ * A chain's or a route's REQUIRED `walk`, checked pass by pass in the order
+ * SPEC.md 6.2 lists. Returns DROP when the owner is to be dropped: a missing or
+ * wrong-typed `walk`, or the first pass that breaks a rule, which is reported
+ * alone — nothing after it in the walk is examined.
+ *
+ * ⚠ A WALK IS USED WHOLE OR NOT AT ALL. Dropping a pass would hand the caller a
+ * different walk that reads as valid — two arcs joined that do not meet, a
+ * direction reversed by a lost turn, a start moved to a node.
+ */
+function readWalk(kv, owner, arcs, route, ctx) {
+  const list = arr('walk', owner, kv, true, ctx);
+  if (list === DROP) return DROP;
+  const what = route ? 'route' : 'chain';
+  const cursor = new WalkCursor(list.length - 1, route);
+  const walk = [];
+  for (const [i, raw] of list.entries()) {
+    const at = `${owner}/walk/${i}`;
+    const drop = (key, code, message) => {
+      ctx.diag(key === '' ? at : `${at}/${key}`, `${message}, so the ${what} is dropped`, code);
+      return DROP;
+    };
+    // 1. The pass is an object naming an arc of its owner.
+    if (!isPlainObject(raw)) return drop('', 'pass-arc-absent', `a pass must be an object, not ${typeName(raw)}`);
+    const arc = typeof raw.arc === 'string' ? arcs?.get(raw.arc) : undefined;
+    if (arc === undefined) {
+      return drop('', 'pass-arc-absent', `the pass names arc ${JSON.stringify(raw.arc ?? null)}, which is not here`);
     }
-    const akv = known(raw2, p, ['pips'], ['data'], ctx);
-    const a = new RouteArc();
-    a.pips = pips(akv, p, ctx);
-    if (a.pips === DROP) return;
-    a.data = data(p, akv, ctx);
-    ctx.paths.set(a, p);
-    r.arcs.push(a);
-  });
+    const p = new Pass();
+    p.arc = raw.arc;
+    // 2. Unrecognised keys. 3. `pinned`, where `false` is read as absent.
+    const pkv = known(raw, at, ['arc'], ['from', 'to', 'turn', 'pinned'], ctx);
+    if (bool('pinned', at, pkv, false, ctx) === true) p.pinned = true;
+    // 4. `from`, `to` and `turn`, in that order, each parse.
+    for (const k of ['from', 'to', 'turn']) {
+      const v = pkv[k];
+      if (v === undefined) continue;
+      if (typeof v === 'string' && k !== 'turn') {
+        p[k] = new Endpoint('node', v);
+        continue;
+      }
+      const pos = position(v, `${at}/${k}`, ctx, 'position-unusable', `so the ${what} is dropped`);
+      if (pos === DROP) return DROP;
+      const [, , ele, time] = pos.channels;
+      if ((ele !== undefined && ele !== null) || (time !== undefined && time !== null)) {
+        ctx.diag(`${at}/${k}`,
+          'a walk position carries longitude and latitude only, so its other channels are dropped', 'extra-channel');
+      }
+      const lonLat = new Position(pos.channels.slice(0, 2));
+      p[k] = k === 'turn' ? lonLat : new Endpoint('position', lonLat);
+    }
+    // 5 to 8: a route's rule, pin and turn, spelling, connection.
+    const step = cursor.step(i, p, arc);
+    if (step.fault) return drop(step.fault.key, step.fault.code, step.fault.message);
+    walk.push(p);
+  }
+  return walk;
+}
+
+/**
+ * A route owns its graph (SPEC.md 3.4), and is its own chain: wherever a chain
+ * would be dropped, the whole route is.
+ */
+function readRoute(raw, path, ctx) {
+  const kv = known(raw, path, ['walk'],
+    ['name', 'notes', 'folder', 'hidden', 'style', 'nodes', 'arcs', 'data'], ctx);
+  const r = new Route();
   r.name = str('name', path, kv, false, ctx);
   r.notes = str('notes', path, kv, false, ctx);
   r.folder = str('folder', path, kv, false, ctx);
   r.hidden = bool('hidden', path, kv, false, ctx);
   r.style = style(path, kv, ctx);
   r.data = data(path, kv, ctx);
-  return r;
+  r.nodes = readNodes(kv, path, ctx);
+  r.arcs = readArcs(kv, path, r.nodes, ctx);
+  r.walk = readWalk(kv, path, r.arcs, true, ctx);
+  return r.walk === DROP ? DROP : r;
 }
 
 function readTrack(raw, path, ctx) {
@@ -580,7 +661,7 @@ function readPointLike(raw, path, ctx, topLevel) {
   const kv = known(raw, path, ['at'], optional, ctx);
   const w = new Waypoint();
   if (kv.at === undefined) {
-    ctx.diag(path, 'missing required key "at"', 'missing-required-key');
+    ctx.diag(`${path}/at`, 'missing required key "at"', 'wrong-type-required');
     return DROP;
   }
   const at = position(kv.at, `${path}/at`, ctx, 'wrong-type-required', 'so the item is dropped');
@@ -596,9 +677,16 @@ function readPointLike(raw, path, ctx, topLevel) {
 }
 
 /**
- * An area carries ONE closed ring of at least four positions (SPEC.md 3.7).
- * A nested or additional ring means the item is dropped: keeping the outer ring
- * would draw an area whose hole had vanished, with nothing to say so.
+ * An area carries ONE open ring of at least three distinct positions
+ * (SPEC.md 3.7).
+ *
+ * A nested or additional ring drops the area: keeping the outer ring would
+ * draw an area whose hole had vanished, with nothing to say so.
+ *
+ * ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED. Its last position repeating its
+ * first is one fact written twice, so only that position goes, with a
+ * diagnostic. The distinct positions are counted after that, so [A, B, A] is
+ * two positions and the area goes.
  */
 function readArea(raw, path, ctx, topLevel) {
   const optional = ['name', 'notes', 'hidden', 'style', 'data'];
@@ -611,19 +699,22 @@ function readArea(raw, path, ctx, topLevel) {
     ctx.diag(p, 'a polygon carries one ring; this one has nested rings', 'polygon-nested-rings');
     return DROP;
   }
-  if (ring.length < 4) {
-    ctx.diag(p, 'a ring must hold at least four positions', 'polygon-too-short');
-    return DROP;
-  }
   const vertices = [];
   for (let i = 0; i < ring.length; i++) {
-    const v = position(ring[i], `${p}/${i}`, ctx, 'position-unusable', 'so the item is dropped');
+    const v = position(ring[i], `${p}/${i}`, ctx, 'position-unusable', 'so the area is dropped');
     if (v === DROP) return DROP;
     vertices.push(v);
   }
-  if (!vertices[0].sameCoordinates(vertices[vertices.length - 1])) {
-    ctx.diag(p, 'a ring must close: its first and last positions must be equal',
-      'polygon-not-closed');
+  const n = vertices.length;
+  if (n >= 2 && vertices[0].sameCoordinates(vertices[n - 1])) {
+    ctx.diag(`${p}/${n - 1}`, 'a ring is stored open, and this last position repeats the first, so it is dropped',
+      'ring-closed');
+    vertices.pop();
+  }
+  const distinct = distinctLonLat(vertices);
+  if (distinct < 3) {
+    ctx.diag(p, `the ring has ${distinct} distinct position(s) and needs at least 3, so the area is dropped`,
+      'ring-too-few-points');
     return DROP;
   }
   const a = new Area();
@@ -635,6 +726,15 @@ function readArea(raw, path, ctx, topLevel) {
   a.style = style(path, kv, ctx);
   a.data = data(path, kv, ctx);
   return a;
+}
+
+/**
+ * The number of positions that differ in longitude or latitude; no other
+ * channel takes part (SPEC.md 3.7). `String` spells 0 and -0 alike, and they
+ * are one value.
+ */
+export function distinctLonLat(ring) {
+  return new Set(ring.map((v) => `${v.lon},${v.lat}`)).size;
 }
 
 // --- cross-references -------------------------------------------------------
@@ -663,134 +763,7 @@ function resolveReferences(doc, ctx) {
     item[key] = undefined;
   }
 
-  for (const network of doc.networks ?? []) {
-    resolveNetwork(network, ctx);
-  }
 }
-
-function resolveNetwork(network, ctx) {
-  const nodes = network.nodes ?? new Map();
-  const arcs = network.arcs ?? new Map();
-
-  // SPEC.md 6.2: an arc naming a node that is not in its network keeps the arc.
-  // Its geometry is real.
-  //
-  // SPEC.md 3.3.2: the first pip states the position of the node `from` names
-  // and the last states `to`'s, so the two are one fact written twice. Where
-  // they disagree THE PIPS ARE AUTHORITATIVE, and the reader keeps both and
-  // reports it — beyond the same 50 m of Section 3.3.3, deliberately the same
-  // threshold, because it is the same question about a different pair.
-  for (const [key, arc] of arcs) {
-    for (const [which, pip] of [['from', arc.pips[0]], ['to', arc.pips[arc.pips.length - 1]]]) {
-      const node = nodes.get(arc[which]);
-      if (node === undefined) {
-        ctx.diag(`${ctx.paths.get(arc)}/${which}`,
-          `"${which}" names node ${JSON.stringify(arc[which])}, which is not in this network`,
-          'arc-node-absent');
-        continue;
-      }
-      if (pip === undefined) continue;
-      const distance = distanceToPolylineM(pip, [node]);
-      if (distance !== null && distance > PROJECTION_TOLERANCE_M) {
-        ctx.diag(`${ctx.paths.get(arc)}/${which}`,
-          `node ${JSON.stringify(arc[which])} is ${distance.toFixed(0)} m from the ` +
-          `${which === 'from' ? 'first' : 'last'} pip, beyond the 50 m tolerance`,
-          'terminal-pip-off-node');
-      }
-    }
-  }
-
-  for (const chain of network.chains ?? []) {
-    resolveChain(chain, nodes, arcs, ctx);
-  }
-}
-
-function resolveChain(chain, nodes, arcs, ctx) {
-  const kept = [];
-  for (let i = 0; i < chain.links.length; i++) {
-    const link = chain.links[i];
-    const path = ctx.paths.get(link);
-    // A link's whole meaning is the arc it traverses, so a link naming an
-    // absent arc has no geometry to keep and is dropped (SPEC.md 6.2).
-    const arc = arcs.get(link.arc);
-    if (arc === undefined) {
-      ctx.diag(path, `link names arc ${JSON.stringify(link.arc)}, which is not in this network`,
-        'link-arc-absent');
-      continue;
-    }
-    let drop = false;
-    let unresolved = false;
-    for (const which of ['from', 'to']) {
-      const end = link[which];
-      if (end.kind === 'node') {
-        if (!nodes.has(end.node)) {
-          // SPEC.md gives no remedy for this construct. Decision: keep the
-          // link — its arc geometry is real, exactly as for an arc naming an
-          // absent node — diagnose the loss, and leave the endpoint out of the
-          // continuity check rather than let one defect become two.
-          ctx.diag(`${path}/${which}`,
-            `"${which}" names node ${JSON.stringify(end.node)}, which is not in this network`,
-            'link-node-absent');
-          unresolved = true;
-        }
-        continue;
-      }
-      const distance = distanceToPolylineM(end.position, arc.pips);
-      if (distance === null) {
-        ctx.diag(path, 'the named arc has no vertices, so this endpoint has no distance to it',
-          'inline-endpoint-empty-arc');
-        drop = true;
-        break;
-      }
-      if (distance > PROJECTION_TOLERANCE_M) {
-        ctx.diag(`${path}/${which}`,
-          `the inline endpoint does not project onto arc ${JSON.stringify(link.arc)} beyond the 50 m tolerance`,
-          'endpoint-off-arc');
-        drop = true;
-        break;
-      }
-    }
-    if (drop) continue;
-    kept.push({ link, index: i, unresolved, nodes });
-  }
-
-  // SPEC.md 6.2: consecutive links must meet. Only links that were ADJACENT in
-  // the document and both survived are compared; a dropped link must not turn
-  // one defect into two by making its neighbours look disjoint.
-  for (let i = 1; i < kept.length; i++) {
-    const a = kept[i - 1];
-    const b = kept[i];
-    if (b.index !== a.index + 1) continue;
-    if (a.unresolved || b.unresolved) continue;
-    if (endpointsMeet(a.link.to, b.link.from, nodes)) continue;
-    ctx.diag(ctx.paths.get(b.link),
-      'this link does not begin where the previous one ends, so the chain is not one connected walk',
-      'chain-discontinuity');
-  }
-
-  chain.links = kept.map((k) => k.link);
-}
-
-/**
- * SPEC.md 6.2: two endpoints meet when their LONGITUDE AND LATITUDE are equal.
- * No other channel takes part. A node may carry an elevation and an inline
- * endpoint never does — elevation is resolved from the polyline (SPEC.md 3.3.3)
- * — so a comparison over all channels reports every junction between a node and
- * an inline endpoint as broken.
- *
- * A node key is resolved to its position BEFORE comparing, so two distinct node
- * keys at the same position meet. Comparing the keys alone would report a
- * continuous walk as broken, which is the failure this rule exists to prevent.
- * Key equality is a valid fast path and nothing more.
- */
-function endpointsMeet(a, b, nodes) {
-  if (a.kind === 'node' && b.kind === 'node' && a.node === b.node) return true;
-  const pa = a.kind === 'node' ? nodes.get(a.node) : a.position;
-  const pb = b.kind === 'node' ? nodes.get(b.node) : b.position;
-  if (pa === undefined || pb === undefined) return false;
-  return pa.sameCoordinates(pb);
-}
-
 
 // --- position index ---------------------------------------------------------
 
@@ -822,23 +795,26 @@ export function indexPositions(doc) {
 
   (doc.waypoints ?? []).forEach((w, i) => put(`/waypoints/${i}/at`, w.at));
   (doc.areas ?? []).forEach((a, i) => ring(`/areas/${i}`, a.polygon));
-  (doc.routes ?? []).forEach((r, i) => {
-    (r.arcs ?? []).forEach((arc, j) => pips(`/routes/${i}/arcs/${j}`, arc.pips));
+  // Only a POSITION in a walk is a position. A node key is a reference, and is
+  // addressed at the node.
+  const walk = (path, passes) => (passes ?? []).forEach((p, k) => {
+    for (const which of ['from', 'to']) {
+      if (p[which] !== undefined && p[which].kind === 'position') put(`${path}/${k}/${which}`, p[which].position);
+    }
+    put(`${path}/${k}/turn`, p.turn);
   });
+  const graph = (base, owner) => {
+    for (const [key, p] of owner.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);
+    for (const [key, arc] of owner.arcs ?? []) pips(`${base}/arcs/${esc(key)}`, arc.pips);
+  };
+  (doc.routes ?? []).forEach((r, i) => graph(`/routes/${i}`, r));
   (doc.tracks ?? []).forEach((t, i) => {
     (t.segments ?? []).forEach((seg, j) => pips(`/tracks/${i}/segments/${j}`, seg.pips));
   });
   (doc.networks ?? []).forEach((n, i) => {
     const base = `/networks/${i}`;
-    for (const [key, p] of n.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);
-    for (const [key, arc] of n.arcs ?? []) pips(`${base}/arcs/${esc(key)}`, arc.pips);
-    (n.chains ?? []).forEach((c, j) => {
-      (c.links ?? []).forEach((l, k) => {
-        for (const which of ['from', 'to']) {
-          if (l[which] && l[which].kind === 'inline') put(`${base}/chains/${j}/links/${k}/${which}`, l[which].position);
-        }
-      });
-    });
+    graph(base, n);
+    (n.chains ?? []).forEach((c, j) => walk(`${base}/chains/${j}/walk`, c.walk));
     (n.points ?? []).forEach((pt, j) => put(`${base}/points/${j}/at`, pt.at));
     (n.areas ?? []).forEach((a, j) => ring(`${base}/areas/${j}`, a.polygon));
   });

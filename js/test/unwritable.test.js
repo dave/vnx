@@ -9,7 +9,7 @@ import { decodeText } from '../src/decode.js';
 import { encode } from '../src/index.js';
 
 const base = () => decodeText(JSON.stringify({
-  vnx: '0.1.0',
+  vnx: '0.2.0',
   waypoints: [{
     at: [1, 2],
     style: { color: '#123456' },

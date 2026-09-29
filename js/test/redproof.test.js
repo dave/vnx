@@ -40,11 +40,41 @@ function requireFixture(relative, predicate, why) {
 
 let counter = 0;
 
+/** A chain over a fixed three-node line, a --ab-- b --bc-- c. */
+function chainDoc(walk) {
+  return JSON.stringify({
+    vnx: '0.2.0',
+    networks: [{
+      nodes: { a: [0, 0], b: [1, 0], c: [2, 0] },
+      arcs: { ab: { from: 'a', to: 'b', pips: [] }, bc: { from: 'b', to: 'c', pips: [] } },
+      chains: [{ walk }],
+    }],
+  });
+}
+
+/** A mutated copy of the library, for a check the corpus cannot make. */
+async function mutatedApi(edits) {
+  const dir = mutatedCopy(edits);
+  return import(pathToFileURL(path.join(dir, 'index.js')).href);
+}
+
 /**
  * @param {Array<{file: string, from: string, to: string}>} edits
  * @returns {Promise<import('../corpus/runner.js').Case[]>}
  */
 async function runMutated(edits) {
+  const dir = mutatedCopy(edits);
+  const url = pathToFileURL(path.join(dir, 'index.js')).href;
+  const api = await import(url);
+  return runCorpus(CORPUS, {
+    decodeText: api.decodeText,
+    decodeContainer: api.decodeContainer,
+    encodeContainer: api.encodeContainer,
+    encode: api.encode,
+  });
+}
+
+function mutatedCopy(edits) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vnx-redproof-${counter++}-`));
   for (const name of fs.readdirSync(SRC)) {
     fs.copyFileSync(path.join(SRC, name), path.join(dir, name));
@@ -58,14 +88,7 @@ async function runMutated(edits) {
     );
     fs.writeFileSync(p, before.replace(edit.from, edit.to));
   }
-  const url = pathToFileURL(path.join(dir, 'index.js')).href;
-  const api = await import(url);
-  return runCorpus(CORPUS, {
-    decodeText: api.decodeText,
-    decodeContainer: api.decodeContainer,
-    encodeContainer: api.encodeContainer,
-    encode: api.encode,
-  });
+  return dir;
 }
 
 function allFailing(cases) {
@@ -314,29 +337,6 @@ test('a coordinate turned into NEGATIVE zero is NOT caught; no fixture pins a ze
     'a fixture now pins a zero coordinate; assert the failure instead of the gap');
 });
 
-test('a reader with no continuity check is caught by the diagnose tier', async () => {
-  const cases = await runMutated([{
-    file: 'decode.js',
-    from: '    if (endpointsMeet(a.link.to, b.link.from, nodes)) continue;',
-    to: '    if (true) continue;',
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/chain-does-not-join.vnx']);
-});
-
-test('comparing inline endpoints by identity rather than value is caught by one file only', async () => {
-  const cases = await runMutated([{
-    file: 'decode.js',
-    from: '  return pa.sameCoordinates(pb);',
-    to: '  return pa === pb;',
-  }]);
-  // accept/example-network.vnx does NOT catch this. Its only chain junction is
-  // node key to node key, which SPEC.md 6.2 settles by comparing the KEYS;
-  // its inline endpoint is a chain terminus and is never compared to anything.
-  // accept/shared-turnaround-handle.vnx is the whole of the corpus's coverage
-  // for value equality between inline endpoints.
-  assert.deepEqual(await failingDelta(cases), ['accept/shared-turnaround-handle.vnx']);
-});
-
 test('accepting a version outside the reader\'s series is caught by the reject tier', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
@@ -351,7 +351,7 @@ test('accepting a version outside the reader\'s series is caught by the reject t
 
 test('comparing versions as "newer than" rather than "not this series" is caught by one file only', async () => {
   // The historical defect, restored exactly: SPEC.md 2.2 makes each 0.x MINOR
-  // its own series, and a "greater than" reader reads a 0.0 document under 0.1
+  // its own series, and a "greater than" reader reads a 0.1 document under 0.2
   // rules. reject/version-too-new.vnx does NOT catch it, which is why the pair
   // was incomplete and five of the six implementations shared the shape.
   const cases = await runMutated([{
@@ -368,8 +368,8 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
     from: '  const [, majorText, minorText] = VERSION.exec(declared);',
     to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
   }]);
-  // write/emit-boundary declares 0.1.99 too, so the same defect reddens both.
-  // reject/version-too-old.vnx is red for a third reason: 0.0.9 has a non-zero
+  // write/emit-boundary declares 0.2.99 too, so the same defect reddens both.
+  // reject/version-too-old.vnx is red for a third reason: 0.1.9 has a non-zero
   // PATCH, so the mutant refuses it before reaching the series check and says
   // "a newer reader is needed" about a document below the reader. It is refused
   // for the wrong cause, and its sidecar's substring is what notices.
@@ -405,24 +405,6 @@ test('keeping the outer ring of a nested polygon is caught', async () => {
   assert.deepEqual(await failingDelta(cases), ['diagnose/polygon-second-ring.vnx']);
 });
 
-test('comparing links that were not adjacent in the document is caught', async () => {
-  requireFixture(
-    'diagnose/link-names-absent-arc.vnx',
-    (d) => d.networks[0].chains[0].links.length >= 3,
-    'it needs three links with the middle one dangling; with two the expectation is guaranteed by arity',
-  );
-  const cases = await runMutated([{
-    file: 'decode.js',
-    from: '    if (b.index !== a.index + 1) continue;',
-    to: '    if (b.index === -1) continue;',
-  }]);
-  // Was NOT caught until 2026-09-09: the fixture had two links and its dangling
-  // one was the LAST, so no reader could report a break past it and the
-  // expectation was guaranteed by arity. It now has three links with the middle
-  // one dropped and survivors that do not meet, so the guard is real.
-  assert.deepEqual(await failingDelta(cases), ['diagnose/link-names-absent-arc.vnx']);
-});
-
 test('refusing a timestamp with an offset, rather than diagnosing it, is caught', async () => {
   const cases = await runMutated([{
     file: 'decode.js',
@@ -442,8 +424,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     to: '    else { /* silently skipped */ }',
   }]);
   assert.deepEqual(await failingDelta(cases),
-    ['diagnose/dotted-key-on-item.vnx', 'diagnose/route-arc-carries-node-keys.vnx',
-      'diagnose/unknown-key.vnx']);
+    ['diagnose/dotted-key-on-item.vnx', 'diagnose/unknown-key.vnx']);
 });
 
 test('a container matching its root document on the base name is caught', async () => {
@@ -550,51 +531,6 @@ test('an attachment read back as the wrong bytes is caught by the read tiers', a
   ]);
 });
 
-test('widening the projection tolerance is caught by the diagnose tier', async () => {
-  const cases = await runMutated([{
-    file: 'geo.js',
-    from: 'export const PROJECTION_TOLERANCE_M = 50;',
-    to: 'export const PROJECTION_TOLERANCE_M = 100;',
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/inline-endpoint-beyond-tolerance.vnx']);
-});
-
-test('narrowing the projection tolerance is caught by the accept tier', async () => {
-  const cases = await runMutated([{
-    file: 'geo.js',
-    from: 'export const PROJECTION_TOLERANCE_M = 50;',
-    to: 'export const PROJECTION_TOLERANCE_M = 40;',
-  }]);
-  assert.deepEqual(await failingDelta(cases), ['accept/inline-endpoint-within-tolerance.vnx']);
-});
-
-test('taking the cosine of the segment start latitude is caught in BOTH directions', async () => {
-  // SPEC.md 3.3.3 requires the cosine of the INLINE POSITION's latitude, held
-  // constant for every vertex. The replacement tolerance pair (corpus commit
-  // 1cfa4f9) discriminates the alternative in both directions: the ascending
-  // arc makes it over-read and refuse a legal document, the descending arc
-  // makes it under-read and accept an illegal one.
-  const cases = await runMutated([{
-    file: 'geo.js',
-    from: '  const k = EARTH_RADIUS_M * Math.cos(point.lat * DEG);',
-    to: '  const k = EARTH_RADIUS_M * Math.cos(pips[0].lat * DEG);',
-  }]);
-  assert.deepEqual(await failingDelta(cases), [
-    'accept/inline-endpoint-within-tolerance.vnx',
-    'diagnose/inline-endpoint-beyond-tolerance.vnx',
-  ]);
-});
-
-test('using Web Mercator for the projection IS caught', async () => {
-  const cases = await runMutated([{
-    file: 'geo.js',
-    from: '  const k = EARTH_RADIUS_M * Math.cos(point.lat * DEG);',
-    to: '  const k = EARTH_RADIUS_M;',
-  }]);
-  const red = await failingDelta(cases);
-  assert.ok(red.includes('accept/inline-endpoint-within-tolerance.vnx'), red.join(', '));
-});
-
 test('shortening a position is caught by the write tier', async () => {
   const cases = await runMutated([{
     file: 'emit.js',
@@ -612,20 +548,6 @@ test('shortening past an interior null is caught by the write tier', async () =>
     to: '  return out.filter((channel) => channel !== null);',
   }]);
   assert.deepEqual(await failingDelta(cases), ['write/emit-boundary']);
-});
-
-test('comparing node keys instead of their positions is NOT caught', async () => {
-  // SPEC.md 6.2 resolves a node key to its position before comparing, so two
-  // DISTINCT keys at one position meet. diagnose/chain-does-not-join.vnx has
-  // keys AND positions that differ, so a key-only comparator gives the same
-  // verdict on it and passes. test/decode.test.js carries the local guard.
-  const cases = await runMutated([{
-    file: 'decode.js',
-    from: "  if (a.kind === 'node' && b.kind === 'node' && a.node === b.node) return true;",
-    to: "  if (a.kind === 'node' && b.kind === 'node') return a.node === b.node;",
-  }]);
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now covers two distinct node keys at one position; assert the failure instead');
 });
 
 test('accepting a backslash in an entry name is NOT caught', async () => {
@@ -681,4 +603,216 @@ test('a crash inside a tier fails its own case rather than the run', async () =>
   // matched on an extension because its case name has none.
   assert.ok(red.every((n) => n.endsWith('.vnz') || n === 'write/container-cross-language'),
     `only container cases: ${red.join(', ')}`);
+});
+
+// --- the 0.2 walk, arc and ring rules ----------------------------------------
+//
+// ⚠ ONE MUTATION PER CHECK. Each rule SPEC.md 6.2 names for a walk, an arc or a
+// ring is switched off on its own, and the case that pins its code must go red.
+// A code whose case stays green under its own mutation is pinned by nothing.
+
+test('a reader that keeps a pass naming an absent arc is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: "    if (arc === undefined) {\n      return drop('', 'pass-arc-absent',",
+    to: "    if (arc === undefined && false) {\n      return drop('', 'pass-arc-absent',",
+  }]);
+  assert.deepEqual(await failingDelta(cases), [
+    // Each of the other three reaches pass-arc-absent through a dropped arc:
+    // the cascade SPEC.md 6.2 describes, one case per cause of the drop.
+    'diagnose/arc-names-absent-node.vnx',
+    'diagnose/pass-names-absent-arc.vnx',
+    'diagnose/position-unusable.vnx',
+    'diagnose/self-loop-arc.vnx',
+  ]);
+});
+
+test('a reader with no rule for `from` and `to` is caught by walk-spelling', async () => {
+  const cases = await runMutated([
+    { file: 'walk.js', from: "    if (i > 0 && p.from !== undefined) return fault('from', 'walk-spelling',", to: "    if (false) return fault('from', 'walk-spelling'," },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-spelling.vnx']);
+});
+
+test('a reader that does not require `to` on the last pass is caught', async () => {
+  const edits = [
+    { file: 'walk.js', from: '    if (wantTo && p.to === undefined) {', to: '    if (false) {' },
+  ];
+  const cases = await runMutated(edits);
+  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
+  // passes every tier. diagnose/walk-spelling.vnx breaks the rule only with a second `from`. The local guard is in test/walk.test.js, and the
+  // second half below proves the same mutant is visible on a document that
+  // breaks the rule.
+  assert.deepEqual(await failingDelta(cases), [],
+    'the corpus now reaches this rule; assert the failure instead of the gap');
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
+  assert.deepEqual(sound.map((d) => [d.path, d.code]), [['/networks/0/chains/0/walk/0', 'walk-spelling']]);
+});
+
+test('a reader that allows a `to` the rule forbids is caught', async () => {
+  const edits = [
+    { file: 'walk.js', from: '    if (!wantTo && p.to !== undefined) {', to: '    if (false) {' },
+  ];
+  const cases = await runMutated(edits);
+  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
+  // passes every tier. diagnose/walk-spelling.vnx breaks the rule only with a second `from`. The local guard is in test/walk.test.js, and the
+  // second half below proves the same mutant is visible on a document that
+  // breaks the rule.
+  assert.deepEqual(await failingDelta(cases), [],
+    'the corpus now reaches this rule; assert the failure instead of the gap');
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'b' }, { arc: 'bc', to: 'c' }]));
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'b' }, { arc: 'bc', to: 'c' }]));
+  assert.deepEqual(sound.map((d) => [d.path, d.code]), [['/networks/0/chains/0/walk/0/to', 'walk-spelling']]);
+});
+
+test('a reader with no continuity check is caught by walk-not-connected', async () => {
+  // Walk continuity, valid-walk rule 4 of SPEC.md 3.3.3: each pass after the
+  // first enters its arc at the node the walk is at.
+  const cases = await runMutated([{ file: 'walk.js', from: '      if (!isEnd(this.at)) {', to: '      if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-not-connected.vnx']);
+});
+
+test('a reader that accepts a `from` node off its arc is caught', async () => {
+  const edits = [{
+    file: 'walk.js',
+    from: "      if (p.from.kind === 'node' && !isEnd(p.from.node)) {",
+    to: '      if (false) {',
+  }];
+  const cases = await runMutated(edits);
+  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
+  // passes every tier. diagnose/walk-not-connected.vnx breaks connection only between two passes. The local guard is in test/walk.test.js, and the
+  // second half below proves the same mutant is visible on a document that
+  // breaks the rule.
+  assert.deepEqual(await failingDelta(cases), [],
+    'the corpus now reaches this rule; assert the failure instead of the gap');
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
+  assert.deepEqual(sound.map((d) => [d.path, d.code]), [['/networks/0/chains/0/walk/0/from', 'walk-not-connected']]);
+});
+
+test('a reader that accepts a `to` node off its arc is caught', async () => {
+  const edits = [{
+    file: 'walk.js',
+    from: "    if (p.to !== undefined && p.to.kind === 'node' && !isEnd(p.to.node)) {",
+    to: '    if (false) {',
+  }];
+  const cases = await runMutated(edits);
+  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
+  // passes every tier. diagnose/walk-not-connected.vnx breaks connection only between two passes. The local guard is in test/walk.test.js, and the
+  // second half below proves the same mutant is visible on a document that
+  // breaks the rule.
+  assert.deepEqual(await failingDelta(cases), [],
+    'the corpus now reaches this rule; assert the failure instead of the gap');
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
+  assert.deepEqual(sound.map((d) => [d.path, d.code]), [['/networks/0/chains/0/walk/0/to', 'walk-not-connected']]);
+});
+
+test('a reader that forgets a turn sends the walk back the way it came is caught', async () => {
+  // Without the turn rule a pass with a turn and no `to` leaves by the far end
+  // of its arc, and the next pass no longer joins.
+  const cases = await runMutated([{
+    file: 'walk.js',
+    from: "    } else if (p.turn !== undefined) {\n      // The entry is a node here",
+    to: "    } else if (false) {\n      // The entry is a node here",
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['accept/walk-forms.vnx']);
+});
+
+test('a reader that accepts a pinned turn is caught', async () => {
+  const cases = await runMutated([{
+    file: 'walk.js',
+    from: '    if (p.turn !== undefined && p.pinned === true) {',
+    to: '    if (false) {',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/pinned-turn.vnx']);
+});
+
+test('a reader that lets a route carry a position is caught', async () => {
+  const cases = await runMutated([{ file: 'walk.js', from: '    if (this.route) {', to: '    if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/route-pin-or-position.vnx']);
+});
+
+test('a reader that keeps a self-loop arc is caught', async () => {
+  const cases = await runMutated([{ file: 'decode.js', from: '  if (a.from === a.to) {', to: '  if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/self-loop-arc.vnx']);
+});
+
+test('a reader that keeps an arc naming an absent node is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '    if (nodes !== undefined && nodes.has(a[which])) continue;',
+    to: '    continue;',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-names-absent-node.vnx']);
+});
+
+test('a reader that reports an arc pip time and keeps it is NOT caught by the corpus', async () => {
+  const edits = [{ file: 'decode.js', from: '  a.pips = read.map(vertex);', to: '  a.pips = read;' }];
+  const cases = await runMutated(edits);
+  // ⚠ NO CORPUS CASE REACHES THIS, measured 2026-09-29. diagnose/arc-pip-time
+  // .vnx is exempt from the round trip (SPEC.md 8.1), and `positions` compares
+  // longitude and latitude only, so a time left in the model is invisible. The
+  // encoder refuses such a pip, which is the second line; the check below is
+  // the first.
+  assert.deepEqual(await failingDelta(cases), [],
+    'the corpus now reaches this rule; assert the failure instead of the gap');
+  const text = JSON.stringify({
+    vnx: '0.2.0',
+    networks: [{ nodes: { a: [0, 0], b: [1, 0] }, arcs: { ab: { from: 'a', to: 'b', pips: [[0.5, 0, 3, 100]] } } }],
+  });
+  const pip = (api) => api.decodeText(text).document.networks[0].arcs.get('ab').pips[0].channels;
+  assert.deepEqual(pip(await mutatedApi(edits)), [0.5, 0, 3, 100], 'the mutant must keep the time');
+  assert.deepEqual(pip(await mutatedApi([])), [0.5, 0, 3]);
+});
+
+test('a reader that drops an arc pip time silently is caught', async () => {
+  const cases = await runMutated([{ file: 'decode.js', from: '  if (read.some(timed)) {', to: '  if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-pip-time.vnx']);
+});
+
+test('a reader that drops a node time silently is caught', async () => {
+  const cases = await runMutated([{ file: 'decode.js', from: '    if (timed(v)) {', to: '    if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/extra-channel.vnx']);
+});
+
+test('a reader that drops a walk position channel silently is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '      if ((ele !== undefined && ele !== null) || (time !== undefined && time !== null)) {',
+    to: '      if (false) {',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/extra-channel.vnx']);
+});
+
+test('a reader that keeps a closed ring closed is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '  if (n >= 2 && vertices[0].sameCoordinates(vertices[n - 1])) {',
+    to: '  if (false) {',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/ring-closed.vnx']);
+});
+
+test('a reader that keeps a ring of too few distinct positions is caught', async () => {
+  const cases = await runMutated([{ file: 'decode.js', from: '  if (distinct < 3) {', to: '  if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/ring-too-few-points.vnx']);
+});
+
+test('a writer that closes its rings is caught by the accept tier', async () => {
+  const cases = await runMutated([{
+    file: 'emit.js',
+    from: '  o.polygon = a.polygon.map((p) => emitPosition(p));',
+    to: '  o.polygon = [...a.polygon, a.polygon[0]].map((p) => emitPosition(p));\n  if (false) checkRing(a);',
+  }, { file: 'emit.js', from: '  checkRing(a);\n  o.polygon', to: '  o.polygon' }]);
+  assert.deepEqual(await failingDelta(cases), [
+    'accept/example-network.vnx',
+    'accept/unknown-data-on-unexpected-hosts.vnx',
+    'accept/viatrail-export-gpt-rapids.vnx',
+  ]);
 });

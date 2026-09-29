@@ -36,7 +36,7 @@ export class Position {
   get arity() {
     return this.channels.length;
   }
-  /** Value equality over lon and lat only; see decode.js `endpointsMeet`. */
+  /** Value equality over lon and lat only (SPEC.md 3.7: two positions are distinct when they differ in either). */
   sameCoordinates(other) {
     return this.lon === other.lon && this.lat === other.lat;
   }
@@ -58,7 +58,13 @@ export class Folder {
   }
 }
 
-export class NetworkArc {
+/**
+ * An arc of a network or a route (SPEC.md 3.3.2). `pips` holds the INTERIOR
+ * points of the line only: the line runs from the `from` node's position,
+ * through `pips`, to the `to` node's. An arc may have no pips. A pip carries no
+ * time, and `from` and `to` name two different nodes of the arc's owner.
+ */
+export class Arc {
   constructor() {
     /** @type {string} */ this.from = undefined;
     /** @type {string} */ this.to = undefined;
@@ -67,27 +73,50 @@ export class NetworkArc {
   }
 }
 
-/** A link endpoint: a node key, or an inline position (SPEC.md 3.3.3). */
+/**
+ * Where a pass enters or leaves its arc (SPEC.md 3.3.3): a node key, or a
+ * position on the arc. A position carries longitude and latitude only.
+ */
 export class Endpoint {
-  /** @param {'node'|'inline'} kind */
+  /**
+   * @param {'node'|'position'} kind
+   * @param {string|Position} value
+   */
   constructor(kind, value) {
     this.kind = kind;
     /** @type {string|undefined} */ this.node = kind === 'node' ? value : undefined;
-    /** @type {Position|undefined} */ this.position = kind === 'inline' ? value : undefined;
+    /** @type {Position|undefined} */ this.position = kind === 'position' ? value : undefined;
   }
 }
 
-export class Link {
+/**
+ * One entry of a walk (SPEC.md 3.3.3): the arc it covers, and where on it the
+ * walk enters, turns and leaves.
+ *
+ * `from` and `to` are present only where the rule for `from` and `to` puts
+ * them: on the first pass, on the last pass, and on a pass whose `from` is a
+ * position. Everywhere else the entry is the node the walk is at, and the exit
+ * is derived. An absent `from` or `to` is that absence, not "unknown".
+ *
+ * `pinned` is `true` or absent. A reader reads `"pinned": false` as absent.
+ */
+export class Pass {
   constructor() {
     /** @type {string} */ this.arc = undefined;
-    /** @type {Endpoint} */ this.from = undefined;
-    /** @type {Endpoint} */ this.to = undefined;
+    /** @type {Endpoint|undefined} */ this.from = undefined;
+    /** @type {Endpoint|undefined} */ this.to = undefined;
+    /** @type {Position|undefined} */ this.turn = undefined;
+    /** @type {true|undefined} */ this.pinned = undefined;
   }
 }
 
+/**
+ * A walk over arcs the network owns (SPEC.md 3.3.3). Its geometry is by
+ * reference: two chains that cross one trail name the same arc.
+ */
 export class Chain {
   constructor() {
-    /** @type {Link[]} */ this.links = undefined;
+    /** @type {Pass[]} */ this.walk = undefined;
     /** @type {string|undefined} */ this.name = undefined;
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
@@ -127,7 +156,7 @@ export class Network {
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
-    /** @type {Map<string, NetworkArc>|undefined} */ this.arcs = undefined;
+    /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
     /** @type {Chain[]|undefined} */ this.chains = undefined;
     /** @type {Waypoint[]|undefined} */ this.points = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;
@@ -135,16 +164,16 @@ export class Network {
   }
 }
 
-export class RouteArc {
-  constructor() {
-    /** @type {Position[]} */ this.pips = undefined;
-    /** @type {object[]|undefined} */ this.data = undefined;
-  }
-}
-
+/**
+ * A top-level route (SPEC.md 3.4). It owns its graph: `nodes` and `arcs` of a
+ * network's shape, and one walk over them. The walk runs node to node, with no
+ * position, no `turn` and no `pinned`.
+ */
 export class Route {
   constructor() {
-    /** @type {RouteArc[]} */ this.arcs = undefined;
+    /** @type {Pass[]} */ this.walk = undefined;
+    /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
+    /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
     /** @type {string|undefined} */ this.name = undefined;
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;

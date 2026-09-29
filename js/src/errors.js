@@ -52,51 +52,57 @@ export class Diagnostic {
  * a call site inventing a code nobody declared.
  */
 export const DIAGNOSTIC_CODES = Object.freeze([
-  // pinned by the corpus (see PINNED_CODES)
-  'chain-discontinuity',
-  'endpoint-off-arc',
-  'link-arc-absent',
-  'polygon-nested-rings',
+  // pinned by the corpus: one per row of SPEC.md 6.2's remedy table
+  'arc-node-absent',
+  'arc-pip-time',
   'attachment-unreadable',
+  'extra-channel',
+  'pass-arc-absent',
+  'pinned-turn',
+  'polygon-nested-rings',
   'position-unusable',
-  'terminal-pip-off-node',
+  'ring-closed',
+  'ring-too-few-points',
+  'route-pin-or-position',
+  'self-loop-arc',
   'timestamp-not-utc',
   'unknown-key',
+  'walk-not-connected',
+  'walk-spelling',
   'wrong-type-optional',
   'wrong-type-required',
-  // not pinned: this library's own tokens, and not wire commitments
-  'arc-node-absent',
+  // not pinned: this library's own tokens for shapes the table does not name,
+  // and not wire commitments
   'folder-absent',
-  'importance-out-of-range',
-  'inline-endpoint-empty-arc',
   'item-unusable',
-  'link-node-absent',
-  'missing-required-key',
   'parent-folder-absent',
-  'polygon-not-closed',
-  'polygon-too-short',
-  'record-type-missing',
   'record-unusable',
 ]);
 
 /**
  * The codes the conformance corpus pins today.
  *
- * The set grows whenever a diagnose case is added. `test/runner.test.js`
- * compares it against the corpus in BOTH directions, so it cannot drift: a case
- * pinning a code absent from here fails, and a code here that no case pins fails
- * too.
+ * `test/runner.test.js` compares it against the corpus in BOTH directions, so
+ * it cannot drift: a case pinning a code absent from here fails, and a code
+ * here that no case pins fails too.
  */
 export const PINNED_CODES = Object.freeze([
+  'arc-node-absent',
+  'arc-pip-time',
   'attachment-unreadable',
-  'chain-discontinuity',
-  'endpoint-off-arc',
-  'link-arc-absent',
+  'extra-channel',
+  'pass-arc-absent',
+  'pinned-turn',
   'polygon-nested-rings',
   'position-unusable',
-  'terminal-pip-off-node',
+  'ring-closed',
+  'ring-too-few-points',
+  'route-pin-or-position',
+  'self-loop-arc',
   'timestamp-not-utc',
   'unknown-key',
+  'walk-not-connected',
+  'walk-spelling',
   'wrong-type-optional',
   'wrong-type-required',
 ]);
@@ -129,10 +135,10 @@ export const REFUSAL_SUBSTRINGS = Object.freeze({
   'version-shape': 'MAJOR.MINOR.PATCH',
   'version-too-new': 'a newer reader is needed',
   // The one entry whose substring is not a constant of the rule: the corpus
-  // expects the DOCUMENT'S OWN series (`0.0 series` for reject/version-too-old
+  // expects the DOCUMENT'S OWN series (`0.1 series` for reject/version-too-old
   // .vnx), so this value tracks that one fixture rather than the message
   // template. It is the sharpest argument in the table for typed refusals.
-  'version-too-old': '0.0 series',
+  'version-too-old': '0.1 series',
   'zip-duplicate-entry': 'duplicate entry',
   'zip-path-escapes': 'escapes the archive',
   'zip-malformed': 'malformed archive',

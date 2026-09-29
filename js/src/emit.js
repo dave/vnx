@@ -8,11 +8,22 @@
 // This is the EMIT BOUNDARY, and the one rule SPEC.md 4.1 puts here is applied
 // on the way out: the shortest spelling of a position.
 //
+// The writer refuses what its own reader would drop (SPEC.md 3.3, 3.4, 3.7):
+// an arc that is a self-loop or names an absent node, a walk that breaks a rule,
+// a time on a node or an arc pip, an elevation or a time on a walk position, and
+// a ring that is closed or holds fewer than three distinct positions. It does
+// not repair any of them: opening a closed ring, say, would be the writer
+// guessing what its caller meant, and that is the caller's to fix.
+//
 // ⚠ A COORDINATE PASSES THROUGH UNCHANGED. SPEC.md 4.1 does not constrain a
 // writer's precision — the six-places paragraph there is advice, mirroring
 // [RFC 7946] 11.2, and carries no requirement. This seat writes the binary64
 // value the model holds. Rounding is a producer's size decision and belongs
 // somewhere this library's write path does not reach.
+
+import { Position } from './model.js';
+import { checkArcs, checkWalk } from './walk.js';
+import { distinctLonLat } from './decode.js';
 
 /**
  * Encode a document as VNX text.
@@ -23,6 +34,9 @@
  * `JSON.stringify` alone would drop the first three from an object, write them
  * as `null` in an array, and write `NaN` and `Infinity` as `null`: a document
  * silently different from the model. A `null` is a value and is written.
+ *
+ * Throws an `Error` too for a document its own reader would repair or drop:
+ * see the list at the top of this file.
  * @param {import('./model.js').Document} doc
  * @returns {string}
  */
@@ -74,8 +88,23 @@ function emitPips(pips) {
   return pips.map((p) => emitPosition(p));
 }
 
-function emitEndpoint(end) {
-  return end.kind === 'node' ? end.node : emitPosition(end.position);
+/**
+ * A node or an arc pip: longitude, latitude and optionally elevation, and no
+ * time (SPEC.md 3.3.1, 3.3.2).
+ */
+function emitVertex(position, what) {
+  if (position.channels.slice(3).some((c) => c !== null)) {
+    throw new Error(`vnx: ${what} carries a channel past elevation, and a node or an arc pip carries no time`);
+  }
+  return emitPosition(new Position(position.channels.slice(0, 3)));
+}
+
+/** A walk position: longitude and latitude only (SPEC.md 3.3.3). */
+function emitLonLat(position, what) {
+  if (position.channels.slice(2).some((c) => c !== null)) {
+    throw new Error(`vnx: ${what} carries a channel past latitude, and a walk position carries none`);
+  }
+  return [position.lon, position.lat];
 }
 
 /**
@@ -131,46 +160,73 @@ function emitFolder(f) {
   return o;
 }
 
+function emitNodes(o, nodes, owner) {
+  if (nodes === undefined) return;
+  const out = {};
+  for (const [k, p] of nodes) out[k] = emitVertex(p, `${owner} node ${JSON.stringify(k)}`);
+  o.nodes = out;
+}
+
+function emitArcs(o, nodes, arcs, owner) {
+  const fault = checkArcs(nodes, arcs);
+  if (fault !== null) throw new Error(`vnx: ${owner}: ${fault}`);
+  if (arcs === undefined) return;
+  const out = {};
+  for (const [k, a] of arcs) {
+    const ao = { from: a.from, to: a.to };
+    put(ao, 'data', a.data);
+    ao.pips = a.pips.map((p, i) => emitVertex(p, `${owner} arc ${JSON.stringify(k)} pip ${i}`));
+    out[k] = ao;
+  }
+  o.arcs = out;
+}
+
+/**
+ * A walk, checked first against its owner's arcs: a writer never emits a walk
+ * its own reader would drop. `from` and `to` are written only where the model
+ * holds them, and `pinned` only when it is true.
+ */
+function emitWalk(walk, arcs, route, owner) {
+  const fault = checkWalk(walk, arcs, route);
+  if (fault !== null) throw new Error(`vnx: ${owner}: ${fault.toError().message.replace(/^vnx: /, '')}`);
+  return walk.map((p, i) => {
+    const po = { arc: p.arc };
+    for (const key of ['from', 'to']) {
+      const e = p[key];
+      if (e === undefined) continue;
+      po[key] = e.kind === 'node' ? e.node : emitLonLat(e.position, `${owner} pass ${i} \`${key}\``);
+    }
+    if (p.turn !== undefined) po.turn = emitLonLat(p.turn, `${owner} pass ${i} \`turn\``);
+    if (p.pinned === true) po.pinned = true;
+    return po;
+  });
+}
+
 function emitNetwork(n) {
   const o = {};
   put(o, 'name', n.name);
   put(o, 'notes', n.notes);
   put(o, 'folder', n.folder);
   putHidden(o, n.hidden);
-  if (n.nodes !== undefined) {
-    const nodes = {};
-    for (const [k, p] of n.nodes) nodes[k] = emitPosition(p);
-    o.nodes = nodes;
-  }
-  if (n.arcs !== undefined) {
-    const arcs = {};
-    for (const [k, a] of n.arcs) {
-      const ao = { from: a.from, to: a.to };
-      put(ao, 'data', a.data);
-      ao.pips = emitPips(a.pips);
-      arcs[k] = ao;
-    }
-    o.arcs = arcs;
-  }
-  if (n.chains !== undefined) o.chains = n.chains.map((c) => emitChain(c));
+  const owner = n.name === undefined ? 'a network' : `network ${JSON.stringify(n.name)}`;
+  emitNodes(o, n.nodes, owner);
+  emitArcs(o, n.nodes, n.arcs, owner);
+  if (n.chains !== undefined) o.chains = n.chains.map((c) => emitChain(c, n.arcs));
   if (n.points !== undefined) o.points = n.points.map((p) => emitPointLike(p));
   if (n.areas !== undefined) o.areas = n.areas.map((a) => emitArea(a));
   put(o, 'data', n.data);
   return o;
 }
 
-function emitChain(c) {
+function emitChain(c, arcs) {
   const o = {};
+  const owner = c.name === undefined ? 'a chain' : `chain ${JSON.stringify(c.name)}`;
   put(o, 'name', c.name);
   put(o, 'notes', c.notes);
   putHidden(o, c.hidden);
   put(o, 'style', c.style);
   put(o, 'data', c.data);
-  o.links = c.links.map((l) => ({
-    arc: l.arc,
-    from: emitEndpoint(l.from),
-    to: emitEndpoint(l.to),
-  }));
+  o.walk = emitWalk(c.walk, arcs, false, owner);
   return o;
 }
 
@@ -182,12 +238,10 @@ function emitRoute(r) {
   putHidden(o, r.hidden);
   put(o, 'style', r.style);
   put(o, 'data', r.data);
-  o.arcs = r.arcs.map((a) => {
-    const ao = {};
-    put(ao, 'data', a.data);
-    ao.pips = emitPips(a.pips);
-    return ao;
-  });
+  const owner = r.name === undefined ? 'a route' : `route ${JSON.stringify(r.name)}`;
+  emitNodes(o, r.nodes, owner);
+  emitArcs(o, r.nodes, r.arcs, owner);
+  o.walk = emitWalk(r.walk, r.arcs, true, owner);
   return o;
 }
 
@@ -223,8 +277,26 @@ function emitArea(a) {
   put(o, 'notes', a.notes);
   put(o, 'folder', a.folder);
   putHidden(o, a.hidden);
+  checkRing(a);
   o.polygon = a.polygon.map((p) => emitPosition(p));
   put(o, 'style', a.style);
   put(o, 'data', a.data);
   return o;
+}
+
+/**
+ * A writer emits a ring open, with at least three distinct positions
+ * (SPEC.md 3.7).
+ */
+function checkRing(a) {
+  const ring = a.polygon;
+  const what = a.name === undefined ? 'an area' : `area ${JSON.stringify(a.name)}`;
+  const n = ring.length;
+  if (n >= 2 && ring[0].sameCoordinates(ring[n - 1])) {
+    throw new Error(`vnx: ${what}: a ring is written open, and this one's last position repeats its first`);
+  }
+  const distinct = distinctLonLat(ring);
+  if (distinct < 3) {
+    throw new Error(`vnx: ${what}: a ring needs at least 3 distinct positions, this one has ${distinct}`);
+  }
 }

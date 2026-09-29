@@ -207,7 +207,7 @@ function checkCounts(c, doc, counts) {
   // A sidecar MUST name every collection its document carries non-empty. An
   // omitted collection used to mean "unchecked", which let a decoder invent or
   // drop items in it with nothing to say so. Naming a zero stays legal — a
-  // diagnose case that drops every link of a chain pins `links: 0` on purpose.
+  // diagnose case whose only chain is dropped pins `chains: 0` on purpose.
   for (const [key, n] of Object.entries(got)) {
     if (n === 0) continue;
     if (!Object.prototype.hasOwnProperty.call(counts, key)) {
@@ -245,15 +245,18 @@ function checkCounts(c, doc, counts) {
  */
 function containerCountsByPointer(doc) {
   const out = new Map();
-  (doc.networks ?? []).forEach((n, i) => {
-    out.set(`/networks/${i}/nodes`, (n.nodes ?? new Map()).size);
-    out.set(`/networks/${i}/arcs`, (n.arcs ?? new Map()).size);
-    for (const [key, arc] of n.arcs ?? new Map()) {
-      out.set(`/networks/${i}/arcs/${key}/pips`, (arc.pips ?? []).length);
+  const graph = (base, owner) => {
+    out.set(`${base}/nodes`, (owner.nodes ?? new Map()).size);
+    out.set(`${base}/arcs`, (owner.arcs ?? new Map()).size);
+    for (const [key, arc] of owner.arcs ?? new Map()) {
+      out.set(`${base}/arcs/${key}/pips`, (arc.pips ?? []).length);
     }
+  };
+  (doc.networks ?? []).forEach((n, i) => {
+    graph(`/networks/${i}`, n);
     out.set(`/networks/${i}/chains`, (n.chains ?? []).length);
     (n.chains ?? []).forEach((chain, j) => {
-      out.set(`/networks/${i}/chains/${j}/links`, (chain.links ?? []).length);
+      out.set(`/networks/${i}/chains/${j}/walk`, (chain.walk ?? []).length);
     });
     // ⚠ UNCONDITIONALLY, EMPTY OR NOT, like every other container in this walk.
     // These two once carried a non-empty guard, and it bought nothing: a zero
@@ -270,10 +273,8 @@ function containerCountsByPointer(doc) {
     });
   });
   (doc.routes ?? []).forEach((r, i) => {
-    out.set(`/routes/${i}/arcs`, (r.arcs ?? []).length);
-    (r.arcs ?? []).forEach((a, j) => {
-      out.set(`/routes/${i}/arcs/${j}/pips`, (a.pips ?? []).length);
-    });
+    graph(`/routes/${i}`, r);
+    out.set(`/routes/${i}/walk`, (r.walk ?? []).length);
   });
   (doc.tracks ?? []).forEach((t, i) => {
     out.set(`/tracks/${i}/segments`, (t.segments ?? []).length);

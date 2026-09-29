@@ -85,7 +85,8 @@ function normTrack(o, opt) {
 }
 
 function normRoute(o, opt) {
-  normItems(o, 'arcs', opt, normArc);
+  normGraph(o, opt);
+  normWalk(o, opt);
   dropEmptyContainer(o, 'style');
   dropEmptyContainer(o, 'data');
 }
@@ -96,6 +97,15 @@ function normArc(o, opt) {
 }
 
 function normNetwork(o, opt) {
+  normGraph(o, opt);
+  normItems(o, 'chains', opt, normChain);
+  normItems(o, 'points', opt, normWaypoint);
+  normItems(o, 'areas', opt, normArea);
+  dropEmptyContainer(o, 'data');
+}
+
+/** A network's or a route's `nodes` and `arcs`, which are objects keyed by id. */
+function normGraph(o, opt) {
   if (isObject(o.nodes)) {
     const nodes = { ...o.nodes };
     for (const k of Object.keys(nodes)) nodes[k] = normPosition(nodes[k], opt);
@@ -111,24 +121,33 @@ function normNetwork(o, opt) {
     }
     o.arcs = arcs;
   }
-  normItems(o, 'chains', opt, normChain);
-  normItems(o, 'points', opt, normWaypoint);
-  normItems(o, 'areas', opt, normArea);
   dropEmptyContainer(o, 'nodes');
   dropEmptyContainer(o, 'arcs');
-  dropEmptyContainer(o, 'data');
 }
 
 function normChain(o, opt) {
-  normItems(o, 'links', opt, (l, inner) => {
-    // An endpoint is a node key or an inline position (SPEC.md 3.3.3). Only the
-    // second is a position, and normPosition leaves a string alone.
-    for (const side of ['from', 'to']) {
-      if (side in l) l[side] = normPosition(l[side], inner);
-    }
-  });
+  normWalk(o, opt);
   dropEmptyContainer(o, 'style');
   dropEmptyContainer(o, 'data');
+}
+
+/**
+ * A walk's passes. `from` and `to` are a node key or a position (SPEC.md
+ * 3.3.3), `turn` a position; normPosition leaves a string alone.
+ *
+ * ⚠ `walk` IS REQUIRED, SO AN EMPTY ONE IS NOT DROPPED. `"walk": []` is a legal
+ * chain that covers nothing, and a chain with no `walk` key is not a chain.
+ */
+function normWalk(o, opt) {
+  if (!Array.isArray(o.walk)) return;
+  o.walk = o.walk.map((pass) => {
+    if (!isObject(pass)) return pass;
+    const copy = { ...pass };
+    for (const key of ['from', 'to', 'turn']) {
+      if (key in copy) copy[key] = normPosition(copy[key], opt);
+    }
+    return copy;
+  });
 }
 
 /** Normalise an array of objects under `key`, dropping the key when it is empty. */

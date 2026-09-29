@@ -43,8 +43,8 @@ test('the English is not compared', () => {
 });
 
 test('order is not significant', () => {
-  const reported = [R('/b', 'link-arc-absent'), R('/a', 'unknown-key')];
-  const expected = [D('/a', 'unknown-key'), D('/b', 'link-arc-absent')];
+  const reported = [R('/b', 'pass-arc-absent'), R('/a', 'unknown-key')];
+  const expected = [D('/a', 'unknown-key'), D('/b', 'pass-arc-absent')];
   assert.deepEqual(match(reported, expected), []);
 });
 
@@ -53,7 +53,7 @@ test('a missing diagnostic fails', () => {
 });
 
 test('an extra diagnostic fails', () => {
-  assert.equal(match([R('/a', 'unknown-key'), R('/b', 'link-arc-absent')], [D('/a', 'unknown-key')]).length, 1);
+  assert.equal(match([R('/a', 'unknown-key'), R('/b', 'pass-arc-absent')], [D('/a', 'unknown-key')]).length, 1);
 });
 
 test('a diagnostic at the wrong path fails', () => {
@@ -64,7 +64,7 @@ test('a diagnostic with the wrong code fails', () => {
   // The whole point of the change: the right place for the wrong reason is
   // still wrong, and matching English could not have told them apart when both
   // readers phrase it loosely.
-  assert.equal(match([R('/a', 'polygon-not-closed')], [D('/a', 'polygon-nested-rings')]).length, 2);
+  assert.equal(match([R('/a', 'ring-closed')], [D('/a', 'polygon-nested-rings')]).length, 2);
 });
 
 test('one reported diagnostic cannot satisfy two expectations', () => {

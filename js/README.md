@@ -2,7 +2,7 @@
 
 `@viatrail/vnx` reads and writes VNX documents and VNZ containers in
 JavaScript, and reports diagnostics. It implements
-[`SPEC.md`](../SPEC.md) version 0.1 and passes [`corpus/`](../corpus).
+[`SPEC.md`](../SPEC.md) version 0.2 and passes [`corpus/`](../corpus).
 
 Node 22 or later, ESM only, no runtime dependencies. The ZIP container is
 written here rather than imported, over `node:zlib`.
@@ -43,18 +43,26 @@ for (const d of diagnostics) console.log(d.code, d.path, d.message);
 console.log(encode(document));
 ```
 
+## Command-line tool
+
+This library has no command-line tool. The Go library carries the reference
+one, `vnx`; see [`go/README.md`](../go/README.md).
+
 ## API
 
 | Call | Arguments | Returns | Throws |
 |---|---|---|---|
 | `decodeText` | document text | a reading | `VnxRefusal` |
 | `decodeValue` | a parsed JSON value | a reading | `VnxRefusal` |
-| `encode` | a `Document` | document text | `Error`: an application key with no full stop or listed twice, or a value JSON cannot carry |
+| `encode` | a `Document` | document text | `Error`: an application key with no full stop or listed twice, a value JSON cannot carry, or a document its own reader would repair or drop |
 | `emitDocument` | a `Document` | a plain JSON value | |
 | `decodeContainer` | a `Buffer` of `.vnz` bytes | a container | `VnxRefusal` |
 | `writeContainer` | a container | a `Buffer` | |
 | `encodeContainer` | document text, `Iterable<[name, Buffer]>` | a `Buffer` | `VnxRefusal` |
 | `indexPositions` | a `Document` | the `positions` map below | |
+| `walkLegs` | `nodes`, `arcs`, a walk | one `Position[]` per pass | `Error`: the walk does not resolve |
+| `walkLine` | `nodes`, `arcs`, a walk | the legs joined into one `Position[]` | `Error`: the walk does not resolve |
+| `arcLine` | `nodes`, an `Arc` | the arc's whole line, node to node | `Error`: the arc names an absent node |
 
 A **reading** is `{ document, diagnostics, positions }`. `positions` maps a
 JSON Pointer to the `Position` at that pointer, which resolves a diagnostic's
@@ -70,10 +78,26 @@ and `value`, sorted by key: the application keys of
 [SPEC §3.9](../SPEC.md). A `null` value is a present key, and `encode` throws on
 a key with no full stop or a key listed twice. `encode` also throws on
 `undefined`, a function, a symbol, a bigint or a non-finite number anywhere in
-the document, where `JSON.stringify` would drop the value or write `null`. A `Network` carries `nodes`, `arcs`, `chains`,
-`points` and `areas`, and a chain's `links` traverse those arcs by reference.
-Model classes are exported from the package root; `src/model.js` has the
-fields.
+the document, where `JSON.stringify` would drop the value or write `null`.
+
+A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `chains`,
+`points` and `areas`. A `Route` carries its own `nodes`, `arcs` and one `walk`.
+A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pinned`) over the
+arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
+or a `Position`, and are present only where [SPEC §3.3.3](../SPEC.md)'s rule for
+`from` and `to` puts them. An `Arc`'s `pips` are its interior points only.
+
+`encode` refuses what its own reader would repair or drop: an arc that is a
+self-loop or names an absent node, a walk that breaks a rule, a time on a node
+or an arc pip, an elevation or a time on a walk position, and an area ring that
+is closed or holds fewer than three distinct positions. It does not repair any
+of them.
+
+`walkLegs` draws a walk the way it is walked: from each pass's entry, out to
+its turn where it has one, and on to its exit. A walk position is cut at the
+nearest point of its arc's line, at any distance. A walk that does not resolve
+is an error, never the whole arc drawn forwards. Model classes are exported
+from the package root; `src/model.js` has the fields.
 
 ## Errors and diagnostics
 
@@ -88,7 +112,12 @@ consequences for a caller:
   needs `?? []`.
 - A position keeps its arity. `[lon, lat, null]` and `[lon, lat]` are different
   spellings and the model holds whichever it read. `position.channels` is the
-  array; `lon`, `lat`, `ele` and `time` are the channels.
+  array; `lon`, `lat`, `ele` and `time` are the channels. A node and an arc pip
+  keep only `lon`, `lat` and `ele`, and a walk position only `lon` and `lat`:
+  the reader drops any other channel with a diagnostic.
+- A walk is used whole or not at all. Any problem in a walk drops its chain, or
+  its route, and the diagnostic names the pass and the rule. A dropped arc drops
+  every chain that walks it, with a diagnostic of its own.
 - `Track#movingTimeMs()` returns `null` for unknown. Unknown is not zero.
 - Opaque values come back whole. Data record bodies, `style` objects and
   application-key values are the parsed JSON value, and nothing inspects them.
@@ -98,6 +127,9 @@ consequences for a caller:
 Every `Diagnostic` carries a `code`, a short stable token, beside its English
 `message`, which is advisory and is never compared. Branch on `code`.
 `DIAGNOSTIC_CODES` and `PINNED_CODES` in `src/errors.js` are the registers.
+Every problem [SPEC §6.2](../SPEC.md)'s remedy table names carries that table's
+code. Four codes are this library's own, for shapes the table does not name:
+`item-unusable`, `record-unusable`, `folder-absent` and `parent-folder-absent`.
 
 A `VnxRefusal` carries English only, matched as a substring, so a caller cannot
 branch on a refusal cause. `REFUSAL_SUBSTRINGS` is the migration map for when
@@ -122,7 +154,8 @@ Unit tests, the red-proofs and the corpus harness. `node corpus/run.js
 | `src/vnz.js` | the VNZ container (SPEC 7) |
 | `src/zip.js` | the ZIP reader and writer |
 | `src/errors.js` | `VnxRefusal`, `Diagnostic` and the code registers |
-| `src/geo.js` | the projection tolerance model (SPEC 3.3.3) |
+| `src/walk.js` | the walk rules, the encoder's checks, and `walkLegs` (SPEC 3.3.3) |
+| `src/geo.js` | the nearest point of an arc's line to a position (SPEC 3.3.3) |
 
 ## Notes for porters
 
@@ -135,8 +168,8 @@ the shortest spelling of a position, which is about ARITY and not precision:
 not. See [`IMPLEMENTING.md`](../IMPLEMENTING.md).
 
 Version comparison is "not this reader's series", not "newer than this reader".
-Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.1
-reader refuses 0.0.9 for the same reason it refuses 0.2.0, and only PATCH is
+Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.2
+reader refuses 0.1.9 for the same reason it refuses 0.3.0, and only PATCH is
 free. A reader written with `>` reads the older document under rules that were
 never meant for it. `reject/version-too-old.vnx` is the case that catches it.
 

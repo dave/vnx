@@ -7,7 +7,7 @@ import { decodeText } from '../src/decode.js';
 import { VnxRefusal } from '../src/errors.js';
 import { encode } from '../src/index.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.1.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.2.0', ...extra });
 
 function refusal(text) {
   try {
@@ -23,7 +23,7 @@ function refusal(text) {
 
 test('a top level that is not an object is refused', () => {
   assert.equal(refusal('[]').cause_code, 'not-a-vnx-document');
-  assert.equal(refusal('"0.1.0"').cause_code, 'not-a-vnx-document');
+  assert.equal(refusal('"0.2.0"').cause_code, 'not-a-vnx-document');
   assert.equal(refusal('null').cause_code, 'not-a-vnx-document');
 });
 
@@ -48,11 +48,12 @@ test('a MAJOR or MINOR outside the reader\'s series is refused; PATCH never is',
   // SPEC.md 2.2: through 0.x each MINOR is its own series, and "a lower minor
   // is refused for the same reason as a higher one". Both directions are here
   // because a reader written as "greater than" passes the first two lines and
-  // reads 0.0.9, which is the defect this pair exists to catch.
-  assert.equal(refusal(doc0('0.2.0').text).cause_code, 'version-too-new');
+  // reads 0.1.9, which is the defect this pair exists to catch.
+  assert.equal(refusal(doc0('0.3.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('1.0.0').text).cause_code, 'version-too-new');
+  assert.equal(refusal(doc0('0.1.9').text).cause_code, 'version-too-old');
   assert.equal(refusal(doc0('0.0.9').text).cause_code, 'version-too-old');
-  for (const v of ['0.1.99', '0.1.0']) {
+  for (const v of ['0.2.99', '0.2.0']) {
     assert.equal(decodeText(doc0(v).text).document.vnx, v);
   }
 });
@@ -60,9 +61,9 @@ test('a MAJOR or MINOR outside the reader\'s series is refused; PATCH never is',
 test('a refusal below the reader\'s series names the version and the series', () => {
   // SPEC.md 2.2 requires the version; the corpus additionally expects the
   // document's own series, so the user is told which reader they need.
-  const err = refusal(doc0('0.0.9').text);
-  assert.ok(err.message.includes('0.0.9'), err.message);
-  assert.ok(err.message.includes('0.0 series'), err.message);
+  const err = refusal(doc0('0.1.9').text);
+  assert.ok(err.message.includes('0.1.9'), err.message);
+  assert.ok(err.message.includes('0.1 series'), err.message);
 });
 
 function doc0(v) {
@@ -70,19 +71,19 @@ function doc0(v) {
 }
 
 test('leading zeros are a legal spelling and compare numerically', () => {
-  assert.equal(decodeText('{"vnx": "00.01.0000"}').document.vnx, '00.01.0000');
+  assert.equal(decodeText('{"vnx": "00.02.0000"}').document.vnx, '00.02.0000');
 });
 
 test('a NaN or Infinity literal is refused as malformed JSON', () => {
-  assert.equal(refusal('{"vnx": "0.1.0", "a": NaN}').cause_code, 'malformed-json');
-  assert.equal(refusal('{"vnx": "0.1.0", "a": Infinity}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.2.0", "a": NaN}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.2.0", "a": Infinity}').cause_code, 'malformed-json');
 });
 
 test('a numeric literal that overflows to Infinity is refused as not finite', () => {
   // `1e400` is well-formed JSON and parses to Infinity. SPEC.md 4.2 forbids a
   // non-finite number throughout a document; the corpus has no case for this
   // spelling, so the guard is proved here.
-  const err = refusal('{"vnx": "0.1.0", "a": 1e400}');
+  const err = refusal('{"vnx": "0.2.0", "a": 1e400}');
   assert.equal(err.cause_code, 'non-finite-number');
   assert.ok(err.message.includes('not finite'), err.message);
 });
@@ -106,9 +107,9 @@ test('a trailing null survives into the model and is shortened on the way out', 
   // The model keeps the arity the document spelled; SPEC.md 4.1 puts the
   // shortest spelling at the emit boundary, so the two answers differ and both
   // are right.
-  const { document } = decodeText('{"vnx":"0.1.0","waypoints":[{"at":[1,2,null]}]}');
+  const { document } = decodeText('{"vnx":"0.2.0","waypoints":[{"at":[1,2,null]}]}');
   assert.equal(document.waypoints[0].at.arity, 3);
-  assert.equal(encode(document), '{"vnx":"0.1.0","waypoints":[{"at":[1,2]}]}');
+  assert.equal(encode(document), '{"vnx":"0.2.0","waypoints":[{"at":[1,2]}]}');
 });
 
 test('an interior absence keeps its null', () => {
@@ -124,7 +125,7 @@ test('a channel beyond those the reader knows survives the round trip', () => {
   // SPEC.md 4.1 says a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding: the position is
   // kept whole, so the unknown channel comes back out.
-  const text = '{"vnx":"0.1.0","waypoints":[{"at":[1,2,3,4,5]}]}';
+  const text = '{"vnx":"0.2.0","waypoints":[{"at":[1,2,3,4,5]}]}';
   assert.equal(encode(decodeText(text).document), text);
 });
 
@@ -157,20 +158,22 @@ test('a pip that will not parse drops the SEGMENT, not the pip', () => {
     [['/tracks/0/segments/0/pips/1', 'position-unusable']]);
 });
 
-test('a pip that will not parse drops the ARC, and the link naming it then goes too', () => {
-  // The cascade is the second discriminator: no sidecar field counts a
-  // network's arcs, so `link-arc-absent` is what proves the arc left.
+test('a pip that will not parse drops the ARC, and the chain walking it then goes too', () => {
+  // Two diagnostics, one per loss: the first says the arc is gone, the second
+  // that the chain is (SPEC.md 6.2).
   const { document, diagnostics } = decodeText(doc({
     networks: [{
       nodes: { n1: [1, 2], n2: [3, 4] },
       arcs: { broken: { from: 'n1', to: 'n2', pips: [[1, 2], [null, 3], [3, 4]] } },
-      chains: [{ links: [{ arc: 'broken', from: 'n1', to: 'n2' }] }],
+      chains: [{ walk: [{ arc: 'broken', from: 'n1', to: 'n2' }] }],
     }],
   }));
   assert.equal(document.networks[0].arcs.size, 0, 'the arc is gone');
-  assert.equal(document.networks[0].chains[0].links.length, 0, 'and the link with it');
-  assert.deepEqual(diagnostics.map((d) => d.code).sort(),
-    ['link-arc-absent', 'position-unusable']);
+  assert.equal(document.networks[0].chains.length, 0, 'and the chain with it');
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/networks/0/arcs/broken/pips/1', 'position-unusable'],
+    ['/networks/0/chains/0/walk/0', 'pass-arc-absent'],
+  ]);
 });
 
 // --- SPEC.md 6.2 ------------------------------------------------------------
@@ -204,7 +207,7 @@ test('a data record with no @type is dropped; the item survives', () => {
     waypoints: [{ at: [1, 2], data: [{ value: 1 }, { '@type': 'com.example.x' }] }],
   }));
   assert.equal(document.waypoints[0].data.length, 1);
-  assert.equal(diagnostics[0].code, 'record-type-missing');
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [['/waypoints/0/data/0', 'wrong-type-required']]);
 });
 
 test('a record body is never inspected, whatever its type says', () => {
@@ -221,7 +224,9 @@ test('an importance outside 1 to 5 is dropped and the item kept', () => {
   const { document, diagnostics } = decodeText(doc({
     waypoints: [{ at: [1, 2], style: { importance: 9, color: '#fff' } }],
   }));
-  assert.equal(diagnostics[0].code, 'importance-out-of-range');
+  // SPEC.md 6.2: a value outside a stated range is an unusable value in an
+  // optional key.
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [['/waypoints/0/style/importance', 'wrong-type-optional']]);
   assert.deepEqual(document.waypoints[0].style, { color: '#fff' });
 });
 
@@ -247,44 +252,11 @@ test('a folder with no id is dropped and its contents survive at the top level',
   }));
   assert.equal(document.folders.length, 0);
   assert.equal(document.waypoints.length, 1);
-  assert.deepEqual(diagnostics.map((d) => d.code).sort(), ['folder-absent', 'missing-required-key']);
-});
-
-test('a ring that does not close drops the item', () => {
-  const { document, diagnostics } = decodeText(doc({
-    areas: [{ polygon: [[1, 2], [3, 4], [5, 6], [7, 8]] }],
-  }));
-  assert.equal(document.areas.length, 0);
-  assert.equal(diagnostics[0].code, 'polygon-not-closed');
-});
-
-test('a ring of fewer than four positions drops the item', () => {
-  const { document, diagnostics } = decodeText(doc({
-    areas: [{ polygon: [[1, 2], [3, 4], [1, 2]] }],
-  }));
-  assert.equal(document.areas.length, 0);
-  assert.equal(diagnostics[0].code, 'polygon-too-short');
-});
-
-test('an arc naming an absent node keeps the arc', () => {
-  const { document, diagnostics } = decodeText(doc({
-    networks: [{ nodes: { a: [1, 2] }, arcs: { x: { from: 'a', to: 'ghost', pips: [[1, 2], [3, 4]] } } }],
-  }));
-  assert.equal(document.networks[0].arcs.size, 1);
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
-    [['/networks/0/arcs/x/to', 'arc-node-absent']]);
-});
-
-test('a link on an arc with no vertices is dropped rather than measured', () => {
-  const { document, diagnostics } = decodeText(doc({
-    networks: [{
-      nodes: { a: [1, 2] },
-      arcs: { x: { from: 'a', to: 'a', pips: [] } },
-      chains: [{ links: [{ arc: 'x', from: 'a', to: [1, 2] }] }],
-    }],
-  }));
-  assert.equal(document.networks[0].chains[0].links.length, 0);
-  assert.ok(diagnostics.some((d) => d.code === 'inline-endpoint-empty-arc'));
+  // An absent REQUIRED key takes wrong-type-required, at the key (SPEC.md 6.2).
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/folders/0/id', 'wrong-type-required'],
+    ['/waypoints/0/folder', 'folder-absent'],
+  ]);
 });
 
 test('a record-level timestamp with an offset drops the field and keeps the item', () => {
@@ -366,73 +338,15 @@ test('an absent label-visible is neither true nor false', () => {
 });
 
 test('an absent collection stays absent and does not become empty', () => {
-  const { document } = decodeText('{"vnx": "0.1.0"}');
+  const { document } = decodeText('{"vnx": "0.2.0"}');
   assert.equal(document.waypoints, undefined);
-  assert.equal(encode(document), '{"vnx":"0.1.0"}');
+  assert.equal(encode(document), '{"vnx":"0.2.0"}');
 });
 
 test('an empty collection is distinct from an absent one', () => {
-  const { document } = decodeText('{"vnx": "0.1.0", "waypoints": []}');
+  const { document } = decodeText('{"vnx": "0.2.0", "waypoints": []}');
   assert.deepEqual(document.waypoints, []);
-  assert.equal(encode(document), '{"vnx":"0.1.0","waypoints":[]}');
-});
-
-// --- continuity: SPEC.md 6.2 -----------------------------------------------
-
-const chainDoc = (nodes, links) => doc({
-  networks: [{
-    nodes,
-    // `from` and `to` must match the first and last pip: SPEC.md 3.3.2 makes an
-    // arc's terminal pips the positions of its nodes, and a disagreement beyond
-    // 50 m is a diagnostic these cases are not about.
-    arcs: {
-      a: {
-        from: Object.keys(nodes)[0],
-        to: Object.keys(nodes)[Object.keys(nodes).length - 1],
-        pips: Object.values(nodes),
-      },
-    },
-    chains: [{ links: links.map((l) => ({ arc: 'a', ...l })) }],
-  }],
-});
-
-test('two DISTINCT node keys at the same position meet', () => {
-  // A node key is resolved to its position before comparing. Comparing the
-  // keys alone would report this continuous walk as broken, which is the
-  // failure the rule exists to prevent. Nothing in the corpus covers it.
-  const { diagnostics } = decodeText(chainDoc(
-    { a: [1, 2], b: [3, 4], c: [3, 4] },
-    [{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }],
-  ));
-  assert.deepEqual(diagnostics, []);
-});
-
-test('two node keys at different positions do not meet', () => {
-  const { diagnostics } = decodeText(chainDoc(
-    { a: [1, 2], b: [3, 4], c: [5, 6] },
-    [{ from: 'a', to: 'b' }, { from: 'c', to: 'a' }],
-  ));
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/links/1', 'chain-discontinuity']]);
-});
-
-test('a node meets an inline endpoint on lon and lat, whatever its elevation', () => {
-  // A node carries an elevation and an inline endpoint never does, so a
-  // comparison over all channels would report every such junction as broken.
-  const { diagnostics } = decodeText(chainDoc(
-    { a: [1, 2, 900], b: [3, 4, 950] },
-    [{ from: 'a', to: [3, 4] }, { from: 'b', to: 'a' }],
-  ));
-  assert.deepEqual(diagnostics, []);
-});
-
-test('a link naming an absent node keeps the link and takes that end out of the comparison', () => {
-  const { document, diagnostics } = decodeText(chainDoc(
-    { a: [1, 2], b: [3, 4] },
-    [{ from: 'a', to: 'ghost' }, { from: 'b', to: 'a' }],
-  ));
-  assert.equal(document.networks[0].chains[0].links.length, 2);
-  assert.deepEqual(diagnostics.map((d) => d.code), ['link-node-absent']);
+  assert.equal(encode(document), '{"vnx":"0.2.0","waypoints":[]}');
 });
 
 test('moving time reads the FIRST and LAST pip, not the first and last TIMED pip', () => {
@@ -488,44 +402,3 @@ test('a position that is an ELEMENT keeps position-unusable even though its cont
     [['/tracks/0/segments/0/pips/1', 'position-unusable']]);
 });
 
-test('a terminal pip further than 50 m from its node is reported, and both are kept', () => {
-  // SPEC.md 3.3.2: the two are one fact written twice and THE PIPS ARE
-  // AUTHORITATIVE, so the arc and the node both survive and the disagreement is
-  // reported. Same 50 m as 3.3.3, deliberately.
-  const { document, diagnostics } = decodeText(doc({
-    networks: [{
-      nodes: { n1: [-3.68, 57.1209], n2: [-3.66, 57.1] },
-      arcs: { drifted: { from: 'n1', to: 'n2', pips: [[-3.68, 57.12], [-3.66, 57.1]] } },
-    }],
-  }));
-  assert.equal(document.networks[0].arcs.size, 1, 'the arc is kept');
-  assert.equal(document.networks[0].nodes.size, 2, 'and so is the node');
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
-    [['/networks/0/arcs/drifted/from', 'terminal-pip-off-node']]);
-});
-
-test('a terminal pip within the tolerance is silent', () => {
-  const { diagnostics } = decodeText(doc({
-    networks: [{
-      nodes: { n1: [-3.68, 57.1203], n2: [-3.66, 57.1] },
-      arcs: { close: { from: 'n1', to: 'n2', pips: [[-3.68, 57.12], [-3.66, 57.1]] } },
-    }],
-  }));
-  assert.deepEqual(diagnostics, []);
-});
-
-test('a link endpoint that will not parse drops the link, and says so', () => {
-  // The arc's `to` is `b` rather than `a`: with both ends naming one node the
-  // last pip is 314 km from it, and SPEC.md 3.3.2's terminal-pip check fires —
-  // a real diagnostic about a defect this case is not about.
-  const { document, diagnostics } = decodeText(doc({
-    networks: [{
-      nodes: { a: [1, 2], b: [3, 4] },
-      arcs: { x: { from: 'a', to: 'b', pips: [[1, 2], [3, 4]] } },
-      chains: [{ links: [{ arc: 'x', from: 'a', to: [1] }] }],
-    }],
-  }));
-  assert.equal(document.networks[0].chains[0].links.length, 0);
-  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/links/0/to', 'wrong-type-required']]);
-});

@@ -13,7 +13,7 @@ along that arc.
 
 ```json
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "networks": [{
     "name": "Lairig Ghru approaches",
     "nodes": {
@@ -21,10 +21,9 @@ along that arc.
       "node-2": [-3.6605, 57.1042, 512.5]
     },
     "arcs": {
-      "arc-1": { "from": "node-1", "to": "node-2", "pips": [
-        [-3.6712, 57.118, 340], [-3.6644, 57.1085, 451.9], [-3.6605, 57.1042, 512.5]] }
+      "arc-1": { "from": "node-1", "to": "node-2", "pips": [[-3.6644, 57.1085, 451.9]] }
     },
-    "chains": [{ "name": "Chalamain Gap", "links": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
+    "chains": [{ "name": "Chalamain Gap", "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
   }]
 }
 ```
@@ -36,9 +35,9 @@ file that parses perfectly and draws in the wrong hemisphere, which
 catches.
 
 A network owns its graph: `nodes` and `arcs` keyed by identifier, with `chains`
-traversing those arcs by reference. That reference is the construct GPX, KML and
-GeoJSON cannot express. A top-level route owns its arcs outright and needs no
-graph, so writing one takes only ordered lists of positions.
+walking those arcs by reference. That reference is the construct GPX, KML and
+GeoJSON cannot express. A top-level route owns a graph of the same shape and
+carries one walk over it.
 
 The full [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx)
 shows the rest: folders, routes, tracks, waypoints, areas and styling. To check a

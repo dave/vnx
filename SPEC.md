@@ -1,13 +1,13 @@
 # VNX Wire Format Specification
 
-Version 0.1.0
+Version 0.2.0
 
 ## Abstract
 
 VNX (Viatrail Network eXchange) is a JSON interchange format for trail data. It
 carries folders, networks, routes, tracks, waypoints and areas. A network is a
-graph of nodes and arcs together with chains, which are ordered traversals of
-those arcs; two chains that follow the same trail reference the same arc.
+graph of nodes and arcs together with chains, each of which walks those arcs in
+order; two chains that follow the same trail reference the same arc.
 
 This document defines the format. The conformance corpus distributed with this
 specification (Section 8) defines whether an implementation conforms.
@@ -66,7 +66,8 @@ a term is listed after every term its definition uses.
   document's collections; every other item sits inside a top-level one.
 - A **position** is a JSON array of channels: longitude, latitude, and
   optionally elevation and time (Section 4.1).
-- A **pip** is one position in the `pips` array of an arc or of a track segment
+- A **pip** is one position in the `pips` array of an arc or of a track segment.
+  An arc's pips are its interior points; a segment's pips are all of its points
   (Sections 3.3.2 and 3.5).
 - A **folder** is a named grouping with an `id`. A top-level item other than a
   folder places itself in a folder by naming that `id` in its `folder` key; a
@@ -76,26 +77,25 @@ a term is listed after every term its definition uses.
   (Section 3.3).
 - A **node** is a position in a network, keyed by an identifier, at which arcs
   start and end (Section 3.3.1).
-- An **arc** is a polyline carried as a `pips` array. In a network an arc runs
-  between the two nodes its `from` and `to` name, and its pips include both node
-  positions (Section 3.3.2); in a route an arc names no nodes and has no
-  identifier (Section 3.4).
-- A **link** is one step of a chain: the arc it follows and the two endpoints
-  between which it follows that arc, each either a node key or an inline
-  position (Section 3.3.3).
-- A **chain** is an ordered array of links forming one connected walk along a
-  network's arcs; the order is the direction of travel, and a chain does not own
-  the arcs it follows (Section 3.3.3).
-- A **route** is a top-level item that owns an ordered array of arcs, where
-  consecutive arcs share an endpoint position (Section 3.4).
+- An **arc** is a line keyed by an identifier, running between the two
+  different nodes its `from` and `to` name. Its `pips` carry the points between
+  those nodes (Section 3.3.2).
+- A **pass** is one entry of a walk: the arc it covers, and where on that arc it
+  enters, turns and leaves (Section 3.3.3).
+- A **walk** is an ordered array of passes forming one connected journey along
+  arcs; the order is the direction of travel (Section 3.3.3).
+- A **chain** is an item carrying a walk over a network's arcs; a chain does not
+  own the arcs it walks (Section 3.3.3).
+- A **route** is a top-level item that owns its nodes and arcs and carries one
+  walk over them (Section 3.4).
 - A **segment** is an ordered `pips` array within a track; the interval between
   two segments is a pause (Section 3.5).
 - A **track** is a top-level item carrying an ordered array of segments
   (Section 3.5).
 - A **waypoint** is a top-level item carrying one position, `at`; a network's
   points have the same shape (Section 3.6).
-- An **area** is an item carrying one closed ring of positions, `polygon`,
-  either at the top level or within a network (Section 3.7).
+- An **area** is an item carrying one ring of positions, `polygon`, either at
+  the top level or within a network (Section 3.7).
 - An **application key** is a top-level key of a document that contains a full
   stop. Its name is in reverse-DNS form and its value is opaque (Section 3.9).
 - A **data record** is one object in the `data` array of an item or of an arc,
@@ -117,7 +117,7 @@ rule. The document below is complete and is read with no diagnostics.
 
 ```json
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "generator": "example 1.0",
   "created": "2026-08-31T06:45:12Z",
   "folders": [
@@ -136,9 +136,7 @@ rule. The document below is complete and is read with no diagnostics.
           "from": "node-1",
           "to": "node-2",
           "pips": [
-            [-3.6712, 57.118, 340],
-            [-3.669, 57.1131, 388.2],
-            [-3.6605, 57.1042, 512.5]
+            [-3.669, 57.1131, 388.2]
           ]
         }
       },
@@ -146,7 +144,7 @@ rule. The document below is complete and is read with no diagnostics.
         {
           "name": "Chalamain Gap",
           "style": { "color": "#c1440e", "width": 4 },
-          "links": [
+          "walk": [
             { "arc": "arc-1", "from": "node-1", "to": "node-2" }
           ]
         }
@@ -169,9 +167,9 @@ rule. The document below is complete and is read with no diagnostics.
 `vnx` is the format version (Section 2.2); `generator` and `created` are
 informational (Section 3.1). The one folder, `cairngorms`, is named by the
 `folder` key of the network and of the waypoint (Section 3.2). The network
-holds two nodes, one arc whose `pips` begin at the position of `node-1` and end
-at the position of `node-2`, and one chain whose single link follows that arc
-from `node-1` to `node-2` (Section 3.3). The waypoint carries its position in
+holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
+one chain whose walk is a single pass over that arc from `node-1` to `node-2`
+(Section 3.3). The waypoint carries its position in
 `at` and one data record of type `app.viatrail.tag` (Sections 3.6 and 5).
 
 ## 2. Document identification
@@ -184,7 +182,7 @@ from `node-1` to `node-2` (Section 3.3). The waypoint carries its position in
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.1.0` |
+| Current version | `0.2.0` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document
@@ -230,9 +228,11 @@ Through 0.x:
   and MUST refuse a document in a series it does not support, naming the
   version.
 - A reader MUST accept a document in a series it supports, whatever the PATCH
-  component. A 0.1.0 reader accepts 0.1.3. It refuses 0.2.0, and it refuses
-  0.0.9 unless it declares support for the 0.0 series. A lower minor is refused
+  component. A 0.2.0 reader accepts 0.2.3. It refuses 0.3.0, and it refuses
+  0.1.9 unless it declares support for the 0.1 series. A lower minor is refused
   for the same reason as a higher one.
+
+A reader of this version supports the 0.2 series only.
 
 From version 1.0 onward, minor versions are additive: a reader MUST accept any
 minor version at or above its own and MUST ignore constructs it does not
@@ -240,8 +240,8 @@ recognise, and only a MAJOR increment is a refusal. The rule for PATCH does not
 change.
 
 A reader that re-encodes a document MUST write the version the document
-declared, not the reader's own. A 0.1.0 reader that reads a 0.1.3 document and
-writes it back writes `0.1.3`.
+declared, not the reader's own. A 0.2.0 reader that reads a 0.2.3 document and
+writes it back writes `0.2.3`.
 
 ## 3. Document structure
 
@@ -254,7 +254,7 @@ A VNX document is a JSON object.
 
 ```json
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "generator": "Viatrail 0.1.93",
   "created": "2026-08-31T06:45:12Z",
 
@@ -279,9 +279,9 @@ exceptions stated where they arise: `label-visible`, where absence means Auto
 All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
 wherever a container appears in this format, except an application key and
-anything inside its value (Section 3.9): an empty `data` bag, an empty
-`links` array and an empty `nodes` object each carry the same content as the
-key being absent.
+anything inside its value (Section 3.9): an empty `data` bag, an empty `chains`
+array and an empty `nodes` object each carry the same content as the key being
+absent.
 
 `created` and `generator` are informational. `created` is a timestamp
 (Section 4.3).
@@ -314,14 +314,14 @@ that contains it.
 ### 3.3 Networks
 
 A network owns a graph. Its `nodes` and `arcs` are objects rather than arrays,
-because chains reference their entries by key.
+because walks reference their entries by key.
 
 ```json
 {
   "folder": "approaches",
   "name": "Lairig Ghru approaches",
   "notes": "...",
-  "nodes": { "node-1": [-3.6521, 57.1000, 940] },
+  "nodes": { "node-1": [-3.6521, 57.1000, 940], "node-2": [-3.6402, 57.0931, 811] },
   "arcs":  { "arc-1": { "from": "node-1", "to": "node-2", "pips": [ ], "data": [ ] } },
   "chains": [ ],
   "points": [ ],
@@ -335,136 +335,161 @@ because chains reference their entries by key.
 A node is a position (Section 4.1) keyed by an identifier. Node identifiers are
 scoped to the containing network (Section 4.4).
 
+A node carries longitude, latitude and optionally elevation. A node carries no
+time. A reader that meets a time on a node drops the time channel, keeps the
+node and records a diagnostic (Section 6.2).
+
 #### 3.3.2 Arcs
 
-An arc carries `from` and `to`, each naming a node in the same network, and
+An arc carries `from` and `to`, each naming a node of the same network, and
 `pips`, an array of positions.
 
-An arc's `pips` array is its complete point list, from its first point to its
-last, and includes the positions of both endpoint nodes. A reader MUST NOT
-prepend or append node positions to it.
+An arc's line runs from the position of its `from` node, through its `pips` in
+order, to the position of its `to` node. The `pips` array holds the interior
+points of the line only: it does not repeat either node's position. An arc MAY
+have no pips, and is then the straight line between its two nodes. The
+elevation at each end of the line is its node's.
 
-The first pip states the position of the node `from` names, and the last states
-the position of the node `to` names. Where a terminal pip and its node
-disagree, the pips are authoritative: the two are one fact written twice, and
-the geometry lives in the pips.
+An arc pip carries longitude, latitude and optionally elevation. An arc pip
+carries no time. A reader that meets a time on an arc pip drops the time
+channel, keeps the pip and records one diagnostic for the arc (Section 6.2).
 
-A reader MUST compare each terminal pip against its node's position and MUST
-record a diagnostic where they are further apart than the projection tolerance
-of Section 3.3.3, keeping both.
+An arc's `from` and `to` MUST name two different nodes. An arc whose `from` and
+`to` name the same node is a self-loop, and this format cannot carry one: a pass
+over it would have no other end to leave by (Section 3.3.3). A reader drops a
+self-loop arc and records a diagnostic.
 
-Note: an implementation whose internal storage holds only the interior points
-of an arc adds the endpoint positions when writing and removes them when
-reading.
+A reader drops an arc whose `from` or `to` names a node that is not in the
+network, and records a diagnostic.
+
+A chain whose walk names a dropped arc is itself dropped, under the rule for a
+pass naming an absent arc (Section 6.2).
 
 #### 3.3.3 Chains
 
-A chain traverses arcs that it does not own.
+A chain carries a walk over arcs that it does not own.
 
 ```json
 {
   "name": "Chalamain Gap",
   "style": { "color": "#c1440e", "width": 4, "opacity": 0.9, "line-style": "solid" },
-  "links": [
-    { "arc": "arc-1", "from": "node-1", "to": "node-2" },
-    { "arc": "arc-2", "from": "node-2", "to": [-3.6521, 57.1000] }
+  "walk": [
+    { "arc": "arc-7", "from": [-3.6521, 57.1000], "to": "node-5" },
+    { "arc": "arc-1" },
+    { "arc": "arc-3", "pinned": true },
+    { "arc": "arc-4", "turn": [-3.6488, 57.0977] },
+    { "arc": "arc-3" },
+    { "arc": "arc-8", "to": [-3.6402, 57.0931] }
   ],
   "data": [ ]
 }
 ```
 
-`links` is ordered, and the order is the direction of travel. Each link names an
-arc in the same network and gives two endpoints.
+`walk` is an ordered array of passes, and the order is the direction of travel.
+Each pass covers one arc of the same network, which it names in `arc`. A pass
+enters its arc, optionally goes out to a turn and back, and leaves the arc.
 
-A link endpoint is either a node key, given as a string, or an inline position,
-given as an array. An inline position identifies a point on the named arc at
-which the chain starts, ends or reverses.
+A pass carries these keys besides `arc`:
 
-An inline position MUST lie on the named arc. A reader resolves it by projecting
-it onto the arc's polyline; elevation is taken from the polyline and is never
-stored on the endpoint. The projection tolerance is 50 metres, measured as
-follows.
+| Key | Value | Meaning |
+|---|---|---|
+| `from` | a node key, or a position | where the pass enters its arc |
+| `to` | a node key, or a position | where the pass leaves its arc |
+| `turn` | a position | where the walk turns round on this arc |
+| `pinned` | `true` | the pass is fixed by the user who drew the walk |
 
-Every coordinate, the inline position and every vertex of the arc's `pips`, is
-projected to metres by a local equirectangular map about the latitude of the
-inline position, using an Earth radius of 6371008.8 m:
+A position in `from`, `to` or `turn` carries longitude and latitude only. Its
+elevation is the elevation of the arc's line at the point the position
+identifies. A reader that meets an elevation or a time on such a position drops
+that channel, keeps the pass and records a diagnostic (Section 6.2).
+
+A writer MUST emit `pinned` only when its value is `true`, and a document SHOULD
+NOT contain `"pinned": false`. A reader treats `"pinned": false` as absent. A
+pass with a `turn` MUST NOT be `pinned`: the turn already fixes it.
+
+**The rule for `from` and `to`.** Every walk has one spelling, so that a walk
+read and written back is the same walk:
+
+1. The first pass has `from`.
+2. The last pass has `to`.
+3. A pass whose `from` is a position has `to`.
+4. No pass has a `from` or a `to` that rules 1 to 3 do not require.
+
+**What a pass covers.** A pass's entry is its `from` where it has one, and
+otherwise the node at which the previous pass left its arc. Its exit is its
+`to` where it has one. A pass without `to` leaves by the node it entered by
+when it has a `turn`, and by the other end of its arc when it has none. Because
+no arc is a self-loop (Section 3.3.2), the other end is always one node.
+
+A pass covers its arc's line from its entry to its turn, where it has one, and
+from there to its exit, in that order, whatever order those points lie in along
+the line. A pass whose entry and exit are the same point, with no turn, covers
+that point alone. Such a pass is legal.
+
+**Positions on an arc.** A position in `from`, `to` or `turn` identifies the
+point of the arc's line nearest to it. There is no limit on the distance
+between the position and the line: every position identifies a point.
+
+Two readers must identify the same point, so the distance is defined exactly.
+Every coordinate, the position and every vertex of the arc's line, is projected
+to metres by a local equirectangular map about the latitude of the position,
+using an Earth radius of 6371008.8 m:
 
 ```
-x = radians(lon) * 6371008.8 * cos(radians(lat_of_the_inline_position))
+x = radians(lon) * 6371008.8 * cos(radians(lat_of_the_position))
 y = radians(lat) * 6371008.8
 ```
 
 The cosine term uses that one latitude for every coordinate, which keeps the map
-affine, so a straight polyline segment stays straight and the plane geometry is
-exact. The distance is then the least distance from the projected position to
-any projected segment of the polyline, each segment measured as the distance to
-the nearest point on that segment.
+affine, so a straight segment of the line stays straight and the plane geometry
+is exact. The distance to a segment is the distance to the nearest point on that
+segment. The point identified is the nearest point on the nearest segment; where
+two segments are equally near, it is the one on the segment earlier along the
+line from the arc's `from` node.
 
-A polyline of one vertex is that point. A polyline of no vertices has no
-distance: the reader MUST record a diagnostic and drop the link rather than
-invent a number.
+**A valid walk.** A walk is valid when all of the following hold:
 
-A position at or within 50 metres of its arc is accepted: a distance equal to
-the tolerance is within it. No conformance case pins that boundary, because a
-distance at exactly the threshold is not reachable by a fixture. This sentence
-is the whole statement of the rule.
+1. Each pass names an arc of the network.
+2. The rule for `from` and `to` above holds.
+3. A `from` or `to` that is a node key names an end of its pass's arc.
+4. Each pass after the first enters its arc at an end of that arc: the node at
+   which the previous pass left is one of the arc's two nodes.
+5. Only the last pass leaves at a position.
+6. No pass carries both `turn` and `pinned`.
 
-An inline position that does not project onto its arc within that tolerance is
-an unusable value and is handled under Section 6.2.
-
-A chain's links MUST form one connected walk: the point at which link *k* ends
-MUST be the point at which link *k+1* begins. Where they do not, a reader keeps
-both links and reports the break (Section 6.2).
-
-Two endpoints meet when their longitude and latitude are equal, and no other
-channel takes part in the comparison. An inline endpoint carries no elevation
-because elevation is resolved from the polyline, while a node may carry one, so
-a comparison over all channels would report every junction between a node and
-an inline endpoint as broken.
-
-A node key is resolved to its position before comparing. Two distinct node keys
-at the same position therefore meet. Key equality is a valid fast path.
-
-A link that was dropped under Section 6.2 takes no part in the comparison on
-either side. The links either side of it are not thereby adjacent, and a reader
-MUST NOT report a break across the gap.
-
-Two links in one chain MAY share an endpoint position, which is how a reversal
-is expressed. Inline positions carry no identity, so:
-
-- A writer MUST emit value-equal coordinates for a shared endpoint.
-- A reader MUST treat value-equal inline positions on the same arc as the same
-  endpoint.
-
-Without both rules, a continuity check that compares endpoints refuses walks
-that are in fact continuous.
+An empty walk is valid and covers nothing. A reader drops a chain whose walk is
+not valid and records a diagnostic that names the pass and the rule
+(Section 6.2).
 
 ### 3.4 Routes
 
-A top-level route owns its arcs. Nothing else can reference them. A route
-therefore carries no `nodes` object, no `links`, and its arcs carry no
-identifiers.
+A top-level route owns its graph. It carries `nodes` and `arcs` of the same
+shape as a network's (Sections 3.3.1 and 3.3.2), and one `walk` of the same
+shape as a chain's (Section 3.3.3). Nothing outside the route can reference
+its nodes or arcs.
 
 ```json
 {
   "folder": "cairngorms",
   "name": "Braeriach direct",
   "style": { },
-  "arcs": [
-    { "pips": [ ], "data": [ ] },
-    { "pips": [ ], "data": [ ] }
-  ],
-  "data": [ ]
+  "nodes": { "node-1": [-3.728, 57.0782, 1296], "node-2": [-3.7101, 57.0699, 1150] },
+  "arcs":  { "arc-1": { "from": "node-1", "to": "node-2", "pips": [ ], "data": [ ] } },
+  "walk":  [ { "arc": "arc-1", "from": "node-2", "to": "node-1" } ],
+  "data":  [ ]
 }
 ```
 
-`arcs` is ordered. Node identity is the shared endpoint between arc *k* and arc
-*k+1*, which is present in both pip lists. Direction is pip order. Arc
-boundaries are preserved by the array, so a route that is partly hand-drawn and
-partly engine-routed retains that structure.
+A route's walk runs from node to node. Every `from` and `to` in it is a node
+key, and no pass in it carries `turn` or `pinned`.
 
-An arc whose two endpoints are the same node is legal and needs no special
-handling.
+Every rule Section 3.3 states for a network's nodes and arcs and for a chain's
+walk applies to a route's. Where that section has a reader drop a chain, a
+reader drops the route.
+
+Arc boundaries are preserved by the arcs, so a route that is partly hand-drawn
+and partly engine-routed retains that structure. A walk may cover an arc in
+either direction.
 
 Top-level areas are defined in Section 3.7 and appear in the top-level `areas`
 collection, not inside a route.
@@ -547,16 +572,26 @@ Auto to hidden with nothing to report.
 ```json
 {
   "name": "Boggy ground",
-  "polygon": [ [-3.65, 57.1], [-3.64, 57.1], [-3.64, 57.11], [-3.65, 57.1] ],
+  "polygon": [ [-3.65, 57.1], [-3.64, 57.1], [-3.64, 57.11] ],
   "style": { "fill-color": "#1e6091", "fill-opacity": 0.25, "stroke-color": "#1e6091", "stroke-width": 2 },
   "data": [ ]
 }
 ```
 
-`polygon` is one closed ring: an array of at least four positions whose first
-and last positions are equal. Equal means equal in longitude and latitude; no
-other channel takes part, for the same reason as Section 3.3.3's endpoints.
-Holes and multiple rings are not expressible in this format.
+`polygon` is one ring: an array of positions tracing the area's boundary. The
+ring is open. Its last position is not a repeat of its first, and the boundary
+runs from the last position back to the first. A ring holds at least three
+distinct positions. Two positions are distinct when they differ in longitude or
+in latitude; no other channel takes part. Holes and multiple rings are not
+expressible in this format.
+
+A writer MUST emit a ring open. A reader that meets a ring whose last position
+equals its first, in longitude and latitude, drops that last position, keeps
+the area and records a diagnostic. It drops that one position only, and then
+applies the next paragraph to what remains.
+
+A reader drops an area whose ring holds fewer than three distinct positions,
+and records a diagnostic.
 
 A reader that encounters a nested or additional ring MUST report a diagnostic
 and MUST drop the area. It MUST NOT silently keep the outer ring, and MUST NOT
@@ -614,19 +649,18 @@ This section is the set of keys this format defines. A reader needs it to apply
 Section 6.2's unrecognised-key rule, which cannot be implemented without it.
 
 A key marked REQUIRED must be present for the object to exist. Requiring a key
-does not require a non-empty value: `"links": []` satisfies `links`, and an
-empty array is distinct from an absent one.
+does not require a non-empty value: `"walk": []` satisfies `walk`, and an empty
+array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
 | document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `chains`, `points`, `areas`, `data` |
-| arc, in a network | `from`, `to`, `pips` | `data` |
-| chain | `links` | `name`, `notes`, `hidden`, `style`, `data` |
-| link | `arc`, `from`, `to` | — |
-| route | `arcs` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
-| arc, in a route | `pips` | `data` |
+| arc, in a network or a route | `from`, `to`, `pips` | `data` |
+| chain | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
+| pass | `arc` | `from`, `to`, `turn`, `pinned` |
+| route | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
 | segment | `pips` | — |
 | waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
@@ -647,9 +681,9 @@ Notes on the table:
   the table gives none of them is not an item. `hidden` therefore appears on a
   top-level waypoint: Section 3.8 names the shape rather than the collection,
   and a waypoint and a network's point are one shape (Section 3.6).
-- An arc carries no `name`, `notes`, `hidden` or `style`, and neither a link nor
+- An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
   a segment carries `hidden`. A per-arc style is a plausible future addition and
-  is not part of version 0.1.
+  is not part of version 0.2.
 
 #### Objects this section does not reach
 
@@ -697,9 +731,10 @@ The following rules apply:
   Absent elevation and absent time are both first-class states and MUST be
   expressible.
 - Trailing channels MAY be omitted. Arity 2 through 4 carry the channels this
-  version defines. Arity 2 is used for inline chain endpoints (Section 3.3.3)
-  and for area rings (Section 3.7). Arity 4 is legal on an arc, and a reader
-  does not depend on an arc pip carrying a time.
+  version defines. Arity 2 is used for the positions of a walk (Section 3.3.3)
+  and for area rings (Section 3.7). A node and an arc pip carry no time
+  (Sections 3.3.1 and 3.3.2), and a walk position carries neither elevation nor
+  time (Section 3.3.3).
 - A position MAY carry more channels than this version defines. A reader MUST
   ignore them and MUST NOT report a diagnostic for them.
 - Positions of differing arity MAY appear within one `pips` array, and a reader
@@ -773,8 +808,8 @@ Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 
 Arrays MUST NOT be reordered. The order of an array is data,
 and it is meaningful wherever an array appears in this format: the positions in
-a `pips` array, the links of a chain, the arcs of a route, and the segments of a
-track. The order of positions in a line is the shape of the line.
+a `pips` array, the passes of a walk, the positions of a ring, and the segments
+of a track. The order of positions in a line is the shape of the line.
 
 ## 5. Data records
 
@@ -848,7 +883,7 @@ A reader is tolerant of damage and silent about nothing.
   is recognised, so a reader records no diagnostic for it. On any other object
   this format defines, except the opaque objects of Section 3.10, a key
   containing a full stop is unrecognised.
-- An unusable value, such as a position that will not parse, a link naming an
+- An unusable value, such as a position that will not parse, a pass naming an
   arc that is absent from the document, a `polygon` carrying a ring beyond the
   first, or a record-level timestamp carrying an offset other than `Z`: the
   reader MUST drop the offending element, MUST record a diagnostic, and MUST
@@ -890,41 +925,90 @@ A reader is tolerant of damage and silent about nothing.
   Section 7 states the causes for which a container is refused. They are
   separate, and a fault in an attachment is not among them.
 
-A link naming a node that is not in its network keeps the link and excludes that
-end from the continuity comparison of Section 3.3.3. The link then runs from its
-resolved endpoint along the named arc to that arc's terminus in the direction of
-travel: an absent `to` means from the resolved `from` to the far end, and an
-absent `from` means from the near terminus to the resolved `to`.
+Every problem the table below names is reported as a diagnostic with a code,
+and handled by a remedy local to the element it concerns. None of them is a
+refusal. Each row's code is the one a reader MUST put on that diagnostic.
 
 A position that will not parse drops the object that owns it rather than the
-position, and the table below says which object that is. A link that cannot be
-used drops the link and keeps the chain. Geometry is continuous and structure is
-not: a missing vertex leaves a shorter, plausible, wrong line with nothing to
-indicate it, while a missing link leaves a gap the continuity rule of
-Section 3.3.3 can see and report.
+position, and the table says which object that is. A missing vertex would leave
+a shorter, plausible, wrong line with nothing to indicate it. A track's owner
+is the segment rather than the whole track, because Section 3.5 already makes
+the interval between two segments a pause rather than geometry.
 
-A track's owner is the segment rather than the whole track, for the same reason.
-Section 3.5 already makes the interval between two segments a pause rather than
-geometry.
-
-The three unparsable-position rows below take one code. The code plus the table
-already tells a consumer what was lost, so the path is free to name the cause.
+A walk is used whole or not at all: any problem in a walk drops the chain that
+carries it. A walk with one pass removed is a different walk, not a shorter one.
+Removing a pass from the middle joins two arcs that do not meet. Removing only a
+`turn` reverses the direction of everything after it. Removing only a `from`
+position moves the start of the walk to a node, which is a guess. Keeping the
+rest of the chain would therefore report a journey nobody drew. The diagnostic
+names the pass and the rule, so the cause is known.
 
 The remedies for the constructs this document constrains:
 
-| Construct | Remedy |
-|---|---|
-| an inline link endpoint that does not project onto its arc within tolerance (3.3.3) | drop the link |
-| a `polygon` that does not close, or holds fewer than four positions (3.7) | drop the area |
-| an arc naming a node that is not in its network (3.3.2) | keep the arc; its geometry is real |
-| a link naming a node that is not in its network (3.3.3) | keep the link; see above |
-| a position that will not parse, inside an arc's `pips` (4.1) | drop the arc |
-| a position that will not parse, inside a track segment's `pips` (4.1) | drop the segment |
-| a position that will not parse, inside a `polygon` ring (4.1) | drop the area |
-| a data record with no `@type`, or one that is not a string (5) | drop the record |
-| consecutive links in a chain that do not meet (3.3.3) | keep both links; report the break |
+| Construct | Remedy | Code |
+|---|---|---|
+| an unrecognised key (3.10) | skip the key | `unknown-key` |
+| a value of the wrong JSON type in an OPTIONAL key (3.10) | drop the field | `wrong-type-optional` |
+| a value of the wrong JSON type in a REQUIRED key, or a REQUIRED key that is absent (3.10) | drop the object | `wrong-type-required` |
+| a data record with no `@type`, or one that is not a string (5) | drop the record | `wrong-type-required` |
+| a record-level timestamp with an offset other than `Z` (4.3) | drop the field | `timestamp-not-utc` |
+| a position that will not parse, as a node (3.3.1) | drop the node | `position-unusable` |
+| a position that will not parse, inside an arc's `pips` (3.3.2) | drop the arc | `position-unusable` |
+| a position that will not parse, inside a track segment's `pips` (3.5) | drop the segment | `position-unusable` |
+| a position that will not parse, inside a `polygon` ring (3.7) | drop the area | `position-unusable` |
+| a `from`, `to` or `turn` that is neither a node key where one is allowed nor a position that parses (3.3.3) | drop the chain | `position-unusable` |
+| a time on a node (3.3.1), or an elevation or a time on a position in a walk (3.3.3) | drop the channel | `extra-channel` |
+| a time on an arc pip (3.3.2) | drop the time channel, from every pip of the arc that carries one | `arc-pip-time` |
+| an arc whose `from` and `to` name the same node (3.3.2) | drop the arc | `self-loop-arc` |
+| an arc whose `from` or `to` names a node that is not in its network or route (3.3.2) | drop the arc | `arc-node-absent` |
+| a pass that is not an object, or that names no arc of its network or route (3.3.3) | drop the chain | `pass-arc-absent` |
+| a walk that breaks the rule for `from` and `to` (3.3.3) | drop the chain | `walk-spelling` |
+| a walk that is not connected: valid-walk rules 3, 4 and 5 (3.3.3) | drop the chain | `walk-not-connected` |
+| a pass carrying both `turn` and `pinned` (3.3.3) | drop the chain | `pinned-turn` |
+| a position, a `turn` or `pinned` in a route's walk (3.4) | drop the route | `route-pin-or-position` |
+| a `polygon` carrying a ring beyond the first (3.7) | drop the area | `polygon-nested-rings` |
+| a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
+| a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
+| an attachment that cannot be recovered (7) | drop the attachment | `attachment-unreadable` |
 
-The diagnostic for a break addresses the second link of the pair.
+In a route, "the chain" in this table is the route itself (Section 3.4).
+
+A node dropped by a row above leaves every arc that names it naming an absent
+node, and that arc is then dropped under `arc-node-absent`. An arc dropped by
+any row above leaves every chain whose walk names it with a
+pass that names no arc of its network, and that chain is then dropped under
+`pass-arc-absent`. Each is its own diagnostic: the first says the arc is gone,
+the second that the chain is.
+
+A ring that repeats its first position and holds too few distinct positions
+takes both `ring-closed` and `ring-too-few-points`, at their two paths.
+
+**The order in which a walk is checked.** A reader checks the passes of a walk
+in order, and each pass in the order of the list below. At the first check that
+drops the chain, it records that diagnostic and examines nothing further in the
+walk. Diagnostics that do not drop the chain are recorded as they are met.
+
+1. The pass is an object and its `arc` names an arc of its network or route.
+   Otherwise `pass-arc-absent`, at the pass.
+2. Each unrecognised key on the pass: `unknown-key`, at the key.
+3. `pinned`, where present, is a boolean. Otherwise `wrong-type-optional`, at
+   `pinned`, and the field is dropped.
+4. `from`, `to` and `turn`, in that order, where present: each parses.
+   Otherwise `position-unusable`, at that key. A position carrying an elevation
+   or a time takes `extra-channel`, at that key.
+5. In a route: `from`, `to`, `turn` and `pinned`, in that order, where present,
+   carry no position, turn or pin. Otherwise `route-pin-or-position`, at that
+   key.
+6. The pass does not carry both `turn` and `pinned: true`. Otherwise
+   `pinned-turn`, at the pass.
+7. The rule for `from` and `to`: first `from`, then `to`. A key the rule
+   requires and the pass lacks takes `walk-spelling` at the pass; a key the pass
+   carries and the rule forbids takes it at that key.
+8. The walk is connected. In this order: a `from` node that is not an end of
+   the pass's arc takes `walk-not-connected` at `from`; a pass after the first
+   whose arc does not touch the node at which the previous pass left takes it at
+   the pass; a `to` node that is not an end of the arc, or a `to` position on a
+   pass other than the last, takes it at `to`.
 
 A `folder` naming a folder that is not present in the document is not an
 unusable value. The reader MUST treat the key as absent, so the item sits at the
@@ -965,24 +1049,26 @@ Three rules place a diagnostic, and they cover three different kinds of
 diagnostic rather than one rule with two exceptions.
 
 1. Where something is unusable, `path` names the smallest element no part of
-   which could be used. That is not always the element the remedy drops: an
-   inline endpoint that does not project names the endpoint while the link is
-   dropped around it, and a polygon with nested rings names the polygon while
-   the area is dropped around it.
+   which could be used. That is not always the element the remedy drops: a
+   `turn` that will not parse names the `turn` while the chain is dropped around
+   it, and a polygon with nested rings names the polygon while the area is
+   dropped around it. A ring's repeated closing position is named by its index
+   in the ring as written.
 
-   A link naming an absent arc and an inline endpoint that misses its arc land
-   at different depths: when the arc is absent nothing about the link resolves,
-   so the link is named; when the endpoint misses the arc, the arc and the other
-   endpoint still resolve, so only `to` is.
-2. Where the diagnostic is about a relationship, nothing is unusable at all: a
-   chain whose links do not meet keeps both links. Such a diagnostic names the
-   second of the pair, the link that failed to continue, not the one it failed
-   to continue from.
-3. Where the diagnostic reports a disagreement between two values that both
-   survive, it names the value being reported rather than the one it is measured
-   against. An arc's terminal pip that has drifted from its node names the pip's
-   end, because Section 3.3.2 makes the pips authoritative and the node is the
-   reference.
+   A pass naming an absent arc and a `turn` that will not parse land at
+   different depths: when the arc is absent nothing about the pass resolves, so
+   the pass is named; when the `turn` will not parse, the arc and the rest of
+   the pass still resolve, so only `turn` is.
+2. Where the diagnostic is about a relationship between parts that are each
+   usable, `path` names the part that breaks it. A pass that does not continue
+   from the node where the previous pass left names the later pass, not the one
+   it failed to continue from. A pass carrying both `turn` and `pinned` names
+   the pass. A key the rule for `from` and `to` forbids names that key, and a
+   key it requires names the pass that lacks it.
+3. Where the diagnostic reports channels dropped across one element, it names
+   that element. `arc-pip-time` names the arc's `pips` array, once for the arc,
+   however many pips carried a time. `extra-channel` names the node, or the
+   `from`, `to` or `turn` key, that carried the channel.
 
 One invariant holds across all three. No two diagnostics about one document may
 share both a `path` and a `code`. Those are the only two fields a conforming

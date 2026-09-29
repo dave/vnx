@@ -144,8 +144,8 @@ two to one value, so the accept tier cannot see the difference and is not meant
 to. A model that holds both shapes is free to; a model that folds them together
 is equally conforming.
 
-For a REQUIRED key, they are distinct. `SPEC §3.10`: `"links": []` satisfies
-`links` and an absent `links` does not. A required key must be present for the
+For a REQUIRED key, they are distinct. `SPEC §3.10`: `"walk": []` satisfies
+`walk` and an absent `walk` does not. A required key must be present for the
 object to exist.
 
 A `hidden` written as `false` is a third case: `SPEC §3.8` gives absence the
@@ -159,7 +159,7 @@ The language pulls here. A plain list for every collection, where absent and
 empty are one value, is more idiomatic in Rust than an optional list, and every
 reviewer would suggest the change. For the six document collections that
 change is safe: `SPEC §3.1` puts the two shapes on the same footing. It is not
-safe for a required key. A model that cannot tell an absent `links` from an
+safe for a required key. A model that cannot tell an absent `walk` from an
 empty one cannot report the object as malformed.
 
 Those two absences, Auto and visible, are the only ones `SPEC §3.1` gives a
@@ -307,13 +307,14 @@ bit away from what `str::parse` gives.
 
 ### 7.1 The projection model, and why the cosine reference decides
 
-`SPEC §3.3.3` gives a 50 metre tolerance for an inline chain endpoint and names
-the distance function: a local equirectangular projection about the query point's
-latitude, mean Earth radius 6371008.8 m, longitude scaled by the cosine of that
-latitude.
+`SPEC §3.3.3` has a walk position identify the nearest point of its arc's line,
+at any distance, and names the distance function that decides "nearest": a
+local equirectangular projection about the position's latitude, mean Earth
+radius 6371008.8 m, longitude scaled by the cosine of that latitude.
 
 Every part of that sentence is load-bearing. Four plausible models measured
-against one corpus endpoint spread from 19.81 m to 36.47 m, a factor of 1.8:
+against one position 20 m from its arc spread from 19.81 m to 36.47 m, a
+factor of 1.8:
 
 | Model | Distance |
 |---|---|
@@ -322,44 +323,28 @@ against one corpus endpoint spread from 19.81 m to 36.47 m, a factor of 1.8:
 | degrees scaled by 111 320 on both axes, no cosine | 25.52 m |
 | Web Mercator | 36.47 m |
 
-An implementation reaching for Web Mercator, or scaling by degrees with no cosine
-term, passes every structural check and disagrees about which documents are
-legal.
+Distances that disagree by that much disagree about which segment is nearest
+wherever a line bends back past a position, and so about the point a walk
+starts, ends or turns at. A reader stores a walk position as written, so the
+disagreement reaches no reader: it reaches every writer that draws a walk.
 
-### 7.2 A refusal fixture cannot discriminate, so the arc's direction is the test
+### 7.2 A walk is read whole, and checked in one order
 
-This is the least obvious property in the corpus and the first casualty of a
-tidy-up.
+A pass does not stand alone. Its entry is the node where the previous pass
+left, and where it leaves depends on whether it has a `to` and whether it has a
+`turn` (`SPEC §3.3.3`). Carry the current node through the walk, pass by pass;
+do not try to validate a pass from its own keys.
 
-A fixture that must be refused cannot tell a correct model from one that
-over-reads: a model reading a larger distance also refuses. Every wrong model
-refuses a 55 m case.
+`SPEC §6.2` drops the whole chain at the first problem in its walk and lists the
+order in which to look. The order is what makes two readers name the same pass
+and the same code for a walk with two problems in it. Checking the rule for
+`from` and `to` across the whole walk before looking at connection is a
+plausible structure and reports a different pass.
 
-Discrimination comes from the arc's direction. Run the arc north to south, so its
-first vertex sits at high latitude and the query point at low, and a model taking
-the cosine of the segment's start latitude under-reads: 36.845 m against a true
-55, which accepts a document the format refuses. That is the more dangerous
-direction, and only an arc pointing that way exposes it.
-
-The two tolerance cases therefore run in opposite directions on purpose.
-`corpus/accept/inline-endpoint-within-tolerance.vnx` catches a model that
-over-reads and refuses good geometry;
-`corpus/diagnose/inline-endpoint-beyond-tolerance.vnx` catches one that
-under-reads and accepts bad geometry.
-
-The separation has to be large enough for the error to cross the threshold, not
-merely move the number. On an arc spanning three degrees of latitude, a
-segment-start-cosine model reads 48.87 m and 59.73 m where the correct model
-reads 45 and 55: an 8.5 per cent error, plainly visible in the numbers, and the
-verdict is unchanged on both files. Thirteen degrees gives 67.447 m and
-36.845 m, which flips both. A fixture that moves a number without moving a
-verdict separates nothing.
-
-All four figures assume the mean radius of 6 371 008.8 m that `SPEC §3.3.3`
-names, and only that constant reproduces the 45 and 55 the fixtures are named
-for: at 111 132 m per degree the same coordinates solve to 44.974 and 54.969.
-The difference never moves a verdict, which is why a distance quoted without its
-constant outlives both.
+The two node-level problems, a self-loop and an arc naming an absent node, are
+reported on the arc. The chains that walk it are then dropped for naming an
+absent arc, each with its own diagnostic, so a reader resolves the arcs before
+it reads any walk.
 
 ---
 
@@ -403,19 +388,19 @@ zero, and `corpus/accept/track-without-times.vnx` and
 The two absences that legitimately carry a meaning are in section 4.1, and they
 are absences in a conforming document, not malformed values.
 
-### 8.3 Geometry is continuous and structure is not
+### 8.3 A position drops its owner, and a walk drops its chain
 
-`SPEC §6.2`'s remedies read as inconsistent and are not. A position inside `pips`
+`SPEC §6.2`'s remedies read as severe and are not. A position inside `pips`
 that will not parse drops the arc or segment that holds it, not the position. A
-link that cannot be used is dropped and its chain survives.
+missing vertex changes the shape of a line and leaves nothing to indicate it: a
+shorter, plausible, wrong line. A ring vertex that will not parse drops the
+area for the same reason.
 
-They are the same rule. A missing vertex changes the shape of a line and leaves
-nothing to indicate it: a shorter, plausible, wrong line. A missing link leaves a
-gap the continuity rule of `SPEC §3.3.3` can see and report, so nothing is lost
-silently. A ring vertex that will not parse drops the area, for the same reason
-plus `SPEC §3.7`: a polygon is one closed ring of at least four positions, so
-dropping a vertex both moves the boundary and can turn a four-vertex ring into a
-three-vertex non-ring.
+A walk goes further: any problem in it drops the chain. A pass removed from the
+middle joins two arcs that do not meet, a `turn` removed reverses everything
+after it, and a `from` removed moves the start to a node. Each of those is a
+different walk that reads as a valid one, and a caller holding it has no way to
+know.
 
 A diagnostic should therefore name *what was dropped*, not only what was wrong.
 The remedy is not the same everywhere, and a caller should not have to derive it
@@ -566,8 +551,8 @@ today, and what shape a case would take. Where two readings of a rule produce a
 different document for one input, the accept tier reaches it. Where a rule takes
 effect only when a model becomes a document, a write tier does. Where neither is
 true, the prose is the only statement of the rule and your own tests the only
-enforcement. The tolerance boundary at exactly 50 metres is one: no two distance
-models land on exactly 50.
+enforcement. The nearest point of an arc is one: a reader stores a walk position
+as written, so no tier observes the point it identifies (section 7.1).
 
 ### 10.2 A case only separates the readings its own data can separate
 
@@ -583,18 +568,12 @@ shared and the repairs are not.
 These were never checking the thing they named. No answer they could produce
 would differ between a correct implementation and a wrong one.
 
-**A node-key comparison.** `SPEC §6.2` resolves a node key to its position before
-comparing chain continuity, demoting key equality to a fast path. Compare the keys
-instead and two distinct keys at one position do not meet, so a continuous walk is
-reported as broken. One library shipped that reading and ran the whole corpus
-green; its own tests could not help either, having been written to match it, and
-the fix was as invisible as the defect.
-
-`corpus/diagnose/chain-does-not-join.vnx` varies the node keys *and* the
-positions together, so both comparators return the same verdict on it. It looks
-like coverage, being in `diagnose/` and named for continuity, and it cannot
-attribute its verdict to either reading. Any fixture that changes two variables
-together tests neither.
+**A continuity comparison.** A continuity rule that compares two endpoints can
+be read as comparing their keys or their positions. A fixture that varies the
+keys *and* the positions together gets the same verdict from both comparators.
+It looks like coverage, being in `diagnose/` and named for continuity, and it
+cannot attribute its verdict to either reading. Any fixture that changes two
+variables together tests neither.
 
 **A ZIP64 fixture** that masked sizes in the local header only, so disabling the
 extra-field parser left the test green (section 9.2).
@@ -667,10 +646,10 @@ then write down which values the case actually varies. Where it varies more than
 one, ask which readings it can separate at all.
 
 That recipe found three real gaps in one afternoon: the continuity fixture above;
-`corpus/diagnose/link-names-absent-arc.vnx`, whose two links made "one defect
-must not become two" a guarantee of arity, not of the reader; and a tolerance
-pair whose arc spanned too little latitude to separate the distance models it
-existed to separate (section 7.2).
+a dangling-reference fixture whose two elements made "one defect must not
+become two" a guarantee of arity, not of the reader; and a distance fixture
+whose arc spanned too little latitude to separate the distance models it
+existed to separate (section 7.1).
 
 ### 10.3 Red-proof everything, and check the proof reached its target
 
@@ -748,7 +727,7 @@ existed only because the rule did. That is the arithmetic of a rule: it does not
 only cost the words that state it.
 
 **The branch is unreachable.** A mutation of the version rule for 1.0 and above
-is a provable no-op in a 0.1 reader, which can never take that branch
+is a provable no-op in a 0.2 reader, which can never take that branch
 (`SPEC §2.2`), so it comes back green for a reason that is neither a weak guard
 nor a bad mutation. Record the proof in the code, so the next person does not run
 the same mutation, see green, and conclude the guard is weak.

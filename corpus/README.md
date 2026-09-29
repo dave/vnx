@@ -27,7 +27,6 @@ with the tree and with each other.
 | Case | One named unit of the corpus: a fixture and its sidecar in a tier. |
 | Tier | A directory of cases sharing one operation and one requirement, listed above. |
 | Runner | The program an implementation writes to walk the corpus and compare its library's behaviour against each sidecar. |
-| Tolerance | The 50 m projection distance within which an inline link endpoint counts as meeting its arc (`SPEC §3.3.3`). |
 
 ## The sidecar
 
@@ -86,16 +85,16 @@ It carries two kinds of key. A **bare name** is one of the six top-level
 collections. An application key (`SPEC §3.9`) is not a collection and has no
 entry in `counts`: the tree comparison of an accept case is what checks it. A name **starting with `/`** is a container nested inside one,
 addressed by the same JSON Pointer vocabulary `positions` uses —
-`/networks/0/nodes`, `/routes/0/arcs/1/pips`, `/tracks/0/segments`,
-`/networks/0/chains/2/links`, `/areas/0/polygon`.
+`/networks/0/nodes`, `/routes/0/arcs/arc-2/pips`, `/tracks/0/segments`,
+`/networks/0/chains/2/walk`, `/areas/0/polygon`.
 
 ⚠ **THE NESTED KEYS ARE WHAT THE `diagnose/` TIER HAS INSTEAD OF A ROUND TRIP.**
 `SPEC §8.1` exempts `reject/` and `diagnose/` from the decode-then-encode
 comparison, and `diagnose/` is exactly where a reader is required to drop
-something in a SCOPED way: one area of two, one segment of two, one link of
-three. Before these keys existed nothing pinned what SURVIVED, and an
-over-broad drop — a dangling link taking the rest of its chain with it —
-passed the whole corpus green.
+something in a SCOPED way: one area of two, one segment of two, one chain of
+two. Before these keys existed nothing pinned what SURVIVED, and an over-broad
+drop, such as a dropped arc taking every chain in its network with it, passed
+the whole corpus green.
 
 ⚠ **AN ARC OR NODE CONTAINER IS KEYED BY ITS OWN KEY, NEVER BY AN INDEX**:
 `/networks/0/arcs/arc-1/pips`. `SPEC §3.3` makes `arcs` and `nodes` objects,
@@ -106,9 +105,9 @@ iteration order as a conformance requirement.
 HOLDS.** `diagnose/polygon-second-ring.vnx` carries two areas and its sidecar
 records one, because the nested-ring area is dropped whole. Read the case's
 `note` before changing a number: the note states the rule that decides it.
-A count of `0` is legal and sometimes load-bearing —
-`diagnose/inline-endpoint-beyond-tolerance.expect.json` pins
-`/networks/0/chains/0/links: 0` because the chain's only link is dropped.
+A count of `0` is legal and sometimes load-bearing:
+`diagnose/self-loop-arc.expect.json` pins `/networks/0/chains: 0` because the
+network's only chain walks the dropped arc.
 
 `positions` is the only available defence against a longitude and latitude
 transposition (`SPEC §8.1`). Both orderings parse, both are in range, and
@@ -129,7 +128,7 @@ of position the format carries:
 ```
 /waypoints/0/at                     /networks/0/nodes/node-1
 /areas/0/polygon/0                  /networks/0/arcs/arc-1/pips/0
-/routes/0/arcs/0/pips/0             /networks/0/chains/0/links/1/to
+/routes/0/arcs/arc-1/pips/0         /networks/0/chains/0/walk/0/from
 /tracks/0/segments/0/pips/0         /networks/0/points/0/at
                                     /networks/0/areas/0/polygon/0
 ```
@@ -217,60 +216,6 @@ implementation recognises.
 Decode the bytes; do not reformat them. Reformatting bytes into bytes never
 builds a model, so it cannot observe anything about what a model kept.
 
-### The tolerance cases
-
-`accept/inline-endpoint-within-tolerance.vnx` and
-`diagnose/inline-endpoint-beyond-tolerance.vnx` are the only cases that exercise
-the 50 m projection tolerance (`SPEC §3.3.3`) at a distance that decides a
-verdict. The worked example's inline endpoint sits about 20 m from its arc,
-where plausible distance models read between about 19.8 m and about 25.5 m — and
-every one of them passes, so that endpoint separates nothing.
-
-Both arcs are meridians at longitude -3 spanning thirteen degrees of latitude,
-from 55 to 68, and every part of that is deliberate. A meridian makes the
-projected segment vertical in every model, so the distance is the longitude
-offset times whatever scale the model uses: no model can argue about the
-arithmetic, only about the scale, which is the property under test. Thirteen
-degrees of span is what makes a wrong scale flip a verdict rather than move a
-number — over a short arc the two scales differ too little to cross the
-tolerance.
-
-The two arcs run in **opposite** directions, and that is the least obvious
-property here. The accept case catches a model that over-reads and refuses a
-legal document. A refusal case cannot catch that, because over-reading also
-refuses — so the diagnose case's arc descends, putting the segment start at high
-latitude and the query at low, where a model taking its cosine at the segment
-start under-reads and **accepts** a document the format requires a diagnostic
-for. That is the more dangerous direction, and nothing else here covers it.
-
-Measured, taking the cosine at the query latitude against taking it at the
-segment start:
-
-| Case | cosine at query latitude | cosine at segment start | Verdict flips? |
-|---|---|---|---|
-| `accept/inline-endpoint-within-tolerance.vnx` | 45.00 m — within | 67.45 m — beyond | yes, to a false refusal |
-| `diagnose/inline-endpoint-beyond-tolerance.vnx` | 55.00 m — beyond | 36.84 m — within | yes, to a false acceptance |
-
-```sh
-cd corpus && python3 -c "
-import math,json,glob
-R=6371008.8
-def d(p,a,b,cosref):
-    ax,ay=a[0]*cosref,a[1]; bx,by=b[0]*cosref,b[1]; px,py=p[0]*cosref,p[1]
-    dx,dy=bx-ax,by-ay
-    t=max(0,min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)))
-    return math.hypot(px-(ax+t*dx),py-(ay+t*dy))*math.pi/180*R
-for f in ['accept/inline-endpoint-within-tolerance.vnx','diagnose/inline-endpoint-beyond-tolerance.vnx']:
-    n=json.load(open(f))['networks'][0]
-    arc=list(n['arcs'].values())[0]; a,b=arc['pips'][0],arc['pips'][1]
-    p=n['chains'][0]['links'][0]['to']
-    print(f, round(d(p,a,b,math.cos(math.radians(p[1]))),2), round(d(p,a,b,math.cos(math.radians(a[1]))),2))
-"
-```
-
-Keep the two files inconsistent with each other. The inconsistency is the
-instrument.
-
 ### The ZIP64 archive
 
 `accept/container-zip64.vnz` is hand-built, and four of its properties look like
@@ -331,10 +276,6 @@ wrong. The self-test in step 8 is the author's own, and it is not optional.
 every sidecar in the corpus, not one expects two diagnostics at a single path,
 so a runner that skipped that check would notice nothing. The rule is a property
 of a reader rather than of any document.
-`diagnose/terminal-pip-off-node.vnx` comes closest, from the wrong side: an arc
-with both terminals drifted produces two diagnostics, and a reader naming the
-arc rather than the `from` and `to` keys emits them at one identical path,
-separable only by their English. That is why the case pins the field-level path.
 
 **`refusal` is matched as a substring, which compares English across
 implementations.** `SPEC §8.1` states it, and it is a known defect.

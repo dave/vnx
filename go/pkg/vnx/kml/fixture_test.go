@@ -56,7 +56,7 @@ func fixture() *vnx.Document {
 		Areas: []vnx.Area{{
 			Folder: "f-cairn", Name: "Loch Avon", Notes: "swim here",
 			Polygon: []vnx.Position{
-				pos(-3.66, 57.07), pos(-3.64, 57.07), pos(-3.64, 57.08), pos(-3.66, 57.07),
+				pos(-3.66, 57.07), pos(-3.64, 57.07), pos(-3.64, 57.08),
 			},
 			Style: vnx.Style{"fill-color": "#1E9C45", "fill-opacity": 0.5, "stroke-color": "#123456", "stroke-width": 2.0},
 		}},
@@ -70,45 +70,43 @@ func fixture() *vnx.Document {
 				{Pips: []vnx.Position{pos(-3.68, 57.02), posEle(-3.67, 57.03, 640)}},
 			},
 		}},
-		Routes: []vnx.Route{{
-			Name: "Ridge Line", Style: vnx.Style{"color": "#3A6FB0", "opacity": 0.75},
-			// Two arcs meeting at a shared endpoint: the boundary between them
-			// is what KML loses.
-			Arcs: []vnx.Arc{
-				{Pips: []vnx.Position{pos(-3.60, 57.10), pos(-3.59, 57.11)}},
-				{Pips: []vnx.Position{pos(-3.59, 57.11), pos(-3.58, 57.12)}},
-			},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{
+			Name: "Ridge Line", Style: vnx.Style{"color": "#3A6FB0", "opacity": 0.75}},
+			// Two arcs meeting at a shared node: the boundary between them is
+			// what KML loses.
+			lineArc{Pips: []vnx.Position{pos(-3.60, 57.10), pos(-3.59, 57.11)}},
+			lineArc{Pips: []vnx.Position{pos(-3.59, 57.11), pos(-3.58, 57.12)}},
+		)},
 		Networks: []vnx.Network{{
 			Name: "Lairig Ghru", Notes: "the through route",
-			Nodes: map[string]vnx.Position{
-				"n1": pos(-3.70, 57.00),
-				"n2": pos(-3.68, 57.04),
-				"n3": pos(-3.66, 57.08),
+			Nodes: map[string]vnx.Vertex{
+				"n1": vx(pos(-3.70, 57.00)),
+				"n2": vx(pos(-3.68, 57.04)),
+				"n3": vx(pos(-3.66, 57.08)),
 			},
 			Arcs: map[string]vnx.Arc{
 				// Deliberately declared out of order: the writer sorts them, and
 				// a golden taken from an unsorted walk would be flaky.
-				"a-south": {From: "n2", To: "n3", Pips: []vnx.Position{pos(-3.68, 57.04), pos(-3.67, 57.06), pos(-3.66, 57.08)}},
-				"a-north": {From: "n1", To: "n2", Pips: []vnx.Position{pos(-3.70, 57.00), pos(-3.69, 57.02), pos(-3.68, 57.04)}},
+				"a-south": {From: "n2", To: "n3", Pips: vs(pos(-3.67, 57.06))},
+				"a-north": {From: "n1", To: "n2", Pips: vs(pos(-3.69, 57.02))},
 			},
 			Chains: []vnx.Chain{
 				{
 					Name: "Full Traverse", Notes: "north to south",
 					Style: vnx.Style{"color": "#7B4FA8", "width": 4.0},
-					Links: []vnx.Link{
-						{Arc: "a-north", From: vnx.Endpoint{Node: "n1"}, To: vnx.Endpoint{Node: "n2"}},
-						{Arc: "a-south", From: vnx.Endpoint{Node: "n2"}, To: vnx.Endpoint{Node: "n3"}},
+					Walk: []vnx.Pass{
+						{Arc: "a-north", From: &vnx.Endpoint{Node: "n1"}},
+						{Arc: "a-south", To: &vnx.Endpoint{Node: "n3"}},
 					},
 				},
 				{
 					// SHARES a-north with the chain above, and stops part-way
-					// along it at an inline endpoint. Both facts matter: the
-					// sharing is what KML cannot express, and the inline endpoint
-					// is what proves the arc is cut rather than emitted whole.
+					// along it at a position. Both facts matter: the sharing is
+					// what KML cannot express, and the position is what proves
+					// the arc is cut rather than emitted whole.
 					Name: "Half Way", Hidden: true,
-					Links: []vnx.Link{
-						{Arc: "a-north", From: vnx.Endpoint{Node: "n1"}, To: vnx.Endpoint{At: ptr(pos(-3.69, 57.02))}},
+					Walk: []vnx.Pass{
+						{Arc: "a-north", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{At: &vnx.LonLat{Lon: -3.69, Lat: 57.02}}},
 					},
 				},
 			},
@@ -119,7 +117,7 @@ func fixture() *vnx.Document {
 			Areas: []vnx.Area{{
 				Name: "Boulder Field", Hidden: true,
 				Polygon: []vnx.Position{
-					pos(-3.685, 57.03), pos(-3.675, 57.03), pos(-3.675, 57.04), pos(-3.685, 57.03),
+					pos(-3.685, 57.03), pos(-3.675, 57.03), pos(-3.675, 57.04),
 				},
 				Style: vnx.Style{"fill-color": "#888888"},
 			}},

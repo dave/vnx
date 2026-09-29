@@ -13,21 +13,45 @@ import (
 // Nothing about the file looks wrong.
 
 // ccw and cw are the same square, wound the two ways.
+// ccw and cw are OPEN rings, the way VNX stores one (SPEC §3.7).
 func ccw() []vnx.Position {
-	return []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil), pos(0, 0, nil)}
+	return []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil)}
 }
 
 func cw() []vnx.Position {
-	return []vnx.Position{pos(0, 0, nil), pos(0, 1, nil), pos(1, 1, nil), pos(1, 0, nil), pos(0, 0, nil)}
+	return []vnx.Position{pos(0, 0, nil), pos(0, 1, nil), pos(1, 1, nil), pos(1, 0, nil)}
+}
+
+// closedOf is ring with its first position repeated last: the shape
+// signedArea measures, and the one GeoJSON writes.
+func closedOf(ring []vnx.Position) []vnx.Position {
+	return append(append([]vnx.Position{}, ring...), ring[0])
 }
 
 func TestSignedAreaKnowsWhichWayRoundItIs(t *testing.T) {
-	if signedArea(ccw()) <= 0 {
-		t.Errorf("counterclockwise ring measured %v, wanted positive", signedArea(ccw()))
+	if a := signedArea(closedOf(ccw())); a <= 0 {
+		t.Errorf("counterclockwise ring measured %v, wanted positive", a)
 	}
-	if signedArea(cw()) >= 0 {
-		t.Errorf("clockwise ring measured %v, wanted negative", signedArea(cw()))
+	if a := signedArea(closedOf(cw())); a >= 0 {
+		t.Errorf("clockwise ring measured %v, wanted negative", a)
 	}
+}
+
+// A VNX ring is stored open and GeoJSON writes it closed: the writer adds the
+// closing position, and refuses a ring that arrives already closed rather
+// than closing it twice.
+func TestAnOpenRingIsClosedAndAClosedOneRefused(t *testing.T) {
+	out, report := writeDoc(t, &vnx.Document{Areas: []vnx.Area{
+		{Name: "open", Polygon: ccw()},
+		{Name: "closed", Polygon: closedOf(ccw())},
+	}})
+	if !strings.Contains(out, `[[0,0],[1,0],[1,1],[0,1],[0,0]]`) {
+		t.Errorf("the open ring was not closed on output: %s", out)
+	}
+	if strings.Contains(out, `"closed"`) {
+		t.Errorf("a ring arriving closed was written: %s", out)
+	}
+	wantDiag(t, report.Diagnostics, 0, vnx.CodeItemNoGeometry, "/areas/1/polygon", "closed")
 }
 
 // A REVERSED RING IS NORMALISED, and the test is written so that a writer
@@ -61,13 +85,13 @@ func TestReversedRingInsideANetworkIsNormalised(t *testing.T) {
 // A degenerate ring has no winding to correct. Reversing it or refusing it
 // would both be inventing an answer to a question the geometry does not ask.
 func TestDegenerateRingIsLeftAlone(t *testing.T) {
-	flat := []vnx.Position{pos(0, 0, nil), pos(1, 1, nil), pos(2, 2, nil), pos(0, 0, nil)}
+	flat := []vnx.Position{pos(0, 0, nil), pos(1, 1, nil), pos(2, 2, nil)}
 	ring, ok := ringFor(flat)
 	if !ok {
-		t.Fatal("a closed four-position ring is a linear ring even with zero area")
+		t.Fatal("an open three-position ring closes to a linear ring even with zero area")
 	}
-	for i := range flat {
-		if ring[i] != flat[i] {
+	for i, p := range closedOf(flat) {
+		if ring[i] != p {
 			t.Fatalf("a zero-area ring was reordered: %v", ring)
 		}
 	}

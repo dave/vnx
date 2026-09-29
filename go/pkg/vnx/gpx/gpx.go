@@ -182,7 +182,15 @@ func (g *writer) writeRoutes() {
 		}
 		r := &g.doc.Routes[i]
 		path := fmt.Sprintf("/routes/%d", i)
-		pips := routePips(r)
+		// The route's line is its walk's, cut and joined by vnx.WalkLine, so
+		// a route walking an arc backwards is drawn the way it is walked. Arc
+		// BOUNDARIES do not survive — GPX cannot express them — and that is a
+		// matrix fact, not a per-item casualty (writer.go convention 5).
+		pips, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
+		if err != nil {
+			g.fail(fmt.Errorf("gpx: route %q: %w", r.Name, err))
+			return
+		}
 		if len(pips) == 0 {
 			g.routeDiags = append(g.routeDiags, noGeometry(path, r.Name))
 			continue
@@ -196,32 +204,6 @@ func (g *writer) writeRoutes() {
 		// <rtept>s produce a file that validates and is useless on a device.
 		g.writeTrk(name, r.Notes, [][]vnx.Position{pips})
 	}
-}
-
-// routePips flattens a route's arcs into the single point list its one
-// <trkseg> carries. Arc BOUNDARIES do not survive — GPX cannot express them —
-// and that is a matrix fact, not a per-item casualty (writer.go convention 5).
-//
-// ⚠ THE SHARED ENDPOINT IS EMITTED ONCE. Arc k's last pip and arc k+1's first
-// pip are the same node, present in BOTH pip lists by design (route.go: "node
-// identity is the shared endpoint between arc k and arc k+1, present in both
-// pip lists"). Writing it twice puts a zero-length step in the track, which
-// some readers count as a stop.
-//
-// It is compared by full value, not by longitude and latitude alone: a repeat
-// that differs in elevation or time is a second reading of the same place, and
-// dropping it would lose data to a tidy-up.
-func routePips(r *vnx.Route) []vnx.Position {
-	var out []vnx.Position
-	for _, a := range r.Arcs {
-		for j := range a.Pips {
-			if j == 0 && len(out) > 0 && out[len(out)-1].Equal(a.Pips[j]) {
-				continue
-			}
-			out = append(out, a.Pips[j])
-		}
-	}
-	return out
 }
 
 func (g *writer) writeTrk(name, notes string, segs [][]vnx.Position) {

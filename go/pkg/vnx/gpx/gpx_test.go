@@ -68,7 +68,7 @@ func fixture() *vnx.Document {
 		Areas: []vnx.Area{
 			{Folder: "f-cairn", Name: "Restricted Zone", Polygon: []vnx.Position{
 				{Lon: -3.7, Lat: 57.0}, {Lon: -3.6, Lat: 57.0},
-				{Lon: -3.6, Lat: 57.1}, {Lon: -3.7, Lat: 57.0},
+				{Lon: -3.6, Lat: 57.1},
 			}},
 		},
 		Tracks: []vnx.Track{{
@@ -83,17 +83,15 @@ func fixture() *vnx.Document {
 			Data:     []vnx.Record{tagRecord("solo")},
 			Segments: []vnx.Segment{{Pips: leg(0, 40, true)}, {Pips: leg(40, 40, true)}},
 		}},
-		Routes: []vnx.Route{{
+		Routes: []vnx.Route{route(vnx.Route{
 			Folder: "f-scot", Name: "Planned Line",
 			Style: vnx.Style{"color": "#3A6FB0", "opacity": float64(0.75)},
 			Data: []vnx.Record{{Type: "app.viatrail.routing",
-				Body: map[string]any{"profile": "walking", "avoid": "roads"}}},
-			Arcs: []vnx.Arc{
-				{Pips: leg(200, 30, false)},
-				// Arc 2 starts where arc 1 ended: the shared node is emitted once.
-				{Pips: leg(229, 30, false)},
-			},
-		}},
+				Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
+			lineArc{Pips: leg(200, 30, false)},
+			// Arc 2 starts where arc 1 ended: the shared node is emitted once.
+			lineArc{Pips: leg(229, 30, false)},
+		)},
 		Networks: []vnx.Network{{Folder: "f-scot", Name: "Cairngorms Paths"}},
 		AppKeys:  []vnx.AppKey{{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "Hard climbs"}}}},
 	}
@@ -209,7 +207,7 @@ func wantCodes(t *testing.T, rep vnx.WriteReport, want ...string) {
 
 func TestAreaRaisesExactlyTheAreaDiagnostic(t *testing.T) {
 	d := &vnx.Document{Areas: []vnx.Area{{Name: "Zone", Polygon: []vnx.Position{
-		{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}, {Lon: 1, Lat: 1}}}}}
+		{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}}}}}
 	out, rep := write(t, d)
 	wantCodes(t, rep, vnx.CodeGPXAreaUnsupported)
 	if rep.Diagnostics[0].Path != "/areas/0" {
@@ -230,10 +228,10 @@ func TestAreaRaisesExactlyTheAreaDiagnostic(t *testing.T) {
 }
 
 func TestNetworkRaisesExactlyTheNetworkDiagnostic(t *testing.T) {
-	arc := vnx.Arc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}, From: "n1", To: "n2"}
+	arc := vnx.Arc{From: "n1", To: "n2"}
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:   "Paths",
-		Nodes:  map[string]vnx.Position{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
+		Nodes:  map[string]vnx.Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
 		Arcs:   map[string]vnx.Arc{"a1": arc},
 		Chains: []vnx.Chain{{Name: "Through Route"}},
 		Points: []vnx.Waypoint{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
@@ -338,8 +336,8 @@ func TestACyclicFolderChainDoesNotHang(t *testing.T) {
 			{ID: "a", Name: "A", Parent: "b"},
 			{ID: "b", Name: "B", Parent: "a"},
 		},
-		Routes: []vnx.Route{{Folder: "a", Name: "R", Arcs: []vnx.Arc{
-			{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}}}}},
+		Routes: []vnx.Route{route(vnx.Route{Folder: "a", Name: "R"},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})},
 	}
 	out, rep := write(t, d)
 	// The cycle makes the path unbuildable; the route is kept, bare.
@@ -372,7 +370,7 @@ func TestItemsWithNoGeometryAreDiagnosedNotEmitted(t *testing.T) {
 // on is.
 func TestOnlyUnsupportedItemsEmitNothing(t *testing.T) {
 	d := &vnx.Document{
-		Areas:    []vnx.Area{{Name: "A", Polygon: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}, {Lon: 1, Lat: 1}}}},
+		Areas:    []vnx.Area{{Name: "A", Polygon: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}}}},
 		Networks: []vnx.Network{{Name: "N"}},
 		AppKeys:  []vnx.AppKey{{Key: "app.viatrail.rulesets", Value: []any{"r"}}},
 	}
@@ -445,8 +443,8 @@ func TestEveryCodeRaisedIsRegistered(t *testing.T) {
 // turn cues; a dense Viatrail route written as <rtept>s validates and is
 // useless on a device.
 func TestARouteIsATrackNotARoute(t *testing.T) {
-	d := &vnx.Document{Routes: []vnx.Route{{Name: "Planned", Arcs: []vnx.Arc{
-		{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}}}}}}
+	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Planned"},
+		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})}}
 	out, rep := write(t, d)
 	if strings.Contains(out, "<rte") || strings.Contains(out, "rtept") {
 		t.Fatalf("the route was written as <rte>:\n%s", out)
@@ -462,10 +460,10 @@ func TestARouteIsATrackNotARoute(t *testing.T) {
 // TestARouteBecomesOneSegmentWithTheSharedNodeWrittenOnce pins the arc join.
 func TestARouteBecomesOneSegmentWithTheSharedNodeWrittenOnce(t *testing.T) {
 	shared := vnx.Position{Lon: 2, Lat: 2}
-	d := &vnx.Document{Routes: []vnx.Route{{Name: "Two arcs", Arcs: []vnx.Arc{
-		{Pips: []vnx.Position{{Lon: 1, Lat: 1}, shared}},
-		{Pips: []vnx.Position{shared, {Lon: 3, Lat: 3}}},
-	}}}}
+	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Two arcs"},
+		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, shared}},
+		lineArc{Pips: []vnx.Position{shared, {Lon: 3, Lat: 3}}},
+	)}}
 	out, _ := write(t, d)
 	if n := strings.Count(out, "<trkseg>"); n != 1 {
 		t.Errorf("%d <trkseg>s, want 1 — a route's arcs are not pauses", n)
@@ -714,5 +712,16 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 	}
 	if checkedTests == 0 {
 		t.Fatal("guard inspected zero test files — the _test.go coverage added on 2026-09-06 is gone")
+	}
+}
+
+// A route whose walk does not resolve fails the write, where drawing its arcs
+// in array order would put a line on the map nobody walked. GPX carries no
+// networks (CodeGPXNetworkUnsupported), so the route is the one case here.
+func TestARouteWhoseWalkDoesNotResolveFailsTheWrite(t *testing.T) {
+	d := brokenWalks()["a route that does not join"]
+	var buf bytes.Buffer
+	if _, err := Write(&buf, d); err == nil {
+		t.Fatalf("the write succeeded:\n%s", buf.String())
 	}
 }

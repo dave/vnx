@@ -48,21 +48,18 @@ func TestMatrixNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 			t.Errorf("arc id %q reached the file — KML has no way to express arc identity, and putting one there would be an invented extension (§2.3)", id)
 		}
 	}
-	if strings.Contains(out, "<Link>") || strings.Contains(out, "links") {
+	if strings.Contains(out, "<Link>") || strings.Contains(out, "<walk") || strings.Contains(out, "pinned") {
 		t.Errorf("the traversal structure reached the file\n%s", out)
 	}
 }
 
 // Row: Route — "one path, boundaries lost".
 func TestMatrixRouteLosesItsArcBoundaries(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{{
-		Name: "Ridge",
-		Arcs: []vnx.Arc{
-			{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
-			{Pips: []vnx.Position{pos(0, 1), pos(0, 2)}},
-			{Pips: []vnx.Position{pos(0, 2), pos(0, 3)}},
-		},
-	}}})
+	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Ridge"},
+		lineArc{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
+		lineArc{Pips: []vnx.Position{pos(0, 1), pos(0, 2)}},
+		lineArc{Pips: []vnx.Position{pos(0, 2), pos(0, 3)}},
+	)}})
 	// CARRIED: every position, in order, joined at the shared endpoints.
 	if !strings.Contains(out, "<coordinates>0,0 0,1 0,2 0,3</coordinates>") {
 		t.Fatalf("the route's geometry did not survive as one path\n%s", out)
@@ -111,11 +108,11 @@ func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
 			Name: "W", At: pos(1, 2),
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
-		Routes: []vnx.Route{{
+		Routes: []vnx.Route{route(vnx.Route{
 			Name:  "R",
-			Style: vnx.Style{"color": "#3A6FB0", "width": 4.0, "line-style": "dashed"},
-			Arcs:  []vnx.Arc{{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}}},
-		}},
+			Style: vnx.Style{"color": "#3A6FB0", "width": 4.0, "line-style": "dashed"}},
+			lineArc{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
+		)},
 	})
 	// CARRIED: icon colour, line colour, line width.
 	for _, want := range []string{"<IconStyle>", "<color>ff3545e0</color>", "<color>ffb06f3a</color>", "<width>4</width>"} {
@@ -157,13 +154,12 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 
 // Row: Routing config — "❌". Same mechanism as tags: it is a data record.
 func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{{
-		Name: "R",
-		Arcs: []vnx.Arc{{
+	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "R"},
+		lineArc{
 			Pips: []vnx.Position{pos(0, 0), pos(0, 1)},
 			Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking"}}},
-		}},
-	}}})
+		},
+	)}})
 	for _, gone := range []string{"app.viatrail.routing", "walking", "profile"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("%q reached the file\n%s", gone, out)

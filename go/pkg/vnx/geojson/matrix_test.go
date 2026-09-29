@@ -213,10 +213,10 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 			Name: "Walk", Data: []vnx.Record{tag("solo")},
 			Segments: []vnx.Segment{{Pips: []vnx.Position{pos(1, 3, nil), pos(2, 3, nil)}}},
 		}},
-		Routes: []vnx.Route{{
-			Name: "Ridge", Data: []vnx.Record{tag("planned"), routing},
-			Arcs: []vnx.Arc{{Pips: []vnx.Position{pos(1, 2, nil), pos(3, 2, nil)}}},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{
+			Name: "Ridge", Data: []vnx.Record{tag("planned"), routing}},
+			lineArc{Pips: []vnx.Position{pos(1, 2, nil), pos(3, 2, nil)}},
+		)},
 	})
 	// CARRIED: every tagged item, under its flattened name.
 	for _, want := range []string{`"name":"Munros / Cairn"`, `"name":"Reserve"`, `"name":"Walk"`, `"name":"Ridge"`} {
@@ -245,14 +245,14 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 // its own temptation: a writer could plausibly decide the routing profile was
 // worth a property. Nothing that reads GeoJSON knows what to do with one.
 func TestCellRoutingConfigIsNotCarried(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{{
+	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{
 		Name: "Ridge",
-		Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}},
-		Arcs: []vnx.Arc{{
+		Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
+		lineArc{
 			Pips: []vnx.Position{pos(1, 2, nil), pos(3, 2, nil)},
 			Data: []vnx.Record{{Type: "app.viatrail.compute-failed", Body: map[string]any{"reason": "no-route"}}},
-		}},
-	}}})
+		},
+	)}})
 	// CARRIED: the route, as one LineString.
 	if !strings.Contains(out, `"name":"Ridge"`) || !strings.Contains(out, `"type":"LineString"`) {
 		t.Fatalf("the route was not exported:\n%s", out)
@@ -312,19 +312,19 @@ func TestCellMovingTimeIsNotCarriedAndIsNotDerivable(t *testing.T) {
 func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Lairig Ghru",
-		Nodes: map[string]vnx.Position{"node-north": pos(0, 0, nil), "node-mid": pos(0, 1, nil), "node-south": pos(0, 2, nil)},
+		Nodes: map[string]vnx.Vertex{"node-north": vx(pos(0, 0, nil)), "node-mid": vx(pos(0, 1, nil)), "node-south": vx(pos(0, 2, nil))},
 		Arcs: map[string]vnx.Arc{
-			"arc-north": {From: "node-north", To: "node-mid", Pips: []vnx.Position{pos(0, 0, nil), pos(0, 1, nil)}},
-			"arc-south": {From: "node-mid", To: "node-south", Pips: []vnx.Position{pos(0, 1, nil), pos(0, 2, nil)}},
+			"arc-north": {From: "node-north", To: "node-mid"},
+			"arc-south": {From: "node-mid", To: "node-south"},
 		},
 		Chains: []vnx.Chain{
-			{Name: "Full Traverse", Links: []vnx.Link{
-				{Arc: "arc-north", From: node("node-north"), To: node("node-mid")},
-				{Arc: "arc-south", From: node("node-mid"), To: node("node-south")},
+			{Name: "Full Traverse", Walk: []vnx.Pass{
+				{Arc: "arc-north", From: node("node-north")},
+				{Arc: "arc-south", To: node("node-south")},
 			}},
 			// SHARES arc-north with the chain above. That sharing is the whole
 			// of what this cell loses.
-			{Name: "Half Way", Links: []vnx.Link{
+			{Name: "Half Way", Walk: []vnx.Pass{
 				{Arc: "arc-north", From: node("node-north"), To: node("node-mid")},
 			}},
 		},
@@ -398,8 +398,8 @@ func TestCellPipTimeIsDropped(t *testing.T) {
 func TestCellItemsWithoutGeometry(t *testing.T) {
 	_, report := writeDoc(t, &vnx.Document{
 		Areas: []vnx.Area{
-			{Name: "short ring", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(0, 0, nil)}},
-			{Name: "open ring", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil)}},
+			{Name: "short ring", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil)}},
+			{Name: "closed ring", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil), pos(0, 0, nil)}},
 		},
 		Tracks: []vnx.Track{{Name: "no segments"}},
 		Routes: []vnx.Route{{Name: "no arcs"}},
@@ -408,13 +408,14 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 		t.Fatalf("wanted one diagnostic per unplaceable item, got %v", report.Diagnostics)
 	}
 	wantDiag(t, report.Diagnostics, 0, vnx.CodeItemNoGeometry, "/areas/0/polygon", "short ring")
-	wantDiag(t, report.Diagnostics, 1, vnx.CodeItemNoGeometry, "/areas/1/polygon", "open ring")
+	wantDiag(t, report.Diagnostics, 1, vnx.CodeItemNoGeometry, "/areas/1/polygon", "closed ring")
 	wantDiag(t, report.Diagnostics, 2, vnx.CodeItemNoGeometry, "/tracks/0", "no segments")
 	wantDiag(t, report.Diagnostics, 3, vnx.CodeItemNoGeometry, "/routes/0", "no arcs")
 	// The message must say WHICH rule failed: "no geometry" alone sends a
-	// reader looking for a missing polygon when the polygon is there and open.
-	if !strings.Contains(report.Diagnostics[1].Message, "not closed") {
-		t.Errorf("an open ring must be reported as open, got %q", report.Diagnostics[1].Message)
+	// reader looking for a missing polygon when the polygon is there and
+	// closed, which a VNX ring must not be (SPEC §3.7).
+	if !strings.Contains(report.Diagnostics[1].Message, "is closed") {
+		t.Errorf("a closed ring must be reported as closed, got %q", report.Diagnostics[1].Message)
 	}
 }
 
@@ -470,7 +471,7 @@ func TestEveryCodeRaisedIsRegistered(t *testing.T) {
 }
 
 func square() []vnx.Position {
-	return []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil), pos(0, 0, nil)}
+	return []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil)}
 }
 
 // The two geometry codes say different things and the difference is the whole
@@ -507,46 +508,15 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 		wantDiag(t, report.Diagnostics, 0, vnx.CodeItemNoGeometry, "/tracks/0", "No walk")
 	})
 
-	t.Run("network keeps its name when one arc is lost", func(t *testing.T) {
-		out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-			Name: "Net",
-			Arcs: map[string]vnx.Arc{
-				"good": {Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
-				"stub": {Pips: []vnx.Position{pos(2, 2, nil)}},
-			},
-		}}})
-		if !strings.Contains(out, `"name":"Net"`) {
-			t.Fatalf("the network was exported: %s", out)
-		}
-		wantDiag(t, report.Diagnostics, 0, vnx.CodePartialGeometry, "/networks/0/arcs/stub", "Net")
-	})
-
-	t.Run("chain keeps its name when one link names a missing arc", func(t *testing.T) {
-		out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-			Name:  "Net",
-			Nodes: map[string]vnx.Position{"n1": pos(0, 0, nil), "n2": pos(1, 1, nil)},
-			Arcs: map[string]vnx.Arc{
-				"a": {From: "n1", To: "n2", Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
-			},
-			Chains: []vnx.Chain{{Name: "Traverse", Links: []vnx.Link{
-				{Arc: "a", From: node("n1"), To: node("n2")},
-				{Arc: "vanished", From: node("n2"), To: node("n1")},
-			}}},
-		}}})
-		if !strings.Contains(out, `"name":"Net / Traverse"`) {
-			t.Fatalf("the chain still draws its remaining link, so it is in the file: %s", out)
-		}
-		wantDiag(t, report.Diagnostics, 0, vnx.CodePartialGeometry, "/networks/0/chains/0/links/1", "Traverse")
-	})
-
 	// ⚠ AN IN-NETWORK AREA IS THE WHOLE-ITEM CODE even though the network
 	// survives, and this case is here so nobody "fixes" it into the partial
 	// one. Args[0] is the AREA's name and none of the area could be placed.
 	t.Run("an in-network area that is wholly unplaceable is the whole-item code", func(t *testing.T) {
 		out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 			Name:  "Net",
-			Arcs:  map[string]vnx.Arc{"a": {Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}}},
-			Areas: []vnx.Area{{Name: "Sliver", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(0, 0, nil)}}},
+			Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
+			Arcs:  map[string]vnx.Arc{"a": {From: "n1", To: "n2"}},
+			Areas: []vnx.Area{{Name: "Sliver", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil)}}},
 		}}})
 		if strings.Contains(out, "Sliver") {
 			t.Fatalf("the area is diagnosed as dropped, so it must NOT be in the file: %s", out)

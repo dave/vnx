@@ -244,10 +244,14 @@ func (f *features) routes(d *vnx.Document) {
 	for i := range d.Routes {
 		r := &d.Routes[i]
 		at := fmt.Sprintf("/routes/%d", i)
-		line := joinArcs(r.Arcs)
+		line, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
+		if err != nil {
+			f.fail(fmt.Errorf("geojson: route %q: %w", r.Name, err))
+			return
+		}
 		if len(line) < 2 {
 			f.warn(vnx.CodeItemNoGeometry, at, []string{r.Name},
-				fmt.Sprintf("route has %d position(s) across %d arc(s), a GeoJSON LineString needs two", len(line), len(r.Arcs)))
+				fmt.Sprintf("route has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(r.Walk)))
 			continue
 		}
 		f.begin(f.flatName(d, at, r.Folder, r.Name), r.Notes)
@@ -317,14 +321,14 @@ func (f *features) networks(d *vnx.Document) {
 
 		var lines [][]vnx.Position
 		for _, id := range arcIDs {
-			pips := n.Arcs[id].Pips
-			if len(pips) < 2 {
-				// Partial: the network is still exported, minus this arc.
-				f.warn(vnx.CodePartialGeometry, at+"/arcs/"+id, []string{n.Name},
-					fmt.Sprintf("arc has %d position(s), a GeoJSON LineString needs two", len(pips)))
-				continue
+			// Node to node: an arc's line is at least its two ends, so every
+			// arc makes a LineString.
+			line, err := vnx.ArcLine(n.Nodes, n.Arcs[id])
+			if err != nil {
+				f.fail(fmt.Errorf("geojson: network %q arc %q: %w", n.Name, id, err))
+				return
 			}
-			lines = append(lines, pips)
+			lines = append(lines, line)
 		}
 
 		type ringed struct {
@@ -412,21 +416,18 @@ func (f *features) chains(d *vnx.Document, n *vnx.Network, at string) {
 	for j := range n.Chains {
 		c := &n.Chains[j]
 		cat := fmt.Sprintf("%s/chains/%d", at, j)
-		var line []vnx.Position
-		for k := range c.Links {
-			arc, found := n.Arcs[c.Links[k].Arc]
-			if !found {
-				// Partial: the remaining links still draw a chain. If none of
-				// them does, the whole-item code below is what fires instead.
-				f.warn(vnx.CodePartialGeometry, fmt.Sprintf("%s/links/%d", cat, k), []string{c.Name},
-					fmt.Sprintf("link names arc %q, which this network does not hold", c.Links[k].Arc))
-				continue
-			}
-			line = appendJoined(line, traverse(arc, c.Links[k]))
+		// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. It cannot come from
+		// a file — the reader drops such a chain — so only a hand-built
+		// Document reaches here with one, and drawing part of it, or the whole
+		// arc forwards, would put a line on the map nobody walked.
+		line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
+		if err != nil {
+			f.fail(fmt.Errorf("geojson: network %q chain %q: %w", n.Name, c.Name, err))
+			return
 		}
 		if len(line) < 2 {
 			f.warn(vnx.CodeItemNoGeometry, cat, []string{c.Name},
-				fmt.Sprintf("chain has %d position(s) across %d link(s), a GeoJSON LineString needs two", len(line), len(c.Links)))
+				fmt.Sprintf("chain has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(c.Walk)))
 			continue
 		}
 		f.begin(inNetworkName(base, c.Name), c.Notes)

@@ -10,7 +10,7 @@ three conversion writers import the standard library and nothing else.
 
 ## Install
 
-This module implements VNX 0.1.0. From a checkout of the repository, in the
+This module implements VNX 0.2.0. From a checkout of the repository, in the
 consuming module's `go.mod`:
 
 ```
@@ -90,18 +90,18 @@ document path of everything it mentions. That is what makes them usable from a
 script or an agent without parsing English prose.
 
 ```sh
-vnx validate --json corpus/diagnose/chain-does-not-join.vnx
+vnx validate --json corpus/diagnose/walk-not-connected.vnx
 ```
 
 ```json
 {
-  "file": "corpus/diagnose/chain-does-not-join.vnx",
+  "file": "corpus/diagnose/walk-not-connected.vnx",
   "ok": true,
   "diagnostics": [
     {
-      "code": "chain-discontinuity",
-      "path": "/networks/0/chains/0/links/1",
-      "message": "this link starts at c but the previous one ends at b — the chain is not one connected walk"
+      "code": "walk-not-connected",
+      "path": "/networks/0/chains/1/walk/1",
+      "message": "the walk is at node \"b\", which is not an end of arc \"cd\" — dropped"
     }
   ]
 }

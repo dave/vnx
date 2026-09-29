@@ -39,11 +39,9 @@ func TestMatrixStylesAreNotCarried(t *testing.T) {
 			Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2},
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
-		Routes: []vnx.Route{{
-			Name:  "Ridge",
-			Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"},
-			Arcs:  []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}}},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"}},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
+		)},
 		Tracks: []vnx.Track{{
 			Name:     "Walk",
 			Style:    vnx.Style{"color": "#E08A1A", "width": 3},
@@ -92,10 +90,9 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 			Name: "Walk", Data: []vnx.Record{tag("solo")},
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{{
-			Name: "Ridge", Data: []vnx.Record{tag("planned")},
-			Arcs: []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}}},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Data: []vnx.Record{tag("planned")}},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
+		)},
 	})
 	// CARRIED: the tagged items, under their flattened names.
 	for _, want := range []string{"<name>Munros / Cairn</name>", "<name>Walk</name>", "<name>Ridge</name>"} {
@@ -128,14 +125,14 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 // worth a <cmt>. It is not: nothing that reads GPX knows what to do with it.
 func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
-		Routes: []vnx.Route{{
+		Routes: []vnx.Route{route(vnx.Route{
 			Name: "Ridge",
-			Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}},
-			Arcs: []vnx.Arc{{
+			Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
+			lineArc{
 				Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}},
 				Data: []vnx.Record{{Type: "app.viatrail.compute-failed", Body: map[string]any{"reason": "no-route"}}},
-			}},
-		}},
+			},
+		)},
 	})
 	// CARRIED: the route, as a <trk> with its geometry (§3.1's ruling).
 	if !strings.Contains(out, "<name>Ridge</name>") || !strings.Contains(out, "<trkseg>") {
@@ -172,10 +169,9 @@ func TestMatrixHiddenStateIsLostAndTheItemIsStillExported(t *testing.T) {
 			Name: "Secret Walk", Hidden: true,
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{{
-			Name: "Secret Ridge", Hidden: true,
-			Arcs: []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}}},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "Secret Ridge", Hidden: true},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
+		)},
 	})
 	for _, want := range []string{"<name>Secret Cairn</name>", "<name>Secret Walk</name>", "<name>Secret Ridge</name>"} {
 		if !strings.Contains(out, want) {
@@ -332,10 +328,9 @@ func TestMatrixNotesAreCarriedAsDesc(t *testing.T) {
 			Name: "Walk", Notes: "stopped for lunch",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{{
-			Name: "Ridge", Notes: "north to south",
-			Arcs: []vnx.Arc{{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}}},
-		}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Notes: "north to south"},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
+		)},
 	})
 	// CARRIED: whole, in <desc>, on all three kinds.
 	for _, want := range []string{

@@ -99,7 +99,6 @@ func TestRoundingKeepsARingClosedAndValid(t *testing.T) {
 			{Lon: -3.6712345678901235, Lat: 57.11812345678901},
 			{Lon: -3.6702345678901235, Lat: 57.11812345678901},
 			{Lon: -3.6702345678901235, Lat: 57.11912345678901},
-			{Lon: -3.6712345678901235, Lat: 57.11812345678901},
 		}},
 		// Every vertex inside one 11 cm cell: the whole ring collapses to one
 		// repeated position.
@@ -107,7 +106,6 @@ func TestRoundingKeepsARingClosedAndValid(t *testing.T) {
 			{Lon: -3.6712341, Lat: 57.1181231},
 			{Lon: -3.6712342, Lat: 57.1181231},
 			{Lon: -3.6712342, Lat: 57.1181232},
-			{Lon: -3.6712341, Lat: 57.1181231},
 		}},
 		// A sliver whose winding SIGN flips when its vertices snap to the
 		// grid: counterclockwise at full precision, clockwise on the grid.
@@ -116,7 +114,6 @@ func TestRoundingKeepsARingClosedAndValid(t *testing.T) {
 			{Lon: 0, Lat: 0},
 			{Lon: 0.000003, Lat: 0.000001},
 			{Lon: 0.000001, Lat: 0.0000004},
-			{Lon: 0, Lat: 0},
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {

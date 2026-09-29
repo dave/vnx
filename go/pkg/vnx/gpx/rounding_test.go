@@ -52,7 +52,7 @@ func TestTrackAndRoutePointsRoundToo(t *testing.T) {
 	q := vnx.Position{Lon: -3.6702345678901235, Lat: 57.11912345678901}
 	d := &vnx.Document{
 		Tracks: []vnx.Track{{Name: "t", Segments: []vnx.Segment{{Pips: []vnx.Position{p, q}}}}},
-		Routes: []vnx.Route{{Name: "r", Arcs: []vnx.Arc{{Pips: []vnx.Position{p, q}}}}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "r"}, lineArc{Pips: []vnx.Position{p, q}})},
 	}
 	var b bytes.Buffer
 	if _, err := Write(&b, d); err != nil {
@@ -100,10 +100,12 @@ func TestTheArcBoundaryDedupStillComparesFullValues(t *testing.T) {
 	// had not merged two points it could no longer have merged.
 	a := vnx.Position{Lon: -3.6712341, Lat: 57.1181234}
 	b2 := vnx.Position{Lon: -3.67123412, Lat: 57.1181234} // same to six places, not equal
-	d := &vnx.Document{Routes: []vnx.Route{{Name: "r", Arcs: []vnx.Arc{
-		{Pips: []vnx.Position{{Lon: -3.67, Lat: 57.11}, a}},
-		{Pips: []vnx.Position{b2, {Lon: -3.68, Lat: 57.12}}},
-	}}}}
+	// The two arcs join at a, exactly, and b2 is the second arc's first
+	// interior point: the join drops a's repeat and must keep b2.
+	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "r"},
+		lineArc{Pips: []vnx.Position{{Lon: -3.67, Lat: 57.11}, a}},
+		lineArc{Pips: []vnx.Position{a, b2, {Lon: -3.68, Lat: 57.12}}},
+	)}}
 	var buf bytes.Buffer
 	if _, err := Write(&buf, d); err != nil {
 		t.Fatal(err)

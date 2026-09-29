@@ -12,15 +12,15 @@ import (
 	"github.com/dave/vnx/go/pkg/vnx/kml"
 )
 
-// A chain's INLINE ENDPOINT is a point ON an arc part-way along it — a handle
-// where the chain starts, ends or turns around (network.go). It is almost never
+// A walk POSITION is a point ON an arc part-way along it — where the chain
+// starts, ends or turns around (walk.go). It is almost never
 // one of the arc's recorded pips, so a writer has to decide what to emit for it.
 //
 // ⚠ KML AND GEOJSON GAVE TWO DIFFERENT ANSWERS UNTIL 2026-09-04. KML cut the
 // segment and interpolated the exact point; GeoJSON snapped to the nearest pip,
 // which moves the end of the line by up to half a segment and gives the file a
 // length the chain does not have. One library, one chain, two polylines. Both
-// now call vnx.SubPolyline, and this file is the guard that says so.
+// now draw through vnx.WalkLegs, and this file is the guard that says so.
 //
 // ⚠ NO GOLDEN COULD SEE THIS. Every writer fixture in the tree puts its chain
 // endpoints on nodes or exactly on pips, where snapping and interpolation agree,
@@ -28,9 +28,9 @@ import (
 // anything — a-golden-cannot-witness-what-its-fixture-never-carries. The
 // document below exists to carry the one case they differ on.
 
-// interpolatedEndpointDoc is one arc of three pips running due north, and one
-// chain that walks it from its first node to a handle three quarters of the way
-// along the SECOND segment.
+// interpolatedEndpointDoc is one arc running due north from node n1 through
+// one interior pip to node n2, and one chain that walks it from n1 to a
+// position three quarters of the way along the SECOND segment.
 //
 //	pips:   57.000 ---- 57.002 ---- 57.004
 //	handle:                    57.0035 ^
@@ -39,21 +39,16 @@ import (
 // visibly different lines and the test can name which one it got.
 func interpolatedEndpointDoc() *vnx.Document {
 	ele := func(v float64) *float64 { return &v }
-	pips := []vnx.Position{
-		{Lon: -3.5, Lat: 57.0, Ele: ele(300)},
-		{Lon: -3.5, Lat: 57.002, Ele: ele(320)},
-		{Lon: -3.5, Lat: 57.004, Ele: ele(340)},
-	}
-	handle := vnx.Position{Lon: -3.5, Lat: 57.0035}
+	handle := vnx.LonLat{Lon: -3.5, Lat: 57.0035}
 	return &vnx.Document{Networks: []vnx.Network{{
 		Name: "Net",
-		Nodes: map[string]vnx.Position{
-			"n1": {Lon: -3.5, Lat: 57.0},
-			"n2": {Lon: -3.5, Lat: 57.004},
+		Nodes: map[string]vnx.Vertex{
+			"n1": {Lon: -3.5, Lat: 57.0, Ele: ele(300)},
+			"n2": {Lon: -3.5, Lat: 57.004, Ele: ele(340)},
 		},
-		Arcs: map[string]vnx.Arc{"a": {From: "n1", To: "n2", Pips: pips}},
-		Chains: []vnx.Chain{{Name: "Chain", Links: []vnx.Link{
-			{Arc: "a", From: vnx.Endpoint{Node: "n1"}, To: vnx.Endpoint{At: &handle}},
+		Arcs: map[string]vnx.Arc{"a": {From: "n1", To: "n2", Pips: []vnx.Vertex{{Lon: -3.5, Lat: 57.002, Ele: ele(320)}}}},
+		Chains: []vnx.Chain{{Name: "Chain", Walk: []vnx.Pass{
+			{Arc: "a", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{At: &handle}},
 		}}},
 	}}}
 }

@@ -50,11 +50,10 @@ func fixture() *vnx.Document {
 				Polygon: []vnx.Position{
 					pos(-3.80, 57.00, nil), pos(-3.80, 57.10, nil),
 					pos(-3.70, 57.10, nil), pos(-3.70, 57.00, nil),
-					pos(-3.80, 57.00, nil),
 				}},
-			// Three positions: not a linear ring, dropped and diagnosed.
+			// Two positions: not a ring, dropped and diagnosed.
 			{Name: "Sliver", Folder: "f-hi", Polygon: []vnx.Position{
-				pos(-3.9, 57.0, nil), pos(-3.9, 57.1, nil), pos(-3.9, 57.0, nil),
+				pos(-3.9, 57.0, nil), pos(-3.9, 57.1, nil),
 			}},
 		},
 		Tracks: []vnx.Track{
@@ -71,42 +70,37 @@ func fixture() *vnx.Document {
 		},
 		Routes: []vnx.Route{
 			// Two arcs meeting at one position: the join must not double it.
-			{Name: "Planned line",
+			route(vnx.Route{Name: "Planned line",
 				Style: vnx.Style{"color": "#3A6FB0", "line-style": "dashed"},
 				Data: []vnx.Record{{Type: "app.viatrail.routing",
-					Body: map[string]any{"profile": "walking"}}},
-				Arcs: []vnx.Arc{
-					{Pips: []vnx.Position{pos(-3.60, 57.00, nil), pos(-3.61, 57.01, nil)}},
-					{Pips: []vnx.Position{pos(-3.61, 57.01, nil), pos(-3.62, 57.02, nil)}},
-				}},
+					Body: map[string]any{"profile": "walking"}}}},
+				lineArc{Pips: []vnx.Position{pos(-3.60, 57.00, nil), pos(-3.61, 57.01, nil)}},
+				lineArc{Pips: []vnx.Position{pos(-3.61, 57.01, nil), pos(-3.62, 57.02, nil)}},
+			),
 		},
 		Networks: []vnx.Network{{
 			Name: "Cairngorm paths", Notes: "The graph", Folder: "f-cg",
-			Nodes: map[string]vnx.Position{
-				"n1": pos(-3.50, 57.00, nil),
-				"n2": pos(-3.51, 57.02, nil),
-				"n3": pos(-3.52, 57.04, nil),
+			Nodes: map[string]vnx.Vertex{
+				"n1": vx(pos(-3.50, 57.00, nil)),
+				"n2": vx(pos(-3.51, 57.02, nil)),
+				"n3": vx(pos(-3.52, 57.04, nil)),
 			},
 			// Declared out of order: the golden pins the SORTED order, so a
 			// writer that ranged the map straight would go flaky here.
 			Arcs: map[string]vnx.Arc{
-				"arc-b": {From: "n2", To: "n3", Pips: []vnx.Position{
-					pos(-3.51, 57.02, nil), pos(-3.515, 57.03, nil), pos(-3.52, 57.04, nil),
-				}},
-				"arc-a": {From: "n1", To: "n2", Pips: []vnx.Position{
-					pos(-3.50, 57.00, nil), pos(-3.505, 57.01, nil), pos(-3.51, 57.02, nil),
-				}},
+				"arc-b": {From: "n2", To: "n3", Pips: vs(pos(-3.515, 57.03, nil))},
+				"arc-a": {From: "n1", To: "n2", Pips: vs(pos(-3.505, 57.01, nil))},
 			},
 			Points: []vnx.Waypoint{{Name: "Junction hut", At: pos(-3.51, 57.02, ptr(500.0))}},
 			Areas: []vnx.Area{{Name: "Boggy bit", Polygon: []vnx.Position{
 				pos(-3.53, 57.00, nil), pos(-3.52, 57.00, nil),
-				pos(-3.52, 57.01, nil), pos(-3.53, 57.00, nil),
+				pos(-3.52, 57.01, nil),
 			}}},
 			Chains: []vnx.Chain{{
 				Name: "North traverse", Notes: "n1 to n3",
-				Links: []vnx.Link{
-					{Arc: "arc-a", From: node("n1"), To: node("n2")},
-					{Arc: "arc-b", From: node("n2"), To: node("n3")},
+				Walk: []vnx.Pass{
+					{Arc: "arc-a", From: node("n1")},
+					{Arc: "arc-b", To: node("n3")},
 				},
 			}},
 		}},
@@ -120,7 +114,7 @@ func pos(lon, lat float64, ele *float64) vnx.Position {
 
 func ptr(f float64) *float64 { return &f }
 
-func node(id string) vnx.Endpoint { return vnx.Endpoint{Node: id} }
+func node(id string) *vnx.Endpoint { return &vnx.Endpoint{Node: id} }
 
 func tagRecord(v string) vnx.Record {
 	return vnx.Record{Type: "app.viatrail.tag", Body: map[string]any{"value": v}}

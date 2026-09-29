@@ -61,6 +61,9 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 	if err := x.w.Err(); err != nil {
 		return vnx.WriteReport{}, err
 	}
+	if x.err != nil {
+		return vnx.WriteReport{}, x.err
+	}
 	return x.report, nil
 }
 
@@ -69,6 +72,17 @@ type writer struct {
 	d      *vnx.Document
 	depth  int
 	report vnx.WriteReport
+	// err is the first geometry that could not be resolved: a walk or an arc
+	// naming what its owner does not hold. Only a hand-built Document reaches
+	// it, and the write fails rather than drawing a guess.
+	err error
+}
+
+// fail latches the first geometry failure.
+func (x *writer) fail(err error) {
+	if x.err == nil {
+		x.err = err
+	}
 }
 
 func (x *writer) document() {
@@ -208,26 +222,34 @@ func (x *writer) waypoint(p vnx.Waypoint) {
 }
 
 func (x *writer) area(a vnx.Area, path string) {
-	if len(a.Polygon) < 4 {
-		// A ring needs three distinct positions plus the closing repeat. Writing
-		// a shorter one produces a Polygon no reader can draw — an invalid file
-		// landing as a success, which is the failure this Code exists for.
-		x.diag(vnx.CodeItemNoGeometry, path, a.Name,
-			fmt.Sprintf("area ring has %d positions, needs at least 4", len(a.Polygon)))
+	ring, ok := closedRing(a.Polygon)
+	if !ok {
+		// Writing a ring that cannot close produces a Polygon no reader can
+		// draw — an invalid file landing as a success, which is the failure
+		// this Code exists for.
+		x.diag(vnx.CodeItemNoGeometry, path, a.Name, ringProblem(a.Polygon))
 		return
 	}
-	x.areaPlacemark(a)
+	x.areaPlacemark(a, ring)
+}
+
+// ringProblem says which of closedRing's two rules a ring broke.
+func ringProblem(ring []vnx.Position) string {
+	if len(ring) < 3 {
+		return fmt.Sprintf("area ring has %d positions, needs at least 3", len(ring))
+	}
+	return "area ring is closed: a VNX ring is stored open, and its last position must not repeat the first"
 }
 
 // areaPlacemark writes an area whose ring has already been checked. It is
 // shared by the top-level areas and the in-network ones, so the two cannot
 // drift apart on style or visibility — the in-network ones only started
 // carrying either when §2.6's redesign gave them a Placemark of their own.
-func (x *writer) areaPlacemark(a vnx.Area) {
+func (x *writer) areaPlacemark(a vnx.Area, ring []vnx.Position) {
 	x.open("Placemark", "")
 	x.feature(a.Name, a.Notes, a.Hidden)
 	x.areaStyle(a.Style)
-	x.polygon(a.Polygon)
+	x.polygon(ring)
 	x.close("Placemark")
 	x.report.Emitted++
 }
@@ -358,9 +380,13 @@ func (x *writer) track(t vnx.Track, path string) {
 }
 
 func (x *writer) route(r vnx.Route, path string) {
-	line, ok := routeLine(r)
-	if !ok {
-		x.diag(vnx.CodeItemNoGeometry, path, r.Name, "route has fewer than two positions across all its arcs")
+	line, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
+	if err != nil {
+		x.fail(fmt.Errorf("kml: route %q: %w", r.Name, err))
+		return
+	}
+	if len(line) < 2 {
+		x.diag(vnx.CodeItemNoGeometry, path, r.Name, "route's walk covers fewer than two positions")
 		return
 	}
 	x.open("Placemark", "")
@@ -411,46 +437,42 @@ func (x *writer) network(n vnx.Network, path string) {
 	sort.Strings(arcIDs)
 
 	var lines [][]vnx.Position
-	var lostArcs []string
 	for _, id := range arcIDs {
-		if a := n.Arcs[id]; len(a.Pips) >= 2 {
-			lines = append(lines, a.Pips)
-			continue
+		// Node to node: an arc's line is at least its two ends.
+		line, err := vnx.ArcLine(n.Nodes, n.Arcs[id])
+		if err != nil {
+			x.fail(fmt.Errorf("kml: network %q arc %q: %w", n.Name, id, err))
+			return
 		}
-		lostArcs = append(lostArcs, id)
+		lines = append(lines, line)
 	}
 	// The areas are checked BEFORE the network's own emptiness is decided,
 	// because a network whose only content is an unusable ring holds nothing —
 	// and because the ring's own casualty is reported in walk order either way.
-	var drawableAreas []int
+	drawableAreas := map[int][]vnx.Position{}
+	var areaOrder []int
 	for i, a := range n.Areas {
-		if len(a.Polygon) < 4 {
+		ring, ok := closedRing(a.Polygon)
+		if !ok {
 			x.diag(vnx.CodeItemNoGeometry, fmt.Sprintf("%s/areas/%d", path, i), a.Name,
-				fmt.Sprintf("in-network area ring has %d positions, needs at least 4", len(a.Polygon)))
+				"in-network "+ringProblem(a.Polygon))
 			continue
 		}
-		drawableAreas = append(drawableAreas, i)
+		drawableAreas[i] = ring
+		areaOrder = append(areaOrder, i)
 	}
 
 	if len(lines)+len(n.Points)+len(drawableAreas) == 0 {
 		// The whole network object is gone, Folder and all. The arcs are not
 		// "partly" lost — reporting them as well would double-report one loss.
 		x.diag(vnx.CodeItemNoGeometry, path, n.Name, "network holds no drawable arc, point or area")
-		// ⚠ THE CHAINS STILL RUN, AND THEY CAN ONLY DIAGNOSE. chainLine skips
-		// every link whose arc has fewer than two pips (geometry.go), and no arc
-		// here has two, so every chain is wholly lost and writes nothing. Without
-		// this loop those whole-item casualties would go unreported.
+		// ⚠ THE CHAINS STILL RUN. A network with no arc can only hold chains
+		// with empty walks, each of which is wholly lost and writes nothing;
+		// without this loop those whole-item casualties would go unreported.
 		for i, c := range n.Chains {
 			x.chain(c, fmt.Sprintf("%s/chains/%d", path, i), n)
 		}
 		return
-	}
-
-	// An arc under two pips is a part of a network that IS exported, so it gets
-	// a partial row naming the arc rather than a silence.
-	for _, id := range lostArcs {
-		x.diag(vnx.CodePartialGeometry, path+"/arcs/"+id, n.Name,
-			"arc has fewer than two pips and cannot be a LineString")
 	}
 
 	x.open("Folder", "")
@@ -476,8 +498,8 @@ func (x *writer) network(n vnx.Network, path string) {
 	for _, p := range n.Points {
 		x.waypoint(p)
 	}
-	for _, i := range drawableAreas {
-		x.areaPlacemark(n.Areas[i])
+	for _, i := range areaOrder {
+		x.areaPlacemark(n.Areas[i], drawableAreas[i])
 	}
 	for i, c := range n.Chains {
 		x.chain(c, fmt.Sprintf("%s/chains/%d", path, i), n)
@@ -498,16 +520,17 @@ func (x *writer) network(n vnx.Network, path string) {
 // ORing the network's state in here would hide a visible chain the moment its
 // network was hidden AND make it impossible to unhide in Google Earth.
 func (x *writer) chain(c vnx.Chain, path string, n vnx.Network) {
-	line, lostLinks, ok := chainLine(n, c)
-	if !ok {
-		x.diag(vnx.CodeItemNoGeometry, path, c.Name, "chain has no link resolving to two or more positions")
+	// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. The reader drops such a
+	// chain, so only a hand-built Document reaches here with one, and drawing
+	// part of it would put a line on the map nobody walked.
+	line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
+	if err != nil {
+		x.fail(fmt.Errorf("kml: network %q chain %q: %w", n.Name, c.Name, err))
 		return
 	}
-	// A link whose arc this network does not hold, or whose endpoints do not
-	// resolve, places nothing — and the chain around it is still exported.
-	for _, i := range lostLinks {
-		x.diag(vnx.CodePartialGeometry, fmt.Sprintf("%s/links/%d", path, i), c.Name,
-			"link names an arc or an endpoint this network does not hold")
+	if len(line) < 2 {
+		x.diag(vnx.CodeItemNoGeometry, path, c.Name, "chain's walk covers fewer than two positions")
+		return
 	}
 	x.open("Placemark", "")
 	x.feature(c.Name, c.Notes, c.Hidden)

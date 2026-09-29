@@ -262,9 +262,8 @@ func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 func TestBareArcsSurviveAndChainGeometryIsAllowedToDuplicateThem(t *testing.T) {
 	d := fixture()
 	// "a-south" is traversed by "Full Traverse"; add an arc nothing traverses.
-	d.Networks[0].Nodes["n4"] = pos(-3.64, 57.12)
-	d.Networks[0].Arcs["a-spur"] = vnx.Arc{From: "n3", To: "n4",
-		Pips: []vnx.Position{pos(-3.66, 57.08), pos(-3.64, 57.12)}}
+	d.Networks[0].Nodes["n4"] = vx(pos(-3.64, 57.12))
+	d.Networks[0].Arcs["a-spur"] = vnx.Arc{From: "n3", To: "n4"}
 
 	out, _ := writeDoc(t, d)
 	multi := arcsMultiGeometry(t, out)
@@ -281,17 +280,17 @@ func TestBareArcsSurviveAndChainGeometryIsAllowedToDuplicateThem(t *testing.T) {
 	}
 }
 
-// A chain link that stops PART WAY along an arc must cut the arc, not emit it
+// A pass that stops PART WAY along an arc must cut the arc, not emit it
 // whole. Emitting the whole arc would draw the chain past where it ends.
-func TestChainCutsItsArcAtAnInlineEndpoint(t *testing.T) {
+func TestChainCutsItsArcAtAPosition(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:  "N",
-		Nodes: map[string]vnx.Position{"a": pos(0, 0), "b": pos(0, 0.4)},
-		Arcs: map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: []vnx.Position{
-			pos(0, 0), pos(0, 0.1), pos(0, 0.2), pos(0, 0.3), pos(0, 0.4),
-		}}},
-		Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-			{Arc: "arc", From: vnx.Endpoint{Node: "a"}, To: vnx.Endpoint{At: ptr(pos(0, 0.2))}},
+		Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 0.4))},
+		Arcs: map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(
+			pos(0, 0.1), pos(0, 0.2), pos(0, 0.3),
+		)}},
+		Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{
+			{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{At: &vnx.LonLat{Lon: 0, Lat: 0.2}}},
 		}}},
 	}}}
 	out, _ := writeDoc(t, d)
@@ -303,14 +302,15 @@ func TestChainCutsItsArcAtAnInlineEndpoint(t *testing.T) {
 	}
 }
 
-// A link walked from its `to` node back to its `from` node draws backwards.
+// A pass walked from its arc's `to` node back to its `from` node draws
+// backwards.
 func TestChainWalkingAnArcBackwardsIsDrawnBackwards(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:  "N",
-		Nodes: map[string]vnx.Position{"a": pos(0, 0), "b": pos(0, 0.2)},
-		Arcs:  map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: []vnx.Position{pos(0, 0), pos(0, 0.1), pos(0, 0.2)}}},
-		Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-			{Arc: "arc", From: vnx.Endpoint{Node: "b"}, To: vnx.Endpoint{Node: "a"}},
+		Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 0.2))},
+		Arcs:  map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(pos(0, 0.1))}},
+		Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{
+			{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}},
 		}}},
 	}}}
 	out, _ := writeDoc(t, d)
@@ -544,49 +544,17 @@ func TestTrackKeepsItsDrawableSegmentsAndReportsTheLostOne(t *testing.T) {
 	}
 }
 
-// A network arc under two pips is a part of a network that IS exported.
-func TestDegenerateNetworkArcIsReportedAsAPartialLoss(t *testing.T) {
-	_, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name:  "N",
-		Nodes: map[string]vnx.Position{"a": pos(0, 0), "b": pos(0, 1)},
-		Arcs: map[string]vnx.Arc{
-			"good":  {From: "a", To: "b", Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
-			"stump": {From: "a", To: "a", Pips: []vnx.Position{pos(0, 0)}},
-		},
-	}}})
-	got := codes(report)
-	if len(got) != 1 || got[0] != vnx.CodePartialGeometry {
-		t.Fatalf("diagnostics = %v, want exactly [%s]", got, vnx.CodePartialGeometry)
-	}
-	if p := report.Diagnostics[0].Path; p != "/networks/0/arcs/stump" {
-		t.Errorf("Path = %q, want /networks/0/arcs/stump", p)
-	}
-	if a := report.Diagnostics[0].Args; len(a) != 1 || a[0] != "N" {
-		t.Errorf("Args = %v, want the network's own name", a)
-	}
-}
-
-// A chain link naming an arc the network does not hold places nothing, and the
-// chain around it is still exported.
-func TestChainLinkThatPlacesNothingIsReportedAsAPartialLoss(t *testing.T) {
-	_, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name:  "N",
-		Nodes: map[string]vnx.Position{"a": pos(0, 0), "b": pos(0, 1)},
-		Arcs:  map[string]vnx.Arc{"real": {From: "a", To: "b", Pips: []vnx.Position{pos(0, 0), pos(0, 1)}}},
-		Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-			{Arc: "real", From: vnx.Endpoint{Node: "a"}, To: vnx.Endpoint{Node: "b"}},
-			{Arc: "ghost", From: vnx.Endpoint{Node: "b"}, To: vnx.Endpoint{Node: "a"}},
-		}}},
-	}}})
-	got := codes(report)
-	if len(got) != 1 || got[0] != vnx.CodePartialGeometry {
-		t.Fatalf("diagnostics = %v, want exactly [%s]", got, vnx.CodePartialGeometry)
-	}
-	if p := report.Diagnostics[0].Path; p != "/networks/0/chains/0/links/1" {
-		t.Errorf("Path = %q, want /networks/0/chains/0/links/1", p)
-	}
-	if a := report.Diagnostics[0].Args; len(a) != 1 || a[0] != "C" {
-		t.Errorf("Args = %v, want the chain's own name", a)
+// A walk that does not resolve fails the write. The partial-loss answer it
+// replaces drew what it could of a walk and reported the rest, which put a
+// line on the map nobody walked.
+func TestAWalkThatDoesNotResolveFailsTheWrite(t *testing.T) {
+	for name, d := range brokenWalks() {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if _, err := Write(&buf, d); err == nil {
+				t.Fatalf("the write succeeded:\n%s", buf.String())
+			}
+		})
 	}
 }
 
@@ -600,17 +568,12 @@ func TestAWhollyLostItemGetsOnlyTheWholeItemCode(t *testing.T) {
 		}}},
 		Networks: []vnx.Network{{
 			Name:  "N",
-			Nodes: map[string]vnx.Position{"a": pos(0, 0), "b": pos(0, 1)},
+			Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 1))},
 			Arcs: map[string]vnx.Arc{
-				"good": {From: "a", To: "b", Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
+				"good": {From: "a", To: "b"},
 			},
-			// Every link of this chain names an arc that is not here, so the
-			// chain is WHOLLY lost — the case the caller must not also report
-			// link by link.
-			Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-				{Arc: "ghost", From: vnx.Endpoint{Node: "a"}, To: vnx.Endpoint{Node: "b"}},
-				{Arc: "phantom", From: vnx.Endpoint{Node: "b"}, To: vnx.Endpoint{Node: "a"}},
-			}}},
+			// This chain's walk is empty, so the chain is WHOLLY lost.
+			Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{}}},
 		}},
 	})
 	for _, d := range report.Diagnostics {
@@ -687,9 +650,9 @@ func mustTime(t *testing.T, s string) time.Time {
 func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 	// A network with one good arc, so the network object always survives.
 	goodArc := map[string]vnx.Arc{
-		"good": {From: "a", To: "b", Pips: []vnx.Position{pos(10, 10), pos(10, 11)}},
+		"good": {From: "a", To: "b"},
 	}
-	nodes := map[string]vnx.Position{"a": pos(10, 10), "b": pos(10, 11)}
+	nodes := map[string]vnx.Vertex{"a": vx(pos(10, 10)), "b": vx(pos(10, 11))}
 
 	for _, tc := range []struct {
 		name string
@@ -721,18 +684,6 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 			args0: "T", path: "/tracks/0", marker: "9,9",
 		},
 		{
-			name: "a network that loses one arc is PARTIAL",
-			doc: &vnx.Document{Networks: []vnx.Network{{
-				Name: "N", Nodes: nodes,
-				Arcs: map[string]vnx.Arc{
-					"good":  goodArc["good"],
-					"stump": {Pips: []vnx.Position{pos(9, 9)}},
-				},
-			}}},
-			code: vnx.CodePartialGeometry, namedThingPlaced: true,
-			args0: "N", path: "/networks/0/arcs/stump", marker: "10,10 10,11",
-		},
-		{
 			// ⚠ THE CASE THE OBVIOUS WRONG READING GETS BACKWARDS.
 			name: "an in-network area with an unusable ring is WHOLE, though the network survives",
 			doc: &vnx.Document{Networks: []vnx.Network{{
@@ -743,24 +694,10 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 			args0: "Boulder Field", path: "/networks/0/areas/0", marker: "9,9",
 		},
 		{
-			name: "a chain that loses one link is PARTIAL",
+			name: "a chain with nothing to draw is WHOLE",
 			doc: &vnx.Document{Networks: []vnx.Network{{
 				Name: "N", Nodes: nodes, Arcs: goodArc,
-				Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-					{Arc: "good", From: vnx.Endpoint{Node: "a"}, To: vnx.Endpoint{Node: "b"}},
-					{Arc: "ghost", From: vnx.Endpoint{Node: "b"}, To: vnx.Endpoint{Node: "a"}},
-				}}},
-			}}},
-			code: vnx.CodePartialGeometry, namedThingPlaced: true,
-			args0: "C", path: "/networks/0/chains/0/links/1", marker: "<name>C</name>",
-		},
-		{
-			name: "a chain that loses every link is WHOLE",
-			doc: &vnx.Document{Networks: []vnx.Network{{
-				Name: "N", Nodes: nodes, Arcs: goodArc,
-				Chains: []vnx.Chain{{Name: "C", Links: []vnx.Link{
-					{Arc: "ghost", From: vnx.Endpoint{Node: "a"}, To: vnx.Endpoint{Node: "b"}},
-				}}},
+				Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{}}},
 			}}},
 			code: vnx.CodeItemNoGeometry, namedThingPlaced: false,
 			args0: "C", path: "/networks/0/chains/0", marker: "<name>C</name>",

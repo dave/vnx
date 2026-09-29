@@ -86,13 +86,13 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 func TestNetworkEmitsArcsPointsAreasAndChains(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Net", Notes: "graph",
-		Nodes: map[string]vnx.Position{"n1": pos(0, 0, nil), "n2": pos(1, 1, nil)},
+		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs: map[string]vnx.Arc{
-			"a": {From: "n1", To: "n2", Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
+			"a": {From: "n1", To: "n2"},
 		},
 		Points: []vnx.Waypoint{{Name: "hut", At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "bog", Polygon: square()}},
-		Chains: []vnx.Chain{{Name: "Traverse", Links: []vnx.Link{
+		Chains: []vnx.Chain{{Name: "Traverse", Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1"), To: node("n2")},
 		}}},
 	}}})
@@ -227,32 +227,32 @@ func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 func TestAnArcNoChainTraversesStillReachesTheFile(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Net",
-		Nodes: map[string]vnx.Position{"n1": pos(0, 0, nil), "n2": pos(1, 1, nil)},
+		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs: map[string]vnx.Arc{
-			"walked": {From: "n1", To: "n2", Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
-			"lonely": {From: "n1", To: "n2", Pips: []vnx.Position{pos(5, 5, nil), pos(6, 6, nil)}},
+			"walked": {From: "n1", To: "n2"},
+			"lonely": {From: "n1", To: "n2", Pips: vs(pos(5, 5, nil), pos(6, 6, nil))},
 		},
-		Chains: []vnx.Chain{{Name: "c", Links: []vnx.Link{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
+		Chains: []vnx.Chain{{Name: "c", Walk: []vnx.Pass{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
 	}}})
-	if !strings.Contains(out, `[[5,5],[6,6]]`) {
+	if !strings.Contains(out, `[[0,0],[5,5],[6,6],[1,1]]`) {
 		t.Errorf("the untraversed arc is not in the file:\n%s", out)
 	}
 }
 
-// A chain walks its links in order, reversing an arc it traverses backwards,
-// and does not double the position two links share.
-func TestChainGeometryFollowsItsLinks(t *testing.T) {
+// A chain walks its passes in order, reversing an arc it walks backwards, and
+// does not double the position two passes share.
+func TestChainGeometryFollowsItsWalk(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Net",
-		Nodes: map[string]vnx.Position{"n1": pos(0, 0, nil), "n2": pos(1, 1, nil), "n3": pos(2, 2, nil)},
+		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil)), "n3": vx(pos(2, 2, nil))},
 		Arcs: map[string]vnx.Arc{
-			"a": {From: "n1", To: "n2", Pips: []vnx.Position{pos(0, 0, nil), pos(0.5, 0.5, nil), pos(1, 1, nil)}},
+			"a": {From: "n1", To: "n2", Pips: vs(pos(0.5, 0.5, nil))},
 			// Stored n3 -> n2; the chain walks it the other way.
-			"b": {From: "n3", To: "n2", Pips: []vnx.Position{pos(2, 2, nil), pos(1.5, 1.5, nil), pos(1, 1, nil)}},
+			"b": {From: "n3", To: "n2", Pips: vs(pos(1.5, 1.5, nil))},
 		},
-		Chains: []vnx.Chain{{Name: "c", Links: []vnx.Link{
-			{Arc: "a", From: node("n1"), To: node("n2")},
-			{Arc: "b", From: node("n2"), To: node("n3")},
+		Chains: []vnx.Chain{{Name: "c", Walk: []vnx.Pass{
+			{Arc: "a", From: node("n1")},
+			{Arc: "b", To: node("n3")},
 		}}},
 	}}})
 	const want = `[[0,0],[0.5,0.5],[1,1],[1.5,1.5],[2,2]]`
@@ -264,10 +264,10 @@ func TestChainGeometryFollowsItsLinks(t *testing.T) {
 // A route is ONE LineString and the position two arcs share is written once.
 // Arc boundaries are the matrix cell; a doubled vertex is not.
 func TestRouteArcsJoinWithoutDoublingTheSharedPosition(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{{Name: "r", Arcs: []vnx.Arc{
-		{Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
-		{Pips: []vnx.Position{pos(1, 1, nil), pos(2, 2, nil)}},
-	}}}})
+	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "r"},
+		lineArc{Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
+		lineArc{Pips: []vnx.Position{pos(1, 1, nil), pos(2, 2, nil)}},
+	)}})
 	if !strings.Contains(out, `"coordinates":[[0,0],[1,1],[2,2]]`) {
 		t.Errorf("wanted the joined line, got %s", out)
 	}
@@ -351,5 +351,18 @@ func TestASeparatorInANameIsNotEscaped(t *testing.T) {
 	}
 	if strings.Contains(out, `\`) {
 		t.Errorf("something was escaped: %s", out)
+	}
+}
+
+// A walk that does not resolve fails the write. The "walk the whole arc
+// forwards" answer it replaces drew a line nobody walked and reported success.
+func TestAWalkThatDoesNotResolveFailsTheWrite(t *testing.T) {
+	for name, d := range brokenWalks() {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if _, err := Write(&buf, d); err == nil {
+				t.Fatalf("the write succeeded:\n%s", buf.String())
+			}
+		})
 	}
 }

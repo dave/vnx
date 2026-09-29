@@ -28,7 +28,7 @@ func TestValidateCleanExitsZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("clean document must exit zero: %v\n%s", err, out)
 	}
-	if !strings.Contains(string(out), "ok, vnx 0.1") {
+	if !strings.Contains(string(out), "ok, vnx 0.2") {
 		t.Fatalf("got %s", out)
 	}
 }
@@ -54,7 +54,7 @@ func TestValidateRefusalExitsNonZero(t *testing.T) {
 func TestDiagnosticsDoNotFailTheExitCode(t *testing.T) {
 	bin := build(t)
 	f := filepath.Join(t.TempDir(), "warn.vnx")
-	if err := os.WriteFile(f, []byte(`{"vnx":"0.1.0","nmae":"typo"}`), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte(`{"vnx":"0.2.0","nmae":"typo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := exec.Command(bin, "validate", f).CombinedOutput()
@@ -68,7 +68,7 @@ func TestDiagnosticsDoNotFailTheExitCode(t *testing.T) {
 func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 	bin := build(t)
 	f := filepath.Join(t.TempDir(), "warn.vnx")
-	if err := os.WriteFile(f, []byte(`{"vnx":"0.1.0","nmae":"typo"}`), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte(`{"vnx":"0.2.0","nmae":"typo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := exec.Command(bin, "validate", "--json", f).Output()
@@ -103,7 +103,7 @@ func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 // matches on.
 func TestJSONDiagnosticCarriesCodeAndNoSeverity(t *testing.T) {
 	bin := build(t)
-	out, err := exec.Command(bin, "validate", "--json", "../../../corpus/diagnose/chain-does-not-join.vnx").Output()
+	out, err := exec.Command(bin, "validate", "--json", "../../../corpus/diagnose/walk-not-connected.vnx").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestJSONDiagnosticCarriesCodeAndNoSeverity(t *testing.T) {
 			t.Errorf("diagnostic %d carries no `code` key; §6.3 defines it and a script matches on it", i)
 			continue
 		}
-		if code != "chain-discontinuity" {
+		if code != "walk-not-connected" {
 			t.Errorf("diagnostic %d code = %v, want the token the corpus pins", i, code)
 		}
 	}

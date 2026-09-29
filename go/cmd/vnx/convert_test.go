@@ -222,7 +222,7 @@ func TestConvertOfAFileWithDecodeDiagnosticsStillConverts(t *testing.T) {
 	// test used the wrong one: the waypoint then decoded with no coordinate,
 	// GPX emitted nothing, and the run still exited 0 with a header-only file
 	// at --out. The test caught it; the CLI did not.
-	doc := `{"vnx":"0.1.0","nmae":"typo","waypoints":[{"name":"Car park","at":[-3.7,57.1]}]}`
+	doc := `{"vnx":"0.2.0","nmae":"typo","waypoints":[{"name":"Car park","at":[-3.7,57.1]}]}`
 	if err := os.WriteFile(in, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -277,8 +277,8 @@ func TestADocumentTheFormatCanCarryNothingOfRefusesAndWritesNothing(t *testing.T
 	in := filepath.Join(dir, "areas-only.vnx")
 	// One area and nothing else. GPX has no polygon (§3.1), so the writer emits
 	// nothing — while the DOCUMENT is plainly not empty.
-	doc := `{"vnx":"0.1.0","areas":[{"name":"Deer stalking estate","polygon":` +
-		`[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075],[-3.74,57.09]]}]}`
+	doc := `{"vnx":"0.2.0","areas":[{"name":"Deer stalking estate","polygon":` +
+		`[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075]]}]}`
 	if err := os.WriteFile(in, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -316,8 +316,8 @@ func TestADocumentTheFormatCanCarryNothingOfRefusesAndWritesNothing(t *testing.T
 func TestADocumentTheFormatCanCarryNothingOfAlsoRefusesOnStdout(t *testing.T) {
 	bin := build(t)
 	in := filepath.Join(t.TempDir(), "areas-only.vnx")
-	doc := `{"vnx":"0.1.0","areas":[{"name":"Deer stalking estate","polygon":` +
-		`[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075],[-3.74,57.09]]}]}`
+	doc := `{"vnx":"0.2.0","areas":[{"name":"Deer stalking estate","polygon":` +
+		`[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075]]}]}`
 	if err := os.WriteFile(in, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestAnHonestlyEmptyDocumentStillConverts(t *testing.T) {
 	bin := build(t)
 	dir := t.TempDir()
 	in := filepath.Join(dir, "empty.vnx")
-	if err := os.WriteFile(in, []byte(`{"vnx":"0.1.0"}`), 0o644); err != nil {
+	if err := os.WriteFile(in, []byte(`{"vnx":"0.2.0"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct{ to, ext string }{{"gpx", ".gpx"}, {"kml", ".kml"}, {"geojson", ".geojson"}} {

@@ -345,19 +345,14 @@ def escape(key: str) -> str:
 
 
 def perturb_transpose(doc: object) -> str:
-    """Swap longitude and latitude on the first INTERIOR pip of the first arc.
+    """Swap longitude and latitude on the first pip of the first arc.
 
-    Every other position in the document is cross-checked by some rule, and a
-    corrupted one raises a diagnostic rather than a difference: a polygon ring
-    stops closing, a chain's links stop meeting, and an arc's terminal pip
-    stops meeting its node (`terminal-pip-off-node`, measured here by moving
-    pip 0 and watching the driver refuse). A driver that exits on a diagnostic
-    writes nothing, and the cell would go red for the wrong reason — the
-    corruption would never reach the comparison the red proof is testing.
-
-    An interior pip carries no such check. The corrupted document is still a
-    clean VNX document that every reader accepts with no diagnostics, so the
-    cell reddens on the tree comparison, which is the thing under test.
+    An arc's pips are its interior points (SPEC 3.3.2), and no rule compares
+    one against anything else, so the corrupted document is still a clean VNX
+    document that every reader accepts with no diagnostics. The cell reddens on
+    the tree comparison, which is the thing under test. A corruption that
+    raised a diagnostic instead would make a driver that exits on one write
+    nothing, and the cell would go red for the wrong reason.
     """
     found = _first_pip(doc, "")
     if found is None:
@@ -378,10 +373,7 @@ def _first_pip(v: object, path: str) -> tuple[str, list] | None:
         return None
     if isinstance(v, list):
         if path.endswith("/pips"):
-            # Interior only: the first and last pip of an arc must meet its
-            # nodes, so moving either raises a diagnostic instead of a
-            # difference. An arc of fewer than three pips has no interior.
-            for i in range(1, len(v) - 1):
+            for i in range(len(v)):
                 if is_position(v[i]):
                     return (f"{path}/{i}", v[i])
             return None

@@ -1,33 +1,17 @@
 {
   "created": "2026-08-31T06:45:12Z",
   "generator": "Viatrail 0.1.93",
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "areas": [
     {
       "folder": "cairngorms",
       "name": "Deer stalking estate",
       "notes": "Access restricted 1 Jul - 20 Oct.",
       "polygon": [
-        [
-          -3.74,
-          57.09
-        ],
-        [
-          -3.72,
-          57.09
-        ],
-        [
-          -3.72,
-          57.075
-        ],
-        [
-          -3.74,
-          57.075
-        ],
-        [
-          -3.74,
-          57.09
-        ]
+        [-3.74, 57.09],
+        [-3.72, 57.09],
+        [-3.72, 57.075],
+        [-3.74, 57.075]
       ],
       "style": {
         "fill-color": "#8d5524",
@@ -69,47 +53,15 @@
             }
           ],
           "pips": [
-            [
-              -3.6712,
-              57.118,
-              340
-            ],
-            [
-              -3.669,
-              57.1131,
-              388.2
-            ],
-            [
-              -3.6644,
-              57.1085,
-              451.9
-            ],
-            [
-              -3.6605,
-              57.1042,
-              512.5
-            ]
+            [-3.669, 57.1131, 388.2],
+            [-3.6644, 57.1085, 451.9]
           ]
         },
         "arc-2": {
           "from": "node-2",
           "to": "node-3",
           "pips": [
-            [
-              -3.6605,
-              57.1042,
-              512.5
-            ],
-            [
-              -3.654,
-              57.1009,
-              561
-            ],
-            [
-              -3.6488,
-              57.0977,
-              604
-            ]
+            [-3.654, 57.1009, 561]
           ]
         },
         "arc-3": {
@@ -127,17 +79,7 @@
               "@type": "app.viatrail.compute-failed"
             }
           ],
-          "pips": [
-            [
-              -3.6488,
-              57.0977,
-              604
-            ],
-            [
-              -3.6402,
-              57.0931
-            ]
-          ]
+          "pips": []
         }
       },
       "areas": [
@@ -152,26 +94,10 @@
             }
           ],
           "polygon": [
-            [
-              -3.67,
-              57.115
-            ],
-            [
-              -3.666,
-              57.115
-            ],
-            [
-              -3.666,
-              57.112
-            ],
-            [
-              -3.67,
-              57.112
-            ],
-            [
-              -3.67,
-              57.115
-            ]
+            [-3.67, 57.115],
+            [-3.666, 57.115],
+            [-3.666, 57.112],
+            [-3.67, 57.112]
           ],
           "style": {
             "fill-color": "#3a7d44",
@@ -190,27 +116,22 @@
               "value": "day-walk"
             }
           ],
-          "links": [
-            {
-              "arc": "arc-1",
-              "from": "node-1",
-              "to": "node-2"
-            },
-            {
-              "arc": "arc-2",
-              "from": "node-2",
-              "to": [
-                -3.6521,
-                57.1
-              ]
-            }
-          ],
           "style": {
             "color": "#c1440e",
             "line-style": "solid",
             "opacity": 0.9,
             "width": 4
-          }
+          },
+          "walk": [
+            {
+              "arc": "arc-1",
+              "from": "node-1"
+            },
+            {
+              "arc": "arc-2",
+              "to": [-3.6521, 57.1]
+            }
+          ]
         },
         {
           "name": "Rock fall",
@@ -222,17 +143,32 @@
               "value": "avoid"
             }
           ],
-          "links": [
+          "walk": [
             {
               "arc": "arc-2",
-              "from": [
-                -3.6521,
-                57.1
-              ],
-              "to": [
-                -3.6582,
-                57.103
-              ]
+              "from": [-3.6521, 57.1],
+              "to": [-3.6582, 57.103]
+            }
+          ]
+        },
+        {
+          "name": "Out to the col and back",
+          "walk": [
+            {
+              "arc": "arc-1",
+              "from": "node-1"
+            },
+            {
+              "arc": "arc-2",
+              "pinned": true
+            },
+            {
+              "arc": "arc-3",
+              "turn": [-3.6445, 57.0954]
+            },
+            {
+              "arc": "arc-2",
+              "to": "node-2"
             }
           ]
         }
@@ -248,34 +184,15 @@
         }
       ],
       "nodes": {
-        "node-1": [
-          -3.6712,
-          57.118,
-          340
-        ],
-        "node-2": [
-          -3.6605,
-          57.1042,
-          512.5
-        ],
-        "node-3": [
-          -3.6488,
-          57.0977,
-          604
-        ],
-        "node-4": [
-          -3.6402,
-          57.0931
-        ]
+        "node-1": [-3.6712, 57.118, 340],
+        "node-2": [-3.6605, 57.1042, 512.5],
+        "node-3": [-3.6488, 57.0977, 604],
+        "node-4": [-3.6402, 57.0931]
       },
       "points": [
         {
           "name": "Spring",
-          "at": [
-            -3.665,
-            57.109,
-            470
-          ],
+          "at": [-3.665, 57.109, 470],
           "data": [
             {
               "@type": "app.viatrail.water",
@@ -295,11 +212,7 @@
         {
           "name": "Clearing",
           "notes": "Nice clearing for a camp, very flat but 10min walk to water.",
-          "at": [
-            -3.645,
-            57.129,
-            420
-          ],
+          "at": [-3.645, 57.129, 420],
           "data": [
             {
               "@type": "app.viatrail.camp",
@@ -317,56 +230,6 @@
       "folder": "cairngorms",
       "name": "Braeriach direct",
       "notes": "Drawn by hand; not snapped to any network.",
-      "arcs": [
-        {
-          "data": [
-            {
-              "@type": "app.viatrail.routing-internal",
-              "source": "user-drawn"
-            }
-          ],
-          "pips": [
-            [
-              -3.728,
-              57.0782,
-              1296
-            ],
-            [
-              -3.719,
-              57.074,
-              1221.5
-            ],
-            [
-              -3.7101,
-              57.0699,
-              1150
-            ]
-          ]
-        },
-        {
-          "data": [
-            {
-              "@type": "app.viatrail.routing-internal",
-              "source": "engine",
-              "config": {
-                "cross-country-weight": 0.4
-              }
-            }
-          ],
-          "pips": [
-            [
-              -3.7101,
-              57.0699,
-              1150
-            ],
-            [
-              -3.702,
-              57.0655,
-              1044
-            ]
-          ]
-        }
-      ],
       "data": [
         {
           "@type": "app.viatrail.tag",
@@ -378,7 +241,51 @@
         "line-style": "dashed",
         "opacity": 1,
         "width": 4
-      }
+      },
+      "nodes": {
+        "node-1": [-3.728, 57.0782, 1296],
+        "node-2": [-3.7101, 57.0699, 1150],
+        "node-3": [-3.702, 57.0655, 1044]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [
+            [-3.719, 57.074, 1221.5]
+          ],
+          "data": [
+            {
+              "@type": "app.viatrail.routing-internal",
+              "source": "user-drawn"
+            }
+          ]
+        },
+        "arc-2": {
+          "from": "node-2",
+          "to": "node-3",
+          "pips": [],
+          "data": [
+            {
+              "@type": "app.viatrail.routing-internal",
+              "source": "engine",
+              "config": {
+                "cross-country-weight": 0.4
+              }
+            }
+          ]
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc-1",
+          "from": "node-1"
+        },
+        {
+          "arc": "arc-2",
+          "to": "node-3"
+        }
+      ]
     }
   ],
   "app.viatrail.rulesets": [
@@ -389,9 +296,7 @@
         {
           "name": "Minor springs",
           "priority": 10,
-          "applies-to": [
-            "waypoints"
-          ],
+          "applies-to": ["waypoints"],
           "conditions": [
             {
               "data-type": "app.viatrail.tag",
@@ -423,40 +328,15 @@
       "segments": [
         {
           "pips": [
-            [
-              -3.6712,
-              57.118,
-              341,
-              1778569391000
-            ],
-            [
-              -3.6699,
-              57.1158,
-              352.4,
-              1778569442000
-            ],
-            [
-              -3.6681,
-              57.1139,
-              366.9,
-              1778569494000
-            ]
+            [-3.6712, 57.118, 341, 1778569391000],
+            [-3.6699, 57.1158, 352.4, 1778569442000],
+            [-3.6681, 57.1139, 366.9, 1778569494000]
           ]
         },
         {
           "pips": [
-            [
-              -3.6644,
-              57.1085,
-              452,
-              1778571280000
-            ],
-            [
-              -3.6605,
-              57.1042,
-              513.1,
-              1778571344000
-            ]
+            [-3.6644, 57.1085, 452, 1778571280000],
+            [-3.6605, 57.1042, 513.1, 1778571344000]
           ]
         }
       ],
@@ -471,11 +351,7 @@
       "folder": "cairngorms",
       "name": "Car park",
       "notes": "Pay and display, closes 22:00.",
-      "at": [
-        -3.675,
-        57.1201,
-        320
-      ],
+      "at": [-3.675, 57.1201, 320],
       "data": [
         {
           "@type": "com.myapp.checked",
@@ -497,11 +373,7 @@
       "folder": "cairngorms",
       "name": "Full precision — hütte été 山",
       "notes": "A coordinate that only survives at full binary64 precision.",
-      "at": [
-        -3.6712345678901235,
-        57.11812345678901,
-        341.0512
-      ],
+      "at": [-3.6712345678901235, 57.11812345678901, 341.0512],
       "data": [
         {
           "@type": "com.example.unrecognised",
@@ -528,9 +400,7 @@
               true,
               {
                 "deep": [
-                  [
-                    -3.6712345678901235
-                  ]
+                  [-3.6712345678901235]
                 ]
               }
             ]
@@ -554,5 +424,8 @@
   "com.example.cleared": null,
   "com.example.empty-array": [],
   "com.example.empty-object": {},
-  "com.example.normalisation": {"\u00e9": "precomposed", "e\u0301": "decomposed"}
+  "com.example.normalisation": {
+    "é": "precomposed",
+    "é": "decomposed"
+  }
 }

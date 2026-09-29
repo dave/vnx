@@ -236,7 +236,7 @@ final class CorpusTests: XCTestCase {
                        "\(stem): SPEC 7.1 puts the root document first")
 
         let input = try VNX.read(try Data(contentsOf: inputURL))
-        XCTAssertEqual(input.diagnostics.map(\.message), [], "\(stem): a writer case's input must read cleanly")
+        assertDiagnosticsMatchAsSet(expected: sidecar.diagnostics ?? [], reported: input.diagnostics, name: stem)
         let archive = try VNX.writeContainer(document: input.document, attachments: manifest.reversed())
         let produced = try archiveEntries(archive)
 
@@ -337,7 +337,11 @@ final class CorpusTests: XCTestCase {
             return
         }
 
-        let produced = try VNX.write(try VNX.read(inputBytes).document)
+        // A write sidecar's `diagnostics` is what decoding the input must
+        // report, compared as the diagnose tier compares it; absent, nothing.
+        let read = try VNX.read(inputBytes)
+        assertDiagnosticsMatchAsSet(expected: sidecar.diagnostics ?? [], reported: read.diagnostics, name: stem)
+        let produced = try VNX.write(read.document)
         if let d = try Tree.difference(got: produced, want: expected) {
             XCTFail("\(stem): the written document is not the one the case expects — \(d)")
         }

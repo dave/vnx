@@ -1073,7 +1073,25 @@ fn parse_position(items: &[Json]) -> Result<Position, String> {
             other => return Err(format!("channel {index} is {}", other.type_name())),
         }
     }
+    let (lon, lat) = (
+        channels[0].expect("channel 0 is a number"),
+        channels[1].expect("channel 1 is a number"),
+    );
+    if let Some(problem) = off_the_globe(lon, lat) {
+        return Err(problem);
+    }
     Ok(Position::new(channels))
+}
+
+/// SPEC 4.1's normative ranges, both bounds included. `None` when in range.
+pub(crate) fn off_the_globe(lon: f64, lat: f64) -> Option<String> {
+    if !(-180.0..=180.0).contains(&lon) {
+        return Some(format!("longitude {lon} is off the globe"));
+    }
+    if !(-90.0..=90.0).contains(&lat) {
+        return Some(format!("latitude {lat} is off the globe"));
+    }
+    None
 }
 
 /// A node or an arc pip: longitude, latitude and elevation. A time channel,

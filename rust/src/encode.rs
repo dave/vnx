@@ -462,10 +462,10 @@ mod tests {
     #[test]
     fn the_values_that_used_to_need_a_tie_rule_pass_through() {
         let out = encode_text(
-            r#"{"vnx":"0.2.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[340.75,1.85,-0.04]}]}"#,
+            r#"{"vnx":"0.2.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
         );
         assert!(out.contains("[-4e-8,0.15,340.25]"), "{out}");
-        assert!(out.contains("[340.75,1.85,-0.04]"), "{out}");
+        assert!(out.contains("[1.85,-0.04,340.75]"), "{out}");
     }
 
     /// SPEC 4.1: a reader MUST NOT round, so the full precision the document

@@ -164,12 +164,55 @@ fn diagnose_tier() {
         // dropped them all would otherwise satisfy the diagnostic alone.
         check_attachments(&sidecar, attachments.as_deref(), case);
 
+        if let Err(why) = well_formed(&diagnostics) {
+            panic!("{}: {why}", case.name);
+        }
         let expected = read_expected_diagnostics(&sidecar)
             .unwrap_or_else(|why| panic!("{}: {why}", case.name));
         if let Err(why) = pair_diagnostics(&expected, &diagnostics) {
             panic!("{}: {why}", case.name);
         }
     });
+}
+
+/// corpus/README.md, "Write a runner", step 7: the reader's own output is well
+/// formed, with no sidecar consulted. `path` and `code` are the only two
+/// fields a runner may compare (SPEC 6.3), so one path carrying two distinct
+/// codes, or two reports at one path of which one has no code, are reports no
+/// runner can tell apart from the wrong ones.
+///
+/// It is a different kind of check from `pair_diagnostics`, which compares a
+/// reader against an expectation: no fixture prompts this one, so a runner
+/// that skipped it would notice nothing.
+fn well_formed(reported: &[vnx::Diagnostic]) -> Result<(), String> {
+    let mut by_path: BTreeMap<&str, Vec<&'static str>> = BTreeMap::new();
+    for d in reported {
+        by_path.entry(d.path.as_str()).or_default().push(d.code());
+    }
+    for (path, codes) in &by_path {
+        let mut distinct = codes.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        if distinct.len() > 1 {
+            return Err(format!("the path {path:?} carries {} distinct codes: {distinct:?}", distinct.len()));
+        }
+        if codes.len() > 1 && codes.iter().any(|c| c.is_empty()) {
+            return Err(format!("the path {path:?} carries {} reports, and one has no code", codes.len()));
+        }
+    }
+    Ok(())
+}
+
+/// A self-test of `well_formed`: no corpus case carries two diagnostics at one
+/// path, so the corpus cannot show that the check exists.
+#[test]
+fn a_path_carrying_two_codes_is_refused() {
+    use vnx::{Cause, Diagnostic};
+    let key = Diagnostic::new("/waypoints/0/nmae", Cause::UnknownKey);
+    let utc = Diagnostic::new("/waypoints/0/nmae", Cause::TimestampNotUtc);
+    let elsewhere = Diagnostic::new("/waypoints/1/nmae", Cause::TimestampNotUtc);
+    assert!(well_formed(&[key.clone(), elsewhere]).is_ok());
+    assert!(well_formed(&[key, utc]).is_err());
 }
 
 /// One expected diagnostic, as a sidecar states it.

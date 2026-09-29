@@ -9,7 +9,7 @@ import Foundation
 public enum VNX {
     /// The format version this reader supports. SPEC 2.2's MAJOR and MINOR
     /// comparison is reader-relative, and this is the reader's side of it.
-    public static let version = "0.1.0"
+    public static let version = "0.2.0"
 
     public struct ReadResult: Sendable {
         public let document: Document

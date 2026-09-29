@@ -247,10 +247,8 @@ extension Document {
                   next() == "polygon", let k = index(), list[i].polygon.indices.contains(k) else { return nil }
             return list[i].polygon[k]
         case "routes":
-            guard let i = index(), let list = routes, list.indices.contains(i), next() == "arcs",
-                  let a = index(), list[i].arcs.indices.contains(a), next() == "pips",
-                  let p = index(), list[i].arcs[a].pips.indices.contains(p) else { return nil }
-            return list[i].arcs[a].pips[p]
+            guard let i = index(), let list = routes, list.indices.contains(i) else { return nil }
+            return graphPosition(nodes: list[i].nodes, arcs: list[i].arcs, next: next, index: index)
         case "tracks":
             guard let i = index(), let list = tracks, list.indices.contains(i), next() == "segments",
                   let s = index(), list[i].segments.indices.contains(s), next() == "pips",
@@ -259,14 +257,27 @@ extension Document {
         case "networks":
             guard let i = index(), let list = networks, list.indices.contains(i) else { return nil }
             let network = list[i]
+            switch tokens.first {
+            case "nodes", "arcs":
+                return graphPosition(nodes: network.nodes, arcs: network.arcs, next: next, index: index)
+            case "chains":
+                _ = next()
+                // Only a POSITION in a walk is a position. A node key is a
+                // reference, and is addressed at the node.
+                guard let c = index(), let chains = network.chains, chains.indices.contains(c),
+                      next() == "walk", let k = index(), chains[c].walk.indices.contains(k) else { return nil }
+                let pass = chains[c].walk[k]
+                switch next() {
+                case "from": if case .position(let p)? = pass.from { return p.position }
+                case "to": if case .position(let p)? = pass.to { return p.position }
+                case "turn": return pass.turn?.position
+                default: break
+                }
+                return nil
+            default:
+                break
+            }
             switch next() {
-            case "nodes":
-                guard let key = next() else { return nil }
-                return network.nodes?[JSONKey(key)]
-            case "arcs":
-                guard let key = next(), let arc = network.arcs?[JSONKey(key)], next() == "pips",
-                      let p = index(), arc.pips.indices.contains(p) else { return nil }
-                return arc.pips[p]
             case "points":
                 guard let p = index(), let points = network.points, points.indices.contains(p),
                       next() == "at" else { return nil }
@@ -275,18 +286,27 @@ extension Document {
                 guard let a = index(), let list = network.areas, list.indices.contains(a),
                       next() == "polygon", let k = index(), list[a].polygon.indices.contains(k) else { return nil }
                 return list[a].polygon[k]
-            case "chains":
-                guard let c = index(), let chains = network.chains, chains.indices.contains(c),
-                      next() == "links", let l = index(), chains[c].links.indices.contains(l),
-                      let field = next() else { return nil }
-                let link = chains[c].links[l]
-                let endpoint = field == "from" ? link.from : link.to
-                if case .inline(let p) = endpoint { return p }
-                if case .node(let key) = endpoint { return network.nodes?[JSONKey(key)] }
-                return nil
             default:
                 return nil
             }
+        default:
+            return nil
+        }
+    }
+
+    /// A node, or an arc pip, of a network or a route: `nodes/<key>` or
+    /// `arcs/<key>/pips/<index>`. Both owners hold a graph of one shape (SPEC
+    /// 3.4), so one resolver serves both.
+    private func graphPosition(nodes: [JSONKey: Vertex]?, arcs: [JSONKey: Arc]?,
+                               next: () -> String?, index: () -> Int?) -> Position? {
+        switch next() {
+        case "nodes":
+            guard let key = next() else { return nil }
+            return nodes?[JSONKey(key)]?.position
+        case "arcs":
+            guard let key = next(), let arc = arcs?[JSONKey(key)], next() == "pips",
+                  let p = index(), arc.pips.indices.contains(p) else { return nil }
+            return arc.pips[p].position
         default:
             return nil
         }
@@ -310,7 +330,7 @@ extension Document {
     ///
     /// It exists because `counts` counted only the top-level collections.
     /// A reader that dropped every route's arcs, truncated an arc's pips, or
-    /// lost a chain's links changed nothing a sidecar could see: the document
+    /// lost a pass of a chain's walk changed nothing a sidecar could see: the document
     /// still carried one route, one network, one track. That matters most in
     /// the DIAGNOSE tier, which SPEC 8.1 exempts from the round-trip — exactly
     /// the tier where a reader is meant to drop something in a SCOPED way, and
@@ -343,7 +363,7 @@ extension Document {
             }
             out["/networks/\(i)/chains"] = network.chains?.count ?? 0
             for (j, chain) in (network.chains ?? []).enumerated() {
-                out["/networks/\(i)/chains/\(j)/links"] = chain.links.count
+                out["/networks/\(i)/chains/\(j)/walk"] = chain.walk.count
             }
             out["/networks/\(i)/points"] = network.points?.count ?? 0
             out["/networks/\(i)/areas"] = network.areas?.count ?? 0
@@ -352,10 +372,12 @@ extension Document {
             }
         }
         for (i, route) in (routes ?? []).enumerated() {
-            out["/routes/\(i)/arcs"] = route.arcs.count
-            for (j, arc) in route.arcs.enumerated() {
-                out["/routes/\(i)/arcs/\(j)/pips"] = arc.pips.count
+            out["/routes/\(i)/nodes"] = route.nodes?.count ?? 0
+            out["/routes/\(i)/arcs"] = route.arcs?.count ?? 0
+            for (key, arc) in route.arcs ?? [:] {
+                out["/routes/\(i)/arcs/\(key)/pips"] = arc.pips.count
             }
+            out["/routes/\(i)/walk"] = route.walk.count
         }
         for (i, track) in (tracks ?? []).enumerated() {
             out["/tracks/\(i)/segments"] = track.segments.count

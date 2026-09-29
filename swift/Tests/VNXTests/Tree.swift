@@ -102,7 +102,8 @@ enum Tree {
     }
 
     private static func normRoute(_ o: inout OpaqueObject, _ opt: Options) {
-        normItems(&o, "arcs", opt, normArc)
+        normGraph(&o, opt)
+        normWalk(&o, opt)
         dropEmptyContainer(&o, "style")
         dropEmptyContainer(&o, "data")
     }
@@ -112,7 +113,9 @@ enum Tree {
         dropEmptyContainer(&o, "data")
     }
 
-    private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
+    /// The `nodes` and `arcs` a network and a route share (SPEC 3.4: a route
+    /// owns a graph of the network's shape).
+    private static func normGraph(_ o: inout OpaqueObject, _ opt: Options) {
         if let nodes = o["nodes"]?.objectValue {
             o["nodes"] = .object(nodes.mapValues { normPosition($0, opt) })
         }
@@ -123,23 +126,38 @@ enum Tree {
                 return .object(a)
             })
         }
+        dropEmptyContainer(&o, "nodes")
+        dropEmptyContainer(&o, "arcs")
+    }
+
+    private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
+        normGraph(&o, opt)
         normItems(&o, "chains", opt, normChain)
         normItems(&o, "points", opt, normWaypoint)
         normItems(&o, "areas", opt, normArea)
-        dropEmptyContainer(&o, "nodes")
-        dropEmptyContainer(&o, "arcs")
         dropEmptyContainer(&o, "data")
     }
 
-    private static func normChain(_ o: inout OpaqueObject, _ opt: Options) {
-        normItems(&o, "links", opt) { l, opt in
-            // An endpoint is a node key or an inline position (SPEC 3.3.3).
-            // Only the second is a position, and `normPosition` leaves a string
-            // alone.
-            for side: JSONKey in ["from", "to"] {
-                if let v = l[side] { l[side] = normPosition(v, opt) }
+    /// A walk's positions. `from` and `to` are a node key or a position (SPEC
+    /// 3.3.3); only the second is a position, and `normPosition` leaves a
+    /// string alone. `turn` is always a position.
+    ///
+    /// ⚠ AN EMPTY WALK IS KEPT: `walk` is REQUIRED (SPEC 3.10), so `"walk": []`
+    /// and an absent walk are different documents, and folding one into the
+    /// other would hide a writer that drops the key.
+    private static func normWalk(_ o: inout OpaqueObject, _ opt: Options) {
+        guard let passes = o["walk"]?.arrayValue else { return }
+        o["walk"] = .array(passes.map { item in
+            guard var p = item.objectValue else { return item }
+            for key: JSONKey in ["from", "to", "turn"] {
+                if let v = p[key] { p[key] = normPosition(v, opt) }
             }
-        }
+            return .object(p)
+        })
+    }
+
+    private static func normChain(_ o: inout OpaqueObject, _ opt: Options) {
+        normWalk(&o, opt)
         dropEmptyContainer(&o, "style")
         dropEmptyContainer(&o, "data")
     }

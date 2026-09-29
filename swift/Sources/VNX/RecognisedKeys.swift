@@ -51,25 +51,22 @@ enum Keys {
         optional: ["name", "notes", "folder", "hidden", "nodes", "arcs",
                    "chains", "points", "areas", "data"])
 
-    static let networkArc = Shape(
+    /// An arc, in a network or in a route: one shape for both (SPEC 3.10).
+    static let arc = Shape(
         required: ["from", "to", "pips"],
         optional: ["data"])
 
     static let chain = Shape(
-        required: ["links"],
+        required: ["walk"],
         optional: ["name", "notes", "hidden", "style", "data"])
 
-    static let link = Shape(
-        required: ["arc", "from", "to"],
-        optional: [])
+    static let pass = Shape(
+        required: ["arc"],
+        optional: ["from", "to", "turn", "pinned"])
 
     static let route = Shape(
-        required: ["arcs"],
-        optional: ["name", "notes", "folder", "hidden", "style", "data"])
-
-    static let routeArc = Shape(
-        required: ["pips"],
-        optional: ["data"])
+        required: ["walk"],
+        optional: ["name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data"])
 
     static let track = Shape(
         required: ["segments"],

@@ -18,11 +18,11 @@ enum DocumentEncoder {
         put(&o, "generator", d.generator)
         put(&o, "created", d.created)
         putArray(&o, "folders", d.folders) { folder($0) }
-        putArray(&o, "networks", d.networks) { network($0) }
-        putArray(&o, "routes", d.routes) { route($0) }
+        try putArray(&o, "networks", d.networks) { try network($0) }
+        try putArray(&o, "routes", d.routes) { try route($0) }
         putArray(&o, "tracks", d.tracks) { track($0) }
         putArray(&o, "waypoints", d.waypoints) { waypoint($0, allowsFolder: true) }
-        putArray(&o, "areas", d.areas) { area($0, allowsFolder: true) }
+        try putArray(&o, "areas", d.areas) { try area($0, allowsFolder: true) }
         // SPEC 3.9: each application key verbatim, `null` and empty values
         // included. A key without a full stop, or held twice, is refused.
         for k in d.applicationKeys {
@@ -62,7 +62,8 @@ enum DocumentEncoder {
         return .object(o)
     }
 
-    private static func area(_ a: Area, allowsFolder: Bool) -> JSONValue {
+    private static func area(_ a: Area, allowsFolder: Bool) throws -> JSONValue {
+        try checkRing(a.polygon, name: a.name)
         var o: [JSONKey: JSONValue] = ["polygon": .array(a.polygon.map { position($0) })]
         put(&o, "name", a.name)
         put(&o, "notes", a.notes)
@@ -73,37 +74,92 @@ enum DocumentEncoder {
         return .object(o)
     }
 
-    private static func network(_ n: Network) -> JSONValue {
+    /// Refuses a ring SPEC 3.7 would have a reader repair or drop: a writer
+    /// emits a ring open, with at least three distinct positions.
+    ///
+    /// It does not open a closed ring itself. That would be the writer guessing
+    /// that its caller meant the repeat, and the repeat is the caller's to fix.
+    private static func checkRing(_ ring: [Position], name: String?) throws {
+        if ring.count >= 2, let first = ring.first, let last = ring.last, first.isSamePlace(as: last) {
+            throw WriteError("area \(describe(name)): a ring is written open, and this one's last position repeats its first")
+        }
+        let distinct = Set(ring.map { [$0.lon, $0.lat] }).count
+        if distinct < 3 {
+            throw WriteError("area \(describe(name)): a ring needs at least 3 distinct positions, and this one has \(distinct)")
+        }
+    }
+
+    private static func network(_ n: Network) throws -> JSONValue {
         var o: [JSONKey: JSONValue] = [:]
         put(&o, "name", n.name)
         put(&o, "notes", n.notes)
         put(&o, "folder", n.folder)
         putHidden(&o, n.hidden)
-        if let nodes = n.nodes {
-            o["nodes"] = .object(nodes.mapValues { position($0) })
+        try putGraph(&o, nodes: n.nodes, arcs: n.arcs, owner: "network \(describe(n.name))")
+        try putArray(&o, "chains", n.chains) { c in
+            // A writer never emits a walk its own reader would drop.
+            try checkWalk(c.walk, arcs: n.arcs ?? [:], route: false, owner: "chain \(describe(c.name))")
+            return chain(c)
         }
-        if let arcs = n.arcs {
-            o["arcs"] = .object(arcs.mapValues { networkArc($0) })
-        }
-        putArray(&o, "chains", n.chains) { chain($0) }
         putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
-        putArray(&o, "areas", n.areas) { area($0, allowsFolder: false) }
+        try putArray(&o, "areas", n.areas) { try area($0, allowsFolder: false) }
         putData(&o, n.data)
         return .object(o)
     }
 
-    private static func networkArc(_ a: NetworkArc) -> JSONValue {
+    /// A network's or a route's `nodes` and `arcs`, after checking every arc:
+    /// two different nodes, both present (SPEC 3.3.2).
+    private static func putGraph(_ o: inout [JSONKey: JSONValue], nodes: [JSONKey: Vertex]?, arcs: [JSONKey: Arc]?,
+                                 owner: String) throws {
+        for key in (arcs ?? [:]).keys.sorted(by: { codePointLess($0.string, $1.string) }) {
+            let a = arcs![key]!
+            if JSONKey(a.from) == JSONKey(a.to) {
+                throw WriteError("\(owner): arc \"\(key.string)\" runs from node \"\(a.from)\" to itself, and a self-loop cannot be written")
+            }
+            for node in [a.from, a.to] where nodes?[JSONKey(node)] == nil {
+                throw WriteError("\(owner): arc \"\(key.string)\" names node \"\(node)\", which is not in its owner's nodes")
+            }
+        }
+        if let nodes {
+            o["nodes"] = .object(nodes.mapValues { position($0.position) })
+        }
+        if let arcs {
+            o["arcs"] = .object(arcs.mapValues { arc($0) })
+        }
+    }
+
+    private static func arc(_ a: Arc) -> JSONValue {
         var o: [JSONKey: JSONValue] = [
             "from": .string(a.from),
             "to": .string(a.to),
-            "pips": .array(a.pips.map { position($0) }),
+            // Always written, empty for a straight arc: SPEC 3.10 makes the
+            // key required.
+            "pips": .array(a.pips.map { position($0.position) }),
         ]
         putData(&o, a.data)
         return .object(o)
     }
 
+    /// The writer's check on a walk: every pass names an arc of its owner, and
+    /// the walk follows SPEC 3.3.3's rules — the same `WalkCursor` the reader
+    /// steps, so the two cannot disagree about what a valid walk is.
+    private static func checkWalk(_ walk: [Pass], arcs: [JSONKey: Arc], route: Bool, owner: String) throws {
+        var cursor = WalkCursor(last: walk.count - 1, route: route)
+        for (i, p) in walk.enumerated() {
+            guard let a = arcs[JSONKey(p.arc)] else {
+                throw WriteError("\(owner): pass \(i) names arc \"\(p.arc)\", which is not here (\(Cause.passArcAbsent.code))")
+            }
+            do {
+                _ = try cursor.step(i, p, arc: a)
+            } catch let fault as WalkFault {
+                let key = fault.key.map { " `\($0)`" } ?? ""
+                throw WriteError("\(owner): pass \(fault.pass)\(key): \(fault.message) (\(fault.cause.code))")
+            }
+        }
+    }
+
     private static func chain(_ c: Chain) -> JSONValue {
-        var o: [JSONKey: JSONValue] = ["links": .array(c.links.map { link($0) })]
+        var o: [JSONKey: JSONValue] = ["walk": walk(c.walk)]
         put(&o, "name", c.name)
         put(&o, "notes", c.notes)
         putHidden(&o, c.hidden)
@@ -112,23 +168,32 @@ enum DocumentEncoder {
         return .object(o)
     }
 
-    private static func link(_ l: Link) -> JSONValue {
-        .object([
-            "arc": .string(l.arc),
-            "from": endpoint(l.from),
-            "to": endpoint(l.to),
-        ])
+    /// A walk. `from` and `to` appear where the model holds them — a walk that
+    /// passed `checkWalk` holds them exactly where SPEC 3.3.3's rule puts them
+    /// — and `pinned` only when it is `true`.
+    private static func walk(_ passes: [Pass]) -> JSONValue {
+        .array(passes.map { p in
+            var o: [JSONKey: JSONValue] = ["arc": .string(p.arc)]
+            if let from = p.from { o["from"] = endpoint(from) }
+            if let to = p.to { o["to"] = endpoint(to) }
+            if let turn = p.turn { o["turn"] = position(turn.position) }
+            if p.pinned { o["pinned"] = .bool(true) }
+            return .object(o)
+        })
     }
 
-    private static func endpoint(_ e: LinkEndpoint) -> JSONValue {
+    private static func endpoint(_ e: Endpoint) -> JSONValue {
         switch e {
         case .node(let k): return .string(k)
-        case .inline(let p): return position(p)
+        case .position(let p): return position(p.position)
         }
     }
 
-    private static func route(_ r: Route) -> JSONValue {
-        var o: [JSONKey: JSONValue] = ["arcs": .array(r.arcs.map { routeArc($0) })]
+    private static func route(_ r: Route) throws -> JSONValue {
+        let owner = "route \(describe(r.name))"
+        try checkWalk(r.walk, arcs: r.arcs ?? [:], route: true, owner: owner)
+        var o: [JSONKey: JSONValue] = ["walk": walk(r.walk)]
+        try putGraph(&o, nodes: r.nodes, arcs: r.arcs, owner: owner)
         put(&o, "name", r.name)
         put(&o, "notes", r.notes)
         put(&o, "folder", r.folder)
@@ -138,10 +203,8 @@ enum DocumentEncoder {
         return .object(o)
     }
 
-    private static func routeArc(_ a: RouteArc) -> JSONValue {
-        var o: [JSONKey: JSONValue] = ["pips": .array(a.pips.map { position($0) })]
-        putData(&o, a.data)
-        return .object(o)
+    private static func describe(_ name: String?) -> String {
+        name.map { "\"\($0)\"" } ?? "(unnamed)"
     }
 
     private static func track(_ t: Track) -> JSONValue {
@@ -223,8 +286,8 @@ enum DocumentEncoder {
     }
 
     private static func putArray<T>(_ o: inout [JSONKey: JSONValue], _ key: String, _ items: [T]?,
-                                    _ encode: (T) -> JSONValue) {
+                                    _ encode: (T) throws -> JSONValue) rethrows {
         guard let items else { return }
-        o[JSONKey(key)] = .array(items.map(encode))
+        o[JSONKey(key)] = .array(try items.map(encode))
     }
 }

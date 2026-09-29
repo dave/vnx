@@ -5,7 +5,7 @@ diagnostics.
 
 Swift 5.9 or later, on macOS 10.15, iOS 13, tvOS 13 or watchOS 6. Foundation and
 zlib only — zlib is a system library, present in the macOS SDK and in every Linux
-distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the development package (`zlib1g-dev`) and no lock file. Implements VNX 0.1.0
+distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the development package (`zlib1g-dev`) and no lock file. Implements VNX 0.2.0
 — [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -75,7 +75,7 @@ try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
 | `VNX.read(_:)` | `Data` | `VNX.ReadResult` | `Refusal`, one of the four document causes |
 | `VNX.read(contentsOf:)` | `URL`, read as a container where the extension is `.vnz` | `VNX.ReadResult` | the same, and whatever reading the file raises |
 | `VNX.readContainer(_:)` | `Data` | `ContainerResult` | `Refusal`, a document or a container cause |
-| `VNX.write(_:)` | `Document` | `Data` | `Refusal`, for a number JSON cannot spell |
+| `VNX.write(_:)` | `Document` | `Data` | `WriteError`, for a document its own reader would repair or drop; `ApplicationKeyError`; `NonFiniteNumberError`, for a number JSON cannot spell |
 | `VNX.writeContainer(document:attachments:)` | `Document`, `[Attachment]` | `Data` | the same, from the document it carries |
 | `VNX.version` | — | `String` | — |
 
@@ -89,7 +89,17 @@ try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
 | `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `applicationKeys: [ApplicationKey]` |
 | `ApplicationKey` | `key: String`, `value: JSONValue`; one top-level key containing a full stop (SPEC §3.9), `.null` for a JSON `null` |
 | `ApplicationKeyError` | `key: String`, `message: String`; thrown by `VNX.write` for a key without a full stop or held twice; conforms to `Error` |
+| `WriteError` | `message: String`; thrown by `VNX.write` for a closed ring or one of fewer than three distinct positions, an arc that is a self-loop or names an absent node, or a walk that is not valid; conforms to `Error` |
 | `Position` | `lon`, `lat`, `elevation: Double?`, `timeMilliseconds: Double?`, `isSamePlace(as:)` |
+| `Vertex` | `lon`, `lat`, `elevation: Double?`, `position`; a node or an arc pip, which carries no time |
+| `LonLat` | `lon`, `lat`, `position`; a walk's `from`, `to` or `turn` |
+| `Network` | `nodes: [JSONKey: Vertex]?`, `arcs: [JSONKey: Arc]?`, `chains: [Chain]?`, `points`, `areas`, and the item fields |
+| `Route` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
+| `Arc` | `from: String`, `to: String`, `pips: [Vertex]` (interior points only), `data` |
+| `Chain` | `walk: [Pass]`, and the item fields |
+| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Bool` |
+| `Endpoint` | `.node(String)` or `.position(LonLat)` |
+| `Area` | `polygon: [Position]`, one open ring, and the item fields |
 | `Track` | `segments: [TrackSegment]`, `movingTimeMilliseconds: Double?` |
 
 Every public type is `Sendable`. Writing what you read is legitimately not the
@@ -109,9 +119,20 @@ document.
   is a JSON Pointer (RFC 6901) into the document, except `attachment-unreadable`,
   which points into the archive's entries.
 - **An absent collection is `nil`, not `[]`.** `Document` keeps the spelling the
-  document used, though the two carry the same content (SPEC §3.1). Inside an
-  item — `Route.arcs`, `Chain.links`, `Track.segments`, an arc's `pips` — it is a
-  plain array.
+  document used, though the two carry the same content (SPEC §3.1). Where the key
+  is required — `Chain.walk`, `Route.walk`, `Track.segments`, an arc's `pips` —
+  it is a plain array.
+- **A walk is used whole or not at all.** Any fault in a walk drops the chain,
+  or the route, that carries it, and only the first fault is reported, in the
+  order of SPEC §6.2. A dropped node takes each arc naming it, and a dropped arc
+  takes each chain walking it, each with its own diagnostic.
+- **`Pass.from` and `Pass.to` are `nil` where SPEC §3.3.3's rule leaves them
+  out**, not where they are unknown. `pinned` is `false` for absent, and is
+  written only when `true`.
+- **The writer refuses what its own reader would repair or drop**, with a
+  `WriteError`: a closed ring, a ring of fewer than three distinct positions, a
+  self-loop arc, an arc naming an absent node, or a walk that is not valid. It
+  does not repair them for you.
 - **`Track.movingTimeMilliseconds` is `nil` for unknown.** Unknown is not zero.
 - **A `Position` holds four values, not the arity the document spelled.**
   `elevation` and `timeMilliseconds` are `nil` where a channel was absent or
@@ -140,8 +161,8 @@ tiers. A green run is the conformance claim.
 | `JSONValue.swift`, `JSONParser.swift` | a strict RFC 8259 parser and its tree |
 | `Model.swift` | the decoded document (SPEC §3) |
 | `Decoder.swift` | what is refused, dropped and reported (SPEC §6.2) |
-| `Encoder.swift` | the emit boundary — the shortest spelling of a position (SPEC §4.1) |
-| `Projection.swift` | the equirectangular map and its tolerance (SPEC §3.3.3) |
+| `Encoder.swift` | the emit boundary — the shortest spelling of a position (SPEC §4.1) — and the writer's refusals |
+| `Walk.swift` | the valid-walk rules, stepped pass by pass; the reader and the writer share it (SPEC §3.3.3) |
 | `Deflate.swift`, `Zip.swift`, `Container.swift` | zlib, ZIP with ZIP64, the container (SPEC §7) |
 | `Version.swift` | `MAJOR.MINOR.PATCH`, compared as numbers of any length |
 | `CodePointOrder.swift` | code-point ordering, which Swift's `<` does not give |

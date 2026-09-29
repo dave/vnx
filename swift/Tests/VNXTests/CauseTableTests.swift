@@ -139,9 +139,8 @@ final class CauseTableTests: XCTestCase {
         }
     }
 
-    /// The `code` vocabulary, in both directions against the corpus. The
-    /// corpus adopted codes on 2026-09-09, ahead of SPEC 6.3, which still lists
-    /// only `path` and `message`.
+    /// The `code` vocabulary, in both directions against the corpus. SPEC 6.2's
+    /// remedy table names every code, and the corpus pins each one.
     func testCorpusCodeTableMatchesTheSidecars() throws {
         var sidecarCodes: Set<String> = []
         for url in try Corpus.cases(in: "diagnose") {
@@ -183,13 +182,12 @@ final class CauseTableTests: XCTestCase {
             "nonFiniteNumber", "containerMalformed", "containerPathEscapes",
             "containerDuplicateEntry", "containerNoDocument",
             "containerRootCompressionUnsupported",
-            "unknownKey", "wrongTypeRequired", "requiredKeyMissing", "wrongTypeOptional",
+            "unknownKey", "wrongTypeRequired", "wrongTypeOptional",
             "positionUnusable", "importanceOutOfRange", "timestampNotUTC",
-            "dataRecordTypeUnusable", "polygonNestedRings", "polygonUnclosed",
-            "linkArcNotInNetwork", "linkNodeNotInNetwork", "arcNodeNotInNetwork",
-            "inlineEndpointBeyondTolerance", "inlineEndpointOnEmptyArc",
-            "chainNotConnected", "folderNotPresent",
-            "attachmentUnreadable", "terminalPipOffNode",
+            "polygonNestedRings", "ringClosed", "ringTooFewPoints",
+            "extraChannel", "arcPipTime", "selfLoopArc", "arcNodeAbsent",
+            "passArcAbsent", "walkSpelling", "walkNotConnected", "pinnedTurn",
+            "routePinOrPosition", "folderNotPresent", "attachmentUnreadable",
         ])
     }
 }

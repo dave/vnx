@@ -4,10 +4,10 @@ import XCTest
 
 /// SPEC 2.2's version rules, exercised from BOTH sides of 1.0.
 ///
-/// The library is a 0.1 reader, so the 1.0-and-later branch of the rule — minor
+/// The library is a 0.x reader, so the 1.0-and-later branch of the rule — minor
 /// versions are additive, and only a MAJOR increment refuses — is unreachable
 /// through the public API. Every mutation of that branch therefore stays green
-/// against a suite that only ever reads as a 0.1 reader, which is how an
+/// against a suite that only ever reads as a 0.x reader, which is how an
 /// untestable claim gets mistaken for a tested one. Two red proofs came back
 /// green before these tests existed, and both mutations turned out to be
 /// provably no-ops for a 0.x reader rather than weak guards.
@@ -107,10 +107,10 @@ final class VersionRuleTests: XCTestCase {
         }
     }
 
-    /// The shipped reader is a 0.1 reader, and that is not an accident of
+    /// The shipped reader is a 0.2 reader, and that is not an accident of
     /// configuration.
     func testTheShippedReaderIsTheOneTheLibraryDeclares() {
         XCTAssertEqual(DocumentDecoder().readerVersion.display, VNX.version)
-        XCTAssertEqual(VNX.version, "0.1.0")
+        XCTAssertEqual(VNX.version, "0.2.0")
     }
 }

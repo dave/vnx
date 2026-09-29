@@ -14,7 +14,7 @@ final class DocumentDecoder {
     /// The version this reader implements. SPEC 2.2's comparison is
     /// reader-relative, so it is a stored property rather than a constant —
     /// which is also the only way the 1.0-and-later branch of the rule can be
-    /// exercised at all while the format is at 0.1. `VersionRuleTests` reads
+    /// exercised at all while the format is at 0.x. `VersionRuleTests` reads
     /// documents as a hypothetical 1.x reader for exactly that reason.
     let readerVersion: SemanticVersion
 
@@ -165,7 +165,7 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a waypoint") else { return nil }
         report(unknownKeysIn: o, against: shape, at: path)
         guard let atValue = o["at"] else {
-            diagnose(.requiredKeyMissing, at: path, "a waypoint with no `at` cannot exist and was dropped")
+            diagnose(.wrongTypeRequired, at: pointer(path, "at"), "a waypoint with no `at` cannot exist and was dropped")
             return nil
         }
         guard let at = position(atValue, at: pointer(path, "at"), cause: .wrongTypeRequired) else { return nil }
@@ -193,14 +193,20 @@ final class DocumentDecoder {
         return a
     }
 
-    /// SPEC 3.7: one closed ring of at least four positions. A nested or
-    /// additional ring drops the item — never silently keeping the outer ring,
-    /// which would draw an area whose hole had vanished with nothing anywhere
-    /// to say so.
+    /// SPEC 3.7: one OPEN ring of at least three distinct positions. A nested
+    /// or additional ring drops the item — never silently keeping the outer
+    /// ring, which would draw an area whose hole had vanished with nothing
+    /// anywhere to say so.
+    ///
+    /// ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED. Its last position repeating
+    /// its first is one fact written twice, so dropping the repeat loses
+    /// nothing, and the diagnostic is how a writer that closes rings is seen.
+    /// The distinct positions are counted after that, so `[A, B, A]` is two
+    /// points and its area goes, with both diagnostics at their two paths.
     private func ring(_ o: [JSONKey: JSONValue], at path: String) -> [Position]? {
         let polygonPath = pointer(path, "polygon")
         guard let raw = o["polygon"] else {
-            diagnose(.requiredKeyMissing, at: path, "an area with no `polygon` cannot exist and was dropped")
+            diagnose(.wrongTypeRequired, at: polygonPath, "an area with no `polygon` cannot exist and was dropped")
             return nil
         }
         guard let elements = raw.arrayValue else {
@@ -213,23 +219,28 @@ final class DocumentDecoder {
         }
         if hasNestedRing {
             diagnose(.polygonNestedRings, at: polygonPath,
-                     "`polygon` carries nested rings; this format expresses one closed ring and cannot express holes, so the item was dropped")
+                     "`polygon` carries nested rings; this format expresses one ring and cannot express holes, so the item was dropped")
             return nil
         }
         // One unusable vertex drops the ITEM, for the same reason one unusable
-        // pip drops its arc. Returning here rather than falling through also
-        // stops a second diagnostic: a ring shortened by the dropped vertex is
-        // no longer closed, and `polygonUnclosed` would report a consequence as
-        // though it were a second fault.
+        // pip drops its arc. Returning here also stops a second diagnostic: a
+        // ring shortened by the dropped vertex may hold too few points, and
+        // `ringTooFewPoints` would report a consequence as a second fault.
         var positions: [Position] = []
         for (i, e) in elements.enumerated() {
             guard let p = position(e, at: "\(polygonPath)/\(i)") else { return nil }
             positions.append(p)
         }
-        guard positions.count >= 4, let first = positions.first, let last = positions.last,
-              first.isSamePlace(as: last) else {
-            diagnose(.polygonUnclosed, at: polygonPath,
-                     "`polygon` is not one closed ring of at least four positions, so the item was dropped")
+        if positions.count >= 2, let first = positions.first, let last = positions.last,
+           first.isSamePlace(as: last) {
+            diagnose(.ringClosed, at: "\(polygonPath)/\(positions.count - 1)",
+                     "a ring is stored open, and this last position repeats the first; the repeat was dropped and the area kept")
+            positions.removeLast()
+        }
+        let distinct = Set(positions.map { [$0.lon, $0.lat] }).count
+        guard distinct >= 3 else {
+            diagnose(.ringTooFewPoints, at: polygonPath,
+                     "the ring holds \(distinct) distinct position(s) and needs at least 3, so the area was dropped")
             return nil
         }
         return positions
@@ -238,30 +249,19 @@ final class DocumentDecoder {
     private func decodeRoute(_ value: JSONValue, at path: String) -> Route? {
         guard let o = object(value, at: path, what: "a route") else { return nil }
         report(unknownKeysIn: o, against: Keys.route, at: path)
-        guard let rawArcs = o["arcs"] else {
-            diagnose(.requiredKeyMissing, at: path, "a route with no `arcs` cannot exist and was dropped")
-            return nil
-        }
-        guard let arcValues = rawArcs.arrayValue else {
-            diagnose(.wrongTypeRequired, at: pointer(path, "arcs"),
-                     "`arcs` is \(rawArcs.typeName); expected an array, so the item was dropped")
-            return nil
-        }
-        var arcs: [RouteArc] = []
-        for (i, v) in arcValues.enumerated() {
-            let arcPath = "\(pointer(path, "arcs"))/\(i)"
-            guard let ao = object(v, at: arcPath, what: "an arc") else { continue }
-            report(unknownKeysIn: ao, against: Keys.routeArc, at: arcPath)
-            guard let pips = pips(ao, at: arcPath) else { continue }
-            arcs.append(RouteArc(pips: pips, data: dataRecords(ao, at: arcPath)))
-        }
-        var route = Route(arcs: arcs)
+        var route = Route(walk: [])
+        route.nodes = decodeNodes(o, at: path)
+        route.arcs = decodeArcs(o, at: path, nodes: route.nodes ?? [:])
         route.name = optionalString(o, "name", at: path)
         route.notes = optionalString(o, "notes", at: path)
         route.folder = optionalString(o, "folder", at: path)
         route.hidden = optionalBool(o, "hidden", at: path)
         route.style = style(o, at: path)
         route.data = dataRecords(o, at: path)
+        // SPEC 3.4: where a chain would be dropped, the route is. It IS the
+        // chain.
+        guard let walk = decodeWalk(o, at: path, arcs: route.arcs ?? [:], route: true) else { return nil }
+        route.walk = walk
         return route
     }
 
@@ -269,7 +269,7 @@ final class DocumentDecoder {
         guard let o = object(value, at: path, what: "a track") else { return nil }
         report(unknownKeysIn: o, against: Keys.track, at: path)
         guard let rawSegments = o["segments"] else {
-            diagnose(.requiredKeyMissing, at: path, "a track with no `segments` cannot exist and was dropped")
+            diagnose(.wrongTypeRequired, at: pointer(path, "segments"), "a track with no `segments` cannot exist and was dropped")
             return nil
         }
         guard let segmentValues = rawSegments.arrayValue else {
@@ -310,6 +310,11 @@ final class DocumentDecoder {
         network.hidden = optionalBool(o, "hidden", at: path)
         network.data = dataRecords(o, at: path)
 
+        // Nodes, then arcs, then chains: an arc is checked against the nodes
+        // that survived, and a walk against the arcs that survived. That order
+        // is the whole cascade of SPEC 6.2 — a dropped node drops each arc
+        // naming it, and a dropped arc drops each chain walking it, each with
+        // its own diagnostic.
         network.nodes = decodeNodes(o, at: path)
         network.arcs = decodeArcs(o, at: path, nodes: network.nodes ?? [:])
         network.points = optionalItems(o, "points", at: path) { v, p in
@@ -319,200 +324,182 @@ final class DocumentDecoder {
             self.decodeArea(v, at: p, shape: Keys.networkArea, allowsFolder: false)
         }
         network.chains = optionalItems(o, "chains", at: path) { v, p in
-            self.decodeChain(v, at: p, nodes: network.nodes ?? [:], arcs: network.arcs ?? [:])
+            self.decodeChain(v, at: p, arcs: network.arcs ?? [:])
         }
         return network
     }
 
-    private func decodeNodes(_ o: [JSONKey: JSONValue], at path: String) -> [JSONKey: Position]? {
+    /// A network's or a route's `nodes`. A node that will not parse is dropped
+    /// (SPEC 6.2), and each arc naming it then goes under `arcNodeAbsent`.
+    private func decodeNodes(_ o: [JSONKey: JSONValue], at path: String) -> [JSONKey: Vertex]? {
         guard let raw = o["nodes"] else { return nil }
         guard let dict = raw.objectValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "nodes"),
                      "`nodes` is \(raw.typeName); expected an object keyed by node identifier")
             return nil
         }
-        var nodes: [JSONKey: Position] = [:]
+        var nodes: [JSONKey: Vertex] = [:]
         for (key, v) in dict {
-            if let p = position(v, at: pointer(pointer(path, "nodes"), key.string)) { nodes[key] = p }
+            let nodePath = pointer(pointer(path, "nodes"), key.string)
+            guard let p = position(v, at: nodePath) else { continue }
+            // SPEC 3.3.1: a node carries no time. The channel goes and the node
+            // stays.
+            if p.timeMilliseconds != nil {
+                diagnose(.extraChannel, at: nodePath,
+                         "a node carries no time; the time channel was dropped and the node kept")
+            }
+            nodes[key] = Vertex(lon: p.lon, lat: p.lat, elevation: p.elevation)
         }
         return nodes
     }
 
-    private func decodeArcs(_ o: [JSONKey: JSONValue], at path: String, nodes: [JSONKey: Position]) -> [JSONKey: NetworkArc]? {
+    /// A network's or a route's `arcs`, checked against the nodes that
+    /// survived.
+    private func decodeArcs(_ o: [JSONKey: JSONValue], at path: String, nodes: [JSONKey: Vertex]) -> [JSONKey: Arc]? {
         guard let raw = o["arcs"] else { return nil }
         guard let dict = raw.objectValue else {
             diagnose(.wrongTypeOptional, at: pointer(path, "arcs"),
                      "`arcs` is \(raw.typeName); expected an object keyed by arc identifier")
             return nil
         }
-        var arcs: [JSONKey: NetworkArc] = [:]
+        var arcs: [JSONKey: Arc] = [:]
         for (key, v) in dict {
             let arcPath = pointer(pointer(path, "arcs"), key.string)
             guard let ao = object(v, at: arcPath, what: "an arc") else { continue }
-            report(unknownKeysIn: ao, against: Keys.networkArc, at: arcPath)
+            report(unknownKeysIn: ao, against: Keys.arc, at: arcPath)
             guard let from = requiredString(ao, "from", at: arcPath),
                   let to = requiredString(ao, "to", at: arcPath),
                   let pips = pips(ao, at: arcPath) else { continue }
-            // SPEC 6.2's remedy table: an arc naming a node that is not in its
-            // network keeps the arc, because its geometry is real. Reported all
-            // the same — nothing tolerated here is silent.
+            // SPEC 3.3.2: an arc pip carries no time. Every time on the arc
+            // goes, its pips stay, and the arc is reported ONCE, at `pips`,
+            // however many pips carried one (SPEC 6.3's third rule).
+            if pips.contains(where: { $0.timeMilliseconds != nil }) {
+                diagnose(.arcPipTime, at: pointer(arcPath, "pips"),
+                         "an arc pip carries no time; every time channel on this arc was dropped and its pips kept")
+            }
+            let data = dataRecords(ao, at: arcPath)
+            // SPEC 3.3.2: a self-loop has no other end to leave by. Compared by
+            // Unicode scalar, like every key: NFC and NFD spellings of one name
+            // are two nodes (`accept/unicode-normalisation-keys`).
+            if JSONKey(from) == JSONKey(to) {
+                diagnose(.selfLoopArc, at: arcPath,
+                         "the arc runs from node \"\(from)\" to itself; a self-loop cannot be walked, so the arc was dropped")
+                continue
+            }
+            // Both ends are reported, each at its own key, before the arc goes.
+            var absent = false
             for (field, name) in [("from", from), ("to", to)] where nodes[JSONKey(name)] == nil {
-                diagnose(.arcNodeNotInNetwork, at: pointer(arcPath, field),
-                         "`\(field)` names the node \"\(name)\", which is not in this network; the arc was kept because its geometry is real")
+                absent = true
+                diagnose(.arcNodeAbsent, at: pointer(arcPath, field),
+                         "`\(field)` names the node \"\(name)\", which is not here, so the arc was dropped")
             }
-            // SPEC 3.3.2: an arc's pips are its COMPLETE point list, so the
-            // first pip is the position of the node `from` names and the last is
-            // `to`'s. The two are one fact written twice; both are kept, the
-            // pips are authoritative, and the disagreement is reported.
-            //
-            // THE PATH NAMES THE END, NOT THE ARC. SPEC 6.3 names the smallest
-            // element, and the arc's other end and its interior pips are all
-            // usable — while a reader naming the arc emits two diagnostics at
-            // one identical path, and 6.3 forbids telling them apart by their
-            // English.
-            for (field, name, terminal) in [("from", from, pips.first), ("to", to, pips.last)] {
-                guard let node = nodes[JSONKey(name)], let terminal,
-                      let metres = Projection.distance(from: node, toPolyline: [terminal]),
-                      !Projection.isWithinTolerance(metres) else { continue }
-                diagnose(.terminalPipOffNode, at: pointer(arcPath, field),
-                         "the node \"\(name)\" is \(Int(metres.rounded())) m from the \(field) pip, beyond the 50 m tolerance; both are kept and the pips are authoritative")
-            }
-            arcs[key] = NetworkArc(from: from, to: to, pips: pips, data: dataRecords(ao, at: arcPath))
+            if absent { continue }
+            arcs[key] = Arc(from: from, to: to,
+                            pips: pips.map { Vertex(lon: $0.lon, lat: $0.lat, elevation: $0.elevation) },
+                            data: data)
         }
         return arcs
     }
 
-    private func decodeChain(_ value: JSONValue, at path: String, nodes: [JSONKey: Position], arcs: [JSONKey: NetworkArc]) -> Chain? {
+    private func decodeChain(_ value: JSONValue, at path: String, arcs: [JSONKey: Arc]) -> Chain? {
         guard let o = object(value, at: path, what: "a chain") else { return nil }
         report(unknownKeysIn: o, against: Keys.chain, at: path)
-        guard let rawLinks = o["links"] else {
-            diagnose(.requiredKeyMissing, at: path, "a chain with no `links` cannot exist and was dropped")
-            return nil
-        }
-        guard let linkValues = rawLinks.arrayValue else {
-            diagnose(.wrongTypeRequired, at: pointer(path, "links"),
-                     "`links` is \(rawLinks.typeName); expected an array, so the item was dropped")
-            return nil
-        }
-
-        // Each link keeps the index it had in the document, so a diagnostic
-        // addresses the element the reader was handed rather than the element
-        // that survived.
-        var surviving: [(index: Int, link: Link)] = []
-        for (i, v) in linkValues.enumerated() {
-            let linkPath = "\(pointer(path, "links"))/\(i)"
-            guard let link = decodeLink(v, at: linkPath, nodes: nodes, arcs: arcs) else { continue }
-            surviving.append((i, link))
-        }
-
-        reportBreaks(in: surviving, at: pointer(path, "links"), nodes: nodes)
-
-        var chain = Chain(links: surviving.map(\.link))
+        var chain = Chain(walk: [])
         chain.name = optionalString(o, "name", at: path)
         chain.notes = optionalString(o, "notes", at: path)
         chain.hidden = optionalBool(o, "hidden", at: path)
         chain.style = style(o, at: path)
         chain.data = dataRecords(o, at: path)
+        guard let walk = decodeWalk(o, at: path, arcs: arcs, route: false) else { return nil }
+        chain.walk = walk
         return chain
     }
 
-    private func decodeLink(_ value: JSONValue, at path: String, nodes: [JSONKey: Position], arcs: [JSONKey: NetworkArc]) -> Link? {
-        guard let o = object(value, at: path, what: "a link") else { return nil }
-        report(unknownKeysIn: o, against: Keys.link, at: path)
-        guard let arcName = requiredString(o, "arc", at: path) else { return nil }
-        guard let arc = arcs[JSONKey(arcName)] else {
-            // SPEC 6.2: a link's whole meaning is the arc it traverses, so
-            // there is no geometry to keep.
-            diagnose(.linkArcNotInNetwork, at: path,
-                     "`arc` names \"\(arcName)\", which is not in this network; the link was dropped")
-            return nil
-        }
-        guard let from = endpoint(o, "from", at: path, arcName: arcName, arc: arc, nodes: nodes),
-              let to = endpoint(o, "to", at: path, arcName: arcName, arc: arc, nodes: nodes) else { return nil }
-        return Link(arc: arcName, from: from, to: to)
-    }
-
-    private func endpoint(_ o: [JSONKey: JSONValue], _ key: String, at path: String, arcName: String, arc: NetworkArc, nodes: [JSONKey: Position]) -> LinkEndpoint? {
-        let fieldPath = pointer(path, key)
-        guard let raw = o[JSONKey(key)] else {
-            diagnose(.requiredKeyMissing, at: path, "a link with no `\(key)` cannot exist and was dropped")
-            return nil
-        }
-        if let name = raw.stringValue {
-            // SPEC 6.2's remedy table: keep the link, and exclude that end from
-            // the continuity comparison. The link still names an arc, so it
-            // still carries geometry; only the junction is unknowable.
-            if nodes[JSONKey(name)] == nil {
-                diagnose(.linkNodeNotInNetwork, at: fieldPath,
-                         "`\(key)` names the node \"\(name)\", which is not in this network; the link was kept and this end takes no part in the continuity comparison")
-            }
-            return .node(name)
-        }
-        guard case .array = raw else {
-            diagnose(.wrongTypeRequired, at: fieldPath,
-                     "`\(key)` is \(raw.typeName); expected a node key or an inline position, so the link was dropped")
-            return nil
-        }
-        guard let p = position(raw, at: fieldPath, cause: .wrongTypeRequired) else { return nil }
-        // SPEC 3.3.3: an inline position MUST lie on the named arc.
-        guard let distance = Projection.distance(from: p, toPolyline: arc.pips) else {
-            diagnose(.inlineEndpointOnEmptyArc, at: fieldPath,
-                     "the arc \"\(arcName)\" has no vertices, so an inline endpoint on it has no distance to measure; the link was dropped")
-            return nil
-        }
-        if !Projection.isWithinTolerance(distance) {
-            diagnose(.inlineEndpointBeyondTolerance, at: fieldPath,
-                     "the inline endpoint is \(rounded(distance)) m from the arc \"\(arcName)\", beyond the 50 m tolerance; the link was dropped")
-            return nil
-        }
-        return .inline(p)
-    }
-
-    /// SPEC 6.2: a chain's links MUST form one connected walk, and the
-    /// diagnostic addresses the second link of the pair.
+    /// Reads a chain's or a route's REQUIRED `walk`, and checks it in SPEC
+    /// 6.2's order. Nil means the owner is dropped: a missing or wrong-typed
+    /// `walk`, or the first pass that breaks a rule, which is reported alone —
+    /// nothing after it in the walk is examined.
     ///
-    /// Only pairs that were adjacent IN THE DOCUMENT and both survived are
-    /// compared. `corpus/diagnose/link-names-absent-arc.expect.json` expects
-    /// exactly one diagnostic and says why: "dropping the second link must not
-    /// then also report the chain as broken, or one defect becomes two and the
-    /// reader cannot tell how much is actually wrong." Closing the gap left by
-    /// a dropped link and comparing across it would manufacture a second
-    /// defect out of the first.
-    private func reportBreaks(in surviving: [(index: Int, link: Link)], at linksPath: String, nodes: [JSONKey: Position]) {
-        guard surviving.count > 1 else { return }
-        for i in 1..<surviving.count {
-            let previous = surviving[i - 1], current = surviving[i]
-            guard previous.index + 1 == current.index else { continue }
-            if !meets(previous.link.to, current.link.from, nodes: nodes) {
-                diagnose(.chainNotConnected, at: "\(linksPath)/\(current.index)",
-                         "this link does not begin where the previous one ended, so the chain is not one connected walk; both links were kept")
+    /// ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC 6.2). Dropping one pass would
+    /// hand the caller a different walk that reads as valid — two arcs joined
+    /// that do not meet, a direction reversed by a lost turn, a start moved to
+    /// a node — so any fault drops the owner, and the diagnostic names the pass
+    /// and the rule.
+    private func decodeWalk(_ o: [JSONKey: JSONValue], at owner: String, arcs: [JSONKey: Arc], route: Bool) -> [Pass]? {
+        let walkPath = pointer(owner, "walk")
+        let ownerName = route ? "route" : "chain"
+        guard let raw = o["walk"] else {
+            diagnose(.wrongTypeRequired, at: walkPath, "no `walk`; the \(ownerName) cannot exist without it and was dropped")
+            return nil
+        }
+        guard let items = raw.arrayValue else {
+            diagnose(.wrongTypeRequired, at: walkPath,
+                     "`walk` is \(raw.typeName); expected an array of passes, so the \(ownerName) was dropped")
+            return nil
+        }
+        func drop(_ f: WalkFault) -> [Pass]? {
+            var at = "\(walkPath)/\(f.pass)"
+            if let key = f.key { at = pointer(at, key) }
+            diagnose(f.cause, at: at, "\(f.message); the \(ownerName) was dropped")
+            return nil
+        }
+        var cursor = WalkCursor(last: items.count - 1, route: route)
+        var walk: [Pass] = []
+        for (i, item) in items.enumerated() {
+            let passPath = "\(walkPath)/\(i)"
+            // 1. The pass is an object naming an arc of its owner. When the arc
+            // is absent nothing about the pass resolves, so the pass is named.
+            guard let po = item.objectValue else {
+                return drop(WalkFault(pass: i, key: nil, cause: .passArcAbsent,
+                                      message: "the pass is \(item.typeName), expected an object"))
             }
+            guard let arcName = po["arc"]?.stringValue, let arc = arcs[JSONKey(arcName)] else {
+                return drop(WalkFault(pass: i, key: nil, cause: .passArcAbsent,
+                                      message: "the pass names no arc that is here"))
+            }
+            // 2. Unrecognised keys. 3. `pinned`, whose wrong type drops the
+            // field only.
+            report(unknownKeysIn: po, against: Keys.pass, at: passPath)
+            var pass = Pass(arc: arcName)
+            pass.pinned = optionalBool(po, "pinned", at: passPath) ?? false
+            // 4. `from`, `to` and `turn`, in that order, each parse.
+            for key in ["from", "to", "turn"] {
+                guard let v = po[JSONKey(key)] else { continue }
+                if key != "turn", let node = v.stringValue {
+                    if key == "from" { pass.from = .node(node) } else { pass.to = .node(node) }
+                    continue
+                }
+                let parsed: Position
+                switch parsePosition(v) {
+                case .success(let p):
+                    parsed = p
+                case .failure(let problem):
+                    return drop(WalkFault(pass: i, key: key, cause: .positionUnusable, message: problem.message))
+                }
+                // SPEC 3.3.3: longitude and latitude only. The other channels
+                // go and the pass stays.
+                if parsed.elevation != nil || parsed.timeMilliseconds != nil {
+                    diagnose(.extraChannel, at: pointer(passPath, key),
+                             "a walk position carries longitude and latitude only; its other channels were dropped")
+                }
+                let at = LonLat(lon: parsed.lon, lat: parsed.lat)
+                switch key {
+                case "from": pass.from = .position(at)
+                case "to": pass.to = .position(at)
+                default: pass.turn = at
+                }
+            }
+            // 5 to 8: a route's rule, pin and turn, spelling, connection.
+            do {
+                _ = try cursor.step(i, pass, arc: arc)
+            } catch let fault as WalkFault {
+                return drop(fault)
+            } catch {
+                preconditionFailure("WalkCursor.step throws only WalkFault, and threw \(error)")
+            }
+            walk.append(pass)
         }
-    }
-
-    private func meets(_ a: LinkEndpoint, _ b: LinkEndpoint, nodes: [JSONKey: Position]) -> Bool {
-        // SPEC 6.2: two node keys meet when the keys are equal; a node key and
-        // an inline position meet when the node's position and the inline
-        // position are equal by value. A reader that refused to compare the two
-        // kinds would report a continuous walk as broken.
-        // Key equality is a valid fast path, but only a fast path: two
-        // DISTINCT node keys at the same position also meet, and comparing keys
-        // alone would report a continuous walk as broken.
-        if case .node(let x) = a, case .node(let y) = b, x == y { return true }
-        guard let pa = resolve(a, nodes: nodes), let pb = resolve(b, nodes: nodes) else {
-            // An end that names a node this network does not have takes no part
-            // in the comparison (SPEC 6.2). Reporting a break here would turn
-            // one defect into two.
-            return true
-        }
-        return pa.isSamePlace(as: pb)
-    }
-
-    private func resolve(_ e: LinkEndpoint, nodes: [JSONKey: Position]) -> Position? {
-        switch e {
-        case .node(let k): return nodes[JSONKey(k)]
-        case .inline(let p): return p
-        }
+        return walk
     }
 
     // MARK: - Folder references
@@ -565,11 +552,6 @@ final class DocumentDecoder {
         return base + "/" + escaped
     }
 
-    /// A distance for a diagnostic's English, which nothing compares (SPEC 6.3).
-    private func rounded(_ d: Double) -> String {
-        String((d * 1000).rounded() / 1000)
-    }
-
     private func report(unknownKeysIn o: [JSONKey: JSONValue], against shape: Keys.Shape, at path: String) {
         let known = shape.all
         report(unknownKeysIn: o, recognised: { known.contains(JSONKey($0)) }, at: path)
@@ -604,7 +586,7 @@ final class DocumentDecoder {
 
     private func requiredString(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> String? {
         guard let raw = o[JSONKey(key)] else {
-            diagnose(.requiredKeyMissing, at: path, "no `\(key)`; the item cannot exist without it and was dropped")
+            diagnose(.wrongTypeRequired, at: pointer(path, key), "no `\(key)`; the item cannot exist without it and was dropped")
             return nil
         }
         guard let s = raw.stringValue else {
@@ -725,12 +707,12 @@ final class DocumentDecoder {
         for (i, v) in array.enumerated() {
             let recordPath = "\(pointer(path, "data"))/\(i)"
             guard var body = v.objectValue else {
-                diagnose(.dataRecordTypeUnusable, at: recordPath,
+                diagnose(.wrongTypeRequired, at: recordPath,
                          "a data record is \(v.typeName); expected an object, so the record was dropped")
                 continue
             }
             guard let type = body["@type"]?.stringValue else {
-                diagnose(.dataRecordTypeUnusable, at: recordPath,
+                diagnose(.wrongTypeRequired, at: recordPath,
                          "a data record has no `@type`, or one that is not a string, so the record was dropped")
                 continue
             }
@@ -743,7 +725,7 @@ final class DocumentDecoder {
     private func pips(_ o: [JSONKey: JSONValue], at path: String) -> [Position]? {
         let pipsPath = pointer(path, "pips")
         guard let raw = o["pips"] else {
-            diagnose(.requiredKeyMissing, at: path, "no `pips`; the item cannot exist without geometry and was dropped")
+            diagnose(.wrongTypeRequired, at: pipsPath, "no `pips`; the item cannot exist without geometry and was dropped")
             return nil
         }
         guard let array = raw.arrayValue else {
@@ -754,8 +736,8 @@ final class DocumentDecoder {
         // SPEC 6.2: ONE UNUSABLE PIP DROPS THE CONTAINER, not the pip. Geometry
         // is continuous and structure is not — a missing vertex leaves a
         // shorter, plausible, wrong line with nothing to indicate it, while a
-        // missing arc or segment leaves a gap the continuity rule of 3.3.3 can
-        // see and report.
+        // missing arc is seen by every chain that walks it, and a missing
+        // segment is a pause (SPEC 3.5).
         var out: [Position] = []
         for (i, v) in array.enumerated() {
             guard let p = position(v, at: "\(pipsPath)/\(i)") else { return nil }
@@ -764,58 +746,71 @@ final class DocumentDecoder {
         return out
     }
 
-    /// SPEC 4.1. Longitude first, then latitude — the single most likely
-    /// transposition bug in this format, and one that parses cleanly in either
-    /// order.
-    /// `cause` is what gets dropped, not what is wrong.
+    /// Why a position will not parse. `isShape` marks the two faults that
+    /// concern the value as a whole — not an array, or fewer than two channels
+    /// — which a caller may report under a cause of its own.
+    struct PositionProblem: Error {
+        let isShape: Bool
+        let message: String
+    }
+
+    /// SPEC 4.1, with no diagnostic: the caller decides what the failure costs.
     ///
-    /// The same malformed position is a different fact depending on where it
-    /// sits: under a waypoint's REQUIRED `at` the item goes, so it is
-    /// `wrongTypeRequired`; as one pip of a `pips` array only the pip goes, so it
-    /// is `positionUnusable` and the arc survives. SPEC 6.2 gives the remedies
-    /// and the corpus pins the first two codes; a reader that reported one code
-    /// for all of them would make a consumer re-derive which happened.
-    private func position(_ value: JSONValue, at path: String,
-                          cause: Cause = .positionUnusable) -> Position? {
+    /// Longitude first, then latitude — the single most likely transposition
+    /// bug in this format, and one that parses cleanly in either order.
+    private func parsePosition(_ value: JSONValue) -> Result<Position, PositionProblem> {
         guard let channels = value.arrayValue else {
-            diagnose(cause, at: path,
-                     "a position is \(value.typeName); expected a position array [lon, lat, ele, time_ms]" +
-                     (cause == .wrongTypeRequired ? " — item dropped" : ""))
-            return nil
+            return .failure(PositionProblem(isShape: true,
+                message: "a position is \(value.typeName); expected a position array [lon, lat, ele, time_ms]"))
         }
         guard channels.count >= 2 else {
-            diagnose(cause, at: path,
-                     "a position carries \(channels.count) channel(s); it MUST carry at least lon and lat")
-            return nil
+            return .failure(PositionProblem(isShape: true,
+                message: "a position carries \(channels.count) channel(s); it MUST carry at least lon and lat"))
         }
         // THE PATH IS THE POSITION, NOT THE CHANNEL. SPEC 6.3 names the smallest
         // element no part of which could be used, and a position with a null
         // longitude is unusable whole — the latitude beside it locates nothing
         // on its own. The channel index goes in the message, which nothing
         // compares.
-        guard channels[0].numberValue != nil else {
-            diagnose(.positionUnusable, at: path, "longitude is \(channels[0].typeName); expected a number")
-            return nil
+        guard let lon = channels[0].numberValue else {
+            return .failure(PositionProblem(isShape: false, message: "longitude is \(channels[0].typeName); expected a number"))
         }
-        guard channels[1].numberValue != nil else {
-            diagnose(.positionUnusable, at: path, "latitude is \(channels[1].typeName); expected a number")
-            return nil
+        guard let lat = channels[1].numberValue else {
+            return .failure(PositionProblem(isShape: false, message: "latitude is \(channels[1].typeName); expected a number"))
         }
         for i in 2..<channels.count {
             switch channels[i] {
             case .number, .null: continue
             default:
-                diagnose(.positionUnusable, at: path,
-                         "channel \(i) is \(channels[i].typeName); from index 2 upward a channel is a number or null")
-                return nil
+                return .failure(PositionProblem(isShape: false,
+                    message: "channel \(i) is \(channels[i].typeName); from index 2 upward a channel is a number or null"))
             }
         }
         // Channels above index 3 are read and discarded. SPEC 4.1: "A reader
         // MUST ignore them and MUST NOT report a diagnostic for them" — and a
         // model that carried them would be carrying the document's SPELLING,
         // which this format stopped constraining.
-        return Position(lon: channels[0].numberValue!, lat: channels[1].numberValue!,
-                        elevation: channels.count > 2 ? channels[2].numberValue : nil,
-                        timeMilliseconds: channels.count > 3 ? channels[3].numberValue : nil)
+        return .success(Position(lon: lon, lat: lat,
+                                 elevation: channels.count > 2 ? channels[2].numberValue : nil,
+                                 timeMilliseconds: channels.count > 3 ? channels[3].numberValue : nil))
+    }
+
+    /// SPEC 4.1, reporting a failure. `cause` is what gets dropped, not what is
+    /// wrong.
+    ///
+    /// The same malformed position is a different fact depending on where it
+    /// sits: under a waypoint's REQUIRED `at` the item goes, so it is
+    /// `wrongTypeRequired`; as one pip of a `pips` array the arc goes, so it is
+    /// `positionUnusable`. SPEC 6.2 gives the remedies; a reader that reported
+    /// one code for all of them would make a consumer re-derive which happened.
+    private func position(_ value: JSONValue, at path: String,
+                          cause: Cause = .positionUnusable) -> Position? {
+        switch parsePosition(value) {
+        case .success(let p):
+            return p
+        case .failure(let problem):
+            diagnose(problem.isShape ? cause : .positionUnusable, at: path, problem.message)
+            return nil
+        }
     }
 }

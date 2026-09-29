@@ -26,13 +26,10 @@ public struct Position: Equatable, Sendable {
 
     /// Whether two positions name the same place.
     ///
-    /// Longitude and latitude only. SPEC 6.2 says a node key and an inline
-    /// position "meet when the position of the named node and the inline
-    /// position are equal by value", and an inline endpoint carries no
-    /// elevation by construction (SPEC 3.3.3: "elevation is taken from the
-    /// polyline and is never stored on the endpoint") while a node usually
-    /// does. Comparing the elevation channel would report every such join as a
-    /// break.
+    /// Longitude and latitude only. SPEC 3.7 says two ring positions are
+    /// distinct "when they differ in longitude or in latitude; no other channel
+    /// takes part", and a closed ring is one whose last position equals its
+    /// first "in longitude and latitude".
     public func isSamePlace(as other: Position) -> Bool {
         lon == other.lon && lat == other.lat
     }
@@ -76,8 +73,9 @@ public struct Waypoint: Equatable, Sendable {
 }
 
 public struct Area: Equatable, Sendable {
-    /// One closed ring of at least four positions (SPEC 3.7). Holes and
-    /// multiple rings are not expressible.
+    /// One OPEN ring of at least three distinct positions (SPEC 3.7): its last
+    /// position does not repeat its first, and the boundary runs from the last
+    /// back to the first. Holes and multiple rings are not expressible.
     public var polygon: [Position]
     public var name: String?
     public var notes: String?
@@ -87,29 +85,98 @@ public struct Area: Equatable, Sendable {
     public var data: [DataRecord]?
 }
 
-/// An arc inside a network. Its `pips` are its complete point list, including
-/// both endpoint node positions (SPEC 3.3.2).
-public struct NetworkArc: Equatable, Sendable {
+/// A point that carries no time: a node, or an arc pip (SPEC 3.3.1, 3.3.2).
+///
+/// A type of its own rather than a `Position`, so that a time on a node or an
+/// arc pip cannot be built and so cannot be written. The reader drops such a
+/// time with a diagnostic, and nothing downstream has to remember to.
+public struct Vertex: Equatable, Sendable {
+    public var lon: Double
+    public var lat: Double
+    /// Metres, and absent is a first-class state rather than zero.
+    public var elevation: Double?
+
+    public init(lon: Double, lat: Double, elevation: Double? = nil) {
+        self.lon = lon
+        self.lat = lat
+        self.elevation = elevation
+    }
+
+    /// The vertex as a wire position, with no time.
+    public var position: Position { Position(lon: lon, lat: lat, elevation: elevation) }
+}
+
+/// A position in a walk: a pass's `from`, `to` or `turn` (SPEC 3.3.3).
+///
+/// Longitude and latitude only. Its elevation is the arc line's at the point it
+/// identifies, so storing one would be a second copy of a fact the arc already
+/// holds.
+public struct LonLat: Equatable, Sendable {
+    public var lon: Double
+    public var lat: Double
+
+    public init(lon: Double, lat: Double) {
+        self.lon = lon
+        self.lat = lat
+    }
+
+    /// The walk position as a wire position.
+    public var position: Position { Position(lon: lon, lat: lat) }
+}
+
+/// An arc of a network or of a route (SPEC 3.3.2). Its line runs from the
+/// position of its `from` node, through `pips`, to the position of its `to`
+/// node. `pips` holds the INTERIOR points only and may be empty, and `from` and
+/// `to` name two different nodes of the arc's owner.
+public struct Arc: Equatable, Sendable {
     public var from: String
     public var to: String
-    public var pips: [Position]
+    public var pips: [Vertex]
     public var data: [DataRecord]?
+
+    public init(from: String, to: String, pips: [Vertex] = [], data: [DataRecord]? = nil) {
+        self.from = from
+        self.to = to
+        self.pips = pips
+        self.data = data
+    }
 }
 
-/// A chain link endpoint: a node key, or a position on the named arc.
-public enum LinkEndpoint: Equatable, Sendable {
+/// Where a pass enters or leaves its arc: a node key, or a position on the arc.
+public enum Endpoint: Equatable, Sendable {
     case node(String)
-    case inline(Position)
+    case position(LonLat)
 }
 
-public struct Link: Equatable, Sendable {
+/// One entry of a walk (SPEC 3.3.3): the arc it covers, and where on that arc
+/// it enters, turns and leaves.
+///
+/// ⚠ `from` AND `to` ARE PRESENT ONLY WHERE SPEC 3.3.3's RULE PUTS THEM: on the
+/// first pass, on the last pass, and on a pass whose `from` is a position.
+/// Everywhere else the entry is the node the walk is at and the exit is
+/// derived. A `nil` here is that absence, not "unknown".
+public struct Pass: Equatable, Sendable {
     public var arc: String
-    public var from: LinkEndpoint
-    public var to: LinkEndpoint
+    public var from: Endpoint?
+    public var to: Endpoint?
+    public var turn: LonLat?
+    /// `false` is absent: a writer emits `pinned` only when it is `true`, and a
+    /// reader treats `"pinned": false` as absent (SPEC 3.3.3).
+    public var pinned: Bool
+
+    public init(arc: String, from: Endpoint? = nil, to: Endpoint? = nil, turn: LonLat? = nil, pinned: Bool = false) {
+        self.arc = arc
+        self.from = from
+        self.to = to
+        self.turn = turn
+        self.pinned = pinned
+    }
 }
 
+/// A walk over arcs its network owns (SPEC 3.3.3). The chain does not own the
+/// arcs: two chains over one trail name the same arc.
 public struct Chain: Equatable, Sendable {
-    public var links: [Link]
+    public var walk: [Pass]
     public var name: String?
     public var notes: String?
     public var hidden: Bool?
@@ -122,29 +189,41 @@ public struct Network: Equatable, Sendable {
     public var notes: String?
     public var folder: String?
     public var hidden: Bool?
-    public var nodes: [JSONKey: Position]?
-    public var arcs: [JSONKey: NetworkArc]?
+    public var nodes: [JSONKey: Vertex]?
+    public var arcs: [JSONKey: Arc]?
     public var chains: [Chain]?
     public var points: [Waypoint]?
     public var areas: [Area]?
     public var data: [DataRecord]?
 }
 
-/// An arc inside a top-level route. It owns its geometry and carries no
-/// identifier, because nothing can reference it (SPEC 3.4).
-public struct RouteArc: Equatable, Sendable {
-    public var pips: [Position]
-    public var data: [DataRecord]?
-}
-
+/// A top-level route (SPEC 3.4). It owns a graph of the network's shape and
+/// carries one walk over it, which runs node to node: no position, no turn and
+/// no pin. Nothing outside the route can reference its nodes or arcs.
 public struct Route: Equatable, Sendable {
-    public var arcs: [RouteArc]
+    public var nodes: [JSONKey: Vertex]?
+    public var arcs: [JSONKey: Arc]?
+    public var walk: [Pass]
     public var name: String?
     public var notes: String?
     public var folder: String?
     public var hidden: Bool?
     public var style: OpaqueObject?
     public var data: [DataRecord]?
+}
+
+// In extensions, so that the memberwise initialisers stay available to this
+// module's tests.
+extension Chain {
+    public init(walk: [Pass]) {
+        self.init(walk: walk, name: nil)
+    }
+}
+
+extension Route {
+    public init(walk: [Pass]) {
+        self.init(nodes: nil, arcs: nil, walk: walk)
+    }
 }
 
 public struct TrackSegment: Equatable, Sendable {
@@ -239,4 +318,18 @@ public struct ApplicationKeyError: Error, Equatable, Sendable, CustomStringConve
     public let key: String
     public let message: String
     public var description: String { message }
+}
+
+/// Thrown by `VNX.write` for a document its own reader would repair or drop:
+/// a closed ring or one with fewer than three distinct positions (SPEC 3.7), an
+/// arc that is a self-loop or names an absent node (SPEC 3.3.2), or a walk that
+/// is not valid (SPEC 3.3.3). A writer never emits one of these; the model is
+/// the caller's to fix.
+public struct WriteError: Error, Equatable, Sendable, CustomStringConvertible {
+    public let message: String
+    public var description: String { message }
+
+    init(_ message: String) {
+        self.message = message
+    }
 }

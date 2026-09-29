@@ -21,56 +21,59 @@ import kotlin.test.assertNull
  * back to proving nothing about the model.
  */
 class AcceptTierTest {
-
     private val corpus = File(System.getProperty("vnx.corpus")!!)
     private val case = File(corpus, "accept/example-network.vnx")
     private val options = Tree.Options(emitBoundary = true)
 
-    private fun spoiled(): List<Pair<String, (VnxDocument) -> VnxDocument>> = listOf(
-        "drops every data record" to { d: VnxDocument ->
-            d.copy(
-                waypoints = d.waypoints?.map { it.copy(data = null) },
-                tracks = d.tracks?.map { it.copy(data = null) },
-                routes = d.routes?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
-                networks = d.networks?.map { n ->
-                    n.copy(
-                        data = null,
-                        arcs = n.arcs?.mapValues { (_, a) -> a.copy(data = null) },
-                        chains = n.chains?.map { it.copy(data = null) },
-                        points = n.points?.map { it.copy(data = null) },
-                        areas = n.areas?.map { it.copy(data = null) },
-                    )
-                },
-            )
-        },
-        "drops every application key" to { d: VnxDocument -> d.copy(appKeys = emptyList()) },
-        "drops every style" to { d: VnxDocument ->
-            d.copy(
-                waypoints = d.waypoints?.map { it.copy(style = null) },
-                areas = d.areas?.map { it.copy(style = null) },
-                tracks = d.tracks?.map { it.copy(style = null) },
-                routes = d.routes?.map { it.copy(style = null) },
-                networks = d.networks?.map { n ->
-                    n.copy(
-                        chains = n.chains?.map { it.copy(style = null) },
-                        points = n.points?.map { it.copy(style = null) },
-                        areas = n.areas?.map { it.copy(style = null) },
-                    )
-                },
-            )
-        },
-        "drops every notes" to { d: VnxDocument ->
-            d.copy(
-                waypoints = d.waypoints?.map { it.copy(notes = null) },
-                areas = d.areas?.map { it.copy(notes = null) },
-                tracks = d.tracks?.map { it.copy(notes = null) },
-                routes = d.routes?.map { it.copy(notes = null) },
-                networks = d.networks?.map { n ->
-                    n.copy(notes = null, chains = n.chains?.map { it.copy(notes = null) })
-                },
-            )
-        },
-    )
+    private fun spoiled(): List<Pair<String, (VnxDocument) -> VnxDocument>> =
+        listOf(
+            "drops every data record" to { d: VnxDocument ->
+                d.copy(
+                    waypoints = d.waypoints?.map { it.copy(data = null) },
+                    tracks = d.tracks?.map { it.copy(data = null) },
+                    routes = d.routes?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
+                    networks =
+                        d.networks?.map { n ->
+                            n.copy(
+                                data = null,
+                                arcs = n.arcs?.mapValues { (_, a) -> a.copy(data = null) },
+                                chains = n.chains?.map { it.copy(data = null) },
+                                points = n.points?.map { it.copy(data = null) },
+                                areas = n.areas?.map { it.copy(data = null) },
+                            )
+                        },
+                )
+            },
+            "drops every application key" to { d: VnxDocument -> d.copy(appKeys = emptyList()) },
+            "drops every style" to { d: VnxDocument ->
+                d.copy(
+                    waypoints = d.waypoints?.map { it.copy(style = null) },
+                    areas = d.areas?.map { it.copy(style = null) },
+                    tracks = d.tracks?.map { it.copy(style = null) },
+                    routes = d.routes?.map { it.copy(style = null) },
+                    networks =
+                        d.networks?.map { n ->
+                            n.copy(
+                                chains = n.chains?.map { it.copy(style = null) },
+                                points = n.points?.map { it.copy(style = null) },
+                                areas = n.areas?.map { it.copy(style = null) },
+                            )
+                        },
+                )
+            },
+            "drops every notes" to { d: VnxDocument ->
+                d.copy(
+                    waypoints = d.waypoints?.map { it.copy(notes = null) },
+                    areas = d.areas?.map { it.copy(notes = null) },
+                    tracks = d.tracks?.map { it.copy(notes = null) },
+                    routes = d.routes?.map { it.copy(notes = null) },
+                    networks =
+                        d.networks?.map { n ->
+                            n.copy(notes = null, chains = n.chains?.map { it.copy(notes = null) })
+                        },
+                )
+            },
+        )
 
     @Test
     fun `the accept tier catches a reader that discards what it read`() {

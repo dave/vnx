@@ -10,11 +10,14 @@ import kotlin.test.assertTrue
 
 /** SPEC.md section 7, beyond the four container cases the corpus carries. */
 class ContainerTest {
+    private val doc =
+        "{\n  \"vnx\": \"0.2.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a container\"," +
+            "\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n"
 
-    private val doc = "{\n  \"vnx\": \"0.2.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a container\"," +
-        "\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n"
-
-    private fun zip(vararg entries: Pair<String, String>, stored: Boolean = false): ByteArray {
+    private fun zip(
+        vararg entries: Pair<String, String>,
+        stored: Boolean = false,
+    ): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zo ->
             for ((name, body) in entries) {
@@ -60,7 +63,8 @@ class ContainerTest {
         // matches at any depth and lets the last match win rather than the first.
         val r = Vnx.readContainer(zip("first.vnx" to doc, "sub/doc.vnx" to """{"vnx":"0.2.0"}"""))
         assertEquals(
-            "In a container", r.document.waypoints!![0].name,
+            "In a container",
+            r.document.waypoints!![0].name,
             "sub/doc.vnx is not a root document, so the fallback takes the first .vnx entry",
         )
     }
@@ -92,9 +96,10 @@ class ContainerTest {
     @Test
     fun `every escaping path shape is refused`() {
         for (name in listOf("../secret", "a/../../secret", "/etc/passwd", "C:/windows", "a\\b")) {
-            val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
-                Vnx.readContainer(zip("doc.vnx" to doc, name to "x"))
-            }
+            val e =
+                assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
+                    Vnx.readContainer(zip("doc.vnx" to doc, name to "x"))
+                }
             assertEquals(RefusalCause.CONTAINER_PATH_ESCAPES, e.refusal, "for \"$name\"")
             assertTrue(e.message.contains("escapes the archive"))
         }
@@ -110,9 +115,10 @@ class ContainerTest {
         // a Windows-authored archive that is a real escape. Refusing the backslash
         // unconditionally and first means the subtle question is never asked.
         for (name in listOf("..\\x", "a\\..\\b", "a\\b", "\\", "dir\\file.jpg", "ok/../..\\x")) {
-            val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
-                Vnx.readContainer(zip("doc.vnx" to doc, name to "x"))
-            }
+            val e =
+                assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
+                    Vnx.readContainer(zip("doc.vnx" to doc, name to "x"))
+                }
             assertEquals(RefusalCause.CONTAINER_PATH_ESCAPES, e.refusal, "for \"$name\"")
             assertTrue(
                 e.message.contains("forward-slash separated"),
@@ -157,34 +163,91 @@ class ContainerTest {
         payload: ByteArray = body,
         declaredCompressed: Long = payload.size.toLong(),
         declaredUncompressed: Long = body.size.toLong(),
-        crc: Long = java.util.zip.CRC32().apply { update(body) }.value,
+        crc: Long =
+            java.util.zip
+                .CRC32()
+                .apply { update(body) }
+                .value,
     ): ByteArray {
         val n = name.toByteArray(Charsets.UTF_8)
         val out = java.io.ByteArrayOutputStream()
-        fun le16(v: Int) { out.write(v and 0xff); out.write((v ushr 8) and 0xff) }
-        fun le32(v: Long) { le16((v and 0xffff).toInt()); le16(((v ushr 16) and 0xffff).toInt()) }
-        le32(0x04034b50); le16(10); le16(0x800); le16(method); le16(0); le16(0x21)
-        le32(crc); le32(declaredCompressed); le32(declaredUncompressed); le16(n.size); le16(0)
-        out.write(n); out.write(payload)
+
+        fun le16(v: Int) {
+            out.write(v and 0xff)
+            out.write((v ushr 8) and 0xff)
+        }
+
+        fun le32(v: Long) {
+            le16((v and 0xffff).toInt())
+            le16(((v ushr 16) and 0xffff).toInt())
+        }
+        le32(0x04034b50)
+        le16(10)
+        le16(0x800)
+        le16(method)
+        le16(0)
+        le16(0x21)
+        le32(crc)
+        le32(declaredCompressed)
+        le32(declaredUncompressed)
+        le16(n.size)
+        le16(0)
+        out.write(n)
+        out.write(payload)
         val central = java.io.ByteArrayOutputStream()
-        fun c16(v: Int) { central.write(v and 0xff); central.write((v ushr 8) and 0xff) }
-        fun c32(v: Long) { c16((v and 0xffff).toInt()); c16(((v ushr 16) and 0xffff).toInt()) }
-        c32(0x02014b50); c16(10); c16(10); c16(0x800); c16(method); c16(0); c16(0x21)
-        c32(crc); c32(declaredCompressed); c32(declaredUncompressed)
-        c16(n.size); c16(0); c16(0); c16(0); c16(0); c32(0); c32(0)
+
+        fun c16(v: Int) {
+            central.write(v and 0xff)
+            central.write((v ushr 8) and 0xff)
+        }
+
+        fun c32(v: Long) {
+            c16((v and 0xffff).toInt())
+            c16(((v ushr 16) and 0xffff).toInt())
+        }
+        c32(0x02014b50)
+        c16(10)
+        c16(10)
+        c16(0x800)
+        c16(method)
+        c16(0)
+        c16(0x21)
+        c32(crc)
+        c32(declaredCompressed)
+        c32(declaredUncompressed)
+        c16(n.size)
+        c16(0)
+        c16(0)
+        c16(0)
+        c16(0)
+        c32(0)
+        c32(0)
         central.write(n)
         val directoryOffset = out.size().toLong()
         val cd = central.toByteArray()
         out.write(cd)
-        le32(0x06054b50); le16(0); le16(0); le16(1); le16(1); le32(cd.size.toLong()); le32(directoryOffset); le16(0)
+        le32(0x06054b50)
+        le16(0)
+        le16(0)
+        le16(1)
+        le16(1)
+        le32(cd.size.toLong())
+        le32(directoryOffset)
+        le16(0)
         return out.toByteArray()
     }
 
     private fun deflated(body: ByteArray): ByteArray {
         val d = java.util.zip.Deflater(java.util.zip.Deflater.DEFAULT_COMPRESSION, true)
-        d.setInput(body); d.finish()
-        val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(4096)
-        while (!d.finished()) { val k = d.deflate(buf); if (k == 0 && d.needsInput()) break; out.write(buf, 0, k) }
+        d.setInput(body)
+        d.finish()
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(4096)
+        while (!d.finished()) {
+            val k = d.deflate(buf)
+            if (k == 0 && d.needsInput()) break
+            out.write(buf, 0, k)
+        }
         d.end()
         return out.toByteArray()
     }
@@ -197,11 +260,12 @@ class ContainerTest {
         // and it takes the process rather than the document. The declared size is
         // a limit, not an allocation.
         val doc = "{\n  \"vnx\": \"0.2.0\"\n}\n".toByteArray()
-        val e = assertFailsWith<VnxRefusal> {
-            Vnx.readContainer(
-                lying(body = doc, method = 8, payload = deflated(doc), declaredUncompressed = 0x7FFFFFF0L),
-            )
-        }
+        val e =
+            assertFailsWith<VnxRefusal> {
+                Vnx.readContainer(
+                    lying(body = doc, method = 8, payload = deflated(doc), declaredUncompressed = 0x7FFFFFF0L),
+                )
+            }
         assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
     }
 
@@ -239,9 +303,10 @@ class ContainerTest {
         // prohibition does not reach here — it holds only where the CRC over the
         // bytes read agrees, and here it does not.
         val doc = "{\n  \"vnx\": \"0.2.0\"\n}\n".toByteArray()
-        val e = assertFailsWith<VnxRefusal> {
-            Vnx.readContainer(lying(body = doc, method = 0, declaredCompressed = doc.size - 1L))
-        }
+        val e =
+            assertFailsWith<VnxRefusal> {
+                Vnx.readContainer(lying(body = doc, method = 0, declaredCompressed = doc.size - 1L))
+            }
         assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
         // The CRC message, not any refusal: a refusal for another reason would
         // not show that the CRC is what caught the truncation.
@@ -253,9 +318,10 @@ class ContainerTest {
         val doc = "{\n  \"vnx\": \"0.2.0\"\n}\n".toByteArray()
         val full = deflated(doc)
         val half = full.copyOfRange(0, full.size / 2)
-        val e = assertFailsWith<VnxRefusal> {
-            Vnx.readContainer(lying(body = doc, method = 8, payload = half, declaredCompressed = half.size.toLong()))
-        }
+        val e =
+            assertFailsWith<VnxRefusal> {
+                Vnx.readContainer(lying(body = doc, method = 8, payload = half, declaredCompressed = half.size.toLong()))
+            }
         assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
     }
 
@@ -267,9 +333,10 @@ class ContainerTest {
         // be lenient. What section 7 does require is the REMEDY, and for the root
         // document it is a refusal: there is no document to return.
         val doc = "{\n  \"vnx\": \"0.2.0\"\n}\n".toByteArray()
-        val e = assertFailsWith<VnxRefusal> {
-            Vnx.readContainer(lying(body = doc, method = 0, crc = 0xDEADBEEFL))
-        }
+        val e =
+            assertFailsWith<VnxRefusal> {
+                Vnx.readContainer(lying(body = doc, method = 0, crc = 0xDEADBEEFL))
+            }
         assertEquals(RefusalCause.CONTAINER_ROOT_UNREADABLE, e.refusal)
         assertTrue(e.message.contains("CRC"), "the refusal must name what failed: ${e.message}")
     }
@@ -293,12 +360,27 @@ class ContainerTest {
         payload: ByteArray = body,
         declaredCompressed: Long = payload.size.toLong(),
         declaredUncompressed: Long = body.size.toLong(),
-        crc: Long = java.util.zip.CRC32().apply { update(body) }.value,
-    ): ByteArray = twoEntries(
-        Raw("doc.vnx", doc.toByteArray(), 0, doc.toByteArray(), doc.length.toLong(), doc.length.toLong(),
-            java.util.zip.CRC32().apply { update(doc.toByteArray()) }.value),
-        Raw(attachment, body, method, payload, declaredCompressed, declaredUncompressed, crc),
-    )
+        crc: Long =
+            java.util.zip
+                .CRC32()
+                .apply { update(body) }
+                .value,
+    ): ByteArray =
+        twoEntries(
+            Raw(
+                "doc.vnx",
+                doc.toByteArray(),
+                0,
+                doc.toByteArray(),
+                doc.length.toLong(),
+                doc.length.toLong(),
+                java.util.zip
+                    .CRC32()
+                    .apply { update(doc.toByteArray()) }
+                    .value,
+            ),
+            Raw(attachment, body, method, payload, declaredCompressed, declaredUncompressed, crc),
+        )
 
     private class Raw(
         val name: String,
@@ -313,39 +395,81 @@ class ContainerTest {
     /** Two entries, written by hand so that either one's header may lie. */
     private fun twoEntries(vararg raws: Raw): ByteArray {
         val out = java.io.ByteArrayOutputStream()
-        fun le16(o: java.io.ByteArrayOutputStream, v: Int) { o.write(v and 0xff); o.write((v ushr 8) and 0xff) }
-        fun le32(o: java.io.ByteArrayOutputStream, v: Long) {
-            le16(o, (v and 0xffff).toInt()); le16(o, ((v ushr 16) and 0xffff).toInt())
+
+        fun le16(
+            o: java.io.ByteArrayOutputStream,
+            v: Int,
+        ) {
+            o.write(v and 0xff)
+            o.write((v ushr 8) and 0xff)
+        }
+
+        fun le32(
+            o: java.io.ByteArrayOutputStream,
+            v: Long,
+        ) {
+            le16(o, (v and 0xffff).toInt())
+            le16(o, ((v ushr 16) and 0xffff).toInt())
         }
         val offsets = ArrayList<Long>()
         for (raw in raws) {
             offsets.add(out.size().toLong())
             val n = raw.name.toByteArray(Charsets.UTF_8)
-            le32(out, 0x04034b50); le16(out, 10); le16(out, 0x800); le16(out, raw.method); le16(out, 0); le16(out, 0x21)
-            le32(out, raw.crc); le32(out, raw.declaredCompressed); le32(out, raw.declaredUncompressed)
-            le16(out, n.size); le16(out, 0)
-            out.write(n); out.write(raw.payload)
+            le32(out, 0x04034b50)
+            le16(out, 10)
+            le16(out, 0x800)
+            le16(out, raw.method)
+            le16(out, 0)
+            le16(out, 0x21)
+            le32(out, raw.crc)
+            le32(out, raw.declaredCompressed)
+            le32(out, raw.declaredUncompressed)
+            le16(out, n.size)
+            le16(out, 0)
+            out.write(n)
+            out.write(raw.payload)
         }
         val central = java.io.ByteArrayOutputStream()
         for ((i, raw) in raws.withIndex()) {
             val n = raw.name.toByteArray(Charsets.UTF_8)
-            le32(central, 0x02014b50); le16(central, 10); le16(central, 10); le16(central, 0x800)
-            le16(central, raw.method); le16(central, 0); le16(central, 0x21)
-            le32(central, raw.crc); le32(central, raw.declaredCompressed); le32(central, raw.declaredUncompressed)
-            le16(central, n.size); le16(central, 0); le16(central, 0); le16(central, 0); le16(central, 0)
-            le32(central, 0); le32(central, offsets[i])
+            le32(central, 0x02014b50)
+            le16(central, 10)
+            le16(central, 10)
+            le16(central, 0x800)
+            le16(central, raw.method)
+            le16(central, 0)
+            le16(central, 0x21)
+            le32(central, raw.crc)
+            le32(central, raw.declaredCompressed)
+            le32(central, raw.declaredUncompressed)
+            le16(central, n.size)
+            le16(central, 0)
+            le16(central, 0)
+            le16(central, 0)
+            le16(central, 0)
+            le32(central, 0)
+            le32(central, offsets[i])
             central.write(n)
         }
         val directoryOffset = out.size().toLong()
         val cd = central.toByteArray()
         out.write(cd)
-        le32(out, 0x06054b50); le16(out, 0); le16(out, 0); le16(out, raws.size); le16(out, raws.size)
-        le32(out, cd.size.toLong()); le32(out, directoryOffset); le16(out, 0)
+        le32(out, 0x06054b50)
+        le16(out, 0)
+        le16(out, 0)
+        le16(out, raws.size)
+        le16(out, raws.size)
+        le32(out, cd.size.toLong())
+        le32(out, directoryOffset)
+        le16(out, 0)
         return out.toByteArray()
     }
 
     /** The document read back, with the one attachment dropped and reported. */
-    private fun assertDropped(bytes: ByteArray, why: String) {
+    private fun assertDropped(
+        bytes: ByteArray,
+        why: String,
+    ) {
         val r = Vnx.readContainer(bytes)
         // The document is untouched by damage to an attachment, and section 7
         // says so: refusing it discards good geometry over a damaged photograph.
@@ -385,13 +509,34 @@ class ContainerTest {
         // no attachments at all, and would pass the two tests above.
         val good = "this one is fine\n".toByteArray()
         val bad = "a photograph, or it was".toByteArray()
-        val bytes = twoEntries(
-            Raw("doc.vnx", doc.toByteArray(), 0, doc.toByteArray(), doc.length.toLong(), doc.length.toLong(),
-                java.util.zip.CRC32().apply { update(doc.toByteArray()) }.value),
-            Raw("attachments/photo.txt", bad, 0, bad, bad.size.toLong(), bad.size.toLong(), 0xDEADBEEFL),
-            Raw("notes/kept.txt", good, 0, good, good.size.toLong(), good.size.toLong(),
-                java.util.zip.CRC32().apply { update(good) }.value),
-        )
+        val bytes =
+            twoEntries(
+                Raw(
+                    "doc.vnx",
+                    doc.toByteArray(),
+                    0,
+                    doc.toByteArray(),
+                    doc.length.toLong(),
+                    doc.length.toLong(),
+                    java.util.zip
+                        .CRC32()
+                        .apply { update(doc.toByteArray()) }
+                        .value,
+                ),
+                Raw("attachments/photo.txt", bad, 0, bad, bad.size.toLong(), bad.size.toLong(), 0xDEADBEEFL),
+                Raw(
+                    "notes/kept.txt",
+                    good,
+                    0,
+                    good,
+                    good.size.toLong(),
+                    good.size.toLong(),
+                    java.util.zip
+                        .CRC32()
+                        .apply { update(good) }
+                        .value,
+                ),
+            )
         val r = Vnx.readContainer(bytes)
         assertEquals(listOf(Attachment("notes/kept.txt", good)), r.attachments)
         assertEquals(1, r.diagnostics.size)

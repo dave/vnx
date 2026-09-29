@@ -11,8 +11,10 @@ package app.viatrail.vnx
  * lands 8,000 km away.
  */
 object ModelPointer {
-
-    fun resolve(document: VnxDocument, pointer: String): Position {
+    fun resolve(
+        document: VnxDocument,
+        pointer: String,
+    ): Position {
         require(pointer.startsWith("/")) { "a JSON Pointer starts with '/': $pointer" }
         val tokens = pointer.substring(1).split("/").map { it.replace("~1", "/").replace("~0", "~") }
         return when (val value = walk(document, tokens, pointer)) {
@@ -25,9 +27,16 @@ object ModelPointer {
         }
     }
 
-    private fun fail(pointer: String, why: String): Nothing = error("the pointer $pointer $why")
+    private fun fail(
+        pointer: String,
+        why: String,
+    ): Nothing = error("the pointer $pointer $why")
 
-    private fun walk(document: VnxDocument, tokens: List<String>, pointer: String): Any? {
+    private fun walk(
+        document: VnxDocument,
+        tokens: List<String>,
+        pointer: String,
+    ): Any? {
         var current: Any? = document
         for (token in tokens) {
             current = step(current, token) ?: fail(pointer, "does not resolve: no `$token` under ${describe(current)}")
@@ -37,42 +46,49 @@ object ModelPointer {
 
     private fun describe(value: Any?) = value?.let { it::class.simpleName } ?: "nothing"
 
-    private fun step(value: Any?, token: String): Any? {
+    private fun step(
+        value: Any?,
+        token: String,
+    ): Any? {
         val index = token.toIntOrNull()
         return when (value) {
-            is VnxDocument -> when (token) {
-                "folders" -> value.folders
-                "networks" -> value.networks
-                "routes" -> value.routes
-                "tracks" -> value.tracks
-                "waypoints" -> value.waypoints
-                "areas" -> value.areas
-                else -> null
-            }
-            is Network -> when (token) {
-                "nodes" -> value.nodes
-                "arcs" -> value.arcs
-                "chains" -> value.chains
-                "points" -> value.points
-                "areas" -> value.areas
-                else -> null
-            }
+            is VnxDocument ->
+                when (token) {
+                    "folders" -> value.folders
+                    "networks" -> value.networks
+                    "routes" -> value.routes
+                    "tracks" -> value.tracks
+                    "waypoints" -> value.waypoints
+                    "areas" -> value.areas
+                    else -> null
+                }
+            is Network ->
+                when (token) {
+                    "nodes" -> value.nodes
+                    "arcs" -> value.arcs
+                    "chains" -> value.chains
+                    "points" -> value.points
+                    "areas" -> value.areas
+                    else -> null
+                }
             is Arc -> if (token == "pips") value.pips else null
             is Chain -> if (token == "walk") value.walk else null
             // Only a POSITION in a walk is a position. A node key is a
             // reference, and is addressed at the node.
-            is Pass -> when (token) {
-                "from" -> (value.from as? Endpoint.At)?.position
-                "to" -> (value.to as? Endpoint.At)?.position
-                "turn" -> value.turn
-                else -> null
-            }
-            is Route -> when (token) {
-                "nodes" -> value.nodes
-                "arcs" -> value.arcs
-                "walk" -> value.walk
-                else -> null
-            }
+            is Pass ->
+                when (token) {
+                    "from" -> (value.from as? Endpoint.At)?.position
+                    "to" -> (value.to as? Endpoint.At)?.position
+                    "turn" -> value.turn
+                    else -> null
+                }
+            is Route ->
+                when (token) {
+                    "nodes" -> value.nodes
+                    "arcs" -> value.arcs
+                    "walk" -> value.walk
+                    else -> null
+                }
             is Track -> if (token == "segments") value.segments else null
             is Segment -> if (token == "pips") value.pips else null
             is Waypoint -> if (token == "at") value.at else null

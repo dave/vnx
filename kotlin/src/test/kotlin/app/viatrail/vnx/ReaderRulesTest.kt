@@ -16,7 +16,6 @@ import kotlin.test.assertTrue
  * changes a test rather than silently changing behaviour.
  */
 class ReaderRulesTest {
-
     private fun read(json: String) = Vnx.readDocument(json)
 
     // --------------------------------------------------------- keep vs drop
@@ -46,11 +45,12 @@ class ReaderRulesTest {
         // item survived, which is the lookup a code exists to save. A reader that
         // drops the item every time, and one that drops the field every time, each
         // pass a document carrying only one of the two.
-        val r = read(
-            """{"vnx":"0.2.0","waypoints":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","waypoints":[
                {"name":"Kept, minus one field","at":[-3.6712,57.118],"hidden":"yes"},
                {"name":"Dropped","at":"beside the burn"}]}""",
-        )
+            )
         assertEquals(1, r.document.waypoints!!.size, "one waypoint read, not two and not two with one positionless")
         assertEquals("Kept, minus one field", r.document.waypoints!![0].name)
         assertNull(r.document.waypoints!![0].hidden)
@@ -81,9 +81,10 @@ class ReaderRulesTest {
 
     @Test
     fun `a folder with no id is dropped and its contents survive it`() {
-        val r = read(
-            """{"vnx":"0.2.0","folders":[{"name":"No id here"}],"waypoints":[{"folder":"anything","at":[-3,57]}]}""",
-        )
+        val r =
+            read(
+                """{"vnx":"0.2.0","folders":[{"name":"No id here"}],"waypoints":[{"folder":"anything","at":[-3,57]}]}""",
+            )
         assertEquals(0, r.document.folders!!.size)
         assertEquals(1, r.document.waypoints!!.size)
         assertNull(r.document.waypoints!![0].folder)
@@ -94,9 +95,10 @@ class ReaderRulesTest {
     fun `a data record with no @type is dropped and the rest of the bag survives`() {
         // Section 5.1's rule for an unusable `@type` is section 6.2's rule for a
         // required key: the record goes, not the key.
-        val r = read(
-            """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
-        )
+        val r =
+            read(
+                """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
+            )
         val data = r.document.waypoints!![0].data!!
         assertEquals(1, data.size)
         assertEquals("com.example.x", data[0].type)
@@ -110,11 +112,17 @@ class ReaderRulesTest {
         // Section 3.3.2: an arc's line runs from its `from` node to its `to` node,
         // so without the node there is no line. The path names the END, the
         // smallest element that could not be used (section 6.3 rule 1).
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},
                "arcs":{"x":{"from":"a","to":"ghost","pips":[[-2.5,57.5]]}}}]}""",
+            )
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .arcs!!
+                .size,
         )
-        assertEquals(0, r.document.networks!![0].arcs!!.size)
         assertEquals(listOf("/networks/0/arcs/x/to" to "arc-node-absent"), r.diagnostics.map { it.path to it.code })
     }
 
@@ -123,7 +131,12 @@ class ReaderRulesTest {
         // Each end is its own fact at its own path, so two diagnostics can never
         // share a path and a code (section 6.3).
         val r = read("""{"vnx":"0.2.0","networks":[{"arcs":{"x":{"from":"p","to":"q","pips":[]}}}]}""")
-        assertEquals(0, r.document.networks!![0].arcs!!.size)
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .arcs!!
+                .size,
+        )
         assertEquals(
             setOf("/networks/0/arcs/x/from" to "arc-node-absent", "/networks/0/arcs/x/to" to "arc-node-absent"),
             r.diagnostics.map { it.path to it.code }.toSet(),
@@ -134,20 +147,31 @@ class ReaderRulesTest {
     fun `a self-loop arc is dropped, at the arc`() {
         // Section 3.3.2: a pass over a self-loop would have no other end to
         // leave by, so this format cannot carry one.
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"o":{"from":"a","to":"a","pips":[[-2.9,57.1]]}}}]}""",
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"o":{"from":"a","to":"a","pips":[[-2.9,57.1]]}}}]}""",
+            )
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .arcs!!
+                .size,
         )
-        assertEquals(0, r.document.networks!![0].arcs!!.size)
         assertEquals(listOf("/networks/0/arcs/o" to "self-loop-arc"), r.diagnostics.map { it.path to it.code })
     }
 
     @Test
     fun `a time on an arc pip is dropped from every pip, and reported once for the arc`() {
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[[-2.8,57,10,1000],[-2.6,57,20],[-2.4,57,null,3000]]}}}]}""",
-        )
-        val pips = r.document.networks!![0].arcs!!.getValue("ab").pips
+            )
+        val pips =
+            r.document.networks!![0]
+                .arcs!!
+                .getValue("ab")
+                .pips
         assertEquals(
             listOf(Vertex(-2.8, 57.0, 10.0), Vertex(-2.6, 57.0, 20.0), Vertex(-2.4, 57.0, null)),
             pips,
@@ -159,7 +183,12 @@ class ReaderRulesTest {
     @Test
     fun `a time on a node is dropped and the node kept`() {
         val r = read("""{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57,410,1000]}}]}""")
-        assertEquals(Vertex(-3.0, 57.0, 410.0), r.document.networks!![0].nodes!!.getValue("a"))
+        assertEquals(
+            Vertex(-3.0, 57.0, 410.0),
+            r.document.networks!![0]
+                .nodes!!
+                .getValue("a"),
+        )
         assertEquals(listOf("/networks/0/nodes/a" to "extra-channel"), r.diagnostics.map { it.path to it.code })
     }
 
@@ -168,11 +197,12 @@ class ReaderRulesTest {
         // Section 6.2's cascade: the node goes under position-unusable, the arc
         // under arc-node-absent, and the chain under pass-arc-absent. Three
         // facts, three diagnostics.
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":"somewhere"},
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":"somewhere"},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
                "chains":[{"walk":[{"arc":"ab","from":"a","to":"b"}]}]}]}""",
-        )
+            )
         assertEquals(
             setOf(
                 "/networks/0/nodes/b" to "position-unusable",
@@ -181,13 +211,22 @@ class ReaderRulesTest {
             ),
             r.diagnostics.map { it.path to it.code }.toSet(),
         )
-        assertEquals(0, r.document.networks!![0].chains!!.size)
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .chains!!
+                .size,
+        )
     }
 
     @Test
     fun `a ring that repeats its first position loses the repeat and keeps the area`() {
         val r = read("""{"vnx":"0.2.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58],[-3,57]]}]}""")
-        assertEquals(3, r.document.areas!![0].polygon.size)
+        assertEquals(
+            3,
+            r.document.areas!![0]
+                .polygon.size,
+        )
         assertEquals(listOf("/areas/0/polygon/3" to "ring-closed"), r.diagnostics.map { it.path to it.code })
     }
 
@@ -242,13 +281,20 @@ class ReaderRulesTest {
     fun `a field inside a data record is never checked, whatever section 5-2 says its type is`() {
         // Section 6.2, amended: a record body is opaque apart from `@type`, and a
         // reader MUST NOT check the type, range or enumeration of a field in one.
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"points":[{"at":[-3,57],
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"points":[{"at":[-3,57],
                "data":[{"@type":"app.viatrail.camp","flat":"maybe","capacity":"lots"},
                        {"@type":"app.viatrail.settlement","size":"metropolis"}]}]}]}""",
-        )
+            )
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals(2, r.document.networks!![0].points!![0].data!!.size)
+        assertEquals(
+            2,
+            r.document.networks!![0]
+                .points!![0]
+                .data!!
+                .size,
+        )
     }
 
     // -------------------------------------------------------------- walks
@@ -273,7 +319,12 @@ class ReaderRulesTest {
         // problem is reported. Pass 2 breaks the spelling rule as well and is not
         // reported.
         val r = walkOf("""[{"arc":"ab","from":"a"},{"arc":"ghost"},{"arc":"cd","from":"c","to":"d"}]""")
-        assertEquals(0, r.document.networks!![0].chains!!.size)
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .chains!!
+                .size,
+        )
         assertEquals(listOf("/networks/0/chains/0/walk/1" to "pass-arc-absent"), r.pairs())
     }
 
@@ -288,13 +339,19 @@ class ReaderRulesTest {
     @Test
     fun `a chain walking a dropped arc is dropped with a diagnostic of its own`() {
         // The arc going and the chain going are two facts (section 6.2).
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]},"bb":{"from":"b","to":"b","pips":[]}},
                "chains":[{"name":"Keep","walk":[{"arc":"ab","from":"a","to":"b"}]},
                          {"name":"Loses its arc","walk":[{"arc":"ab","from":"a"},{"arc":"bb","to":"b"}]}]}]}""",
+            )
+        assertEquals(
+            listOf("Keep"),
+            r.document.networks!![0]
+                .chains!!
+                .map { it.name },
         )
-        assertEquals(listOf("Keep"), r.document.networks!![0].chains!!.map { it.name })
         assertEquals(
             setOf("/networks/0/arcs/bb" to "self-loop-arc", "/networks/0/chains/1/walk/1" to "pass-arc-absent"),
             r.pairs().toSet(),
@@ -305,35 +362,43 @@ class ReaderRulesTest {
     fun `the rule for from and to is checked first from, then to`() {
         // Section 6.3 rule 2: a key the rule requires and the pass lacks names
         // the pass; a key the rule forbids names that key.
-        val cases = listOf(
-            """[{"arc":"ab","to":"b"}]""" to "/networks/0/chains/0/walk/0",
-            """[{"arc":"ab","from":"a"}]""" to "/networks/0/chains/0/walk/0",
-            """[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/1/from",
-            """[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0/to",
-            """[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0",
-            // Both keys wrong: `from` is checked first, so only the pass is named.
-            """[{"arc":"ab"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/0",
-        )
+        val cases =
+            listOf(
+                """[{"arc":"ab","to":"b"}]""" to "/networks/0/chains/0/walk/0",
+                """[{"arc":"ab","from":"a"}]""" to "/networks/0/chains/0/walk/0",
+                """[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/1/from",
+                """[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0/to",
+                """[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0",
+                // Both keys wrong: `from` is checked first, so only the pass is named.
+                """[{"arc":"ab"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/0",
+            )
         for ((passes, path) in cases) {
             val r = walkOf(passes)
             assertEquals(listOf(path to "walk-spelling"), r.pairs(), passes)
-            assertEquals(0, r.document.networks!![0].chains!!.size, passes)
+            assertEquals(
+                0,
+                r.document.networks!![0]
+                    .chains!!
+                    .size,
+                passes,
+            )
         }
     }
 
     @Test
     fun `a walk that is not connected names the part that breaks it`() {
-        val cases = listOf(
-            // A `from` node that is not an end of its arc.
-            """[{"arc":"ab","from":"c","to":"b"}]""" to "/networks/0/chains/0/walk/0/from",
-            // A pass that does not touch the node the previous one left at.
-            """[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]""" to "/networks/0/chains/0/walk/1",
-            // A `to` node that is not an end of its arc.
-            """[{"arc":"ab","from":"a","to":"d"}]""" to "/networks/0/chains/0/walk/0/to",
-            // A `to` position on a pass other than the last.
-            """[{"arc":"ab","from":[-3.597,57.1005],"to":[-3.596,57.1006]},{"arc":"cb","to":"c"}]""" to
-                "/networks/0/chains/0/walk/0/to",
-        )
+        val cases =
+            listOf(
+                // A `from` node that is not an end of its arc.
+                """[{"arc":"ab","from":"c","to":"b"}]""" to "/networks/0/chains/0/walk/0/from",
+                // A pass that does not touch the node the previous one left at.
+                """[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]""" to "/networks/0/chains/0/walk/1",
+                // A `to` node that is not an end of its arc.
+                """[{"arc":"ab","from":"a","to":"d"}]""" to "/networks/0/chains/0/walk/0/to",
+                // A `to` position on a pass other than the last.
+                """[{"arc":"ab","from":[-3.597,57.1005],"to":[-3.596,57.1006]},{"arc":"cb","to":"c"}]""" to
+                    "/networks/0/chains/0/walk/0/to",
+            )
         for ((passes, path) in cases) {
             val r = walkOf(passes)
             assertEquals(listOf(path to "walk-not-connected"), r.pairs(), passes)
@@ -362,11 +427,22 @@ class ReaderRulesTest {
     fun `pinned false is the same as absent, and a pinned of the wrong type drops only the field`() {
         val clean = walkOf("""[{"arc":"cd","from":"c","turn":[-3.574,57.102],"pinned":false,"to":"c"}]""")
         assertEquals(emptyList(), clean.diagnostics)
-        assertFalse(clean.document.networks!![0].chains!![0].walk[0].pinned)
+        assertFalse(
+            clean.document.networks!![0]
+                .chains!![0]
+                .walk[0]
+                .pinned,
+        )
 
         val typed = walkOf("""[{"arc":"ab","from":"a","pinned":"yes"},{"arc":"cb","to":"c"}]""")
         assertEquals(listOf("/networks/0/chains/0/walk/0/pinned" to "wrong-type-optional"), typed.pairs())
-        assertEquals(2, typed.document.networks!![0].chains!![0].walk.size, "the chain is kept")
+        assertEquals(
+            2,
+            typed.document.networks!![0]
+                .chains!![0]
+                .walk.size,
+            "the chain is kept",
+        )
     }
 
     @Test
@@ -384,7 +460,10 @@ class ReaderRulesTest {
     @Test
     fun `an elevation or a time on a walk position is dropped and the chain kept`() {
         val r = walkOf("""[{"arc":"ab","from":[-3.597,57.1005,400],"to":[-3.596,57.1006,null,1000]}]""")
-        val pass = r.document.networks!![0].chains!![0].walk[0]
+        val pass =
+            r.document.networks!![0]
+                .chains!![0]
+                .walk[0]
         assertEquals(Endpoint.At(LonLat(-3.597, 57.1005)), pass.from)
         assertEquals(Endpoint.At(LonLat(-3.596, 57.1006)), pass.to)
         assertEquals(
@@ -411,18 +490,30 @@ class ReaderRulesTest {
     @Test
     fun `an empty walk is valid, and a missing one drops the chain`() {
         assertEquals(emptyList(), walkOf("[]").diagnostics)
-        assertEquals(1, walkOf("[]").document.networks!![0].chains!!.size)
+        assertEquals(
+            1,
+            walkOf("[]")
+                .document.networks!![0]
+                .chains!!
+                .size,
+        )
         val r = read(network("""[{"name":"no walk"}]"""))
         assertEquals(listOf("/networks/0/chains/0/walk" to "wrong-type-required"), r.pairs())
-        assertEquals(0, r.document.networks!![0].chains!!.size)
+        assertEquals(
+            0,
+            r.document.networks!![0]
+                .chains!!
+                .size,
+        )
     }
 
     @Test
     fun `a route walks node to node, and anything else drops the route`() {
-        fun route(walk: String) = read(
-            """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+        fun route(walk: String) =
+            read(
+                """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":$walk}]}""",
-        )
+            )
         assertEquals(emptyList(), route("""[{"arc":"ab","from":"b","to":"a"}]""").diagnostics)
         for ((walk, key) in listOf(
             """[{"arc":"ab","from":[-2.5,57],"to":"b"}]""" to "from",
@@ -440,10 +531,11 @@ class ReaderRulesTest {
 
     @Test
     fun `a route is its own chain, so a route walking a dropped arc is dropped`() {
-        val r = read(
-            """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57]},
+        val r =
+            read(
+                """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":"b"}]}]}""",
-        )
+            )
         assertEquals(0, r.document.routes!!.size)
         assertEquals(
             setOf("/routes/0/arcs/ab/to" to "arc-node-absent", "/routes/0/walk/0" to "pass-arc-absent"),
@@ -536,8 +628,9 @@ class ReaderRulesTest {
         // Section 3.9: a top-level key containing a full stop is an application
         // key. Its value is kept verbatim and never reported: a null stays null
         // and an empty value stays empty. Decode sorts the keys by key.
-        val json = """{"vnx":"0.2.0","app.viatrail.rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}],""" +
-            """"com.example.empty":[],"com.example.null":null,"org.example.s":"text"}"""
+        val json =
+            """{"vnx":"0.2.0","app.viatrail.rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}],""" +
+                """"com.example.empty":[],"com.example.null":null,"org.example.s":"text"}"""
         val r = read(json)
         assertEquals(emptyList(), r.diagnostics)
         assertEquals(
@@ -617,7 +710,10 @@ class ReaderRulesTest {
         // discarding them.
         val r = read("""{"vnx":"0.2.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,57,340],[-3,57,null,1]]}]}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        val pips = r.document.tracks!![0].segments[0].pips
+        val pips =
+            r.document.tracks!![0]
+                .segments[0]
+                .pips
         assertEquals(listOf<Double?>(null, 340.0, null), pips.map { it.ele })
         assertEquals(listOf<Double?>(null, null, 1.0), pips.map { it.timeMs })
     }
@@ -637,12 +733,13 @@ class ReaderRulesTest {
         // Section 6.2: a missing vertex leaves a shorter, plausible, wrong line
         // with nothing to indicate it. Dropping the pip is the reading that looks
         // obviously right.
-        val r = read(
-            """{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+        val r =
+            read(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
                "arcs":{"broken":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
                        "sound":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}},
                "chains":[{"walk":[{"arc":"broken","from":"n1","to":"n2"}]}]}]}""",
-        )
+            )
         val network = r.document.networks!![0]
         assertEquals(listOf("sound"), network.arcs!!.keys.toList(), "the whole arc goes, and only it")
         // The cascade is what proves the arc left rather than the pip: the pass
@@ -658,12 +755,13 @@ class ReaderRulesTest {
         // counts cannot see this — the track is 1 either way — and neither can the
         // diagnostics, because an element-dropping reader emits the same code at
         // the same pointer. Only the derived number separates the two readings.
-        val r = read(
-            """{"vnx":"0.2.0","tracks":[{"segments":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","tracks":[{"segments":[
                {"pips":[[-3.6712,57.118,341,1778569391000],[-3.6699,"57.1158",352.4,1778569442000],
                         [-3.6681,57.1139,366.9,1778569591000]]},
                {"pips":[[-3.6644,57.1085,452,1778571280000],[-3.6605,57.1042,513.1,1778571344000]]}]}]}""",
-        )
+            )
         val track = r.document.tracks!![0]
         assertEquals(1, track.segments.size, "the segment goes whole")
         assertEquals(64000L, track.movingTimeMs(), "a reader that dropped the PIP would answer 264000")
@@ -672,11 +770,12 @@ class ReaderRulesTest {
 
     @Test
     fun `a vertex that will not parse drops the area, and reports once`() {
-        val r = read(
-            """{"vnx":"0.2.0","areas":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","areas":[
                {"name":"Dropped","polygon":[[-3.74,57.09],[-3.72],[-3.72,57.075]]},
                {"name":"Kept","polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.075]]}]}""",
-        )
+            )
         assertEquals(listOf("Kept"), r.document.areas!!.map { it.name }, "the drop is scoped to the item")
         // One defect, one diagnostic: a second "too few points" report would say
         // the ring was short, which it was not — a vertex was unusable.
@@ -725,11 +824,12 @@ class ReaderRulesTest {
         // was given, where zero is at least recognisable as suspicious. I summed,
         // and so did three other implementations including the reference one, and
         // every tier stayed green until accept/track-partly-timed.vnx existed.
-        val r = read(
-            """{"vnx":"0.2.0","tracks":[{"segments":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","tracks":[{"segments":[
                {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
                {"pips":[[-3,57.2,342],[-3,57.3,343]]}]}]}""",
-        )
+            )
         assertNull(r.document.tracks!![0].movingTimeMs())
     }
 
@@ -738,10 +838,11 @@ class ReaderRulesTest {
         // A segment whose interior is timed and whose ends are not has no
         // measurable span. Taking the first and last pip that HAPPEN to carry a
         // time invents one.
-        val r = read(
-            """{"vnx":"0.2.0","tracks":[{"segments":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","tracks":[{"segments":[
                {"pips":[[-3,57,340],[-3,57.1,341,1000],[-3,57.2,342,61000],[-3,57.3,343]]}]}]}""",
-        )
+            )
         assertNull(r.document.tracks!![0].movingTimeMs())
     }
 
@@ -750,11 +851,12 @@ class ReaderRulesTest {
         // It has no span to measure, so it is not an unmeasured span. Section 3.5
         // says so explicitly, because the rule reads either way without it and two
         // implementations differed with nothing to catch them.
-        val r = read(
-            """{"vnx":"0.2.0","tracks":[{"segments":[
+        val r =
+            read(
+                """{"vnx":"0.2.0","tracks":[{"segments":[
                {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
                {"pips":[]}]}]}""",
-        )
+            )
         assertEquals(60000L, r.document.tracks!![0].movingTimeMs())
     }
 
@@ -765,6 +867,12 @@ class ReaderRulesTest {
         // Section 5: `@type` is compared exactly, including case.
         val r = read("""{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
         assertEquals(emptyList(), r.diagnostics, "an unrecognised type is inert on any host")
-        assertEquals("App.viatrail.tag", r.document.waypoints!![0].data!![0].type, "case is never folded for identity")
+        assertEquals(
+            "App.viatrail.tag",
+            r.document.waypoints!![0]
+                .data!![0]
+                .type,
+            "case is never folded for identity",
+        )
     }
 }

@@ -16,16 +16,17 @@ import kotlin.test.fail
  * everyone assumes is covered is otherwise exactly the one that is not.
  */
 class CorpusTest {
-
-    private val corpus = File(
-        System.getProperty("vnx.corpus")
-            ?: error("the corpus location must be passed as -Dvnx.corpus; see build.gradle.kts"),
-    )
+    private val corpus =
+        File(
+            System.getProperty("vnx.corpus")
+                ?: error("the corpus location must be passed as -Dvnx.corpus; see build.gradle.kts"),
+        )
 
     private fun cases(tier: String): List<File> {
         val dir = File(corpus, tier)
         assertTrue(dir.isDirectory, "the corpus tier $tier is missing at ${dir.absolutePath}")
-        return dir.listFiles()!!
+        return dir
+            .listFiles()!!
             .filter { it.name.endsWith(".vnx") || it.name.endsWith(".vnz") }
             .sortedBy { it.name }
     }
@@ -71,13 +72,15 @@ class CorpusTest {
     fun accept() {
         eachCase("accept", cases("accept"), { it.name }) { case ->
             val sidecar = sidecarFor(case)
-            val result = try {
-                Vnx.read(case)
-            } catch (e: VnxRefusal) {
-                fail("${case.name} must be read, and was refused: $e")
-            }
+            val result =
+                try {
+                    Vnx.read(case)
+                } catch (e: VnxRefusal) {
+                    fail("${case.name} must be read, and was refused: $e")
+                }
             assertEquals(
-                emptyList(), result.diagnostics,
+                emptyList(),
+                result.diagnostics,
                 "${case.name} must be read with no diagnostics",
             )
             checkCounts(case, sidecar, result)
@@ -103,14 +106,21 @@ class CorpusTest {
      * And against the FILE, never against another model. AcceptTierTest holds
      * that distinction, and it is the whole worth of this check.
      */
-    private fun checkTree(case: File, result: ReadResult) {
+    private fun checkTree(
+        case: File,
+        result: ReadResult,
+    ) {
         val written = Vnx.write(result.document)
         Tree.compare(written, case.readText(), Tree.Options(emitBoundary = true))?.let {
             fail("${case.name}: what this library wrote is not what it read: $it")
         }
     }
 
-    private fun checkCounts(case: File, sidecar: Sidecar, result: ReadResult) {
+    private fun checkCounts(
+        case: File,
+        sidecar: Sidecar,
+        result: ReadResult,
+    ) {
         val expected = sidecar.counts() ?: fail("${case.name}: an accept or diagnose case needs `counts`")
         val document = result.document
         val actual = LinkedHashMap<String, Int>()
@@ -126,8 +136,9 @@ class CorpusTest {
         actual.putAll(containerCountsByPointer(document))
 
         for ((key, want) in expected) {
-            val got = actual[key]
-                ?: fail("${case.name}: `counts` names `$key`, which is not a collection the document carries")
+            val got =
+                actual[key]
+                    ?: fail("${case.name}: `counts` names `$key`, which is not a collection the document carries")
             assertEquals(want, got, "${case.name}: `$key` count")
         }
         // A collection the sidecar does not name is expected to be empty. That is
@@ -201,7 +212,11 @@ class CorpusTest {
         return out
     }
 
-    private fun checkPositions(case: File, sidecar: Sidecar, result: ReadResult) {
+    private fun checkPositions(
+        case: File,
+        sidecar: Sidecar,
+        result: ReadResult,
+    ) {
         for (expected in sidecar.positions()) {
             val position = ModelPointer.resolve(result.document, expected.at)
             checkChannel(case, expected.at, "longitude", expected.lon, position.lon)
@@ -231,7 +246,13 @@ class CorpusTest {
      * correctly rounded double` in ReaderRulesTest is the guard for that. This
      * one is about anything that moves a value between the parse and the model.
      */
-    private fun checkChannel(case: File, at: String, channel: String, want: Double, got: Double) {
+    private fun checkChannel(
+        case: File,
+        at: String,
+        channel: String,
+        want: Double,
+        got: Double,
+    ) {
         if (got.toRawBits() == want.toRawBits()) return
         fail(
             "${case.name}: $channel at $at: got $got (%016x), want $want (%016x)"
@@ -239,12 +260,18 @@ class CorpusTest {
         )
     }
 
-    private fun checkTracks(case: File, sidecar: Sidecar, result: ReadResult) {
+    private fun checkTracks(
+        case: File,
+        sidecar: Sidecar,
+        result: ReadResult,
+    ) {
         for (expected in sidecar.tracks()) {
-            val track = result.document.tracks?.firstOrNull { it.name == expected.name }
-                ?: fail("${case.name}: no track named \"${expected.name}\"")
+            val track =
+                result.document.tracks?.firstOrNull { it.name == expected.name }
+                    ?: fail("${case.name}: no track named \"${expected.name}\"")
             assertEquals(
-                expected.movingTimeMs, track.movingTimeMs(),
+                expected.movingTimeMs,
+                track.movingTimeMs(),
                 "${case.name}: moving time of \"${expected.name}\" — null means unknown, which is not zero",
             )
         }
@@ -260,11 +287,16 @@ class CorpusTest {
      * comparing the list in order would make every one of them agree on
      * something the format does not ask them to agree on.
      */
-    private fun checkAttachments(case: File, sidecar: Sidecar, result: ReadResult) {
+    private fun checkAttachments(
+        case: File,
+        sidecar: Sidecar,
+        result: ReadResult,
+    ) {
         val got = result.attachments ?: emptyList()
         sidecar.attachments()?.let { expected ->
             assertEquals(
-                expected.sorted(), got.map { it.path }.sorted(),
+                expected.sorted(),
+                got.map { it.path }.sorted(),
                 "${case.name}: attachments",
             )
         }
@@ -275,10 +307,12 @@ class CorpusTest {
         val contents = sidecar.attachmentContents() ?: return
         val byPath = got.associateBy { it.path }
         for ((path, body) in contents) {
-            val attachment = byPath[path]
-                ?: fail("${case.name}: `attachment_contents` names \"$path\" and no such attachment came back")
+            val attachment =
+                byPath[path]
+                    ?: fail("${case.name}: `attachment_contents` names \"$path\" and no such attachment came back")
             assertEquals(
-                body, String(attachment.bytes, Charsets.UTF_8),
+                body,
+                String(attachment.bytes, Charsets.UTF_8),
                 "${case.name}: the content of \"$path\"",
             )
         }
@@ -313,13 +347,15 @@ class CorpusTest {
     fun diagnose() {
         eachCase("diagnose", cases("diagnose"), { it.name }) { case ->
             val sidecar = sidecarFor(case)
-            val expected = sidecar.diagnostics()
-                ?: fail("${case.name}: a diagnose case needs `diagnostics`, and an empty list is an expectation")
-            val result = try {
-                Vnx.read(case)
-            } catch (e: VnxRefusal) {
-                fail("${case.name} must be READ while reporting, and was refused: $e")
-            }
+            val expected =
+                sidecar.diagnostics()
+                    ?: fail("${case.name}: a diagnose case needs `diagnostics`, and an empty list is an expectation")
+            val result =
+                try {
+                    Vnx.read(case)
+                } catch (e: VnxRefusal) {
+                    fail("${case.name} must be READ while reporting, and was refused: $e")
+                }
             DiagnosticMatcher.mismatch(expected, result.diagnostics)?.let { fail("${case.name}: $it") }
             checkCounts(case, sidecar, result)
             checkPositions(case, sidecar, result)
@@ -337,7 +373,8 @@ class CorpusTest {
     private fun writePairs(): List<Pair<File, File>> {
         val dir = File(corpus, "write")
         assertTrue(dir.isDirectory, "the corpus tier write is missing at ${dir.absolutePath}")
-        return dir.listFiles()!!
+        return dir
+            .listFiles()!!
             .filter { it.name.endsWith(".in.vnx") }
             .filter { !File(dir, it.name.removeSuffix(".in.vnx") + ".attachments.json").isFile }
             .sortedBy { it.name }
@@ -364,7 +401,8 @@ class CorpusTest {
      */
     private fun writeContainerCases(): List<Triple<File, File, File>> {
         val dir = File(corpus, "write")
-        return dir.listFiles()!!
+        return dir
+            .listFiles()!!
             .filter { it.name.endsWith(".attachments.json") }
             .sortedBy { it.name }
             .map { manifest ->
@@ -436,12 +474,17 @@ class CorpusTest {
      * compares: a write sidecar's `diagnostics`, which is absent, so nothing may
      * be reported, unless the case exists to write back what a reader repaired.
      */
-    private fun writeThrough(text: String, name: String, expected: List<Sidecar.ExpectedDiagnostic>): String {
-        val read = try {
-            Vnx.readDocument(text)
-        } catch (e: VnxRefusal) {
-            fail("$name must be read before it can be written, and was refused: $e")
-        }
+    private fun writeThrough(
+        text: String,
+        name: String,
+        expected: List<Sidecar.ExpectedDiagnostic>,
+    ): String {
+        val read =
+            try {
+                Vnx.readDocument(text)
+            } catch (e: VnxRefusal) {
+                fail("$name must be read before it can be written, and was refused: $e")
+            }
         DiagnosticMatcher.mismatch(expected, read.diagnostics)?.let { fail("$name: $it") }
         return Vnx.write(read.document)
     }
@@ -480,12 +523,14 @@ class CorpusTest {
             assertTrue(want.isNotEmpty(), "${written.name} holds no entries")
             assertEquals("doc.vnx", want[0].name, "${written.name}: section 7.1 requires the root document first")
 
-            val document = try {
-                Vnx.readDocument(input.readText())
-            } catch (e: VnxRefusal) {
-                fail("${input.name} must be read before it can be written, and was refused: $e")
-            }
-            DiagnosticMatcher.mismatch(expectedWriteDiagnostics(input), document.diagnostics)
+            val document =
+                try {
+                    Vnx.readDocument(input.readText())
+                } catch (e: VnxRefusal) {
+                    fail("${input.name} must be read before it can be written, and was refused: $e")
+                }
+            DiagnosticMatcher
+                .mismatch(expectedWriteDiagnostics(input), document.diagnostics)
                 ?.let { fail("${input.name}: $it") }
             val reversed = LinkedHashMap<String, ByteArray>()
             for (name in attachments.keys.reversed()) reversed[name] = attachments.getValue(name)
@@ -494,12 +539,18 @@ class CorpusTest {
             val got = Zip.read(bytes)
             assertEquals("doc.vnx", got[0].name, "${input.name}: section 7.1 requires the root document first")
             assertEquals(
-                want.map { it.name }.sorted(), got.map { it.name }.sorted(),
+                want.map { it.name }.sorted(),
+                got.map { it.name }.sorted(),
                 "${input.name}: the archive's entry names, as a collection",
             )
-            Tree.compare(String(got[0].bytes(), Charsets.UTF_8), String(want[0].bytes(), Charsets.UTF_8), Tree.Options(emitBoundary = false))?.let {
-                fail("${input.name}: the archive's root document is not the one the case expects: $it")
-            }
+            Tree
+                .compare(
+                    String(got[0].bytes(), Charsets.UTF_8),
+                    String(want[0].bytes(), Charsets.UTF_8),
+                    Tree.Options(emitBoundary = false),
+                )?.let {
+                    fail("${input.name}: the archive's root document is not the one the case expects: $it")
+                }
             // An attachment is bytes and is compared as bytes. Nothing in this
             // format interprets one.
             for (entry in got.drop(1)) {
@@ -512,7 +563,8 @@ class CorpusTest {
             val back = Vnx.readContainer(bytes)
             assertEquals(emptyList(), back.diagnostics, "${input.name}: the archive this library wrote must read cleanly")
             assertEquals(
-                attachments.keys.sorted(), (back.attachments ?: emptyList()).map { it.path }.sorted(),
+                attachments.keys.sorted(),
+                (back.attachments ?: emptyList()).map { it.path }.sorted(),
                 "${input.name} does not carry the manifest's attachments",
             )
             for (attachment in back.attachments ?: emptyList()) {
@@ -541,7 +593,12 @@ class CorpusTest {
      * A throwing language has to arrange this deliberately; a language returning
      * errors gets it structurally. Kotlin is the first kind.
      */
-    private fun <T> eachCase(tier: String, cases: List<T>, name: (T) -> String, body: (T) -> Unit) {
+    private fun <T> eachCase(
+        tier: String,
+        cases: List<T>,
+        name: (T) -> String,
+        body: (T) -> Unit,
+    ) {
         val failures = ArrayList<String>()
         for (case in cases) {
             try {

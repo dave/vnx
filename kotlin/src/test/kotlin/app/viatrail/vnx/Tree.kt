@@ -13,7 +13,6 @@ package app.viatrail.vnx
  * kept what it read. AcceptTierTest freezes the proof.
  */
 internal object Tree {
-
     /**
      * Which normalisations a comparison applies.
      *
@@ -24,10 +23,15 @@ internal object Tree {
      * writer's output against another's, where shortening is the very rule under
      * test: normalising it there would make the tier prove nothing.
      */
-    class Options(val emitBoundary: Boolean)
+    class Options(
+        val emitBoundary: Boolean,
+    )
 
     /** Section 8.1's two permitted normalisations, and no others. */
-    fun normalise(value: JsonValue, opt: Options): JsonValue {
+    fun normalise(
+        value: JsonValue,
+        opt: Options,
+    ): JsonValue {
         val doc = value as? JsonObject ?: return value
         val out = mutable(doc)
         items(out, "folders", opt, ::folder)
@@ -42,29 +46,44 @@ internal object Tree {
         return JsonObject(out.entries.map { it.key to it.value })
     }
 
-    private fun folder(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun folder(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         dropEmptyContainer(o, "data")
     }
 
-    private fun waypoint(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun waypoint(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         o["at"]?.let { o["at"] = position(it, opt) }
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
-    private fun area(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun area(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         positionList(o, "polygon", opt)
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
-    private fun track(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun track(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         items(o, "segments", opt) { segment, _ -> positionList(segment, "pips", opt) }
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
-    private fun route(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun route(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         graph(o, opt)
         items(o, "walk", opt, ::pass)
         dropEmptyContainer(o, "style")
@@ -72,20 +91,26 @@ internal object Tree {
     }
 
     /** A network's or a route's `nodes` and `arcs`, which have one shape (section 3.4). */
-    private fun graph(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun graph(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         (o["nodes"] as? JsonObject)?.let { nodes ->
             o["nodes"] = JsonObject(nodes.entries().map { (k, v) -> k to position(v, opt) })
         }
         (o["arcs"] as? JsonObject)?.let { arcs ->
-            o["arcs"] = JsonObject(
-                arcs.entries().map { (k, v) ->
-                    if (v !is JsonObject) k to v else {
-                        val inner = mutable(v)
-                        arc(inner, opt)
-                        k to JsonObject(inner.entries.map { it.key to it.value })
-                    }
-                },
-            )
+            o["arcs"] =
+                JsonObject(
+                    arcs.entries().map { (k, v) ->
+                        if (v !is JsonObject) {
+                            k to v
+                        } else {
+                            val inner = mutable(v)
+                            arc(inner, opt)
+                            k to JsonObject(inner.entries.map { it.key to it.value })
+                        }
+                    },
+                )
         }
         dropEmptyContainer(o, "nodes")
         dropEmptyContainer(o, "arcs")
@@ -95,16 +120,25 @@ internal object Tree {
      * A pass. `from` and `to` are a node key or a position (section 3.3.3), and
      * `turn` is a position; [position] leaves a string alone.
      */
-    private fun pass(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun pass(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         for (key in listOf("from", "to", "turn")) o[key]?.let { o[key] = position(it, opt) }
     }
 
-    private fun arc(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun arc(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         positionList(o, "pips", opt)
         dropEmptyContainer(o, "data")
     }
 
-    private fun network(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun network(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         graph(o, opt)
         items(o, "chains", opt, ::chain)
         items(o, "points", opt, ::waypoint)
@@ -112,7 +146,10 @@ internal object Tree {
         dropEmptyContainer(o, "data")
     }
 
-    private fun chain(o: MutableMap<String, JsonValue>, opt: Options) {
+    private fun chain(
+        o: MutableMap<String, JsonValue>,
+        opt: Options,
+    ) {
         items(o, "walk", opt, ::pass)
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
@@ -130,18 +167,25 @@ internal object Tree {
             o.remove(key)
             return
         }
-        o[key] = JsonArray(
-            arr.elements.map { item ->
-                if (item !is JsonObject) item else {
-                    val inner = mutable(item)
-                    each(inner, opt)
-                    JsonObject(inner.entries.map { it.key to it.value })
-                }
-            },
-        )
+        o[key] =
+            JsonArray(
+                arr.elements.map { item ->
+                    if (item !is JsonObject) {
+                        item
+                    } else {
+                        val inner = mutable(item)
+                        each(inner, opt)
+                        JsonObject(inner.entries.map { it.key to it.value })
+                    }
+                },
+            )
     }
 
-    private fun positionList(o: MutableMap<String, JsonValue>, key: String, opt: Options) {
+    private fun positionList(
+        o: MutableMap<String, JsonValue>,
+        key: String,
+        opt: Options,
+    ) {
         val arr = o[key] as? JsonArray ?: return
         if (arr.elements.isEmpty()) {
             o.remove(key)
@@ -165,7 +209,10 @@ internal object Tree {
      * asking a writer to reproduce a fifth channel would be asking for a rule the
      * format does not state — the fixture is what changes, not the comparison.
      */
-    private fun position(value: JsonValue, opt: Options): JsonValue {
+    private fun position(
+        value: JsonValue,
+        opt: Options,
+    ): JsonValue {
         val arr = value as? JsonArray ?: return value
         if (!opt.emitBoundary) return arr
         var out: List<JsonValue> = arr.elements
@@ -178,7 +225,10 @@ internal object Tree {
      * and a reader MUST treat them alike. So the comparison does too, and a
      * writer that omits its empty containers stays conforming.
      */
-    private fun dropEmptyContainer(o: MutableMap<String, JsonValue>, key: String) {
+    private fun dropEmptyContainer(
+        o: MutableMap<String, JsonValue>,
+        key: String,
+    ) {
         when (val v = o[key]) {
             is JsonArray -> if (v.elements.isEmpty()) o.remove(key)
             is JsonObject -> if (v.size == 0) o.remove(key)
@@ -199,7 +249,11 @@ internal object Tree {
      * A PATH rather than a boolean, because a failing corpus case has to say
      * which rule broke to be actionable.
      */
-    fun diff(got: JsonValue, want: JsonValue, path: String = ""): String? {
+    fun diff(
+        got: JsonValue,
+        want: JsonValue,
+        path: String = "",
+    ): String? {
         when (want) {
             is JsonObject -> {
                 if (got !is JsonObject) return "${pathOrRoot(path)}: got ${describe(got)}, want an object"
@@ -234,20 +288,24 @@ internal object Tree {
     }
 
     /** Parses two documents and returns the first difference between their trees. */
-    fun compare(got: String, want: String, opt: Options): String? =
-        diff(normalise(JsonParser.parse(got), opt), normalise(JsonParser.parse(want), opt))
+    fun compare(
+        got: String,
+        want: String,
+        opt: Options,
+    ): String? = diff(normalise(JsonParser.parse(got), opt), normalise(JsonParser.parse(want), opt))
 
     private fun pathOrRoot(p: String) = if (p.isEmpty()) "the document" else p
 
     private fun escape(key: String) = key.replace("~", "~0").replace("/", "~1")
 
-    private fun describe(v: JsonValue?): String = when (v) {
-        null -> "nothing"
-        is JsonNull -> "null"
-        is JsonString -> "\"${v.value}\""
-        is JsonBool -> v.value.toString()
-        is JsonNumber -> v.value.toString()
-        is JsonObject -> "an object"
-        is JsonArray -> "an array"
-    }
+    private fun describe(v: JsonValue?): String =
+        when (v) {
+            null -> "nothing"
+            is JsonNull -> "null"
+            is JsonString -> "\"${v.value}\""
+            is JsonBool -> v.value.toString()
+            is JsonNumber -> v.value.toString()
+            is JsonObject -> "an object"
+            is JsonArray -> "an array"
+        }
 }

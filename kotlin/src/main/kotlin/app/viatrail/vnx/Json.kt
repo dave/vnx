@@ -15,17 +15,27 @@ package app.viatrail.vnx
  */
 sealed interface JsonValue
 
-data class JsonString(val value: String) : JsonValue
+data class JsonString(
+    val value: String,
+) : JsonValue
 
-data class JsonNumber(val value: Double) : JsonValue
+data class JsonNumber(
+    val value: Double,
+) : JsonValue
 
-data class JsonBool(val value: Boolean) : JsonValue
+data class JsonBool(
+    val value: Boolean,
+) : JsonValue
 
 data object JsonNull : JsonValue
 
-class JsonArray(val elements: List<JsonValue>) : JsonValue {
+class JsonArray(
+    val elements: List<JsonValue>,
+) : JsonValue {
     override fun equals(other: Any?) = other is JsonArray && other.elements == elements
+
     override fun hashCode() = elements.hashCode()
+
     override fun toString() = "JsonArray($elements)"
 }
 
@@ -37,7 +47,9 @@ class JsonArray(val elements: List<JsonValue>) : JsonValue {
  * A repeated key resolves last-wins, which is what every mainstream parser does
  * and what SPEC.md section 6.4 documents as a limitation of the format.
  */
-class JsonObject(entries: List<Pair<String, JsonValue>> = emptyList()) : JsonValue {
+class JsonObject(
+    entries: List<Pair<String, JsonValue>> = emptyList(),
+) : JsonValue {
     private val map = LinkedHashMap<String, JsonValue>()
 
     init {
@@ -48,22 +60,38 @@ class JsonObject(entries: List<Pair<String, JsonValue>> = emptyList()) : JsonVal
     val size: Int get() = map.size
 
     operator fun get(key: String): JsonValue? = map[key]
+
     operator fun contains(key: String): Boolean = map.containsKey(key)
+
     fun entries(): List<Pair<String, JsonValue>> = map.entries.map { it.key to it.value }
 
     override fun equals(other: Any?) = other is JsonObject && other.map == map
+
     override fun hashCode() = map.hashCode()
+
     override fun toString() = "JsonObject($map)"
 
     class Builder {
         private val entries = ArrayList<Pair<String, JsonValue>>()
-        fun put(key: String, value: JsonValue?): Builder {
+
+        fun put(
+            key: String,
+            value: JsonValue?,
+        ): Builder {
             if (value != null) entries.add(key to value)
             return this
         }
 
-        fun putString(key: String, value: String?) = put(key, value?.let(::JsonString))
-        fun putBool(key: String, value: Boolean?) = put(key, value?.let(::JsonBool))
+        fun putString(
+            key: String,
+            value: String?,
+        ) = put(key, value?.let(::JsonString))
+
+        fun putBool(
+            key: String,
+            value: Boolean?,
+        ) = put(key, value?.let(::JsonBool))
+
         fun build() = JsonObject(entries)
     }
 }

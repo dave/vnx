@@ -10,10 +10,10 @@ package app.viatrail.vnx
  * section 8.1 makes the comparison a comparison of JSON trees for that reason.
  */
 internal class Encoder {
-
     fun encode(doc: VnxDocument): JsonValue {
         checkAppKeys(doc.appKeys)
-        return JsonObject.Builder()
+        return JsonObject
+            .Builder()
             .putString("vnx", doc.vnx)
             .putString("generator", doc.generator)
             .putString("created", doc.created)
@@ -45,7 +45,10 @@ internal class Encoder {
         }
     }
 
-    private fun <T> array(items: List<T>, f: (T) -> JsonValue) = JsonArray(items.map(f))
+    private fun <T> array(
+        items: List<T>,
+        f: (T) -> JsonValue,
+    ) = JsonArray(items.map(f))
 
     // ------------------------------------------------------------ positions
 
@@ -72,27 +75,30 @@ internal class Encoder {
 
     // -------------------------------------------------------------- records
 
-    private fun data(records: List<DataRecord>?): JsonValue? = records?.let {
-        JsonArray(
-            it.map { record ->
-                val entries = ArrayList<Pair<String, JsonValue>>()
-                entries.add("@type" to JsonString(record.type))
-                entries.addAll(record.body.entries())
-                JsonObject(entries)
-            },
-        )
-    }
+    private fun data(records: List<DataRecord>?): JsonValue? =
+        records?.let {
+            JsonArray(
+                it.map { record ->
+                    val entries = ArrayList<Pair<String, JsonValue>>()
+                    entries.add("@type" to JsonString(record.type))
+                    entries.addAll(record.body.entries())
+                    JsonObject(entries)
+                },
+            )
+        }
 
     // --------------------------------------------------------------- items
 
-    private fun folder(f: Folder) = JsonObject.Builder()
-        .putString("id", f.id)
-        .putString("parent", f.parent)
-        .putString("name", f.name)
-        .putString("notes", f.notes)
-        .putBool("hidden", hidden(f.hidden))
-        .put("data", data(f.data))
-        .build()
+    private fun folder(f: Folder) =
+        JsonObject
+            .Builder()
+            .putString("id", f.id)
+            .putString("parent", f.parent)
+            .putString("name", f.name)
+            .putString("notes", f.notes)
+            .putBool("hidden", hidden(f.hidden))
+            .put("data", data(f.data))
+            .build()
 
     /**
      * A network, checked first: every arc runs between two different nodes it
@@ -104,7 +110,8 @@ internal class Encoder {
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
         n.chains?.forEach { checkWalkOf("chain \"${it.name}\"", it.walk, arcs, route = false) }
-        return JsonObject.Builder()
+        return JsonObject
+            .Builder()
             .putString("name", n.name)
             .putString("notes", n.notes)
             .putString("folder", n.folder)
@@ -123,7 +130,8 @@ internal class Encoder {
         val arcs = r.arcs ?: emptyMap()
         checkArcs("route \"${r.name}\"", r.nodes ?: emptyMap(), arcs)
         checkWalkOf("route \"${r.name}\"", r.walk, arcs, route = true)
-        return JsonObject.Builder()
+        return JsonObject
+            .Builder()
             .putString("name", r.name)
             .putString("notes", r.notes)
             .putString("folder", r.folder)
@@ -141,7 +149,11 @@ internal class Encoder {
      * owner. A self-loop cannot be walked, and an arc naming an absent node has
      * no line; a reader drops either, so this writer refuses to emit one.
      */
-    private fun checkArcs(owner: String, nodes: Map<String, Vertex>, arcs: Map<String, Arc>) {
+    private fun checkArcs(
+        owner: String,
+        nodes: Map<String, Vertex>,
+        arcs: Map<String, Arc>,
+    ) {
         for ((key, arc) in arcs) {
             require(arc.from != arc.to) {
                 "$owner: arc \"$key\" runs from node \"${arc.from}\" to itself, and a self-loop cannot be written"
@@ -152,7 +164,12 @@ internal class Encoder {
         }
     }
 
-    private fun checkWalkOf(owner: String, walk: List<Pass>, arcs: Map<String, Arc>, route: Boolean) {
+    private fun checkWalkOf(
+        owner: String,
+        walk: List<Pass>,
+        arcs: Map<String, Arc>,
+        route: Boolean,
+    ) {
         val fault = checkWalk(walk, arcs, route) ?: return
         val at = "pass ${fault.pass}" + (fault.key?.let { " `$it`" } ?: "")
         throw IllegalArgumentException("$owner: $at: ${fault.message} (${fault.cause.corpusCode})")
@@ -163,56 +180,69 @@ internal class Encoder {
     private fun arcs(arcs: Map<String, Arc>) = JsonObject(arcs.map { (k, v) -> k to arc(v) })
 
     /** `pips` is always written, empty for a straight arc: section 3.10 makes the key required. */
-    private fun arc(a: Arc) = JsonObject.Builder()
-        .putString("from", a.from)
-        .putString("to", a.to)
-        .put("pips", JsonArray(a.pips.map { position(it.position()) }))
-        .put("data", data(a.data))
-        .build()
+    private fun arc(a: Arc) =
+        JsonObject
+            .Builder()
+            .putString("from", a.from)
+            .putString("to", a.to)
+            .put("pips", JsonArray(a.pips.map { position(it.position()) }))
+            .put("data", data(a.data))
+            .build()
 
-    private fun chain(c: Chain) = JsonObject.Builder()
-        .putString("name", c.name)
-        .putString("notes", c.notes)
-        .putBool("hidden", hidden(c.hidden))
-        .put("style", c.style)
-        .put("walk", walk(c.walk))
-        .put("data", data(c.data))
-        .build()
+    private fun chain(c: Chain) =
+        JsonObject
+            .Builder()
+            .putString("name", c.name)
+            .putString("notes", c.notes)
+            .putBool("hidden", hidden(c.hidden))
+            .put("style", c.style)
+            .put("walk", walk(c.walk))
+            .put("data", data(c.data))
+            .build()
 
     /**
      * A walk. `from` and `to` are written where the pass carries them, which is
      * where section 3.3.3's rule puts them; `pinned` is written only when true.
      */
-    private fun walk(walk: List<Pass>) = JsonArray(
-        walk.map { p ->
-            JsonObject.Builder()
-                .putString("arc", p.arc)
-                .put("from", p.from?.let(::endpoint))
-                .put("to", p.to?.let(::endpoint))
-                .put("turn", p.turn?.let { position(it.position()) })
-                .putBool("pinned", if (p.pinned) true else null)
-                .build()
-        },
-    )
+    private fun walk(walk: List<Pass>) =
+        JsonArray(
+            walk.map { p ->
+                JsonObject
+                    .Builder()
+                    .putString("arc", p.arc)
+                    .put("from", p.from?.let(::endpoint))
+                    .put("to", p.to?.let(::endpoint))
+                    .put("turn", p.turn?.let { position(it.position()) })
+                    .putBool("pinned", if (p.pinned) true else null)
+                    .build()
+            },
+        )
 
-    private fun endpoint(e: Endpoint): JsonValue = when (e) {
-        is Endpoint.Node -> JsonString(e.key)
-        is Endpoint.At -> position(e.position.position())
-    }
+    private fun endpoint(e: Endpoint): JsonValue =
+        when (e) {
+            is Endpoint.Node -> JsonString(e.key)
+            is Endpoint.At -> position(e.position.position())
+        }
 
-    private fun track(t: Track) = JsonObject.Builder()
-        .putString("name", t.name)
-        .putString("notes", t.notes)
-        .putString("folder", t.folder)
-        .putBool("hidden", hidden(t.hidden))
-        .putString("started", t.started)
-        .putString("ended", t.ended)
-        .put("style", t.style)
-        .put("segments", JsonArray(t.segments.map { JsonObject(listOf("pips" to positions(it.pips))) }))
-        .put("data", data(t.data))
-        .build()
+    private fun track(t: Track) =
+        JsonObject
+            .Builder()
+            .putString("name", t.name)
+            .putString("notes", t.notes)
+            .putString("folder", t.folder)
+            .putBool("hidden", hidden(t.hidden))
+            .putString("started", t.started)
+            .putString("ended", t.ended)
+            .put("style", t.style)
+            .put("segments", JsonArray(t.segments.map { JsonObject(listOf("pips" to positions(it.pips))) }))
+            .put("data", data(t.data))
+            .build()
 
-    private fun waypoint(w: Waypoint, inNetwork: Boolean) = JsonObject.Builder()
+    private fun waypoint(
+        w: Waypoint,
+        inNetwork: Boolean,
+    ) = JsonObject
+        .Builder()
         .putString("name", w.name)
         .putString("notes", w.notes)
         .putString("folder", if (inNetwork) null else w.folder)
@@ -229,7 +259,10 @@ internal class Encoder {
      * A CLOSED RING IS REFUSED, NOT OPENED. Opening it would be this writer
      * guessing that its caller meant the repeat, and that is the caller's to fix.
      */
-    private fun area(a: Area, inNetwork: Boolean): JsonObject {
+    private fun area(
+        a: Area,
+        inNetwork: Boolean,
+    ): JsonObject {
         val ring = a.polygon
         val n = ring.size
         require(!(n >= 2 && ring[0].lon == ring[n - 1].lon && ring[0].lat == ring[n - 1].lat)) {
@@ -239,7 +272,8 @@ internal class Encoder {
         require(distinct >= 3) {
             "area \"${a.name}\": a ring needs at least 3 distinct positions, and this one has $distinct"
         }
-        return JsonObject.Builder()
+        return JsonObject
+            .Builder()
             .putString("name", a.name)
             .putString("notes", a.notes)
             .putString("folder", if (inNetwork) null else a.folder)

@@ -76,7 +76,6 @@ enum class RefusalCause(
      * stopped covering what it decides.
      */
     CONTAINER_ROOT_UNREADABLE(),
-    ;
 }
 
 /**
@@ -102,4 +101,7 @@ class VnxRefusal(
     override fun toString() = "VnxRefusal(${refusal.name}): $message"
 }
 
-internal fun refuse(cause: RefusalCause, message: String): Nothing = throw VnxRefusal(cause, message)
+internal fun refuse(
+    cause: RefusalCause,
+    message: String,
+): Nothing = throw VnxRefusal(cause, message)

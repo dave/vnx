@@ -23,25 +23,24 @@ import kotlinx.serialization.json.JsonObject as KtJsonObject
  * format.
  */
 internal object Serialise {
-
     private val json = Json
 
     /** Renders a value as a complete document, newline-terminated. */
-    fun render(value: JsonValue): String =
-        json.encodeToString(JsonElement.serializer(), element(value)) + "\n"
+    fun render(value: JsonValue): String = json.encodeToString(JsonElement.serializer(), element(value)) + "\n"
 
-    private fun element(value: JsonValue): JsonElement = when (value) {
-        is JsonNull -> KtJsonNull
-        is JsonBool -> JsonPrimitive(value.value)
-        is JsonString -> JsonPrimitive(value.value)
-        is JsonNumber -> number(value.value)
-        is JsonArray -> KtJsonArray(value.elements.map(::element))
-        is JsonObject -> {
-            val out = LinkedHashMap<String, JsonElement>(value.size)
-            for ((key, child) in value.entries()) out[key] = element(child)
-            KtJsonObject(out)
+    private fun element(value: JsonValue): JsonElement =
+        when (value) {
+            is JsonNull -> KtJsonNull
+            is JsonBool -> JsonPrimitive(value.value)
+            is JsonString -> JsonPrimitive(value.value)
+            is JsonNumber -> number(value.value)
+            is JsonArray -> KtJsonArray(value.elements.map(::element))
+            is JsonObject -> {
+                val out = LinkedHashMap<String, JsonElement>(value.size)
+                for ((key, child) in value.entries()) out[key] = element(child)
+                KtJsonObject(out)
+            }
         }
-    }
 
     /**
      * One number.

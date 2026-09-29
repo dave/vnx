@@ -7,8 +7,9 @@ package app.viatrail.vnx
  * 6.2 permits. Everything else that could not be used as written is dropped or
  * skipped, and reported as a [Diagnostic].
  */
-internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
-
+internal class Decoder(
+    private val readerVersion: Version = Version.SUPPORTED,
+) {
     private val diagnostics = ArrayList<Diagnostic>()
     private var folderIds: Set<String> = emptySet()
 
@@ -20,16 +21,34 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      */
     private object Keys {
         val DOCUMENT_REQUIRED = setOf("vnx")
-        val DOCUMENT_OPTIONAL = setOf(
-            "generator", "created",
-            "folders", "networks", "routes", "tracks", "waypoints", "areas",
-        )
+        val DOCUMENT_OPTIONAL =
+            setOf(
+                "generator",
+                "created",
+                "folders",
+                "networks",
+                "routes",
+                "tracks",
+                "waypoints",
+                "areas",
+            )
         val FOLDER_REQUIRED = setOf("id")
         val FOLDER_OPTIONAL = setOf("parent", "name", "notes", "hidden", "data")
         val NETWORK_REQUIRED = emptySet<String>()
-        val NETWORK_OPTIONAL = setOf(
-            "name", "notes", "folder", "hidden", "nodes", "arcs", "chains", "points", "areas", "data",
-        )
+        val NETWORK_OPTIONAL =
+            setOf(
+                "name",
+                "notes",
+                "folder",
+                "hidden",
+                "nodes",
+                "arcs",
+                "chains",
+                "points",
+                "areas",
+                "data",
+            )
+
         // An arc has one shape in a network and in a route (section 3.4).
         val ARC_REQUIRED = setOf("from", "to", "pips")
         val ARC_OPTIONAL = setOf("data")
@@ -45,6 +64,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val SEGMENT_OPTIONAL = emptySet<String>()
         val WAYPOINT_REQUIRED = setOf("at")
         val WAYPOINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "data")
+
         // A network's point is a waypoint without `folder`: its network already
         // contains it (section 3.10).
         val POINT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
@@ -56,22 +76,26 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
     // ------------------------------------------------------------ entry point
 
     fun decode(root: JsonValue): ReadResult {
-        val doc = root as? JsonObject
-            ?: refuse(RefusalCause.NOT_A_VNX_DOCUMENT, "not a VNX document: the top level is not a JSON object")
+        val doc =
+            root as? JsonObject
+                ?: refuse(RefusalCause.NOT_A_VNX_DOCUMENT, "not a VNX document: the top level is not a JSON object")
 
-        val versionValue = doc["vnx"]
-            ?: refuse(RefusalCause.NOT_A_VNX_DOCUMENT, "not a VNX document: it carries no `vnx` key")
-        val versionText = (versionValue as? JsonString)?.value
-            ?: refuse(
-                RefusalCause.VERSION_MALFORMED,
-                "`vnx` must be a version string of the shape MAJOR.MINOR.PATCH",
-            )
-        val version = Version.parseOrNull(versionText)
-            ?: refuse(
-                RefusalCause.VERSION_MALFORMED,
-                "`vnx` is \"$versionText\", which is not of the shape MAJOR.MINOR.PATCH " +
-                    "— three runs of decimal digits separated by full stops",
-            )
+        val versionValue =
+            doc["vnx"]
+                ?: refuse(RefusalCause.NOT_A_VNX_DOCUMENT, "not a VNX document: it carries no `vnx` key")
+        val versionText =
+            (versionValue as? JsonString)?.value
+                ?: refuse(
+                    RefusalCause.VERSION_MALFORMED,
+                    "`vnx` must be a version string of the shape MAJOR.MINOR.PATCH",
+                )
+        val version =
+            Version.parseOrNull(versionText)
+                ?: refuse(
+                    RefusalCause.VERSION_MALFORMED,
+                    "`vnx` is \"$versionText\", which is not of the shape MAJOR.MINOR.PATCH " +
+                        "— three runs of decimal digits separated by full stops",
+                )
         if (!version.isSupportedBy(readerVersion)) {
             // Section 2.2 requires the refusal to NAME the version, and the two
             // directions are not one sentence. A document from a series this
@@ -81,8 +105,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             refuse(
                 RefusalCause.VERSION_SERIES_UNSUPPORTED,
                 "this document is version $version and this reader implements $readerVersion, " +
-                    if (version.isAbove(readerVersion)) "so a newer reader is needed to read it"
-                    else "so the ${version.major}.${version.minor} series is not one it supports",
+                    if (version.isAbove(readerVersion)) {
+                        "so a newer reader is needed to read it"
+                    } else {
+                        "so the ${version.major}.${version.minor} series is not one it supports"
+                    },
             )
         }
 
@@ -97,29 +124,36 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val folders = optionalItems(doc, "folders", at) { o, p -> folder(o, p) }
         folderIds = folders?.map { it.id }?.toSet() ?: emptySet()
 
-        val document = VnxDocument(
-            vnx = versionText,
-            generator = optionalString(doc, "generator", at),
-            created = optionalTimestamp(doc, "created", at),
-            folders = folders,
-            networks = optionalItems(doc, "networks", at) { o, p -> network(o, p) },
-            routes = optionalItems(doc, "routes", at) { o, p -> route(o, p) },
-            tracks = optionalItems(doc, "tracks", at) { o, p -> track(o, p) },
-            waypoints = optionalItems(doc, "waypoints", at) { o, p -> waypoint(o, p, inNetwork = false) },
-            areas = optionalItems(doc, "areas", at) { o, p -> area(o, p, inNetwork = false) },
-            // Section 3.9: opaque, preserved verbatim, interpreted not at all.
-            // A `null` value is kept as JsonNull; it is a present key.
-            appKeys = doc.entries()
-                .filter { (k, _) -> AppKey.isAppKey(k) }
-                .map { (k, v) -> AppKey(k, v) }
-                .sortedBy { it.key },
-        )
+        val document =
+            VnxDocument(
+                vnx = versionText,
+                generator = optionalString(doc, "generator", at),
+                created = optionalTimestamp(doc, "created", at),
+                folders = folders,
+                networks = optionalItems(doc, "networks", at) { o, p -> network(o, p) },
+                routes = optionalItems(doc, "routes", at) { o, p -> route(o, p) },
+                tracks = optionalItems(doc, "tracks", at) { o, p -> track(o, p) },
+                waypoints = optionalItems(doc, "waypoints", at) { o, p -> waypoint(o, p, inNetwork = false) },
+                areas = optionalItems(doc, "areas", at) { o, p -> area(o, p, inNetwork = false) },
+                // Section 3.9: opaque, preserved verbatim, interpreted not at all.
+                // A `null` value is kept as JsonNull; it is a present key.
+                appKeys =
+                    doc
+                        .entries()
+                        .filter { (k, _) -> AppKey.isAppKey(k) }
+                        .map { (k, v) -> AppKey(k, v) }
+                        .sortedBy { it.key },
+            )
         return ReadResult(document, diagnostics.toList())
     }
 
     // ------------------------------------------------------------- reporting
 
-    private fun report(at: Pointer, message: String, cause: DiagnosticCause) {
+    private fun report(
+        at: Pointer,
+        message: String,
+        cause: DiagnosticCause,
+    ) {
         diagnostics.add(Diagnostic(at.toString(), message, cause))
     }
 
@@ -142,7 +176,12 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         }
     }
 
-    private fun wrongType(at: Pointer, key: String, expected: String, dropped: String) {
+    private fun wrongType(
+        at: Pointer,
+        key: String,
+        expected: String,
+        dropped: String,
+    ) {
         report(
             at.child(key),
             "`$key` must be $expected; $dropped",
@@ -152,7 +191,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // -------------------------------------------------------------- scalars
 
-    private fun optionalString(obj: JsonObject, key: String, at: Pointer): String? {
+    private fun optionalString(
+        obj: JsonObject,
+        key: String,
+        at: Pointer,
+    ): String? {
         val v = obj[key] ?: return null
         if (v !is JsonString) {
             wrongType(at, key, "a string", "the field is dropped and the item kept")
@@ -161,7 +204,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return v.value
     }
 
-    private fun optionalBool(obj: JsonObject, key: String, at: Pointer): Boolean? {
+    private fun optionalBool(
+        obj: JsonObject,
+        key: String,
+        at: Pointer,
+    ): Boolean? {
         val v = obj[key] ?: return null
         if (v !is JsonBool) {
             wrongType(at, key, "a boolean", "the field is dropped and the item kept")
@@ -170,7 +217,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return v.value
     }
 
-    private fun optionalStyle(obj: JsonObject, at: Pointer): JsonObject? {
+    private fun optionalStyle(
+        obj: JsonObject,
+        at: Pointer,
+    ): JsonObject? {
         val v = obj["style"] ?: return null
         if (v !is JsonObject) {
             wrongType(at, "style", "an object", "the field is dropped and the item kept")
@@ -211,7 +261,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * and OPTIONAL fractional seconds. An offset other than `Z` is an unusable
      * value in an optional key, so the field goes and the item stays (6.2).
      */
-    private fun optionalTimestamp(obj: JsonObject, key: String, at: Pointer): String? {
+    private fun optionalTimestamp(
+        obj: JsonObject,
+        key: String,
+        at: Pointer,
+    ): String? {
         val text = optionalString(obj, key, at) ?: return null
         if (!TIMESTAMP.matches(text)) {
             report(
@@ -231,7 +285,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * item sits at the top level, and a diagnostic is recorded. Dropping the item
      * would lose content over a lost grouping.
      */
-    private fun optionalFolderRef(obj: JsonObject, at: Pointer): String? {
+    private fun optionalFolderRef(
+        obj: JsonObject,
+        at: Pointer,
+    ): String? {
         val id = optionalString(obj, "folder", at) ?: return null
         if (id !in folderIds) {
             report(
@@ -286,7 +343,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * record goes, not the key (6.2). The body is opaque and is not swept for
      * unrecognised keys.
      */
-    private fun optionalData(obj: JsonObject, at: Pointer): List<DataRecord>? {
+    private fun optionalData(
+        obj: JsonObject,
+        at: Pointer,
+    ): List<DataRecord>? {
         val v = obj["data"] ?: return null
         if (v !is JsonArray) {
             wrongType(at, "data", "an array", "the field is dropped and the item kept")
@@ -315,7 +375,6 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return out
     }
 
-
     // --------------------------------------------------------- positions
 
     /**
@@ -329,7 +388,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * what the diagnostic says, belongs to the caller, which knows what the
      * position was part of.
      */
-    private fun parsePosition(value: JsonArray, unusable: (String) -> Unit): Position? {
+    private fun parsePosition(
+        value: JsonArray,
+        unusable: (String) -> Unit,
+    ): Position? {
         if (value.elements.size < 2) {
             unusable("a position must carry at least lon and lat, and this one has ${value.elements.size} channels")
             return null
@@ -368,7 +430,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * them different codes. Both drop the owner, because a waypoint whose `at` is
      * a string is a waypoint that is nowhere.
      */
-    private fun requiredPosition(value: JsonValue, at: Pointer): Position? {
+    private fun requiredPosition(
+        value: JsonValue,
+        at: Pointer,
+    ): Position? {
         if (value !is JsonArray) {
             report(
                 at,
@@ -389,7 +454,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * array that will not parse, and has the caller drop the OWNER — [dropped]
      * says which owner that is.
      */
-    private fun memberPosition(value: JsonValue, at: Pointer, dropped: String): Position? {
+    private fun memberPosition(
+        value: JsonValue,
+        at: Pointer,
+        dropped: String,
+    ): Position? {
         if (value !is JsonArray) {
             report(
                 at,
@@ -409,7 +478,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * perfectly usable; one element in it is not, and dropping just that element
      * leaves a shorter, plausible, wrong line that nothing downstream can notice.
      */
-    private fun requiredPips(obj: JsonObject, at: Pointer, owner: String): List<Position>? {
+    private fun requiredPips(
+        obj: JsonObject,
+        at: Pointer,
+        owner: String,
+    ): List<Position>? {
         val here = at.child("pips")
         val v = obj["pips"]
         if (v == null) {
@@ -429,7 +502,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ----------------------------------------------------------- folders
 
-    private fun folder(obj: JsonObject, at: Pointer): Folder? {
+    private fun folder(
+        obj: JsonObject,
+        at: Pointer,
+    ): Folder? {
         recogniseKeys(obj, at, Keys.FOLDER_REQUIRED, Keys.FOLDER_OPTIONAL)
         val id = obj["id"]
         if (id !is JsonString) {
@@ -455,7 +531,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ---------------------------------------------------- networks and routes
 
-    private fun network(obj: JsonObject, at: Pointer): Network {
+    private fun network(
+        obj: JsonObject,
+        at: Pointer,
+    ): Network {
         recogniseKeys(obj, at, Keys.NETWORK_REQUIRED, Keys.NETWORK_OPTIONAL)
         // Nodes, then arcs, then walks: a walk can only be checked against the
         // arcs that survived, and an arc only against the nodes that did.
@@ -480,7 +559,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * network's shape and one walk over them, and wherever a chain would be
      * dropped the whole route is.
      */
-    private fun route(obj: JsonObject, at: Pointer): Route? {
+    private fun route(
+        obj: JsonObject,
+        at: Pointer,
+    ): Route? {
         recogniseKeys(obj, at, Keys.ROUTE_REQUIRED, Keys.ROUTE_OPTIONAL)
         val nodes = nodes(obj, at)
         val arcs = arcs(obj, at, nodes)
@@ -501,7 +583,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * parse is dropped; an arc naming it is then dropped under
      * `arc-node-absent`, so the loss surfaces on everything that depended on it.
      */
-    private fun nodes(obj: JsonObject, at: Pointer): Map<String, Vertex>? {
+    private fun nodes(
+        obj: JsonObject,
+        at: Pointer,
+    ): Map<String, Vertex>? {
         val v = obj["nodes"] ?: return null
         if (v !is JsonObject) {
             wrongType(at, "nodes", "an object keyed by node identifier", "the field is dropped")
@@ -532,7 +617,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * the chain is dropped when its walk is read, under `pass-arc-absent`, with a
      * diagnostic of its own (section 6.2).
      */
-    private fun arcs(obj: JsonObject, at: Pointer, nodes: Map<String, Vertex>?): Map<String, Arc>? {
+    private fun arcs(
+        obj: JsonObject,
+        at: Pointer,
+        nodes: Map<String, Vertex>?,
+    ): Map<String, Arc>? {
         val v = obj["arcs"] ?: return null
         if (v !is JsonObject) {
             wrongType(at, "arcs", "an object keyed by arc identifier", "the field is dropped")
@@ -552,7 +641,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return out
     }
 
-    private fun arc(obj: JsonObject, at: Pointer, nodes: Map<String, Vertex>): Arc? {
+    private fun arc(
+        obj: JsonObject,
+        at: Pointer,
+        nodes: Map<String, Vertex>,
+    ): Arc? {
         val ends = ArrayList<String>(2)
         for (end in listOf("from", "to")) {
             val v = obj[end]
@@ -606,7 +699,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ------------------------------------------------------------ chains
 
-    private fun chain(obj: JsonObject, at: Pointer, arcs: Map<String, Arc>): Chain? {
+    private fun chain(
+        obj: JsonObject,
+        at: Pointer,
+        arcs: Map<String, Arc>,
+    ): Chain? {
         recogniseKeys(obj, at, Keys.CHAIN_REQUIRED, Keys.CHAIN_OPTIONAL)
         // Every field is read before the walk, so a chain the walk drops still
         // reports what else was wrong with it.
@@ -630,7 +727,12 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * walk is examined. Diagnostics that do not drop the owner are recorded as
      * they are met.
      */
-    private fun walk(obj: JsonObject, owner: Pointer, arcs: Map<String, Arc>, route: Boolean): List<Pass>? {
+    private fun walk(
+        obj: JsonObject,
+        owner: Pointer,
+        arcs: Map<String, Arc>,
+        route: Boolean,
+    ): List<Pass>? {
         val here = owner.child("walk")
         val raw = obj["walk"]
         if (raw !is JsonArray) {
@@ -642,6 +744,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             return null
         }
         val dropped = if (route) "the route is dropped" else "the chain is dropped"
+
         fun drop(fault: WalkFault): List<Pass>? {
             val at = here.child(fault.pass).let { if (fault.key == null) it else it.child(fault.key) }
             report(at, "${fault.message}; $dropped", fault.cause)
@@ -658,14 +761,20 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 )
             }
             val arcKey = (element["arc"] as? JsonString)?.value
-            val arc = arcKey?.let { arcs[it] }
-                ?: return drop(
-                    WalkFault(
-                        i, null, DiagnosticCause.PASS_ARC_ABSENT,
-                        if (arcKey != null) "the pass names arc \"$arcKey\", which is not in this network or route"
-                        else "the pass names no arc",
-                    ),
-                )
+            val arc =
+                arcKey?.let { arcs[it] }
+                    ?: return drop(
+                        WalkFault(
+                            i,
+                            null,
+                            DiagnosticCause.PASS_ARC_ABSENT,
+                            if (arcKey != null) {
+                                "the pass names arc \"$arcKey\", which is not in this network or route"
+                            } else {
+                                "the pass names no arc"
+                            },
+                        ),
+                    )
             // 2. Unrecognised keys. 3. `pinned`, dropped alone if it is not a
             // boolean; `"pinned": false` is the same as absent.
             recogniseKeys(element, passAt, Keys.PASS_REQUIRED, Keys.PASS_OPTIONAL)
@@ -683,8 +792,9 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                     return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, "`$key` is ${v.typeName()}, expected $want"))
                 }
                 var why: String? = null
-                val p = parsePosition(v) { why = it }
-                    ?: return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, why!!))
+                val p =
+                    parsePosition(v) { why = it }
+                        ?: return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, why!!))
                 if (p.ele != null || p.timeMs != null) {
                     report(
                         passAt.child(key),
@@ -694,13 +804,14 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 }
                 ends[key] = Endpoint.At(LonLat(p.lon, p.lat))
             }
-            val pass = Pass(
-                arc = arcKey,
-                from = ends["from"],
-                to = ends["to"],
-                turn = (ends["turn"] as Endpoint.At?)?.position,
-                pinned = pinned,
-            )
+            val pass =
+                Pass(
+                    arc = arcKey,
+                    from = ends["from"],
+                    to = ends["to"],
+                    turn = (ends["turn"] as Endpoint.At?)?.position,
+                    pinned = pinned,
+                )
             // 5 to 8: a route's rule, pin and turn, spelling, connection.
             cursor.step(i, pass, arc)?.let { return drop(it) }
             out.add(pass)
@@ -710,7 +821,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ------------------------------------------------------------ tracks
 
-    private fun track(obj: JsonObject, at: Pointer): Track? {
+    private fun track(
+        obj: JsonObject,
+        at: Pointer,
+    ): Track? {
         recogniseKeys(obj, at, Keys.TRACK_REQUIRED, Keys.TRACK_OPTIONAL)
         val rawSegments = obj["segments"]
         if (rawSegments !is JsonArray) {
@@ -751,7 +865,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ------------------------------------------------- waypoints and points
 
-    private fun waypoint(obj: JsonObject, at: Pointer, inNetwork: Boolean): Waypoint? {
+    private fun waypoint(
+        obj: JsonObject,
+        at: Pointer,
+        inNetwork: Boolean,
+    ): Waypoint? {
         recogniseKeys(
             obj,
             at,
@@ -777,7 +895,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
 
     // ------------------------------------------------------------- areas
 
-    private fun area(obj: JsonObject, at: Pointer, inNetwork: Boolean): Area? {
+    private fun area(
+        obj: JsonObject,
+        at: Pointer,
+        inNetwork: Boolean,
+    ): Area? {
         recogniseKeys(
             obj,
             at,
@@ -811,7 +933,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * distinct positions are counted after that, so `[A, B, A]` is two points
      * and its area goes, with both diagnostics.
      */
-    private fun polygon(obj: JsonObject, at: Pointer): List<Position>? {
+    private fun polygon(
+        obj: JsonObject,
+        at: Pointer,
+    ): List<Position>? {
         val here = at.child("polygon")
         val v = obj["polygon"]
         if (v == null) {
@@ -855,14 +980,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return ring
     }
 
-    private fun JsonValue.typeName() = when (this) {
-        is JsonString -> "a string"
-        is JsonNumber -> "a number"
-        is JsonBool -> "a boolean"
-        is JsonNull -> "null"
-        is JsonArray -> "an array"
-        is JsonObject -> "an object"
-    }
+    private fun JsonValue.typeName() =
+        when (this) {
+            is JsonString -> "a string"
+            is JsonNumber -> "a number"
+            is JsonBool -> "a boolean"
+            is JsonNull -> "null"
+            is JsonArray -> "an array"
+            is JsonObject -> "an object"
+        }
 
     private companion object {
         /** Section 4.3: ISO 8601 in UTC, literal `Z`, optional fractional seconds. */
@@ -877,12 +1003,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
  * Compared as numbers, so `-0.0` and `0.0` are one longitude. Adding `0.0` makes
  * the two one key: a boxed [Double] tells them apart, and `==` does not.
  */
-internal fun distinctLonLat(ring: List<Position>): Int =
-    ring.map { (it.lon + 0.0) to (it.lat + 0.0) }.toSet().size
+internal fun distinctLonLat(ring: List<Position>): Int = ring.map { (it.lon + 0.0) to (it.lat + 0.0) }.toSet().size
 
 /** Section 4.1's normative ranges, both bounds included. Null when in range. */
-internal fun offTheGlobe(lon: Double, lat: Double): String? = when {
-    lon !in -180.0..180.0 -> "longitude $lon is off the globe"
-    lat !in -90.0..90.0 -> "latitude $lat is off the globe"
-    else -> null
-}
+internal fun offTheGlobe(
+    lon: Double,
+    lat: Double,
+): String? =
+    when {
+        lon !in -180.0..180.0 -> "longitude $lon is off the globe"
+        lat !in -90.0..90.0 -> "latitude $lat is off the globe"
+        else -> null
+    }

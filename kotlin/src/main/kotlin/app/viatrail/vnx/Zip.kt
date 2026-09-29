@@ -22,7 +22,6 @@ import java.util.zip.Inflater
  * section 7 requires that of a reader and does not require it of a writer.
  */
 internal object Zip {
-
     data class Entry(
         val name: String,
         /** The raw ZIP compression method: 0 stored, 8 deflate, anything else unusable. */
@@ -32,6 +31,7 @@ internal object Zip {
     ) {
         val isUsable: Boolean get() = bytes != null
         val unusableBecause: String get() = failure ?: "readable"
+
         fun bytes(): ByteArray = bytes ?: throw IllegalStateException("entry $name is not usable: $failure")
     }
 
@@ -50,7 +50,9 @@ internal object Zip {
      * several frames down, inside the inflater loop, and threading a nullable
      * back through would put a branch at every level that has nothing to decide.
      */
-    private class Damaged(val why: String) : Exception(why)
+    private class Damaged(
+        val why: String,
+    ) : Exception(why)
 
     private fun damaged(why: String): Nothing = throw Damaged(why)
 
@@ -100,12 +102,15 @@ internal object Zip {
             val name = decodeName(data, p + 46, nameLength, flags)
 
             if (uncompressedSize == 0xffffffffL || compressedSize == 0xffffffffL || localOffset == 0xffffffffL) {
-                val extra = readZip64Extra(
-                    data, p + 46 + nameLength, extraLength,
-                    uncompressedSize == 0xffffffffL,
-                    compressedSize == 0xffffffffL,
-                    localOffset == 0xffffffffL,
-                )
+                val extra =
+                    readZip64Extra(
+                        data,
+                        p + 46 + nameLength,
+                        extraLength,
+                        uncompressedSize == 0xffffffffL,
+                        compressedSize == 0xffffffffL,
+                        localOffset == 0xffffffffL,
+                    )
                 extra.uncompressed?.let { uncompressedSize = it }
                 extra.compressed?.let { compressedSize = it }
                 extra.localOffset?.let { localOffset = it }
@@ -151,7 +156,11 @@ internal object Zip {
      * [inflate], and the two declared sizes are never compared with each other:
      * section 7 forbids refusing or dropping an entry because they disagree.
      */
-    private fun readEntry(data: ByteArray, header: Header, payloadBound: Long): Entry {
+    private fun readEntry(
+        data: ByteArray,
+        header: Header,
+        payloadBound: Long,
+    ): Entry {
         val name = header.name
         val method = header.method
         val uncompressedSize = header.uncompressedSize
@@ -201,24 +210,30 @@ internal object Zip {
      * "the root document X cannot be read:", so it starts at "it" and never
      * repeats the entry name. The caller knows which entry it asked about.
      */
-    private fun recover(method: Int, raw: ByteArray, header: Header, uncompressedSize: Long): ByteArray {
-        val body = if (method == METHOD_STORED) {
-            // NOTHING COMPARES THE TWO DECLARED SIZES. For a stored entry they are
-            // the same quantity, so a disagreement is a defect in the archive —
-            // but section 7 forbids refusing an entry on that ground where the CRC
-            // over the bytes present agrees, and forbids dropping it. A size field
-            // is not the authority on what an entry contains; the checksum is.
-            //
-            // So `raw` is already the whole of a stored read: readEntry took the
-            // declared compressed size clamped to the room left before the
-            // payload bound, and that is all that bounds it. The declared
-            // uncompressed size bounds nothing here — a stored entry has no
-            // decompression for it to limit — and the CRC below decides whether
-            // the bytes taken were the whole payload.
-            raw
-        } else {
-            inflate(raw, uncompressedSize)
-        }
+    private fun recover(
+        method: Int,
+        raw: ByteArray,
+        header: Header,
+        uncompressedSize: Long,
+    ): ByteArray {
+        val body =
+            if (method == METHOD_STORED) {
+                // NOTHING COMPARES THE TWO DECLARED SIZES. For a stored entry they are
+                // the same quantity, so a disagreement is a defect in the archive —
+                // but section 7 forbids refusing an entry on that ground where the CRC
+                // over the bytes present agrees, and forbids dropping it. A size field
+                // is not the authority on what an entry contains; the checksum is.
+                //
+                // So `raw` is already the whole of a stored read: readEntry took the
+                // declared compressed size clamped to the room left before the
+                // payload bound, and that is all that bounds it. The declared
+                // uncompressed size bounds nothing here — a stored entry has no
+                // decompression for it to limit — and the CRC below decides whether
+                // the bytes taken were the whole payload.
+                raw
+            } else {
+                inflate(raw, uncompressedSize)
+            }
 
         // Verify the CRC. Nothing in section 7 requires this, and a reader that
         // skips it accepts corrupt data in silence — which for a format whose
@@ -251,7 +266,10 @@ internal object Zip {
      * resource bound for a merely large HONEST archive is a separate matter and
      * this library still does not implement one.
      */
-    private fun inflate(raw: ByteArray, declaredSize: Long): ByteArray {
+    private fun inflate(
+        raw: ByteArray,
+        declaredSize: Long,
+    ): ByteArray {
         val inflater = Inflater(true)
         try {
             inflater.setInput(raw)
@@ -278,7 +296,11 @@ internal object Zip {
         }
     }
 
-    private class Zip64Extra(val uncompressed: Long?, val compressed: Long?, val localOffset: Long?)
+    private class Zip64Extra(
+        val uncompressed: Long?,
+        val compressed: Long?,
+        val localOffset: Long?,
+    )
 
     private fun readZip64Extra(
         data: ByteArray,
@@ -300,9 +322,17 @@ internal object Zip {
                 var localOffset: Long? = null
                 // The ZIP64 extra carries only the fields that were saturated, in
                 // this order and with no tags of their own.
-                if (wantUncompressed && q + 8 <= end) { uncompressed = u64(data, q); q += 8 }
-                if (wantCompressed && q + 8 <= end) { compressed = u64(data, q); q += 8 }
-                if (wantOffset && q + 8 <= end) { localOffset = u64(data, q) }
+                if (wantUncompressed && q + 8 <= end) {
+                    uncompressed = u64(data, q)
+                    q += 8
+                }
+                if (wantCompressed && q + 8 <= end) {
+                    compressed = u64(data, q)
+                    q += 8
+                }
+                if (wantOffset && q + 8 <= end) {
+                    localOffset = u64(data, q)
+                }
                 return Zip64Extra(uncompressed, compressed, localOffset)
             }
             p += 4 + size
@@ -315,7 +345,12 @@ internal object Zip {
      * is refused rather than decoded by guesswork — the historical alternative is
      * CP437, and guessing between the two silently changes an attachment's name.
      */
-    private fun decodeName(data: ByteArray, offset: Int, length: Int, flags: Int): String {
+    private fun decodeName(
+        data: ByteArray,
+        offset: Int,
+        length: Int,
+        flags: Int,
+    ): String {
         if (flags and 0x800 == 0) {
             // Names that are pure ASCII mean the same thing under either
             // encoding, so only a non-ASCII name is ambiguous.
@@ -339,15 +374,20 @@ internal object Zip {
         malformed("no end-of-central-directory record, so this is not a ZIP archive")
     }
 
-    private fun malformed(why: String): Nothing =
-        refuse(RefusalCause.CONTAINER_MALFORMED, "the container could not be read: $why")
+    private fun malformed(why: String): Nothing = refuse(RefusalCause.CONTAINER_MALFORMED, "the container could not be read: $why")
 
-    private fun u16(b: ByteArray, i: Int): Int {
+    private fun u16(
+        b: ByteArray,
+        i: Int,
+    ): Int {
         if (i + 2 > b.size) malformed("a header runs past the end of the archive")
         return (b[i].toInt() and 0xff) or ((b[i + 1].toInt() and 0xff) shl 8)
     }
 
-    private fun u32(b: ByteArray, i: Int): Long {
+    private fun u32(
+        b: ByteArray,
+        i: Int,
+    ): Long {
         if (i < 0 || i + 4 > b.size) malformed("a header runs past the end of the archive")
         return (b[i].toLong() and 0xff) or
             ((b[i + 1].toLong() and 0xff) shl 8) or
@@ -355,7 +395,10 @@ internal object Zip {
             ((b[i + 3].toLong() and 0xff) shl 24)
     }
 
-    private fun u64(b: ByteArray, i: Int): Long {
+    private fun u64(
+        b: ByteArray,
+        i: Int,
+    ): Long {
         if (i < 0 || i + 8 > b.size) malformed("a header runs past the end of the archive")
         var v = 0L
         for (k in 7 downTo 0) v = (v shl 8) or (b[i + k].toLong() and 0xff)
@@ -365,7 +408,10 @@ internal object Zip {
     // ------------------------------------------------------------- writing
 
     /** One entry to write, in the order it will appear in the archive. */
-    class ToWrite(val name: String, val body: ByteArray)
+    class ToWrite(
+        val name: String,
+        val body: ByteArray,
+    )
 
     /**
      * Writes a ZIP archive with `java.util.zip`.

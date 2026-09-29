@@ -1,6 +1,13 @@
 plugins {
     kotlin("jvm") version "2.1.20"
     `maven-publish`
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.2"
+}
+
+// The one formatter, pinned, at its default style. `ktlintCheck` is what
+// scripts/check-format.sh runs; `ktlintFormat` fixes what it reports.
+ktlint {
+    version.set("1.5.0")
 }
 
 // The coordinate a consumer writes: app.viatrail:vnx:0.2.0. `app.viatrail`
@@ -51,7 +58,7 @@ publishing {
                 name.set("VNX for Kotlin")
                 description.set(
                     "Reads and writes VNX documents and VNZ containers on the JVM, " +
-                        "and reports diagnostics."
+                        "and reports diagnostics.",
                 )
                 url.set("https://github.com/dave/vnx")
                 licenses {
@@ -74,7 +81,12 @@ tasks.test {
     // The corpus decides whether this library conforms, and it lives beside this
     // build rather than inside it. Passing its location explicitly means the
     // runner never has to guess a working directory.
-    systemProperty("vnx.corpus", layout.projectDirectory.dir("../corpus").asFile.absolutePath)
+    systemProperty(
+        "vnx.corpus",
+        layout.projectDirectory
+            .dir("../corpus")
+            .asFile.absolutePath,
+    )
     // AND AS AN INPUT. Gradle does not look inside a system property, so
     // without this a corpus edit left the task UP-TO-DATE and `./gradlew test`
     // reported the last run's green against cases it never read.

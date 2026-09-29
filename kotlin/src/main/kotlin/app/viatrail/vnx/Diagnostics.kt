@@ -177,7 +177,6 @@ enum class DiagnosticCause(
      * separate `#/entries/<name>` space.
      */
     ATTACHMENT_UNREADABLE("attachment-unreadable", "is dropped"),
-    ;
 }
 
 /**
@@ -239,7 +238,10 @@ data class ReadResult(
  * and a test asserting on a list of them would fail for a reason that has
  * nothing to do with what it is testing.
  */
-class Attachment(val path: String, val bytes: ByteArray) {
+class Attachment(
+    val path: String,
+    val bytes: ByteArray,
+) {
     override fun equals(other: Any?): Boolean =
         this === other || (other is Attachment && path == other.path && bytes.contentEquals(other.bytes))
 
@@ -250,14 +252,19 @@ class Attachment(val path: String, val bytes: ByteArray) {
 }
 
 /** Builds RFC 6901 JSON Pointers as the decoder descends. */
-internal class Pointer private constructor(private val text: String) {
+internal class Pointer private constructor(
+    private val text: String,
+) {
     companion object {
         val ROOT = Pointer("")
+
         private fun escape(token: String) = token.replace("~", "~0").replace("/", "~1")
     }
 
     fun child(token: String) = Pointer("$text/${escape(token)}")
+
     fun child(index: Int) = Pointer("$text/$index")
+
     override fun toString() = text
 }
 
@@ -272,5 +279,4 @@ internal class Pointer private constructor(private val text: String) {
  * comes out `photos~01a~0b.jpg`. An attachment name is the one place in this
  * format where a member name routinely holds a slash.
  */
-internal fun entryPointer(name: String): String =
-    "#/entries/" + name.replace("~", "~0").replace("/", "~1")
+internal fun entryPointer(name: String): String = "#/entries/" + name.replace("~", "~0").replace("/", "~1")

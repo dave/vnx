@@ -19,21 +19,26 @@ package app.viatrail.vnx
  *     defects.
  */
 object DiagnosticMatcher {
-
     /** Null on success; otherwise a description of how the two lists differ. */
-    fun mismatch(expected: List<Sidecar.ExpectedDiagnostic>, reported: List<Diagnostic>): String? {
+    fun mismatch(
+        expected: List<Sidecar.ExpectedDiagnostic>,
+        reported: List<Diagnostic>,
+    ): String? {
         if (expected.size != reported.size) {
             return "expected ${expected.size} diagnostic(s) but the reader reported ${reported.size}\n" +
                 "  expected: ${expected.joinToString("; ")}\n" +
                 "  reported: ${reported.joinToString("; ")}"
         }
+
         // `path` exactly, and the cause by REASON CODE. Nothing here reads
         // English: that is what makes "the exact wording of a diagnostic is an
         // implementation's own business" true in fact rather than only in
         // principle. A reader whose cause has no code cannot satisfy a coded
         // expectation, because null equalling null would pass everything.
-        fun satisfies(e: Sidecar.ExpectedDiagnostic, r: Diagnostic): Boolean =
-            r.path == e.path && r.code != null && r.code == e.code
+        fun satisfies(
+            e: Sidecar.ExpectedDiagnostic,
+            r: Diagnostic,
+        ): Boolean = r.path == e.path && r.code != null && r.code == e.code
 
         val taken = BooleanArray(reported.size)
         if (!assign(expected, reported, 0, taken, ::satisfies)) {

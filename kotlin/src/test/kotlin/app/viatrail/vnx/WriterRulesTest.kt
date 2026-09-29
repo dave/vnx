@@ -15,7 +15,6 @@ import kotlin.test.assertTrue
  * documents as JSON trees.
  */
 class WriterRulesTest {
-
     private val corpus = File(System.getProperty("vnx.corpus")!!)
 
     @Test
@@ -90,15 +89,24 @@ class WriterRulesTest {
         // spelling of it than `1.778914991E12`. Both are the same double, so this
         // is legibility rather than conformance — and the bound is not decoration,
         // because `Double.toLong()` saturates.
-        val document = Vnx.readDocument(
-            """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
-        ).document
+        val document =
+            Vnx
+                .readDocument(
+                    """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
+                ).document
         val written = Vnx.write(document)
         assertTrue(written.contains("\"t\":1778914991000"), written)
         assertTrue(!written.contains("9223372036854775807"), "a saturated Long would be a different value: $written")
-        assertEquals(1e19, (JsonParser.parse(written).let { it as JsonObject }
-            .let { ((it["waypoints"] as JsonArray).elements[0] as JsonObject) }
-            .let { ((it["data"] as JsonArray).elements[0] as JsonObject) }["huge"] as JsonNumber).value)
+        assertEquals(
+            1e19,
+            (
+                JsonParser
+                    .parse(written)
+                    .let { it as JsonObject }
+                    .let { ((it["waypoints"] as JsonArray).elements[0] as JsonObject) }
+                    .let { ((it["data"] as JsonArray).elements[0] as JsonObject) }["huge"] as JsonNumber
+            ).value,
+        )
     }
 
     // ------------------------------------------------ what a writer refuses
@@ -106,11 +114,12 @@ class WriterRulesTest {
     private val nodes = mapOf("a" to Vertex(-3.0, 57.0), "b" to Vertex(-2.0, 57.0))
     private val ab = mapOf("ab" to Arc("a", "b", emptyList()))
 
-    private fun network(walk: List<Pass>, arcs: Map<String, Arc> = ab) =
-        VnxDocument(vnx = "0.2.0", networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))))
+    private fun network(
+        walk: List<Pass>,
+        arcs: Map<String, Arc> = ab,
+    ) = VnxDocument(vnx = "0.2.0", networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))))
 
-    private fun refused(document: VnxDocument): String =
-        assertFailsWith<IllegalArgumentException> { Vnx.write(document) }.message!!
+    private fun refused(document: VnxDocument): String = assertFailsWith<IllegalArgumentException> { Vnx.write(document) }.message!!
 
     @Test
     fun `a writer emits a ring open, and refuses a closed one rather than opening it`() {
@@ -137,13 +146,14 @@ class WriterRulesTest {
 
     @Test
     fun `a writer refuses a walk its own reader would drop, naming the pass and the code`() {
-        val cases = listOf(
-            listOf(Pass("ghost", from = Endpoint.Node("a"), to = Endpoint.Node("b"))) to "pass-arc-absent",
-            listOf(Pass("ab", to = Endpoint.Node("b"))) to "walk-spelling",
-            listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.Node("x"))) to "walk-not-connected",
-            listOf(Pass("ab", from = Endpoint.Node("a"), turn = LonLat(-2.5, 57.0), pinned = true, to = Endpoint.Node("a"))) to
-                "pinned-turn",
-        )
+        val cases =
+            listOf(
+                listOf(Pass("ghost", from = Endpoint.Node("a"), to = Endpoint.Node("b"))) to "pass-arc-absent",
+                listOf(Pass("ab", to = Endpoint.Node("b"))) to "walk-spelling",
+                listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.Node("x"))) to "walk-not-connected",
+                listOf(Pass("ab", from = Endpoint.Node("a"), turn = LonLat(-2.5, 57.0), pinned = true, to = Endpoint.Node("a"))) to
+                    "pinned-turn",
+            )
         for ((walk, code) in cases) {
             val message = refused(network(walk))
             assertTrue(message.contains("pass 0") && message.contains(code), "$walk: $message")
@@ -152,11 +162,12 @@ class WriterRulesTest {
 
     @Test
     fun `a writer refuses a route whose walk is not node to node`() {
-        val route = Route(
-            walk = listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.At(LonLat(-2.5, 57.0)))),
-            nodes = nodes,
-            arcs = ab,
-        )
+        val route =
+            Route(
+                walk = listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.At(LonLat(-2.5, 57.0)))),
+                nodes = nodes,
+                arcs = ab,
+            )
         assertTrue(refused(VnxDocument(vnx = "0.2.0", routes = listOf(route))).contains("route-pin-or-position"))
     }
 
@@ -165,17 +176,19 @@ class WriterRulesTest {
         // Section 3.3.3: a writer MUST emit `pinned` only when its value is true.
         val nodes = nodes + ("c" to Vertex(-1.0, 57.0))
         val arcs = ab + ("bc" to Arc("b", "c", listOf(Vertex(-1.5, 57.1, 40.0))))
-        val walk = listOf(
-            Pass("ab", from = Endpoint.At(LonLat(-2.5, 57.0)), to = Endpoint.Node("b")),
-            Pass("bc", pinned = true),
-            Pass("bc", turn = LonLat(-1.2, 57.05)),
-            Pass("bc"),
-            Pass("ab", pinned = false, to = Endpoint.Node("a")),
-        )
-        val document = VnxDocument(
-            vnx = "0.2.0",
-            networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))),
-        )
+        val walk =
+            listOf(
+                Pass("ab", from = Endpoint.At(LonLat(-2.5, 57.0)), to = Endpoint.Node("b")),
+                Pass("bc", pinned = true),
+                Pass("bc", turn = LonLat(-1.2, 57.05)),
+                Pass("bc"),
+                Pass("ab", pinned = false, to = Endpoint.Node("a")),
+            )
+        val document =
+            VnxDocument(
+                vnx = "0.2.0",
+                networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))),
+            )
         val written = Vnx.write(document)
         assertTrue(
             written.contains(

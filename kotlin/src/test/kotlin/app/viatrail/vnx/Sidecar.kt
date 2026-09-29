@@ -10,34 +10,45 @@ import java.io.File
  * parsed here with this library's own JSON parser, which is the only JSON parser
  * this project has.
  */
-class Sidecar(val file: File, private val root: JsonObject) {
-
+class Sidecar(
+    val file: File,
+    private val root: JsonObject,
+) {
     companion object {
         /** Every field the sidecar schema defines. An unknown one is a runner that is out of date. */
-        val KNOWN_FIELDS = setOf(
-            "kind", "note", "counts", "positions", "tracks",
-            "attachments", "refusal", "diagnostics", "cannot_detect",
-            // Reason codes, 2026-09-09. `message_advisory` is read by nothing on
-            // purpose: a field named `message` that nothing compares reads as a
-            // claim and is not one, and naming it advisory is what stops a runner
-            // quietly going on matching English.
-            "code", "message_advisory",
-            // The write tier's container shape, 2026-09-10: `root` names the
-            // entry the document is written as, and the attachment list beside
-            // it repeats what the manifest carries.
-            "root",
-            // 2026-09-12: `attachments` names the entries and
-            // `attachment_contents` pins their BYTES, so a reader that returns
-            // names without content cannot pass the container tier.
-            "attachment_contents",
-            // 2026-09-13: `schema` is the verdict the JSON Schema reaches on
-            // this case. It is about corpus/schema/vnx-0.2.schema.json rather
-            // than about any reader, so no implementation runner compares it —
-            // go/internal/vnxschema is what asserts it, and it fails if a case
-            // records no verdict. Named here so this runner's unknown-field
-            // guard keeps its meaning for every field that IS a reader's.
-            "schema",
-        )
+        val KNOWN_FIELDS =
+            setOf(
+                "kind",
+                "note",
+                "counts",
+                "positions",
+                "tracks",
+                "attachments",
+                "refusal",
+                "diagnostics",
+                "cannot_detect",
+                // Reason codes, 2026-09-09. `message_advisory` is read by nothing on
+                // purpose: a field named `message` that nothing compares reads as a
+                // claim and is not one, and naming it advisory is what stops a runner
+                // quietly going on matching English.
+                "code",
+                "message_advisory",
+                // The write tier's container shape, 2026-09-10: `root` names the
+                // entry the document is written as, and the attachment list beside
+                // it repeats what the manifest carries.
+                "root",
+                // 2026-09-12: `attachments` names the entries and
+                // `attachment_contents` pins their BYTES, so a reader that returns
+                // names without content cannot pass the container tier.
+                "attachment_contents",
+                // 2026-09-13: `schema` is the verdict the JSON Schema reaches on
+                // this case. It is about corpus/schema/vnx-0.2.schema.json rather
+                // than about any reader, so no implementation runner compares it —
+                // go/internal/vnxschema is what asserts it, and it fails if a case
+                // records no verdict. Named here so this runner's unknown-field
+                // guard keeps its meaning for every field that IS a reader's.
+                "schema",
+            )
 
         /**
          * The six top-level collections `counts` may name (SPEC.md section 3.1).
@@ -73,7 +84,11 @@ class Sidecar(val file: File, private val root: JsonObject) {
         }
     }
 
-    class ExpectedPosition(val at: String, val lon: Double, val lat: Double)
+    class ExpectedPosition(
+        val at: String,
+        val lon: Double,
+        val lat: Double,
+    )
 
     fun positions(): List<ExpectedPosition> {
         val v = root["positions"] as? JsonArray ?: return emptyList()
@@ -88,7 +103,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
     }
 
     /** `moving_time_ms: null` means unknown, which is not zero (SPEC.md section 3.5). */
-    class ExpectedTrack(val name: String, val movingTimeMs: Long?)
+    class ExpectedTrack(
+        val name: String,
+        val movingTimeMs: Long?,
+    )
 
     fun tracks(): List<ExpectedTrack> {
         val v = root["tracks"] as? JsonArray ?: return emptyList()
@@ -125,8 +143,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
     fun attachmentContents(): Map<String, String>? {
         val v = root["attachment_contents"] as? JsonObject ?: return null
         return v.entries().associate { (name, body) ->
-            name to ((body as? JsonString)?.value
-                ?: error("${file.name}: attachment_contents.$name is not a string"))
+            name to (
+                (body as? JsonString)?.value
+                    ?: error("${file.name}: attachment_contents.$name is not a string")
+            )
         }
     }
 
@@ -138,7 +158,10 @@ class Sidecar(val file: File, private val root: JsonObject) {
      * reader's own business, so comparing the message would re-impose on every
      * implementation the wording of whichever one wrote the fixture.
      */
-    class ExpectedDiagnostic(val path: String, val code: String) {
+    class ExpectedDiagnostic(
+        val path: String,
+        val code: String,
+    ) {
         override fun toString() = "$path: [$code]"
     }
 

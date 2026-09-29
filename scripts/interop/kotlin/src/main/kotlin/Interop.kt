@@ -19,12 +19,13 @@ fun main(args: Array<String>) {
         System.err.println("interop: read: no such file ${args[0]}")
         exitProcess(1)
     }
-    val result = try {
-        Vnx.readDocument(input.readBytes())
-    } catch (refusal: VnxRefusal) {
-        System.err.println("interop: refused: ${refusal.message}")
-        exitProcess(1)
-    }
+    val result =
+        try {
+            Vnx.readDocument(input.readBytes())
+        } catch (refusal: VnxRefusal) {
+            System.err.println("interop: refused: ${refusal.message}")
+            exitProcess(1)
+        }
     for (d in result.diagnostics) {
         System.err.println("interop: diagnostic ${d.cause.corpusCode} at ${d.path}: ${d.message}")
     }

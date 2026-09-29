@@ -19,7 +19,9 @@ package app.viatrail.vnx
  *
  * Anything this parser refuses is refused as [RefusalCause.MALFORMED_JSON].
  */
-internal class JsonParser(private val src: String) {
+internal class JsonParser(
+    private val src: String,
+) {
     private var i = 0
 
     companion object {
@@ -66,21 +68,25 @@ internal class JsonParser(private val src: String) {
         i++
     }
 
-    private fun parseValue(): JsonValue = when (val c = peek()) {
-        '{' -> parseObject()
-        '[' -> parseArray()
-        '"' -> JsonString(parseString())
-        't' -> {
-            literal("true"); JsonBool(true)
+    private fun parseValue(): JsonValue =
+        when (val c = peek()) {
+            '{' -> parseObject()
+            '[' -> parseArray()
+            '"' -> JsonString(parseString())
+            't' -> {
+                literal("true")
+                JsonBool(true)
+            }
+            'f' -> {
+                literal("false")
+                JsonBool(false)
+            }
+            'n' -> {
+                literal("null")
+                JsonNull
+            }
+            else -> if (c == '-' || c in '0'..'9') parseNumber() else fail("unexpected character '$c'")
         }
-        'f' -> {
-            literal("false"); JsonBool(false)
-        }
-        'n' -> {
-            literal("null"); JsonNull
-        }
-        else -> if (c == '-' || c in '0'..'9') parseNumber() else fail("unexpected character '$c'")
-    }
 
     private fun literal(word: String) {
         if (!src.startsWith(word, i)) fail("unexpected token, expected $word")
@@ -152,14 +158,38 @@ internal class JsonParser(private val src: String) {
                     i++
                     if (i >= src.length) fail("unterminated escape")
                     when (val e = src[i]) {
-                        '"' -> { sb.append('"'); i++ }
-                        '\\' -> { sb.append('\\'); i++ }
-                        '/' -> { sb.append('/'); i++ }
-                        'b' -> { sb.append('\u0008'); i++ }
-                        'f' -> { sb.append('\u000C'); i++ }
-                        'n' -> { sb.append('\n'); i++ }
-                        'r' -> { sb.append('\r'); i++ }
-                        't' -> { sb.append('\t'); i++ }
+                        '"' -> {
+                            sb.append('"')
+                            i++
+                        }
+                        '\\' -> {
+                            sb.append('\\')
+                            i++
+                        }
+                        '/' -> {
+                            sb.append('/')
+                            i++
+                        }
+                        'b' -> {
+                            sb.append('\u0008')
+                            i++
+                        }
+                        'f' -> {
+                            sb.append('\u000C')
+                            i++
+                        }
+                        'n' -> {
+                            sb.append('\n')
+                            i++
+                        }
+                        'r' -> {
+                            sb.append('\r')
+                            i++
+                        }
+                        't' -> {
+                            sb.append('\t')
+                            i++
+                        }
                         'u' -> {
                             i++
                             if (i + 4 > src.length) fail("truncated unicode escape")

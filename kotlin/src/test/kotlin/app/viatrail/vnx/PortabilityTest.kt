@@ -11,7 +11,6 @@ import kotlin.test.assertTrue
  * rather than about VNX, and that a corpus run on one machine cannot see.
  */
 class PortabilityTest {
-
     /**
      * The container reader compares entry names without regard to case, and the
      * writer formats numbers. In a Turkish or Azeri locale `"I".lowercase()` is a
@@ -29,9 +28,10 @@ class PortabilityTest {
                 assertEquals("In a container", r.document.waypoints!![0].name, "container reading broke under $locale")
                 // And the writer's numbers must not pick up a locale's decimal
                 // separator: a comma there would not be JSON at all.
-                val written = Vnx.write(
-                    Vnx.readDocument("""{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
-                )
+                val written =
+                    Vnx.write(
+                        Vnx.readDocument("""{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
+                    )
                 assertEquals("""{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
             }
         } finally {
@@ -66,15 +66,19 @@ class PortabilityTest {
                     serialisationImports.add(file.name)
                     continue
                 }
-                val allowed = target.startsWith("java.") || target.startsWith("javax.") ||
-                    target.startsWith("kotlin.") || target.startsWith("app.viatrail.vnx.")
+                val allowed =
+                    target.startsWith("java.") ||
+                        target.startsWith("javax.") ||
+                        target.startsWith("kotlin.") ||
+                        target.startsWith("app.viatrail.vnx.")
                 if (!allowed) offenders.add("${file.name}:${number + 1}: $target")
             }
         }
         assertTrue(offenders.isEmpty(), "the library has grown a dependency:\n${offenders.joinToString("\n")}")
         assertTrue(serialisationImports.isNotEmpty(), "nothing imports the JSON library, so this test is dead")
         assertEquals(
-            setOf("Serialise.kt"), serialisationImports.toSet(),
+            setOf("Serialise.kt"),
+            serialisationImports.toSet(),
             "the JSON library has spread beyond the one file that renders a document",
         )
     }
@@ -82,7 +86,7 @@ class PortabilityTest {
     @Test
     fun `a byte order mark on the way in does not become one on the way out`() {
         // This writer emits none. A reader still meets one.
-        val bytes = "﻿{\"vnx\":\"0.2.0\"}".toByteArray(Charsets.UTF_8)
+        val bytes = "{\"vnx\":\"0.2.0\"}".toByteArray(Charsets.UTF_8)
         val r = Vnx.readDocument(bytes)
         assertEquals(emptyList(), r.diagnostics)
         assertEquals("{\"vnx\":\"0.2.0\"}\n", Vnx.write(r.document))

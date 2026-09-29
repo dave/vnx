@@ -11,8 +11,11 @@ import java.math.BigInteger
  * rather than textual. [BigInteger] rather than [Int] because "no bound on
  * length" means exactly that.
  */
-data class Version(val major: BigInteger, val minor: BigInteger, val patch: BigInteger) {
-
+data class Version(
+    val major: BigInteger,
+    val minor: BigInteger,
+    val patch: BigInteger,
+) {
     override fun toString() = "$major.$minor.$patch"
 
     companion object {

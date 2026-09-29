@@ -16,9 +16,7 @@ import kotlin.test.assertNull
  * is read at all.
  */
 class DiagnosticMatcherTest {
-
-    private fun expect(vararg pairs: Pair<String, String>) =
-        pairs.map { Sidecar.ExpectedDiagnostic(it.first, it.second) }
+    private fun expect(vararg pairs: Pair<String, String>) = pairs.map { Sidecar.ExpectedDiagnostic(it.first, it.second) }
 
     /** The message is deliberately unhelpful: nothing may depend on it. */
     private fun report(vararg pairs: Pair<String, DiagnosticCause>) =

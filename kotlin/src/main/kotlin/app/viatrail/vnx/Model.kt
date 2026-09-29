@@ -36,7 +36,10 @@ data class VnxDocument(
 /**
  * One application key (SPEC.md section 3.9). [value] is never inspected.
  */
-data class AppKey(val key: String, val value: JsonValue) {
+data class AppKey(
+    val key: String,
+    val value: JsonValue,
+) {
     companion object {
         /** Whether a top-level key is an application key: it contains a full stop. */
         fun isAppKey(key: String): Boolean = '.' in key
@@ -63,7 +66,10 @@ data class Position(
     val timeMs: Double? = null,
 ) {
     companion object {
-        fun of(lon: Double, lat: Double) = Position(lon, lat)
+        fun of(
+            lon: Double,
+            lat: Double,
+        ) = Position(lon, lat)
     }
 }
 
@@ -75,7 +81,11 @@ data class Position(
  * pip cannot be built and so cannot be written. The reader drops such a time
  * with a diagnostic, and nothing downstream has to remember to.
  */
-data class Vertex(val lon: Double, val lat: Double, val ele: Double? = null) {
+data class Vertex(
+    val lon: Double,
+    val lat: Double,
+    val ele: Double? = null,
+) {
     /** The vertex as a wire position, with no time. */
     fun position() = Position(lon, lat, ele)
 }
@@ -86,7 +96,10 @@ data class Vertex(val lon: Double, val lat: Double, val ele: Double? = null) {
  * Longitude and latitude only. Its elevation is the arc line's at the point it
  * identifies, so a stored one would be a second copy of a fact the arc holds.
  */
-data class LonLat(val lon: Double, val lat: Double) {
+data class LonLat(
+    val lon: Double,
+    val lat: Double,
+) {
     /** The walk position as a wire position. */
     fun position() = Position(lon, lat)
 }
@@ -96,7 +109,10 @@ data class LonLat(val lon: Double, val lat: Double) {
  * from `@type`, and must survive a read-modify-write at value level whether or
  * not the reader recognises the type.
  */
-data class DataRecord(val type: String, val body: JsonObject)
+data class DataRecord(
+    val type: String,
+    val body: JsonObject,
+)
 
 data class Folder(
     val id: String,
@@ -172,8 +188,13 @@ data class Pass(
  * (SPEC.md section 3.3.3).
  */
 sealed interface Endpoint {
-    data class Node(val key: String) : Endpoint
-    data class At(val position: LonLat) : Endpoint
+    data class Node(
+        val key: String,
+    ) : Endpoint
+
+    data class At(
+        val position: LonLat,
+    ) : Endpoint
 }
 
 /**
@@ -242,7 +263,9 @@ data class Track(
     }
 }
 
-data class Segment(val pips: List<Position>)
+data class Segment(
+    val pips: List<Position>,
+)
 
 /**
  * A top-level waypoint or a network's point. SPEC.md section 3.6 makes them one

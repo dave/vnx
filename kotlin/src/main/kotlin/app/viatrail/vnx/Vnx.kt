@@ -10,7 +10,6 @@ import java.io.File
  * implementation are conversion tools, not part of the format, and are not here.
  */
 object Vnx {
-
     /** The format version this library implements. */
     val version: Version get() = Version.SUPPORTED
 
@@ -111,8 +110,11 @@ object Vnx {
 
     /** Reads a `.vnx` or `.vnz` from disk, choosing by extension. */
     fun read(file: File): ReadResult =
-        if (file.name.endsWith(".vnz", ignoreCase = true)) readContainer(file.readBytes())
-        else readDocument(file.readBytes())
+        if (file.name.endsWith(".vnz", ignoreCase = true)) {
+            readContainer(file.readBytes())
+        } else {
+            readDocument(file.readBytes())
+        }
 
     // -------------------------------------------------------------- writing
 
@@ -140,10 +142,15 @@ object Vnx {
      * a reader applies, because a writer that can emit an archive its own reader
      * refuses is a writer with a hole in it.
      */
-    fun writeContainer(document: VnxDocument, attachments: Map<String, ByteArray> = emptyMap()): ByteArray =
-        container(write(document), attachments)
+    fun writeContainer(
+        document: VnxDocument,
+        attachments: Map<String, ByteArray> = emptyMap(),
+    ): ByteArray = container(write(document), attachments)
 
-    private fun container(documentText: String, attachments: Map<String, ByteArray>): ByteArray {
+    private fun container(
+        documentText: String,
+        attachments: Map<String, ByteArray>,
+    ): ByteArray {
         val entries = ArrayList<Zip.ToWrite>()
         entries.add(Zip.ToWrite(ROOT_DOCUMENT, documentText.toByteArray(Charsets.UTF_8)))
         val seen = HashMap<String, String>()
@@ -209,10 +216,11 @@ object Vnx {
      * a legal name and escapes nothing.
      */
     private fun checkPath(name: String) {
-        fun bad(why: String): Nothing = refuse(
-            RefusalCause.CONTAINER_PATH_ESCAPES,
-            "the entry \"$name\" escapes the archive: $why",
-        )
+        fun bad(why: String): Nothing =
+            refuse(
+                RefusalCause.CONTAINER_PATH_ESCAPES,
+                "the entry \"$name\" escapes the archive: $why",
+            )
         if (name.startsWith("/")) bad("it is an absolute path")
         if (name.contains('\\')) bad("paths are forward-slash separated")
         if (name.length >= 2 && name[1] == ':' && name[0].isAsciiLetter()) bad("it carries a drive letter")

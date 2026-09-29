@@ -60,8 +60,16 @@ if [ -z "${JAVA_HOME:-}" ]; then
 else
   for build in kotlin scripts/interop/kotlin; do
     rm -rf "$build/build/reports/ktlint"
-    (cd "$build" && "$ROOT/kotlin/gradlew" -q -p . ktlintCheck --rerun-tasks > /dev/null 2>&1) ||
-      fail "ktlint would change (in $build): $(cat "$build"/build/reports/ktlint/*/*.txt 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -o '^/[^:]*' | sed "s|$ROOT/||" | sort -u | tr '\n' ' ')"
+    if ! out="$(cd "$build" && "$ROOT/kotlin/gradlew" -q -p . ktlintCheck --rerun-tasks 2>&1)"; then
+      files="$(cat "$build"/build/reports/ktlint/*/*.txt 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -o '^/[^:]*' | sed "s|$ROOT/||" | sort -u | tr '\n' ' ')"
+      # A Gradle or JVM failure names no file. Saying "would change" with an
+      # empty list would report a broken toolchain as unformatted code.
+      if [ -n "$files" ]; then
+        fail "ktlint would change (in $build): $files"
+      else
+        fail "ktlint could not run (in $build): $(echo "$out" | sed 's/\x1b\[[0-9;]*m//g' | grep -v '^[[:space:]]*$' | head -1)"
+      fi
+    fi
   done
 fi
 

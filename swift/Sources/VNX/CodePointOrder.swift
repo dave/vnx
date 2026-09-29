@@ -20,15 +20,15 @@ import Foundation
 /// attachment order is compared nowhere — so the comparator would still be here
 /// if the sort went tomorrow.
 func codePointLess(_ a: String, _ b: String) -> Bool {
-    var x = a.unicodeScalars.makeIterator()
-    var y = b.unicodeScalars.makeIterator()
-    while true {
-        switch (x.next(), y.next()) {
-        case (nil, nil): return false
-        case (nil, _): return true
-        case (_, nil): return false
-        case (let l?, let r?):
-            if l.value != r.value { return l.value < r.value }
-        }
+  var x = a.unicodeScalars.makeIterator()
+  var y = b.unicodeScalars.makeIterator()
+  while true {
+    switch (x.next(), y.next()) {
+    case (nil, nil): return false
+    case (nil, _): return true
+    case (_, nil): return false
+    case (let l?, let r?):
+      if l.value != r.value { return l.value < r.value }
     }
+  }
 }

@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import VNX
 
 /// JSON-tree comparison, which is what the corpus compares now that the bytes
@@ -13,264 +14,271 @@ import Foundation
 /// a reader kept what it read. `AcceptTierProofTests` freezes the proof.
 enum Tree {
 
-    /// Which normalisations a comparison applies.
+  /// Which normalisations a comparison applies.
+  ///
+  /// ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares
+  /// a document against a re-encoding of itself, so SPEC 4.1's shortest
+  /// spelling is applied to both sides — otherwise the tier would require the
+  /// file to have been written by this library. The write tier compares one
+  /// writer's output against another's, where that rule is the very thing
+  /// under test: normalising it there would make the tier prove nothing.
+  struct Options {
+    /// Applies SPEC 4.1's writer rule — dropping a trailing `null` channel
+    /// — to both sides.
     ///
-    /// ⚠ THE TWO TIERS NORMALISE DIFFERENTLY, AND MUST. The accept tier compares
-    /// a document against a re-encoding of itself, so SPEC 4.1's shortest
-    /// spelling is applied to both sides — otherwise the tier would require the
-    /// file to have been written by this library. The write tier compares one
-    /// writer's output against another's, where that rule is the very thing
-    /// under test: normalising it there would make the tier prove nothing.
-    struct Options {
-        /// Applies SPEC 4.1's writer rule — dropping a trailing `null` channel
-        /// — to both sides.
-        ///
-        /// Precision is NOT one of these. SPEC 4.1 no longer constrains how
-        /// precisely a writer states a coordinate, and SPEC 8.1 permits exactly
-        /// two normalisations: a dropped trailing `null`, and an absent
-        /// container equal to an empty one. A comparator that rounded would be
-        /// blind to a writer that lost digits.
-        var emitBoundary = false
-    }
+    /// Precision is NOT one of these. SPEC 4.1 no longer constrains how
+    /// precisely a writer states a coordinate, and SPEC 8.1 permits exactly
+    /// two normalisations: a dropped trailing `null`, and an absent
+    /// container equal to an empty one. A comparator that rounded would be
+    /// blind to a writer that lost digits.
+    var emitBoundary = false
+  }
 
-    struct ParseFailure: Error, CustomStringConvertible {
-        let description: String
-    }
+  struct ParseFailure: Error, CustomStringConvertible {
+    let description: String
+  }
 
-    static func parse(_ data: Data, _ what: String) throws -> JSONValue {
-        do {
-            return try JSONParser.parse(data)
-        } catch {
-            throw ParseFailure(description: "\(what) is not JSON: \(error)")
+  static func parse(_ data: Data, _ what: String) throws -> JSONValue {
+    do {
+      return try JSONParser.parse(data)
+    } catch {
+      throw ParseFailure(description: "\(what) is not JSON: \(error)")
+    }
+  }
+
+  /// The first place two documents differ, in JSON Pointer form, or `nil` when
+  /// they are equal.
+  ///
+  /// A PATH rather than a boolean, because a failing corpus case has to say
+  /// which rule broke to be actionable.
+  static func difference(got: Data, want: Data, _ options: Options = Options()) throws -> String? {
+    let g = normaliseDocument(try parse(got, "the encoded document"), options)
+    let w = normaliseDocument(try parse(want, "the expected document"), options)
+    return diff(got: g, want: w, path: "")
+  }
+
+  // MARK: - Normalisation
+
+  /// Walks a decoded VNX document and applies the two normalisations SPEC 8.1
+  /// permits, and no others.
+  ///
+  /// SCHEMA-AWARE rather than a heuristic over shapes, because the two regions
+  /// the format declares opaque — a data record's body and a style — may hold
+  /// arrays of numbers that are not positions and must not be rounded, and may
+  /// hold empty containers that a third party means to keep.
+  static func normaliseDocument(_ v: JSONValue, _ o: Options) -> JSONValue {
+    guard var obj = v.objectValue else { return v }
+    normItems(&obj, "folders", o, normFolder)
+    normItems(&obj, "waypoints", o, normWaypoint)
+    normItems(&obj, "areas", o, normArea)
+    normItems(&obj, "tracks", o, normTrack)
+    normItems(&obj, "routes", o, normRoute)
+    normItems(&obj, "networks", o, normNetwork)
+    // Application keys are not touched: SPEC 3.9 exempts them from SPEC
+    // 8.1's absent-equals-empty normalisation, so an empty or `null` value
+    // is compared as written and a key dropped for holding one differs.
+    return .object(obj)
+  }
+
+  private static func normFolder(_ o: inout OpaqueObject, _ opt: Options) {
+    dropEmptyContainer(&o, "data")
+  }
+
+  private static func normWaypoint(_ o: inout OpaqueObject, _ opt: Options) {
+    if let at = o["at"] { o["at"] = normPosition(at, opt) }
+    dropEmptyContainer(&o, "style")
+    dropEmptyContainer(&o, "data")
+  }
+
+  private static func normArea(_ o: inout OpaqueObject, _ opt: Options) {
+    normPositionList(&o, "polygon", opt)
+    dropEmptyContainer(&o, "style")
+    dropEmptyContainer(&o, "data")
+  }
+
+  private static func normTrack(_ o: inout OpaqueObject, _ opt: Options) {
+    normItems(&o, "segments", opt) { s, opt in normPositionList(&s, "pips", opt) }
+    dropEmptyContainer(&o, "style")
+    dropEmptyContainer(&o, "data")
+  }
+
+  private static func normRoute(_ o: inout OpaqueObject, _ opt: Options) {
+    normGraph(&o, opt)
+    normWalk(&o, opt)
+    dropEmptyContainer(&o, "style")
+    dropEmptyContainer(&o, "data")
+  }
+
+  private static func normArc(_ o: inout OpaqueObject, _ opt: Options) {
+    normPositionList(&o, "pips", opt)
+    dropEmptyContainer(&o, "data")
+  }
+
+  /// The `nodes` and `arcs` a network and a route share (SPEC 3.4: a route
+  /// owns a graph of the network's shape).
+  private static func normGraph(_ o: inout OpaqueObject, _ opt: Options) {
+    if let nodes = o["nodes"]?.objectValue {
+      o["nodes"] = .object(nodes.mapValues { normPosition($0, opt) })
+    }
+    if let arcs = o["arcs"]?.objectValue {
+      o["arcs"] = .object(
+        arcs.mapValues { value in
+          guard var a = value.objectValue else { return value }
+          normArc(&a, opt)
+          return .object(a)
+        })
+    }
+    dropEmptyContainer(&o, "nodes")
+    dropEmptyContainer(&o, "arcs")
+  }
+
+  private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
+    normGraph(&o, opt)
+    normItems(&o, "chains", opt, normChain)
+    normItems(&o, "points", opt, normWaypoint)
+    normItems(&o, "areas", opt, normArea)
+    dropEmptyContainer(&o, "data")
+  }
+
+  /// A walk's positions. `from` and `to` are a node key or a position (SPEC
+  /// 3.3.3); only the second is a position, and `normPosition` leaves a
+  /// string alone. `turn` is always a position.
+  ///
+  /// ⚠ AN EMPTY WALK IS KEPT: `walk` is REQUIRED (SPEC 3.10), so `"walk": []`
+  /// and an absent walk are different documents, and folding one into the
+  /// other would hide a writer that drops the key.
+  private static func normWalk(_ o: inout OpaqueObject, _ opt: Options) {
+    guard let passes = o["walk"]?.arrayValue else { return }
+    o["walk"] = .array(
+      passes.map { item in
+        guard var p = item.objectValue else { return item }
+        for key: JSONKey in ["from", "to", "turn"] {
+          if let v = p[key] { p[key] = normPosition(v, opt) }
         }
+        return .object(p)
+      })
+  }
+
+  private static func normChain(_ o: inout OpaqueObject, _ opt: Options) {
+    normWalk(&o, opt)
+    dropEmptyContainer(&o, "style")
+    dropEmptyContainer(&o, "data")
+  }
+
+  /// Normalises an array of objects under `key`, and drops the key when the
+  /// array is empty.
+  private static func normItems(
+    _ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options,
+    _ each: (inout OpaqueObject, Options) -> Void
+  ) {
+    guard let arr = o[key]?.arrayValue else { return }
+    if arr.isEmpty {
+      o.removeValue(forKey: key)
+      return
     }
-
-    /// The first place two documents differ, in JSON Pointer form, or `nil` when
-    /// they are equal.
-    ///
-    /// A PATH rather than a boolean, because a failing corpus case has to say
-    /// which rule broke to be actionable.
-    static func difference(got: Data, want: Data, _ options: Options = Options()) throws -> String? {
-        let g = normaliseDocument(try parse(got, "the encoded document"), options)
-        let w = normaliseDocument(try parse(want, "the expected document"), options)
-        return diff(got: g, want: w, path: "")
-    }
-
-    // MARK: - Normalisation
-
-    /// Walks a decoded VNX document and applies the two normalisations SPEC 8.1
-    /// permits, and no others.
-    ///
-    /// SCHEMA-AWARE rather than a heuristic over shapes, because the two regions
-    /// the format declares opaque — a data record's body and a style — may hold
-    /// arrays of numbers that are not positions and must not be rounded, and may
-    /// hold empty containers that a third party means to keep.
-    static func normaliseDocument(_ v: JSONValue, _ o: Options) -> JSONValue {
-        guard var obj = v.objectValue else { return v }
-        normItems(&obj, "folders", o, normFolder)
-        normItems(&obj, "waypoints", o, normWaypoint)
-        normItems(&obj, "areas", o, normArea)
-        normItems(&obj, "tracks", o, normTrack)
-        normItems(&obj, "routes", o, normRoute)
-        normItems(&obj, "networks", o, normNetwork)
-        // Application keys are not touched: SPEC 3.9 exempts them from SPEC
-        // 8.1's absent-equals-empty normalisation, so an empty or `null` value
-        // is compared as written and a key dropped for holding one differs.
+    o[key] = .array(
+      arr.map { item in
+        guard var obj = item.objectValue else { return item }
+        each(&obj, opt)
         return .object(obj)
-    }
+      })
+  }
 
-    private static func normFolder(_ o: inout OpaqueObject, _ opt: Options) {
-        dropEmptyContainer(&o, "data")
+  private static func normPositionList(_ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options) {
+    guard let arr = o[key]?.arrayValue else { return }
+    if arr.isEmpty {
+      o.removeValue(forKey: key)
+      return
     }
+    o[key] = .array(arr.map { normPosition($0, opt) })
+  }
 
-    private static func normWaypoint(_ o: inout OpaqueObject, _ opt: Options) {
-        if let at = o["at"] { o["at"] = normPosition(at, opt) }
-        dropEmptyContainer(&o, "style")
-        dropEmptyContainer(&o, "data")
+  /// Applies the one thing SPEC 8.1 lets a comparison ignore about a
+  /// position: a trailing `null`. It is an emit-boundary rule and is applied
+  /// only for the accept tier; see `Options`.
+  ///
+  /// ⚠ VALUES ARE NEVER TOUCHED. This used to round channels 0–2 as well,
+  /// when SPEC 4.1 required a writer to. It does not any more, and the
+  /// rounding had to go with it: normalising a value the format does not
+  /// constrain makes the comparator agree with a writer that dropped digits.
+  ///
+  /// ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no
+  /// corpus file carries one. SPEC 4.1's preservation rule is gone, so a
+  /// fixture asking a writer to reproduce a fifth channel would be asking for
+  /// a rule the format does not state — the fixture is what changes, not the
+  /// comparison.
+  private static func normPosition(_ v: JSONValue, _ opt: Options) -> JSONValue {
+    guard var out = v.arrayValue, opt.emitBoundary else { return v }
+    while out.count > 2, out.last == .null { out.removeLast() }
+    return .array(out)
+  }
+
+  /// SPEC 3.1: an absent collection and an empty one carry the same content,
+  /// and a reader MUST treat them alike. So the comparison does too, which is
+  /// what keeps a writer that omits an empty collection conforming.
+  private static func dropEmptyContainer(_ o: inout OpaqueObject, _ key: JSONKey) {
+    switch o[key] {
+    case .array(let a) where a.isEmpty: o.removeValue(forKey: key)
+    case .object(let m) where m.isEmpty: o.removeValue(forKey: key)
+    default: break
     }
+  }
 
-    private static func normArea(_ o: inout OpaqueObject, _ opt: Options) {
-        normPositionList(&o, "polygon", opt)
-        dropEmptyContainer(&o, "style")
-        dropEmptyContainer(&o, "data")
-    }
+  // MARK: - Difference
 
-    private static func normTrack(_ o: inout OpaqueObject, _ opt: Options) {
-        normItems(&o, "segments", opt) { s, opt in normPositionList(&s, "pips", opt) }
-        dropEmptyContainer(&o, "style")
-        dropEmptyContainer(&o, "data")
-    }
-
-    private static func normRoute(_ o: inout OpaqueObject, _ opt: Options) {
-        normGraph(&o, opt)
-        normWalk(&o, opt)
-        dropEmptyContainer(&o, "style")
-        dropEmptyContainer(&o, "data")
-    }
-
-    private static func normArc(_ o: inout OpaqueObject, _ opt: Options) {
-        normPositionList(&o, "pips", opt)
-        dropEmptyContainer(&o, "data")
-    }
-
-    /// The `nodes` and `arcs` a network and a route share (SPEC 3.4: a route
-    /// owns a graph of the network's shape).
-    private static func normGraph(_ o: inout OpaqueObject, _ opt: Options) {
-        if let nodes = o["nodes"]?.objectValue {
-            o["nodes"] = .object(nodes.mapValues { normPosition($0, opt) })
+  private static func diff(got: JSONValue, want: JSONValue, path: String) -> String? {
+    switch want {
+    case .object(let w):
+      guard let g = got.objectValue else {
+        return "\(pathOrRoot(path)): got \(describe(got)), want an object"
+      }
+      for key in w.keys.sorted(by: { codePointLess($0.string, $1.string) }) {
+        guard let gv = g[key] else {
+          return "\(pathOrRoot(path)): key \"\(key)\" is missing"
         }
-        if let arcs = o["arcs"]?.objectValue {
-            o["arcs"] = .object(arcs.mapValues { value in
-                guard var a = value.objectValue else { return value }
-                normArc(&a, opt)
-                return .object(a)
-            })
+        if let d = diff(got: gv, want: w[key]!, path: path + "/" + escapePointer(key.string)) {
+          return d
         }
-        dropEmptyContainer(&o, "nodes")
-        dropEmptyContainer(&o, "arcs")
+      }
+      let extra = g.keys.filter { w[$0] == nil }.map(\.string).sorted(by: codePointLess)
+      if !extra.isEmpty {
+        return "\(pathOrRoot(path)): unexpected key(s) \(extra)"
+      }
+    case .array(let w):
+      guard let g = got.arrayValue else {
+        return "\(pathOrRoot(path)): got \(describe(got)), want an array"
+      }
+      if g.count != w.count {
+        return "\(pathOrRoot(path)): got \(g.count) element(s), want \(w.count)"
+      }
+      for i in w.indices {
+        if let d = diff(got: g[i], want: w[i], path: "\(path)/\(i)") { return d }
+      }
+    default:
+      // A number compares by VALUE (SPEC 4.2), which is what `-0 == 0`
+      // means here and what makes the comparison blind to how either side
+      // spelled it.
+      if got != want {
+        return "\(pathOrRoot(path)): got \(describe(got)), want \(describe(want))"
+      }
     }
+    return nil
+  }
 
-    private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
-        normGraph(&o, opt)
-        normItems(&o, "chains", opt, normChain)
-        normItems(&o, "points", opt, normWaypoint)
-        normItems(&o, "areas", opt, normArea)
-        dropEmptyContainer(&o, "data")
+  private static func pathOrRoot(_ p: String) -> String { p.isEmpty ? "the document" : p }
+
+  private static func escapePointer(_ k: String) -> String {
+    k.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(of: "/", with: "~1")
+  }
+
+  private static func describe(_ v: JSONValue) -> String {
+    switch v {
+    case .null: return "null"
+    case .bool(let b): return b ? "true" : "false"
+    case .number(let d): return String(d)
+    case .string(let s): return "\"\(s)\""
+    case .array: return "an array"
+    case .object: return "an object"
     }
-
-    /// A walk's positions. `from` and `to` are a node key or a position (SPEC
-    /// 3.3.3); only the second is a position, and `normPosition` leaves a
-    /// string alone. `turn` is always a position.
-    ///
-    /// ⚠ AN EMPTY WALK IS KEPT: `walk` is REQUIRED (SPEC 3.10), so `"walk": []`
-    /// and an absent walk are different documents, and folding one into the
-    /// other would hide a writer that drops the key.
-    private static func normWalk(_ o: inout OpaqueObject, _ opt: Options) {
-        guard let passes = o["walk"]?.arrayValue else { return }
-        o["walk"] = .array(passes.map { item in
-            guard var p = item.objectValue else { return item }
-            for key: JSONKey in ["from", "to", "turn"] {
-                if let v = p[key] { p[key] = normPosition(v, opt) }
-            }
-            return .object(p)
-        })
-    }
-
-    private static func normChain(_ o: inout OpaqueObject, _ opt: Options) {
-        normWalk(&o, opt)
-        dropEmptyContainer(&o, "style")
-        dropEmptyContainer(&o, "data")
-    }
-
-    /// Normalises an array of objects under `key`, and drops the key when the
-    /// array is empty.
-    private static func normItems(_ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options,
-                                  _ each: (inout OpaqueObject, Options) -> Void) {
-        guard let arr = o[key]?.arrayValue else { return }
-        if arr.isEmpty {
-            o.removeValue(forKey: key)
-            return
-        }
-        o[key] = .array(arr.map { item in
-            guard var obj = item.objectValue else { return item }
-            each(&obj, opt)
-            return .object(obj)
-        })
-    }
-
-    private static func normPositionList(_ o: inout OpaqueObject, _ key: JSONKey, _ opt: Options) {
-        guard let arr = o[key]?.arrayValue else { return }
-        if arr.isEmpty {
-            o.removeValue(forKey: key)
-            return
-        }
-        o[key] = .array(arr.map { normPosition($0, opt) })
-    }
-
-    /// Applies the one thing SPEC 8.1 lets a comparison ignore about a
-    /// position: a trailing `null`. It is an emit-boundary rule and is applied
-    /// only for the accept tier; see `Options`.
-    ///
-    /// ⚠ VALUES ARE NEVER TOUCHED. This used to round channels 0–2 as well,
-    /// when SPEC 4.1 required a writer to. It does not any more, and the
-    /// rounding had to go with it: normalising a value the format does not
-    /// constrain makes the comparator agree with a writer that dropped digits.
-    ///
-    /// ⚠ A CHANNEL THIS VERSION DOES NOT NAME IS NOT NORMALISED AWAY, and no
-    /// corpus file carries one. SPEC 4.1's preservation rule is gone, so a
-    /// fixture asking a writer to reproduce a fifth channel would be asking for
-    /// a rule the format does not state — the fixture is what changes, not the
-    /// comparison.
-    private static func normPosition(_ v: JSONValue, _ opt: Options) -> JSONValue {
-        guard var out = v.arrayValue, opt.emitBoundary else { return v }
-        while out.count > 2, out.last == .null { out.removeLast() }
-        return .array(out)
-    }
-
-    /// SPEC 3.1: an absent collection and an empty one carry the same content,
-    /// and a reader MUST treat them alike. So the comparison does too, which is
-    /// what keeps a writer that omits an empty collection conforming.
-    private static func dropEmptyContainer(_ o: inout OpaqueObject, _ key: JSONKey) {
-        switch o[key] {
-        case .array(let a) where a.isEmpty: o.removeValue(forKey: key)
-        case .object(let m) where m.isEmpty: o.removeValue(forKey: key)
-        default: break
-        }
-    }
-
-    // MARK: - Difference
-
-    private static func diff(got: JSONValue, want: JSONValue, path: String) -> String? {
-        switch want {
-        case .object(let w):
-            guard let g = got.objectValue else {
-                return "\(pathOrRoot(path)): got \(describe(got)), want an object"
-            }
-            for key in w.keys.sorted(by: { codePointLess($0.string, $1.string) }) {
-                guard let gv = g[key] else {
-                    return "\(pathOrRoot(path)): key \"\(key)\" is missing"
-                }
-                if let d = diff(got: gv, want: w[key]!, path: path + "/" + escapePointer(key.string)) { return d }
-            }
-            let extra = g.keys.filter { w[$0] == nil }.map(\.string).sorted(by: codePointLess)
-            if !extra.isEmpty {
-                return "\(pathOrRoot(path)): unexpected key(s) \(extra)"
-            }
-        case .array(let w):
-            guard let g = got.arrayValue else {
-                return "\(pathOrRoot(path)): got \(describe(got)), want an array"
-            }
-            if g.count != w.count {
-                return "\(pathOrRoot(path)): got \(g.count) element(s), want \(w.count)"
-            }
-            for i in w.indices {
-                if let d = diff(got: g[i], want: w[i], path: "\(path)/\(i)") { return d }
-            }
-        default:
-            // A number compares by VALUE (SPEC 4.2), which is what `-0 == 0`
-            // means here and what makes the comparison blind to how either side
-            // spelled it.
-            if got != want {
-                return "\(pathOrRoot(path)): got \(describe(got)), want \(describe(want))"
-            }
-        }
-        return nil
-    }
-
-    private static func pathOrRoot(_ p: String) -> String { p.isEmpty ? "the document" : p }
-
-    private static func escapePointer(_ k: String) -> String {
-        k.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(of: "/", with: "~1")
-    }
-
-    private static func describe(_ v: JSONValue) -> String {
-        switch v {
-        case .null: return "null"
-        case .bool(let b): return b ? "true" : "false"
-        case .number(let d): return String(d)
-        case .string(let s): return "\"\(s)\""
-        case .array: return "an array"
-        case .object: return "an object"
-        }
-    }
+  }
 }

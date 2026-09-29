@@ -7,242 +7,257 @@ import Foundation
 /// in archive order", and the central directory is the archive's own statement
 /// of what it contains and in what order.
 enum Zip {
-    struct Entry {
-        let name: String
-        let method: UInt16
-        let compressedSize: Int
-        let uncompressedSize: Int
-        let crc32: UInt32
-        let localHeaderOffset: Int
-        /// Where this entry's payload cannot extend past: the nearest following
-        /// local header, or the central directory.
-        ///
-        /// THE DECLARED SIZE IS A CEILING, NOT A LENGTH, which is SPEC 7's size
-        /// rule: a reader MUST NOT refuse an entry that declares more bytes than
-        /// it holds where the CRC over the bytes present agrees. Reading the
-        /// declared count instead runs into the next local header and fails the
-        /// CRC on a conforming archive. A SHORT declaration needs nothing of its
-        /// own — the same CRC catches it.
-        let payloadBound: Int
-    }
-
-    struct MalformedArchive: Error { let message: String }
-
-    static let methodStored: UInt16 = 0
-    static let methodDeflate: UInt16 = 8
-
-    // SPEC 7.1 constrains five rules and leaves every other field of the
-    // archive to the writer, so nothing below is a conformance requirement.
-    // Each value is what [APPNOTE] calls for, and they are fixed rather than
-    // defaulted so that one document always produces one archive.
-
-    /// 2.0 — the floor [APPNOTE] sets for a DEFLATED entry.
-    static let versionNeededDeflate: UInt16 = 20
-
-    /// 1980-01-01 00:00:00, the zero of the MS-DOS timestamp. `0x0000` in the
-    /// date half is NOT that zero: it decodes as day 0 of month 0, which is not
-    /// a date, and some tools reject it. The 16 bits are year-1980 (7) | month
-    /// (4) | day (5), so 1980-01-01 is 0x0021.
+  struct Entry {
+    let name: String
+    let method: UInt16
+    let compressedSize: Int
+    let uncompressedSize: Int
+    let crc32: UInt32
+    let localHeaderOffset: Int
+    /// Where this entry's payload cannot extend past: the nearest following
+    /// local header, or the central directory.
     ///
-    /// A fixed timestamp rather than the clock: a writer whose output depends
-    /// on when it ran cannot be byte-compared with anything, including itself.
-    static let dosTime: UInt16 = 0x0000
-    static let dosDate: UInt16 = 0x0021
+    /// THE DECLARED SIZE IS A CEILING, NOT A LENGTH, which is SPEC 7's size
+    /// rule: a reader MUST NOT refuse an entry that declares more bytes than
+    /// it holds where the CRC over the bytes present agrees. Reading the
+    /// declared count instead runs into the next local header and fails the
+    /// CRC on a conforming archive. A SHORT declaration needs nothing of its
+    /// own — the same CRC catches it.
+    let payloadBound: Int
+  }
 
-    // MARK: - Reading
+  struct MalformedArchive: Error { let message: String }
 
-    static func entries(in data: [UInt8]) throws -> [Entry] {
-        let (directoryOffset, entryCount) = try locateCentralDirectory(data)
-        var out: [Entry] = []
-        var p = directoryOffset
-        for _ in 0..<entryCount {
-            guard p + 46 <= data.count, u32(data, p) == 0x02014B50 else {
-                throw MalformedArchive(message: "central directory entry header not found")
-            }
-            let method = u16(data, p + 10)
-            let crc = u32(data, p + 16)
-            var compressed = Int(u32(data, p + 20))
-            var uncompressed = Int(u32(data, p + 24))
-            let nameLength = Int(u16(data, p + 28))
-            let extraLength = Int(u16(data, p + 30))
-            let commentLength = Int(u16(data, p + 32))
-            var localOffset = Int(u32(data, p + 42))
-            guard p + 46 + nameLength + extraLength + commentLength <= data.count else {
-                throw MalformedArchive(message: "central directory entry runs past the end of the archive")
-            }
-            let nameBytes = Array(data[(p + 46)..<(p + 46 + nameLength)])
-            guard let name = String(bytes: nameBytes, encoding: .utf8) else {
-                throw MalformedArchive(message: "an entry name is not UTF-8")
-            }
-            // SPEC 7: a reader MUST read an archive that uses the ZIP64
-            // extensions. The 0x0001 extra field replaces whichever of the
-            // three fields is stored as all-ones, in this order.
-            let extra = Array(data[(p + 46 + nameLength)..<(p + 46 + nameLength + extraLength)])
-            var q = 0
-            while q + 4 <= extra.count {
-                let id = u16(extra, q)
-                let size = Int(u16(extra, q + 2))
-                guard q + 4 + size <= extra.count else { break }
-                if id == 0x0001 {
-                    var r = q + 4
-                    if uncompressed == 0xFFFFFFFF, r + 8 <= q + 4 + size { uncompressed = Int(u64(extra, r)); r += 8 }
-                    if compressed == 0xFFFFFFFF, r + 8 <= q + 4 + size { compressed = Int(u64(extra, r)); r += 8 }
-                    if localOffset == 0xFFFFFFFF, r + 8 <= q + 4 + size { localOffset = Int(u64(extra, r)); r += 8 }
-                }
-                q += 4 + size
-            }
-            out.append(Entry(name: name, method: method, compressedSize: compressed,
-                             uncompressedSize: uncompressed, crc32: crc, localHeaderOffset: localOffset,
-                             payloadBound: 0))
-            p += 46 + nameLength + extraLength + commentLength
+  static let methodStored: UInt16 = 0
+  static let methodDeflate: UInt16 = 8
+
+  // SPEC 7.1 constrains five rules and leaves every other field of the
+  // archive to the writer, so nothing below is a conformance requirement.
+  // Each value is what [APPNOTE] calls for, and they are fixed rather than
+  // defaulted so that one document always produces one archive.
+
+  /// 2.0 — the floor [APPNOTE] sets for a DEFLATED entry.
+  static let versionNeededDeflate: UInt16 = 20
+
+  /// 1980-01-01 00:00:00, the zero of the MS-DOS timestamp. `0x0000` in the
+  /// date half is NOT that zero: it decodes as day 0 of month 0, which is not
+  /// a date, and some tools reject it. The 16 bits are year-1980 (7) | month
+  /// (4) | day (5), so 1980-01-01 is 0x0021.
+  ///
+  /// A fixed timestamp rather than the clock: a writer whose output depends
+  /// on when it ran cannot be byte-compared with anything, including itself.
+  static let dosTime: UInt16 = 0x0000
+  static let dosDate: UInt16 = 0x0021
+
+  // MARK: - Reading
+
+  static func entries(in data: [UInt8]) throws -> [Entry] {
+    let (directoryOffset, entryCount) = try locateCentralDirectory(data)
+    var out: [Entry] = []
+    var p = directoryOffset
+    for _ in 0..<entryCount {
+      guard p + 46 <= data.count, u32(data, p) == 0x0201_4B50 else {
+        throw MalformedArchive(message: "central directory entry header not found")
+      }
+      let method = u16(data, p + 10)
+      let crc = u32(data, p + 16)
+      var compressed = Int(u32(data, p + 20))
+      var uncompressed = Int(u32(data, p + 24))
+      let nameLength = Int(u16(data, p + 28))
+      let extraLength = Int(u16(data, p + 30))
+      let commentLength = Int(u16(data, p + 32))
+      var localOffset = Int(u32(data, p + 42))
+      guard p + 46 + nameLength + extraLength + commentLength <= data.count else {
+        throw MalformedArchive(message: "central directory entry runs past the end of the archive")
+      }
+      let nameBytes = Array(data[(p + 46)..<(p + 46 + nameLength)])
+      guard let name = String(bytes: nameBytes, encoding: .utf8) else {
+        throw MalformedArchive(message: "an entry name is not UTF-8")
+      }
+      // SPEC 7: a reader MUST read an archive that uses the ZIP64
+      // extensions. The 0x0001 extra field replaces whichever of the
+      // three fields is stored as all-ones, in this order.
+      let extra = Array(data[(p + 46 + nameLength)..<(p + 46 + nameLength + extraLength)])
+      var q = 0
+      while q + 4 <= extra.count {
+        let id = u16(extra, q)
+        let size = Int(u16(extra, q + 2))
+        guard q + 4 + size <= extra.count else { break }
+        if id == 0x0001 {
+          var r = q + 4
+          if uncompressed == 0xFFFF_FFFF, r + 8 <= q + 4 + size {
+            uncompressed = Int(u64(extra, r))
+            r += 8
+          }
+          if compressed == 0xFFFF_FFFF, r + 8 <= q + 4 + size {
+            compressed = Int(u64(extra, r))
+            r += 8
+          }
+          if localOffset == 0xFFFF_FFFF, r + 8 <= q + 4 + size {
+            localOffset = Int(u64(extra, r))
+            r += 8
+          }
         }
-        // The bound takes every entry to know and every entry needs it, so it is
-        // filled in once the directory is complete.
-        let offsets = out.map(\.localHeaderOffset)
-        return out.map { entry in
-            let bound = offsets.filter { $0 > entry.localHeaderOffset }.min() ?? directoryOffset
-            return Entry(name: entry.name, method: entry.method, compressedSize: entry.compressedSize,
-                         uncompressedSize: entry.uncompressedSize, crc32: entry.crc32,
-                         localHeaderOffset: entry.localHeaderOffset, payloadBound: bound)
-        }
+        q += 4 + size
+      }
+      out.append(
+        Entry(
+          name: name, method: method, compressedSize: compressed,
+          uncompressedSize: uncompressed, crc32: crc, localHeaderOffset: localOffset,
+          payloadBound: 0))
+      p += 46 + nameLength + extraLength + commentLength
     }
-
-    /// The uncompressed bytes of one entry.
-    ///
-    /// The sizes come from the central directory rather than from the local
-    /// header, because an entry written with a data descriptor (general purpose
-    /// bit 3) carries zeros in its local header and the central directory is
-    /// the authority in that case.
-    static func contents(of entry: Entry, in data: [UInt8]) throws -> [UInt8] {
-        let p = entry.localHeaderOffset
-        guard p + 30 <= data.count, u32(data, p) == 0x04034B50 else {
-            throw MalformedArchive(message: "local header not found for \(entry.name)")
-        }
-        let nameLength = Int(u16(data, p + 26))
-        let extraLength = Int(u16(data, p + 28))
-        let start = p + 30 + nameLength + extraLength
-        guard start <= entry.payloadBound else {
-            throw MalformedArchive(message: "the payload of \(entry.name) starts past where it must end")
-        }
-        // The declared size is a CEILING — see `Entry.payloadBound`.
-        let take = min(entry.compressedSize, entry.payloadBound - start)
-        guard start + take <= data.count else {
-            throw MalformedArchive(message: "entry data runs past the end of the archive")
-        }
-        let raw = Array(data[start..<(start + take)])
-        let bytes: [UInt8]
-        switch entry.method {
-        case methodStored: bytes = raw
-        case methodDeflate: bytes = try Deflate.decompress(raw, expectedSize: entry.uncompressedSize)
-        default: throw MalformedArchive(message: "unsupported compression method \(entry.method)")
-        }
-        guard Deflate.crc32(bytes) == entry.crc32 else {
-            throw MalformedArchive(message: "CRC mismatch for \(entry.name)")
-        }
-        return bytes
+    // The bound takes every entry to know and every entry needs it, so it is
+    // filled in once the directory is complete.
+    let offsets = out.map(\.localHeaderOffset)
+    return out.map { entry in
+      let bound = offsets.filter { $0 > entry.localHeaderOffset }.min() ?? directoryOffset
+      return Entry(
+        name: entry.name, method: entry.method, compressedSize: entry.compressedSize,
+        uncompressedSize: entry.uncompressedSize, crc32: entry.crc32,
+        localHeaderOffset: entry.localHeaderOffset, payloadBound: bound)
     }
+  }
 
-    private static func locateCentralDirectory(_ data: [UInt8]) throws -> (offset: Int, count: Int) {
-        // End of central directory, scanned backwards over the comment field.
-        var eocd = -1
-        var i = data.count - 22
-        let limit = max(0, data.count - 22 - 0xFFFF)
-        while i >= limit {
-            if i >= 0, u32(data, i) == 0x06054B50 { eocd = i; break }
-            i -= 1
-        }
-        guard eocd >= 0 else { throw MalformedArchive(message: "no end-of-central-directory record") }
-        var count = Int(u16(data, eocd + 10))
-        var offset = Int(u32(data, eocd + 16))
-
-        // ZIP64: the locator sits immediately before the EOCD record.
-        let locator = eocd - 20
-        if locator >= 0, u32(data, locator) == 0x07064B50 {
-            let zip64End = Int(u64(data, locator + 8))
-            if zip64End >= 0, zip64End + 56 <= data.count, u32(data, zip64End) == 0x06064B50 {
-                count = Int(u64(data, zip64End + 32))
-                offset = Int(u64(data, zip64End + 48))
-            }
-        }
-        guard offset >= 0, offset <= data.count else {
-            throw MalformedArchive(message: "central directory offset is out of range")
-        }
-        return (offset, count)
+  /// The uncompressed bytes of one entry.
+  ///
+  /// The sizes come from the central directory rather than from the local
+  /// header, because an entry written with a data descriptor (general purpose
+  /// bit 3) carries zeros in its local header and the central directory is
+  /// the authority in that case.
+  static func contents(of entry: Entry, in data: [UInt8]) throws -> [UInt8] {
+    let p = entry.localHeaderOffset
+    guard p + 30 <= data.count, u32(data, p) == 0x0403_4B50 else {
+      throw MalformedArchive(message: "local header not found for \(entry.name)")
     }
-
-    private static func u16(_ d: [UInt8], _ i: Int) -> UInt16 {
-        UInt16(d[i]) | UInt16(d[i + 1]) << 8
+    let nameLength = Int(u16(data, p + 26))
+    let extraLength = Int(u16(data, p + 28))
+    let start = p + 30 + nameLength + extraLength
+    guard start <= entry.payloadBound else {
+      throw MalformedArchive(message: "the payload of \(entry.name) starts past where it must end")
     }
-    private static func u32(_ d: [UInt8], _ i: Int) -> UInt32 {
-        UInt32(d[i]) | UInt32(d[i + 1]) << 8 | UInt32(d[i + 2]) << 16 | UInt32(d[i + 3]) << 24
+    // The declared size is a CEILING — see `Entry.payloadBound`.
+    let take = min(entry.compressedSize, entry.payloadBound - start)
+    guard start + take <= data.count else {
+      throw MalformedArchive(message: "entry data runs past the end of the archive")
     }
-    private static func u64(_ d: [UInt8], _ i: Int) -> UInt64 {
-        var v: UInt64 = 0
-        for k in (0..<8).reversed() { v = v << 8 | UInt64(d[i + k]) }
-        return v
+    let raw = Array(data[start..<(start + take)])
+    let bytes: [UInt8]
+    switch entry.method {
+    case methodStored: bytes = raw
+    case methodDeflate: bytes = try Deflate.decompress(raw, expectedSize: entry.uncompressedSize)
+    default: throw MalformedArchive(message: "unsupported compression method \(entry.method)")
     }
-
-    // MARK: - Writing
-
-    /// Writes a plain (non-ZIP64) archive with every entry DEFLATED.
-    ///
-    /// SPEC 7.1: "Every entry MUST be stored or deflated. A writer MAY choose
-    /// either, per entry." Deflate rather than stored because a VNX document is
-    /// JSON and compresses to a fraction of itself, and an attachment a caller
-    /// hands over has already been through whatever compression suits it.
-    ///
-    /// The archive is fully determined by its content: no clock, no file mode,
-    /// no writer name. A writer whose output depends on when it ran cannot be
-    /// compared with anything, including its own previous run.
-    static func archive(entries: [(name: String, body: [UInt8])]) throws -> Data {
-        var out: [UInt8] = []
-        var central: [UInt8] = []
-        for (name, body) in entries {
-            let nameBytes = [UInt8](name.utf8)
-            let crc = Deflate.crc32(body)
-            let payload = try Deflate.compress(body)
-            let offset = out.count
-            out += [0x50, 0x4B, 0x03, 0x04]
-            out += le16(versionNeededDeflate)
-            out += le16(0x0800)          // UTF-8 filename flag, per SPEC 7.1
-            out += le16(methodDeflate)
-            out += le16(dosTime) + le16(dosDate)
-            out += le32(crc)
-            out += le32(UInt32(payload.count))
-            out += le32(UInt32(body.count))
-            out += le16(UInt16(nameBytes.count))
-            out += le16(0)
-            out += nameBytes
-            out += payload
-
-            central += [0x50, 0x4B, 0x01, 0x02]
-            central += le16(versionNeededDeflate) + le16(versionNeededDeflate)
-            central += le16(0x0800)
-            central += le16(methodDeflate)
-            central += le16(dosTime) + le16(dosDate)
-            central += le32(crc)
-            central += le32(UInt32(payload.count))
-            central += le32(UInt32(body.count))
-            central += le16(UInt16(nameBytes.count))
-            central += le16(0) + le16(0)
-            central += le16(0) + le16(0)
-            central += le32(0)
-            central += le32(UInt32(offset))
-            central += nameBytes
-        }
-        let centralOffset = out.count
-        out += central
-        out += [0x50, 0x4B, 0x05, 0x06]
-        out += le16(0) + le16(0)
-        out += le16(UInt16(entries.count)) + le16(UInt16(entries.count))
-        out += le32(UInt32(central.count))
-        out += le32(UInt32(centralOffset))
-        out += le16(0)
-        return Data(out)
+    guard Deflate.crc32(bytes) == entry.crc32 else {
+      throw MalformedArchive(message: "CRC mismatch for \(entry.name)")
     }
+    return bytes
+  }
 
-    private static func le16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8)] }
-    private static func le32(_ v: UInt32) -> [UInt8] {
-        [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)]
+  private static func locateCentralDirectory(_ data: [UInt8]) throws -> (offset: Int, count: Int) {
+    // End of central directory, scanned backwards over the comment field.
+    var eocd = -1
+    var i = data.count - 22
+    let limit = max(0, data.count - 22 - 0xFFFF)
+    while i >= limit {
+      if i >= 0, u32(data, i) == 0x0605_4B50 {
+        eocd = i
+        break
+      }
+      i -= 1
     }
+    guard eocd >= 0 else { throw MalformedArchive(message: "no end-of-central-directory record") }
+    var count = Int(u16(data, eocd + 10))
+    var offset = Int(u32(data, eocd + 16))
+
+    // ZIP64: the locator sits immediately before the EOCD record.
+    let locator = eocd - 20
+    if locator >= 0, u32(data, locator) == 0x0706_4B50 {
+      let zip64End = Int(u64(data, locator + 8))
+      if zip64End >= 0, zip64End + 56 <= data.count, u32(data, zip64End) == 0x0606_4B50 {
+        count = Int(u64(data, zip64End + 32))
+        offset = Int(u64(data, zip64End + 48))
+      }
+    }
+    guard offset >= 0, offset <= data.count else {
+      throw MalformedArchive(message: "central directory offset is out of range")
+    }
+    return (offset, count)
+  }
+
+  private static func u16(_ d: [UInt8], _ i: Int) -> UInt16 {
+    UInt16(d[i]) | UInt16(d[i + 1]) << 8
+  }
+  private static func u32(_ d: [UInt8], _ i: Int) -> UInt32 {
+    UInt32(d[i]) | UInt32(d[i + 1]) << 8 | UInt32(d[i + 2]) << 16 | UInt32(d[i + 3]) << 24
+  }
+  private static func u64(_ d: [UInt8], _ i: Int) -> UInt64 {
+    var v: UInt64 = 0
+    for k in (0..<8).reversed() { v = v << 8 | UInt64(d[i + k]) }
+    return v
+  }
+
+  // MARK: - Writing
+
+  /// Writes a plain (non-ZIP64) archive with every entry DEFLATED.
+  ///
+  /// SPEC 7.1: "Every entry MUST be stored or deflated. A writer MAY choose
+  /// either, per entry." Deflate rather than stored because a VNX document is
+  /// JSON and compresses to a fraction of itself, and an attachment a caller
+  /// hands over has already been through whatever compression suits it.
+  ///
+  /// The archive is fully determined by its content: no clock, no file mode,
+  /// no writer name. A writer whose output depends on when it ran cannot be
+  /// compared with anything, including its own previous run.
+  static func archive(entries: [(name: String, body: [UInt8])]) throws -> Data {
+    var out: [UInt8] = []
+    var central: [UInt8] = []
+    for (name, body) in entries {
+      let nameBytes = [UInt8](name.utf8)
+      let crc = Deflate.crc32(body)
+      let payload = try Deflate.compress(body)
+      let offset = out.count
+      out += [0x50, 0x4B, 0x03, 0x04]
+      out += le16(versionNeededDeflate)
+      out += le16(0x0800)  // UTF-8 filename flag, per SPEC 7.1
+      out += le16(methodDeflate)
+      out += le16(dosTime) + le16(dosDate)
+      out += le32(crc)
+      out += le32(UInt32(payload.count))
+      out += le32(UInt32(body.count))
+      out += le16(UInt16(nameBytes.count))
+      out += le16(0)
+      out += nameBytes
+      out += payload
+
+      central += [0x50, 0x4B, 0x01, 0x02]
+      central += le16(versionNeededDeflate) + le16(versionNeededDeflate)
+      central += le16(0x0800)
+      central += le16(methodDeflate)
+      central += le16(dosTime) + le16(dosDate)
+      central += le32(crc)
+      central += le32(UInt32(payload.count))
+      central += le32(UInt32(body.count))
+      central += le16(UInt16(nameBytes.count))
+      central += le16(0) + le16(0)
+      central += le16(0) + le16(0)
+      central += le32(0)
+      central += le32(UInt32(offset))
+      central += nameBytes
+    }
+    let centralOffset = out.count
+    out += central
+    out += [0x50, 0x4B, 0x05, 0x06]
+    out += le16(0) + le16(0)
+    out += le16(UInt16(entries.count)) + le16(UInt16(entries.count))
+    out += le32(UInt32(central.count))
+    out += le32(UInt32(centralOffset))
+    out += le16(0)
+    return Data(out)
+  }
+
+  private static func le16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8)] }
+  private static func le32(_ v: UInt32) -> [UInt8] {
+    [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)]
+  }
 }

@@ -403,6 +403,22 @@ def check_diagnose_codes(problems: list[str]) -> None:
         )
 
 
+def check_format(problems: list[str]) -> None:
+    """Every source file is in its formatter's style (CONTRIBUTING.md).
+
+    The formatters are not Python and not this script's to reimplement, so
+    this runs scripts/check-format.sh and reports what it reports.
+    """
+    done = subprocess.run(
+        [str(ROOT / "scripts" / "check-format.sh")],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    if done.returncode != 0:
+        problems.append((done.stderr.strip() or done.stdout.strip()))
+
+
 def check_ruling_backlog(problems: list[str]) -> None:
     """Fail while a ruling has been made and has not reached SPEC.md.
 
@@ -431,6 +447,7 @@ def main() -> None:
     problems: list[str] = []
     check_ruling_backlog(problems)
     check_diagnose_codes(problems)
+    check_format(problems)
     check_sidecar_notes(problems)
     check_markdown_structure(problems)
     check_published(problems)

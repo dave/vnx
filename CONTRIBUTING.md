@@ -48,12 +48,43 @@ To check the documents:
 python3 scripts/check-spec.py
 ```
 
+`check-spec.py` also runs `scripts/check-format.sh`, so it fails when a source
+file is not formatted.
+
+## Format the code
+
+Every source file is in its formatter's default style. After an edit, run the
+formatter for that language:
+
+| Language | Formatter | Command |
+|---|---|---|
+| Go | gofmt | `gofmt -w <file>` |
+| Rust | rustfmt | `cd rust && cargo fmt` |
+| Python | ruff | `ruff format <file>` |
+| JavaScript | prettier, pinned in `js/package.json` | `js/node_modules/.bin/prettier --config js/.prettierrc.json --write <file>` |
+| Kotlin | ktlint, pinned in `kotlin/build.gradle.kts` | `cd kotlin && ./gradlew ktlintFormat` |
+| Swift | swift-format, from the Xcode toolchain | `xcrun swift-format format --in-place <file>` |
+
+To check every file at once:
+
+```sh
+./scripts/check-format.sh
+```
+
+It changes nothing, names each file that is not formatted, and exits non-zero
+if there is one. It needs every formatter above installed, prettier through
+`cd js && npm ci`, and `JAVA_HOME` set to a JDK 17 for ktlint. A formatter
+that is missing fails the check rather than skipping its language.
+
+A commit that reformats code carries formatting only, under
+`style(<scope>): format with <tool>`.
+
 ## Commit messages
 
 `type(scope): what the change makes true`, in the present tense, lower case, no
 full stop.
 
-The type is one of `feat`, `fix`, `test`, `refactor`, `docs` or `spec`. The
+The type is one of `feat`, `fix`, `test`, `refactor`, `style`, `docs` or `spec`. The
 scope is the directory the change lands in — `go`, `python`, `js`, `rust`,
 `kotlin`, `swift`, `corpus` — and `spec:` takes no scope.
 

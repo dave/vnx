@@ -73,9 +73,7 @@ class Versions(unittest.TestCase):
         """SPEC 2.2: PATCH never refuses, in either direction."""
         for version in ("0.2.0", "0.2.5", "0.2.99", "00.02.0000"):
             with self.subTest(version=version):
-                self.assertEqual(
-                    read(f'{{"vnx": "{version}"}}').document.vnx, version
-                )
+                self.assertEqual(read(f'{{"vnx": "{version}"}}').document.vnx, version)
 
     def test_a_newer_major_is_refused(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -159,7 +157,9 @@ class UnknownKeys(unittest.TestCase):
         )
 
     def test_an_unrecognised_style_key_survives_a_round_trip(self) -> None:
-        source = '{"vnx":"0.2.0","waypoints":[{"at":[0,0],"style":{"future-key":"value"}}]}'
+        source = (
+            '{"vnx":"0.2.0","waypoints":[{"at":[0,0],"style":{"future-key":"value"}}]}'
+        )
         document = read(source).document
         self.assertEqual(
             tree.compare_documents(
@@ -170,7 +170,9 @@ class UnknownKeys(unittest.TestCase):
 
     def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
         result = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": 3}]}')
-        self.assertEqual(messages(result), [("/waypoints/0/style", "a style must be an object")])
+        self.assertEqual(
+            messages(result), [("/waypoints/0/style", "a style must be an object")]
+        )
 
     def test_a_data_record_body_has_no_unknown_keys(self) -> None:
         # SPEC 5.1.2: a record body is opaque apart from @type.
@@ -208,7 +210,10 @@ class ApplicationKeys(unittest.TestCase):
         )
         self.assertEqual(
             sorted((d.path, d.code) for d in result.diagnostics),
-            [("/rulesets", "unknown-key"), ("/waypoints/0/app.viatrail.x", "unknown-key")],
+            [
+                ("/rulesets", "unknown-key"),
+                ("/waypoints/0/app.viatrail.x", "unknown-key"),
+            ],
         )
 
     def test_null_and_empty_values_survive_a_round_trip(self) -> None:
@@ -241,9 +246,7 @@ class Positions(unittest.TestCase):
             ' {"pips": [[-3.5, 57.2], [-3.4, 57.3]]}]}]}'
         )
         self.assertEqual(len(result.diagnostics), 1, messages(result))
-        self.assertEqual(
-            result.diagnostics[0].path, "/tracks/0/segments/0/pips/1"
-        )
+        self.assertEqual(result.diagnostics[0].path, "/tracks/0/segments/0/pips/1")
         self.assertEqual(result.diagnostics[0].code, "position-unusable")
         assert result.document.tracks is not None
         segments = result.document.tracks[0].segments
@@ -254,8 +257,7 @@ class Positions(unittest.TestCase):
 
     def test_a_null_longitude_drops_the_segment(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "tracks": [{"segments": [{"pips":'
-            ' [[null, 57.1, 3]]}]}]}'
+            '{"vnx": "0.2.0", "tracks": [{"segments": [{"pips": [[null, 57.1, 3]]}]}]}'
         )
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "position-unusable")
@@ -291,7 +293,7 @@ class Positions(unittest.TestCase):
     def test_mixed_arity_within_one_array_is_legal(self) -> None:
         result = read(
             '{"vnx": "0.2.0", "tracks": [{"segments": [{"pips":'
-            ' [[-3.6, 57.1], [-3.6, 57.1, 3], [-3.6, 57.1, null, 5]]}]}]}'
+            " [[-3.6, 57.1], [-3.6, 57.1, 3], [-3.6, 57.1, null, 5]]}]}]}"
         )
         self.assertEqual(messages(result), [])
 
@@ -328,7 +330,9 @@ class Polygons(unittest.TestCase):
 
     def test_a_closed_ring_loses_its_repeat_and_keeps_the_area(self) -> None:
         result = self.area("[[0,0],[1,0],[1,1],[0,0]]")
-        self.assertEqual(self.diagnostics(result), [("/areas/0/polygon/3", "ring-closed")])
+        self.assertEqual(
+            self.diagnostics(result), [("/areas/0/polygon/3", "ring-closed")]
+        )
         assert result.document.areas is not None
         polygon = result.document.areas[0].polygon
         assert polygon is not None
@@ -337,7 +341,9 @@ class Polygons(unittest.TestCase):
     def test_the_repeat_is_matched_on_lon_and_lat_only(self) -> None:
         """An elevation differing on the repeat does not make it a new point."""
         result = self.area("[[0,0,5],[1,0],[1,1],[0,0,9]]")
-        self.assertEqual(self.diagnostics(result), [("/areas/0/polygon/3", "ring-closed")])
+        self.assertEqual(
+            self.diagnostics(result), [("/areas/0/polygon/3", "ring-closed")]
+        )
 
     def test_a_closed_ring_too_short_after_the_repair_takes_both_codes(self) -> None:
         """SPEC 6.2: `[A, B, A]` takes `ring-closed` and `ring-too-few-points`,
@@ -345,14 +351,18 @@ class Polygons(unittest.TestCase):
         result = self.area("[[0,0],[1,0],[0,0]]")
         self.assertEqual(
             self.diagnostics(result),
-            [("/areas/0/polygon", "ring-too-few-points"),
-             ("/areas/0/polygon/2", "ring-closed")],
+            [
+                ("/areas/0/polygon", "ring-too-few-points"),
+                ("/areas/0/polygon/2", "ring-closed"),
+            ],
         )
         self.assertEqual(result.document.areas, [])
 
     def test_a_repeated_interior_position_is_not_distinct(self) -> None:
         result = self.area("[[0,0],[1,0],[1,0,7]]")
-        self.assertEqual(self.diagnostics(result), [("/areas/0/polygon", "ring-too-few-points")])
+        self.assertEqual(
+            self.diagnostics(result), [("/areas/0/polygon", "ring-too-few-points")]
+        )
         self.assertEqual(result.document.areas, [])
 
     def test_three_distinct_among_repeats_is_enough(self) -> None:
@@ -361,7 +371,9 @@ class Polygons(unittest.TestCase):
 
     def test_an_absent_polygon_drops_the_area_with_the_required_code(self) -> None:
         result = read('{"vnx": "0.2.0", "areas": [{"name": "Shapeless"}]}')
-        self.assertEqual(self.diagnostics(result), [("/areas/0/polygon", "wrong-type-required")])
+        self.assertEqual(
+            self.diagnostics(result), [("/areas/0/polygon", "wrong-type-required")]
+        )
 
 
 # A network with every shape a walk test needs.  `cb` runs c to b and has no
@@ -417,7 +429,9 @@ class Walks(unittest.TestCase):
     # -- every walk form is valid ----------------------------------------
 
     def test_a_node_to_node_walk_against_an_arcs_direction(self) -> None:
-        chain = self.assertKept('[{"arc": "cb", "from": "b"}, {"arc": "cd", "to": "d"}]')
+        chain = self.assertKept(
+            '[{"arc": "cb", "from": "b"}, {"arc": "cd", "to": "d"}]'
+        )
         assert chain.walk is not None
         self.assertEqual([p.arc for p in chain.walk], ["cb", "cd"])
         self.assertEqual(chain.walk[0].from_, "b")
@@ -432,7 +446,8 @@ class Walks(unittest.TestCase):
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.101]},'
             ' {"arc": "cb", "to": "c"}]',
-            "/1", "walk-not-connected",
+            "/1",
+            "walk-not-connected",
         )
 
     def test_a_position_at_any_distance_is_kept(self) -> None:
@@ -440,18 +455,28 @@ class Walks(unittest.TestCase):
         self.assertKept('[{"arc": "ab", "from": [-3.0, 57.5], "to": "b"}]')
 
     def test_entry_and_exit_at_one_point_is_legal(self) -> None:
-        self.assertKept('[{"arc": "ab", "from": [-3.595, 57.101], "to": [-3.595, 57.101]}]')
+        self.assertKept(
+            '[{"arc": "ab", "from": [-3.595, 57.101], "to": [-3.595, 57.101]}]'
+        )
 
     def test_an_empty_walk_is_valid(self) -> None:
         self.assertEqual(self.assertKept("[]").walk, [])
 
     def test_pinned_false_reads_as_absent(self) -> None:
-        chain = self.assertKept('[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]')
+        chain = self.assertKept(
+            '[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]'
+        )
         assert chain.walk is not None
         self.assertIs(chain.walk[0].pinned, False)
-        self.assertNotIn(b"pinned", vnx.encode_bytes(read(WALK_NETWORK % (
-            '[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]'
-        )).document))
+        self.assertNotIn(
+            b"pinned",
+            vnx.encode_bytes(
+                read(
+                    WALK_NETWORK
+                    % ('[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]')
+                ).document
+            ),
+        )
 
     # -- the required walk -----------------------------------------------
 
@@ -490,17 +515,27 @@ class Walks(unittest.TestCase):
 
     def test_3_a_wrong_typed_pinned_drops_the_field_only(self) -> None:
         result = self.walk('[{"arc": "ab", "from": "a", "to": "b", "pinned": "yes"}]')
-        self.assertEqual(codes(result), [(self.WALK + "/0/pinned", "wrong-type-optional")])
+        self.assertEqual(
+            codes(result), [(self.WALK + "/0/pinned", "wrong-type-optional")]
+        )
         self.assertEqual(self.chains(result), ["under test", "sibling"])
 
     def test_4_a_turn_spelled_as_a_node_key(self) -> None:
-        self.assertDropped('[{"arc": "ab", "from": "a", "turn": "b"}]', "/0/turn", "position-unusable")
+        self.assertDropped(
+            '[{"arc": "ab", "from": "a", "turn": "b"}]', "/0/turn", "position-unusable"
+        )
 
     def test_4_a_from_that_is_neither_key_nor_position(self) -> None:
-        self.assertDropped('[{"arc": "ab", "from": 7, "to": "b"}]', "/0/from", "position-unusable")
+        self.assertDropped(
+            '[{"arc": "ab", "from": 7, "to": "b"}]', "/0/from", "position-unusable"
+        )
 
-    def test_4_an_elevation_on_a_walk_position_is_dropped_and_the_pass_kept(self) -> None:
-        result = self.walk('[{"arc": "ab", "from": [-3.597, 57.1005, 400, 9], "to": "b"}]')
+    def test_4_an_elevation_on_a_walk_position_is_dropped_and_the_pass_kept(
+        self,
+    ) -> None:
+        result = self.walk(
+            '[{"arc": "ab", "from": [-3.597, 57.1005, 400, 9], "to": "b"}]'
+        )
         self.assertEqual(codes(result), [(self.WALK + "/0/from", "extra-channel")])
         networks = result.document.networks
         assert networks is not None and networks[0].chains is not None
@@ -511,7 +546,8 @@ class Walks(unittest.TestCase):
     def test_6_a_turn_and_a_pin_on_one_pass(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.101], "pinned": true, "to": "a"}]',
-            "/0", "pinned-turn",
+            "/0",
+            "pinned-turn",
         )
 
     def test_7_the_first_pass_lacks_from(self) -> None:
@@ -520,7 +556,8 @@ class Walks(unittest.TestCase):
     def test_7_a_later_pass_carries_from(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a"}, {"arc": "cb", "from": "b", "to": "c"}]',
-            "/1/from", "walk-spelling",
+            "/1/from",
+            "walk-spelling",
         )
 
     def test_7_the_last_pass_lacks_to(self) -> None:
@@ -529,32 +566,40 @@ class Walks(unittest.TestCase):
     def test_7_a_middle_pass_carries_to(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "to": "b"}, {"arc": "cb", "to": "c"}]',
-            "/0/to", "walk-spelling",
+            "/0/to",
+            "walk-spelling",
         )
 
     def test_7_a_position_from_needs_a_to(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": [-3.597, 57.1005]}, {"arc": "cb", "to": "c"}]',
-            "/0", "walk-spelling",
+            "/0",
+            "walk-spelling",
         )
 
     def test_8_a_from_node_that_is_not_an_end(self) -> None:
-        self.assertDropped('[{"arc": "ab", "from": "c", "to": "b"}]', "/0/from", "walk-not-connected")
+        self.assertDropped(
+            '[{"arc": "ab", "from": "c", "to": "b"}]', "/0/from", "walk-not-connected"
+        )
 
     def test_8_a_pass_that_does_not_join(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a"}, {"arc": "cd", "to": "d"}]',
-            "/1", "walk-not-connected",
+            "/1",
+            "walk-not-connected",
         )
 
     def test_8_a_to_node_that_is_not_an_end(self) -> None:
-        self.assertDropped('[{"arc": "ab", "from": "a", "to": "d"}]', "/0/to", "walk-not-connected")
+        self.assertDropped(
+            '[{"arc": "ab", "from": "a", "to": "d"}]', "/0/to", "walk-not-connected"
+        )
 
     def test_8_a_position_exit_before_the_last_pass(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": [-3.597, 57.1005], "to": [-3.596, 57.1006]},'
             ' {"arc": "ab", "to": "b"}]',
-            "/0/to", "walk-not-connected",
+            "/0/to",
+            "walk-not-connected",
         )
 
     # -- the order ------------------------------------------------------
@@ -569,18 +614,26 @@ class Walks(unittest.TestCase):
     def test_a_pinned_turn_is_found_before_the_spelling(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "turn": [-3.595, 57.101], "pinned": true}]',
-            "/0", "pinned-turn",
+            "/0",
+            "pinned-turn",
         )
 
     def test_an_absent_arc_is_found_before_anything_on_the_pass(self) -> None:
-        self.assertDropped('[{"arc": "ghost", "turn": "x", "via": 1}]', "/0", "pass-arc-absent")
+        self.assertDropped(
+            '[{"arc": "ghost", "turn": "x", "via": 1}]', "/0", "pass-arc-absent"
+        )
 
-    def test_an_unknown_key_is_still_reported_on_a_pass_that_drops_the_chain(self) -> None:
+    def test_an_unknown_key_is_still_reported_on_a_pass_that_drops_the_chain(
+        self,
+    ) -> None:
         """Diagnostics that do not drop the chain are recorded as they are met."""
         result = self.walk('[{"arc": "ab", "via": 1, "to": "b"}]')
         self.assertEqual(
             codes(result),
-            [(self.WALK + "/0", "walk-spelling"), (self.WALK + "/0/via", "unknown-key")],
+            [
+                (self.WALK + "/0", "walk-spelling"),
+                (self.WALK + "/0/via", "unknown-key"),
+            ],
         )
 
 
@@ -613,25 +666,34 @@ class Routes(unittest.TestCase):
         for walk, key in (
             ('[{"arc": "ab", "from": [-3.60, 57.10], "to": "b"}]', "from"),
             ('[{"arc": "ab", "from": "a", "to": [-3.59, 57.10]}]', "to"),
-            ('[{"arc": "ab", "from": "a", "turn": [-3.595, 57.10], "to": "a"}]', "turn"),
+            (
+                '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.10], "to": "a"}]',
+                "turn",
+            ),
             ('[{"arc": "ab", "from": "a", "to": "b", "pinned": true}]', "pinned"),
         ):
             with self.subTest(key=key):
                 result = self.route(walk)
                 self.assertEqual(
-                    codes(result), [(f"/routes/0/walk/0/{key}", "route-pin-or-position")]
+                    codes(result),
+                    [(f"/routes/0/walk/0/{key}", "route-pin-or-position")],
                 )
                 self.assertEqual(result.document.routes, [])
 
     def test_a_route_walking_a_dropped_arc_is_dropped(self) -> None:
         """The cascade: the arc goes for its bad pip, then the route for the
         pass naming it, each with its own diagnostic."""
-        result = read((self.ROUTE % '[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]')
-                      .replace("[[-3.585, 57.101]]", "[[-3.585]]"))
+        result = read(
+            (
+                self.ROUTE % '[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]'
+            ).replace("[[-3.585, 57.101]]", "[[-3.585]]")
+        )
         self.assertEqual(
             codes(result),
-            [("/routes/0/arcs/bc/pips/0", "position-unusable"),
-             ("/routes/0/walk/1", "pass-arc-absent")],
+            [
+                ("/routes/0/arcs/bc/pips/0", "position-unusable"),
+                ("/routes/0/walk/1", "pass-arc-absent"),
+            ],
         )
         self.assertEqual(result.document.routes, [])
 
@@ -654,7 +716,9 @@ class Graphs(unittest.TestCase):
     NODES = '{"a": [-3.6, 57.1], "b": [-3.5, 57.1]}'
 
     def test_an_arc_with_no_pips_is_the_straight_line(self) -> None:
-        result = self.network(self.NODES, '{"ab": {"from": "a", "to": "b", "pips": []}}')
+        result = self.network(
+            self.NODES, '{"ab": {"from": "a", "to": "b", "pips": []}}'
+        )
         self.assertEqual(messages(result), [])
 
     def test_a_time_on_a_node_is_dropped_and_the_node_kept(self) -> None:
@@ -668,7 +732,7 @@ class Graphs(unittest.TestCase):
         result = self.network(
             self.NODES,
             '{"ab": {"from": "a", "to": "b", "pips":'
-            ' [[-3.58, 57.1, 1, 1000], [-3.56, 57.1], [-3.54, 57.1, null, 3000]]}}',
+            " [[-3.58, 57.1, 1, 1000], [-3.56, 57.1], [-3.54, 57.1, null, 3000]]}}",
         )
         self.assertEqual(codes(result), [("/networks/0/arcs/ab/pips", "arc-pip-time")])
         networks = result.document.networks
@@ -678,11 +742,15 @@ class Graphs(unittest.TestCase):
         self.assertEqual(pips[0].ele, 1.0, "the elevation stays")
 
     def test_both_absent_ends_are_reported(self) -> None:
-        result = self.network(self.NODES, '{"xy": {"from": "x", "to": "y", "pips": []}}')
+        result = self.network(
+            self.NODES, '{"xy": {"from": "x", "to": "y", "pips": []}}'
+        )
         self.assertEqual(
             codes(result),
-            [("/networks/0/arcs/xy/from", "arc-node-absent"),
-             ("/networks/0/arcs/xy/to", "arc-node-absent")],
+            [
+                ("/networks/0/arcs/xy/from", "arc-node-absent"),
+                ("/networks/0/arcs/xy/to", "arc-node-absent"),
+            ],
         )
 
     def test_an_arc_missing_a_required_key_is_dropped(self) -> None:
@@ -694,7 +762,8 @@ class Graphs(unittest.TestCase):
             with self.subTest(key=key):
                 result = self.network(self.NODES, '{"ab": %s}' % arc)
                 self.assertEqual(
-                    codes(result), [(f"/networks/0/arcs/ab/{key}", "wrong-type-required")]
+                    codes(result),
+                    [(f"/networks/0/arcs/ab/{key}", "wrong-type-required")],
                 )
 
     def test_a_bad_node_cascades_to_the_arc_and_then_the_chain(self) -> None:
@@ -708,14 +777,18 @@ class Graphs(unittest.TestCase):
         )
         self.assertEqual(
             codes(result),
-            [("/networks/0/arcs/ab/from", "arc-node-absent"),
-             ("/networks/0/chains/0/walk/0", "pass-arc-absent"),
-             ("/networks/0/nodes/a", "position-unusable")],
+            [
+                ("/networks/0/arcs/ab/from", "arc-node-absent"),
+                ("/networks/0/chains/0/walk/0", "pass-arc-absent"),
+                ("/networks/0/nodes/a", "position-unusable"),
+            ],
         )
 
     def test_a_self_loop_is_dropped_even_when_its_node_is_absent(self) -> None:
         """One arc, one fault reported: the self-loop, not the missing node."""
-        result = self.network(self.NODES, '{"loop": {"from": "z", "to": "z", "pips": []}}')
+        result = self.network(
+            self.NODES, '{"loop": {"from": "z", "to": "z", "pips": []}}'
+        )
         self.assertEqual(codes(result), [("/networks/0/arcs/loop", "self-loop-arc")])
 
 
@@ -728,7 +801,9 @@ class Timestamps(unittest.TestCase):
 
     def test_a_bare_date_is_dropped(self) -> None:
         result = read('{"vnx": "0.2.0", "created": "2026-08-31"}')
-        self.assertEqual(messages(result), [("/created", "must be UTC with a Z suffix")])
+        self.assertEqual(
+            messages(result), [("/created", "must be UTC with a Z suffix")]
+        )
         self.assertIsNone(result.document.created)
 
     def test_a_lower_case_z_is_dropped(self) -> None:
@@ -752,15 +827,16 @@ class MovingTime(unittest.TestCase):
         """Ruled 2026-09-09: derivable only when every segment carries a time on
         its FIRST and LAST pip. This library previously took the first and last
         TIMED pip and answered 3000 here."""
-        track = self.track('[{"pips": [[0,0], [0,0,null,1000], [0,0,null,4000], [0,0]]}]')
+        track = self.track(
+            '[{"pips": [[0,0], [0,0,null,1000], [0,0,null,4000], [0,0]]}]'
+        )
         self.assertIsNone(track.moving_time_ms())
 
     def test_one_untimed_segment_makes_the_whole_track_unknown(self) -> None:
         """A sum over the timed segments is indistinguishable from a complete
         one, and no consumer can tell which it was given."""
         track = self.track(
-            '[{"pips": [[0,0,null,1000], [0,0,null,4000]]},'
-            ' {"pips": [[0,0], [0,0]]}]'
+            '[{"pips": [[0,0,null,1000], [0,0,null,4000]]}, {"pips": [[0,0], [0,0]]}]'
         )
         self.assertIsNone(track.moving_time_ms())
 
@@ -772,7 +848,9 @@ class MovingTime(unittest.TestCase):
         self.assertEqual(track.moving_time_ms(), 3500.0)
 
     def test_an_empty_segment_makes_it_unknown(self) -> None:
-        track = self.track('[{"pips": [[0,0,null,1000], [0,0,null,4000]]}, {"pips": []}]')
+        track = self.track(
+            '[{"pips": [[0,0,null,1000], [0,0,null,4000]]}, {"pips": []}]'
+        )
         self.assertIsNone(track.moving_time_ms())
 
     def test_no_segments_is_unknown(self) -> None:
@@ -789,8 +867,7 @@ class HiddenAndAbsence(unittest.TestCase):
         and `test_the_writer_omits_a_false_hidden` below pins that half.
         """
         source = (
-            '{"vnx":"0.2.0","areas":[{"hidden":false,'
-            '"polygon":[[0,0],[1,0],[1,1]]}]}'
+            '{"vnx":"0.2.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
         )
         document = read(source).document
         assert document.areas is not None
@@ -798,8 +875,7 @@ class HiddenAndAbsence(unittest.TestCase):
 
     def test_the_writer_omits_a_false_hidden(self) -> None:
         source = (
-            '{"vnx":"0.2.0","areas":[{"hidden":false,'
-            '"polygon":[[0,0],[1,0],[1,1]]}]}'
+            '{"vnx":"0.2.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
         )
         self.assertNotIn(b"hidden", vnx.encode_bytes(read(source).document))
 
@@ -809,7 +885,9 @@ class HiddenAndAbsence(unittest.TestCase):
         self.assertIsNone(document.areas[0].hidden)
 
     def test_an_absent_label_visible_is_not_false(self) -> None:
-        document = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": {}}]}').document
+        document = read(
+            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": {}}]}'
+        ).document
         assert document.waypoints is not None
         self.assertNotIn("label-visible", document.waypoints[0].style or {})
 
@@ -832,7 +910,9 @@ class Records(unittest.TestCase):
     """SPEC 5."""
 
     def test_a_record_without_a_type_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data": [{"value": 1}]}]}')
+        result = read(
+            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data": [{"value": 1}]}]}'
+        )
         self.assertEqual(len(result.diagnostics), 1)
         assert result.document.waypoints is not None
         self.assertEqual(result.document.waypoints[0].data, [])
@@ -918,10 +998,12 @@ class Containers(unittest.TestCase):
     def test_doc_vnx_wins_over_an_earlier_vnx_entry(self) -> None:
         # SPEC 7: prefer doc.vnx at the root; the fallback is only a fallback.
         result = vnx.read_container_bytes(
-            self.build([
-                ("aaa.vnx", b'{"vnx": "0.2.0", "areas": []}'),
-                ("doc.vnx", b'{"vnx": "0.2.0", "folders": []}'),
-            ])
+            self.build(
+                [
+                    ("aaa.vnx", b'{"vnx": "0.2.0", "areas": []}'),
+                    ("doc.vnx", b'{"vnx": "0.2.0", "folders": []}'),
+                ]
+            )
         )
         self.assertEqual(result.document_name, "doc.vnx")
         self.assertEqual(result.document.folders, [])
@@ -934,10 +1016,12 @@ class Containers(unittest.TestCase):
         # A doc.vnx at depth is not the root document.  Matching on the base
         # name would match at any depth.
         result = vnx.read_container_bytes(
-            self.build([
-                ("nested/doc.vnx", b'{"vnx": "0.2.0", "areas": []}'),
-                ("zzz.vnx", b'{"vnx": "0.2.0", "folders": []}'),
-            ])
+            self.build(
+                [
+                    ("nested/doc.vnx", b'{"vnx": "0.2.0", "areas": []}'),
+                    ("zzz.vnx", b'{"vnx": "0.2.0", "folders": []}'),
+                ]
+            )
         )
         self.assertEqual(result.document_name, "nested/doc.vnx")
 
@@ -946,7 +1030,9 @@ class Containers(unittest.TestCase):
         self.assertEqual(result.document_name, "DOC.VNX")
 
     def test_a_written_container_reads_back(self) -> None:
-        document = vnx.read_bytes(b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}').document
+        document = vnx.read_bytes(
+            b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}'
+        ).document
         data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         result = vnx.read_container_bytes(data)
         self.assertEqual(
@@ -962,7 +1048,9 @@ class Containers(unittest.TestCase):
         import zipfile
 
         document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
-        with zipfile.ZipFile(io.BytesIO(vnx.encode_container_bytes(document))) as archive:
+        with zipfile.ZipFile(
+            io.BytesIO(vnx.encode_container_bytes(document))
+        ) as archive:
             for info in archive.infolist():
                 self.assertTrue(info.flag_bits & 0x800, info.filename)
 
@@ -975,7 +1063,9 @@ class RuledStyleValues(unittest.TestCase):
     """
 
     def style(self, body: str) -> vnx.ReadResult:
-        return read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": %s}]}' % body)
+        return read(
+            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": %s}]}' % body
+        )
 
     def test_importance_in_range_is_kept(self) -> None:
         for value in (1, 3, 5):
@@ -989,7 +1079,12 @@ class RuledStyleValues(unittest.TestCase):
                 result = self.style('{"importance": %s}' % value)
                 self.assertEqual(
                     messages(result),
-                    [("/waypoints/0/style/importance", "must be an integer from 1 to 5")],
+                    [
+                        (
+                            "/waypoints/0/style/importance",
+                            "must be an integer from 1 to 5",
+                        )
+                    ],
                 )
                 assert result.document.waypoints is not None
                 style = result.document.waypoints[0].style
@@ -1014,32 +1109,42 @@ class RuledFolderScope(unittest.TestCase):
 
     def test_a_top_level_waypoint_may_carry_a_folder(self) -> None:
         self.assertEqual(
-            messages(read('{"vnx": "0.2.0", "folders": [{"id": "f"}], "waypoints":'
-                          ' [{"at": [0,0], "folder": "f"}]}')), []
+            messages(
+                read(
+                    '{"vnx": "0.2.0", "folders": [{"id": "f"}], "waypoints":'
+                    ' [{"at": [0,0], "folder": "f"}]}'
+                )
+            ),
+            [],
         )
 
     def test_a_network_point_may_not(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "networks":'
-            ' [{"points": [{"at": [0,0], "folder": "f"}]}]}'
+            '{"vnx": "0.2.0", "networks": [{"points": [{"at": [0,0], "folder": "f"}]}]}'
         )
         self.assertEqual(
             messages(result), [("/networks/0/points/0/folder", "unknown key")]
         )
 
     def test_a_network_area_may_not(self) -> None:
-        result = read('{"vnx": "0.2.0", "networks": [{"areas":'
-                      ' [{"folder": "f", "polygon": [[0,0],[1,0],[1,1]]}]}]}')
+        result = read(
+            '{"vnx": "0.2.0", "networks": [{"areas":'
+            ' [{"folder": "f", "polygon": [[0,0],[1,0],[1,1]]}]}]}'
+        )
         self.assertEqual(
             messages(result), [("/networks/0/areas/0/folder", "unknown key")]
         )
 
     def test_a_top_level_area_may(self) -> None:
         self.assertEqual(
-            messages(read(
-                RING.replace('"areas"', '"folders": [{"id": "f"}], "areas"')
-                    .replace('{"polygon"', '{"folder": "f", "polygon"')
-            )), []
+            messages(
+                read(
+                    RING.replace(
+                        '"areas"', '"folders": [{"id": "f"}], "areas"'
+                    ).replace('{"polygon"', '{"folder": "f", "polygon"')
+                )
+            ),
+            [],
         )
 
     def test_the_two_sets_differ_by_exactly_folder(self) -> None:
@@ -1065,7 +1170,9 @@ class RequiredKeys(unittest.TestCase):
 
     def test_a_folder_without_an_id_is_dropped(self) -> None:
         result = read('{"vnx": "0.2.0", "folders": [{"name": "Nameless"}]}')
-        self.assertEqual(messages(result), [("/folders/0/id", "a folder must carry `id`")])
+        self.assertEqual(
+            messages(result), [("/folders/0/id", "a folder must carry `id`")]
+        )
         self.assertEqual(result.diagnostics[0].code, "wrong-type-required")
         self.assertEqual(result.document.folders, [])
 
@@ -1193,9 +1300,7 @@ class ContainerPathRules(unittest.TestCase):
         self.assertIn("backslash", self.refuses("a\\b.jpg"))
         self.assertIn("`..` path segment", self.refuses("../x"))
         result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
-        self.assertEqual(
-            result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")]
-        )
+        self.assertEqual(result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")])
 
     def test_the_writer_refuses_a_name_it_would_refuse_to_read(self) -> None:
         document = vnx.read_bytes(self.DOC).document
@@ -1209,9 +1314,7 @@ class ContainerPathRules(unittest.TestCase):
         document the format declares valid, and no archive in the corpus would
         catch it."""
         result = vnx.read_container_bytes(self.build(["a..b/photo.jpg"]))
-        self.assertEqual(
-            result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")]
-        )
+        self.assertEqual(result.attachments, [vnx.Attachment("a..b/photo.jpg", b"x")])
 
     def test_names_differing_only_by_case_are_duplicates(self) -> None:
         """SPEC 7 compares duplicate names case-insensitively. A
@@ -1301,9 +1404,7 @@ class ContainerCompression(unittest.TestCase):
         self.assertEqual(result.diagnostics[0].code, "attachment-unreadable")
         # SPEC 6.3's separate `#/entries/` space, with the entry name as ONE
         # reference token -- so the slash inside it is escaped.
-        self.assertEqual(
-            result.diagnostics[0].path, "#/entries/attachments~1photo.txt"
-        )
+        self.assertEqual(result.diagnostics[0].path, "#/entries/attachments~1photo.txt")
         self.assertIsNotNone(result.document)
 
 
@@ -1349,9 +1450,7 @@ class ContainerCorruptAttachment(unittest.TestCase):
         self.assertEqual(len(result.document.waypoints), 1)
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "attachment-unreadable")
-        self.assertEqual(
-            result.diagnostics[0].path, "#/entries/attachments~1photo.txt"
-        )
+        self.assertEqual(result.diagnostics[0].path, "#/entries/attachments~1photo.txt")
 
     def test_a_corrupt_ROOT_document_still_refuses(self) -> None:
         """The one entry whose loss leaves nothing to return."""
@@ -1413,7 +1512,8 @@ class ContainerWriterDeflates(unittest.TestCase):
         )
         self.assertEqual(
             tree.compare_documents(
-                vnx.encode_bytes(result.document), vnx.encode_bytes(document),
+                vnx.encode_bytes(result.document),
+                vnx.encode_bytes(document),
                 tree.Options(),
             ),
             "",
@@ -1460,7 +1560,8 @@ class ContainerWriterDeflates(unittest.TestCase):
         document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
         supplied = {"zebra.txt": b"z", "middle.txt": b"m", "alpha.txt": b"a"}
         self.assertEqual(
-            list(supplied), ["zebra.txt", "middle.txt", "alpha.txt"],
+            list(supplied),
+            ["zebra.txt", "middle.txt", "alpha.txt"],
             "the mapping must preserve the reversed order or this proves nothing",
         )
         data = vnx.encode_container_bytes(document, supplied)
@@ -1490,9 +1591,7 @@ class WrongTypedValues(unittest.TestCase):
     """
 
     def test_an_optional_key_drops_the_field_and_keeps_the_item(self) -> None:
-        result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
-        )
+        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}')
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "wrong-type-optional")
         assert result.document.waypoints is not None
@@ -1515,9 +1614,7 @@ class WrongTypedValues(unittest.TestCase):
             '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
         )
         required = read('{"vnx": "0.2.0", "waypoints": [{"at": "nowhere"}]}')
-        self.assertNotEqual(
-            optional.diagnostics[0].code, required.diagnostics[0].code
-        )
+        self.assertNotEqual(optional.diagnostics[0].code, required.diagnostics[0].code)
 
 
 class ContainerHeadersAgree(unittest.TestCase):
@@ -1537,9 +1634,7 @@ class ContainerHeadersAgree(unittest.TestCase):
 
     def archive(self) -> bytes:
         document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
-        return vnx.encode_container_bytes(
-            document, {"z.txt": b"zz", "a.txt": b"a"}
-        )
+        return vnx.encode_container_bytes(document, {"z.txt": b"zz", "a.txt": b"a"})
 
     def test_the_two_headers_agree_on_every_shared_field(self) -> None:
         from .zipbytes import central_headers, local_headers
@@ -1580,8 +1675,8 @@ class ContainerHeadersAgree(unittest.TestCase):
         from .zipbytes import central_headers, local_headers
 
         data = bytearray(self.archive())
-        struct.pack_into("<H", data, 4, 10)   # local version 20 -> 10
-        struct.pack_into("<I", data, 14, 0)   # local CRC -> 0
+        struct.pack_into("<H", data, 4, 10)  # local version 20 -> 10
+        struct.pack_into("<I", data, 14, 0)  # local CRC -> 0
         corrupted = bytes(data)
 
         with zipfile.ZipFile(io.BytesIO(corrupted)) as archive:

@@ -39,16 +39,16 @@ SIG_END = 0x06054B50
 OVER_DECLARED_BY = 7
 
 DOCUMENT = (
-    b'{\n'
+    b"{\n"
     b'  "generator": "corpus",\n'
     b'  "vnx": "0.2.0",\n'
     b'  "waypoints": [\n'
-    b'    {\n'
+    b"    {\n"
     b'      "name": "Ben Macdui",\n'
     b'      "at": [-3.6689, 57.0704]\n'
-    b'    }\n'
-    b'  ]\n'
-    b'}\n'
+    b"    }\n"
+    b"  ]\n"
+    b"}\n"
 )
 
 # The document is the SECOND of three entries, and both positions are load
@@ -74,7 +74,18 @@ def build():
         declared = len(body) + over
         offset = len(out)
         out += struct.pack(
-            "<IHHHHHIIIHH", SIG_LOCAL, 10, 0x0800, 0, 0, 0x0021, crc, declared, declared, len(raw), 0
+            "<IHHHHHIIIHH",
+            SIG_LOCAL,
+            10,
+            0x0800,
+            0,
+            0,
+            0x0021,
+            crc,
+            declared,
+            declared,
+            len(raw),
+            0,
         )
         out += raw
         out += body
@@ -90,7 +101,15 @@ def build():
     directory_offset = len(out)
     out += directory
     out += struct.pack(
-        "<IHHHHIIH", SIG_END, 0, 0, len(ENTRIES), len(ENTRIES), len(directory), directory_offset, 0
+        "<IHHHHIIH",
+        SIG_END,
+        0,
+        0,
+        len(ENTRIES),
+        len(ENTRIES),
+        len(directory),
+        directory_offset,
+        0,
     )
     return bytes(out)
 
@@ -104,7 +123,9 @@ def parse_local_headers(data):
         name_len, extra_len = struct.unpack_from("<HH", data, p + 26)
         name = data[p + 30 : p + 30 + name_len].decode("utf-8")
         start = p + 30 + name_len + extra_len
-        headers.append(dict(name=name, crc=crc, declared=declared, offset=p, payload_at=start))
+        headers.append(
+            dict(name=name, crc=crc, declared=declared, offset=p, payload_at=start)
+        )
         # The next header is found by SEARCHING, not by trusting the declared
         # size -- the declared size is the thing under test.
         nxt = data.find(b"PK\x03\x04", start)
@@ -140,7 +161,9 @@ def verify(data):
     if names != [name for name, _, _ in ENTRIES]:
         failures.append(f"archive order is {names}")
     if len(locals_) != len(centrals):
-        failures.append(f"{len(locals_)} local headers against {len(centrals)} directory entries")
+        failures.append(
+            f"{len(locals_)} local headers against {len(centrals)} directory entries"
+        )
 
     doc = next((h for h in locals_ if h["name"] == "doc.vnx"), None)
     if doc is None:
@@ -156,7 +179,9 @@ def verify(data):
     #    and the archive is simply corrupt.
     present = data[doc["payload_at"] : doc["payload_at"] + doc["present"]]
     if (zlib.crc32(present) & 0xFFFFFFFF) != doc["crc"]:
-        failures.append("the CRC does not agree over the bytes present, so this is a corrupt archive")
+        failures.append(
+            "the CRC does not agree over the bytes present, so this is a corrupt archive"
+        )
     # 3. Both headers must tell the same lie, or a reader taking sizes from the
     #    central directory sees a different archive from one taking them locally.
     central_doc = next(e for e in centrals if e["name"] == "doc.vnx")
@@ -168,43 +193,63 @@ def verify(data):
     if names.index("doc.vnx") == 0:
         failures.append("doc.vnx is first, so its local header is at offset 0")
     if names.index("doc.vnx") == len(names) - 1:
-        failures.append("doc.vnx is last, so its payload is bounded by the central directory")
+        failures.append(
+            "doc.vnx is last, so its payload is bounded by the central directory"
+        )
     if present != DOCUMENT:
-        failures.append("the bytes present are not the document this script means to store")
+        failures.append(
+            "the bytes present are not the document this script means to store"
+        )
     return failures
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--write", action="store_true", help="write the fixture rather than only verifying")
+    ap.add_argument(
+        "--write",
+        action="store_true",
+        help="write the fixture rather than only verifying",
+    )
     ap.add_argument(
         "--out",
         type=pathlib.Path,
-        default=pathlib.Path(__file__).resolve().parents[2] / "accept" / "container-over-declared-size.vnz",
+        default=pathlib.Path(__file__).resolve().parents[2]
+        / "accept"
+        / "container-over-declared-size.vnz",
     )
     args = ap.parse_args()
 
     data = build()
     failures = verify(data)
     if failures:
-        print("REFUSING to write: the archive does not have the properties the case needs", file=sys.stderr)
+        print(
+            "REFUSING to write: the archive does not have the properties the case needs",
+            file=sys.stderr,
+        )
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
     doc = next(h for h in parse_local_headers(data) if h["name"] == "doc.vnx")
-    print(f"{args.out.name}: {len(data)} bytes; doc.vnx declares {doc['declared']} and holds {doc['present']}")
+    print(
+        f"{args.out.name}: {len(data)} bytes; doc.vnx declares {doc['declared']} and holds {doc['present']}"
+    )
 
     if args.out.exists():
         committed = args.out.read_bytes()
         if committed == data:
             print("the committed fixture is byte-identical")
             return 0
-        print(f"DRIFT: the committed fixture is {len(committed)} bytes and this script builds {len(data)}",
-              file=sys.stderr)
+        print(
+            f"DRIFT: the committed fixture is {len(committed)} bytes and this script builds {len(data)}",
+            file=sys.stderr,
+        )
         if not args.write:
-            print("re-run with --write only if you mean to replace it, and say in the sidecar "
-                  "which rule the old bytes were the witness for", file=sys.stderr)
+            print(
+                "re-run with --write only if you mean to replace it, and say in the sidecar "
+                "which rule the old bytes were the witness for",
+                file=sys.stderr,
+            )
             return 1
     if args.write:
         args.out.write_bytes(data)

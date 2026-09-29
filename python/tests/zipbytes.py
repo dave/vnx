@@ -57,14 +57,41 @@ def central_headers(data: bytes) -> list[CentralHeader]:
     start = struct.unpack_from("<I", data, offset + 16)[0]
     out: list[CentralHeader] = []
     while data[start : start + 4] == b"PK\x01\x02":
-        (made_by, version, flags, method, _t, _d, crc, csize, usize,
-         nlen, elen, clen, disk, iattr, eattr, _lho) = struct.unpack_from(
-            "<HHHHHHIIIHHHHHII", data, start + 4
-        )
+        (
+            made_by,
+            version,
+            flags,
+            method,
+            _t,
+            _d,
+            crc,
+            csize,
+            usize,
+            nlen,
+            elen,
+            clen,
+            disk,
+            iattr,
+            eattr,
+            _lho,
+        ) = struct.unpack_from("<HHHHHHIIIHHHHHII", data, start + 4)
         name = data[start + 46 : start + 46 + nlen].decode("utf-8")
         out.append(
-            CentralHeader(name, version, flags, method, crc, csize, usize, elen,
-                          made_by, iattr, eattr, disk, clen)
+            CentralHeader(
+                name,
+                version,
+                flags,
+                method,
+                crc,
+                csize,
+                usize,
+                elen,
+                made_by,
+                iattr,
+                eattr,
+                disk,
+                clen,
+            )
         )
         start += 46 + nlen + elen + clen
     return out

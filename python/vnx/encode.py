@@ -15,8 +15,22 @@ from typing import Any, Union
 
 from . import walk as W
 from .model import (
-    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue,
-    Network, Pass, Position, Route, Segment, Track, Waypoint, is_app_key,
+    Area,
+    Arc,
+    Chain,
+    DataRecord,
+    Document,
+    Endpoint,
+    Folder,
+    JSONValue,
+    Network,
+    Pass,
+    Position,
+    Route,
+    Segment,
+    Track,
+    Waypoint,
+    is_app_key,
 )
 
 __all__ = ["encode_document"]
@@ -29,7 +43,10 @@ def _position(position: Position) -> list[JSONValue]:
     would move the time into the elevation channel.
     """
     channels: list[Union[float, None]] = [
-        position.lon, position.lat, position.ele, position.time_ms
+        position.lon,
+        position.lat,
+        position.ele,
+        position.time_ms,
     ]
     while len(channels) > 2 and channels[-1] is None:
         channels.pop()
@@ -122,7 +139,9 @@ def _pass(p: Pass) -> JSONValue:
     return obj
 
 
-def _walk(walk: Union[list[Pass], None], arcs: dict[str, Arc], route: bool, owner: str) -> Union[list[JSONValue], None]:
+def _walk(
+    walk: Union[list[Pass], None], arcs: dict[str, Arc], route: bool, owner: str
+) -> Union[list[JSONValue], None]:
     """A walk, checked first: a writer never emits one its own reader drops."""
     if walk is None:
         return None

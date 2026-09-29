@@ -23,9 +23,19 @@ from typing import Union
 from .model import Arc, Endpoint, Pass, Position
 
 __all__ = [
-    "Broken", "WalkFault", "Cursor", "check_walk", "check_arcs", "check_ring",
-    "is_self_loop", "ring_is_closed", "distinct_lon_lat",
-    "route_rule", "pinned_turn", "spelling", "connection",
+    "Broken",
+    "WalkFault",
+    "Cursor",
+    "check_walk",
+    "check_arcs",
+    "check_ring",
+    "is_self_loop",
+    "ring_is_closed",
+    "distinct_lon_lat",
+    "route_rule",
+    "pinned_turn",
+    "spelling",
+    "connection",
 ]
 
 
@@ -69,9 +79,13 @@ def _is_position(endpoint: Union[Endpoint, None]) -> bool:
 def route_rule(p: Pass) -> Union[Broken, None]:
     """SPEC 3.4: a route's walk runs node to node, with no turn and no pin."""
     if _is_position(p.from_):
-        return Broken("from", "a route's walk runs node to node, and this `from` is a position")
+        return Broken(
+            "from", "a route's walk runs node to node, and this `from` is a position"
+        )
     if _is_position(p.to):
-        return Broken("to", "a route's walk runs node to node, and this `to` is a position")
+        return Broken(
+            "to", "a route's walk runs node to node, and this `to` is a position"
+        )
     if p.turn is not None:
         return Broken("turn", "a route's walk carries no turn")
     if p.pinned:
@@ -82,7 +96,9 @@ def route_rule(p: Pass) -> Union[Broken, None]:
 def pinned_turn(p: Pass) -> Union[Broken, None]:
     """SPEC 3.3.3: a pass with a turn is never pinned."""
     if p.turn is not None and p.pinned:
-        return Broken(None, "a pass with a turn is never pinned: the turn already fixes it")
+        return Broken(
+            None, "a pass with a turn is never pinned: the turn already fixes it"
+        )
     return None
 
 
@@ -124,12 +140,15 @@ def connection(
     entry: Endpoint
     if p.from_ is not None:
         if isinstance(p.from_, str) and not is_end(p.from_):
-            return Broken("from", f"`from` node {p.from_!r} is not an end of arc {p.arc!r}")
+            return Broken(
+                "from", f"`from` node {p.from_!r} is not an end of arc {p.arc!r}"
+            )
         entry = p.from_
     else:
         if not is_end(at):
             return Broken(
-                None, f"the walk is at node {at!r}, which is not an end of arc {p.arc!r}"
+                None,
+                f"the walk is at node {at!r}, which is not an end of arc {p.arc!r}",
             )
         assert at is not None
         entry = at
@@ -163,13 +182,17 @@ class Cursor:
     route: bool = False
     at: Union[str, None] = None
 
-    def step(self, index: int, p: Pass, arc: Arc) -> Union[WalkFault, tuple[Endpoint, Endpoint]]:
+    def step(
+        self, index: int, p: Pass, arc: Arc
+    ) -> Union[WalkFault, tuple[Endpoint, Endpoint]]:
         """Check pass *index* against the rules that span more than its own
         values -- SPEC 6.2's steps 5 to 8 -- and move to where it leaves."""
         if self.route:
             broken = route_rule(p)
             if broken is not None:
-                return WalkFault(index, broken.key, "route-pin-or-position", broken.message)
+                return WalkFault(
+                    index, broken.key, "route-pin-or-position", broken.message
+                )
         broken = pinned_turn(p)
         if broken is not None:
             return WalkFault(index, broken.key, "pinned-turn", broken.message)
@@ -184,7 +207,9 @@ class Cursor:
         return entry, exit_
 
 
-def check_walk(walk: list[Pass], arcs: dict[str, Arc], route: bool) -> Union[WalkFault, None]:
+def check_walk(
+    walk: list[Pass], arcs: dict[str, Arc], route: bool
+) -> Union[WalkFault, None]:
     """The writer's check: every pass names an arc of its owner, and the walk
     follows SPEC 3.3.3.  A writer never emits a walk its own reader would drop.
     """
@@ -193,14 +218,19 @@ def check_walk(walk: list[Pass], arcs: dict[str, Arc], route: bool) -> Union[Wal
         arc = arcs.get(p.arc)
         if arc is None:
             return WalkFault(
-                index, None, "pass-arc-absent", f"pass names arc {p.arc!r}, which is not here"
+                index,
+                None,
+                "pass-arc-absent",
+                f"pass names arc {p.arc!r}, which is not here",
             )
         for key, value in (("from", p.from_), ("to", p.to), ("turn", p.turn)):
             if isinstance(value, Position) and (
                 value.ele is not None or value.time_ms is not None
             ):
                 return WalkFault(
-                    index, key, "extra-channel",
+                    index,
+                    key,
+                    "extra-channel",
                     "a walk position carries longitude and latitude only",
                 )
         stepped = cursor.step(index, p, arc)

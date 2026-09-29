@@ -19,9 +19,24 @@ from dataclasses import dataclass, field
 from typing import Any, Union
 
 __all__ = [
-    "Position", "DataRecord", "Folder", "Arc", "Pass", "Chain", "Network",
-    "Route", "Segment", "Track", "Waypoint", "Area", "Document",
-    "Endpoint", "Style", "JSONValue", "AppKey", "is_app_key",
+    "Position",
+    "DataRecord",
+    "Folder",
+    "Arc",
+    "Pass",
+    "Chain",
+    "Network",
+    "Route",
+    "Segment",
+    "Track",
+    "Waypoint",
+    "Area",
+    "Document",
+    "Endpoint",
+    "Style",
+    "JSONValue",
+    "AppKey",
+    "is_app_key",
 ]
 
 JSONValue = Any

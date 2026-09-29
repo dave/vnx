@@ -23,9 +23,24 @@ from . import walk as W
 from .errors import Diagnostic, VNXRefusal
 from .jsonio import parse_json
 from .model import (
-    Area, Arc, Chain, DataRecord, Document, Endpoint, Folder, JSONValue,
-    Network, Pass, Position, Route, Segment, Style, Track, Waypoint,
-    AppKey, is_app_key,
+    Area,
+    Arc,
+    Chain,
+    DataRecord,
+    Document,
+    Endpoint,
+    Folder,
+    JSONValue,
+    Network,
+    Pass,
+    Position,
+    Route,
+    Segment,
+    Style,
+    Track,
+    Waypoint,
+    AppKey,
+    is_app_key,
 )
 from .pointer import join
 
@@ -176,7 +191,9 @@ class _Reader:
             # SPEC 6.2 lists a record-level timestamp carrying an offset other
             # than Z as an unusable value: drop it, diagnose, continue.  The
             # element dropped is the timestamp, not the item that carries it.
-            self.note(join(path, key), "must be UTC with a Z suffix", "timestamp-not-utc")
+            self.note(
+                join(path, key), "must be UTC with a Z suffix", "timestamp-not-utc"
+            )
             return None
         return value
 
@@ -299,8 +316,7 @@ class _Reader:
             if isinstance(channel, bool) or not isinstance(channel, (int, float)):
                 self.note(
                     path,
-                    f"channel {index} is {_json_type(channel)}, "
-                    "expected a number",
+                    f"channel {index} is {_json_type(channel)}, expected a number",
                     unusable,
                 )
                 return None
@@ -329,9 +345,7 @@ class _Reader:
             return None
         out: list[Position] = []
         for index, item in enumerate(items):
-            position = self._position(
-                item, join(path, key, index), "position-unusable"
-            )
+            position = self._position(item, join(path, key, index), "position-unusable")
             if position is None:
                 # SPEC 6.2: the container goes, not the position.  Geometry is
                 # continuous -- dropping one vertex leaves a shorter line that
@@ -487,9 +501,7 @@ class _Reader:
             return None
         at = None
         if "at" in obj:
-            at = self._position(
-                obj["at"], join(path, "at"), "wrong-type-required"
-            )
+            at = self._position(obj["at"], join(path, "at"), "wrong-type-required")
         style = self._style(obj, path)
         self._check_importance(style, path)
         if not self._complete(obj, path, "a waypoint", {"at": at}):
@@ -551,8 +563,11 @@ class _Reader:
             isinstance(item, list) and item and isinstance(item[0], list)
             for item in value
         ):
-            self.note(path, "nested rings: this format carries one ring",
-                      "polygon-nested-rings")
+            self.note(
+                path,
+                "nested rings: this format carries one ring",
+                "polygon-nested-rings",
+            )
             return None
         ring: list[Position] = []
         for index, item in enumerate(value):
@@ -666,9 +681,7 @@ class _Reader:
         if areas is not None:
             network.areas = []
             for index, item in enumerate(areas):
-                area = self._area(
-                    item, join(path, "areas", index), K.AREA_IN_NETWORK
-                )
+                area = self._area(item, join(path, "areas", index), K.AREA_IN_NETWORK)
                 if area is not None:
                     network.areas.append(area)
 
@@ -737,9 +750,7 @@ class _Reader:
             name = entry.get(end)
             if not isinstance(name, str):
                 what = "is missing" if end not in entry else "is not a node key"
-                self.note(
-                    join(here, end), f"arc `{end}` {what}", "wrong-type-required"
-                )
+                self.note(join(here, end), f"arc `{end}` {what}", "wrong-type-required")
                 return None
             ends.append(name)
         if not isinstance(entry.get("pips"), list):
@@ -751,7 +762,9 @@ class _Reader:
             # SPEC 6.2: an unusable pip drops the ARC, reported at the pip.
             return None
         arc = Arc(
-            from_=ends[0], to=ends[1], pips=self._pip_times(pips, here),
+            from_=ends[0],
+            to=ends[1],
+            pips=self._pip_times(pips, here),
             data=self._data(entry, here),
         )
         if W.is_self_loop(arc):
@@ -891,7 +904,9 @@ class _Reader:
             return None
         arc_key = item.get("arc")
         if not isinstance(arc_key, str) or arc_key not in arcs:
-            self.note(at, f"pass names arc {arc_key!r}, which is not here", "pass-arc-absent")
+            self.note(
+                at, f"pass names arc {arc_key!r}, which is not here", "pass-arc-absent"
+            )
             return None
         return arc_key
 
@@ -945,4 +960,3 @@ def _is_importance(value: JSONValue) -> bool:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
     return float(value).is_integer() and 1 <= value <= 5
-

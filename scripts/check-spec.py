@@ -140,7 +140,9 @@ REGISTER_WARNINGS = [
 LINK = re.compile(r"\]\((?!https?://|#|mailto:)([^)#]+)")
 
 # Standalone RFC 2119 keywords. Only meaningful in the normative document.
-KEYWORD = re.compile(r"\b(MUST NOT|MUST|SHOULD NOT|SHOULD|REQUIRED|MAY|OPTIONAL|SHALL)\b")
+KEYWORD = re.compile(
+    r"\b(MUST NOT|MUST|SHOULD NOT|SHOULD|REQUIRED|MAY|OPTIONAL|SHALL)\b"
+)
 
 # The register tells the specification is not allowed to carry.
 # A reader arrives today and has seen no earlier version of this repository.
@@ -149,10 +151,12 @@ KEYWORD = re.compile(r"\b(MUST NOT|MUST|SHOULD NOT|SHOULD|REQUIRED|MAY|OPTIONAL|
 # reached a published document and had to be removed by hand afterwards.
 HISTORY = [
     (
-        re.compile(r"\bno longer\b|\bany more\b|(?<!be )(?<!is )(?<!are )(?<!was )"
-                   r"(?<!were )(?<!been )\bused to\b|"
-                   r"\bpreviously\b|\bearlier version\b|\bhas since\b|"
-                   r"\bhave disagreed\b|\bhas disagreed\b|\bup until\b"),
+        re.compile(
+            r"\bno longer\b|\bany more\b|(?<!be )(?<!is )(?<!are )(?<!was )"
+            r"(?<!were )(?<!been )\bused to\b|"
+            r"\bpreviously\b|\bearlier version\b|\bhas since\b|"
+            r"\bhave disagreed\b|\bhas disagreed\b|\bup until\b"
+        ),
         "a reference to a state of this project the reader has never seen. "
         "State what is true now. If the change itself matters to a reader, it "
         "belongs in a changelog, not in the prose.",
@@ -165,8 +169,14 @@ HISTORY = [
 ]
 
 REGISTER = [
-    (re.compile(r"⚠"), "a warning sigil used as emphasis. A specification uses 'Note:' or nothing."),
-    (re.compile(r"\byou\b|\byour\b", re.IGNORECASE), "second person. A specification addresses a reader or a writer, not 'you'."),
+    (
+        re.compile(r"⚠"),
+        "a warning sigil used as emphasis. A specification uses 'Note:' or nothing.",
+    ),
+    (
+        re.compile(r"\byou\b|\byour\b", re.IGNORECASE),
+        "second person. A specification addresses a reader or a writer, not 'you'.",
+    ),
 ]
 
 
@@ -245,7 +255,9 @@ def check_published(problems: list[str]) -> None:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for pattern, why in LEAKAGE:
                 if match := pattern.search(line):
-                    problems.append(f"{name}:{number}: {match.group(0)!r} - {why}\n    {line.strip()}")
+                    problems.append(
+                        f"{name}:{number}: {match.group(0)!r} - {why}\n    {line.strip()}"
+                    )
             for match in LINK.finditer(line):
                 target = match.group(1).strip()
                 if not (path.parent / target).exists():
@@ -263,7 +275,9 @@ def check_register(problems: list[str]) -> None:
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         for pattern, why in REGISTER:
             if match := pattern.search(line):
-                problems.append(f"SPEC.md:{number}: {match.group(0)!r} — {why}\n    {line.strip()}")
+                problems.append(
+                    f"SPEC.md:{number}: {match.group(0)!r} — {why}\n    {line.strip()}"
+                )
 
 
 def check_history(problems: list[str]) -> None:
@@ -296,7 +310,9 @@ def check_rationale(problems: list[str]) -> None:
     if not RATIONALE.exists():
         print(f"check-spec: no rationale document at {RATIONALE}; skipping that check")
         return
-    for number, line in enumerate(RATIONALE.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(
+        RATIONALE.read_text(encoding="utf-8").splitlines(), 1
+    ):
         if line.lstrip().startswith(">"):
             continue  # a quotation keeps its source's wording
         if match := KEYWORD.search(line):
@@ -352,7 +368,9 @@ def check_diagnose_codes(problems: list[str]) -> None:
     start = spec.find("### 6.2 Error handling")
     end = spec.find("### 6.3", start)
     if start < 0 or end < 0:
-        problems.append("SPEC.md: section 6.2 not found, so its codes could not be checked")
+        problems.append(
+            "SPEC.md: section 6.2 not found, so its codes could not be checked"
+        )
         return
     codes = set()
     in_table = False
@@ -380,7 +398,9 @@ def check_diagnose_codes(problems: list[str]) -> None:
                     "SPEC.md section 6.2's remedy table"
                 )
     if checked == 0:
-        problems.append("corpus/diagnose: no pinned diagnostic was found, so the code check measured nothing")
+        problems.append(
+            "corpus/diagnose: no pinned diagnostic was found, so the code check measured nothing"
+        )
 
 
 def check_ruling_backlog(problems: list[str]) -> None:

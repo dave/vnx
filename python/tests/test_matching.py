@@ -78,8 +78,13 @@ class MatchDiagnostics(unittest.TestCase):
         foreign = Diagnostic("/waypoints/0/nmae", "clé inconnue", "unknown-key")
         self.assertIsNone(
             match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "unknown-key",
-                  "message_advisory": "unknown key"}],
+                [
+                    {
+                        "path": "/waypoints/0/nmae",
+                        "code": "unknown-key",
+                        "message_advisory": "unknown key",
+                    }
+                ],
                 [foreign],
             )
         )

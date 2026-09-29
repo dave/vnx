@@ -14,9 +14,19 @@ Where a set is wider than any single example, the widening is noted.
 from __future__ import annotations
 
 __all__ = [
-    "DOCUMENT", "FOLDER", "NETWORK", "ARC", "CHAIN", "PASS", "ROUTE",
-    "TRACK", "SEGMENT", "WAYPOINT", "AREA",
-    "WAYPOINT_IN_NETWORK", "AREA_IN_NETWORK",
+    "DOCUMENT",
+    "FOLDER",
+    "NETWORK",
+    "ARC",
+    "CHAIN",
+    "PASS",
+    "ROUTE",
+    "TRACK",
+    "SEGMENT",
+    "WAYPOINT",
+    "AREA",
+    "WAYPOINT_IN_NETWORK",
+    "AREA_IN_NETWORK",
 ]
 
 # SPEC 3.10 is now the authority for both halves of this file.  Until 2026-09-09
@@ -28,10 +38,19 @@ __all__ = [
 # SPEC 3.1.  The document's key set is open: every key containing a full stop
 # is an application key (SPEC 3.9), which the decoder recognises separately, and
 # at the top level only.
-DOCUMENT = frozenset({
-    "vnx", "generator", "created",
-    "folders", "networks", "routes", "tracks", "waypoints", "areas",
-})
+DOCUMENT = frozenset(
+    {
+        "vnx",
+        "generator",
+        "created",
+        "folders",
+        "networks",
+        "routes",
+        "tracks",
+        "waypoints",
+        "areas",
+    }
+)
 
 # SPEC 3.10.  `notes` and `data` were missing from this implementation's reading
 # -- neither appears in SPEC 3.2's example -- and the published table has both.
@@ -39,10 +58,20 @@ DOCUMENT = frozenset({
 FOLDER = frozenset({"id", "parent", "name", "notes", "hidden", "data"})
 
 # SPEC 3.3, plus `folder` (SPEC 3.2) and `hidden` (SPEC 3.8).
-NETWORK = frozenset({
-    "folder", "name", "notes", "hidden",
-    "nodes", "arcs", "chains", "points", "areas", "data",
-})
+NETWORK = frozenset(
+    {
+        "folder",
+        "name",
+        "notes",
+        "hidden",
+        "nodes",
+        "arcs",
+        "chains",
+        "points",
+        "areas",
+        "data",
+    }
+)
 
 # SPEC 3.3.2.  One shape for an arc of a network and an arc of a route.  An
 # arc is not one of the items SPEC 3.8 lists as carrying `hidden`, and has no
@@ -56,16 +85,35 @@ CHAIN = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
 PASS = frozenset({"arc", "from", "to", "turn", "pinned"})
 
 # SPEC 3.4.  A route owns a graph of a network's shape, and one walk over it.
-ROUTE = frozenset({
-    "folder", "name", "notes", "hidden", "style", "nodes", "arcs", "walk", "data",
-})
+ROUTE = frozenset(
+    {
+        "folder",
+        "name",
+        "notes",
+        "hidden",
+        "style",
+        "nodes",
+        "arcs",
+        "walk",
+        "data",
+    }
+)
 
 # SPEC 3.5.  `notes` is not in the section's example.  Dave ruled it legal on
 # 2026-09-09, after this implementation had assumed it on no evidence at all.
-TRACK = frozenset({
-    "folder", "name", "notes", "hidden", "started", "ended",
-    "style", "segments", "data",
-})
+TRACK = frozenset(
+    {
+        "folder",
+        "name",
+        "notes",
+        "hidden",
+        "started",
+        "ended",
+        "style",
+        "segments",
+        "data",
+    }
+)
 
 SEGMENT = frozenset({"pips"})
 

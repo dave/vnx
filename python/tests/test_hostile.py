@@ -74,7 +74,8 @@ class DamagedStreams(unittest.TestCase):
         result = vnx.read_container_bytes(self.good)
         self.assertEqual(result.document_name, "doc.vnx")
         self.assertEqual(
-            [(d.path, d.message) for d in result.diagnostics], [],
+            [(d.path, d.message) for d in result.diagnostics],
+            [],
             "the fixture document must be clean, or every test here carries a "
             "diagnostic that has nothing to do with the damage",
         )
@@ -183,9 +184,9 @@ class LyingHeaders(unittest.TestCase):
         for target, offset in ((compressed, 18), (uncompressed, 22)):
             if target is None:
                 continue
-            out[offset:offset + 4] = struct.pack("<I", target)
+            out[offset : offset + 4] = struct.pack("<I", target)
             here = central + (offset + 2)
-            out[here:here + 4] = struct.pack("<I", target)
+            out[here : here + 4] = struct.pack("<I", target)
         return bytes(out)
 
     def test_a_two_gigabyte_claim_allocates_nothing_like_it(self) -> None:
@@ -208,7 +209,8 @@ class LyingHeaders(unittest.TestCase):
         self.assertEqual(result.document_name, "doc.vnx")
         self.assertLess(peak, 8 * 1024 * 1024, "a header field sized a buffer")
         self.assertGreater(
-            self.LIE, 8 * 1024 * 1024 * 100,
+            self.LIE,
+            8 * 1024 * 1024 * 100,
             "the lie is too small to prove anything",
         )
 
@@ -306,16 +308,21 @@ class RunnerContainment(unittest.TestCase):
         # The liveness half.  Counting error ENTRIES would not do: the question
         # is whether every OTHER case was still checked, so a second defect is
         # injected that every case must report, and the two are counted apart.
-        with mock.patch.object(decode, "read_bytes", explodes), \
-             mock.patch.object(vnx, "read_bytes", explodes), \
-             mock.patch.object(model.Document, "counts", lambda self: {
-                 key: 0 for key in test_corpus.COLLECTIONS}):
+        with (
+            mock.patch.object(decode, "read_bytes", explodes),
+            mock.patch.object(vnx, "read_bytes", explodes),
+            mock.patch.object(
+                model.Document,
+                "counts",
+                lambda self: {key: 0 for key in test_corpus.COLLECTIONS},
+            ),
+        ):
             suite = unittest.TestLoader().loadTestsFromName(
                 "AcceptTier.test_accept", test_corpus
             )
-            result = unittest.TextTestRunner(
-                stream=io.StringIO(), verbosity=0
-            ).run(suite)
+            result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(
+                suite
+            )
 
         reported = {
             str(test).split("case=")[-1].strip("')] ")

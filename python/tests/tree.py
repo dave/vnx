@@ -129,9 +129,7 @@ def _graph(obj: dict[str, Any], options: Options) -> None:
     """The `nodes` and `arcs` a network and a route share (SPEC 3.4)."""
     nodes = obj.get("nodes")
     if isinstance(nodes, dict):
-        obj["nodes"] = {
-            key: _position(value, options) for key, value in nodes.items()
-        }
+        obj["nodes"] = {key: _position(value, options) for key, value in nodes.items()}
     arcs = obj.get("arcs")
     if isinstance(arcs, dict):
         out = {}

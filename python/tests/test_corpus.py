@@ -36,6 +36,8 @@ _WRITE_TIER = tree.Options(emit_boundary=False)
 def _bits(value: float) -> str:
     """A double's IEEE 754 encoding, as 16 hexadecimal digits."""
     return struct.pack(">d", value).hex()
+
+
 COLLECTIONS = ("folders", "networks", "routes", "tracks", "waypoints", "areas")
 
 
@@ -135,7 +137,8 @@ class CorpusStructure(unittest.TestCase):
             for path in cases:
                 sidecar = path.with_suffix(".expect.json")
                 self.assertTrue(
-                    sidecar.is_file(), f"{path.name} has no sidecar: a failure, not a skip"
+                    sidecar.is_file(),
+                    f"{path.name} has no sidecar: a failure, not a skip",
                 )
 
     def test_every_sidecar_has_a_case(self) -> None:
@@ -150,8 +153,18 @@ class CorpusStructure(unittest.TestCase):
                 self.assertTrue(found, f"{sidecar.name} describes no case file")
 
     # Fields this runner compares.  `kind` and `note` are structural.
-    CHECKED = {"kind", "note", "counts", "positions", "tracks", "attachments",
-               "attachment_contents", "root", "refusal", "diagnostics"}
+    CHECKED = {
+        "kind",
+        "note",
+        "counts",
+        "positions",
+        "tracks",
+        "attachments",
+        "attachment_contents",
+        "root",
+        "refusal",
+        "diagnostics",
+    }
     # Fields this runner knowingly does not compare, and why.  A sidecar field
     # that is in neither set fails the test below rather than being ignored:
     # an unasserted expectation is how a fixture quietly becomes the format.
@@ -207,7 +220,9 @@ class CorpusStructure(unittest.TestCase):
         while checking half of what it pins. A nested expectation needs a nested
         sweep.
         """
-        known = matching.COMPARED_DIAGNOSTIC_FIELDS | matching.UNCOMPARED_DIAGNOSTIC_FIELDS
+        known = (
+            matching.COMPARED_DIAGNOSTIC_FIELDS | matching.UNCOMPARED_DIAGNOSTIC_FIELDS
+        )
         for sidecar in sorted((CORPUS / "diagnose").glob("*.expect.json")):
             for expected in json.loads(sidecar.read_text()).get("diagnostics", []):
                 for field in expected:
@@ -222,7 +237,9 @@ class CorpusStructure(unittest.TestCase):
         """SPEC 6.3: a diagnostic a corpus case pins MUST carry a code."""
         for sidecar in sorted((CORPUS / "diagnose").glob("*.expect.json")):
             for expected in json.loads(sidecar.read_text()).get("diagnostics", []):
-                self.assertIn("code", expected, f"{sidecar.name}: pinned without a code")
+                self.assertIn(
+                    "code", expected, f"{sidecar.name}: pinned without a code"
+                )
 
     def test_every_sidecar_declares_its_kind_and_reason(self) -> None:
         for kind in ("accept", "reject", "diagnose"):
@@ -276,7 +293,9 @@ class _CorpusCase(unittest.TestCase):
                 f"{name}: the bytes of attachment {entry!r}",
             )
 
-    def _check_counts(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
+    def _check_counts(
+        self, expect: dict[str, Any], document: vnx.Document, name: str
+    ) -> None:
         """SPEC 8.1's `counts`, under the completeness rule ruled 2026-09-09.
 
         A sidecar must name every collection its document carries.  An
@@ -313,7 +332,9 @@ class _CorpusCase(unittest.TestCase):
                     "sidecar does not name that container",
                 )
 
-    def _check_positions(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
+    def _check_positions(
+        self, expect: dict[str, Any], document: vnx.Document, name: str
+    ) -> None:
         """SPEC 8.1's `positions`, compared BY BIT PATTERN.
 
         A value comparison cannot see a one-ulp move between the parse and the
@@ -345,19 +366,26 @@ class _CorpusCase(unittest.TestCase):
             for channel, got in (("lon", position.lon), ("lat", position.lat)):
                 want = float(pinned[channel])
                 self.assertEqual(
-                    _bits(got), _bits(want),
+                    _bits(got),
+                    _bits(want),
                     f"{name}: {pinned['at']} {channel} is {got!r} "
                     f"({_bits(got)}), the sidecar says {want!r} ({_bits(want)})",
                 )
 
-    def _check_tracks(self, expect: dict[str, Any], document: vnx.Document, name: str) -> None:
+    def _check_tracks(
+        self, expect: dict[str, Any], document: vnx.Document, name: str
+    ) -> None:
         for pinned in expect.get("tracks") or []:
             matches = [t for t in (document.tracks or []) if t.name == pinned["name"]]
-            self.assertEqual(len(matches), 1, f"{name}: no one track named {pinned['name']!r}")
+            self.assertEqual(
+                len(matches), 1, f"{name}: no one track named {pinned['name']!r}"
+            )
             got = matches[0].moving_time_ms()
             want = pinned["moving_time_ms"]
             if want is None:
-                self.assertIsNone(got, f"{name}: moving time must be unknown, not {got!r}")
+                self.assertIsNone(
+                    got, f"{name}: moving time must be unknown, not {got!r}"
+                )
             else:
                 self.assertIsNotNone(got, f"{name}: moving time must be known")
                 self.assertEqual(got, float(want), f"{name}: moving time")
@@ -409,7 +437,8 @@ class AcceptTier(_CorpusCase):
                     tree.Options(emit_boundary=True),
                 )
                 self.assertEqual(
-                    difference, "",
+                    difference,
+                    "",
                     f"{path.name}: encoding the decoded document did not "
                     "reproduce the file. Either the reader dropped something it "
                     "read, or the writer invented something",
@@ -477,13 +506,17 @@ class DiagnosticsAreDistinguishable(unittest.TestCase):
                 try:
                     if path.suffix == ".vnz":
                         out.append(
-                            (f"{tier}/{path.name}",
-                             list(vnx.read_container_bytes(data).diagnostics))
+                            (
+                                f"{tier}/{path.name}",
+                                list(vnx.read_container_bytes(data).diagnostics),
+                            )
                         )
                     else:
                         out.append(
-                            (f"{tier}/{path.name}",
-                             list(vnx.read_bytes(data).diagnostics))
+                            (
+                                f"{tier}/{path.name}",
+                                list(vnx.read_bytes(data).diagnostics),
+                            )
                         )
                 except vnx.VNXRefusal:
                     # A refused document has no diagnostic set to be well
@@ -504,7 +537,8 @@ class DiagnosticsAreDistinguishable(unittest.TestCase):
                     seen[key] = seen.get(key, 0) + 1
                 repeated = {key: n for key, n in seen.items() if n > 1}
                 self.assertEqual(
-                    repeated, {},
+                    repeated,
+                    {},
                     f"{name}: two reports a runner cannot tell apart",
                 )
 
@@ -625,11 +659,15 @@ class WriteTier(unittest.TestCase):
         for _, written in self._pairs():
             with self.subTest(case=written.name):
                 again = vnx.read_bytes(written.read_bytes())
-                self.assertIsNone(match_diagnostics([], again.diagnostics),
-                                  f"{written.name} must read cleanly")
+                self.assertIsNone(
+                    match_diagnostics([], again.diagnostics),
+                    f"{written.name} must read cleanly",
+                )
                 self.assertEqual(
                     tree.compare_documents(
-                        vnx.encode_bytes(again.document), written.read_bytes(), _WRITE_TIER
+                        vnx.encode_bytes(again.document),
+                        written.read_bytes(),
+                        _WRITE_TIER,
                     ),
                     "",
                 )
@@ -688,7 +726,8 @@ class WriteTier(unittest.TestCase):
                     want_names = archive.namelist()
                     want_root = archive.read(want_names[0])
                 self.assertEqual(
-                    names[0], "doc.vnx",
+                    names[0],
+                    "doc.vnx",
                     "SPEC 7.1 requires the root document first",
                 )
                 self.assertEqual(sorted(names[1:]), sorted(want_names[1:]))

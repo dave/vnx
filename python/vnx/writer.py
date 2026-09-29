@@ -41,9 +41,7 @@ def encode_bytes(document: Document) -> bytes:
     SPEC 4.2 forbids them throughout a document.
     """
     tree = encode_document(normalised_document(document))
-    text = json.dumps(
-        tree, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    )
+    text = json.dumps(tree, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return text.encode("utf-8")
 
 

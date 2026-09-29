@@ -84,7 +84,9 @@ def _red_cases(result: unittest.TestResult) -> set[str]:
 
 
 class RedProof(unittest.TestCase):
-    def assertRedCases(self, defect: Any, check: str, cases: set[str], because: str) -> None:
+    def assertRedCases(
+        self, defect: Any, check: str, cases: set[str], because: str
+    ) -> None:
         """Like `assertGoesRed`, and the defect reddens EXACTLY *cases*.
 
         corpus/README.md, step 8: a mutation that reddens three cases cannot
@@ -94,12 +96,11 @@ class RedProof(unittest.TestCase):
         with defect:
             result = _run(check)
         self.assertEqual(
-            _red_cases(result), cases,
+            _red_cases(result),
+            cases,
             f"{check} with a broken {because} reddened the wrong set of cases",
         )
-        self.assertTrue(
-            _run(check).wasSuccessful(), f"{check} did not come back green"
-        )
+        self.assertTrue(_run(check).wasSuccessful(), f"{check} did not come back green")
 
     def assertGoesRed(self, defect: Any, check: str, because: str) -> None:
         with defect:
@@ -108,9 +109,7 @@ class RedProof(unittest.TestCase):
             result.wasSuccessful(),
             f"{check} stayed green with a broken {because}; it is not checking it",
         )
-        self.assertTrue(
-            _run(check).wasSuccessful(), f"{check} did not come back green"
-        )
+        self.assertTrue(_run(check).wasSuccessful(), f"{check} did not come back green")
 
     # -- the checks the corpus README names -----------------------------
 
@@ -130,7 +129,9 @@ class RedProof(unittest.TestCase):
 
         with mock.patch.object(decode._Reader, "_position", transposing):
             swapped = vnx.read_bytes(b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}')
-        self.assertEqual(swapped.document.waypoints, [model.Waypoint(at=Position(2.0, 1.0))])
+        self.assertEqual(
+            swapped.document.waypoints, [model.Waypoint(at=Position(2.0, 1.0))]
+        )
 
         self.assertGoesRed(
             mock.patch.object(decode._Reader, "_position", transposing),
@@ -141,9 +142,11 @@ class RedProof(unittest.TestCase):
     def test_a_vacuous_decoder_is_caught(self) -> None:
         """`counts` stops an accept file passing vacuously."""
         self.assertGoesRed(
-            mock.patch.object(model.Document, "counts", lambda self: {
-                key: 0 for key in test_corpus.COLLECTIONS
-            }),
+            mock.patch.object(
+                model.Document,
+                "counts",
+                lambda self: {key: 0 for key in test_corpus.COLLECTIONS},
+            ),
             "AcceptTier.test_accept",
             "decoder that returns an empty document",
         )
@@ -200,9 +203,7 @@ class RedProof(unittest.TestCase):
                 got.areas = [model.Area(name="invented")]
             return got
 
-        def named_keys_only(
-            self: Any, expect: Any, document: Any, name: str
-        ) -> None:
+        def named_keys_only(self: Any, expect: Any, document: Any, name: str) -> None:
             # The nested-container walk stays: what is frozen here is the
             # COMPLETENESS half of the rule -- "an omitted container is
             # unchecked" -- not the pointer vocabulary the sidecars address
@@ -215,10 +216,12 @@ class RedProof(unittest.TestCase):
             for collection, want in (expect.get("counts") or {}).items():
                 self.assertEqual(counts[collection], want)
 
-        with mock.patch.object(decode._Reader, "document", inventive), \
-                mock.patch.object(
-                    test_corpus._CorpusCase, "_check_counts", named_keys_only
-                ):
+        with (
+            mock.patch.object(decode._Reader, "document", inventive),
+            mock.patch.object(
+                test_corpus._CorpusCase, "_check_counts", named_keys_only
+            ),
+        ):
             self.assertTrue(_run("AcceptTier.test_accept").wasSuccessful())
 
     # -- the nested `counts` containers (D2) ----------------------------
@@ -258,18 +261,27 @@ class RedProof(unittest.TestCase):
         the top level, those pins still redden all six cases.
         """
         unchecked = mock.patch.object(
-            test_corpus._CorpusCase, "_check_positions",
+            test_corpus._CorpusCase,
+            "_check_positions",
             lambda self, expect, document, name: None,
         )
         self.assertRedCases(
             _both(self._over_broad_chain_drop(), unchecked),
             "DiagnoseTier.test_diagnose",
-            {"arc-names-absent-node.vnx", "pass-names-absent-arc.vnx",
-             "pinned-turn.vnx", "position-out-of-range.vnx",
-             "walk-from-not-an-end.vnx", "walk-last-pass-lacks-to.vnx",
-             "walk-leaves-at-a-position-early.vnx", "walk-not-connected.vnx",
-             "walk-position-unusable.vnx", "walk-spelling.vnx",
-             "walk-to-forbidden.vnx", "walk-to-not-an-end.vnx"},
+            {
+                "arc-names-absent-node.vnx",
+                "pass-names-absent-arc.vnx",
+                "pinned-turn.vnx",
+                "position-out-of-range.vnx",
+                "walk-from-not-an-end.vnx",
+                "walk-last-pass-lacks-to.vnx",
+                "walk-leaves-at-a-position-early.vnx",
+                "walk-not-connected.vnx",
+                "walk-position-unusable.vnx",
+                "walk-spelling.vnx",
+                "walk-to-forbidden.vnx",
+                "walk-to-not-an-end.vnx",
+            },
             "reader whose dropped chain takes its siblings with it",
         )
 
@@ -282,9 +294,8 @@ class RedProof(unittest.TestCase):
         `positions` also off -- see the note above -- nothing else sees it.  If
         this ever goes red, something new is guarding the scoped drop; say so.
         """
-        def top_level_only(
-            self: Any, expect: Any, document: Any, name: str
-        ) -> None:
+
+        def top_level_only(self: Any, expect: Any, document: Any, name: str) -> None:
             counts = document.counts()
             pinned = {
                 key: want
@@ -297,11 +308,14 @@ class RedProof(unittest.TestCase):
                 if got:
                     self.assertIn(collection, pinned)
 
-        with self._over_broad_chain_drop(), mock.patch.object(
-            test_corpus._CorpusCase, "_check_counts", top_level_only
-        ), mock.patch.object(
-            test_corpus._CorpusCase, "_check_positions",
-            lambda self, expect, document, name: None,
+        with (
+            self._over_broad_chain_drop(),
+            mock.patch.object(test_corpus._CorpusCase, "_check_counts", top_level_only),
+            mock.patch.object(
+                test_corpus._CorpusCase,
+                "_check_positions",
+                lambda self, expect, document, name: None,
+            ),
         ):
             self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
 
@@ -336,9 +350,7 @@ class RedProof(unittest.TestCase):
         def unchecked(self: Any, expect: Any, document: Any, name: str) -> None:
             return None
 
-        with mock.patch.object(
-            test_corpus._CorpusCase, "_check_counts", unchecked
-        ):
+        with mock.patch.object(test_corpus._CorpusCase, "_check_counts", unchecked):
             self.assertGoesRed(
                 mock.patch.object(decode._Reader, "document", truncating),
                 "AcceptTier.test_accept_files_survive_a_read_and_a_write",
@@ -500,18 +512,23 @@ class RedProof(unittest.TestCase):
                         twice = vnx.encode_bytes(vnx.read_bytes(once).document)
                         if tree.compare_documents(twice, once, tree.Options()) == "":
                             blind += 1
-                        if tree.compare_documents(
-                            once, source, tree.Options(emit_boundary=True)
-                        ) != "":
+                        if (
+                            tree.compare_documents(
+                                once, source, tree.Options(emit_boundary=True)
+                            )
+                            != ""
+                        ):
                             seen += 1
                 self.assertEqual(
-                    blind, len(files),
+                    blind,
+                    len(files),
                     "a model-versus-model comparison saw this reader on "
                     f"{len(files) - blind} file(s); if it can, say so and "
                     "revisit the note above",
                 )
                 self.assertGreater(
-                    seen, 0,
+                    seen,
+                    0,
                     "no accept file carries what this reader drops, so the "
                     "comparison against the file proves nothing about it",
                 )
@@ -534,6 +551,7 @@ class RedProof(unittest.TestCase):
         cannot see it -- that direction still refuses -- so the proof is that
         `reject/version-too-old.vnx` goes red on its own.
         """
+
         def upward_only(self: Any, version: str) -> None:
             match = decode._VERSION.match(version)
             if match is None:
@@ -543,8 +561,7 @@ class RedProof(unittest.TestCase):
             pair = (int(match.group(1)), int(match.group(2)))
             if pair > decode.SUPPORTED_VERSION:
                 raise vnx.VNXRefusal(
-                    f"this document is version {version} and a newer reader is "
-                    "needed"
+                    f"this document is version {version} and a newer reader is needed"
                 )
 
         self.assertGoesRed(
@@ -593,7 +610,8 @@ class RedProof(unittest.TestCase):
 
         self.assertGoesRed(
             mock.patch.object(
-                decode._Reader, "note",
+                decode._Reader,
+                "note",
                 lambda self, path, message, code=None: original(self, path, message),
             ),
             "DiagnoseTier.test_diagnose",
@@ -605,7 +623,8 @@ class RedProof(unittest.TestCase):
 
         self.assertGoesRed(
             mock.patch.object(
-                decode._Reader, "note",
+                decode._Reader,
+                "note",
                 lambda self, path, message, code=None: original(
                     self, path, message, "not-the-right-code"
                 ),
@@ -624,7 +643,8 @@ class RedProof(unittest.TestCase):
         original = decode._Reader.note
 
         with mock.patch.object(
-            decode._Reader, "note",
+            decode._Reader,
+            "note",
             lambda self, path, message, code=None: original(
                 self, path, "xyzzy plugh", code
             ),
@@ -647,6 +667,7 @@ class RedProof(unittest.TestCase):
         The defect trusts every pass: it enters where the walk says and leaves
         by the other end, and never asks whether the arc touches either.
         """
+
         def trusting(at: Any, index: int, last: int, p: Any, arc: Any) -> Any:
             entry = p.from_ if p.from_ is not None else at
             if p.to is not None:
@@ -657,18 +678,27 @@ class RedProof(unittest.TestCase):
 
         defect = lambda: mock.patch.object(W, "connection", trusting)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose",
-            {"walk-from-not-an-end.vnx", "walk-leaves-at-a-position-early.vnx",
-             "walk-not-connected.vnx", "walk-to-not-an-end.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {
+                "walk-from-not-an-end.vnx",
+                "walk-leaves-at-a-position-early.vnx",
+                "walk-not-connected.vnx",
+                "walk-to-not-an-end.vnx",
+            },
             "walk continuity check",
         )
-        for test in ("test_8_a_from_node_that_is_not_an_end",
-                     "test_8_a_pass_that_does_not_join",
-                     "test_8_a_to_node_that_is_not_an_end",
-                     "test_8_a_position_exit_before_the_last_pass",
-                     "test_a_turn_leaves_by_the_node_it_entered"):
+        for test in (
+            "test_8_a_from_node_that_is_not_an_end",
+            "test_8_a_pass_that_does_not_join",
+            "test_8_a_to_node_that_is_not_an_end",
+            "test_8_a_position_exit_before_the_last_pass",
+            "test_a_turn_leaves_by_the_node_it_entered",
+        ):
             with self.subTest(test=test):
-                self.assertGoesRed(defect(), f"reader:Walks.{test}", "walk continuity check")
+                self.assertGoesRed(
+                    defect(), f"reader:Walks.{test}", "walk continuity check"
+                )
         self.assertGoesRed(
             defect(),
             "writer:TheWriterRefusesWhatItsReaderDrops."
@@ -679,31 +709,47 @@ class RedProof(unittest.TestCase):
     def test_a_reader_with_no_spelling_rule_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "spelling", lambda i, last, p: None)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose",
-            {"walk-last-pass-lacks-to.vnx", "walk-spelling.vnx", "walk-to-forbidden.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {
+                "walk-last-pass-lacks-to.vnx",
+                "walk-spelling.vnx",
+                "walk-to-forbidden.vnx",
+            },
             "rule for `from` and `to`",
         )
-        for test in ("test_7_the_first_pass_lacks_from", "test_7_a_later_pass_carries_from",
-                     "test_7_the_last_pass_lacks_to", "test_7_a_middle_pass_carries_to",
-                     "test_7_a_position_from_needs_a_to"):
+        for test in (
+            "test_7_the_first_pass_lacks_from",
+            "test_7_a_later_pass_carries_from",
+            "test_7_the_last_pass_lacks_to",
+            "test_7_a_middle_pass_carries_to",
+            "test_7_a_position_from_needs_a_to",
+        ):
             with self.subTest(test=test):
-                self.assertGoesRed(defect(), f"reader:Walks.{test}", "rule for `from` and `to`")
+                self.assertGoesRed(
+                    defect(), f"reader:Walks.{test}", "rule for `from` and `to`"
+                )
 
     def test_a_reader_that_allows_a_pinned_turn_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "pinned_turn", lambda p: None)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"pinned-turn.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {"pinned-turn.vnx"},
             "pinned-turn check",
         )
         self.assertGoesRed(
-            defect(), "reader:Walks.test_a_pinned_turn_is_found_before_the_spelling",
+            defect(),
+            "reader:Walks.test_a_pinned_turn_is_found_before_the_spelling",
             "pinned-turn check",
         )
 
     def test_a_reader_that_lets_a_route_carry_a_position_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "route_rule", lambda p: None)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"route-pin-or-position.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {"route-pin-or-position.vnx"},
             "route rule",
         )
         self.assertGoesRed(
@@ -735,8 +781,12 @@ class RedProof(unittest.TestCase):
         self.assertRedCases(
             mock.patch.object(decode._Reader, "_pass_arc", lenient),
             "DiagnoseTier.test_diagnose",
-            {"arc-names-absent-node.vnx", "pass-names-absent-arc.vnx",
-             "position-unusable.vnx", "self-loop-arc.vnx"},
+            {
+                "arc-names-absent-node.vnx",
+                "pass-names-absent-arc.vnx",
+                "position-unusable.vnx",
+                "self-loop-arc.vnx",
+            },
             "check that a pass names an arc of its owner",
         )
 
@@ -754,7 +804,9 @@ class RedProof(unittest.TestCase):
                 self.at = p.from_ if isinstance(p.from_, str) else self.at
                 leg = W.connection(self.at, index, self.last, p, arc)
                 if isinstance(leg, W.Broken):
-                    return W.WalkFault(index, leg.key, "walk-not-connected", leg.message)
+                    return W.WalkFault(
+                        index, leg.key, "walk-not-connected", leg.message
+                    )
             return got
 
         self.assertGoesRed(
@@ -768,11 +820,14 @@ class RedProof(unittest.TestCase):
     def test_a_reader_that_keeps_a_self_loop_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "is_self_loop", lambda arc: False)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"self-loop-arc.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {"self-loop-arc.vnx"},
             "self-loop check",
         )
         self.assertGoesRed(
-            defect(), "writer:TheWriterRefusesWhatItsReaderDrops.test_a_self_loop_is_refused",
+            defect(),
+            "writer:TheWriterRefusesWhatItsReaderDrops.test_a_self_loop_is_refused",
             "writer's self-loop check",
         )
 
@@ -816,7 +871,8 @@ class RedProof(unittest.TestCase):
     def test_a_reader_that_keeps_an_extra_channel_is_caught(self) -> None:
         self.assertRedCases(
             mock.patch.object(
-                decode._Reader, "_extra_channel",
+                decode._Reader,
+                "_extra_channel",
                 lambda self, position, path, keep_ele: position,
             ),
             "DiagnoseTier.test_diagnose",
@@ -835,7 +891,9 @@ class RedProof(unittest.TestCase):
     def test_a_reader_that_keeps_a_closed_ring_closed_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "ring_is_closed", lambda ring: False)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"ring-closed.vnx"},
+            defect(),
+            "DiagnoseTier.test_diagnose",
+            {"ring-closed.vnx"},
             "closed-ring check",
         )
         self.assertGoesRed(
@@ -847,12 +905,14 @@ class RedProof(unittest.TestCase):
     def test_a_reader_that_keeps_a_short_ring_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "distinct_lon_lat", lambda ring: 3)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose",
+            defect(),
+            "DiagnoseTier.test_diagnose",
             {"ring-distinct-by-lon-lat.vnx", "ring-too-few-points.vnx"},
             "distinct-positions check",
         )
         self.assertGoesRed(
-            defect(), "reader:Polygons.test_a_repeated_interior_position_is_not_distinct",
+            defect(),
+            "reader:Polygons.test_a_repeated_interior_position_is_not_distinct",
             "distinct-positions check",
         )
         self.assertGoesRed(
@@ -867,8 +927,13 @@ class RedProof(unittest.TestCase):
         original = decode._Reader._polygon
 
         def outer_ring(self: Any, value: Any, path: str) -> Any:
-            if isinstance(value, list) and value and isinstance(value[0], list) \
-                    and value[0] and isinstance(value[0][0], list):
+            if (
+                isinstance(value, list)
+                and value
+                and isinstance(value[0], list)
+                and value[0]
+                and isinstance(value[0][0], list)
+            ):
                 return original(self, value[0], path)
             return original(self, value, path)
 
@@ -901,14 +966,14 @@ class RedProof(unittest.TestCase):
 
     # -- containers -----------------------------------------------------
 
-    def test_a_container_that_lists_its_document_as_an_attachment_is_caught(self) -> None:
+    def test_a_container_that_lists_its_document_as_an_attachment_is_caught(
+        self,
+    ) -> None:
         original = vnx.container.read_container_bytes
 
         def sloppy(data: bytes) -> Any:
             got = original(data)
-            got.attachments = got.attachments + [
-                vnx.Attachment(got.document_name, b"")
-            ]
+            got.attachments = got.attachments + [vnx.Attachment(got.document_name, b"")]
             return got
 
         self.assertGoesRed(
@@ -935,9 +1000,7 @@ class RedProof(unittest.TestCase):
 
         def emptied(data: bytes) -> Any:
             got = original(data)
-            got.attachments = [
-                vnx.Attachment(a.path, b"") for a in got.attachments
-            ]
+            got.attachments = [vnx.Attachment(a.path, b"") for a in got.attachments]
             return got
 
         self.assertGoesRed(
@@ -956,7 +1019,6 @@ class RedProof(unittest.TestCase):
             "RejectTier.test_reject",
             "container reader that does not check attachment paths",
         )
-
 
     def test_a_reader_that_drops_the_pip_instead_of_the_container_is_caught(
         self,
@@ -985,7 +1047,6 @@ class RedProof(unittest.TestCase):
             "reader that drops the offending pip instead of its container",
         )
 
-
     def test_two_reports_a_runner_cannot_tell_apart_are_caught(self) -> None:
         """SPEC 6.3's invariant, red-proofed by reporting per pip.
 
@@ -995,6 +1056,7 @@ class RedProof(unittest.TestCase):
         with one path and one code -- and the set matcher alone would pass a
         reader that found one fault twice.
         """
+
         def per_pip(self: Any, pips: Any, here: str) -> Any:
             for pip in pips:
                 if pip.time_ms is not None:
@@ -1012,7 +1074,8 @@ class RedProof(unittest.TestCase):
         """The liveness half: an empty walk would satisfy the invariant."""
         self.assertGoesRed(
             mock.patch.object(
-                test_corpus.DiagnosticsAreDistinguishable, "documents",
+                test_corpus.DiagnosticsAreDistinguishable,
+                "documents",
                 lambda self: [],
             ),
             "DiagnosticsAreDistinguishable."

@@ -24,7 +24,9 @@ from .errors import Diagnostic, VNXRefusal
 from .model import Document
 
 __all__ = [
-    "Attachment", "ContainerReadResult", "read_container_bytes",
+    "Attachment",
+    "ContainerReadResult",
+    "read_container_bytes",
     "encode_container_bytes",
 ]
 
@@ -71,8 +73,7 @@ def _check_path(name: str) -> None:
     # while hunting for the segment" never has to be answered.
     if "\\" in name:
         raise VNXRefusal(
-            f"{name!r} escapes the archive: an entry name may not contain a "
-            "backslash"
+            f"{name!r} escapes the archive: an entry name may not contain a backslash"
         )
 
     # SPEC 7: `..` is a path SEGMENT, not a substring, and names
@@ -138,10 +139,10 @@ def _payload_offset(data: bytes, info: zipfile.ZipInfo) -> Union[int, None]:
     fields from the central directory's and may legitimately disagree with them.
     """
     at = info.header_offset
-    if len(data) < at + 30 or data[at:at + 4] != b"PK\x03\x04":
+    if len(data) < at + 30 or data[at : at + 4] != b"PK\x03\x04":
         return None
-    name_len = int.from_bytes(data[at + 26:at + 28], "little")
-    extra_len = int.from_bytes(data[at + 28:at + 30], "little")
+    name_len = int.from_bytes(data[at + 26 : at + 28], "little")
+    extra_len = int.from_bytes(data[at + 28 : at + 30], "little")
     return at + 30 + name_len + extra_len
 
 
@@ -155,10 +156,10 @@ def _central_directory_offset(data: bytes) -> Union[int, None]:
     end = len(data) - 22
     earliest = max(0, len(data) - 22 - 0xFFFF)
     while end >= earliest:
-        if data[end:end + 4] == b"PK\x05\x06":
-            comment_len = int.from_bytes(data[end + 20:end + 22], "little")
+        if data[end : end + 4] == b"PK\x05\x06":
+            comment_len = int.from_bytes(data[end + 20 : end + 22], "little")
             if end + 22 + comment_len == len(data):
-                offset = int.from_bytes(data[end + 16:end + 20], "little")
+                offset = int.from_bytes(data[end + 16 : end + 20], "little")
                 if offset != 0xFFFFFFFF:
                     return offset
                 return None
@@ -311,9 +312,7 @@ def encode_container_bytes(
     return _container(encode_bytes(document), attachments)
 
 
-def _container(
-    body: bytes, attachments: Union[dict[str, bytes], None]
-) -> bytes:
+def _container(body: bytes, attachments: Union[dict[str, bytes], None]) -> bytes:
     for name in attachments or {}:
         # A writer refuses to pack a name it would refuse to read.
         _check_path(name)
@@ -379,23 +378,25 @@ def _set_utf8_flags(data: bytes) -> bytes:
     """
     out = bytearray(data)
     eocd = len(out) - 22
-    if eocd < 0 or bytes(out[eocd:eocd + 4]) != _EOCD:
+    if eocd < 0 or bytes(out[eocd : eocd + 4]) != _EOCD:
         # This writer adds no archive comment, so the end record is last.
-        raise AssertionError("the archive does not end in its end-of-central-directory record")
+        raise AssertionError(
+            "the archive does not end in its end-of-central-directory record"
+        )
     count, _, cd_offset = struct.unpack_from("<HII", out, eocd + 10)
     if cd_offset == 0xFFFFFFFF or count == 0xFFFF:
         locator = eocd - 20
-        if bytes(out[locator:locator + 4]) != _ZIP64_LOCATOR:
+        if bytes(out[locator : locator + 4]) != _ZIP64_LOCATOR:
             raise AssertionError("a ZIP64 archive with no ZIP64 locator")
         (zip64_eocd,) = struct.unpack_from("<Q", out, locator + 8)
-        if bytes(out[zip64_eocd:zip64_eocd + 4]) != _ZIP64_EOCD:
+        if bytes(out[zip64_eocd : zip64_eocd + 4]) != _ZIP64_EOCD:
             raise AssertionError("the ZIP64 locator names no ZIP64 end record")
         (count,) = struct.unpack_from("<Q", out, zip64_eocd + 32)
         (cd_offset,) = struct.unpack_from("<Q", out, zip64_eocd + 48)
 
     at = cd_offset
     for _ in range(count):
-        if bytes(out[at:at + 4]) != _CENTRAL:
+        if bytes(out[at : at + 4]) != _CENTRAL:
             raise AssertionError(f"no central directory header at byte {at}")
         (flags,) = struct.unpack_from("<H", out, at + 8)
         struct.pack_into("<H", out, at + 8, flags | _UTF8_FLAG)
@@ -407,8 +408,10 @@ def _set_utf8_flags(data: bytes) -> bytes:
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         for info in archive.infolist():
             local = info.header_offset
-            if bytes(out[local:local + 4]) != _LOCAL:
-                raise AssertionError(f"no local header at byte {local} for {info.filename!r}")
+            if bytes(out[local : local + 4]) != _LOCAL:
+                raise AssertionError(
+                    f"no local header at byte {local} for {info.filename!r}"
+                )
             (flags,) = struct.unpack_from("<H", out, local + 6)
             struct.pack_into("<H", out, local + 6, flags | _UTF8_FLAG)
     return bytes(out)

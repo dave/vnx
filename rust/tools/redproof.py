@@ -60,6 +60,7 @@ rather than in this crate and fails the script if it ever goes red. None does
 today: the one that did — reaching inward to a segment's first and last TIMED
 pip — was promoted on 2026-09-10 when `8979621` fixed the fixture behind it.
 """
+
 import atexit, datetime, io, os, shutil, subprocess, sys, tempfile
 
 # Derived from this script's own location, NOT hardcoded. A hardcoded path
@@ -67,15 +68,26 @@ import atexit, datetime, io, os, shutil, subprocess, sys, tempfile
 # own hazard notes recommend — silently mutates the shared tree instead, which
 # is the opposite of what the reader was trying to do.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ["src/model.rs", "src/decode.rs", "src/json/mod.rs", "src/encode.rs",
-         "src/zip/mod.rs", "src/walk.rs", "src/diag.rs", "src/vnz.rs",
-         "tests/corpus.rs", "tests/support/tree.rs"]
+FILES = [
+    "src/model.rs",
+    "src/decode.rs",
+    "src/json/mod.rs",
+    "src/encode.rs",
+    "src/zip/mod.rs",
+    "src/walk.rs",
+    "src/diag.rs",
+    "src/vnz.rs",
+    "tests/corpus.rs",
+    "tests/support/tree.rs",
+]
 
 MUTATIONS = [
-    ("transpose lon and lat everywhere", "src/model.rs",
-     "        Position { channels }",
-     "        let mut channels = channels; channels.swap(0, 1); Position { channels }"),
-
+    (
+        "transpose lon and lat everywhere",
+        "src/model.rs",
+        "        Position { channels }",
+        "        let mut channels = channels; channels.swap(0, 1); Position { channels }",
+    ),
     # EXPECTED SURVIVOR since 2026-09-10, and it is the spec that changed rather
     # than a guard that weakened. SPEC 4.1 says `[lon, lat, null]` and
     # `[lon, lat]` state the same thing and a reader takes either, and SPEC 8.1
@@ -83,78 +95,106 @@ MUTATIONS = [
     # normalisations. A reader that shortens on the way IN is therefore
     # indistinguishable at every boundary the format defines. The accept tier
     # caught this while it compared bytes; nothing can now, and nothing should.
-    ("normalise [lon, lat, null] to [lon, lat]", "src/decode.rs",
-     "    Ok(Position::new(channels))",
-     "    while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n    Ok(Position::new(channels))",
-     "expect-green"),
-
-    ("discard every data record", "src/decode.rs",
-     "        let items = self.opt_array(entries, \"data\", path)?;",
-     "        let items = self.opt_array(entries, \"data\", path)?; if true { return None; }"),
-
-    ("discard every application key", "src/decode.rs",
-     "        document.app_keys = app_keys;",
-     "        let _ = app_keys;"),
-
-    ("discard every style object", "src/decode.rs",
-     "        let members = self.opt_object(entries, \"style\", path)?;",
-     "        let members = self.opt_object(entries, \"style\", path)?; if true { return None; }"),
-
+    (
+        "normalise [lon, lat, null] to [lon, lat]",
+        "src/decode.rs",
+        "    Ok(Position::new(channels))",
+        "    while channels.len() > 2 && channels[channels.len()-1].is_none() { channels.pop(); }\n    Ok(Position::new(channels))",
+        "expect-green",
+    ),
+    (
+        "discard every data record",
+        "src/decode.rs",
+        '        let items = self.opt_array(entries, "data", path)?;',
+        '        let items = self.opt_array(entries, "data", path)?; if true { return None; }',
+    ),
+    (
+        "discard every application key",
+        "src/decode.rs",
+        "        document.app_keys = app_keys;",
+        "        let _ = app_keys;",
+    ),
+    (
+        "discard every style object",
+        "src/decode.rs",
+        '        let members = self.opt_object(entries, "style", path)?;',
+        '        let members = self.opt_object(entries, "style", path)?; if true { return None; }',
+    ),
     # Applied to EVERY host, not just the first: only some hosts carry `notes`
     # in the fixtures, and a mutation that misses them all proves nothing.
-    ("discard every notes field", "src/decode.rs",
-     "            notes: self.opt_string(entries, \"notes\", path),",
-     "            notes: None,", "all"),
-
-    ("answer 0 for an unknown moving time", "src/model.rs",
-     "            total += last.time_ms()? - first.time_ms()?;",
-     "            total += last.time_ms().unwrap_or(0.0) - first.time_ms().unwrap_or(0.0);"),
-
-
-    ("skip the unrecognised-key rule", "src/decode.rs",
-     "                self.report(&path.key(key), Cause::UnknownKey);",
-     "                let _ = key;"),
-
-    ("refuse on a newer PATCH too", "src/decode.rs",
-     "    if (version.major, version.minor) != SUPPORTED {",
-     "    if (version.major, version.minor) != SUPPORTED || version.patch > 0 {"),
-
+    (
+        "discard every notes field",
+        "src/decode.rs",
+        '            notes: self.opt_string(entries, "notes", path),',
+        "            notes: None,",
+        "all",
+    ),
+    (
+        "answer 0 for an unknown moving time",
+        "src/model.rs",
+        "            total += last.time_ms()? - first.time_ms()?;",
+        "            total += last.time_ms().unwrap_or(0.0) - first.time_ms().unwrap_or(0.0);",
+    ),
+    (
+        "skip the unrecognised-key rule",
+        "src/decode.rs",
+        "                self.report(&path.key(key), Cause::UnknownKey);",
+        "                let _ = key;",
+    ),
+    (
+        "refuse on a newer PATCH too",
+        "src/decode.rs",
+        "    if (version.major, version.minor) != SUPPORTED {",
+        "    if (version.major, version.minor) != SUPPORTED || version.patch > 0 {",
+    ),
     # SPEC 2.2 through 0.x: each MINOR is its own series, so the test is "not
     # this reader's series", not "above it". `>` is the shape five of the six
     # implementations had, and it passes reject/version-too-new while READING
     # a 0.0 document — silently, under rules that were never written for it.
     # Only reject/version-too-old.vnx reaches this.
-    ("compare the version series with `>` rather than `!=`", "src/decode.rs",
-     "    if (version.major, version.minor) != SUPPORTED {",
-     "    if (version.major, version.minor) > SUPPORTED {"),
-
-    ("round coordinates while decoding", "src/decode.rs",
-     "            Json::Number(n) => channels.push(Some(*n)),",
-     "            Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),"),
-
+    (
+        "compare the version series with `>` rather than `!=`",
+        "src/decode.rs",
+        "    if (version.major, version.minor) != SUPPORTED {",
+        "    if (version.major, version.minor) > SUPPORTED {",
+    ),
+    (
+        "round coordinates while decoding",
+        "src/decode.rs",
+        "            Json::Number(n) => channels.push(Some(*n)),",
+        "            Json::Number(n) => channels.push(Some((*n * 1e6).round() / 1e6)),",
+    ),
     # This one is caught by the runner's own SELF-TEST, not by any corpus
     # fixture: every diagnose fixture carries at most one diagnostic and its
     # path identifies it, so no case can separate a matcher that compares the
     # code from one that ignores it.
-    ("compare a diagnostic's path and ignore its code", "tests/corpus.rs",
-     ".position(|&i| reported[i].path == want.path && reported[i].code() == want.code);",
-     ".position(|&i| reported[i].path == want.path);"),
-
+    (
+        "compare a diagnostic's path and ignore its code",
+        "tests/corpus.rs",
+        ".position(|&i| reported[i].path == want.path && reported[i].code() == want.code);",
+        ".position(|&i| reported[i].path == want.path);",
+    ),
     # Same shape: the sidecar-shape refusals have no fixture behind them.
-    ("ignore a sidecar's stale `message` field", "tests/corpus.rs",
-     '        if want.get("message").is_some() {',
-     '        if false && want.get("message").is_some() {'),
-
+    (
+        "ignore a sidecar's stale `message` field",
+        "tests/corpus.rs",
+        '        if want.get("message").is_some() {',
+        '        if false && want.get("message").is_some() {',
+    ),
     # SPEC 7 requires a reader to accept ZIP64 and the corpus has no ZIP64
     # fixture, so `tests/zip64.rs` is the only thing that reaches these two.
-    ("skip the ZIP64 extra-field parser", "src/zip/mod.rs",
-     "        if id == 0x0001 {",
-     "        if false && id == 0x0001 {"),
-
-    ("ignore the ZIP64 end of central directory record", "src/zip/mod.rs",
-     "        if count == 0xffff || cd_offset == 0xffff_ffff || cd_size == 0xffff_ffff {",
-     "        if false {"),
-
+    (
+        "skip the ZIP64 extra-field parser",
+        "src/zip/mod.rs",
+        "        if id == 0x0001 {",
+        "        if false && id == 0x0001 {",
+    ),
+    (
+        "ignore the ZIP64 end of central directory record",
+        "src/zip/mod.rs",
+        "        if count == 0xffff || cd_offset == 0xffff_ffff || cd_size == 0xffff_ffff {",
+        "        if false {",
+    ),
     # `accept/track-partly-timed.vnx` separates "read a segment's END pips" from
     # "read its first and last TIMED pip". This was an expected-SURVIVOR from
     # 2026-09-09 to 2026-09-10, because the fixture's untimed segment carried no
@@ -168,195 +208,264 @@ MUTATIONS = [
     # defect, and it went red for the skipping rather than for the reaching
     # inward. A mutation broader than the rule proves the corpus catches
     # something, not that it catches this.
-    ("reach inward to a segment's first and last TIMED pip", "src/model.rs",
-     "            total += last.time_ms()? - first.time_ms()?;",
-     "            let timed: Vec<f64> = segment.pips.iter().filter_map(|p| p.time_ms()).collect();\n"
-     "            if timed.is_empty() { return None; }\n"
-     "            total += timed[timed.len() - 1] - timed[0];\n"
-     "            let _ = (first, last);"),
-
+    (
+        "reach inward to a segment's first and last TIMED pip",
+        "src/model.rs",
+        "            total += last.time_ms()? - first.time_ms()?;",
+        "            let timed: Vec<f64> = segment.pips.iter().filter_map(|p| p.time_ms()).collect();\n"
+        "            if timed.is_empty() { return None; }\n"
+        "            total += timed[timed.len() - 1] - timed[0];\n"
+        "            let _ = (first, last);",
+    ),
     # SPEC 6.2: "GEOMETRY IS CONTINUOUS AND STRUCTURE IS NOT." Keeping the good
     # pips leaves a shorter, plausible, wrong line with nothing to indicate it.
     # This crate shipped that reading until 2026-09-10.
-    ("keep the good pips and drop only the unusable one", "src/decode.rs",
-     "            out.push(self.position(item, &path.index(i), dropped)?);",
-     "            if let Some(p) = self.position(item, &path.index(i), dropped) { out.push(p); }"),
-
-    ("conflate the optional and required wrong-type codes", "src/diag.rs",
-     '            | Cause::RecordTypeMissing => "wrong-type-required",',
-     '            | Cause::RecordTypeMissing => "wrong-type-optional",'),
-
+    (
+        "keep the good pips and drop only the unusable one",
+        "src/decode.rs",
+        "            out.push(self.position(item, &path.index(i), dropped)?);",
+        "            if let Some(p) = self.position(item, &path.index(i), dropped) { out.push(p); }",
+    ),
+    (
+        "conflate the optional and required wrong-type codes",
+        "src/diag.rs",
+        '            | Cause::RecordTypeMissing => "wrong-type-required",',
+        '            | Cause::RecordTypeMissing => "wrong-type-optional",',
+    ),
     # Hostile input, which no corpus tier reaches: every fixture is well-formed,
     # including the ones that must be refused. A panic is not a refusal.
-    ("add without checking, so a ZIP64 offset overflows a usize", "src/zip/mod.rs",
-     "    let end = at\n        .checked_add(len)\n        .ok_or_else(|| ZipError(\"an offset in the archive is out of range\".into()))?;",
-     "    let end = at + len;"),
-
-    ("trust a declared uncompressed size as a bound", "src/zip/mod.rs",
-     "        .take(ceiling)",
-     "        .take(u64::MAX)"),
-
+    (
+        "add without checking, so a ZIP64 offset overflows a usize",
+        "src/zip/mod.rs",
+        '    let end = at\n        .checked_add(len)\n        .ok_or_else(|| ZipError("an offset in the archive is out of range".into()))?;',
+        "    let end = at + len;",
+    ),
+    (
+        "trust a declared uncompressed size as a bound",
+        "src/zip/mod.rs",
+        "        .take(ceiling)",
+        "        .take(u64::MAX)",
+    ),
     # A CRC is a claim the archive makes about its own bytes. Without the check,
     # a corrupt ATTACHMENT is returned as content — the document keeps parsing,
     # so nothing else notices.
-    ("skip the CRC check", "src/zip/mod.rs",
-     "        if crc != entry.crc32 {",
-     "        if false && crc != entry.crc32 {"),
-
+    (
+        "skip the CRC check",
+        "src/zip/mod.rs",
+        "        if crc != entry.crc32 {",
+        "        if false && crc != entry.crc32 {",
+    ),
     # SPEC 8.1: the accept tier compares against the ORIGINAL FILE. A
     # comparison that sees nothing passes every reader, including one that threw
     # away every data record, ruleset, style and `notes`.
-    ("make the tree comparison blind", "tests/support/tree.rs",
-     "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {",
-     "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {\n    if true { return None; }"),
-
+    (
+        "make the tree comparison blind",
+        "tests/support/tree.rs",
+        "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {",
+        "fn diff(got: &Json, want: &Json, path: &str) -> Option<String> {\n    if true { return None; }",
+    ),
     # SPEC 3.8: a writer emits `hidden` only when it is true.
-    ("write a false `hidden`", "src/encode.rs",
-     "        if value == Some(true) {",
-     "        if let Some(true | false) = value {"),
-
+    (
+        "write a false `hidden`",
+        "src/encode.rs",
+        "        if value == Some(true) {",
+        "        if let Some(true | false) = value {",
+    ),
     # ⚠ THE PAIR BELOW IS ONE INSTRUMENT AND MUST BE READ TOGETHER. A test that
     # fails on REORDERING but not on LOSS is asserting an order SPEC 7.1
     # explicitly leaves to the writer. Running only the loss direction cannot
     # see it, because such a test is already red there — for the right reason,
     # which is what makes it invisible. Kotlin found one this way on
     # 2026-09-10: reorder reddened one test, loss reddened nine.
-    ("emit the attachments in descending name order", "src/vnz.rs",
-     "    names[1..].sort_by(|a, b| a.path.cmp(&b.path));",
-     "    names[1..].sort_by(|a, b| b.path.cmp(&a.path));",
-     "expect-green"),
-
+    (
+        "emit the attachments in descending name order",
+        "src/vnz.rs",
+        "    names[1..].sort_by(|a, b| a.path.cmp(&b.path));",
+        "    names[1..].sort_by(|a, b| b.path.cmp(&a.path));",
+        "expect-green",
+    ),
     # The corpus pins attachment NAMES and CONTENTS separately, and names alone
     # pass a reader that returns every attachment empty. `attachment_contents`
     # is the half that proves an attachment was actually decompressed.
-    ("return every attachment empty", "src/vnz.rs",
-     "            Ok(bytes) => attachments.push(Attachment {\n"
-     "                path: entry.name.clone(),\n"
-     "                bytes,\n"
-     "            }),",
-     "            Ok(bytes) => attachments.push(Attachment {\n"
-     "                path: entry.name.clone(),\n"
-     "                bytes: { let _ = bytes; Vec::new() },\n"
-     "            }),"),
-
+    (
+        "return every attachment empty",
+        "src/vnz.rs",
+        "            Ok(bytes) => attachments.push(Attachment {\n"
+        "                path: entry.name.clone(),\n"
+        "                bytes,\n"
+        "            }),",
+        "            Ok(bytes) => attachments.push(Attachment {\n"
+        "                path: entry.name.clone(),\n"
+        "                bytes: { let _ = bytes; Vec::new() },\n"
+        "            }),",
+    ),
     # SPEC 7: a corrupt attachment is DROPPED with a diagnostic, never
     # refused. Refusing is the shape to guard against, because it reads as
     # strictness and silently costs the caller a whole readable document.
-    ("refuse a corrupt attachment rather than dropping it", "src/vnz.rs",
-     "            Err(e) => reading.diagnostics.push(Diagnostic::new(\n"
-     "                attachment_pointer(&entry.name),\n"
-     "                Cause::AttachmentUnreadable {\n"
-     "                    fault: AttachmentFault::CorruptStream(e.to_string()),\n"
-     "                },\n"
-     "            )),",
-     "            Err(e) => return Err(Refusal::ContainerMalformed { detail: e.to_string() }),"),
-
-    ("drop the last attachment", "src/vnz.rs",
-     "    Ok(crate::zip::write_archive(&names))",
-     "    if names.len() > 1 { names.pop(); }\n    Ok(crate::zip::write_archive(&names))"),
-
-    ("keep only the outer ring of a nested polygon", "src/decode.rs",
-     "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
-     "            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), \"the area\")).collect());"),
-
+    (
+        "refuse a corrupt attachment rather than dropping it",
+        "src/vnz.rs",
+        "            Err(e) => reading.diagnostics.push(Diagnostic::new(\n"
+        "                attachment_pointer(&entry.name),\n"
+        "                Cause::AttachmentUnreadable {\n"
+        "                    fault: AttachmentFault::CorruptStream(e.to_string()),\n"
+        "                },\n"
+        "            )),",
+        "            Err(e) => return Err(Refusal::ContainerMalformed { detail: e.to_string() }),",
+    ),
+    (
+        "drop the last attachment",
+        "src/vnz.rs",
+        "    Ok(crate::zip::write_archive(&names))",
+        "    if names.len() > 1 { names.pop(); }\n    Ok(crate::zip::write_archive(&names))",
+    ),
+    (
+        "keep only the outer ring of a nested polygon",
+        "src/decode.rs",
+        "            self.report(path, Cause::PolygonNestedRings);\n            return None;",
+        '            self.report(path, Cause::PolygonNestedRings);\n            return items.first()?.as_array().map(|r| r.iter().enumerate().filter_map(|(i, c)| self.position(c, &path.index(i), "the area")).collect());',
+    ),
     # ---- Format 0.2: the walk (SPEC 3.3.3, 3.4, 6.2) ----
     #
     # Walk continuity is valid-walk rule 4 in the new shape: a pass after the
     # first enters its arc at the node where the previous pass left.
-    ("skip the check that a pass enters where the last one left", "src/walk.rs",
-     "                if !is_end(&self.at) {",
-     "                if false && !is_end(&self.at) {"),
-
-    ("skip the check that a `from` node is an end of its arc", "src/walk.rs",
-     "            Some(Endpoint::Node(node)) if !is_end(node) => {\n                return Err(not_connected(\n                    Some(\"from\"),",
-     "            Some(Endpoint::Node(node)) if false && !is_end(node) => {\n                return Err(not_connected(\n                    Some(\"from\"),"),
-
-    ("let a pass other than the last leave at a position", "src/walk.rs",
-     "            (Some(Endpoint::At(_)), _, _) if i != self.last => {",
-     "            (Some(Endpoint::At(_)), _, _) if false && i != self.last => {"),
-
+    (
+        "skip the check that a pass enters where the last one left",
+        "src/walk.rs",
+        "                if !is_end(&self.at) {",
+        "                if false && !is_end(&self.at) {",
+    ),
+    (
+        "skip the check that a `from` node is an end of its arc",
+        "src/walk.rs",
+        '            Some(Endpoint::Node(node)) if !is_end(node) => {\n                return Err(not_connected(\n                    Some("from"),',
+        '            Some(Endpoint::Node(node)) if false && !is_end(node) => {\n                return Err(not_connected(\n                    Some("from"),',
+    ),
+    (
+        "let a pass other than the last leave at a position",
+        "src/walk.rs",
+        "            (Some(Endpoint::At(_)), _, _) if i != self.last => {",
+        "            (Some(Endpoint::At(_)), _, _) if false && i != self.last => {",
+    ),
     # A pass with a turn and no `to` leaves by the node it entered by. A
     # reader that ignores the turn walks on to the far end of the arc.
-    ("ignore a turn when deriving where a pass leaves", "src/walk.rs",
-     "            (None, Some(_), entry) => entry.clone(),",
-     "            (None, Some(_), Endpoint::Node(node)) if *node == arc.from => Endpoint::Node(arc.to.clone()),\n            (None, Some(_), _) => Endpoint::Node(arc.from.clone()),"),
-
-    ("let a pass after the first carry `from`", "src/walk.rs",
-     "        if i > 0 && p.from.is_some() {",
-     "        if false && i > 0 && p.from.is_some() {"),
-
-    ("skip the pinned-turn check", "src/walk.rs",
-     "        if p.turn.is_some() && p.pinned {",
-     "        if false && p.turn.is_some() && p.pinned {"),
-
-    ("skip the route rule", "src/walk.rs",
-     "        if self.route {",
-     "        if false && self.route {"),
-
+    (
+        "ignore a turn when deriving where a pass leaves",
+        "src/walk.rs",
+        "            (None, Some(_), entry) => entry.clone(),",
+        "            (None, Some(_), Endpoint::Node(node)) if *node == arc.from => Endpoint::Node(arc.to.clone()),\n            (None, Some(_), _) => Endpoint::Node(arc.from.clone()),",
+    ),
+    (
+        "let a pass after the first carry `from`",
+        "src/walk.rs",
+        "        if i > 0 && p.from.is_some() {",
+        "        if false && i > 0 && p.from.is_some() {",
+    ),
+    (
+        "skip the pinned-turn check",
+        "src/walk.rs",
+        "        if p.turn.is_some() && p.pinned {",
+        "        if false && p.turn.is_some() && p.pinned {",
+    ),
+    (
+        "skip the route rule",
+        "src/walk.rs",
+        "        if self.route {",
+        "        if false && self.route {",
+    ),
     # SPEC 6.2: a walk is used whole or not at all. Keeping the passes that
     # read and dropping the one that did not hands the caller a different walk.
-    ("drop the bad pass and keep the chain", "src/decode.rs",
-     "                    self.report(&fault.path(&walk_path), fault.cause);\n                    return None;",
-     "                    self.report(&fault.path(&walk_path), fault.cause);\n                    continue;"),
-
-    ("skip the elevation-or-time check on a walk position", "src/decode.rs",
-     "                    if position.ele().is_some() || position.time_ms().is_some() {",
-     "                    if false {"),
-
-    ("skip the time check on a node", "src/decode.rs",
-     "            if position.time_ms().is_some() {\n                self.report(\n                    &at,",
-     "            if false {\n                self.report(\n                    &at,"),
-
-    ("skip the time check on an arc pip", "src/decode.rs",
-     "        if positions.iter().any(|p| p.time_ms().is_some()) {",
-     "        if false {"),
-
+    (
+        "drop the bad pass and keep the chain",
+        "src/decode.rs",
+        "                    self.report(&fault.path(&walk_path), fault.cause);\n                    return None;",
+        "                    self.report(&fault.path(&walk_path), fault.cause);\n                    continue;",
+    ),
+    (
+        "skip the elevation-or-time check on a walk position",
+        "src/decode.rs",
+        "                    if position.ele().is_some() || position.time_ms().is_some() {",
+        "                    if false {",
+    ),
+    (
+        "skip the time check on a node",
+        "src/decode.rs",
+        "            if position.time_ms().is_some() {\n                self.report(\n                    &at,",
+        "            if false {\n                self.report(\n                    &at,",
+    ),
+    (
+        "skip the time check on an arc pip",
+        "src/decode.rs",
+        "        if positions.iter().any(|p| p.time_ms().is_some()) {",
+        "        if false {",
+    ),
     # The other direction: `arc-pip-time` on every arc, timed or not.
-    ("report a pip time on every arc", "src/decode.rs",
-     "        if positions.iter().any(|p| p.time_ms().is_some()) {",
-     "        if true {"),
-
-    ("keep a self-loop arc", "src/decode.rs",
-     "        if from == to {",
-     "        if false && from == to {"),
-
+    (
+        "report a pip time on every arc",
+        "src/decode.rs",
+        "        if positions.iter().any(|p| p.time_ms().is_some()) {",
+        "        if true {",
+    ),
+    (
+        "keep a self-loop arc",
+        "src/decode.rs",
+        "        if from == to {",
+        "        if false && from == to {",
+    ),
     # Report the absent node and keep the arc, which was the 0.1 remedy.
-    ("keep an arc that names an absent node", "src/decode.rs",
-     "        if absent {\n            return None;",
-     "        if false && absent {\n            return None;"),
-
-    ("keep a ring's closing repeat", "src/decode.rs",
-     "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);\n            ring.pop();",
-     "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);"),
-
-    ("keep a ring of fewer than three distinct positions", "src/decode.rs",
-     "        if distinct < 3 {",
-     "        if false && distinct < 3 {"),
-
+    (
+        "keep an arc that names an absent node",
+        "src/decode.rs",
+        "        if absent {\n            return None;",
+        "        if false && absent {\n            return None;",
+    ),
+    (
+        "keep a ring's closing repeat",
+        "src/decode.rs",
+        "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);\n            ring.pop();",
+        "            self.report(&path.index(ring.len() - 1), Cause::RingClosed);",
+    ),
+    (
+        "keep a ring of fewer than three distinct positions",
+        "src/decode.rs",
+        "        if distinct < 3 {",
+        "        if false && distinct < 3 {",
+    ),
     # SPEC 3.7: distinct is longitude and latitude only. Comparing every
     # channel counts two positions that differ only in elevation as two.
-    ("count a ring's distinct positions by every channel", "src/decode.rs",
-     "        if !seen.iter().any(|q| q.same_point(p)) {",
-     "        if !seen.iter().any(|q| *q == p) {"),
-
+    (
+        "count a ring's distinct positions by every channel",
+        "src/decode.rs",
+        "        if !seen.iter().any(|q| q.same_point(p)) {",
+        "        if !seen.iter().any(|q| *q == p) {",
+    ),
     # SPEC 3.3.3: a writer emits `pinned` only when it is true.
-    ("write a false `pinned`", "src/encode.rs",
-     "                if p.pinned {\n                    o.raw(\"pinned\", Json::Bool(true));\n                }",
-     "                o.raw(\"pinned\", Json::Bool(p.pinned));"),
-
+    (
+        "write a false `pinned`",
+        "src/encode.rs",
+        '                if p.pinned {\n                    o.raw("pinned", Json::Bool(true));\n                }',
+        '                o.raw("pinned", Json::Bool(p.pinned));',
+    ),
     # The writer's checks. No corpus tier writes a model the reader did not
     # produce, so the unit tests in `encode.rs` are what hold these.
-    ("write a walk without checking it", "src/encode.rs",
-     "    check_walk(&c.walk, arcs, false, &path.key(\"walk\"))?;",
-     "    let _ = check_walk;"),
-
-    ("write arcs without checking them", "src/encode.rs",
-     "    check_arcs(nodes, arcs, &path.key(\"arcs\"))?;",
-     "    let _ = check_arcs;"),
-
-    ("write a closed ring", "src/encode.rs",
-     "    check_ring(&a.polygon, &path.key(\"polygon\"))?;",
-     "    let _ = check_ring;"),
+    (
+        "write a walk without checking it",
+        "src/encode.rs",
+        '    check_walk(&c.walk, arcs, false, &path.key("walk"))?;',
+        "    let _ = check_walk;",
+    ),
+    (
+        "write arcs without checking them",
+        "src/encode.rs",
+        '    check_arcs(nodes, arcs, &path.key("arcs"))?;',
+        "    let _ = check_arcs;",
+    ),
+    (
+        "write a closed ring",
+        "src/encode.rs",
+        '    check_ring(&a.polygon, &path.key("polygon"))?;',
+        "    let _ = check_ring;",
+    ),
 ]
 
 
@@ -441,7 +550,9 @@ def snapshot():
 
 def restore(tmp):
     for rel in FILES:
-        shutil.copyfile(os.path.join(tmp, rel.replace("/", "__")), os.path.join(ROOT, rel))
+        shutil.copyfile(
+            os.path.join(tmp, rel.replace("/", "__")), os.path.join(ROOT, rel)
+        )
     shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -452,9 +563,23 @@ def run_corpus():
     # have no corpus case behind them and are held by unit tests alone. The
     # detail line names which tests reddened, so corpus and unit coverage stay
     # distinguishable.
-    out = subprocess.run(["cargo", "test", "--no-fail-fast", "--lib", "--test", "corpus",
-                          "--test", "zip64", "--test", "hostile"],
-                         cwd=ROOT, capture_output=True, text=True)
+    out = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "--no-fail-fast",
+            "--lib",
+            "--test",
+            "corpus",
+            "--test",
+            "zip64",
+            "--test",
+            "hostile",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
     text = out.stdout + out.stderr
     if "test result: ok." in text and "FAILED" not in text:
         return "GREEN", text
@@ -471,14 +596,21 @@ def run_corpus():
         # "something reddened" without saying what is the same defect as
         # reporting only the first failing binary.
         def looks_like_a_test_name(name: str) -> bool:
-            return (name
-                    and " " not in name
-                    and "_" in name
-                    and name[0].islower()
-                    and all(c.isalnum() or c in "_:" for c in name))
+            return (
+                name
+                and " " not in name
+                and "_" in name
+                and name[0].islower()
+                and all(c.isalnum() or c in "_:" for c in name)
+            )
 
-        failed = sorted({l.strip() for l in text.splitlines()
-                         if l.startswith("    ") and looks_like_a_test_name(l.strip())})
+        failed = sorted(
+            {
+                l.strip()
+                for l in text.splitlines()
+                if l.startswith("    ") and looks_like_a_test_name(l.strip())
+            }
+        )
         return "red", ", ".join(failed) or "?"
     return "DID NOT BUILD", text[-400:]
 
@@ -489,10 +621,14 @@ def main():
         print("baseline is not green; aborting\n", detail)
         return 1
     print("baseline: GREEN\n")
-    print(f"  (holding a write lock on {len(FILES)} files for this run — "
-          "do not edit them until it finishes)")
-    print(f"  (a marker at {MARKER} names the live mutation, "
-          "so another lane can read the tree rather than guess)\n")
+    print(
+        f"  (holding a write lock on {len(FILES)} files for this run — "
+        "do not edit them until it finishes)"
+    )
+    print(
+        f"  (a marker at {MARKER} names the live mutation, "
+        "so another lane can read the tree rather than guess)\n"
+    )
     survivors = []
     for name, rel, old, new, *rest in MUTATIONS:
         count = -1 if "all" in rest else 1
@@ -511,7 +647,8 @@ def main():
             restore(backup)
             continue
         io.open(path, "w", encoding="utf-8").write(
-            s.replace(old, new) if count == -1 else s.replace(old, new, 1))
+            s.replace(old, new) if count == -1 else s.replace(old, new, 1)
+        )
         verdict, detail = run_corpus()
         restore(backup)
         wanted = "GREEN" if want_green else "red"
@@ -525,7 +662,8 @@ def main():
             if want_green:
                 survivors.append(
                     f"{name} -> went red, so the corpus can now see it; "
-                    "turn this into an ordinary mutation")
+                    "turn this into an ordinary mutation"
+                )
             else:
                 survivors.append(f"{name} -> {verdict}")
             if verdict == "DID NOT BUILD":

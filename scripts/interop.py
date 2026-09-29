@@ -152,8 +152,17 @@ DRIVERS = {
         tool="java",
         # The interop build has no wrapper of its own; it borrows the
         # library's, which is the wrapper version the library is built with.
-        build=[str(ROOT / "kotlin" / "gradlew"), "installDist", "--console=plain", "--quiet"],
-        run=[str(INTEROP / "kotlin" / "build" / "install" / "interop" / "bin" / "interop")],
+        build=[
+            str(ROOT / "kotlin" / "gradlew"),
+            "installDist",
+            "--console=plain",
+            "--quiet",
+        ],
+        run=[
+            str(
+                INTEROP / "kotlin" / "build" / "install" / "interop" / "bin" / "interop"
+            )
+        ],
     ),
 }
 
@@ -231,7 +240,9 @@ class Comparison:
     leaves: int = 0
 
 
-def compare(a: object, b: object, path: str, out: Comparison, exact: bool = False) -> None:
+def compare(
+    a: object, b: object, path: str, out: Comparison, exact: bool = False
+) -> None:
     """Compare two parsed trees by value, recording every difference found.
 
     Traversal does not stop at the first mismatch, so `out.leaves` is a
@@ -243,7 +254,9 @@ def compare(a: object, b: object, path: str, out: Comparison, exact: bool = Fals
     """
     if isinstance(a, dict) or isinstance(b, dict):
         if not (isinstance(a, dict) and isinstance(b, dict)):
-            out.mismatches.append((path, f"object vs {type_name(b if isinstance(a, dict) else a)}"))
+            out.mismatches.append(
+                (path, f"object vs {type_name(b if isinstance(a, dict) else a)}")
+            )
             return
         for key in sorted(set(a) | set(b)):
             child = f"{path}/{escape(key)}"
@@ -263,7 +276,9 @@ def compare(a: object, b: object, path: str, out: Comparison, exact: bool = Fals
 
     if isinstance(a, list) or isinstance(b, list):
         if not (isinstance(a, list) and isinstance(b, list)):
-            out.mismatches.append((path, f"array vs {type_name(b if isinstance(a, list) else a)}"))
+            out.mismatches.append(
+                (path, f"array vs {type_name(b if isinstance(a, list) else a)}")
+            )
             return
         if not exact and is_position(a) and is_position(b):
             a = drop_trailing_nulls(a)
@@ -356,10 +371,14 @@ def perturb_transpose(doc: object) -> str:
     """
     found = _first_pip(doc, "")
     if found is None:
-        raise Failure("no pip position found to transpose; the source document changed shape")
+        raise Failure(
+            "no pip position found to transpose; the source document changed shape"
+        )
     path, pos = found
     if pos[0] == pos[1]:
-        raise Failure(f"pip at {path} has equal lon and lat; transposing it changes nothing")
+        raise Failure(
+            f"pip at {path} has equal lon and lat; transposing it changes nothing"
+        )
     pos[0], pos[1] = pos[1], pos[0]
     return f"transposed lon/lat at {path}: {render(pos)}"
 
@@ -427,10 +446,14 @@ PERTURBATIONS = {"transpose": perturb_transpose, "drop-record": perturb_drop_rec
 
 
 def check_toolchains(langs: list[str]) -> None:
-    missing = [(l, DRIVERS[l].tool) for l in langs if shutil.which(DRIVERS[l].tool) is None]
+    missing = [
+        (l, DRIVERS[l].tool) for l in langs if shutil.which(DRIVERS[l].tool) is None
+    ]
     if missing:
         lines = "\n".join(f"  {lang}: needs {tool!r} on PATH" for lang, tool in missing)
-        raise Failure(f"toolchain missing, cannot measure these implementations:\n{lines}")
+        raise Failure(
+            f"toolchain missing, cannot measure these implementations:\n{lines}"
+        )
 
 
 def build(langs: list[str]) -> None:
@@ -479,7 +502,9 @@ def invoke(lang: str, src: pathlib.Path, dst: pathlib.Path, perturb) -> None:
             f"  command: {' '.join(cmd)}\n{indent(proc.stderr)}"
         )
     if proc.stderr.strip():
-        raise Failure(f"{lang}: driver wrote to stderr on {src.name}:\n{indent(proc.stderr)}")
+        raise Failure(
+            f"{lang}: driver wrote to stderr on {src.name}:\n{indent(proc.stderr)}"
+        )
     if not dst.exists():
         raise Failure(f"{lang}: driver exited 0 but wrote no {dst}")
     if perturb is not None:
@@ -490,7 +515,11 @@ def invoke(lang: str, src: pathlib.Path, dst: pathlib.Path, perturb) -> None:
 
 
 def indent(text: str) -> str:
-    return "".join(f"    {line}\n" for line in text.rstrip().splitlines()) if text.strip() else ""
+    return (
+        "".join(f"    {line}\n" for line in text.rstrip().splitlines())
+        if text.strip()
+        else ""
+    )
 
 
 # --------------------------------------------------------------------------
@@ -508,7 +537,9 @@ class Cell:
     mismatches: list[tuple[str, str]]
 
 
-def run_matrix(work: pathlib.Path, langs: list[str], red: str | None, perturb) -> list[Cell]:
+def run_matrix(
+    work: pathlib.Path, langs: list[str], red: str | None, perturb
+) -> list[Cell]:
     if not SOURCE.exists():
         raise Failure(f"source document missing: {SOURCE}")
 
@@ -527,7 +558,9 @@ def run_matrix(work: pathlib.Path, langs: list[str], red: str | None, perturb) -
         tree = parse(src)
         expected = count_leaves(tree)
         if expected <= 0:
-            raise Failure(f"{writer}: its own output has no scalar leaves; nothing to compare")
+            raise Failure(
+                f"{writer}: its own output has no scalar leaves; nothing to compare"
+            )
         for reader in langs:
             back = work / f"read-{writer}-by-{reader}.vnx"
             invoke(reader, src, back, perturb if reader == red else None)
@@ -583,15 +616,19 @@ def report(cells: list[Cell], langs: list[str]) -> None:
 
     failed = [c for c in cells if not c.passed]
     total_leaves = cells[0].expected_leaves if cells else 0
-    print(f"  {len(cells) - len(failed)}/{len(cells)} cells agree "
-          f"({total_leaves} scalar leaves compared per cell)")
+    print(
+        f"  {len(cells) - len(failed)}/{len(cells)} cells agree "
+        f"({total_leaves} scalar leaves compared per cell)"
+    )
     if not failed:
         return
     print()
     for cell in failed:
-        print(f"  FAIL {cell.writer} written, {cell.reader} read back "
-              f"({len(cell.mismatches)} difference"
-              f"{'' if len(cell.mismatches) == 1 else 's'})")
+        print(
+            f"  FAIL {cell.writer} written, {cell.reader} read back "
+            f"({len(cell.mismatches)} difference"
+            f"{'' if len(cell.mismatches) == 1 else 's'})"
+        )
         for path, detail in cell.mismatches[:10]:
             print(f"    {path or '/'}: {detail}")
         if len(cell.mismatches) > 10:
@@ -634,16 +671,30 @@ def report_red_proof(cells: list[Cell], red: str, langs: list[str]) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--no-build", action="store_true",
-                    help="use the drivers already built; do not rebuild them")
-    ap.add_argument("--red-proof", metavar="LANG", choices=LANGS,
-                    help="corrupt this implementation's output on every write, "
-                         "and check that exactly its reader column goes red")
-    ap.add_argument("--perturbation", choices=sorted(PERTURBATIONS), default="transpose",
-                    help="which corruption --red-proof applies (default: transpose)")
-    ap.add_argument("--work", metavar="DIR",
-                    help="keep the 42 intermediate documents here: 6 writer outputs "
-                         "and 36 read-backs (default: a temporary directory, removed on exit)")
+    ap.add_argument(
+        "--no-build",
+        action="store_true",
+        help="use the drivers already built; do not rebuild them",
+    )
+    ap.add_argument(
+        "--red-proof",
+        metavar="LANG",
+        choices=LANGS,
+        help="corrupt this implementation's output on every write, "
+        "and check that exactly its reader column goes red",
+    )
+    ap.add_argument(
+        "--perturbation",
+        choices=sorted(PERTURBATIONS),
+        default="transpose",
+        help="which corruption --red-proof applies (default: transpose)",
+    )
+    ap.add_argument(
+        "--work",
+        metavar="DIR",
+        help="keep the 42 intermediate documents here: 6 writer outputs "
+        "and 36 read-backs (default: a temporary directory, removed on exit)",
+    )
     args = ap.parse_args()
 
     langs = LANGS

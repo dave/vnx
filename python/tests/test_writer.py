@@ -18,7 +18,16 @@ import unittest
 import vnx
 from vnx.encode import _position
 from vnx.model import (
-    AppKey, Arc, Area, Chain, Document, Network, Pass, Position, Route, Waypoint,
+    AppKey,
+    Arc,
+    Area,
+    Chain,
+    Document,
+    Network,
+    Pass,
+    Position,
+    Route,
+    Waypoint,
 )
 from vnx.writer import encode_bytes, normalised_document
 
@@ -44,7 +53,9 @@ class TheEmitBoundary(unittest.TestCase):
         """SPEC 4.1: the format does not constrain a writer's precision, so
         every digit the document stated comes back out."""
         document = vnx.read_bytes(self.source()).document
-        self.assertIn(b"[-3.6712345678901235,57.11812345678901]", encode_bytes(document))
+        self.assertIn(
+            b"[-3.6712345678901235,57.11812345678901]", encode_bytes(document)
+        )
 
     def test_the_reader_keeps_the_full_precision_value(self) -> None:
         """SPEC 4.1: a reader MUST NOT round."""
@@ -96,9 +107,7 @@ class PrecisionPassesThrough(unittest.TestCase):
 
     def test_a_small_negative_keeps_its_sign_and_its_digits(self) -> None:
         """Rounding made a negative zero out of these; nothing makes one now."""
-        self.assertIn(
-            b'"at":[-4e-07,-4e-07,-0.04]', self.emitted(-4e-7, -4e-7, -0.04)
-        )
+        self.assertIn(b'"at":[-4e-07,-4e-07,-0.04]', self.emitted(-4e-7, -4e-7, -0.04))
 
     def test_a_negative_zero_in_the_model_is_written_as_the_model_holds_it(
         self,
@@ -151,7 +160,9 @@ class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
 
     def test_a_null_value_is_written(self) -> None:
         document = Document(vnx="0.2.0", app_keys=[AppKey("com.example.x", None)])
-        self.assertEqual(encode_bytes(document), b'{"vnx":"0.2.0","com.example.x":null}')
+        self.assertEqual(
+            encode_bytes(document), b'{"vnx":"0.2.0","com.example.x":null}'
+        )
 
     def test_a_key_with_no_full_stop_is_refused(self) -> None:
         for key in ("rulesets", "folders", ""):
@@ -160,9 +171,7 @@ class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
                     encode_bytes(Document(vnx="0.2.0", app_keys=[AppKey(key, [])]))
 
     def test_a_key_written_twice_is_refused(self) -> None:
-        document = Document(
-            vnx="0.2.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)]
-        )
+        document = Document(vnx="0.2.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)])
         with self.assertRaisesRegex(ValueError, "twice"):
             encode_bytes(document)
 
@@ -185,7 +194,9 @@ class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
                 vnx.encode_file(target, bad)
             with open(target, "rb") as handle:
                 self.assertEqual(handle.read(), b"previous bytes")
-            self.assertEqual(os.listdir(directory), ["out.vnx"], "a temporary file was left behind")
+            self.assertEqual(
+                os.listdir(directory), ["out.vnx"], "a temporary file was left behind"
+            )
 
     def test_a_good_encode_replaces_the_file(self) -> None:
         import os
@@ -227,10 +238,15 @@ class WriterOutputIsStable(unittest.TestCase):
 
 def _network(walk: list[Pass], **overrides: object) -> Document:
     """A network whose arcs are `ab` (a to b) and `cb` (c to b)."""
-    nodes = {"a": Position(-3.60, 57.10), "b": Position(-3.59, 57.10),
-             "c": Position(-3.58, 57.10)}
-    arcs = {"ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101)]),
-            "cb": Arc(from_="c", to="b", pips=[])}
+    nodes = {
+        "a": Position(-3.60, 57.10),
+        "b": Position(-3.59, 57.10),
+        "c": Position(-3.58, 57.10),
+    }
+    arcs = {
+        "ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101)]),
+        "cb": Arc(from_="c", to="b", pips=[]),
+    }
     network = Network(nodes=nodes, arcs=arcs, chains=[Chain(name="C", walk=walk)])
     for key, value in overrides.items():
         setattr(network, key, value)
@@ -253,11 +269,13 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
     def test_a_valid_walk_is_written(self) -> None:
         # A position start, a pinned pass leaving `cb` at c, and an out-and-back
         # turn on `cb` that leaves by c, the node it entered.
-        document = _network([
-            Pass("ab", from_=Position(-3.597, 57.1005), to="b"),
-            Pass("cb", pinned=True),
-            Pass("cb", turn=Position(-3.585, 57.10), to="c"),
-        ])
+        document = _network(
+            [
+                Pass("ab", from_=Position(-3.597, 57.1005), to="b"),
+                Pass("cb", pinned=True),
+                Pass("cb", turn=Position(-3.585, 57.10), to="c"),
+            ]
+        )
         encoded = encode_bytes(document)
         self.assertIn(b'"pinned":true', encoded)
         self.assertEqual(vnx.read_bytes(encoded).diagnostics, [])
@@ -271,13 +289,28 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
             ([Pass("ghost", from_="a", to="b")], "pass-arc-absent"),
             ([Pass("ab", to="b")], "walk-spelling"),
             ([Pass("ab", from_="b"), Pass("cb", to="c")], "walk-not-connected"),
-            ([Pass("ab", from_="a", turn=Position(-3.595, 57.1), pinned=True, to="a")],
-             "pinned-turn"),
-            ([Pass("ab", from_=Position(-3.597, 57.1005, 400.0), to="b")], "extra-channel"),
+            (
+                [
+                    Pass(
+                        "ab",
+                        from_="a",
+                        turn=Position(-3.595, 57.1),
+                        pinned=True,
+                        to="a",
+                    )
+                ],
+                "pinned-turn",
+            ),
+            (
+                [Pass("ab", from_=Position(-3.597, 57.1005, 400.0), to="b")],
+                "extra-channel",
+            ),
         ):
             with self.subTest(code=code):
                 message = self.refused(_network(walk))
-                self.assertIn("pass 0" if code != "walk-not-connected" else "pass 1", message)
+                self.assertIn(
+                    "pass 0" if code != "walk-not-connected" else "pass 1", message
+                )
                 self.assertIn(code, message)
 
     def test_a_route_carrying_a_position_is_refused(self) -> None:
@@ -289,7 +322,9 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         )
         self.assertIn("route-pin-or-position", self.refused(Document(routes=[route])))
         route.walk = [Pass("ab", from_="a", to="b")]
-        self.assertEqual(vnx.read_bytes(encode_bytes(Document(routes=[route]))).diagnostics, [])
+        self.assertEqual(
+            vnx.read_bytes(encode_bytes(Document(routes=[route]))).diagnostics, []
+        )
 
     def test_a_self_loop_is_refused(self) -> None:
         arcs = {"loop": Arc(from_="a", to="a", pips=[])}
@@ -300,10 +335,15 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         self.assertIn("'x'", self.refused(_network([], arcs=arcs)))
 
     def test_a_time_on_a_node_or_an_arc_pip_is_refused(self) -> None:
-        nodes = {"a": Position(-3.60, 57.10, None, 1000.0), "b": Position(-3.59, 57.10),
-                 "c": Position(-3.58, 57.10)}
+        nodes = {
+            "a": Position(-3.60, 57.10, None, 1000.0),
+            "b": Position(-3.59, 57.10),
+            "c": Position(-3.58, 57.10),
+        }
         self.assertIn("node 'a'", self.refused(_network([], nodes=nodes)))
-        arcs = {"ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101, None, 5.0)])}
+        arcs = {
+            "ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101, None, 5.0)])
+        }
         self.assertIn("arc 'ab'", self.refused(_network([], arcs=arcs)))
 
     def test_a_closed_ring_is_refused_not_opened(self) -> None:

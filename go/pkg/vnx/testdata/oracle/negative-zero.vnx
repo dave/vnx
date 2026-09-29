@@ -1,27 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "negative-zero",
-  "vnx": "0.1.0",
-  "areas": [
-    {
-      "name": "ring through the origin",
-      "polygon": [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 0]
-      ],
-      "style": {
-        "fill-opacity": 0,
-        "stroke-width": 0
-      }
-    }
-  ],
-  "com.example.signed-zero": [
-    {
-      "threshold": 0,
-      "range": [0, 0]
-    }
-  ],
   "waypoints": [
     {
       "name": "signed zero position",
@@ -34,6 +13,26 @@
     {
       "name": "signed zero with time",
       "at": [1, 0, 0, 0]
+    }
+  ],
+  "areas": [
+    {
+      "name": "ring through the origin",
+      "polygon": [
+        [0, 0],
+        [1, 0],
+        [1, 1]
+      ],
+      "style": {
+        "fill-opacity": 0,
+        "stroke-width": 0
+      }
+    }
+  ],
+  "com.example.signed-zero": [
+    {
+      "range": [0, 0],
+      "threshold": 0
     }
   ]
 }

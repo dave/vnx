@@ -1,165 +1,11 @@
 {
+  "vnx": "0.2.0",
   "generator": "network-full",
-  "vnx": "0.1.0",
   "networks": [
     {
-      "folder": "nets",
       "name": "eight by eight",
       "notes": "enough map entries that iteration order can differ",
-      "arcs": {
-        "arc-1": {
-          "from": "node-1",
-          "to": "node-2",
-          "pips": [
-            [-3.01, 57.01, 301],
-            [-3.51, 57.51],
-            [-3.02, 57.02, 302]
-          ]
-        },
-        "arc-10": {
-          "from": "node-10",
-          "to": "node-1",
-          "pips": [
-            [-3.1, 57.1, 310],
-            [-3.6, 57.6],
-            [-3.01, 57.01, 301]
-          ]
-        },
-        "arc-2": {
-          "from": "node-2",
-          "to": "node-3",
-          "pips": [
-            [-3.02, 57.02, 302],
-            [-3.52, 57.52],
-            [-3.03, 57.03, 303]
-          ]
-        },
-        "arc-3": {
-          "from": "node-3",
-          "to": "node-4",
-          "pips": [
-            [-3.03, 57.03, 303],
-            [-3.53, 57.53],
-            [-3.04, 57.04, 304]
-          ]
-        },
-        "arc-4": {
-          "from": "node-4",
-          "to": "node-5",
-          "pips": [
-            [-3.04, 57.04, 304],
-            [-3.54, 57.54],
-            [-3.05, 57.05, 305]
-          ]
-        },
-        "arc-5": {
-          "from": "node-5",
-          "to": "node-6",
-          "pips": [
-            [-3.05, 57.05, 305],
-            [-3.55, 57.55],
-            [-3.06, 57.06, 306]
-          ]
-        },
-        "arc-6": {
-          "from": "node-6",
-          "to": "node-7",
-          "pips": [
-            [-3.06, 57.06, 306],
-            [-3.56, 57.56],
-            [-3.07, 57.07, 307]
-          ]
-        },
-        "arc-7": {
-          "from": "node-7",
-          "to": "node-8",
-          "pips": [
-            [-3.07, 57.07, 307],
-            [-3.57, 57.57],
-            [-3.08, 57.08, 308]
-          ]
-        },
-        "arc-8": {
-          "from": "node-8",
-          "to": "node-9",
-          "pips": [
-            [-3.08, 57.08, 308],
-            [-3.58, 57.58],
-            [-3.09, 57.09, 309]
-          ]
-        },
-        "arc-9": {
-          "from": "node-9",
-          "to": "node-10",
-          "pips": [
-            [-3.09, 57.09, 309],
-            [-3.59, 57.59],
-            [-3.1, 57.1, 310]
-          ]
-        }
-      },
-      "areas": [
-        {
-          "name": "in-network area",
-          "polygon": [
-            [-3.6, 57.6],
-            [-3.5, 57.6],
-            [-3.5, 57.5],
-            [-3.6, 57.6]
-          ],
-          "style": {
-            "fill-color": "#abcdef",
-            "fill-opacity": 0.25,
-            "stroke-color": "#000000",
-            "stroke-width": 1.5
-          }
-        }
-      ],
-      "chains": [
-        {
-          "name": "node to node",
-          "links": [
-            {
-              "arc": "arc-1",
-              "from": "node-1",
-              "to": "node-2"
-            },
-            {
-              "arc": "arc-2",
-              "from": "node-2",
-              "to": "node-3"
-            }
-          ],
-          "style": {
-            "color": "#00aa00",
-            "line-style": "dashed",
-            "opacity": 0.5,
-            "width": 3
-          }
-        },
-        {
-          "hidden": true,
-          "name": "turnaround on an inline handle",
-          "links": [
-            {
-              "arc": "arc-5",
-              "from": "node-5",
-              "to": [-3.55, 57.55]
-            },
-            {
-              "arc": "arc-5",
-              "to": "node-5",
-              "from": [-3.55, 57.55]
-            }
-          ]
-        }
-      ],
-      "data": [
-        {
-          "@type": "app.viatrail.test/net",
-          "value": "n"
-        }
-      ],
+      "folder": "nets",
       "nodes": {
         "node-1": [-3.01, 57.01, 301],
         "node-10": [-3.1, 57.1, 310],
@@ -172,6 +18,126 @@
         "node-8": [-3.08, 57.08, 308],
         "node-9": [-3.09, 57.09, 309]
       },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [
+            [-3.51, 57.51]
+          ]
+        },
+        "arc-10": {
+          "from": "node-10",
+          "to": "node-1",
+          "pips": [
+            [-3.6, 57.6]
+          ]
+        },
+        "arc-2": {
+          "from": "node-2",
+          "to": "node-3",
+          "pips": [
+            [-3.52, 57.52]
+          ]
+        },
+        "arc-3": {
+          "from": "node-3",
+          "to": "node-4",
+          "pips": [
+            [-3.53, 57.53]
+          ]
+        },
+        "arc-4": {
+          "from": "node-4",
+          "to": "node-5",
+          "pips": [
+            [-3.54, 57.54]
+          ]
+        },
+        "arc-5": {
+          "from": "node-5",
+          "to": "node-6",
+          "pips": [
+            [-3.55, 57.55]
+          ]
+        },
+        "arc-6": {
+          "from": "node-6",
+          "to": "node-7",
+          "pips": [
+            [-3.56, 57.56]
+          ]
+        },
+        "arc-7": {
+          "from": "node-7",
+          "to": "node-8",
+          "pips": [
+            [-3.57, 57.57]
+          ]
+        },
+        "arc-8": {
+          "from": "node-8",
+          "to": "node-9",
+          "pips": [
+            [-3.58, 57.58]
+          ]
+        },
+        "arc-9": {
+          "from": "node-9",
+          "to": "node-10",
+          "pips": [
+            [-3.59, 57.59]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "node to node",
+          "walk": [
+            {
+              "arc": "arc-1",
+              "from": "node-1"
+            },
+            {
+              "arc": "arc-2",
+              "to": "node-3",
+              "pinned": true
+            }
+          ],
+          "style": {
+            "color": "#00aa00",
+            "line-style": "dashed",
+            "opacity": 0.5,
+            "width": 3
+          }
+        },
+        {
+          "name": "turnaround on arc-5",
+          "hidden": true,
+          "walk": [
+            {
+              "arc": "arc-5",
+              "from": "node-5",
+              "to": "node-5",
+              "turn": [-3.55, 57.55]
+            }
+          ]
+        },
+        {
+          "name": "mid-arc start and end",
+          "walk": [
+            {
+              "arc": "arc-7",
+              "from": [-3.575, 57.575],
+              "to": "node-8"
+            },
+            {
+              "arc": "arc-8",
+              "to": [-3.585, 57.585]
+            }
+          ]
+        }
+      ],
       "points": [
         {
           "name": "in-network point",
@@ -180,6 +146,28 @@
             "icon-size": 21,
             "importance": 3
           }
+        }
+      ],
+      "areas": [
+        {
+          "name": "in-network area",
+          "polygon": [
+            [-3.6, 57.6],
+            [-3.5, 57.6],
+            [-3.5, 57.5]
+          ],
+          "style": {
+            "fill-color": "#abcdef",
+            "fill-opacity": 0.25,
+            "stroke-color": "#000000",
+            "stroke-width": 1.5
+          }
+        }
+      ],
+      "data": [
+        {
+          "@type": "app.viatrail.test/net",
+          "value": "n"
         }
       ]
     }

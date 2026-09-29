@@ -335,6 +335,52 @@ def register_warnings() -> list[str]:
     return lines
 
 
+def check_diagnose_codes(problems: list[str]) -> None:
+    """Every code a diagnose case pins is a row of SPEC section 6.2's table.
+
+    Section 6.2 lists every problem a document can have, with the code a reader
+    MUST put on it. A corpus case pinning a code that table does not name is a
+    case no implementer can act on from the specification, which is the
+    failure CONTRIBUTING.md names: a corpus case without a spec sentence
+    behind it.
+
+    The table is found by its header row, and a table that is not found is
+    itself a problem: an empty set of codes would pass nothing silently, it
+    would fail every case, and the message would blame the cases.
+    """
+    spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+    start = spec.find("### 6.2 Error handling")
+    end = spec.find("### 6.3", start)
+    if start < 0 or end < 0:
+        problems.append("SPEC.md: section 6.2 not found, so its codes could not be checked")
+        return
+    codes = set()
+    in_table = False
+    for line in spec[start:end].splitlines():
+        if line.startswith("| Construct | Remedy | Code |"):
+            in_table = True
+            continue
+        if in_table:
+            if not line.startswith("|"):
+                break
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            codes.update(re.findall(r"`([a-z-]+)`", cells[-1]))
+    if not codes:
+        problems.append("SPEC.md: no remedy table with a Code column in section 6.2")
+        return
+    checked = 0
+    for sidecar in sorted((ROOT / "corpus" / "diagnose").glob("*.expect.json")):
+        for d in json.loads(sidecar.read_text(encoding="utf-8")).get("diagnostics", []):
+            checked += 1
+            if d.get("code") not in codes:
+                problems.append(
+                    f"{sidecar.relative_to(ROOT)}: pins code {d.get('code')!r}, which is not a row of "
+                    "SPEC.md section 6.2's remedy table"
+                )
+    if checked == 0:
+        problems.append("corpus/diagnose: no pinned diagnostic was found, so the code check measured nothing")
+
+
 def check_ruling_backlog(problems: list[str]) -> None:
     """Fail while a ruling has been made and has not reached SPEC.md.
 
@@ -362,6 +408,7 @@ def check_ruling_backlog(problems: list[str]) -> None:
 def main() -> None:
     problems: list[str] = []
     check_ruling_backlog(problems)
+    check_diagnose_codes(problems)
     check_sidecar_notes(problems)
     check_markdown_structure(problems)
     check_published(problems)

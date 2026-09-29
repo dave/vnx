@@ -1,38 +1,56 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "waypoints": [
     {
       "name": "Car park",
       "at": [-3.675, 57.1201],
-      "style": {"com.example.marker": "pin"},
+      "style": {
+        "com.example.marker": "pin"
+      },
       "data": [
-        {"@type": "com.example.note", "com.example.field": {"a.b": 1}}
+        {
+          "@type": "com.example.note",
+          "com.example.field": {
+            "a.b": 1
+          }
+        }
       ]
     }
   ],
+  ".": 1,
+  "app.viatrail.datatypes": [],
   "app.viatrail.rulesets": [
     {
       "name": "Hide minor springs",
       "rules": [
         {
           "priority": 10,
-          "style": {"label-visible": false, "importance": 99}
+          "style": {
+            "importance": 99,
+            "label-visible": false
+          }
         }
       ]
     }
   ],
-  "app.viatrail.datatypes": [],
-  "com.example.settings": {
-    "units": "metric",
-    "empty": {},
-    "list": []
+  "com.example.nested": {
+    "a.b": {
+      "c.d": 1
+    }
   },
-  "com.example.nested": {"a.b": {"c.d": 1}},
   "com.example.nothing-set": {},
-  "org.example.label": "a string value",
+  "com.example.settings": {
+    "empty": {},
+    "list": [],
+    "units": "metric"
+  },
   "org.example.cleared": null,
+  "org.example.label": "a string value",
   "waypoints.": [
-    {"at": "not a position", "importance": 99, "nmae": "not a waypoint key"}
-  ],
-  ".": 1
+    {
+      "at": "not a position",
+      "importance": 99,
+      "nmae": "not a waypoint key"
+    }
+  ]
 }

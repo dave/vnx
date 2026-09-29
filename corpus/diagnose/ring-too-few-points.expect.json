@@ -1,0 +1,23 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A ring with three positions and only two distinct ones (SPEC 3.7). The count that decides is of DISTINCT positions, by longitude and latitude, so a reader that counts array entries reads three and keeps an area with no inside. The area is dropped whole: this format has no holes or inner rings, so the area is the smallest unit that can go. The second area has exactly three distinct positions, the least a ring may hold, and survives, which pins the boundary from the other side.",
+  "counts": {
+    "areas": 1,
+    "/areas/0/polygon": 3
+  },
+  "positions": [
+    {
+      "at": "/areas/0/polygon/0",
+      "lon": -3.7,
+      "lat": 57.09
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/areas/0/polygon",
+      "code": "ring-too-few-points",
+      "message_advisory": "the ring has 2 distinct positions, needs at least 3 — the area is dropped"
+    }
+  ]
+}

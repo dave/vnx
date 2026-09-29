@@ -96,7 +96,8 @@ func normTrack(o map[string]any, opt treeOptions) {
 }
 
 func normRoute(o map[string]any, opt treeOptions) {
-	normItems(o, "arcs", opt, normArc)
+	normGraph(o, opt)
+	normWalk(o, opt)
 	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
@@ -106,7 +107,9 @@ func normArc(o map[string]any, opt treeOptions) {
 	dropEmptyContainer(o, "data")
 }
 
-func normNetwork(o map[string]any, opt treeOptions) {
+// normGraph normalises the `nodes` and `arcs` a network and a route share
+// (SPEC §3.4: a route owns a graph of the network's shape).
+func normGraph(o map[string]any, opt treeOptions) {
 	if nodes, ok := o["nodes"].(map[string]any); ok {
 		out := copyObject(nodes)
 		for k, v := range out {
@@ -125,24 +128,50 @@ func normNetwork(o map[string]any, opt treeOptions) {
 		}
 		o["arcs"] = out
 	}
+	dropEmptyContainer(o, "nodes")
+	dropEmptyContainer(o, "arcs")
+}
+
+// normWalk normalises a walk's positions. `from` and `to` are a node key or a
+// position (§3.3.3); only the second is a position, and normPosition leaves a
+// string alone. `turn` is always a position.
+//
+// ⚠ AN EMPTY WALK IS KEPT: `walk` is REQUIRED (§3.10), so `"walk": []` and an
+// absent walk are different documents, and folding one into the other would
+// hide a writer that drops the key.
+func normWalk(o map[string]any, opt treeOptions) {
+	arr, ok := o["walk"].([]any)
+	if !ok {
+		return
+	}
+	out := make([]any, 0, len(arr))
+	for _, item := range arr {
+		p, ok := item.(map[string]any)
+		if !ok {
+			out = append(out, item)
+			continue
+		}
+		p = copyObject(p)
+		for _, k := range []string{"from", "to", "turn"} {
+			if v, ok := p[k]; ok {
+				p[k] = normPosition(v, opt)
+			}
+		}
+		out = append(out, p)
+	}
+	o["walk"] = out
+}
+
+func normNetwork(o map[string]any, opt treeOptions) {
+	normGraph(o, opt)
 	normItems(o, "chains", opt, normChain)
 	normItems(o, "points", opt, normWaypoint)
 	normItems(o, "areas", opt, normArea)
-	dropEmptyContainer(o, "nodes")
-	dropEmptyContainer(o, "arcs")
 	dropEmptyContainer(o, "data")
 }
 
 func normChain(o map[string]any, opt treeOptions) {
-	normItems(o, "links", opt, func(l map[string]any, opt treeOptions) {
-		// An endpoint is a node key or an inline position (§3.3.3). Only the
-		// second is a position, and normPosition leaves a string alone.
-		for _, side := range []string{"from", "to"} {
-			if v, ok := l[side]; ok {
-				l[side] = normPosition(v, opt)
-			}
-		}
-	})
+	normWalk(o, opt)
 	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }

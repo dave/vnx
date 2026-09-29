@@ -1,11 +1,11 @@
 {
+  "vnx": "0.2.0",
   "generator": "timing",
-  "vnx": "0.1.0",
   "tracks": [
     {
-      "ended": "2026-05-11T17:30:00.25Z",
       "name": "mixed timing",
       "started": "2026-05-11T09:00:00Z",
+      "ended": "2026-05-11T17:30:00.25Z",
       "segments": [
         {
           "pips": [

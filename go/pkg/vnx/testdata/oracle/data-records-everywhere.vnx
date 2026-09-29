@@ -1,23 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "data-records",
-  "vnx": "0.1.0",
-  "areas": [
-    {
-      "name": "a",
-      "data": [
-        {
-          "@type": "t/area",
-          "value": true
-        }
-      ],
-      "polygon": [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 0]
-      ]
-    }
-  ],
   "folders": [
     {
       "id": "f",
@@ -26,99 +9,6 @@
         {
           "@type": "t/folder",
           "value": 1
-        }
-      ]
-    }
-  ],
-  "networks": [
-    {
-      "name": "n",
-      "arcs": {
-        "arc-1": {
-          "from": "node-1",
-          "to": "node-2",
-          "data": [
-            {
-              "@type": "t/network-arc",
-              "value": "arc"
-            }
-          ],
-          "pips": [
-            [1, 2],
-            [3, 4]
-          ]
-        }
-      },
-      "chains": [
-        {
-          "name": "c",
-          "data": [
-            {
-              "@type": "t/chain",
-              "value": "chain"
-            }
-          ],
-          "links": [
-            {
-              "arc": "arc-1",
-              "from": "node-1",
-              "to": "node-2"
-            }
-          ]
-        }
-      ],
-      "data": [
-        {
-          "@type": "t/network",
-          "value": "net"
-        }
-      ],
-      "nodes": {
-        "node-1": [1, 2],
-        "node-2": [3, 4]
-      }
-    }
-  ],
-  "routes": [
-    {
-      "name": "r",
-      "arcs": [
-        {
-          "data": [
-            {
-              "@type": "t/arc",
-              "value": 2
-            }
-          ],
-          "pips": [
-            [1, 2],
-            [3, 4]
-          ]
-        }
-      ],
-      "data": [
-        {
-          "@type": "t/route",
-          "value": [1, 2]
-        }
-      ]
-    }
-  ],
-  "tracks": [
-    {
-      "name": "t",
-      "data": [
-        {
-          "@type": "t/track",
-          "value": null
-        }
-      ],
-      "segments": [
-        {
-          "pips": [
-            [1, 2],
-            [3, 4]
-          ]
         }
       ]
     }
@@ -146,6 +36,122 @@
               }
             ]
           }
+        }
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "name": "a",
+      "polygon": [
+        [0, 0],
+        [1, 0],
+        [1, 1]
+      ],
+      "data": [
+        {
+          "@type": "t/area",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "t",
+      "segments": [
+        {
+          "pips": [
+            [1, 2],
+            [3, 4]
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "t/track",
+          "value": null
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "name": "r",
+      "nodes": {
+        "node-1": [1, 2],
+        "node-2": [3, 4]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [],
+          "data": [
+            {
+              "@type": "t/arc",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc-1",
+          "from": "node-1",
+          "to": "node-2"
+        }
+      ],
+      "data": [
+        {
+          "@type": "t/route",
+          "value": [1, 2]
+        }
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "n",
+      "nodes": {
+        "node-1": [1, 2],
+        "node-2": [3, 4]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [],
+          "data": [
+            {
+              "@type": "t/network-arc",
+              "value": "arc"
+            }
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "c",
+          "walk": [
+            {
+              "arc": "arc-1",
+              "from": "node-1",
+              "to": "node-2"
+            }
+          ],
+          "data": [
+            {
+              "@type": "t/chain",
+              "value": "chain"
+            }
+          ]
+        }
+      ],
+      "data": [
+        {
+          "@type": "t/network",
+          "value": "net"
         }
       ]
     }

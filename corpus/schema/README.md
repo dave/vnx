@@ -1,6 +1,6 @@
 # The VNX JSON Schema
 
-`vnx-0.1.schema.json`, draft 2020-12. It lets a tool validate a document with no
+`vnx-0.2.schema.json`, draft 2020-12. It lets a tool validate a document with no
 VNX implementation present, which is useful from a script or an agent.
 
 It lives inside the corpus because every corpus case records a `schema` verdict
@@ -16,13 +16,16 @@ schema can only check shape.
 - The document is an object with a `vnx` version string.
 - Every collection is an array of the right kind of object, and the required
   fields of each are present: a waypoint has an `at`, an area a `polygon`, a
-  track its `segments`, a route its `arcs`, a network arc its `from`, `to` and
-  `pips`, a link its `arc`, `from` and `to`.
+  track its `segments`, a chain and a route their `walk`, an arc its `from`,
+  `to` and `pips`, a pass its `arc`.
 - A position is an array of at least two numbers, longitude within ±180 and
   latitude within ±90, `null` permitted from index 2, extra trailing channels
   ignored.
-- A ring holds at least four positions, and holds positions, so a GeoJSON-shaped
-  polygon with nested rings is caught here.
+- A node and an arc pip carry no time, and a walk's `from`, `to` and `turn`
+  carry longitude and latitude only.
+- A route's walk carries no position, `turn` or `pinned`.
+- A ring holds at least three positions, and holds positions, so a
+  GeoJSON-shaped polygon with nested rings is caught here.
 - A record-level timestamp is UTC with a `Z` suffix, and nothing else.
 - Every `data` record carries an `@type`.
 - `importance`, inside a style object, is an integer from 1 to 5. It is the ONLY
@@ -42,12 +45,13 @@ red and this list gets corrected rather than quietly going stale.
 | Rule | Why a schema cannot reach it |
 |---|---|
 | lon/lat transposition | Both orderings are numbers in range. The point lands 8,000 km away and every check stays green. |
-| A link naming an arc absent from the document | A cross-reference. JSON Schema has no way to say "this string must be a key of that object". |
-| A ring that does not close | The last position must repeat the first, which is a relationship between two values. |
-| An inline endpoint that is not on its arc | Arithmetic over two values, not a shape. |
+| A pass naming an arc absent from the document | A cross-reference. JSON Schema has no way to say "this string must be a key of that object". |
+| A ring written closed | The last position must not repeat the first, which is a relationship between two values. |
+| A walk that does not join | Each pass must enter its arc at the node the previous one left by, which is a relationship between passes. |
+| A `from` on a pass after the first | Where `from` and `to` may appear depends on a pass's place in its walk. |
+| A self-loop arc | `from` and `to` must differ, which is a relationship between two values. |
 | Container-scoped ids | A route's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
-| A shared reversal endpoint | Two links in one chain may share an endpoint, and a reader compares inline positions by value. Nothing structural distinguishes it. |
-| A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.0.9` and `9.9.9` satisfy the version pattern exactly as `0.1.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read a 0.0 document. `reject/version-too-old.vnx` is what catches it. |
+| A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.1.9` and `9.9.9` satisfy the version pattern exactly as `0.2.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read an older-series document. `reject/version-too-old.vnx` is what catches it. |
 | A duplicate object key | Resolved last-wins by the parser before the schema runs (`SPEC.md` section 6.4). |
 | `NaN` and `Infinity` | Not JSON. No validator ever sees the document. |
 | Everything about `.vnz` | An archive is not a JSON document. |
@@ -70,10 +74,12 @@ rather than assumed. Two kinds exist and both are correct:
 - `reject/version-too-new.vnx` and `reject/version-too-old.vnx` are both
   schema-valid and both reader-refused. Only a reader knows what it implements.
 - Most diagnose files are schema-valid and diagnosed: an unrecognised key, a
-  dangling link, a chain that does not join. Four are schema-invalid —
-  `polygon-second-ring`, `timestamp-with-offset`, `position-unusable` and
-  `wrong-typed-value` — because each is wrong in its SHAPE, which is the one
-  thing a schema does reach.
+  pass naming an absent arc, a walk that does not join. The schema-invalid ones
+  are wrong in their SHAPE, which is the one thing a schema does reach: a
+  nested ring, a timestamp offset, a position that will not parse, a value of
+  the wrong type, a time on an arc pip, a channel a node or a walk position
+  does not carry, and a position in a route's walk. Each sidecar's `schema`
+  field records which.
 
 ## Running it
 

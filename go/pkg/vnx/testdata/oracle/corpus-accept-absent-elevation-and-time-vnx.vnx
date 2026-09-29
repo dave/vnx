@@ -1,5 +1,11 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
+  "waypoints": [
+    {
+      "name": "No height known",
+      "at": [-3.6712, 57.118]
+    }
+  ],
   "tracks": [
     {
       "name": "Heights but no clock",
@@ -11,12 +17,6 @@
           ]
         }
       ]
-    }
-  ],
-  "waypoints": [
-    {
-      "name": "No height known",
-      "at": [-3.6712, 57.118]
     }
   ]
 }

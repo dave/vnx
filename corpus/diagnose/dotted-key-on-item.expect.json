@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "The application-key rule of SPEC 3.9 applies at the top level of a document only. A key containing a full stop on any other object this format defines is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the object. The file puts one dotted key on every kind of object the format defines: folder, network, network arc, chain, link, network point, network area, route, route arc, track, segment, waypoint and top-level area, so a reader that forgets the key check on any one of them fails here. Every object survives, which counts pins. The top-level app.viatrail.datatypes in the same file is an application key and is not reported, so a reader that tests every object's keys for a full stop, and one that tests none, both fail this case. Information about one object belongs in its data array.",
+  "note": "The application-key rule of SPEC 3.9 applies at the top level of a document only. A key containing a full stop on any other object this format defines is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the object. The file puts one dotted key on every kind of object the format defines: folder, network, network arc, chain, pass, network point, network area, route, route arc, track, segment, waypoint and top-level area, so a reader that forgets the key check on any one of them fails here. Every object survives, which counts pins. The top-level app.viatrail.datatypes in the same file is an application key and is not reported, so a reader that tests every object's keys for a full stop, and one that tests none, both fail this case. Information about one object belongs in its data array.",
   "counts": {
     "folders": 1,
     "networks": 1,
@@ -10,18 +10,20 @@
     "waypoints": 1,
     "areas": 1,
     "/networks/0/arcs": 1,
-    "/networks/0/chains/0/links": 1,
+    "/networks/0/chains/0/walk": 1,
     "/networks/0/points": 1,
     "/networks/0/areas": 1,
     "/routes/0/arcs": 1,
     "/tracks/0/segments": 1,
-    "/networks/0/arcs/a1/pips": 2,
+    "/networks/0/arcs/a1/pips": 1,
     "/networks/0/chains": 1,
     "/tracks/0/segments/0/pips": 2,
-    "/networks/0/areas/0/polygon": 4,
+    "/networks/0/areas/0/polygon": 3,
     "/networks/0/nodes": 2,
-    "/routes/0/arcs/0/pips": 2,
-    "/areas/0/polygon": 4
+    "/routes/0/arcs/a1/pips": 0,
+    "/areas/0/polygon": 3,
+    "/routes/0/nodes": 2,
+    "/routes/0/walk": 1
   },
   "diagnostics": [
     {
@@ -45,7 +47,7 @@
       "message_advisory": "unknown key"
     },
     {
-      "path": "/networks/0/chains/0/links/0/x.link",
+      "path": "/networks/0/chains/0/walk/0/x.pass",
       "code": "unknown-key",
       "message_advisory": "unknown key"
     },
@@ -65,7 +67,7 @@
       "message_advisory": "unknown key"
     },
     {
-      "path": "/routes/0/arcs/0/x.route-arc",
+      "path": "/routes/0/arcs/a1/x.route-arc",
       "code": "unknown-key",
       "message_advisory": "unknown key"
     },

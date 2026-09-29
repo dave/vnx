@@ -7,11 +7,11 @@
     "folders": 1,
     "networks": 1,
     "waypoints": 1,
-    "/areas/0/polygon": 4,
+    "/areas/0/polygon": 3,
     "/networks/0/arcs": 1,
-    "/networks/0/arcs/a1/pips": 3,
+    "/networks/0/arcs/a1/pips": 1,
     "/networks/0/chains": 1,
-    "/networks/0/chains/0/links": 1,
+    "/networks/0/chains/0/walk": 1,
     "/networks/0/nodes": 2
   }
 }

@@ -1,10 +1,10 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "tracks": [
     {
-      "ended": "2026-05-12T07:35:44Z",
       "name": "Two segments with a long lunch",
       "started": "2026-05-12T07:03:11Z",
+      "ended": "2026-05-12T07:35:44Z",
       "segments": [
         {
           "pips": [

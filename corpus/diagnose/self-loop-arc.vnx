@@ -1,0 +1,23 @@
+{
+  "vnx": "0.2.0",
+  "networks": [
+    {
+      "name": "An arc that starts and ends at one node",
+      "nodes": {
+        "a": [-3.60, 57.10],
+        "b": [-3.59, 57.10],
+        "c": [-3.58, 57.10],
+        "d": [-3.57, 57.10]
+      },
+      "arcs": {
+        "ab": {"from": "a", "to": "b", "pips": [[-3.595, 57.101]]},
+        "cb": {"from": "c", "to": "b", "pips": []},
+        "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]},
+        "loop": {"from": "b", "to": "b", "pips": [[-3.585, 57.11], [-3.585, 57.105]]}
+      },
+      "chains": [
+        {"name": "Round the loop", "walk": [{"arc": "ab", "from": "a"}, {"arc": "loop", "to": "b"}]}
+      ]
+    }
+  ]
+}

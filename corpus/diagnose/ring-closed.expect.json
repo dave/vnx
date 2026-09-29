@@ -1,0 +1,28 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A ring written closed (SPEC 3.7). A ring is stored open, and a last position repeating the first is one fact written twice, so the reader drops the repeat and keeps the area: nothing is lost. The diagnostic is kept anyway, so that a writer that closes its rings can be seen, and it names the dropped position by its index as written. `counts` pins four positions: a reader that kept the repeat has five, and one that dropped the area has none. `positions` pins the last surviving position, so a reader that dropped the FIRST position instead fails.",
+  "counts": {
+    "areas": 1,
+    "/areas/0/polygon": 4
+  },
+  "positions": [
+    {
+      "at": "/areas/0/polygon/0",
+      "lon": -3.74,
+      "lat": 57.09
+    },
+    {
+      "at": "/areas/0/polygon/3",
+      "lon": -3.74,
+      "lat": 57.075
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/areas/0/polygon/4",
+      "code": "ring-closed",
+      "message_advisory": "the last position repeats the first — it is dropped"
+    }
+  ]
+}

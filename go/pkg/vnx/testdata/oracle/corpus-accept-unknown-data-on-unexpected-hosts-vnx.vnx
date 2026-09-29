@@ -1,63 +1,85 @@
 {
+  "vnx": "0.2.0",
   "generator": "some other app 2.0",
-  "vnx": "0.1.0",
-  "areas": [
-    {
-      "name": "Reserve",
-      "data": [
-        {
-          "@type": "com.example.sleeps",
-          "value": "the same type on a host it makes no sense for"
-        }
-      ],
-      "polygon": [
-        [-3.74, 57.09],
-        [-3.72, 57.09],
-        [-3.72, 57.075],
-        [-3.74, 57.09]
-      ]
-    }
-  ],
   "folders": [
     {
       "id": "trips",
       "name": "Trips"
     }
   ],
+  "waypoints": [
+    {
+      "name": "Bothy",
+      "folder": "trips",
+      "at": [-3.6712, 57.118],
+      "data": [
+        {
+          "@type": "com.example.sleeps",
+          "nested": {
+            "beds": 2,
+            "notes": ["damp", "free"]
+          },
+          "value": 6
+        },
+        {
+          "@type": "com.example.sleeps",
+          "value": 8
+        }
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "name": "Reserve",
+      "polygon": [
+        [-3.74, 57.09],
+        [-3.72, 57.09],
+        [-3.72, 57.075]
+      ],
+      "data": [
+        {
+          "@type": "com.example.sleeps",
+          "value": "the same type on a host it makes no sense for"
+        }
+      ]
+    }
+  ],
   "networks": [
     {
       "name": "Tiny",
+      "nodes": {
+        "n1": [-3.68, 57.12],
+        "n2": [-3.67, 57.11]
+      },
       "arcs": {
         "a1": {
           "from": "n1",
           "to": "n2",
+          "pips": [
+            [-3.675, 57.115]
+          ],
           "data": [
             {
               "@type": "org.other.whatever",
               "on": "an arc"
             }
-          ],
-          "pips": [
-            [-3.68, 57.12],
-            [-3.675, 57.115],
-            [-3.67, 57.11]
           ]
         }
       },
       "chains": [
         {
           "name": "Over it",
-          "data": [
-            {
-              "@type": "org.other.whatever",
-              "on": "a chain"
-            }
-          ],
-          "links": [
+          "walk": [
             {
               "arc": "a1",
               "from": "n1",
               "to": "n2"
+            }
+          ],
+          "data": [
+            {
+              "@type": "org.other.whatever",
+              "on": "a chain"
             }
           ]
         }
@@ -74,34 +96,6 @@
               }
             ]
           }
-        }
-      ],
-      "nodes": {
-        "n1": [-3.68, 57.12],
-        "n2": [-3.67, 57.11]
-      }
-    }
-  ],
-  "waypoints": [
-    {
-      "folder": "trips",
-      "name": "Bothy",
-      "at": [-3.6712, 57.118],
-      "data": [
-        {
-          "@type": "com.example.sleeps",
-          "value": 6,
-          "nested": {
-            "beds": 2,
-            "notes": [
-              "damp",
-              "free"
-            ]
-          }
-        },
-        {
-          "@type": "com.example.sleeps",
-          "value": 8
         }
       ]
     }

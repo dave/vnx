@@ -1,0 +1,22 @@
+{
+  "vnx": "0.2.0",
+  "networks": [
+    {
+      "name": "Channels a node and a walk position do not carry",
+      "nodes": {
+        "a": [-3.60, 57.10],
+        "b": [-3.59, 57.10],
+        "c": [-3.58, 57.10, 300, 1778569391000],
+        "d": [-3.57, 57.10]
+      },
+      "arcs": {
+        "ab": {"from": "a", "to": "b", "pips": [[-3.595, 57.101]]},
+        "cb": {"from": "c", "to": "b", "pips": []},
+        "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
+      },
+      "chains": [
+        {"name": "Out along cd and back", "walk": [{"arc": "cd", "from": "c", "turn": [-3.574, 57.102, 512], "to": "c"}]}
+      ]
+    }
+  ]
+}

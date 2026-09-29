@@ -1,0 +1,32 @@
+{
+  "kind": "diagnose",
+  "schema": "invalid",
+  "note": "A time on an arc pip (SPEC 3.3.2). An arc is geometry shared by every chain that walks it, and a time belongs to one recording, so an arc pip carries none. The remedy drops the time channel and keeps everything else: all three pips survive with their positions and elevations, and the chain that walks the arc survives. ONE diagnostic, at the arc's `pips`, although two pips carry a time: the fact is about the arc, and a recorded arc of a thousand pips is one fact, not a thousand (SPEC 6.3 rule 3). The middle pip carries no time, so a reader that reported per pip rather than per arc emits two diagnostics at two paths and fails. `positions` pins the pips on either side of it, so a reader that dropped a timed pip instead of its time channel fails too.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/arcs/ab/pips": 3,
+    "/networks/0/chains": 1,
+    "/networks/0/arcs": 1,
+    "/networks/0/chains/0/walk": 1,
+    "/networks/0/nodes": 2
+  },
+  "positions": [
+    {
+      "at": "/networks/0/arcs/ab/pips/0",
+      "lon": -3.598,
+      "lat": 57.1005
+    },
+    {
+      "at": "/networks/0/arcs/ab/pips/2",
+      "lon": -3.592,
+      "lat": 57.1012
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/arcs/ab/pips",
+      "code": "arc-pip-time",
+      "message_advisory": "an arc pip carries no time — the time channels are dropped"
+    }
+  ]
+}

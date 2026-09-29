@@ -1,12 +1,8 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "networks": [
     {
-      "name": "A network with an empty node map and an empty chain list",
-      "arcs": {},
-      "chains": [],
-      "nodes": {}
+      "name": "A network with an empty node map and an empty chain list"
     }
-  ],
-  "waypoints": []
+  ]
 }

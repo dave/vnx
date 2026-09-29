@@ -483,7 +483,7 @@ func containerCountsByPointer(doc *Document) map[string]int {
 		}
 		out[fmt.Sprintf("/networks/%d/chains", i)] = len(n.Chains)
 		for j, c := range n.Chains {
-			out[fmt.Sprintf("/networks/%d/chains/%d/links", i, j)] = len(c.Links)
+			out[fmt.Sprintf("/networks/%d/chains/%d/walk", i, j)] = len(c.Walk)
 		}
 		// Emitted unconditionally, like every other container here. The
 		// conditional these two used to carry was arbitrary — a zero never
@@ -499,10 +499,12 @@ func containerCountsByPointer(doc *Document) map[string]int {
 		}
 	}
 	for i, r := range doc.Routes {
+		out[fmt.Sprintf("/routes/%d/nodes", i)] = len(r.Nodes)
 		out[fmt.Sprintf("/routes/%d/arcs", i)] = len(r.Arcs)
-		for j, a := range r.Arcs {
-			out[fmt.Sprintf("/routes/%d/arcs/%d/pips", i, j)] = len(a.Pips)
+		for key, a := range r.Arcs {
+			out[fmt.Sprintf("/routes/%d/arcs/%s/pips", i, key)] = len(a.Pips)
 		}
+		out[fmt.Sprintf("/routes/%d/walk", i)] = len(r.Walk)
 	}
 	for i, tr := range doc.Tracks {
 		out[fmt.Sprintf("/tracks/%d/segments", i)] = len(tr.Segments)
@@ -530,6 +532,26 @@ func positionsByPointer(doc *Document) map[string]Position {
 			out[fmt.Sprintf("%s/%d", prefix, i)] = p
 		}
 	}
+	vertices := func(prefix string, vs []Vertex) {
+		for i, v := range vs {
+			out[fmt.Sprintf("%s/%d", prefix, i)] = v.Position()
+		}
+	}
+	// Only a POSITION in a walk is a position. A node key is a reference and
+	// is addressed at the node.
+	walk := func(prefix string, w []Pass) {
+		for k, p := range w {
+			if p.From != nil && p.From.At != nil {
+				out[fmt.Sprintf("%s/%d/from", prefix, k)] = p.From.At.Position()
+			}
+			if p.To != nil && p.To.At != nil {
+				out[fmt.Sprintf("%s/%d/to", prefix, k)] = p.To.At.Position()
+			}
+			if p.Turn != nil {
+				out[fmt.Sprintf("%s/%d/turn", prefix, k)] = p.Turn.Position()
+			}
+		}
+	}
 	for i, w := range doc.Waypoints {
 		out[fmt.Sprintf("/waypoints/%d/at", i)] = w.At
 	}
@@ -538,22 +560,13 @@ func positionsByPointer(doc *Document) map[string]Position {
 	}
 	for i, n := range doc.Networks {
 		for key, node := range n.Nodes {
-			out[fmt.Sprintf("/networks/%d/nodes/%s", i, key)] = node
+			out[fmt.Sprintf("/networks/%d/nodes/%s", i, key)] = node.Position()
 		}
 		for key, arc := range n.Arcs {
-			pips(fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key), arc.Pips)
+			vertices(fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key), arc.Pips)
 		}
 		for j, c := range n.Chains {
-			for k, l := range c.Links {
-				// Only an INLINE endpoint is a position. A node key is a
-				// reference and is addressed at the node.
-				if l.From.At != nil {
-					out[fmt.Sprintf("/networks/%d/chains/%d/links/%d/from", i, j, k)] = *l.From.At
-				}
-				if l.To.At != nil {
-					out[fmt.Sprintf("/networks/%d/chains/%d/links/%d/to", i, j, k)] = *l.To.At
-				}
-			}
+			walk(fmt.Sprintf("/networks/%d/chains/%d/walk", i, j), c.Walk)
 		}
 		for j, w := range n.Points {
 			out[fmt.Sprintf("/networks/%d/points/%d/at", i, j)] = w.At
@@ -563,8 +576,11 @@ func positionsByPointer(doc *Document) map[string]Position {
 		}
 	}
 	for i, r := range doc.Routes {
-		for j, a := range r.Arcs {
-			pips(fmt.Sprintf("/routes/%d/arcs/%d/pips", i, j), a.Pips)
+		for key, node := range r.Nodes {
+			out[fmt.Sprintf("/routes/%d/nodes/%s", i, key)] = node.Position()
+		}
+		for key, a := range r.Arcs {
+			vertices(fmt.Sprintf("/routes/%d/arcs/%s/pips", i, key), a.Pips)
 		}
 	}
 	for i, tr := range doc.Tracks {

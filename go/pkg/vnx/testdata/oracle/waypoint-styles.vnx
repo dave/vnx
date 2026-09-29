@@ -1,6 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "waypoint-styles",
-  "vnx": "0.1.0",
   "waypoints": [
     {
       "name": "every style field",
@@ -41,10 +41,10 @@
       "at": [-3.6712, 57.118]
     },
     {
-      "folder": "somewhere",
-      "hidden": true,
       "name": "hidden waypoint",
       "notes": "note",
+      "folder": "somewhere",
+      "hidden": true,
       "at": [-3.6712, 57.118]
     }
   ]

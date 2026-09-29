@@ -1,53 +1,20 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "areas": [
     {
       "name": "Untouched, so the drop is provably scoped",
       "polygon": [
         [-3.7, 57.09],
         [-3.68, 57.09],
-        [-3.68, 57.075],
-        [-3.7, 57.09]
+        [-3.68, 57.075]
       ]
-    }
-  ],
-  "networks": [
-    {
-      "name": "One arc loses a pip and goes whole",
-      "arcs": {
-        "sound": {
-          "from": "n2",
-          "to": "n3",
-          "pips": [
-            [-3.66, 57.1],
-            [-3.64, 57.08]
-          ]
-        }
-      },
-      "chains": [
-        {
-          "name": "Traverses both, and can only traverse one",
-          "links": [
-            {
-              "arc": "sound",
-              "from": "n2",
-              "to": "n3"
-            }
-          ]
-        }
-      ],
-      "nodes": {
-        "n1": [-3.68, 57.12],
-        "n2": [-3.66, 57.1],
-        "n3": [-3.64, 57.08]
-      }
     }
   ],
   "tracks": [
     {
-      "ended": "2026-05-12T07:40:00Z",
       "name": "One segment goes whole, and moving time is what proves it",
       "started": "2026-05-12T07:03:11Z",
+      "ended": "2026-05-12T07:40:00Z",
       "segments": [
         {
           "pips": [
@@ -56,6 +23,23 @@
           ]
         }
       ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "One arc loses a pip and goes whole",
+      "nodes": {
+        "n1": [-3.68, 57.12],
+        "n2": [-3.66, 57.1],
+        "n3": [-3.64, 57.08]
+      },
+      "arcs": {
+        "sound": {
+          "from": "n2",
+          "to": "n3",
+          "pips": []
+        }
+      }
     }
   ]
 }

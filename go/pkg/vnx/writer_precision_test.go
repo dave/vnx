@@ -81,12 +81,13 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 	// still see. That is the failure mode this whole file exists to avoid.
 	wantChannels := []string{
 		"area.polygon",
-		"chain.link.endpoint",
+		"chain.walk.position",
 		"network.arc.pips",
 		"network.area.polygon",
 		"network.node",
 		"network.point.at",
 		"route.arc.pips",
+		"route.node",
 		"track.segment.pips",
 		"waypoint.at",
 	}
@@ -301,8 +302,11 @@ func vnxPositions(t *testing.T, out []byte) []foundPos {
 		addEach("area.polygon", fmt.Sprintf("/areas/%d/polygon", i), asObject(a)["polygon"])
 	}
 	for i, r := range asArray(doc["routes"]) {
-		for j, arc := range asArray(asObject(r)["arcs"]) {
-			addEach("route.arc.pips", fmt.Sprintf("/routes/%d/arcs/%d/pips", i, j), asObject(arc)["pips"])
+		for id, node := range asObject(asObject(r)["nodes"]) {
+			add("route.node", fmt.Sprintf("/routes/%d/nodes/%s", i, id), node)
+		}
+		for id, arc := range asObject(asObject(r)["arcs"]) {
+			addEach("route.arc.pips", fmt.Sprintf("/routes/%d/arcs/%s/pips", i, id), asObject(arc)["pips"])
 		}
 	}
 	for i, tr := range asArray(doc["tracks"]) {
@@ -326,13 +330,14 @@ func vnxPositions(t *testing.T, out []byte) []foundPos {
 			add("network.point.at", fmt.Sprintf("%s/points/%d/at", base, j), asObject(p)["at"])
 		}
 		for j, c := range asArray(net["chains"]) {
-			for k, l := range asArray(asObject(c)["links"]) {
-				link := asObject(l)
-				// An endpoint is a node id (a string, nothing to round) or an
-				// INLINE position. asPosition ignores the string form.
-				for _, end := range []string{"from", "to"} {
-					add("chain.link.endpoint",
-						fmt.Sprintf("%s/chains/%d/links/%d/%s", base, j, k, end), link[end])
+			for k, p := range asArray(asObject(c)["walk"]) {
+				pass := asObject(p)
+				// `from` and `to` are a node id (a string, nothing to round)
+				// or a position; `turn` is always a position. asPosition
+				// ignores the string form and an absent key.
+				for _, key := range []string{"from", "to", "turn"} {
+					add("chain.walk.position",
+						fmt.Sprintf("%s/chains/%d/walk/%d/%s", base, j, k, key), pass[key])
 				}
 			}
 		}
@@ -591,7 +596,11 @@ func noisyFixture() acceptFixture {
 			Ele: ele(328.06075289469285 + float64(n)),
 		}
 	}
-	ring := []vnx.Position{noisy(0), noisy(1), noisy(2), noisy(0)}
+	vx := func(n int) vnx.Vertex {
+		p := noisy(n)
+		return vnx.Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}
+	}
+	ring := []vnx.Position{noisy(0), noisy(1), noisy(2)}
 	doc := &vnx.Document{
 		Waypoints: []vnx.Waypoint{{Name: "Noisy waypoint", At: noisy(0)}},
 		Areas:     []vnx.Area{{Name: "Noisy area", Polygon: ring}},
@@ -600,25 +609,27 @@ func noisyFixture() acceptFixture {
 			Segments: []vnx.Segment{{Pips: []vnx.Position{noisy(0), noisy(1), noisy(2)}}},
 		}},
 		Routes: []vnx.Route{{
-			Name: "Noisy route",
-			Arcs: []vnx.Arc{{Pips: []vnx.Position{noisy(0), noisy(1)}}},
+			Name:  "Noisy route",
+			Nodes: map[string]vnx.Vertex{"n1": vx(0), "n2": vx(2)},
+			Arcs:  map[string]vnx.Arc{"a1": {From: "n1", To: "n2", Pips: []vnx.Vertex{vx(1)}}},
+			Walk:  []vnx.Pass{{Arc: "a1", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{Node: "n2"}}},
 		}},
 		Networks: []vnx.Network{{
 			Name:  "Noisy network",
-			Nodes: map[string]vnx.Position{"n1": noisy(0), "n2": noisy(2)},
+			Nodes: map[string]vnx.Vertex{"n1": vx(0), "n2": vx(2)},
 			Arcs: map[string]vnx.Arc{
-				"a1": {From: "n1", To: "n2", Pips: []vnx.Position{noisy(0), noisy(1), noisy(2)}},
+				"a1": {From: "n1", To: "n2", Pips: []vnx.Vertex{vx(1)}},
 			},
 			Points: []vnx.Waypoint{{Name: "Noisy point", At: noisy(1)}},
 			Areas:  []vnx.Area{{Name: "Noisy network area", Polygon: ring}},
 			Chains: []vnx.Chain{{
 				Name: "Noisy chain",
-				// One node endpoint and one INLINE endpoint, which is the only
-				// endpoint form that carries coordinates of its own.
-				Links: []vnx.Link{{
+				// One node end and one POSITION end, which is the only end
+				// form that carries coordinates of its own.
+				Walk: []vnx.Pass{{
 					Arc:  "a1",
-					From: vnx.Endpoint{Node: "n1"},
-					To:   vnx.Endpoint{At: &[]vnx.Position{noisy(1)}[0]},
+					From: &vnx.Endpoint{Node: "n1"},
+					To:   &vnx.Endpoint{At: &vnx.LonLat{Lon: noisy(1).Lon, Lat: noisy(1).Lat}},
 				}},
 			}},
 		}},

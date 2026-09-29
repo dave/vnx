@@ -1,6 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "corpus",
-  "vnx": "0.1.0",
   "waypoints": [
     {
       "name": "Ben Macdui",

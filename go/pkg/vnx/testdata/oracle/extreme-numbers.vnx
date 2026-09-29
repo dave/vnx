@@ -1,31 +1,14 @@
 {
+  "vnx": "0.2.0",
   "generator": "extreme-numbers",
-  "vnx": "0.1.0",
-  "routes": [
-    {
-      "name": "extreme style",
-      "arcs": [
-        {
-          "pips": [
-            [1, 2],
-            [3, 4]
-          ]
-        }
-      ],
-      "style": {
-        "opacity": 1e-7,
-        "width": 1e+21
-      }
-    }
-  ],
   "waypoints": [
     {
       "name": "value 0",
-      "at": [0.1, 0.2, 1e-7]
+      "at": [0.1, 0.2, 1e-07]
     },
     {
       "name": "value 1",
-      "at": [0.1, 0.2, 0.000001]
+      "at": [0.1, 0.2, 1e-06]
     },
     {
       "name": "value 2",
@@ -41,7 +24,7 @@
     },
     {
       "name": "value 5",
-      "at": [0.1, 0.2, -1e-7]
+      "at": [0.1, 0.2, -1e-07]
     },
     {
       "name": "value 6",
@@ -58,6 +41,33 @@
     {
       "name": "value 9",
       "at": [0.1, 0.2, 0.3333333333333333]
+    }
+  ],
+  "routes": [
+    {
+      "name": "extreme style",
+      "nodes": {
+        "node-1": [1, 2],
+        "node-2": [3, 4]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": []
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc-1",
+          "from": "node-1",
+          "to": "node-2"
+        }
+      ],
+      "style": {
+        "opacity": 1e-07,
+        "width": 1e+21
+      }
     }
   ]
 }

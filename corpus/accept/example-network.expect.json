@@ -1,7 +1,7 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries — node, network arc pip, inline chain endpoint, in-network point, in-network area vertex, top-level area vertex, route arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so a reader that swapped the two channels everywhere EXCEPT on waypoints would pass every other case in the corpus. Do not narrow this list.",
+  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries — network node, network arc pip, walk position, in-network point, in-network area vertex, top-level area vertex, route node, route arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so a reader that swapped the two channels everywhere EXCEPT on waypoints would pass every other case in the corpus. Do not narrow this list.",
   "counts": {
     "areas": 1,
     "folders": 2,
@@ -9,24 +9,26 @@
     "routes": 1,
     "tracks": 1,
     "waypoints": 1,
-    "/areas/0/polygon": 5,
+    "/areas/0/polygon": 4,
     "/networks/0/arcs": 3,
-    "/networks/0/arcs/arc-1/pips": 4,
-    "/networks/0/arcs/arc-2/pips": 3,
-    "/networks/0/arcs/arc-3/pips": 2,
+    "/networks/0/arcs/arc-1/pips": 2,
+    "/networks/0/arcs/arc-2/pips": 1,
+    "/networks/0/arcs/arc-3/pips": 0,
     "/networks/0/areas": 1,
-    "/networks/0/areas/0/polygon": 5,
+    "/networks/0/areas/0/polygon": 4,
     "/networks/0/chains": 2,
-    "/networks/0/chains/0/links": 2,
-    "/networks/0/chains/1/links": 1,
+    "/networks/0/chains/0/walk": 2,
+    "/networks/0/chains/1/walk": 1,
     "/networks/0/nodes": 4,
     "/networks/0/points": 2,
     "/routes/0/arcs": 2,
-    "/routes/0/arcs/0/pips": 3,
-    "/routes/0/arcs/1/pips": 2,
+    "/routes/0/arcs/arc-1/pips": 1,
+    "/routes/0/arcs/arc-2/pips": 0,
     "/tracks/0/segments": 2,
     "/tracks/0/segments/0/pips": 3,
-    "/tracks/0/segments/1/pips": 2
+    "/tracks/0/segments/1/pips": 2,
+    "/routes/0/nodes": 3,
+    "/routes/0/walk": 2
   },
   "positions": [
     {
@@ -36,11 +38,11 @@
     },
     {
       "at": "/networks/0/arcs/arc-1/pips/0",
-      "lon": -3.6712,
-      "lat": 57.118
+      "lon": -3.669,
+      "lat": 57.1131
     },
     {
-      "at": "/networks/0/chains/0/links/1/to",
+      "at": "/networks/0/chains/0/walk/1/to",
       "lon": -3.6521,
       "lat": 57.1
     },
@@ -60,9 +62,14 @@
       "lat": 57.09
     },
     {
-      "at": "/routes/0/arcs/0/pips/0",
+      "at": "/routes/0/nodes/node-1",
       "lon": -3.728,
       "lat": 57.0782
+    },
+    {
+      "at": "/routes/0/arcs/arc-1/pips/0",
+      "lon": -3.719,
+      "lat": 57.074
     },
     {
       "at": "/tracks/0/segments/0/pips/0",

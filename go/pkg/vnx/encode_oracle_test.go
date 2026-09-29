@@ -374,10 +374,10 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 			checkName(tr.Name, nonASCII, rtl, &unicodeName, &rtlName)
 		}
 		for _, r := range d.Routes {
-			if len(r.Arcs) == 0 {
+			if len(r.Walk) == 0 {
 				emptyArray = true
 			}
-			if len(r.Arcs) == 1 {
+			if len(r.Walk) == 1 {
 				singleElemArray = true
 			}
 			checkName(r.Name, nonASCII, rtl, &unicodeName, &rtlName)
@@ -387,10 +387,10 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 		}
 		for _, n := range d.Networks {
 			for _, ch := range n.Chains {
-				if len(ch.Links) == 0 {
+				if len(ch.Walk) == 0 {
 					emptyArray = true
 				}
-				if len(ch.Links) == 1 {
+				if len(ch.Walk) == 1 {
 					singleElemArray = true
 				}
 			}
@@ -515,7 +515,7 @@ func generatedOracleCases() []oracleCase {
 	return []oracleCase{
 		{"empty-document", &Document{}},
 		{"scalars-only", &Document{
-			Version:   "0.1.0",
+			Version:   "0.2.0",
 			Generator: "viatrail/oracle",
 			Created:   "2026-09-02T10:00:00Z",
 		}},
@@ -628,7 +628,6 @@ func oracleNegativeZero() *Document {
 				{Lon: nz, Lat: nz},
 				{Lon: 1, Lat: nz},
 				{Lon: 1, Lat: 1},
-				{Lon: nz, Lat: nz},
 			},
 			Style: Style{"fill-opacity": nz, "stroke-width": nz},
 		}},
@@ -667,7 +666,9 @@ func oracleExtremeNumbers() *Document {
 	d.Routes = []Route{{
 		Name:  "extreme style",
 		Style: Style{"opacity": op, "width": w},
-		Arcs:  []Arc{{Pips: []Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}}},
+		Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
+		Arcs:  map[string]Arc{"arc-1": {From: "node-1", To: "node-2", Pips: []Vertex{}}},
+		Walk:  []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
 	}}
 	return d
 }
@@ -733,14 +734,18 @@ func oracleDegenerateArrays() *Document {
 			{Name: "one segment one pip", Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}},
 		},
 		Routes: []Route{
-			{Name: "no arcs", Arcs: []Arc{}},
-			{Name: "one arc one pip", Arcs: []Arc{{Pips: []Position{{Lon: 1, Lat: 2}}}}},
-			{Name: "one arc no pips", Arcs: []Arc{{}}},
+			{Name: "no arcs", Walk: []Pass{}},
+			{Name: "one arc one pip", Nodes: map[string]Vertex{"a": {Lon: 1, Lat: 2}, "b": {Lon: 5, Lat: 6}},
+				Arcs: map[string]Arc{"arc": {From: "a", To: "b", Pips: []Vertex{{Lon: 3, Lat: 4}}}},
+				Walk: []Pass{{Arc: "arc", From: &Endpoint{Node: "a"}, To: &Endpoint{Node: "b"}}}},
+			{Name: "one arc no pips", Nodes: map[string]Vertex{"a": {Lon: 1, Lat: 2}, "b": {Lon: 5, Lat: 6}},
+				Arcs: map[string]Arc{"arc": {From: "a", To: "b"}},
+				Walk: []Pass{{Arc: "arc", From: &Endpoint{Node: "b"}, To: &Endpoint{Node: "a"}}}},
 		},
 		Networks: []Network{{
-			Name:   "chains without links",
-			Nodes:  map[string]Position{"node-1": {Lon: 1, Lat: 2}},
-			Chains: []Chain{{Name: "empty chain", Links: []Link{}}},
+			Name:   "chains without passes",
+			Nodes:  map[string]Vertex{"node-1": {Lon: 1, Lat: 2}},
+			Chains: []Chain{{Name: "empty chain", Walk: []Pass{}}},
 		}},
 	}
 }
@@ -801,18 +806,20 @@ func oracleData() *Document {
 			rec("t/bodyless", nil),
 			nested,
 		}}},
-		Areas: []Area{{Name: "a", Polygon: []Position{{Lon: 0, Lat: 0}, {Lon: 1, Lat: 0}, {Lon: 1, Lat: 1}, {Lon: 0, Lat: 0}},
+		Areas: []Area{{Name: "a", Polygon: []Position{{Lon: 0, Lat: 0}, {Lon: 1, Lat: 0}, {Lon: 1, Lat: 1}},
 			Data: []Record{rec("t/area", map[string]any{"value": true})}}},
 		Tracks: []Track{{Name: "t", Segments: []Segment{{Pips: pips}},
 			Data: []Record{rec("t/track", map[string]any{"value": nil})}}},
-		Routes: []Route{{Name: "r", Arcs: []Arc{{Pips: pips, Data: []Record{rec("t/arc", map[string]any{"value": 2.0})}}},
+		Routes: []Route{{Name: "r", Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
+			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2", Data: []Record{rec("t/arc", map[string]any{"value": 2.0})}}},
+			Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
 			Data: []Record{rec("t/route", map[string]any{"value": []any{1.0, 2.0}})}}},
 		Networks: []Network{{
 			Name:  "n",
-			Nodes: map[string]Position{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
-			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2", Pips: pips,
+			Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
+			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2",
 				Data: []Record{rec("t/network-arc", map[string]any{"value": "arc"})}}},
-			Chains: []Chain{{Name: "c", Links: []Link{{Arc: "arc-1", From: Endpoint{Node: "node-1"}, To: Endpoint{Node: "node-2"}}},
+			Chains: []Chain{{Name: "c", Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
 				Data: []Record{rec("t/chain", map[string]any{"value": "chain"})}}},
 			Data: []Record{rec("t/network", map[string]any{"value": "net"})},
 		}},
@@ -827,14 +834,14 @@ func oracleNetwork() Network {
 		Name:   "eight by eight",
 		Notes:  "enough map entries that iteration order can differ",
 		Folder: "nets",
-		Nodes:  map[string]Position{},
+		Nodes:  map[string]Vertex{},
 		Arcs:   map[string]Arc{},
 	}
 	for k := 1; k <= 10; k++ {
 		lon := -3.0 - float64(k)/100
 		lat := 57.0 + float64(k)/100
 		ele := 300 + float64(k)
-		n.Nodes[fmt.Sprintf("node-%d", k)] = Position{Lon: lon, Lat: lat, Ele: &ele}
+		n.Nodes[fmt.Sprintf("node-%d", k)] = Vertex{Lon: lon, Lat: lat, Ele: &ele}
 	}
 	for k := 1; k <= 10; k++ {
 		from := fmt.Sprintf("node-%d", k)
@@ -842,31 +849,36 @@ func oracleNetwork() Network {
 		n.Arcs[fmt.Sprintf("arc-%d", k)] = Arc{
 			From: from,
 			To:   to,
-			Pips: []Position{
-				n.Nodes[from],
+			Pips: []Vertex{
 				{Lon: -3.5 - float64(k)/100, Lat: 57.5 + float64(k)/100},
-				n.Nodes[to],
 			},
 		}
 	}
-	mid := Position{Lon: -3.55, Lat: 57.55}
+	mid := LonLat{Lon: -3.55, Lat: 57.55}
 	n.Chains = []Chain{
 		{
 			Name:  "node to node",
 			Style: Style{"color": "#00aa00", "line-style": "dashed", "opacity": float64(0.5), "width": float64(3)},
-			Links: []Link{
-				{Arc: "arc-1", From: Endpoint{Node: "node-1"}, To: Endpoint{Node: "node-2"}},
-				{Arc: "arc-2", From: Endpoint{Node: "node-2"}, To: Endpoint{Node: "node-3"}},
+			Walk: []Pass{
+				{Arc: "arc-1", From: &Endpoint{Node: "node-1"}},
+				{Arc: "arc-2", Pinned: true, To: &Endpoint{Node: "node-3"}},
 			},
 		},
 		{
-			// An inline endpoint carries no identity but its coordinates, so a
-			// shared turnaround handle must emit byte-identical arrays.
-			Name:   "turnaround on an inline handle",
+			// A turn is a position on the arc where the walk goes back the
+			// way it came: out from node-5 and back to it.
+			Name:   "turnaround on arc-5",
 			Hidden: true,
-			Links: []Link{
-				{Arc: "arc-5", From: Endpoint{Node: "node-5"}, To: Endpoint{At: &mid}},
-				{Arc: "arc-5", From: Endpoint{At: &mid}, To: Endpoint{Node: "node-5"}},
+			Walk: []Pass{
+				{Arc: "arc-5", From: &Endpoint{Node: "node-5"}, Turn: &mid, To: &Endpoint{Node: "node-5"}},
+			},
+		},
+		{
+			// A walk starting and ending part-way along arcs.
+			Name: "mid-arc start and end",
+			Walk: []Pass{
+				{Arc: "arc-7", From: &Endpoint{At: &LonLat{Lon: -3.575, Lat: 57.575}}, To: &Endpoint{Node: "node-8"}},
+				{Arc: "arc-8", To: &Endpoint{At: &LonLat{Lon: -3.585, Lat: 57.585}}},
 			},
 		},
 	}
@@ -874,7 +886,7 @@ func oracleNetwork() Network {
 		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}, Style: Style{"icon-size": 21, "importance": 3}},
 	}
 	n.Areas = []Area{
-		{Name: "in-network area", Polygon: []Position{{Lon: -3.6, Lat: 57.6}, {Lon: -3.5, Lat: 57.6}, {Lon: -3.5, Lat: 57.5}, {Lon: -3.6, Lat: 57.6}},
+		{Name: "in-network area", Polygon: []Position{{Lon: -3.6, Lat: 57.6}, {Lon: -3.5, Lat: 57.6}, {Lon: -3.5, Lat: 57.5}},
 			Style: Style{"fill-color": "#abcdef", "fill-opacity": float64(0.25), "stroke-color": "#000000", "stroke-width": float64(1.5)}},
 	}
 	n.Data = []Record{{Type: "app.viatrail.test/net", Body: map[string]any{"value": "n"}}}
@@ -882,13 +894,12 @@ func oracleNetwork() Network {
 }
 
 func oracleAreas() *Document {
-	ring := []Position{{Lon: 0.1, Lat: 0.2}, {Lon: 0.3, Lat: 0.2}, {Lon: 0.3, Lat: 0.4}, {Lon: 0.1, Lat: 0.2}}
+	ring := []Position{{Lon: 0.1, Lat: 0.2}, {Lon: 0.3, Lat: 0.2}, {Lon: 0.3, Lat: 0.4}}
 	ele := 12.5
 	timed := []Position{
 		{Lon: 0.1, Lat: 0.2, Ele: &ele, Time: i(1778569391000)},
 		{Lon: 0.3, Lat: 0.2, Ele: &ele, Time: i(1778569392000)},
 		{Lon: 0.3, Lat: 0.4, Ele: &ele, Time: i(1778569393000)},
-		{Lon: 0.1, Lat: 0.2, Ele: &ele, Time: i(1778569394000)},
 	}
 	return &Document{
 		Generator: "areas",
@@ -928,7 +939,7 @@ func oracleTrackTimestamps() *Document {
 // The one case where every top-level collection is non-empty at once.
 func oracleEverything() *Document {
 	d := &Document{
-		Version:   "0.1.0",
+		Version:   "0.2.0",
 		Generator: "viatrail/oracle everything",
 		Created:   "2026-09-02T12:00:00Z",
 	}
@@ -962,31 +973,37 @@ func eachPosition(d *Document, fn func(Position)) {
 			}
 		}
 	}
-	for _, r := range d.Routes {
-		for _, a := range r.Arcs {
-			for _, p := range a.Pips {
-				fn(p)
+	graph := func(nodes map[string]Vertex, arcs map[string]Arc, walks ...[]Pass) {
+		for _, v := range nodes {
+			fn(v.Position())
+		}
+		for _, a := range arcs {
+			for _, v := range a.Pips {
+				fn(v.Position())
 			}
 		}
-	}
-	for _, n := range d.Networks {
-		for _, p := range n.Nodes {
-			fn(p)
-		}
-		for _, a := range n.Arcs {
-			for _, p := range a.Pips {
-				fn(p)
-			}
-		}
-		for _, c := range n.Chains {
-			for _, l := range c.Links {
-				for _, e := range []Endpoint{l.From, l.To} {
-					if e.At != nil {
-						fn(*e.At)
+		for _, w := range walks {
+			for _, p := range w {
+				for _, e := range []*Endpoint{p.From, p.To} {
+					if e != nil && e.At != nil {
+						fn(e.At.Position())
 					}
+				}
+				if p.Turn != nil {
+					fn(p.Turn.Position())
 				}
 			}
 		}
+	}
+	for _, r := range d.Routes {
+		graph(r.Nodes, r.Arcs, r.Walk)
+	}
+	for _, n := range d.Networks {
+		walks := make([][]Pass, 0, len(n.Chains))
+		for _, c := range n.Chains {
+			walks = append(walks, c.Walk)
+		}
+		graph(n.Nodes, n.Arcs, walks...)
 		for _, w := range n.Points {
 			fn(w.At)
 		}

@@ -1,44 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "degenerate-arrays",
-  "vnx": "0.1.0",
-  "networks": [
-    {
-      "name": "chains without links",
-      "chains": [
-        {
-          "name": "empty chain",
-          "links": []
-        }
-      ],
-      "nodes": {
-        "node-1": [1, 2]
-      }
-    }
-  ],
-  "routes": [
-    {
-      "name": "no arcs",
-      "arcs": []
-    },
-    {
-      "name": "one arc one pip",
-      "arcs": [
-        {
-          "pips": [
-            [1, 2]
-          ]
-        }
-      ]
-    },
-    {
-      "name": "one arc no pips",
-      "arcs": [
-        {
-          "pips": []
-        }
-      ]
-    }
-  ],
   "tracks": [
     {
       "name": "no segments",
@@ -59,6 +21,70 @@
           "pips": [
             [1, 2]
           ]
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "name": "no arcs",
+      "walk": []
+    },
+    {
+      "name": "one arc one pip",
+      "nodes": {
+        "a": [1, 2],
+        "b": [5, 6]
+      },
+      "arcs": {
+        "arc": {
+          "from": "a",
+          "to": "b",
+          "pips": [
+            [3, 4]
+          ]
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc",
+          "from": "a",
+          "to": "b"
+        }
+      ]
+    },
+    {
+      "name": "one arc no pips",
+      "nodes": {
+        "a": [1, 2],
+        "b": [5, 6]
+      },
+      "arcs": {
+        "arc": {
+          "from": "a",
+          "to": "b",
+          "pips": []
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc",
+          "from": "b",
+          "to": "a"
+        }
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "chains without passes",
+      "nodes": {
+        "node-1": [1, 2]
+      },
+      "chains": [
+        {
+          "name": "empty chain",
+          "walk": []
         }
       ]
     }

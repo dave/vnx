@@ -1,0 +1,28 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A walk that does not join (SPEC 3.3.3, valid-walk rule 4). The first pass leaves arc ab at b, and the second pass's arc runs from c to d, so the walk has nowhere to enter it. The comparison is by node key: b and c are different nodes, about 600 m apart. The chain is dropped and the diagnostic names the pass that failed to continue, not the one it failed to continue from (SPEC 6.3 rule 2).",
+  "counts": {
+    "networks": 1,
+    "/networks/0/chains": 1,
+    "/networks/0/arcs": 3,
+    "/networks/0/arcs/ab/pips": 1,
+    "/networks/0/arcs/cd/pips": 2,
+    "/networks/0/chains/0/walk": 1,
+    "/networks/0/nodes": 4
+  },
+  "positions": [
+    {
+      "at": "/networks/0/chains/0/walk/0/to",
+      "lon": -3.597,
+      "lat": 57.1005
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/chains/1/walk/1",
+      "code": "walk-not-connected",
+      "message_advisory": "the walk is at node b, which is not an end of arc cd — the chain is dropped"
+    }
+  ]
+}

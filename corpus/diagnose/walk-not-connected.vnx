@@ -1,0 +1,23 @@
+{
+  "vnx": "0.2.0",
+  "networks": [
+    {
+      "name": "A walk that jumps a gap",
+      "nodes": {
+        "a": [-3.60, 57.10],
+        "b": [-3.59, 57.10],
+        "c": [-3.58, 57.10],
+        "d": [-3.57, 57.10]
+      },
+      "arcs": {
+        "ab": {"from": "a", "to": "b", "pips": [[-3.595, 57.101]]},
+        "cb": {"from": "c", "to": "b", "pips": []},
+        "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
+      },
+      "chains": [
+        {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
+        {"name": "Jumps from b to c", "walk": [{"arc": "ab", "from": "a"}, {"arc": "cd", "to": "d"}]}
+      ]
+    }
+  ]
+}

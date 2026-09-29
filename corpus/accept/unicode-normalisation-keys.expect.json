@@ -7,6 +7,6 @@
     "networks": 1,
     "/networks/0/nodes": 2,
     "/networks/0/arcs": 1,
-    "/networks/0/arcs/a1/pips": 2
+    "/networks/0/arcs/a1/pips": 1
   }
 }

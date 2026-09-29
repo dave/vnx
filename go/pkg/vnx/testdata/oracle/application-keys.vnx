@@ -1,14 +1,14 @@
 {
+  "vnx": "0.2.0",
   "generator": "application-keys",
-  "vnx": "0.1.0",
   "app.viatrail.rulesets": [
     {
+      "empty": {},
       "flag": true,
       "id": "r1",
+      "list": [],
       "name": "شرط",
       "none": null,
-      "empty": {},
-      "list": [],
       "nums": [1, 2.5, null, -3],
       "then": {
         "color": "#123456",

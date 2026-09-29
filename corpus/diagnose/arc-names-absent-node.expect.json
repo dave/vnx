@@ -1,0 +1,33 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "An arc whose `to` names a node the network does not hold (SPEC 3.3.2). An arc's line runs from its `from` node to its `to` node, so without the node there is no line: the arc is dropped, and the chain walking it is dropped under `pass-arc-absent`. The diagnostic names the `to` key, the smallest element that could not be used; the arc's `from` and its pip are fine. The other chain survives, which `positions` proves by name rather than by count.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/arcs": 3,
+    "/networks/0/chains": 1,
+    "/networks/0/arcs/ab/pips": 1,
+    "/networks/0/arcs/cd/pips": 2,
+    "/networks/0/chains/0/walk": 1,
+    "/networks/0/nodes": 4
+  },
+  "positions": [
+    {
+      "at": "/networks/0/chains/0/walk/0/to",
+      "lon": -3.597,
+      "lat": 57.1005
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/arcs/bx/to",
+      "code": "arc-node-absent",
+      "message_advisory": "the arc names node `x`, which is not in this network — the arc is dropped"
+    },
+    {
+      "path": "/networks/0/chains/1/walk/1",
+      "code": "pass-arc-absent",
+      "message_advisory": "the pass names arc `bx`, which is not in this network — the chain is dropped"
+    }
+  ]
+}

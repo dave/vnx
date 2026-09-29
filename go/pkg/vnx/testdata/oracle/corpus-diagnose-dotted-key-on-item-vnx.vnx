@@ -1,45 +1,83 @@
 {
-  "vnx": "0.1.0",
-  "app.viatrail.datatypes": [],
+  "vnx": "0.2.0",
   "folders": [
     {
       "id": "f1",
       "name": "Hills"
     }
   ],
+  "waypoints": [
+    {
+      "name": "Car park",
+      "at": [-3.675, 57.1201]
+    }
+  ],
+  "areas": [
+    {
+      "name": "Wood",
+      "polygon": [
+        [5, 5],
+        [6, 5],
+        [6, 6]
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Day out",
+      "segments": [
+        {
+          "pips": [
+            [4, 4],
+            [4, 5]
+          ]
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "name": "Road",
+      "nodes": {
+        "n1": [3, 3],
+        "n2": [3, 4]
+      },
+      "arcs": {
+        "a1": {
+          "from": "n1",
+          "to": "n2",
+          "pips": []
+        }
+      },
+      "walk": [
+        {
+          "arc": "a1",
+          "from": "n1",
+          "to": "n2"
+        }
+      ]
+    }
+  ],
   "networks": [
     {
       "name": "Paths",
       "nodes": {
-        "n1": [
-          1,
-          1
-        ],
-        "n2": [
-          1,
-          2
-        ]
+        "n1": [1, 1],
+        "n2": [1, 2]
       },
       "arcs": {
         "a1": {
           "from": "n1",
           "to": "n2",
           "pips": [
-            [
-              1,
-              1
-            ],
-            [
-              1,
-              2
-            ]
+            [1, 1.5]
           ]
         }
       },
       "chains": [
         {
           "name": "Walk",
-          "links": [
+          "walk": [
             {
               "arc": "a1",
               "from": "n1",
@@ -51,105 +89,20 @@
       "points": [
         {
           "name": "Spring",
-          "at": [
-            1,
-            1.5
-          ]
+          "at": [1, 1.5]
         }
       ],
       "areas": [
         {
           "name": "Bog",
           "polygon": [
-            [
-              1,
-              1
-            ],
-            [
-              2,
-              1
-            ],
-            [
-              2,
-              2
-            ],
-            [
-              1,
-              1
-            ]
+            [1, 1],
+            [2, 1],
+            [2, 2]
           ]
         }
       ]
     }
   ],
-  "routes": [
-    {
-      "name": "Road",
-      "arcs": [
-        {
-          "pips": [
-            [
-              3,
-              3
-            ],
-            [
-              3,
-              4
-            ]
-          ]
-        }
-      ]
-    }
-  ],
-  "tracks": [
-    {
-      "name": "Day out",
-      "segments": [
-        {
-          "pips": [
-            [
-              4,
-              4
-            ],
-            [
-              4,
-              5
-            ]
-          ]
-        }
-      ]
-    }
-  ],
-  "waypoints": [
-    {
-      "name": "Car park",
-      "at": [
-        -3.675,
-        57.1201
-      ]
-    }
-  ],
-  "areas": [
-    {
-      "name": "Wood",
-      "polygon": [
-        [
-          5,
-          5
-        ],
-        [
-          6,
-          5
-        ],
-        [
-          6,
-          6
-        ],
-        [
-          5,
-          5
-        ]
-      ]
-    }
-  ]
+  "app.viatrail.datatypes": []
 }

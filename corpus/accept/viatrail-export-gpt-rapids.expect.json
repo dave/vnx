@@ -7,9 +7,9 @@
     "networks": 1,
     "/networks/0/nodes": 2,
     "/networks/0/arcs": 1,
-    "/networks/0/arcs/arc-1/pips": 3,
+    "/networks/0/arcs/arc-1/pips": 1,
     "/networks/0/areas": 2,
-    "/networks/0/areas/0/polygon": 5,
-    "/networks/0/areas/1/polygon": 5
+    "/networks/0/areas/0/polygon": 4,
+    "/networks/0/areas/1/polygon": 4
   }
 }

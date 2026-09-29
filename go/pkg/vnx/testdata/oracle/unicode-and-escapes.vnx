@@ -1,6 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "unicode",
-  "vnx": "0.1.0",
   "waypoints": [
     {
       "name": "Grüße aus München 🏔️",

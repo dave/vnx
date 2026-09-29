@@ -1,11 +1,11 @@
 {
+  "vnx": "0.2.0",
   "generator": "track-timestamps",
-  "vnx": "0.1.0",
   "tracks": [
     {
-      "ended": "2026-01-02T04:05:06Z",
       "name": "whole seconds",
       "started": "2026-01-02T03:04:05Z",
+      "ended": "2026-01-02T04:05:06Z",
       "segments": [
         {
           "pips": [
@@ -16,9 +16,9 @@
       ]
     },
     {
-      "ended": "2026-01-02T03:04:05.1Z",
       "name": "milliseconds",
       "started": "2026-01-02T03:04:05.123Z",
+      "ended": "2026-01-02T03:04:05.1Z",
       "segments": [
         {
           "pips": [
@@ -41,8 +41,8 @@
       ]
     },
     {
-      "ended": "2026-01-02T02:04:05Z",
       "name": "offset input",
+      "ended": "2026-01-02T02:04:05Z",
       "segments": [
         {
           "pips": [

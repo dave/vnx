@@ -5,6 +5,8 @@
   "counts": {
     "routes": 1,
     "/routes/0/arcs": 1,
-    "/routes/0/arcs/0/pips": 2
+    "/routes/0/arcs/arc-1/pips": 0,
+    "/routes/0/nodes": 2,
+    "/routes/0/walk": 1
   }
 }

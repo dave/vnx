@@ -1,6 +1,6 @@
 {
+  "vnx": "0.2.0",
   "generator": "folders",
-  "vnx": "0.1.0",
   "folders": [
     {
       "id": "f1",
@@ -32,10 +32,10 @@
       "parent": "f5"
     },
     {
-      "hidden": true,
       "id": "hidden",
       "name": "hidden one",
-      "parent": "f6"
+      "parent": "f6",
+      "hidden": true
     },
     {
       "id": "noted",

@@ -1,10 +1,4 @@
 {
-  "generator": "empty-slices",
-  "vnx": "0.1.0",
-  "areas": [],
-  "folders": [],
-  "networks": [],
-  "routes": [],
-  "tracks": [],
-  "waypoints": []
+  "vnx": "0.2.0",
+  "generator": "empty-slices"
 }

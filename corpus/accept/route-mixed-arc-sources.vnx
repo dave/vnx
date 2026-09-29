@@ -1,23 +1,31 @@
 {
-  "vnx": "0.1.0",
+  "vnx": "0.2.0",
   "routes": [
     {
       "name": "Half drawn, half routed",
-      "arcs": [
-        {
+      "nodes": {
+        "node-1": [-3.728, 57.0782, 1296],
+        "node-2": [-3.7101, 57.0699, 1150],
+        "node-3": [-3.702, 57.0655, 1044]
+      },
+      "arcs": {
+        "arc-1": {
+          "from": "node-1",
+          "to": "node-2",
+          "pips": [
+            [-3.719, 57.074, 1221.5]
+          ],
           "data": [
             {
               "@type": "app.viatrail.routing-internal",
               "source": "user-drawn"
             }
-          ],
-          "pips": [
-            [-3.728, 57.0782, 1296],
-            [-3.719, 57.074, 1221.5],
-            [-3.7101, 57.0699, 1150]
           ]
         },
-        {
+        "arc-2": {
+          "from": "node-2",
+          "to": "node-3",
+          "pips": [],
           "data": [
             {
               "@type": "app.viatrail.routing-internal",
@@ -26,11 +34,17 @@
                 "cross-country-weight": 0.4
               }
             }
-          ],
-          "pips": [
-            [-3.7101, 57.0699, 1150],
-            [-3.702, 57.0655, 1044]
           ]
+        }
+      },
+      "walk": [
+        {
+          "arc": "arc-1",
+          "from": "node-1"
+        },
+        {
+          "arc": "arc-2",
+          "to": "node-3"
         }
       ]
     }

@@ -418,31 +418,38 @@ class CorpusTest {
                 Tree.compare(input.readText(), expected, opt) != null,
                 "${input.name} is already the written form, so this case would pass vacuously",
             )
-            val actual = writeThrough(input.readText(), input.name)
+            val actual = writeThrough(input.readText(), input.name, expectedWriteDiagnostics(input))
             Tree.compare(actual, expected, opt)?.let {
                 fail("${input.name}: the written document is not the one the case expects: $it")
             }
             // Shortening is idempotent, so the written form is a fixed point. A
             // case that fails this is a defect in the fixture.
-            Tree.compare(writeThrough(expected, written.name), expected, opt)?.let {
+            Tree.compare(writeThrough(expected, written.name, emptyList()), expected, opt)?.let {
                 fail("${written.name} is not a fixed point of the writer: $it")
             }
         }
     }
 
     /**
-     * Decodes a document and writes it back — the operation the tier tests. A
-     * diagnostic is a failure here: a writer case's input is a document the
-     * reader reads cleanly.
+     * Decodes a document and writes it back — the operation the tier tests. The
+     * decode must report exactly [expected], compared as the diagnose tier
+     * compares: a write sidecar's `diagnostics`, which is absent, so nothing may
+     * be reported, unless the case exists to write back what a reader repaired.
      */
-    private fun writeThrough(text: String, name: String): String {
+    private fun writeThrough(text: String, name: String, expected: List<Sidecar.ExpectedDiagnostic>): String {
         val read = try {
             Vnx.readDocument(text)
         } catch (e: VnxRefusal) {
             fail("$name must be read before it can be written, and was refused: $e")
         }
-        assertEquals(emptyList(), read.diagnostics, "$name: a writer case's input must read cleanly")
+        DiagnosticMatcher.mismatch(expected, read.diagnostics)?.let { fail("$name: $it") }
         return Vnx.write(read.document)
+    }
+
+    /** The `diagnostics` of the write case whose input is [input]; absent is none. */
+    private fun expectedWriteDiagnostics(input: File): List<Sidecar.ExpectedDiagnostic> {
+        val stem = input.name.removeSuffix(".in.vnx")
+        return Sidecar.read(File(input.parentFile, "$stem.expect.json")).diagnostics() ?: emptyList()
     }
 
     /**
@@ -478,10 +485,8 @@ class CorpusTest {
             } catch (e: VnxRefusal) {
                 fail("${input.name} must be read before it can be written, and was refused: $e")
             }
-            assertEquals(
-                emptyList(), document.diagnostics,
-                "${input.name}: a writer case's input must read cleanly",
-            )
+            DiagnosticMatcher.mismatch(expectedWriteDiagnostics(input), document.diagnostics)
+                ?.let { fail("${input.name}: $it") }
             val reversed = LinkedHashMap<String, ByteArray>()
             for (name in attachments.keys.reversed()) reversed[name] = attachments.getValue(name)
             val bytes = Vnx.writeContainer(document.document, reversed)

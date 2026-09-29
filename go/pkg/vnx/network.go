@@ -2,24 +2,12 @@ package vnx
 
 import (
 	"fmt"
-	"math"
 	"sort"
 )
 
-// EndpointToleranceMetres is how far an inline chain endpoint may sit from the
-// arc it names before the reader gives up on projecting it.
+// Network is the graph: nodes and arcs that chains walk.
 //
-// PROVISIONAL. Spec §11 lists the tolerance as open and this value closes it by
-// implementation, which the plan permits and requires writing back. A real
-// export projects onto the polyline and lands sub-metre; the slack is for
-// hand-authored and third-party files, whose coordinates are typed rather than
-// computed. Too tight and legitimate files are refused; too loose and a
-// genuinely misplaced endpoint snaps somewhere wrong and nothing says so.
-const EndpointToleranceMetres = 50.0
-
-// Network is the graph: nodes and arcs that chains traverse.
-//
-// ⚠ Nodes and arcs are MAPS because chains reference them by key, and those
+// ⚠ Nodes and arcs are MAPS because walks reference them by key, and those
 // keys are scoped TO THIS NETWORK — a route elsewhere in the document may use
 // the same names for entirely different geometry. A reader that flattens every
 // id into one document-wide map silently merges unrelated things.
@@ -28,7 +16,7 @@ type Network struct {
 	Name   string
 	Notes  string
 	Hidden bool
-	Nodes  map[string]Position
+	Nodes  map[string]Vertex
 	Arcs   map[string]Arc
 	Chains []Chain
 	Points []Waypoint
@@ -36,66 +24,23 @@ type Network struct {
 	Data   []Record
 }
 
-// Chain is an ordered traversal of arcs the network owns. Unlike a Route, its
-// geometry is BY REFERENCE — two chains crossing the same trail name the same
-// arc, and that sharing is the whole reason this format exists.
+// Chain is a walk over arcs the network owns. Unlike a Route, its geometry is
+// BY REFERENCE — two chains crossing the same trail name the same arc, and
+// that sharing is the whole reason this format exists.
 type Chain struct {
 	Name   string
 	Notes  string
 	Hidden bool
 	Style  Style
-	Links  []Link
+	Walk   []Pass
 	Data   []Record
-}
-
-// Link is one arc traversal between two typed endpoints. Direction is the
-// endpoint order — there is no stored flag to drift out of step with it.
-type Link struct {
-	Arc  string
-	From Endpoint
-	To   Endpoint
-}
-
-// Endpoint is either a node key or an inline position — a handle: a point ON
-// the named arc where the chain starts, ends or turns around.
-//
-// ⚠ Inline positions carry NO IDENTITY. Two links in one chain may share a
-// handle (a turnaround pair), and the only way a reader can tell is that the
-// coordinates are equal. Hence Same below, and hence the writer's obligation to
-// emit byte-identical arrays for a shared endpoint.
-type Endpoint struct {
-	Node string    // "" when inline
-	At   *Position // nil when a node key
-}
-
-// Same reports whether two endpoints denote the same point. Node keys compare
-// as strings; inline positions compare BY COORDINATE VALUE, because that is all
-// the identity they have.
-func (e Endpoint) Same(f Endpoint) bool {
-	if e.Node != "" || f.Node != "" {
-		return e.Node == f.Node
-	}
-	if e.At == nil || f.At == nil {
-		return false
-	}
-	return e.At.Lon == f.At.Lon && e.At.Lat == f.At.Lat
-}
-
-func (e Endpoint) String() string {
-	if e.Node != "" {
-		return e.Node
-	}
-	if e.At != nil {
-		return e.At.String()
-	}
-	return "<none>"
 }
 
 var (
 	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true,
 		"nodes": true, "arcs": true, "chains": true, "points": true, "areas": true, "data": true}
-	chainKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "style": true, "links": true, "data": true}
-	linkKeys  = map[string]bool{"arc": true, "from": true, "to": true}
+	chainKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "style": true, "walk": true, "data": true}
+	arcKeys   = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
 )
 
 func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Diagnostic) {
@@ -114,8 +59,8 @@ func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Di
 		n.Notes, diags = stringField(obj, "notes", diags)
 		n.Hidden, diags = boolField(obj, "hidden", at, diags)
 		n.Nodes, diags = decodeNodes(obj["nodes"], at+"/nodes", diags)
-		n.Arcs, diags = decodeNamedArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
-		n.Chains, diags = decodeChains(obj["chains"], at+"/chains", n.Nodes, n.Arcs, diags)
+		n.Arcs, diags = decodeArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
+		n.Chains, diags = decodeChains(obj["chains"], at+"/chains", n.Arcs, diags)
 		if sub, ok := obj["points"].([]any); ok {
 			n.Points, diags = decodeWaypoints(sub, at+"/points", diags)
 		}
@@ -129,7 +74,10 @@ func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Di
 	return out, diags
 }
 
-func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Position, []Diagnostic) {
+// decodeNodes reads a network's or a route's `nodes`. A node that will not
+// parse is dropped (§6.2); an arc naming it is then dropped under
+// arc-node-absent, so the loss surfaces on everything that depended on it.
+func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Vertex, []Diagnostic) {
 	if v == nil {
 		return nil, diags
 	}
@@ -138,27 +86,37 @@ func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Position, [
 		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
 			Message: fmt.Sprintf("`nodes` is %s, expected an object — ignored", jsonKind(v))})
 	}
-	nodes := make(map[string]Position, len(obj))
+	nodes := make(map[string]Vertex, len(obj))
 	for _, id := range sortedKeys(obj) {
-		at := path + "/" + id
+		at := path + "/" + escapePointerToken(id)
 		arr, isArr := obj[id].([]any)
 		if !isArr {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("node is %s, expected a position array — dropped", jsonKind(obj[id]))})
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
+				Message: fmt.Sprintf("node is %s, expected a position array — node dropped", jsonKind(obj[id]))})
 			continue
 		}
 		p, err := decodePosition(arr, at)
 		if err != nil {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
 				Message: err.Error() + " — node dropped"})
 			continue
 		}
-		nodes[id] = p
+		if p.Time != nil {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeExtraChannel,
+				Message: "a node carries no time — the time channel is dropped and the node kept"})
+		}
+		nodes[id] = Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}
 	}
 	return nodes, diags
 }
 
-func decodeNamedArcs(v any, path string, nodes map[string]Position, diags []Diagnostic) (map[string]Arc, []Diagnostic) {
+// decodeArcs reads a network's or a route's `arcs`.
+//
+// ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
+// the chain is dropped when its walk is read, under pass-arc-absent, with a
+// diagnostic of its own (§6.2). That is why nodes and arcs are read before any
+// walk — a walk can only be checked against the arcs that survived.
+func decodeArcs(v any, path string, nodes map[string]Vertex, diags []Diagnostic) (map[string]Arc, []Diagnostic) {
 	if v == nil {
 		return nil, diags
 	}
@@ -169,74 +127,85 @@ func decodeNamedArcs(v any, path string, nodes map[string]Position, diags []Diag
 	}
 	arcs := make(map[string]Arc, len(obj))
 	for _, id := range sortedKeys(obj) {
-		at := path + "/" + id
+		at := path + "/" + escapePointerToken(id)
 		aObj, isObj := obj[id].(map[string]any)
 		if !isObj {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
 				Message: fmt.Sprintf("arc is %s, expected an object — dropped", jsonKind(obj[id]))})
 			continue
 		}
-		var a Arc
-		a.Pips, diags = decodePips(aObj["pips"], at+"/pips", diags)
-		a.Data, diags = dataField(aObj, at, diags)
-		from, _ := aObj["from"].(string)
-		to, _ := aObj["to"].(string)
-		diags = reportUnknownKeys(aObj, at, networkArcKeys, diags)
-		if a.Pips == nil {
-			// decodePips already reported the unusable position and returned
-			// nil to say "drop the arc". Reporting a pip count here as well
-			// would turn one defect into two, which §6.2 forbids and which the
-			// chain-continuity rule already spells out for links.
-			continue
+		diags = reportUnknownKeys(aObj, at, arcKeys, diags)
+		a, ok, diags2 := decodeArc(aObj, at, nodes, diags)
+		diags = diags2
+		if ok {
+			arcs[id] = a
 		}
-		if len(a.Pips) < 2 {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("arc has %d usable pips, needs at least 2 — dropped", len(a.Pips))})
-			continue
-		}
-		diags = checkArcMeetsNodes(a, from, to, at, nodes, diags)
-		a.From, a.To = from, to
-		arcs[id] = a
 	}
 	return arcs, diags
 }
 
-// checkArcMeetsNodes enforces the whole-polyline rule at the reading end.
-//
-// An arc's pips are its COMPLETE point list, so its first pip must be its start
-// node and its last its end node. Internally the blob holds only INTERIOR pips
-// and the reader prepends the nodes; migration 071 records what happens when
-// the two conventions are confused — "loses or invents the two endpoints
-// without erroring". Checking it here is what stops that arriving silently.
-func checkArcMeetsNodes(a Arc, from, to, at string, nodes map[string]Position, diags []Diagnostic) []Diagnostic {
-	check := func(nodeID string, p Position, which string) {
-		if nodeID == "" {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("arc has no `%s` node", which)})
-			return
-		}
-		np, ok := nodes[nodeID]
+func decodeArc(obj map[string]any, at string, nodes map[string]Vertex, diags []Diagnostic) (Arc, bool, []Diagnostic) {
+	var a Arc
+	var ok bool
+	for _, end := range []struct {
+		key string
+		dst *string
+	}{{"from", &a.From}, {"to", &a.To}} {
+		*end.dst, ok = obj[end.key].(string)
 		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("arc names %s node %q, which is not in this network", which, nodeID)})
-			return
-		}
-		if metresBetween(np, p) > EndpointToleranceMetres {
-			// The path names the END, not the arc: §6.3 has it name the
-			// smallest element no part of which could be used, and the arc's
-			// other end and its interior pips are all fine.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/" + which,
-				Code: CodeTerminalPipOffNode,
-				Message: fmt.Sprintf("arc's %s pip %s is %.0f m from node %q at %s — an arc's pips are its COMPLETE point list and must meet its nodes",
-					which, p, metresBetween(np, p), nodeID, np)})
+			what := "is missing"
+			if _, present := obj[end.key]; present {
+				what = fmt.Sprintf("is %s, expected a node key", jsonKind(obj[end.key]))
+			}
+			return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/" + end.key,
+				Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `%s` %s — arc dropped", end.key, what)})
 		}
 	}
-	check(from, a.Pips[0], "from")
-	check(to, a.Pips[len(a.Pips)-1], "to")
-	return diags
+	pipsArr, isArr := obj["pips"].([]any)
+	if !isArr {
+		what := "is missing"
+		if _, present := obj["pips"]; present {
+			what = fmt.Sprintf("is %s, expected an array", jsonKind(obj["pips"]))
+		}
+		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/pips",
+			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `pips` %s — arc dropped", what)})
+	}
+	pips, diags := decodePips(pipsArr, at+"/pips", diags)
+	if pips == nil {
+		// decodePips reported the unusable position and returned nil to say
+		// "drop the arc".
+		return Arc{}, false, diags
+	}
+	a.Pips = make([]Vertex, len(pips))
+	timed := false
+	for i, p := range pips {
+		timed = timed || p.Time != nil
+		a.Pips[i] = Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}
+	}
+	if timed {
+		diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/pips", Code: CodeArcPipTime,
+			Message: "an arc pip carries no time — every time channel on this arc is dropped and its pips kept"})
+	}
+	a.Data, diags = dataField(obj, at, diags)
+	if a.From == a.To {
+		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeSelfLoopArc,
+			Message: fmt.Sprintf("arc runs from node %q to itself; a self-loop cannot be walked — arc dropped", a.From)})
+	}
+	dropped := false
+	for _, end := range []struct{ key, node string }{{"from", a.From}, {"to", a.To}} {
+		if _, known := nodes[end.node]; !known {
+			dropped = true
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/" + end.key, Code: CodeArcNodeAbsent,
+				Message: fmt.Sprintf("arc names %s node %q, which is not here — arc dropped", end.key, end.node)})
+		}
+	}
+	if dropped {
+		return Arc{}, false, diags
+	}
+	return a, true, diags
 }
 
-func decodeChains(v any, path string, nodes map[string]Position, arcs map[string]Arc, diags []Diagnostic) ([]Chain, []Diagnostic) {
+func decodeChains(v any, path string, arcs map[string]Arc, diags []Diagnostic) ([]Chain, []Diagnostic) {
 	if v == nil {
 		return nil, diags
 	}
@@ -260,140 +229,15 @@ func decodeChains(v any, path string, nodes map[string]Position, arcs map[string
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
 		c.Style, diags = decodeStyle(obj, at, diags)
 		c.Data, diags = dataField(obj, at, diags)
-		c.Links, diags = decodeLinks(obj["links"], at+"/links", nodes, arcs, diags)
 		diags = reportUnknownKeys(obj, at, chainKeys, diags)
+		var walkOK bool
+		c.Walk, walkOK, diags = decodeWalk(obj, at, arcs, false, diags)
+		if !walkOK {
+			continue
+		}
 		out = append(out, c)
 	}
 	return out, diags
-}
-
-func decodeLinks(v any, path string, nodes map[string]Position, arcs map[string]Arc, diags []Diagnostic) ([]Link, []Diagnostic) {
-	if v == nil {
-		return nil, diags
-	}
-	arr, ok := v.([]any)
-	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`links` is %s, expected an array — ignored", jsonKind(v))})
-	}
-	out := make([]Link, 0, len(arr))
-	kept := make([]int, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, isObj := item.(map[string]any)
-		if !isObj {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("link is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		arcID, _ := obj["arc"].(string)
-		arc, known := arcs[arcID]
-		if !known {
-			// The link's whole meaning is the arc it traverses. Without it there
-			// is no geometry to draw and nothing to keep.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Code: CodeLinkArcAbsent, Message: fmt.Sprintf("link names arc %q, which is not in this network — dropped", arcID)})
-			continue
-		}
-		from, okFrom, diags2 := decodeEndpoint(obj["from"], at+"/from", nodes, arc, diags)
-		diags = diags2
-		to, okTo, diags3 := decodeEndpoint(obj["to"], at+"/to", nodes, arc, diags)
-		diags = diags3
-		diags = reportUnknownKeys(obj, at, linkKeys, diags)
-		if !okFrom || !okTo {
-			continue
-		}
-		out = append(out, Link{Arc: arcID, From: from, To: to})
-		kept = append(kept, i)
-	}
-	return checkChainContinuity(out, kept, path, diags)
-}
-
-// checkChainContinuity reports where consecutive links do not meet.
-//
-// This is what gives Endpoint.Same a caller, and without it the shared-handle
-// rule is decoration: a turnaround pair would "pass" any test simply because
-// nothing ever compared its endpoints. A method with no call site is not a
-// guarantee, however carefully it is written.
-//
-// The links are KEPT when they do not meet — the geometry is real, and a gap
-// the writer intended is not ours to delete. Reporting lets the reader decide.
-//
-// ⚠ A DROPPED LINK DOES NOT MAKE ITS NEIGHBOURS ADJACENT. `kept` carries each
-// surviving link's index in the DOCUMENT, and two survivors are compared only
-// when those indices are consecutive. Comparing across a hole turns one defect
-// into two: a document with a dangling arc reference reports the drop AND a
-// spurious break, and a reader cannot tell how much is actually wrong. Spec
-// §3.3.3 states the rule.
-//
-// The same slice fixes a second defect it hid. The diagnostic's path used the
-// SURVIVING index, so once anything had been dropped the path named the wrong
-// link — pointing a reader, very often an agent, at a link that is fine.
-func checkChainContinuity(links []Link, kept []int, path string, diags []Diagnostic) ([]Link, []Diagnostic) {
-	for i := 1; i < len(links); i++ {
-		if kept[i] != kept[i-1]+1 {
-			continue
-		}
-		if !links[i-1].To.Same(links[i].From) {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, kept[i]),
-				Code: CodeChainDiscontinuity, Message: fmt.Sprintf("this link starts at %s but the previous one ends at %s — the chain is not one connected walk",
-					links[i].From, links[i-1].To)})
-		}
-	}
-	return links, diags
-}
-
-// decodeEndpoint reads a node key or an inline position, and checks an inline
-// one actually lies on the arc it belongs to. A position nowhere near its arc
-// cannot be projected onto it, so it is an unusable value — the link goes, and
-// says so, rather than snapping to whatever happens to be nearest.
-func decodeEndpoint(v any, path string, nodes map[string]Position, arc Arc, diags []Diagnostic) (Endpoint, bool, []Diagnostic) {
-	switch t := v.(type) {
-	case string:
-		if _, ok := nodes[t]; !ok {
-			return Endpoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-				Message: fmt.Sprintf("endpoint names node %q, which is not in this network — link dropped", t)})
-		}
-		return Endpoint{Node: t}, true, diags
-	case []any:
-		p, err := decodePosition(t, path)
-		if err != nil {
-			return Endpoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-				Message: err.Error() + " — link dropped"})
-		}
-		if d := distanceToArc(p, arc); d > EndpointToleranceMetres {
-			return Endpoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-				Code: CodeEndpointOffArc, Message: fmt.Sprintf("inline endpoint %s is %.0f m from its arc, beyond the %.0f m tolerance — link dropped", p, d, EndpointToleranceMetres)})
-		}
-		return Endpoint{At: &p}, true, diags
-	default:
-		return Endpoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("endpoint is %s, expected a node id or a position — link dropped", jsonKind(v))})
-	}
-}
-
-// distanceToArc is the shortest distance from p to the arc's polyline.
-func distanceToArc(p Position, arc Arc) float64 {
-	best := math.Inf(1)
-	for i := 0; i+1 < len(arc.Pips); i++ {
-		if d := distanceToSegment(p, arc.Pips[i], arc.Pips[i+1]); d < best {
-			best = d
-		}
-	}
-	return best
-}
-
-// distanceToSegment is how far p lies from the segment ab, in metres. It is
-// the distance half of polyline.go's nearestOnSegment — the tolerance check
-// here and the cut the writers take must measure the same geometry, so they
-// share the projection rather than each carrying a copy of it.
-func distanceToSegment(p, a, b Position) float64 {
-	_, metres := nearestOnSegment(p, a, b)
-	return metres
-}
-
-func metresBetween(a, b Position) float64 {
-	return distanceToSegment(a, b, b)
 }
 
 // sortedKeys keeps map iteration deterministic, so diagnostics come out in a

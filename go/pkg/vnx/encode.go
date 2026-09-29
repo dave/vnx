@@ -69,39 +69,44 @@ type wireTrack struct {
 	Data     []any         `json:"data,omitempty"`
 }
 
-// wireArc carries `from` and `to` only on a NETWORK arc. A route's arcs own
-// their geometry and name nothing, so writing ids there would invent a graph
-// the route does not have.
+// wireArc is an arc of a network or a route. `pips` is always written, empty
+// for a straight arc: §3.10 makes the key required.
 type wireArc struct {
-	From string         `json:"from,omitempty"`
-	To   string         `json:"to,omitempty"`
+	From string         `json:"from"`
+	To   string         `json:"to"`
 	Pips []wirePosition `json:"pips"`
 	Data []any          `json:"data,omitempty"`
 }
 
 type wireRoute struct {
-	Name   string    `json:"name,omitempty"`
-	Notes  string    `json:"notes,omitempty"`
-	Folder string    `json:"folder,omitempty"`
-	Hidden bool      `json:"hidden,omitempty"`
-	Arcs   []wireArc `json:"arcs"`
-	Style  Style     `json:"style,omitempty"`
-	Data   []any     `json:"data,omitempty"`
+	Name   string                  `json:"name,omitempty"`
+	Notes  string                  `json:"notes,omitempty"`
+	Folder string                  `json:"folder,omitempty"`
+	Hidden bool                    `json:"hidden,omitempty"`
+	Nodes  map[string]wirePosition `json:"nodes,omitempty"`
+	Arcs   map[string]wireArc      `json:"arcs,omitempty"`
+	Walk   []wirePass              `json:"walk"`
+	Style  Style                   `json:"style,omitempty"`
+	Data   []any                   `json:"data,omitempty"`
 }
 
-// wireLink's endpoints are `any` because §3.3.3 gives them two spellings: a
-// node key is a string, an inline handle is a position array.
-type wireLink struct {
-	Arc  string `json:"arc"`
-	From any    `json:"from"`
-	To   any    `json:"to"`
+// wirePass's `from` and `to` are `any` because §3.3.3 gives them two
+// spellings: a node key is a string, a position is an array. A nil one is
+// ABSENT, which is where §3.3.3's rule puts it; `pinned` is written only when
+// true.
+type wirePass struct {
+	Arc    string       `json:"arc"`
+	From   any          `json:"from,omitempty"`
+	To     any          `json:"to,omitempty"`
+	Turn   wirePosition `json:"turn,omitempty"`
+	Pinned bool         `json:"pinned,omitempty"`
 }
 
 type wireChain struct {
 	Name   string     `json:"name,omitempty"`
 	Notes  string     `json:"notes,omitempty"`
 	Hidden bool       `json:"hidden,omitempty"`
-	Links  []wireLink `json:"links"`
+	Walk   []wirePass `json:"walk"`
 	Style  Style      `json:"style,omitempty"`
 	Data   []any      `json:"data,omitempty"`
 }
@@ -149,6 +154,9 @@ func waypointWire(w Waypoint, inNetwork bool) (wireWaypoint, error) {
 // on an in-network area for the same reason as an in-network point; see
 // waypointWire.
 func areaWire(a Area, inNetwork bool) (wireArea, error) {
+	if err := checkRing(a.Polygon); err != nil {
+		return wireArea{}, fmt.Errorf("area %q: %w", a.Name, err)
+	}
 	ring, err := positionsWire(a.Polygon)
 	if err != nil {
 		return wireArea{}, err
@@ -162,6 +170,20 @@ func areaWire(a Area, inNetwork bool) (wireArea, error) {
 		out.Folder = a.Folder
 	}
 	return out, nil
+}
+
+// checkRing refuses a ring §3.7 would have a reader repair or drop: a writer
+// emits a ring open, with at least three distinct positions. It does not open
+// a closed ring itself — that would be the writer guessing its caller meant
+// the repeat, which is the caller's to fix.
+func checkRing(ring []Position) error {
+	if n := len(ring); n >= 2 && ring[0].Lon == ring[n-1].Lon && ring[0].Lat == ring[n-1].Lat {
+		return fmt.Errorf("vnx: a ring is written open, and this one's last position repeats its first")
+	}
+	if d := distinctLonLat(ring); d < 3 {
+		return fmt.Errorf("vnx: a ring needs at least 3 distinct positions, this one has %d", d)
+	}
+	return nil
 }
 
 func trackWire(t Track) (wireTrack, error) {
@@ -200,14 +222,37 @@ func trackWire(t Track) (wireTrack, error) {
 
 func routeWire(r Route) (wireRoute, error) {
 	out := wireRoute{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Style: r.Style}
-	out.Arcs = make([]wireArc, 0, len(r.Arcs))
-	for _, a := range r.Arcs {
-		aw, err := arcWire(a, false)
-		if err != nil {
-			return wireRoute{}, err
-		}
-		out.Arcs = append(out.Arcs, aw)
+	if err := checkArcs(r.Nodes, r.Arcs); err != nil {
+		return wireRoute{}, fmt.Errorf("route %q: %w", r.Name, err)
 	}
+	if err := checkWalk(r.Walk, r.Arcs, true); err != nil {
+		return wireRoute{}, fmt.Errorf("route %q: %w", r.Name, err)
+	}
+	if len(r.Nodes) > 0 {
+		out.Nodes = make(map[string]wirePosition, len(r.Nodes))
+		for id, v := range r.Nodes {
+			p, err := vertexWire(v)
+			if err != nil {
+				return wireRoute{}, err
+			}
+			out.Nodes[id] = p
+		}
+	}
+	if len(r.Arcs) > 0 {
+		out.Arcs = make(map[string]wireArc, len(r.Arcs))
+		for id, a := range r.Arcs {
+			aw, err := arcWire(a)
+			if err != nil {
+				return wireRoute{}, err
+			}
+			out.Arcs[id] = aw
+		}
+	}
+	walk, err := walkWire(r.Walk)
+	if err != nil {
+		return wireRoute{}, err
+	}
+	out.Walk = walk
 	data, err := dataBodies(r.Data)
 	if err != nil {
 		return wireRoute{}, err
@@ -216,20 +261,18 @@ func routeWire(r Route) (wireRoute, error) {
 	return out, nil
 }
 
-func chainWire(c Chain) (wireChain, error) {
-	out := wireChain{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Style: c.Style}
-	out.Links = make([]wireLink, 0, len(c.Links))
-	for _, l := range c.Links {
-		from, err := endpointWire(l.From)
-		if err != nil {
-			return wireChain{}, err
-		}
-		to, err := endpointWire(l.To)
-		if err != nil {
-			return wireChain{}, err
-		}
-		out.Links = append(out.Links, wireLink{Arc: l.Arc, From: from, To: to})
+// chainWire builds a chain of n. The walk is checked against n's arcs first:
+// a writer never emits a walk its own reader would drop.
+func chainWire(n Network, c Chain) (wireChain, error) {
+	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
+		return wireChain{}, fmt.Errorf("chain %q: %w", c.Name, err)
 	}
+	out := wireChain{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Style: c.Style}
+	walk, err := walkWire(c.Walk)
+	if err != nil {
+		return wireChain{}, err
+	}
+	out.Walk = walk
 	data, err := dataBodies(c.Data)
 	if err != nil {
 		return wireChain{}, err
@@ -238,21 +281,42 @@ func chainWire(c Chain) (wireChain, error) {
 	return out, nil
 }
 
-// arcWire builds an arc. `named` is true for a network arc, which must name
-// both its nodes.
-func arcWire(a Arc, named bool) (wireArc, error) {
-	var out wireArc
-	if named {
-		if a.From == "" || a.To == "" {
-			return wireArc{}, fmt.Errorf("vnx: a network arc must name both its nodes, got from=%q to=%q", a.From, a.To)
+func walkWire(walk []Pass) ([]wirePass, error) {
+	out := make([]wirePass, 0, len(walk))
+	for _, p := range walk {
+		wp := wirePass{Arc: p.Arc, Pinned: p.Pinned}
+		var err error
+		if p.From != nil {
+			if wp.From, err = endpointWire(*p.From); err != nil {
+				return nil, err
+			}
 		}
-		out.From, out.To = a.From, a.To
+		if p.To != nil {
+			if wp.To, err = endpointWire(*p.To); err != nil {
+				return nil, err
+			}
+		}
+		if p.Turn != nil {
+			if wp.Turn, err = positionWire(p.Turn.Position()); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, wp)
 	}
-	pips, err := positionsWire(a.Pips)
-	if err != nil {
-		return wireArc{}, err
+	return out, nil
+}
+
+// arcWire builds an arc of a network or a route. Its nodes were checked by
+// checkArcs before any arc is written.
+func arcWire(a Arc) (wireArc, error) {
+	out := wireArc{From: a.From, To: a.To, Pips: make([]wirePosition, 0, len(a.Pips))}
+	for _, v := range a.Pips {
+		p, err := vertexWire(v)
+		if err != nil {
+			return wireArc{}, err
+		}
+		out.Pips = append(out.Pips, p)
 	}
-	out.Pips = pips
 	data, err := dataBodies(a.Data)
 	if err != nil {
 		return wireArc{}, err
@@ -261,9 +325,13 @@ func arcWire(a Arc, named bool) (wireArc, error) {
 	return out, nil
 }
 
+func vertexWire(v Vertex) (wirePosition, error) {
+	return positionWire(v.Position())
+}
+
 func endpointWire(ep Endpoint) (any, error) {
 	if ep.At != nil {
-		return positionWire(*ep.At)
+		return positionWire(ep.At.Position())
 	}
 	if ep.Node == "" {
 		return nil, fmt.Errorf("vnx: an endpoint must be a node id or a position, and this is neither")

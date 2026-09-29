@@ -52,6 +52,11 @@ func TestEncodeToCoversEveryCollectionTheDocumentDeclares(t *testing.T) {
 		// green by hand-writing a fixture for the new field.
 		doc := &Document{}
 		reflect.ValueOf(doc).Elem().Field(i).Set(reflect.MakeSlice(f.Type, 1, 1))
+		// The one zero value the encoder refuses: an area with no ring, which
+		// a reader would drop (§3.7). It is given the least ring there is.
+		if f.Name == "Areas" {
+			doc.Areas[0].Polygon = []Position{{Lon: 0, Lat: 0}, {Lon: 1, Lat: 0}, {Lon: 1, Lat: 1}}
+		}
 		if c.count(doc) != 1 {
 			t.Errorf("documentCollections[%s].count says a document holding one %s holds %d",
 				c.key, f.Name, c.count(doc))
@@ -156,7 +161,7 @@ func TestNetworkMapKeysAreEmittedSorted(t *testing.T) {
 	}
 }
 
-func sortedNames(m map[string]Position) []string {
+func sortedNames(m map[string]Vertex) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
@@ -183,7 +188,7 @@ func sortedArcNames(m map[string]Arc) []string {
 // six collections populated and can catch neither half of it. Application keys
 // are not in the table and not in this rule: SPEC §3.9 exempts them.
 func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
-	const headerOnly = "{\"vnx\":\"0.1.0\"}\n"
+	const headerOnly = "{\"vnx\":\"0.2.0\"}\n"
 	for _, c := range documentCollections {
 		var absent bytes.Buffer
 		if err := EncodeTo(&absent, &Document{}); err != nil {
@@ -211,10 +216,10 @@ func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 // written in the order [Document] declares them.
 func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
 	var b bytes.Buffer
-	if err := EncodeTo(&b, &Document{Version: "0.1.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
+	if err := EncodeTo(&b, &Document{Version: "0.2.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\"vnx\":\"0.1.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
+	want := "{\"vnx\":\"0.2.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}

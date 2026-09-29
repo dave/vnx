@@ -56,8 +56,8 @@ func TestEncodeRefusesNonFinite(t *testing.T) {
 // Refusing here beats emitting an arc a reader then drops with a diagnostic.
 func TestEncodeRefusesANetworkArcWithNoNodes(t *testing.T) {
 	doc := &Document{Networks: []Network{{
-		Nodes: map[string]Position{"a": {Lon: 1, Lat: 2}},
-		Arcs:  map[string]Arc{"x": {Pips: []Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}}},
+		Nodes: map[string]Vertex{"a": {Lon: 1, Lat: 2}},
+		Arcs:  map[string]Arc{"x": {Pips: []Vertex{{Lon: 3, Lat: 4}}}},
 	}}}
 	if _, err := Encode(doc); err == nil {
 		t.Fatal("a network arc naming no nodes must be refused")
@@ -122,7 +122,7 @@ func excerpt(b []byte, i int) string {
 // spelling on purpose to keep that tolerance under test — and §4.1 has a WRITER
 // emit the short one.
 func TestTrailingNullDecodesAndReEncodesShort(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestTimestampsKeepTheirMilliseconds(t *testing.T) {
 // folder there would place an item that is not placed.
 func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 	doc := &Document{
-		Version: "0.1.0",
+		Version: "0.2.0",
 		// The same Folder value on both, so the test cannot pass by the
 		// in-network one simply being empty.
 		Waypoints: []Waypoint{{Name: "top", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
@@ -204,7 +204,7 @@ func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 
 func ring() []Position {
 	return []Position{
-		{Lon: -3, Lat: 57}, {Lon: -2.9, Lat: 57}, {Lon: -2.9, Lat: 57.1}, {Lon: -3, Lat: 57},
+		{Lon: -3, Lat: 57}, {Lon: -2.9, Lat: 57}, {Lon: -2.9, Lat: 57.1},
 	}
 }
 
@@ -216,7 +216,7 @@ func ring() []Position {
 // is what a caller reading the document sees. The WRITER spells both as
 // absence, which is what `omitempty` does and what §3.1 permits.
 func TestAnEmptyDataBagIsWrittenAsAnAbsentOne(t *testing.T) {
-	const src = `{"vnx":"0.1.0","waypoints":[` +
+	const src = `{"vnx":"0.2.0","waypoints":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"data":[]}]}`
 	doc, diags, err := Decode([]byte(src))

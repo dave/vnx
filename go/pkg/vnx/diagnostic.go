@@ -31,14 +31,11 @@ func (s Severity) String() string {
 // rather than hunting for it. Message is short, English, and technical; it is
 // not a user-facing string, and translating it is the bridge's job.
 //
-// ⚠ Code IS OPTIONAL, and that is a ruling rather than an oversight (spec 5b
-// §4.3, 2026-09-02). It is EMPTY when no stable code has been assigned, which
-// today is every one of the 60 DECODE sites in this package: those report
-// malformed input to `vnx validate` and to logs, they have never reached a
-// translated surface, and inventing 60 codes to make a field look full would
-// be 60 wire commitments nobody asked for. WRITER diagnostics — the ones spec
-// 5b's GPX, KML and GeoJSON writers raise on the EXPORT path, which a user
-// does see — always set it. A writer Code with no mapping in the bridge is a
+// ⚠ Code IS OPTIONAL. It is set on every decode diagnostic SPEC §6.2's remedy
+// table names (see decodeCodes), and EMPTY on the decode sites that report a
+// shape the table does not name, which go to `vnx validate` and to logs.
+// WRITER diagnostics — the ones the GPX, KML and GeoJSON writers raise on the
+// EXPORT path, which a user does see — always set it. A writer Code with no mapping in the bridge is a
 // test failure, not a silence: see WriterCodes below.
 type Diagnostic struct {
 	Severity Severity
@@ -193,17 +190,12 @@ func WriterCodes() []string {
 
 // decodeCodes is every Code a DECODE diagnostic can carry, in declaration order.
 //
-// ⚠ IT IS DELIBERATELY SHORT, and it stays short. Spec 5b ruled that the sixty
-// decode sites in this package do NOT get codes — they report malformed input
-// to `vnx validate` and to logs, they have never reached a translated surface,
-// and inventing sixty codes to make a field look full would be sixty wire
-// commitments nobody asked for. That ruling stands.
-//
-// What changed on 2026-09-09 is narrower: a conformance corpus case cannot pin
-// a diagnostic by its ENGLISH. Five implementations matching substrings of
-// free prose is the same defect as the refusal wordings, and worse, because
-// there are more of them and no prose behind any. So spec §6.3 now requires a
-// code for exactly the diagnostics a corpus case pins, and this is that list.
+// It is ONE CODE PER ROW OF SPEC §6.2's REMEDY TABLE, and no more. Every
+// problem that table names is a coded diagnostic with a local remedy, never a
+// refusal, so a caller — Viatrail's importer among them — can tell a user what
+// was dropped without parsing English. The remaining uncoded decode sites
+// report shapes the table does not name (an item that is not an object, a
+// collection that is not an array) to `vnx validate` and to logs.
 //
 // A code here with no corpus case, or a corpus case naming a code that is not
 // here, is a test failure — see TestEveryDecodeCodeIsPinnedByTheCorpus.
@@ -219,21 +211,12 @@ var (
 	// CodeUnknownKey: an unrecognised key on an object this format defines
 	// (§6.2). The key is skipped and the item kept.
 	CodeUnknownKey = decodeCode("unknown-key")
-	// CodeLinkArcAbsent: a link naming an arc that is not in its network
-	// (§6.2). The link is dropped.
-	CodeLinkArcAbsent = decodeCode("link-arc-absent")
-	// CodeChainDiscontinuity: consecutive links in a chain that do not meet
-	// (§3.3.3). Both links are kept and the break is reported.
-	CodeChainDiscontinuity = decodeCode("chain-discontinuity")
 	// CodePolygonNestedRings: a polygon carrying more than one ring (§3.7).
 	// The item is dropped.
 	CodePolygonNestedRings = decodeCode("polygon-nested-rings")
 	// CodeTimestampNotUTC: a record-level timestamp with an offset other than
 	// `Z` (§4.3). The timestamp is dropped and the item kept.
 	CodeTimestampNotUTC = decodeCode("timestamp-not-utc")
-	// CodeEndpointOffArc: an inline chain endpoint that does not project onto
-	// its arc within tolerance (§3.3.3). The link is dropped.
-	CodeEndpointOffArc = decodeCode("endpoint-off-arc")
 	// CodeWrongTypeOptional: a value of the wrong JSON type in an OPTIONAL key
 	// (§6.2). The field is dropped and the item is kept.
 	CodeWrongTypeOptional = decodeCode("wrong-type-optional")
@@ -251,11 +234,44 @@ var (
 	// three, because the code plus that table already tells a consumer what was
 	// lost, which leaves `path` free to name the cause.
 	CodePositionUnusable = decodeCode("position-unusable")
-	// CodeTerminalPipOffNode: an arc's first or last pip is further from the
-	// node that end names than §3.3.3's tolerance allows (§3.3.2). Both are
-	// kept: the pips are authoritative for geometry, and the node position and
-	// the terminal pip are one fact written twice.
-	CodeTerminalPipOffNode = decodeCode("terminal-pip-off-node")
+	// CodeExtraChannel: a time on a node, or an elevation or a time on a
+	// walk's `from`, `to` or `turn` (§3.3.1, §3.3.3). The channel is dropped
+	// and the node or pass kept. Its path is the node or the pass key.
+	CodeExtraChannel = decodeCode("extra-channel")
+	// CodeArcPipTime: a time on an arc pip (§3.3.2). Every time channel on the
+	// arc is dropped and its pips kept, and the diagnostic is reported ONCE,
+	// at the arc's `pips`, however many pips carried one.
+	CodeArcPipTime = decodeCode("arc-pip-time")
+	// CodeSelfLoopArc: an arc whose `from` and `to` name one node (§3.3.2).
+	// The arc is dropped, and every chain walking it with it.
+	CodeSelfLoopArc = decodeCode("self-loop-arc")
+	// CodeArcNodeAbsent: an arc naming a node its owner does not have
+	// (§3.3.2). The arc is dropped, and every chain walking it with it.
+	CodeArcNodeAbsent = decodeCode("arc-node-absent")
+	// CodePassArcAbsent: a pass that is not an object or names no arc of its
+	// owner (§3.3.3), including an arc another rule dropped. The chain — or
+	// the route, which is its own chain — is dropped.
+	CodePassArcAbsent = decodeCode("pass-arc-absent")
+	// CodeWalkSpelling: a walk that breaks §3.3.3's rule for where `from` and
+	// `to` appear. The chain is dropped.
+	CodeWalkSpelling = decodeCode("walk-spelling")
+	// CodeWalkNotConnected: a node `from` or `to` that is not an end of its
+	// arc, a pass not entered at an end of its arc, or a pass other than the
+	// last leaving at a position (§3.3.3). The chain is dropped.
+	CodeWalkNotConnected = decodeCode("walk-not-connected")
+	// CodePinnedTurn: a pass carrying both `turn` and `pinned` (§3.3.3). The
+	// chain is dropped.
+	CodePinnedTurn = decodeCode("pinned-turn")
+	// CodeRoutePinOrPosition: a position, a `turn` or `pinned` in a route's
+	// walk (§3.4). The route is dropped.
+	CodeRoutePinOrPosition = decodeCode("route-pin-or-position")
+	// CodeRingClosed: a ring whose last position repeats its first (§3.7). The
+	// repeated position is dropped and the area kept: nothing is lost, and the
+	// diagnostic is how a writer that closes rings is seen.
+	CodeRingClosed = decodeCode("ring-closed")
+	// CodeRingTooFewPoints: a ring with fewer than three distinct positions
+	// (§3.7). The area is dropped.
+	CodeRingTooFewPoints = decodeCode("ring-too-few-points")
 	// CodeAttachmentUnreadable: a VNZ attachment this reader cannot recover
 	// (§7) — either compressed by a method that is neither stored nor deflate,
 	// or carried in a stored/deflate entry whose bytes will not come back (a

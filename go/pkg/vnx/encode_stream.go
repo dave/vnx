@@ -267,6 +267,9 @@ func streamNetworks(b *StickyWriter, ns []Network) error {
 //
 // Members follow the order [Network] declares them.
 func streamNetwork(b *StickyWriter, n Network) error {
+	if err := checkArcs(n.Nodes, n.Arcs); err != nil {
+		return fmt.Errorf("network %q: %w", n.Name, err)
+	}
 	o := openObject(b)
 	for _, s := range []struct{ key, value string }{
 		{"name", n.Name},
@@ -293,7 +296,7 @@ func streamNetwork(b *StickyWriter, n Network) error {
 		for k := range n.Nodes {
 			keys = append(keys, k)
 		}
-		err := streamKeyedObject(b, keys, func(k string) (any, error) { return positionWire(n.Nodes[k]) })
+		err := streamKeyedObject(b, keys, func(k string) (any, error) { return vertexWire(n.Nodes[k]) })
 		if err != nil {
 			return err
 		}
@@ -306,7 +309,7 @@ func streamNetwork(b *StickyWriter, n Network) error {
 		for k := range n.Arcs {
 			keys = append(keys, k)
 		}
-		err := streamKeyedObject(b, keys, func(k string) (any, error) { return arcWire(n.Arcs[k], true) })
+		err := streamKeyedObject(b, keys, func(k string) (any, error) { return arcWire(n.Arcs[k]) })
 		if err != nil {
 			return err
 		}
@@ -315,7 +318,7 @@ func streamNetwork(b *StickyWriter, n Network) error {
 		if err := o.key("chains"); err != nil {
 			return err
 		}
-		err := streamArray(b, len(n.Chains), func(i int) (any, error) { return chainWire(n.Chains[i]) })
+		err := streamArray(b, len(n.Chains), func(i int) (any, error) { return chainWire(n, n.Chains[i]) })
 		if err != nil {
 			return err
 		}

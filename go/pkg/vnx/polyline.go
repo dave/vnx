@@ -1,15 +1,18 @@
 package vnx
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
-// Cutting an arc at a chain's endpoints. ONE implementation, two callers —
-// kml.chainLine and geojson.traverse.
+// Cutting an arc where a walk enters, turns and leaves it. ONE implementation,
+// [WalkLegs], and every writer draws a chain or a route through it.
 //
-// ⚠ A CHAIN IS NOT A LIST OF WHOLE ARCS. Each of its links traverses one arc
-// BETWEEN TWO ENDPOINTS, and an endpoint is either a node — the arc's own end —
-// or an inline position part-way along it ([Endpoint]). Emitting the whole arc
-// for a link that uses part of it would draw the chain running past where the
-// user stopped.
+// ⚠ A WALK IS NOT A LIST OF WHOLE ARCS. Each of its passes covers one arc from
+// an entry to an exit, perhaps by way of a turn, and an entry or exit is either
+// a node — the arc's own end — or a position part-way along it ([Endpoint]).
+// Emitting the whole arc for a pass that uses part of it would draw the walk
+// running past where the user stopped.
 //
 // ⚠ IT LIVES HERE BECAUSE TWO WRITERS MUST DRAW THE SAME LINE. It used to live
 // in kml only, with geojson carrying a second answer that SNAPPED an inline
@@ -35,13 +38,9 @@ func (c cut) before(o cut) bool {
 	return c.t < o.t
 }
 
-// project finds the point on pips closest to p.
-//
-// ⚠ IT IS USED FOR NODE ENDPOINTS TOO, not only inline ones, and that is what
-// keeps this to one code path. An arc's pips are its COMPLETE point list and
-// must meet its nodes (checkArcMeetsNodes), so a node endpoint projects to t=0
-// of the first segment or t=1 of the last — exactly the whole-arc answer,
-// arrived at without a second branch that could disagree with this one.
+// project finds the point on pips closest to p, at any distance (SPEC
+// §3.3.3). Where two segments are equally near, the earlier one wins: `<`, not
+// `<=`, is that rule.
 func project(pips []Position, p Position) cut {
 	best := cut{}
 	bestDist := math.Inf(1)
@@ -68,10 +67,9 @@ func project(pips []Position, p Position) cut {
 // that, with a metresPerDegLat of 111132.0 against the 111194.9 this radius
 // implies — a fifth undocumented model that nobody chose.
 //
-// ⚠ IT IS SHARED WITH THE CUT GEOMETRY THE WRITERS EMIT, deliberately: the
-// tolerance check and the cut must measure the same geometry, or Viatrail can
-// emit a cut its own reader rejects. So the model cannot be changed here for
-// the check alone.
+// ⚠ IT DECIDES WHERE EVERY WRITER CUTS A WALK. A reader stores a walk position
+// as written; the nearest point it identifies is found here, and any other
+// model would draw the same walk somewhere else.
 func nearestOnSegment(p, a, b Position) (t, metres float64) {
 	const earthRadiusMetres = 6371008.8
 	rad := math.Pi / 180
@@ -131,34 +129,100 @@ func between(pips []Position, a, b cut) []Position {
 	return out
 }
 
-// SubPolyline is the piece of pips a link walks: the run from the point on the
-// polyline nearest from to the point nearest to, in that order, reversed when
-// the walk runs backwards along pips.
-//
-// ⚠ AN ENDPOINT LANDING MID-SEGMENT IS INTERPOLATED, NOT SNAPPED to the nearest
-// recorded pip. The exact cut point is what the traversal actually covers;
-// snapping moves the end by up to half a segment and reports a length the
-// traversal does not have. Nor does interpolating cost the format's identity
-// rule anything: the projection is a pure function of the endpoint and the
-// pips, so two traversals sharing one turnaround endpoint over one run of pips
-// both emit the SAME interpolated coordinate.
-//
-// The doc deliberately talks about pips and traversals rather than the model's
-// own nouns: this is a geometry helper over a list of positions, and the two
-// writers that call it are the ones that know what the run of pips belongs to.
-//
-// ⚠ IT MUST RUN BEFORE ROUNDING, like every other geometry step (round.go).
-// The cut is taken at full precision and the writer rounds what comes out.
-//
-// A polyline with no segment to cut has no piece to return: a single pip is
-// returned as itself — that pip is the only answer to "the point nearest
-// anything" — and an empty pip list yields nil.
-func SubPolyline(pips []Position, from, to Position) []Position {
-	switch len(pips) {
-	case 0:
-		return nil
-	case 1:
-		return []Position{pips[0]}
+// ArcLine is the whole line of arc a: its From node's position, its interior
+// pips, and its To node's position (SPEC §3.3.2). An error names a node the
+// owner does not have.
+func ArcLine(nodes map[string]Vertex, a Arc) ([]Position, error) {
+	from, ok := nodes[a.From]
+	if !ok {
+		return nil, fmt.Errorf("vnx: arc names node %q, which is not in its owner", a.From)
 	}
-	return between(pips, project(pips, from), project(pips, to))
+	to, ok := nodes[a.To]
+	if !ok {
+		return nil, fmt.Errorf("vnx: arc names node %q, which is not in its owner", a.To)
+	}
+	line := make([]Position, 0, len(a.Pips)+2)
+	line = append(line, from.Position())
+	for _, v := range a.Pips {
+		line = append(line, v.Position())
+	}
+	return append(line, to.Position()), nil
+}
+
+// WalkLegs is the line each pass of a walk covers, one leg per pass, in walk
+// order (SPEC §3.3.3): from the pass's entry, out to its turn where it has one,
+// and on to its exit, along its arc's line whatever order those points lie in.
+// A leg runs the way the walk goes, so a pass walking its arc from To to From
+// is reversed.
+//
+// ⚠ A NODE END IS THE ARC'S OWN END, NOT A PROJECTION. The walk says which node
+// it is at, and a node is one end of its arc's line by construction, so it
+// cuts there: a projection could land on the other end of an arc that bends
+// back past its own start. A position is cut at the nearest point, at any
+// distance — §3.3.3's model, the same projection a reader would use.
+//
+// ⚠ A WALK THAT DOES NOT RESOLVE IS AN ERROR, never a guess. A pass naming an
+// absent arc, a node that is not an end of its arc, a walk that does not join:
+// each is refused with the pass and the rule, where drawing "the whole arc
+// forwards" would put a line on the map that nobody walked.
+//
+// Like every other geometry step it runs BEFORE ROUNDING (round.go): the cut is
+// taken at full precision and the writer rounds what comes out.
+func WalkLegs(nodes map[string]Vertex, arcs map[string]Arc, walk []Pass) ([][]Position, error) {
+	cur := walkCursor{last: len(walk) - 1}
+	legs := make([][]Position, 0, len(walk))
+	for i, p := range walk {
+		arc, known := arcs[p.Arc]
+		if !known {
+			return nil, (&walkFault{pass: i, code: CodePassArcAbsent, msg: fmt.Sprintf("pass names arc %q, which is not here", p.Arc)}).error()
+		}
+		entry, exit, f := cur.step(i, p, arc)
+		if f != nil {
+			return nil, f.error()
+		}
+		line, err := ArcLine(nodes, arc)
+		if err != nil {
+			return nil, fmt.Errorf("pass %d: %w", i, err)
+		}
+		in, out := cutAt(line, arc, entry), cutAt(line, arc, exit)
+		if p.Turn == nil {
+			legs = append(legs, between(line, in, out))
+			continue
+		}
+		turn := project(line, p.Turn.Position())
+		leg := between(line, in, turn)
+		legs = append(legs, append(leg, between(line, turn, out)[1:]...))
+	}
+	return legs, nil
+}
+
+// WalkLine is the walk's legs joined into one line: where a leg starts at the
+// point the previous one ended, the shared point is written once.
+func WalkLine(nodes map[string]Vertex, arcs map[string]Arc, walk []Pass) ([]Position, error) {
+	legs, err := WalkLegs(nodes, arcs, walk)
+	if err != nil {
+		return nil, err
+	}
+	var out []Position
+	for _, leg := range legs {
+		if n := len(out); n > 0 && len(leg) > 0 && out[n-1].Lon == leg[0].Lon && out[n-1].Lat == leg[0].Lat {
+			leg = leg[1:]
+		}
+		out = append(out, leg...)
+	}
+	return out, nil
+}
+
+// cutAt is where an endpoint lies on its arc's line: a node at that end, a
+// position at its nearest point.
+func cutAt(line []Position, arc Arc, e Endpoint) cut {
+	switch {
+	case e.At != nil:
+		return project(line, e.At.Position())
+	case e.Node == arc.From:
+		return cut{seg: 0, t: 0}
+	default:
+		// step has checked the node is an end, so it is To.
+		return cut{seg: len(line) - 2, t: 1}
+	}
 }

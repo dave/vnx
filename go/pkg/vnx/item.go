@@ -14,9 +14,10 @@ type Waypoint struct {
 	Data   []Record
 }
 
-// Area is a polygon. ⚠ ONE CLOSED RING — no holes, no multi-ring. The model is
-// a single ring of at least four positions with first == last, validated at
-// every write site, so the format must not promise more than that.
+// Area is a polygon. ⚠ ONE OPEN RING — no holes, no multi-ring (SPEC §3.7).
+// Polygon holds at least three distinct positions and its last does NOT
+// repeat its first: the boundary closes from the last back to the first.
+// Formats that need a closed ring (GeoJSON, KML) close it when they write it.
 type Area struct {
 	Folder  string
 	Name    string
@@ -107,28 +108,34 @@ func decodeAreas(arr []any, path string, diags []Diagnostic) ([]Area, []Diagnost
 	return out, diags
 }
 
-// decodeRing reads the single closed ring an Area's polygon is. Nested rings —
-// the GeoJSON shape an earlier draft of the example promised — are reported and
-// the area dropped, never silently flattened to the outer ring and never
-// silently merged. A reader that quietly kept ring 1 would draw an area whose
-// holes had vanished, with nothing to say so.
+// decodeRing reads the single OPEN ring an Area's polygon is (SPEC §3.7).
+// Nested rings — the GeoJSON shape an earlier draft of the example promised —
+// are reported and the area dropped, never silently flattened to the outer
+// ring and never silently merged. A reader that quietly kept ring 1 would draw
+// an area whose holes had vanished, with nothing to say so.
+//
+// ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED. Its last position repeating its
+// first is one fact written twice, so dropping the repeat loses nothing; the
+// diagnostic is kept so that a writer that closes rings can be seen. The count
+// of distinct positions is taken after that, so [A, B, A] is two points and
+// its area goes.
 func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Diagnostic) {
 	arr, ok := v.([]any)
 	if !ok {
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("polygon is %s, expected an array of positions — area dropped", jsonKind(v))})
+		what := "is missing"
+		if v != nil {
+			what = fmt.Sprintf("is %s, expected an array of positions", jsonKind(v))
+		}
+		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
+			Message: fmt.Sprintf("polygon %s — area dropped", what)})
 	}
 	if len(arr) > 0 {
 		if first, isArr := arr[0].([]any); isArr && len(first) > 0 {
 			if _, nested := first[0].([]any); nested {
 				return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-					Code: CodePolygonNestedRings, Message: "polygon holds nested rings; this format carries ONE closed ring and cannot express holes — area dropped"})
+					Code: CodePolygonNestedRings, Message: "polygon holds nested rings; this format carries ONE ring and cannot express holes — area dropped"})
 			}
 		}
-	}
-	if len(arr) < 4 {
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("polygon has %d positions, needs at least 4 (3 distinct plus the closing one) — area dropped", len(arr))})
 	}
 	ring := make([]Position, 0, len(arr))
 	for i, item := range arr {
@@ -145,11 +152,26 @@ func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Dia
 		}
 		ring = append(ring, p)
 	}
-	if ring[0].Lon != ring[len(ring)-1].Lon || ring[0].Lat != ring[len(ring)-1].Lat {
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: "polygon is not closed: the last position must repeat the first — area dropped"})
+	if n := len(ring); n >= 2 && ring[0].Lon == ring[n-1].Lon && ring[0].Lat == ring[n-1].Lat {
+		diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, n-1), Code: CodeRingClosed,
+			Message: "a ring is stored open, and this last position repeats the first — the repeat is dropped"})
+		ring = ring[:n-1]
+	}
+	if d := distinctLonLat(ring); d < 3 {
+		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeRingTooFewPoints,
+			Message: fmt.Sprintf("ring has %d distinct position(s), needs at least 3 — area dropped", d)})
 	}
 	return ring, true, diags
+}
+
+// distinctLonLat counts the positions of ps that differ in longitude or
+// latitude; no other channel takes part (SPEC §3.7).
+func distinctLonLat(ps []Position) int {
+	seen := make(map[[2]float64]bool, len(ps))
+	for _, p := range ps {
+		seen[[2]float64{p.Lon, p.Lat}] = true
+	}
+	return len(seen)
 }
 
 func intField(obj map[string]any, key, path string, diags []Diagnostic) (*int, []Diagnostic) {

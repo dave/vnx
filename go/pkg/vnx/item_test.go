@@ -3,7 +3,7 @@ package vnx
 import "testing"
 
 func TestWaypointCarriesEveryStyleField(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[{
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","waypoints":[{
 	  "folder":"cairngorms","name":"Car park","notes":"Pay and display.",
 	  "at":[-3.6750,57.1201,320],
 	  "style":{"color":"#444444","icon":"parking","icon-size":16,
@@ -40,7 +40,7 @@ func TestWaypointCarriesEveryStyleField(t *testing.T) {
 // silently flattens Auto to hidden — a silent default, and the house-rule
 // violation the audit caught.
 func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
+	doc, _, err := Decode([]byte(`{"vnx":"0.2.0","waypoints":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
 
 // §3.8: omitted means visible, and a writer emits the key only when true.
 func TestHiddenAbsentMeansVisible(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[
+	doc, _, err := Decode([]byte(`{"vnx":"0.2.0","waypoints":[
 	  {"name":"plain","at":[-3.6,57.1]},
 	  {"name":"tucked away","at":[-3.6,57.1],"hidden":true}
 	]}`))
@@ -67,7 +67,7 @@ func TestHiddenAbsentMeansVisible(t *testing.T) {
 }
 
 func TestWaypointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","waypoints":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","waypoints":[
 	  {"name":"bad","at":[-3.6]},{"name":"good","at":[-3.6,57.1]}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -80,11 +80,11 @@ func TestWaypointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
 	}
 }
 
-// §3.6: ONE closed ring, at least four positions, first == last. The model has
-// no holes and no multi-ring, so the format must not promise them.
+// §3.7: ONE open ring of at least three distinct positions. The model has no
+// holes and no multi-ring, so the format must not promise them.
 func TestAreaRing(t *testing.T) {
-	ring := `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.11]]`
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
+	ring := `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.10]]`
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,14 +96,33 @@ func TestAreaRing(t *testing.T) {
 	}
 }
 
+// A closed ring is repaired, not dropped: its repeated last position is one
+// fact written twice, so the reader drops the repeat, keeps the area, and says
+// so at the position it dropped.
+func TestAClosedRingLosesItsRepeat(t *testing.T) {
+	ring := `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.11]]`
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) != 1 || diags[0].Code != CodeRingClosed || diags[0].Path != "/areas/0/polygon/3" {
+		t.Fatalf("got %v, want one %s at the repeated position", diags, CodeRingClosed)
+	}
+	if len(doc.Areas) != 1 || len(doc.Areas[0].Polygon) != 3 {
+		t.Fatalf("got %+v", doc.Areas)
+	}
+}
+
 func TestAreaRingRefusals(t *testing.T) {
 	for _, c := range []struct{ name, polygon string }{
-		{"too few positions", `[[-3.67,57.11],[-3.66,57.11],[-3.67,57.11]]`},
-		{"not closed", `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.65,57.09]]`},
+		{"two positions", `[[-3.67,57.11],[-3.66,57.11]]`},
+		{"three positions, two distinct", `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.11]]`},
+		{"closed on two distinct", `[[-3.67,57.11],[-3.66,57.11],[-3.67,57.11]]`},
 		{"empty", `[]`},
+		{"missing", `null`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","areas":[{"name":"x","polygon":` + c.polygon + `}]}`))
+			doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","areas":[{"name":"x","polygon":` + c.polygon + `}]}`))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +141,7 @@ func TestAreaRingRefusals(t *testing.T) {
 // ignore and never silently merge.
 func TestNestedRingsAreDiagnosed(t *testing.T) {
 	nested := `[[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.11]]]`
-	doc, diags, err := Decode([]byte(`{"vnx":"0.1.0","areas":[{"name":"x","polygon":` + nested + `}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","areas":[{"name":"x","polygon":` + nested + `}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -285,20 +285,32 @@ function data(path, kv, ctx) {
  * find out which happened, which is the lookup a code exists to save.
  */
 function position(v, path, ctx, code = 'position-unusable', consequence = 'so it is dropped') {
-  const bad = (why) => {
-    ctx.diag(path, `${why}, ${consequence}`, code);
+  // A value that is not an array fails as a TYPE and takes the caller's code;
+  // an array that still will not parse fails as a position (SPEC.md 4.1) and
+  // takes position-unusable wherever it sits.
+  const bad = (why, as = 'position-unusable') => {
+    ctx.diag(path, `${why}, ${consequence}`, as);
     return DROP;
   };
-  if (!Array.isArray(v)) return bad(`a position must be an array, not ${typeName(v)}`);
+  if (!Array.isArray(v)) return bad(`a position must be an array, not ${typeName(v)}`, code);
   if (v.length < 2) return bad(`found ${v.length} channel(s), a position needs at least lon and lat`);
   if (typeof v[0] !== 'number') return bad(`channel 0 is ${typeName(v[0])}, expected a number`);
   if (typeof v[1] !== 'number') return bad(`channel 1 is ${typeName(v[1])}, expected a number`);
+  const range = offTheGlobe(v[0], v[1]);
+  if (range !== null) return bad(range);
   for (let i = 2; i < v.length; i++) {
     if (v[i] !== null && typeof v[i] !== 'number') {
       return bad(`channel ${i} is ${typeName(v[i])}, expected a number or null`);
     }
   }
   return new Position(v.slice());
+}
+
+/** SPEC.md 4.1's normative ranges, both bounds included. Null when in range. */
+export function offTheGlobe(lon, lat) {
+  if (!(lon >= -180 && lon <= 180)) return `longitude ${lon} is off the globe`;
+  if (!(lat >= -90 && lat <= 90)) return `latitude ${lat} is off the globe`;
+  return null;
 }
 
 /**

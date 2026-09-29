@@ -639,12 +639,10 @@ test('a reader that does not require `to` on the last pass is caught', async () 
     { file: 'walk.js', from: '    if (wantTo && p.to === undefined) {', to: '    if (false) {' },
   ];
   const cases = await runMutated(edits);
-  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
-  // passes every tier. diagnose/walk-spelling.vnx breaks the rule only with a second `from`. The local guard is in test/walk.test.js, and the
-  // second half below proves the same mutant is visible on a document that
-  // breaks the rule.
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now reaches this rule; assert the failure instead of the gap');
+  // diagnose/walk-last-pass-lacks-to.vnx is the corpus case for this rule, and the only one
+  // the mutant reddens. The second half below proves the same mutant on a
+  // document built here.
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-last-pass-lacks-to.vnx']);
   const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
   const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
@@ -656,12 +654,10 @@ test('a reader that allows a `to` the rule forbids is caught', async () => {
     { file: 'walk.js', from: '    if (!wantTo && p.to !== undefined) {', to: '    if (false) {' },
   ];
   const cases = await runMutated(edits);
-  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
-  // passes every tier. diagnose/walk-spelling.vnx breaks the rule only with a second `from`. The local guard is in test/walk.test.js, and the
-  // second half below proves the same mutant is visible on a document that
-  // breaks the rule.
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now reaches this rule; assert the failure instead of the gap');
+  // diagnose/walk-to-forbidden.vnx is the corpus case for this rule, and the only one
+  // the mutant reddens. The second half below proves the same mutant on a
+  // document built here.
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-to-forbidden.vnx']);
   const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'b' }, { arc: 'bc', to: 'c' }]));
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
   const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'b' }, { arc: 'bc', to: 'c' }]));
@@ -682,12 +678,10 @@ test('a reader that accepts a `from` node off its arc is caught', async () => {
     to: '      if (false) {',
   }];
   const cases = await runMutated(edits);
-  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
-  // passes every tier. diagnose/walk-not-connected.vnx breaks connection only between two passes. The local guard is in test/walk.test.js, and the
-  // second half below proves the same mutant is visible on a document that
-  // breaks the rule.
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now reaches this rule; assert the failure instead of the gap');
+  // diagnose/walk-from-not-an-end.vnx is the corpus case for this rule, and the only one
+  // the mutant reddens. The second half below proves the same mutant on a
+  // document built here.
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-from-not-an-end.vnx']);
   const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
   const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
@@ -701,12 +695,10 @@ test('a reader that accepts a `to` node off its arc is caught', async () => {
     to: '    if (false) {',
   }];
   const cases = await runMutated(edits);
-  // ⚠ NO CORPUS CASE REACHES THIS RULE, measured 2026-09-29: the mutant
-  // passes every tier. diagnose/walk-not-connected.vnx breaks connection only between two passes. The local guard is in test/walk.test.js, and the
-  // second half below proves the same mutant is visible on a document that
-  // breaks the rule.
-  assert.deepEqual(await failingDelta(cases), [],
-    'the corpus now reaches this rule; assert the failure instead of the gap');
+  // diagnose/walk-to-not-an-end.vnx is the corpus case for this rule, and the only one
+  // the mutant reddens. The second half below proves the same mutant on a
+  // document built here.
+  assert.deepEqual(await failingDelta(cases), ['diagnose/walk-to-not-an-end.vnx']);
   const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]), [], 'the mutant must stop reporting it');
   const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
@@ -749,7 +741,7 @@ test('a reader that keeps an arc naming an absent node is caught', async () => {
     from: '    if (nodes !== undefined && nodes.has(a[which])) continue;',
     to: '    continue;',
   }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-names-absent-node.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/arc-names-absent-node.vnx', 'diagnose/position-out-of-range.vnx']);
 });
 
 test('a reader that reports an arc pip time and keeps it is NOT caught by the corpus', async () => {
@@ -801,7 +793,16 @@ test('a reader that keeps a closed ring closed is caught', async () => {
 
 test('a reader that keeps a ring of too few distinct positions is caught', async () => {
   const cases = await runMutated([{ file: 'decode.js', from: '  if (distinct < 3) {', to: '  if (false) {' }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/ring-too-few-points.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/ring-distinct-by-lon-lat.vnx', 'diagnose/ring-too-few-points.vnx']);
+});
+
+test('a reader with no coordinate range is caught', async () => {
+  const cases = await runMutated([{
+    file: 'decode.js',
+    from: '  const range = offTheGlobe(v[0], v[1]);',
+    to: '  const range = null;',
+  }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/position-out-of-range.vnx']);
 });
 
 test('a writer that closes its rings is caught by the accept tier', async () => {

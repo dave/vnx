@@ -30,7 +30,8 @@ export function decodeContainer(buf) {
   try {
     entries = readEntries(buf);
   } catch (err) {
-    if (err instanceof ZipError) throw new VnxRefusal('zip-malformed', `malformed archive: ${err.message}`, { cause: err });
+    if (err instanceof ZipError)
+      throw new VnxRefusal('zip-malformed', `malformed archive: ${err.message}`, { cause: err });
     throw err;
   }
 
@@ -41,8 +42,9 @@ export function decodeContainer(buf) {
   for (const e of entries) {
     const key = e.name.toLowerCase();
     if (seen.has(key)) {
-      throw new VnxRefusal('zip-duplicate-entry',
-        `duplicate entry name ${JSON.stringify(e.name)} in the archive`, { path: e.name });
+      throw new VnxRefusal('zip-duplicate-entry', `duplicate entry name ${JSON.stringify(e.name)} in the archive`, {
+        path: e.name,
+      });
     }
     seen.set(key, e);
   }
@@ -50,8 +52,9 @@ export function decodeContainer(buf) {
   for (const e of entries) {
     const fault = pathFault(e.name);
     if (fault !== null) {
-      throw new VnxRefusal('zip-path-escapes',
-        `entry ${JSON.stringify(e.name)} escapes the archive: ${fault}`, { path: e.name });
+      throw new VnxRefusal('zip-path-escapes', `entry ${JSON.stringify(e.name)} escapes the archive: ${fault}`, {
+        path: e.name,
+      });
     }
   }
 
@@ -66,9 +69,11 @@ export function decodeContainer(buf) {
     throw new VnxRefusal('zip-no-document', 'the archive holds no VNX document: no entry has a .vnx extension');
   }
   if (!SUPPORTED.has(root.method)) {
-    throw new VnxRefusal('zip-root-compression',
+    throw new VnxRefusal(
+      'zip-root-compression',
       `the root document uses compression method ${root.method}; only store and deflate are available`,
-      { path: root.name });
+      { path: root.name },
+    );
   }
 
   let text;
@@ -88,20 +93,22 @@ export function decodeContainer(buf) {
     if (!SUPPORTED.has(e.method)) {
       // An attachment the reader cannot decompress is dropped with a
       // diagnostic; the document is still returned.
-      result.diagnostics.push(new Diagnostic(
-        entryPointer(e.name),
-        `attachment uses compression method ${e.method}; only store and deflate are available`,
-        'attachment-unreadable',
-      ));
+      result.diagnostics.push(
+        new Diagnostic(
+          entryPointer(e.name),
+          `attachment uses compression method ${e.method}; only store and deflate are available`,
+          'attachment-unreadable',
+        ),
+      );
       continue;
     }
     try {
       attachments.set(e.name, readEntryData(buf, e));
     } catch (err) {
       if (!(err instanceof ZipError)) throw err;
-      result.diagnostics.push(new Diagnostic(
-        entryPointer(e.name), `attachment could not be read: ${err.message}`, 'attachment-unreadable',
-      ));
+      result.diagnostics.push(
+        new Diagnostic(entryPointer(e.name), `attachment could not be read: ${err.message}`, 'attachment-unreadable'),
+      );
     }
   }
 
@@ -199,14 +206,12 @@ export function encodeContainer(documentText, attachments = []) {
   const files = [];
   for (const [name, data] of attachments) {
     const fault = pathFault(name);
-    if (fault !== null) throw new VnxRefusal('zip-path-escapes', `attachment ${JSON.stringify(name)} escapes the archive: ${fault}`);
+    if (fault !== null)
+      throw new VnxRefusal('zip-path-escapes', `attachment ${JSON.stringify(name)} escapes the archive: ${fault}`);
     const key = name.toLowerCase();
     if (used.has(key)) throw new VnxRefusal('zip-duplicate-entry', `duplicate entry name ${JSON.stringify(name)}`);
     used.add(key);
     files.push({ name, data });
   }
-  return writeArchive([
-    { name: 'doc.vnx', data: Buffer.from(documentText, 'utf8') },
-    ...sortEntries(files),
-  ]);
+  return writeArchive([{ name: 'doc.vnx', data: Buffer.from(documentText, 'utf8') }, ...sortEntries(files)]);
 }

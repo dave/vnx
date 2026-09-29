@@ -39,7 +39,7 @@ const CRC_TABLE = (() => {
 export function crc32(buf) {
   let c = ~0;
   for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (~c) >>> 0;
+  return ~c >>> 0;
 }
 
 /**
@@ -99,9 +99,18 @@ export function readEntries(buf) {
       const z = findZip64Extra(extra);
       if (z === null) throw new ZipError(`entry ${JSON.stringify(name)} needs a ZIP64 extra field and has none`);
       let q = 0;
-      if (uncompressedSize === MAX32) { uncompressedSize = readU64(z, q); q += 8; }
-      if (compressedSize === MAX32) { compressedSize = readU64(z, q); q += 8; }
-      if (localOffset === MAX32) { localOffset = readU64(z, q); q += 8; }
+      if (uncompressedSize === MAX32) {
+        uncompressedSize = readU64(z, q);
+        q += 8;
+      }
+      if (compressedSize === MAX32) {
+        compressedSize = readU64(z, q);
+        q += 8;
+      }
+      if (localOffset === MAX32) {
+        localOffset = readU64(z, q);
+        q += 8;
+      }
     }
 
     entries.push({ name, method, crc, compressedSize, uncompressedSize, flags, localOffset, payloadBound: 0 });
@@ -150,10 +159,7 @@ export function readEntryData(buf, entry) {
       // A corrupt or truncated deflate stream is a malformed archive, not a
       // crash. `zlib` throws its own Error, which would otherwise escape past
       // every ZipError handler above this and out of the caller entirely.
-      throw new ZipError(
-        `entry ${JSON.stringify(entry.name)} will not inflate: ${err.message}`,
-        { cause: err },
-      );
+      throw new ZipError(`entry ${JSON.stringify(entry.name)} will not inflate: ${err.message}`, { cause: err });
     }
   } else {
     throw new ZipError(`entry ${JSON.stringify(entry.name)} uses compression method ${entry.method}`);

@@ -20,9 +20,11 @@ test('a coordinate is written at the precision the model holds', () => {
   // paragraph there is advice with no requirement in it. A writer that rounded
   // would still be conforming; this one does not, so a document that arrives at
   // full binary64 precision leaves at full binary64 precision.
-  const { document } = decodeText(doc({
-    waypoints: [{ at: [-3.6712345678901235, 57.11812345678901, 340.26] }],
-  }));
+  const { document } = decodeText(
+    doc({
+      waypoints: [{ at: [-3.6712345678901235, 57.11812345678901, 340.26] }],
+    }),
+  );
   assert.deepEqual(encodedAt(document), [-3.6712345678901235, 57.11812345678901, 340.26]);
   assert.ok(encode(document).includes('-3.6712345678901235'));
 });
@@ -34,11 +36,27 @@ test('encoding emits the shortest spelling of a position', () => {
 
 test('shortening stops at an interior absence', () => {
   // Dropping an interior null would move the time into the elevation channel.
-  const { document } = decodeText(doc({
-    tracks: [{ segments: [{ pips: [[1, 2, null, 5], [1, 2, 3, null]] }] }],
-  }));
+  const { document } = decodeText(
+    doc({
+      tracks: [
+        {
+          segments: [
+            {
+              pips: [
+                [1, 2, null, 5],
+                [1, 2, 3, null],
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
   const pips = JSON.parse(encode(document)).tracks[0].segments[0].pips;
-  assert.deepEqual(pips, [[1, 2, null, 5], [1, 2, 3]]);
+  assert.deepEqual(pips, [
+    [1, 2, null, 5],
+    [1, 2, 3],
+  ]);
 });
 
 test('a channel beyond those this version names is not dropped', () => {
@@ -49,9 +67,14 @@ test('a channel beyond those this version names is not dropped', () => {
 });
 
 test('a writer emits hidden only when it is true', () => {
-  const { document } = decodeText(doc({
-    networks: [{ hidden: false, name: 'a' }, { hidden: true, name: 'b' }],
-  }));
+  const { document } = decodeText(
+    doc({
+      networks: [
+        { hidden: false, name: 'a' },
+        { hidden: true, name: 'b' },
+      ],
+    }),
+  );
   const networks = JSON.parse(encode(document)).networks;
   assert.equal('hidden' in networks[0], false);
   assert.equal(networks[1].hidden, true);
@@ -83,9 +106,11 @@ test('a writer invents no negative zero', () => {
   // The writer touches no value, so a value that carried no negative zero in
   // cannot carry one out. `JSON.stringify` spells -0 as `0`, so the guard that
   // matters is on the VALUE.
-  const { document } = decodeText(doc({
-    waypoints: [{ at: [-0.00000004, -0.00000004, -0.04] }],
-  }));
+  const { document } = decodeText(
+    doc({
+      waypoints: [{ at: [-0.00000004, -0.00000004, -0.04] }],
+    }),
+  );
   for (const channel of encodedAt(document)) assert.ok(!Object.is(channel, -0));
 });
 

@@ -225,7 +225,9 @@ export function treeDiff(got, want, path = '') {
       const d = treeDiff(got[k], want[k], `${path}/${escapePointer(k)}`);
       if (d !== '') return d;
     }
-    const extra = Object.keys(got).filter((k) => !(k in want)).sort();
+    const extra = Object.keys(got)
+      .filter((k) => !(k in want))
+      .sort();
     if (extra.length > 0) return `${where}: unexpected key(s) ${extra.join(', ')}`;
     return '';
   }

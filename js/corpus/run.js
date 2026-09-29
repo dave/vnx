@@ -10,9 +10,7 @@ import { encode } from '../src/index.js';
 import { runCorpus } from './runner.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CORPUS = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.resolve(HERE, '..', '..', 'corpus');
+const CORPUS = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(HERE, '..', '..', 'corpus');
 
 const cases = runCorpus(CORPUS, { decodeText, decodeContainer, encodeContainer, encode });
 

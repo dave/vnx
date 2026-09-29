@@ -144,10 +144,14 @@ function runSidecarCase(kind, dir, file, api) {
 export function matchDiagnostics(c, reported, expected) {
   for (const e of expected) {
     if (typeof e.code !== 'string' || e.code === '') {
-      c.failures.push(`expected diagnostic at ${JSON.stringify(e.path)} carries no code; SPEC.md 6.3 requires one on a pinned diagnostic`);
+      c.failures.push(
+        `expected diagnostic at ${JSON.stringify(e.path)} carries no code; SPEC.md 6.3 requires one on a pinned diagnostic`,
+      );
     }
     if (Object.prototype.hasOwnProperty.call(e, 'message')) {
-      c.failures.push(`expected diagnostic at ${JSON.stringify(e.path)} carries a "message" field; the English is "message_advisory" and is not compared`);
+      c.failures.push(
+        `expected diagnostic at ${JSON.stringify(e.path)} carries a "message" field; the English is "message_advisory" and is not compared`,
+      );
     }
   }
   const fits = (r, e) => r.path === e.path && r.code === e.code;
@@ -172,7 +176,9 @@ export function matchDiagnostics(c, reported, expected) {
   }
   reported.forEach((r, ri) => {
     if (pairedTo[ri] === -1) {
-      c.failures.push(`unexpected diagnostic {path: ${JSON.stringify(r.path)}, code: ${JSON.stringify(r.code)}, message: ${JSON.stringify(r.message)}}`);
+      c.failures.push(
+        `unexpected diagnostic {path: ${JSON.stringify(r.path)}, code: ${JSON.stringify(r.code)}, message: ${JSON.stringify(r.message)}}`,
+      );
     }
   });
 }
@@ -211,7 +217,9 @@ function checkCounts(c, doc, counts) {
   for (const [key, n] of Object.entries(got)) {
     if (n === 0) continue;
     if (!Object.prototype.hasOwnProperty.call(counts, key)) {
-      c.failures.push(`the document carries ${n} ${key} and the sidecar does not name that collection; an unnamed collection is unchecked, not empty`);
+      c.failures.push(
+        `the document carries ${n} ${key} and the sidecar does not name that collection; an unnamed collection is unchecked, not empty`,
+      );
     }
   }
 }
@@ -327,8 +335,10 @@ function checkPositions(c, positions, expected) {
     for (const channel of ['lon', 'lat']) {
       const got = p[channel];
       const want = e[channel];
-      c.check(sameBits(got, want),
-        `${e.at}: ${channel} is ${got} (${bitsOf(got)}), expected ${want} (${bitsOf(want)})`);
+      c.check(
+        sameBits(got, want),
+        `${e.at}: ${channel} is ${got} (${bitsOf(got)}), expected ${want} (${bitsOf(want)})`,
+      );
     }
   }
 }
@@ -353,8 +363,10 @@ function checkTracks(c, doc, expected) {
     if (!c.check(track !== undefined, `no track named ${JSON.stringify(e.name)}`)) continue;
     if (Object.prototype.hasOwnProperty.call(e, 'moving_time_ms')) {
       const got = track.movingTimeMs();
-      c.check(got === e.moving_time_ms,
-        `${e.name}: moving time is ${got === null ? 'unknown' : got}, expected ${e.moving_time_ms === null ? 'unknown' : e.moving_time_ms}`);
+      c.check(
+        got === e.moving_time_ms,
+        `${e.name}: moving time is ${got === null ? 'unknown' : got}, expected ${e.moving_time_ms === null ? 'unknown' : e.moving_time_ms}`,
+      );
     }
   }
 }
@@ -383,19 +395,24 @@ function checkAttachments(c, attachments, expected, contents) {
   if (expected !== undefined) {
     const got = [...attachments.keys()].sort();
     const want = [...expected].sort();
-    c.check(JSON.stringify(got) === JSON.stringify(want),
-      `attachments are ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+    c.check(
+      JSON.stringify(got) === JSON.stringify(want),
+      `attachments are ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+    );
   }
   if (contents === undefined) return;
   for (const [name, want] of Object.entries(contents)) {
     const body = attachments.get(name);
-    if (!c.check(body !== undefined, `attachment ${JSON.stringify(name)} has expected content but was not returned`)) continue;
+    if (!c.check(body !== undefined, `attachment ${JSON.stringify(name)} has expected content but was not returned`))
+      continue;
     // Compared as TEXT, because that is how the sidecar can carry it. An
     // attachment is bytes; a fixture whose body is not valid UTF-8 cannot be
     // pinned this way and must not be given an `attachment_contents` entry.
     const got = Buffer.from(body).toString('utf8');
-    c.check(got === want,
-      `attachment ${JSON.stringify(name)} is ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+    c.check(
+      got === want,
+      `attachment ${JSON.stringify(name)} is ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+    );
   }
 }
 
@@ -455,8 +472,10 @@ function runWriteCases(dir, api) {
     const input = fs.readFileSync(path.join(dir, file), 'utf8');
     const want = fs.readFileSync(writtenPath, 'utf8');
     // Without this a writer that echoed its input would pass every case here.
-    c.check(compareDocuments(input, want, {}) !== '',
-      'the input is already the written form, so this case cannot fail');
+    c.check(
+      compareDocuments(input, want, {}) !== '',
+      'the input is already the written form, so this case cannot fail',
+    );
 
     // A refusal fails THIS case. Letting it propagate would take down every
     // other case in the run, which is a runner that reports one defect as a
@@ -528,7 +547,10 @@ function runWriteContainerCase(dir, base, api) {
   const expect = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
   c.check(expect.kind === 'write', `sidecar kind is ${JSON.stringify(expect.kind)}, directory is write`);
   c.check(typeof expect.note === 'string' && expect.note.length > 0, 'sidecar carries no note');
-  c.check(expect.root === 'doc.vnx', `this runner writes the document as doc.vnx, and the sidecar names ${JSON.stringify(expect.root)}`);
+  c.check(
+    expect.root === 'doc.vnx',
+    `this runner writes the document as doc.vnx, and the sidecar names ${JSON.stringify(expect.root)}`,
+  );
 
   const input = fs.readFileSync(path.join(dir, `${base}.in.vnx`), 'utf8');
   const wantBytes = fs.readFileSync(writtenPath);
@@ -546,8 +568,10 @@ function runWriteContainerCase(dir, base, api) {
     return c;
   }
   if (!c.check(wanted.length > 0, 'the expected archive holds no entries')) return c;
-  c.check(wanted[0].name === manifest.root,
-    `the expected archive's first entry is ${JSON.stringify(wanted[0].name)}, and SPEC.md 7.1 requires the root document ${JSON.stringify(manifest.root)}`);
+  c.check(
+    wanted[0].name === manifest.root,
+    `the expected archive's first entry is ${JSON.stringify(wanted[0].name)}, and SPEC.md 7.1 requires the root document ${JSON.stringify(manifest.root)}`,
+  );
 
   try {
     const decoded = decodeText(input);
@@ -561,10 +585,14 @@ function runWriteContainerCase(dir, base, api) {
 
     // And the archive reads back through the implementation's own reader.
     const back = decodeContainer(packed);
-    c.check(back.diagnostics.length === 0,
-      `the archive this library wrote must read cleanly; got ${JSON.stringify(back.diagnostics.map((d) => d.code))}`);
-    c.check(back.attachments.size === listed.length,
-      `the archive reads back with ${back.attachments.size} attachments and the manifest lists ${listed.length}`);
+    c.check(
+      back.diagnostics.length === 0,
+      `the archive this library wrote must read cleanly; got ${JSON.stringify(back.diagnostics.map((d) => d.code))}`,
+    );
+    c.check(
+      back.attachments.size === listed.length,
+      `the archive reads back with ${back.attachments.size} attachments and the manifest lists ${listed.length}`,
+    );
 
     // The written form is a fixed point, reached the way every other write case
     // reaches it: read the expected output back and write it again.
@@ -597,14 +625,23 @@ function checkArchive(c, gotBytes, wanted, manifest) {
     c.failures.push(`the archive written here will not open: ${err && err.message}`);
     return;
   }
-  if (!c.check(got.length === wanted.length,
-    `the archive holds ${got.length} entries, want ${wanted.length}`)) return;
-  c.check(got[0].name === manifest.root,
-    `the first entry is ${JSON.stringify(got[0].name)}; SPEC.md 7.1 requires the root document first`);
-  const names = got.slice(1).map((e) => e.name).sort();
-  const wantNames = wanted.slice(1).map((e) => e.name).sort();
-  c.check(JSON.stringify(names) === JSON.stringify(wantNames),
-    `the attachment names are ${JSON.stringify(names)}, want ${JSON.stringify(wantNames)}`);
+  if (!c.check(got.length === wanted.length, `the archive holds ${got.length} entries, want ${wanted.length}`)) return;
+  c.check(
+    got[0].name === manifest.root,
+    `the first entry is ${JSON.stringify(got[0].name)}; SPEC.md 7.1 requires the root document first`,
+  );
+  const names = got
+    .slice(1)
+    .map((e) => e.name)
+    .sort();
+  const wantNames = wanted
+    .slice(1)
+    .map((e) => e.name)
+    .sort();
+  c.check(
+    JSON.stringify(names) === JSON.stringify(wantNames),
+    `the attachment names are ${JSON.stringify(names)}, want ${JSON.stringify(wantNames)}`,
+  );
 
   const diff = compareDocuments(got[0].body.toString('utf8'), wanted[0].body.toString('utf8'), {});
   c.check(diff === '', `the archive's root document is not the one the case expects: ${diff}`);
@@ -616,8 +653,10 @@ function checkArchive(c, gotBytes, wanted, manifest) {
       c.failures.push(`the archive carries ${JSON.stringify(e.name)}, which the manifest does not name`);
       continue;
     }
-    c.check(e.body.toString('utf8') === body,
-      `${e.name}: body is ${JSON.stringify(e.body.toString('utf8'))}, want ${JSON.stringify(body)}`);
+    c.check(
+      e.body.toString('utf8') === body,
+      `${e.name}: body is ${JSON.stringify(e.body.toString('utf8'))}, want ${JSON.stringify(body)}`,
+    );
   }
 }
 

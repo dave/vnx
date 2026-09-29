@@ -9,8 +9,20 @@
 
 import { VnxRefusal, Diagnostic } from './errors.js';
 import {
-  Position, Folder, Network, Arc, Chain, Pass, Endpoint,
-  Route, Track, Segment, Waypoint, Area, Document, AppKey,
+  Position,
+  Folder,
+  Network,
+  Arc,
+  Chain,
+  Pass,
+  Endpoint,
+  Route,
+  Track,
+  Segment,
+  Waypoint,
+  Area,
+  Document,
+  AppKey,
 } from './model.js';
 import { WalkCursor } from './walk.js';
 
@@ -99,10 +111,7 @@ export function decodeValue(value) {
     );
   }
   if (!Object.prototype.hasOwnProperty.call(value, 'vnx')) {
-    throw new VnxRefusal(
-      'not-a-vnx-document',
-      'not a VNX document: no "vnx" key at the top level',
-    );
+    throw new VnxRefusal('not-a-vnx-document', 'not a VNX document: no "vnx" key at the top level');
   }
   const declared = value.vnx;
   if (typeof declared !== 'string' || !VERSION.test(declared)) {
@@ -162,10 +171,14 @@ function typeName(v) {
   if (v === null) return 'null';
   if (Array.isArray(v)) return 'an array';
   switch (typeof v) {
-    case 'string': return 'a string';
-    case 'number': return 'a number';
-    case 'boolean': return 'a boolean';
-    default: return 'an object';
+    case 'string':
+      return 'a string';
+    case 'number':
+      return 'a number';
+    case 'boolean':
+      return 'a boolean';
+    default:
+      return 'an object';
   }
 }
 
@@ -186,8 +199,7 @@ function field(k, path, kv, want, check, required, ctx) {
   }
   if (!check(v)) {
     const p = `${path}/${esc(k)}`;
-    ctx.diag(p, `"${k}" must be ${want}, not ${typeName(v)}`,
-      required ? 'wrong-type-required' : 'wrong-type-optional');
+    ctx.diag(p, `"${k}" must be ${want}, not ${typeName(v)}`, required ? 'wrong-type-required' : 'wrong-type-optional');
     return required ? DROP : undefined;
   }
   return v;
@@ -230,11 +242,7 @@ function style(path, kv, ctx) {
   if (typeof imp === 'number' && Number.isInteger(imp) && imp >= 1 && imp <= 5) return s;
   // SPEC.md 6.2: a value outside a stated range is an unusable value in an
   // optional key, so it takes that code.
-  ctx.diag(
-    `${path}/style/importance`,
-    '"importance" must be an integer from 1 to 5',
-    'wrong-type-optional',
-  );
+  ctx.diag(`${path}/style/importance`, '"importance" must be an integer from 1 to 5', 'wrong-type-optional');
   const copy = { ...s };
   delete copy.importance;
   return copy;
@@ -326,8 +334,7 @@ function pips(kv, path, ctx) {
   if (a === DROP) return DROP;
   const out = [];
   for (const [i, v] of a.entries()) {
-    const p = position(v, `${path}/pips/${i}`, ctx, 'position-unusable',
-      'so the segment holding it is dropped');
+    const p = position(v, `${path}/pips/${i}`, ctx, 'position-unusable', 'so the segment holding it is dropped');
     if (p === DROP) return DROP;
     out.push(p);
   }
@@ -346,8 +353,7 @@ const vertex = (p) => new Position(p.channels.slice(0, 3));
 
 // --- structure --------------------------------------------------------------
 
-const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'routes',
-  'tracks', 'waypoints', 'areas'];
+const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas'];
 
 /**
  * SPEC.md 3.9: a TOP-LEVEL key containing a full stop is an application key.
@@ -425,8 +431,13 @@ function readFolder(raw, path, ctx) {
 }
 
 function readNetwork(raw, path, ctx) {
-  const kv = known(raw, path, [],
-    ['name', 'notes', 'folder', 'hidden', 'nodes', 'arcs', 'chains', 'points', 'areas', 'data'], ctx);
+  const kv = known(
+    raw,
+    path,
+    [],
+    ['name', 'notes', 'folder', 'hidden', 'nodes', 'arcs', 'chains', 'points', 'areas', 'data'],
+    ctx,
+  );
   const n = new Network();
   n.name = str('name', path, kv, false, ctx);
   n.notes = str('notes', path, kv, false, ctx);
@@ -505,21 +516,30 @@ function readArc(raw, p, nodes, ctx) {
   }
   // One diagnostic for the arc, however many pips carried a time (SPEC.md 6.3).
   if (read.some(timed)) {
-    ctx.diag(`${p}/pips`,
-      'an arc pip carries no time, so every time channel on this arc is dropped and its pips kept', 'arc-pip-time');
+    ctx.diag(
+      `${p}/pips`,
+      'an arc pip carries no time, so every time channel on this arc is dropped and its pips kept',
+      'arc-pip-time',
+    );
   }
   a.pips = read.map(vertex);
   a.data = data(p, akv, ctx);
   if (a.from === a.to) {
-    ctx.diag(p, `the arc runs from node ${JSON.stringify(a.from)} to itself, and a self-loop cannot be walked, so the arc is dropped`,
-      'self-loop-arc');
+    ctx.diag(
+      p,
+      `the arc runs from node ${JSON.stringify(a.from)} to itself, and a self-loop cannot be walked, so the arc is dropped`,
+      'self-loop-arc',
+    );
     return DROP;
   }
   let absent = false;
   for (const which of ['from', 'to']) {
     if (nodes !== undefined && nodes.has(a[which])) continue;
-    ctx.diag(`${p}/${which}`,
-      `"${which}" names node ${JSON.stringify(a[which])}, which is not here, so the arc is dropped`, 'arc-node-absent');
+    ctx.diag(
+      `${p}/${which}`,
+      `"${which}" names node ${JSON.stringify(a[which])}, which is not here, so the arc is dropped`,
+      'arc-node-absent',
+    );
     absent = true;
   }
   return absent ? DROP : a;
@@ -601,8 +621,11 @@ function readWalk(kv, owner, arcs, route, ctx) {
       if (pos === DROP) return DROP;
       const [, , ele, time] = pos.channels;
       if ((ele !== undefined && ele !== null) || (time !== undefined && time !== null)) {
-        ctx.diag(`${at}/${k}`,
-          'a walk position carries longitude and latitude only, so its other channels are dropped', 'extra-channel');
+        ctx.diag(
+          `${at}/${k}`,
+          'a walk position carries longitude and latitude only, so its other channels are dropped',
+          'extra-channel',
+        );
       }
       const lonLat = new Position(pos.channels.slice(0, 2));
       p[k] = k === 'turn' ? lonLat : new Endpoint('position', lonLat);
@@ -620,8 +643,7 @@ function readWalk(kv, owner, arcs, route, ctx) {
  * would be dropped, the whole route is.
  */
 function readRoute(raw, path, ctx) {
-  const kv = known(raw, path, ['walk'],
-    ['name', 'notes', 'folder', 'hidden', 'style', 'nodes', 'arcs', 'data'], ctx);
+  const kv = known(raw, path, ['walk'], ['name', 'notes', 'folder', 'hidden', 'style', 'nodes', 'arcs', 'data'], ctx);
   const r = new Route();
   r.name = str('name', path, kv, false, ctx);
   r.notes = str('notes', path, kv, false, ctx);
@@ -636,8 +658,13 @@ function readRoute(raw, path, ctx) {
 }
 
 function readTrack(raw, path, ctx) {
-  const kv = known(raw, path, ['segments'],
-    ['name', 'notes', 'folder', 'hidden', 'style', 'started', 'ended', 'data'], ctx);
+  const kv = known(
+    raw,
+    path,
+    ['segments'],
+    ['name', 'notes', 'folder', 'hidden', 'style', 'started', 'ended', 'data'],
+    ctx,
+  );
   const t = new Track();
   const segments = arr('segments', path, kv, true, ctx);
   if (segments === DROP) return DROP;
@@ -719,14 +746,20 @@ function readArea(raw, path, ctx, topLevel) {
   }
   const n = vertices.length;
   if (n >= 2 && vertices[0].sameCoordinates(vertices[n - 1])) {
-    ctx.diag(`${p}/${n - 1}`, 'a ring is stored open, and this last position repeats the first, so it is dropped',
-      'ring-closed');
+    ctx.diag(
+      `${p}/${n - 1}`,
+      'a ring is stored open, and this last position repeats the first, so it is dropped',
+      'ring-closed',
+    );
     vertices.pop();
   }
   const distinct = distinctLonLat(vertices);
   if (distinct < 3) {
-    ctx.diag(p, `the ring has ${distinct} distinct position(s) and needs at least 3, so the area is dropped`,
-      'ring-too-few-points');
+    ctx.diag(
+      p,
+      `the ring has ${distinct} distinct position(s) and needs at least 3, so the area is dropped`,
+      'ring-too-few-points',
+    );
     return DROP;
   }
   const a = new Area();
@@ -769,12 +802,13 @@ function resolveReferences(doc, ctx) {
   for (const [item, key] of placed) {
     const ref = item[key];
     if (ref === undefined || folders.has(ref)) continue;
-    ctx.diag(`${ctx.paths.get(item)}/${key}`,
+    ctx.diag(
+      `${ctx.paths.get(item)}/${key}`,
       `"${key}" names ${JSON.stringify(ref)}, which is not a folder in this document`,
-      key === 'parent' ? 'parent-folder-absent' : 'folder-absent');
+      key === 'parent' ? 'parent-folder-absent' : 'folder-absent',
+    );
     item[key] = undefined;
   }
-
 }
 
 // --- position index ---------------------------------------------------------
@@ -809,12 +843,13 @@ export function indexPositions(doc) {
   (doc.areas ?? []).forEach((a, i) => ring(`/areas/${i}`, a.polygon));
   // Only a POSITION in a walk is a position. A node key is a reference, and is
   // addressed at the node.
-  const walk = (path, passes) => (passes ?? []).forEach((p, k) => {
-    for (const which of ['from', 'to']) {
-      if (p[which] !== undefined && p[which].kind === 'position') put(`${path}/${k}/${which}`, p[which].position);
-    }
-    put(`${path}/${k}/turn`, p.turn);
-  });
+  const walk = (path, passes) =>
+    (passes ?? []).forEach((p, k) => {
+      for (const which of ['from', 'to']) {
+        if (p[which] !== undefined && p[which].kind === 'position') put(`${path}/${k}/${which}`, p[which].position);
+      }
+      put(`${path}/${k}/turn`, p.turn);
+    });
   const graph = (base, owner) => {
     for (const [key, p] of owner.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);
     for (const [key, arc] of owner.arcs ?? []) pips(`${base}/arcs/${esc(key)}`, arc.pips);

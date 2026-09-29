@@ -53,8 +53,14 @@ export class WalkCursor {
     const fault = (key, code, message) => ({ fault: new WalkFault(i, key, code, message) });
     const isPosition = (e) => e !== undefined && e.kind === 'position';
     if (this.route) {
-      if (isPosition(p.from)) return fault('from', 'route-pin-or-position', "a route's walk runs node to node, and this `from` is a position");
-      if (isPosition(p.to)) return fault('to', 'route-pin-or-position', "a route's walk runs node to node, and this `to` is a position");
+      if (isPosition(p.from))
+        return fault(
+          'from',
+          'route-pin-or-position',
+          "a route's walk runs node to node, and this `from` is a position",
+        );
+      if (isPosition(p.to))
+        return fault('to', 'route-pin-or-position', "a route's walk runs node to node, and this `to` is a position");
       if (p.turn !== undefined) return fault('turn', 'route-pin-or-position', "a route's walk carries no turn");
       if (p.pinned === true) return fault('pinned', 'route-pin-or-position', "a route's walk carries no pin");
     }
@@ -66,30 +72,48 @@ export class WalkCursor {
     if (i > 0 && p.from !== undefined) return fault('from', 'walk-spelling', 'only the first pass carries `from`');
     const wantTo = i === this.last || isPosition(p.from);
     if (wantTo && p.to === undefined) {
-      return fault('', 'walk-spelling', i === this.last
-        ? 'the last pass must carry `to`'
-        : 'a pass whose `from` is a position must carry `to`');
+      return fault(
+        '',
+        'walk-spelling',
+        i === this.last ? 'the last pass must carry `to`' : 'a pass whose `from` is a position must carry `to`',
+      );
     }
     if (!wantTo && p.to !== undefined) {
-      return fault('to', 'walk-spelling', '`to` appears only on the last pass, or on a pass whose `from` is a position');
+      return fault(
+        'to',
+        'walk-spelling',
+        '`to` appears only on the last pass, or on a pass whose `from` is a position',
+      );
     }
     // Connection.
     const isEnd = (node) => node === arc.from || node === arc.to;
     let entry;
     if (p.from !== undefined) {
       if (p.from.kind === 'node' && !isEnd(p.from.node)) {
-        return fault('from', 'walk-not-connected', `\`from\` node ${JSON.stringify(p.from.node)} is not an end of arc ${JSON.stringify(p.arc)}`);
+        return fault(
+          'from',
+          'walk-not-connected',
+          `\`from\` node ${JSON.stringify(p.from.node)} is not an end of arc ${JSON.stringify(p.arc)}`,
+        );
       }
       entry = p.from;
     } else {
       if (!isEnd(this.at)) {
-        return fault('', 'walk-not-connected', `the walk is at node ${JSON.stringify(this.at)}, which is not an end of arc ${JSON.stringify(p.arc)}`);
+        return fault(
+          '',
+          'walk-not-connected',
+          `the walk is at node ${JSON.stringify(this.at)}, which is not an end of arc ${JSON.stringify(p.arc)}`,
+        );
       }
       entry = new Endpoint('node', this.at);
     }
     let exit;
     if (p.to !== undefined && p.to.kind === 'node' && !isEnd(p.to.node)) {
-      return fault('to', 'walk-not-connected', `\`to\` node ${JSON.stringify(p.to.node)} is not an end of arc ${JSON.stringify(p.arc)}`);
+      return fault(
+        'to',
+        'walk-not-connected',
+        `\`to\` node ${JSON.stringify(p.to.node)} is not an end of arc ${JSON.stringify(p.arc)}`,
+      );
     } else if (isPosition(p.to) && i !== this.last) {
       return fault('to', 'walk-not-connected', 'only the last pass leaves at a position');
     } else if (p.to !== undefined) {
@@ -129,10 +153,15 @@ export function checkWalk(walk, arcs, route) {
     for (const key of ['from', 'to']) {
       const e = p[key];
       if (e === undefined) continue;
-      const ok = (e.kind === 'node' && typeof e.node === 'string')
-        || (e.kind === 'position' && e.position instanceof Position);
+      const ok =
+        (e.kind === 'node' && typeof e.node === 'string') || (e.kind === 'position' && e.position instanceof Position);
       if (!ok) {
-        return new WalkFault(i, key, 'position-unusable', 'an endpoint must be exactly one of a node key and a position');
+        return new WalkFault(
+          i,
+          key,
+          'position-unusable',
+          'an endpoint must be exactly one of a node key and a position',
+        );
       }
     }
     const step = cursor.step(i, p, arc);
@@ -177,8 +206,12 @@ export function checkArcs(nodes, arcs) {
 export function arcLine(nodes, arc) {
   const from = nodes?.get(arc.from);
   const to = nodes?.get(arc.to);
-  for (const [key, node] of [[arc.from, from], [arc.to, to]]) {
-    if (node === undefined) throw new Error(`vnx: the arc names node ${JSON.stringify(key)}, which is not in its owner`);
+  for (const [key, node] of [
+    [arc.from, from],
+    [arc.to, to],
+  ]) {
+    if (node === undefined)
+      throw new Error(`vnx: the arc names node ${JSON.stringify(key)}, which is not in its owner`);
   }
   return [from, ...arc.pips, to];
 }
@@ -212,7 +245,12 @@ export function walkLegs(nodes, arcs, walk) {
     const p = walk[i];
     const arc = arcs?.get(p.arc);
     if (arc === undefined) {
-      throw new WalkFault(i, '', 'pass-arc-absent', `the pass names arc ${JSON.stringify(p.arc)}, which is not here`).toError();
+      throw new WalkFault(
+        i,
+        '',
+        'pass-arc-absent',
+        `the pass names arc ${JSON.stringify(p.arc)}, which is not here`,
+      ).toError();
     }
     const step = cursor.step(i, p, arc);
     if (step.fault) throw step.fault.toError();

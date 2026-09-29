@@ -19,9 +19,7 @@ import { runCorpus } from '../corpus/runner.js';
 import { DIAGNOSTIC_CODES, PINNED_CODES, REFUSAL_SUBSTRINGS } from '../src/errors.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CORPUS = process.env.VNX_CORPUS
-  ? path.resolve(process.env.VNX_CORPUS)
-  : path.resolve(HERE, '..', '..', 'corpus');
+const CORPUS = process.env.VNX_CORPUS ? path.resolve(process.env.VNX_CORPUS) : path.resolve(HERE, '..', '..', 'corpus');
 
 function match(reported, expected) {
   const c = new Case('x');
@@ -84,12 +82,18 @@ test('two identical expectations are satisfied by two identical reports', () => 
 test('an expectation with no code fails rather than matching anything', () => {
   // A sidecar that lost its code must not quietly become a path-only check.
   const failures = match([R('/a', 'unknown-key')], [{ path: '/a' }]);
-  assert.ok(failures.some((f) => f.includes('carries no code')), failures.join(' | '));
+  assert.ok(
+    failures.some((f) => f.includes('carries no code')),
+    failures.join(' | '),
+  );
 });
 
 test('an expectation carrying "message" fails; the English field is message_advisory', () => {
   const failures = match([R('/a', 'unknown-key')], [{ path: '/a', code: 'unknown-key', message: 'x' }]);
-  assert.ok(failures.some((f) => f.includes('message_advisory')), failures.join(' | '));
+  assert.ok(
+    failures.some((f) => f.includes('message_advisory')),
+    failures.join(' | '),
+  );
 });
 
 // --- the registers cannot go stale ------------------------------------------
@@ -167,5 +171,8 @@ test('the whole corpus passes', () => {
   // this goes red the question is always "which case, and why", and a corpus
   // this library does not own is mid-edit often enough that the answer is
   // sometimes "not us".
-  assert.deepEqual(red.map((c) => `${c.name}: ${c.failures.join('; ')}`), []);
+  assert.deepEqual(
+    red.map((c) => `${c.name}: ${c.failures.join('; ')}`),
+    [],
+  );
 });

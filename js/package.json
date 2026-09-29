@@ -4,13 +4,20 @@
   "description": "Reference JavaScript codec for the VNX trail interchange format",
   "license": "SEE LICENCE IN ../LICENCE",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "exports": {
     ".": "./src/index.js"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "node --test test/*.test.js",
     "corpus": "node corpus/run.js"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9"
   }
 }

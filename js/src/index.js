@@ -3,8 +3,20 @@
 
 export { VnxRefusal, Diagnostic, DIAGNOSTIC_CODES, PINNED_CODES, REFUSAL_SUBSTRINGS } from './errors.js';
 export {
-  Position, Folder, Network, Arc, Chain, Pass, Endpoint,
-  Route, Track, Segment, Waypoint, Area, Document, AppKey,
+  Position,
+  Folder,
+  Network,
+  Arc,
+  Chain,
+  Pass,
+  Endpoint,
+  Route,
+  Track,
+  Segment,
+  Waypoint,
+  Area,
+  Document,
+  AppKey,
 } from './model.js';
 export { decodeText, decodeValue, isAppKey, indexPositions, READER_MAJOR, READER_MINOR } from './decode.js';
 export { encode, emitDocument } from './emit.js';

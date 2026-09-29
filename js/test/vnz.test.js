@@ -11,9 +11,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // The REPOSITORY, always. `CORPUS` may be an extract in a temp directory when a
 // run is measured against `git archive HEAD`.
 const REPO = path.resolve(HERE, '..', '..');
-const CORPUS = process.env.VNX_CORPUS
-  ? path.resolve(process.env.VNX_CORPUS)
-  : path.join(REPO, 'corpus');
+const CORPUS = process.env.VNX_CORPUS ? path.resolve(process.env.VNX_CORPUS) : path.join(REPO, 'corpus');
 
 import { decodeContainer, encodeContainer, writeContainer } from '../src/vnz.js';
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
@@ -115,10 +113,14 @@ test('an unreadable ROOT DOCUMENT refuses the archive', () => {
 
 test('an unreadable ATTACHMENT is dropped with a diagnostic; the document survives', () => {
   // A whole library is not refused over one photograph (SPEC.md 7).
-  const buf = mutateMethod(writeArchive([
-    { name: 'doc.vnx', data: Buffer.from(DOC) },
-    { name: 'photo.bin', data: Buffer.from('x'.repeat(64)) },
-  ]), 'photo.bin', 12);
+  const buf = mutateMethod(
+    writeArchive([
+      { name: 'doc.vnx', data: Buffer.from(DOC) },
+      { name: 'photo.bin', data: Buffer.from('x'.repeat(64)) },
+    ]),
+    'photo.bin',
+    12,
+  );
   const c = decodeContainer(buf);
   assert.equal(c.document.waypoints.length, 1);
   assert.deepEqual([...c.attachments.keys()], []);
@@ -269,8 +271,7 @@ test('a legal `a..b/` name is still accepted after the backslash rule', () => {
 });
 
 test('the writer refuses to pack a name it would refuse to read', () => {
-  assert.throws(() => encodeContainer(DOC, [['weird\\name.jpg', Buffer.from('x')]]),
-    /backslash/);
+  assert.throws(() => encodeContainer(DOC, [['weird\\name.jpg', Buffer.from('x')]]), /backslash/);
 });
 
 test('the writer DEFLATES every entry, and the reader still reads stored ones', () => {
@@ -294,8 +295,10 @@ test('a container is smaller than the document it holds', () => {
   for (let i = 0; i < 2000; i++) pips.push([-3.671235 + i / 1e6, 57.118123 + i / 1e6, 340.3]);
   const text = JSON.stringify({ vnx: '0.2.0', tracks: [{ segments: [{ pips }] }] });
   const buf = encodeContainer(text);
-  assert.ok(buf.length < Buffer.byteLength(text, 'utf8') / 2,
-    `the archive is ${buf.length} bytes and the document is ${Buffer.byteLength(text, 'utf8')}`);
+  assert.ok(
+    buf.length < Buffer.byteLength(text, 'utf8') / 2,
+    `the archive is ${buf.length} bytes and the document is ${Buffer.byteLength(text, 'utf8')}`,
+  );
   assert.equal(decodeContainer(buf).document.tracks[0].segments[0].pips.length, 2000);
 });
 
@@ -348,7 +351,7 @@ function localHeaders(buf) {
     if (flags & 0x08) {
       throw new Error(
         `entry ${out.length} sets bit 3, so its local header carries no sizes and this ` +
-        'archive cannot be walked forward-only',
+          'archive cannot be walked forward-only',
       );
     }
     const nameLen = buf.readUInt16LE(p + 26);
@@ -428,14 +431,29 @@ test('RAW: the local and central headers agree with each other', () => {
   // covered here only because `name` happens to be in that list, so removing
   // `name` as a duplicate of the check elsewhere would have deleted this
   // property with nothing to say so.
-  assert.deepEqual(local.map((h) => h.name), central.map((h) => h.name),
-    'the local headers and the central directory list the entries in different orders');
+  assert.deepEqual(
+    local.map((h) => h.name),
+    central.map((h) => h.name),
+    'the local headers and the central directory list the entries in different orders',
+  );
 
   for (let i = 0; i < local.length; i++) {
-    for (const field of ['name', 'flags', 'method', 'dosTime', 'dosDate', 'crc',
-      'compressedSize', 'uncompressedSize', 'versionNeeded']) {
-      assert.equal(local[i][field], central[i][field],
-        `entry ${i} (${local[i].name}): ${field} differs between local header and central directory`);
+    for (const field of [
+      'name',
+      'flags',
+      'method',
+      'dosTime',
+      'dosDate',
+      'crc',
+      'compressedSize',
+      'uncompressedSize',
+      'versionNeeded',
+    ]) {
+      assert.equal(
+        local[i][field],
+        central[i][field],
+        `entry ${i} (${local[i].name}): ${field} differs between local header and central directory`,
+      );
     }
   }
 });
@@ -444,8 +462,10 @@ test('RAW: the archive can be walked forward-only', () => {
   // The property bit 3 destroys, asserted directly rather than inferred from
   // the flag. `localHeaders` throws if it cannot advance.
   const buf = ARCHIVE();
-  assert.deepEqual(localHeaders(buf).map((h) => h.name),
-    ['doc.vnx', 'attachments/photo.txt']);
+  assert.deepEqual(
+    localHeaders(buf).map((h) => h.name),
+    ['doc.vnx', 'attachments/photo.txt'],
+  );
 });
 
 test('RAW: the walker refuses an archive it cannot walk, so the guard above is real', () => {
@@ -475,14 +495,8 @@ test('TWO accept archives are the only coverage of two reader MUSTs, and must no
   // reddens these two and nothing else, and so does taking sizes from the local
   // header. An earlier version of this test said four, which over-claimed in the
   // same direction as the retracted reading it replaced.
-  const coverBothMusts = [
-    'accept/container-root-doc.vnz',
-    'accept/container-named-document.vnz',
-  ];
-  const sameHeadersButNotCoverage = [
-    'reject/container-duplicate-entries.vnz',
-    'reject/container-escapes.vnz',
-  ];
+  const coverBothMusts = ['accept/container-root-doc.vnz', 'accept/container-named-document.vnz'];
+  const sameHeadersButNotCoverage = ['reject/container-duplicate-entries.vnz', 'reject/container-escapes.vnz'];
   for (const name of [...coverBothMusts, ...sameHeadersButNotCoverage]) {
     const buf = fs.readFileSync(path.join(CORPUS, name));
     assert.equal(buf.readUInt16LE(8), 8, `${name}: deflate`);
@@ -529,8 +543,10 @@ test('attachments are sorted by entry name, and the caller order is not preserve
     ['z/last.txt', Buffer.from('z')],
     ['a/first.txt', Buffer.from('a')],
   ]);
-  assert.deepEqual(readEntries(buf).map((e) => e.name),
-    ['doc.vnx', 'a/first.txt', 'z/last.txt']);
+  assert.deepEqual(
+    readEntries(buf).map((e) => e.name),
+    ['doc.vnx', 'a/first.txt', 'z/last.txt'],
+  );
 });
 
 test('the sort is by CODE POINT, which the default comparator is not', () => {
@@ -538,8 +554,13 @@ test('the sort is by CODE POINT, which the default comparator is not', () => {
   // comparator still has to be right. U+1F600 is above U+FFFD by code point and
   // below it by UTF-16 code unit, because its first unit is a high surrogate.
   const names = ['\u{1F600}.txt', '�.txt'];
-  const buf = encodeContainer(DOC, names.map((n) => [n, Buffer.from('x')]));
-  const emitted = readEntries(buf).slice(1).map((e) => e.name);
+  const buf = encodeContainer(
+    DOC,
+    names.map((n) => [n, Buffer.from('x')]),
+  );
+  const emitted = readEntries(buf)
+    .slice(1)
+    .map((e) => e.name);
   assert.deepEqual(emitted, ['�.txt', '\u{1F600}.txt']);
   // ... and the default sort would have produced the other order, so this
   // assertion discriminates rather than agreeing with both.
@@ -553,8 +574,10 @@ test('repackaging a container sorts too, so a read-modify-write cannot reorder',
     { name: 'a/first.txt', data: Buffer.from('a') },
   ]);
   const container = decodeContainer(messy);
-  assert.deepEqual(readEntries(writeContainer(container)).map((e) => e.name),
-    ['doc.vnx', 'a/first.txt', 'z/last.txt']);
+  assert.deepEqual(
+    readEntries(writeContainer(container)).map((e) => e.name),
+    ['doc.vnx', 'a/first.txt', 'z/last.txt'],
+  );
 });
 
 test('RAW: the order check fires when the two sequences disagree', () => {
@@ -562,10 +585,12 @@ test('RAW: the order check fires when the two sequences disagree', () => {
   // directory alone leaves every individual field value present somewhere in
   // each header, so a per-entry field comparison that did not include `name`
   // would see nothing wrong. The order check is what catches it.
-  const buf = Buffer.from(encodeContainer(DOC, [
-    ['aaaaaa.txt', Buffer.from('a')],
-    ['bbbbbb.txt', Buffer.from('b')],
-  ]));
+  const buf = Buffer.from(
+    encodeContainer(DOC, [
+      ['aaaaaa.txt', Buffer.from('a')],
+      ['bbbbbb.txt', Buffer.from('b')],
+    ]),
+  );
   const a = buf.indexOf(Buffer.from('aaaaaa.txt'), buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
   const b = buf.indexOf(Buffer.from('bbbbbb.txt'), buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02])));
   assert.ok(a !== -1 && b !== -1, 'both names appear in the central directory');
@@ -575,6 +600,9 @@ test('RAW: the order check fires when the two sequences disagree', () => {
   const local = localHeaders(buf).map((h) => h.name);
   const central = centralHeaders(buf).map((h) => h.name);
   assert.notDeepEqual(local, central, 'the mutation must actually disagree');
-  assert.deepEqual([...local].sort(), [...central].sort(),
-    'and it must disagree ONLY in order, so a set comparison would miss it');
+  assert.deepEqual(
+    [...local].sort(),
+    [...central].sort(),
+    'and it must disagree ONLY in order, so a set comparison would miss it',
+  );
 });

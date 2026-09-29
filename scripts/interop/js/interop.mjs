@@ -9,9 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const { decodeText, encode } = await import(
-  path.join(HERE, '..', '..', '..', 'js', 'src', 'index.js')
-);
+const { decodeText, encode } = await import(path.join(HERE, '..', '..', '..', 'js', 'src', 'index.js'));
 
 const [, , input, output] = process.argv;
 if (!input || !output) {

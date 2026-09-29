@@ -8,25 +8,40 @@ import { readFileSync } from 'node:fs';
 import { decodeText } from '../src/decode.js';
 import { encode } from '../src/index.js';
 
-const base = () => decodeText(JSON.stringify({
-  vnx: '0.2.0',
-  waypoints: [{
-    at: [1, 2],
-    style: { color: '#123456' },
-    data: [{ '@type': 'com.example.t', value: 1 }],
-  }],
-  'com.example.v': { nested: [1] },
-})).document;
+const base = () =>
+  decodeText(
+    JSON.stringify({
+      vnx: '0.2.0',
+      waypoints: [
+        {
+          at: [1, 2],
+          style: { color: '#123456' },
+          data: [{ '@type': 'com.example.t', value: 1 }],
+        },
+      ],
+      'com.example.v': { nested: [1] },
+    }),
+  ).document;
 
 // Each place a caller-built value can reach the writer: an application key's
 // value (top level, nested in an object, nested in an array), a record body,
 // and a style.
 const sites = {
-  'an application key value': (d, v) => { d.appKeys[0].value = v; },
-  'inside an application key object': (d, v) => { d.appKeys[0].value.x = v; },
-  'inside an application key array': (d, v) => { d.appKeys[0].value.nested.push(v); },
-  'a record body': (d, v) => { d.waypoints[0].data[0].value = v; },
-  'a style': (d, v) => { d.waypoints[0].style.color = v; },
+  'an application key value': (d, v) => {
+    d.appKeys[0].value = v;
+  },
+  'inside an application key object': (d, v) => {
+    d.appKeys[0].value.x = v;
+  },
+  'inside an application key array': (d, v) => {
+    d.appKeys[0].value.nested.push(v);
+  },
+  'a record body': (d, v) => {
+    d.waypoints[0].data[0].value = v;
+  },
+  'a style': (d, v) => {
+    d.waypoints[0].style.color = v;
+  },
 };
 
 const unwritable = {

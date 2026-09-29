@@ -20,8 +20,16 @@ const CORPUS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..
 
 // Fields this runner compares. `kind` and `note` are structural.
 const CHECKED = new Set([
-  'kind', 'note', 'counts', 'positions', 'tracks',
-  'attachments', 'attachment_contents', 'root', 'refusal', 'diagnostics',
+  'kind',
+  'note',
+  'counts',
+  'positions',
+  'tracks',
+  'attachments',
+  'attachment_contents',
+  'root',
+  'refusal',
+  'diagnostics',
 ]);
 
 // Fields this runner knowingly does not compare, and why.

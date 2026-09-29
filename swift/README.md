@@ -68,6 +68,11 @@ for d in reading.diagnostics {
 try VNX.write(reading.document).write(to: URL(fileURLWithPath: "out.vnx"))
 ```
 
+## Command-line tool
+
+This library has none. The reference command-line tool is Go's; see
+[`go/README.md`](../go/README.md#command-line-tool).
+
 ## API
 
 | Call | Takes | Returns | Throws |

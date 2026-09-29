@@ -82,7 +82,7 @@ func runWriteDocument(t *testing.T, c writeCase) {
 		t.Fatal("the input is already the written form; this case would pass vacuously")
 	}
 
-	got := writeThrough(t, c.in)
+	got := writeThrough(t, c.in, c.expect.Diagnostics)
 	diff, err = compareDocuments(got, c.written, opt)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func runWriteDocument(t *testing.T, c writeCase) {
 	// And the written form is a fixed point: rounding and shortening are both
 	// idempotent, so a case that fails this is a defect in the fixture rather
 	// than in the writer.
-	again := writeThrough(t, c.written)
+	again := writeThrough(t, c.written, nil)
 	diff, err = compareDocuments(again, c.written, opt)
 	if err != nil {
 		t.Fatal(err)
@@ -105,17 +105,16 @@ func runWriteDocument(t *testing.T, c writeCase) {
 }
 
 // writeThrough decodes a document and writes it back — the operation the tier
-// tests. A diagnostic is a failure here: a writer case's input is a document the
-// reader reads cleanly.
-func writeThrough(t *testing.T, data []byte) []byte {
+// tests. The decode must report exactly `want`, compared as a set on path and
+// code: a write sidecar's `diagnostics`, which is absent — so nothing may be
+// reported — unless the case exists to write back what a reader repaired.
+func writeThrough(t *testing.T, data []byte, want []expectedDiagnostic) []byte {
 	t.Helper()
 	doc, diags, err := Decode(data)
 	if err != nil {
 		t.Fatalf("the input must be read before it can be written: %v", err)
 	}
-	for _, d := range diags {
-		t.Errorf("the input must read cleanly, but reported: %s", d)
-	}
+	checkWriteDiagnostics(t, diags, want)
 	out, err := Encode(doc)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -146,9 +145,7 @@ func runWriteContainer(t *testing.T, c writeCase) {
 	if err != nil {
 		t.Fatalf("the input must be read before it can be written: %v", err)
 	}
-	for _, d := range diags {
-		t.Errorf("the input must read cleanly, but reported: %s", d)
-	}
+	checkWriteDiagnostics(t, diags, c.expect.Diagnostics)
 
 	// The attachments are supplied REVERSED, which is what proves the writer
 	// orders them itself rather than trusting the caller.
@@ -315,4 +312,17 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+// checkWriteDiagnostics compares a write case's decode against its sidecar's
+// `diagnostics` exactly as the diagnose tier does: a set, on path and code.
+func checkWriteDiagnostics(t *testing.T, got []Diagnostic, want []expectedDiagnostic) {
+	t.Helper()
+	unmatched, extra := matchDiagnostics(got, want)
+	for _, u := range unmatched {
+		t.Errorf("the input's decode did not report %s", u)
+	}
+	for _, e := range extra {
+		t.Errorf("the input's decode reported %s, which the sidecar does not expect", e)
+	}
 }

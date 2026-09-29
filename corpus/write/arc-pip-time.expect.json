@@ -1,0 +1,11 @@
+{
+  "kind": "write",
+  "note": "A time on an arc pip, read and written back (SPEC 3.3.2). The reader drops the time channel and keeps the pip, and says so once for the arc. The diagnose tier cannot see whether the time really went, because it never writes the document back: a reader that reported `arc-pip-time` and kept the time in its model passes it. This case writes the document back, so a kept time is in the written form and fails the comparison. The third pip carries `null` elevation and a time, so once the time goes it shortens to `[lon, lat]`: a writer that kept a `null` placeholder, or wrote the time back into the elevation channel, fails too. The `diagnostics` field pins the one report the input's decode must make; every other write case expects none.",
+  "diagnostics": [
+    {
+      "path": "/networks/0/arcs/ab/pips",
+      "code": "arc-pip-time",
+      "message_advisory": "an arc pip carries no time — the time channels are dropped"
+    }
+  ]
+}

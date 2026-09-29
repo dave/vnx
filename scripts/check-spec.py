@@ -336,7 +336,7 @@ def register_warnings() -> list[str]:
 
 
 def check_diagnose_codes(problems: list[str]) -> None:
-    """Every code a diagnose case pins is a row of SPEC section 6.2's table.
+    """Every code a diagnose or write case pins is a row of SPEC section 6.2's table.
 
     Section 6.2 lists every problem a document can have, with the code a reader
     MUST put on it. A corpus case pinning a code that table does not name is a
@@ -369,7 +369,9 @@ def check_diagnose_codes(problems: list[str]) -> None:
         problems.append("SPEC.md: no remedy table with a Code column in section 6.2")
         return
     checked = 0
-    for sidecar in sorted((ROOT / "corpus" / "diagnose").glob("*.expect.json")):
+    sidecars = sorted((ROOT / "corpus" / "diagnose").glob("*.expect.json"))
+    sidecars += sorted((ROOT / "corpus" / "write").glob("*.expect.json"))
+    for sidecar in sidecars:
         for d in json.loads(sidecar.read_text(encoding="utf-8")).get("diagnostics", []):
             checked += 1
             if d.get("code") not in codes:

@@ -21,6 +21,7 @@ decode-then-write, and no language-specific way to express a model is needed.
 | Case | Files | What it asserts |
 |---|---|---|
 | `emit-boundary` | `.in.vnx`, `.written.vnx`, `.expect.json` | Rounding at both precisions, tie direction, and the shortest spelling of a position. |
+| `arc-pip-time` | `.in.vnx`, `.written.vnx`, `.expect.json` | A time the reader drops from an arc pip is gone from the written form, not kept in the model. |
 | `container-cross-language` | `.in.vnx`, `.attachments.json`, `.written.vnz`, `.expect.json` | A document and its attachments through the WRITE path into an archive. |
 
 `container-cross-language` writes an archive rather than a document, so it
@@ -52,6 +53,10 @@ root document's tree, the entry names and the attachment bodies.
 - Only the two normalisations `SPEC §8.1` permits — and not the first of them
   here: rounding and the shortest spelling of a position are the rules this tier
   tests, so normalising them away would leave it proving nothing.
+- Decoding the input reports exactly the sidecar's `diagnostics`, compared as
+  the diagnose tier compares them: a set, on `path` and `code`. When the field
+  is absent the input reads with no diagnostics. `arc-pip-time` is the case that
+  carries one, because it writes back what the reader repaired.
 - The written form is a fixed point: writing it again reproduces it. Both rules
   are idempotent, so a case that fails this is a defect in the fixture rather
   than in the writer.

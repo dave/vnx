@@ -44,7 +44,7 @@ the run, not a skip.
 | `attachments` | `.vnz` cases | the entry names the archive carries beside the root document |
 | `attachment_contents` | `.vnz` cases | each attachment's bytes, as UTF-8 text, keyed by entry name |
 | `refusal` | `reject/` | a substring of the expected refusal message |
-| `diagnostics` | `diagnose/` | the expected diagnostics, compared as a set |
+| `diagnostics` | `diagnose/`, `write/` | the expected diagnostics, compared as a set; in `write/`, what decoding the input must report, and absent means none |
 | `cannot_detect` | any case | why no diagnostic is possible, where a case expects none |
 | `schema` | `.vnx` cases | `valid`, `invalid` or `not-json`: the verdict `schema/vnx-0.2.schema.json` reaches. Not a reader's business — a runner reads past it |
 

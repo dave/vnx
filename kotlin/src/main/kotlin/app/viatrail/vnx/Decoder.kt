@@ -877,12 +877,12 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
  * Compared as numbers, so `-0.0` and `0.0` are one longitude. Adding `0.0` makes
  * the two one key: a boxed [Double] tells them apart, and `==` does not.
  */
+internal fun distinctLonLat(ring: List<Position>): Int =
+    ring.map { (it.lon + 0.0) to (it.lat + 0.0) }.toSet().size
+
 /** Section 4.1's normative ranges, both bounds included. Null when in range. */
 internal fun offTheGlobe(lon: Double, lat: Double): String? = when {
     lon !in -180.0..180.0 -> "longitude $lon is off the globe"
     lat !in -90.0..90.0 -> "latitude $lat is off the globe"
     else -> null
 }
-
-internal fun distinctLonLat(ring: List<Position>): Int =
-    ring.map { (it.lon + 0.0) to (it.lat + 0.0) }.toSet().size

@@ -764,7 +764,7 @@ final class DocumentDecoder {
                 message: "a position is \(value.typeName); expected a position array [lon, lat, ele, time_ms]"))
         }
         guard channels.count >= 2 else {
-            return .failure(PositionProblem(isShape: true,
+            return .failure(PositionProblem(isShape: false,
                 message: "a position carries \(channels.count) channel(s); it MUST carry at least lon and lat"))
         }
         // THE PATH IS THE POSITION, NOT THE CHANNEL. SPEC 6.3 names the smallest
@@ -777,6 +777,9 @@ final class DocumentDecoder {
         }
         guard let lat = channels[1].numberValue else {
             return .failure(PositionProblem(isShape: false, message: "latitude is \(channels[1].typeName); expected a number"))
+        }
+        if let problem = offTheGlobe(lon: lon, lat: lat) {
+            return .failure(PositionProblem(isShape: false, message: problem))
         }
         for i in 2..<channels.count {
             switch channels[i] {
@@ -813,4 +816,11 @@ final class DocumentDecoder {
             return nil
         }
     }
+}
+
+/// SPEC 4.1's normative ranges, both bounds included. `nil` when in range.
+func offTheGlobe(lon: Double, lat: Double) -> String? {
+    if !(-180...180).contains(lon) { return "longitude \(lon) is off the globe" }
+    if !(-90...90).contains(lat) { return "latitude \(lat) is off the globe" }
+    return nil
 }

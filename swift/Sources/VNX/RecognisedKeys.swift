@@ -52,7 +52,7 @@ enum Keys {
     required: [],
     optional: [
       "name", "notes", "folder", "hidden", "nodes", "arcs",
-      "chains", "points", "areas", "data",
+      "highlights", "points", "areas", "data",
     ])
 
   /// An arc, in a network or in a route: one shape for both (SPEC 3.10).
@@ -60,7 +60,7 @@ enum Keys {
     required: ["from", "to", "pips"],
     optional: ["data"])
 
-  static let chain = Shape(
+  static let highlight = Shape(
     required: ["walk"],
     optional: ["name", "notes", "hidden", "style", "data"])
 

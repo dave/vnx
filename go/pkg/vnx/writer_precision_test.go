@@ -81,7 +81,7 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 	// still see. That is the failure mode this whole file exists to avoid.
 	wantChannels := []string{
 		"area.polygon",
-		"chain.walk.position",
+		"highlight.walk.position",
 		"network.arc.pips",
 		"network.area.polygon",
 		"network.node",
@@ -329,15 +329,15 @@ func vnxPositions(t *testing.T, out []byte) []foundPos {
 		for j, p := range asArray(net["points"]) {
 			add("network.point.at", fmt.Sprintf("%s/points/%d/at", base, j), asObject(p)["at"])
 		}
-		for j, c := range asArray(net["chains"]) {
+		for j, c := range asArray(net["highlights"]) {
 			for k, p := range asArray(asObject(c)["walk"]) {
 				pass := asObject(p)
 				// `from` and `to` are a node id (a string, nothing to round)
 				// or a position; `turn` is always a position. asPosition
 				// ignores the string form and an absent key.
 				for _, key := range []string{"from", "to", "turn"} {
-					add("chain.walk.position",
-						fmt.Sprintf("%s/chains/%d/walk/%d/%s", base, j, k, key), pass[key])
+					add("highlight.walk.position",
+						fmt.Sprintf("%s/highlights/%d/walk/%d/%s", base, j, k, key), pass[key])
 				}
 			}
 		}
@@ -622,8 +622,8 @@ func noisyFixture() acceptFixture {
 			},
 			Points: []vnx.Waypoint{{Name: "Noisy point", At: noisy(1)}},
 			Areas:  []vnx.Area{{Name: "Noisy network area", Polygon: ring}},
-			Chains: []vnx.Chain{{
-				Name: "Noisy chain",
+			Highlights: []vnx.Highlight{{
+				Name: "Noisy highlight",
 				// One node end and one POSITION end, which is the only end
 				// form that carries coordinates of its own.
 				Walk: []vnx.Pass{{

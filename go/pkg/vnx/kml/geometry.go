@@ -6,10 +6,10 @@ import (
 
 // The geometry a KML file needs that VNX does not store in KML's shape.
 //
-// ⚠ A CHAIN'S OR A ROUTE'S LINE IS vnx.WalkLine's, not this package's. A walk
+// ⚠ A HIGHLIGHT'S OR A ROUTE'S LINE IS vnx.WalkLine's, not this package's. A walk
 // is cut where it enters, turns and leaves each arc, and every writer draws it
 // through the one implementation in pkg/vnx, so one library cannot export one
-// chain as two different polylines.
+// highlight as two different polylines.
 
 // closedRing is an area's ring as KML writes it: VNX stores a ring OPEN (SPEC
 // §3.7) and a KML <LinearRing> repeats its first position last. ok is false

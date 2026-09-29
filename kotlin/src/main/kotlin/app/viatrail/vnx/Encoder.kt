@@ -102,14 +102,14 @@ internal class Encoder {
 
     /**
      * A network, checked first: every arc runs between two different nodes it
-     * holds, and every chain's walk follows section 3.3.3. A writer never emits
+     * holds, and every highlight's walk follows section 3.3.3. A writer never emits
      * what its own reader would drop.
      */
     private fun network(n: Network): JsonObject {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
-        n.chains?.forEach { checkWalkOf("chain \"${it.name}\"", it.walk, arcs, route = false) }
+        n.highlights?.forEach { checkWalkOf("highlight \"${it.name}\"", it.walk, arcs, route = false) }
         return JsonObject
             .Builder()
             .putString("name", n.name)
@@ -118,7 +118,7 @@ internal class Encoder {
             .putBool("hidden", hidden(n.hidden))
             .put("nodes", n.nodes?.let(::nodes))
             .put("arcs", n.arcs?.let(::arcs))
-            .put("chains", n.chains?.let { array(it, ::chain) })
+            .put("highlights", n.highlights?.let { array(it, ::highlight) })
             .put("points", n.points?.let { array(it) { w -> waypoint(w, inNetwork = true) } })
             .put("areas", n.areas?.let { array(it) { a -> area(a, inNetwork = true) } })
             .put("data", data(n.data))
@@ -189,7 +189,7 @@ internal class Encoder {
             .put("data", data(a.data))
             .build()
 
-    private fun chain(c: Chain) =
+    private fun highlight(c: Highlight) =
         JsonObject
             .Builder()
             .putString("name", c.name)

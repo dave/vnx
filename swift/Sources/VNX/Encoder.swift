@@ -102,10 +102,11 @@ enum DocumentEncoder {
     put(&o, "folder", n.folder)
     putHidden(&o, n.hidden)
     try putGraph(&o, nodes: n.nodes, arcs: n.arcs, owner: "network \(describe(n.name))")
-    try putArray(&o, "chains", n.chains) { c in
+    try putArray(&o, "highlights", n.highlights) { c in
       // A writer never emits a walk its own reader would drop.
-      try checkWalk(c.walk, arcs: n.arcs ?? [:], route: false, owner: "chain \(describe(c.name))")
-      return chain(c)
+      try checkWalk(
+        c.walk, arcs: n.arcs ?? [:], route: false, owner: "highlight \(describe(c.name))")
+      return highlight(c)
     }
     putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
     try putArray(&o, "areas", n.areas) { try area($0, allowsFolder: false) }
@@ -175,7 +176,7 @@ enum DocumentEncoder {
     }
   }
 
-  private static func chain(_ c: Chain) -> JSONValue {
+  private static func highlight(_ c: Highlight) -> JSONValue {
     var o: [JSONKey: JSONValue] = ["walk": walk(c.walk)]
     put(&o, "name", c.name)
     put(&o, "notes", c.notes)

@@ -18,13 +18,13 @@ const ARCS = {
   ad: { from: 'a', to: 'd', pips: [] },
 };
 
-/** Read one chain over the fixed graph. */
+/** Read one highlight over the fixed graph. */
 function readWalk(walk, extra = {}) {
-  return decodeText(doc({ networks: [{ nodes: NODES, arcs: ARCS, chains: [{ walk, ...extra }] }] }));
+  return decodeText(doc({ networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ walk, ...extra }] }] }));
 }
 
 const pairs = (diagnostics) => diagnostics.map((d) => [d.path, d.code]);
-const W = '/networks/0/chains/0/walk';
+const W = '/networks/0/highlights/0/walk';
 
 // --- valid walks ------------------------------------------------------------
 
@@ -34,13 +34,13 @@ test('a node-to-node walk is read, and a pass without from or to is derived', ()
     { arc: 'bc', to: 'c' },
   ]);
   assert.deepEqual(diagnostics, []);
-  assert.equal(document.networks[0].chains[0].walk.length, 2);
+  assert.equal(document.networks[0].highlights[0].walk.length, 2);
 });
 
 test('an empty walk is valid and covers nothing', () => {
   const { document, diagnostics } = readWalk([]);
   assert.deepEqual(diagnostics, []);
-  assert.deepEqual(document.networks[0].chains[0].walk, []);
+  assert.deepEqual(document.networks[0].highlights[0].walk, []);
 });
 
 test('a pass with a turn and no `to` leaves by the node it entered by', () => {
@@ -69,19 +69,19 @@ test('"pinned": false is read as absent, and pinned true is kept', () => {
     { arc: 'bc', to: 'c', pinned: true },
   ]);
   assert.deepEqual(diagnostics, []);
-  const walk = document.networks[0].chains[0].walk;
+  const walk = document.networks[0].highlights[0].walk;
   assert.equal(walk[0].pinned, undefined);
   assert.equal(walk[1].pinned, true);
-  assert.deepEqual(JSON.parse(encode(document)).networks[0].chains[0].walk, [
+  assert.deepEqual(JSON.parse(encode(document)).networks[0].highlights[0].walk, [
     { arc: 'ab', from: 'a' },
     { arc: 'bc', to: 'c', pinned: true },
   ]);
 });
 
-test('a wrong-typed `pinned` drops the field and keeps the chain', () => {
+test('a wrong-typed `pinned` drops the field and keeps the highlight', () => {
   const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'b', pinned: 'yes' }]);
   assert.deepEqual(pairs(diagnostics), [[`${W}/0/pinned`, 'wrong-type-optional']]);
-  assert.equal(document.networks[0].chains[0].walk[0].pinned, undefined);
+  assert.equal(document.networks[0].highlights[0].walk[0].pinned, undefined);
 });
 
 // --- SPEC.md 6.2: each rule, at its path -------------------------------------
@@ -115,7 +115,7 @@ test('a walk that breaks the rule for `from` and `to` is dropped, named at the r
   for (const [walk, path] of cases) {
     const { document, diagnostics } = readWalk(walk);
     assert.deepEqual(pairs(diagnostics), [[path, 'walk-spelling']], JSON.stringify(walk));
-    assert.equal(document.networks[0].chains.length, 0);
+    assert.equal(document.networks[0].highlights.length, 0);
   }
 });
 
@@ -145,17 +145,17 @@ test('a walk that is not connected is dropped, named at the right place', () => 
   for (const [walk, path] of cases) {
     const { document, diagnostics } = readWalk(walk);
     assert.deepEqual(pairs(diagnostics), [[path, 'walk-not-connected']], JSON.stringify(walk));
-    assert.equal(document.networks[0].chains.length, 0);
+    assert.equal(document.networks[0].highlights.length, 0);
   }
 });
 
-test('a pass carrying both `turn` and `pinned` drops the chain', () => {
+test('a pass carrying both `turn` and `pinned` drops the highlight', () => {
   const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0], pinned: true }]);
   assert.deepEqual(pairs(diagnostics), [[`${W}/0`, 'pinned-turn']]);
-  assert.equal(document.networks[0].chains.length, 0);
+  assert.equal(document.networks[0].highlights.length, 0);
 });
 
-test('a pass that is not an object, or names no arc, drops the chain', () => {
+test('a pass that is not an object, or names no arc, drops the highlight', () => {
   for (const pass of [
     7,
     [],
@@ -165,11 +165,11 @@ test('a pass that is not an object, or names no arc, drops the chain', () => {
   ]) {
     const { document, diagnostics } = readWalk([pass]);
     assert.deepEqual(pairs(diagnostics), [[`${W}/0`, 'pass-arc-absent']], JSON.stringify(pass));
-    assert.equal(document.networks[0].chains.length, 0);
+    assert.equal(document.networks[0].highlights.length, 0);
   }
 });
 
-test('a `from`, `to` or `turn` that will not parse drops the chain, named at the key', () => {
+test('a `from`, `to` or `turn` that will not parse drops the highlight, named at the key', () => {
   const cases = [
     [[{ arc: 'ab', from: [1], to: 'b' }], `${W}/0/from`],
     [[{ arc: 'ab', from: 'a', to: 7 }], `${W}/0/to`],
@@ -178,7 +178,7 @@ test('a `from`, `to` or `turn` that will not parse drops the chain, named at the
   for (const [walk, path] of cases) {
     const { document, diagnostics } = readWalk(walk);
     assert.deepEqual(pairs(diagnostics), [[path, 'position-unusable']], JSON.stringify(walk));
-    assert.equal(document.networks[0].chains.length, 0);
+    assert.equal(document.networks[0].highlights.length, 0);
   }
 });
 
@@ -195,7 +195,7 @@ test('within a pass, the checks run in the order SPEC.md 6.2 lists', () => {
   assert.deepEqual(pairs(readWalk([{ arc: 'ghost', from: 'a', to: 'b', nmae: 1 }]).diagnostics), [
     [`${W}/0`, 'pass-arc-absent'],
   ]);
-  // An unknown key is check 2 and does not drop the chain, so it is reported
+  // An unknown key is check 2 and does not drop the highlight, so it is reported
   // beside the later fault.
   assert.deepEqual(pairs(readWalk([{ arc: 'ab', to: 'b', nmae: 1 }]).diagnostics).sort(), [
     [`${W}/0`, 'walk-spelling'],
@@ -213,19 +213,21 @@ test('within a pass, the checks run in the order SPEC.md 6.2 lists', () => {
   assert.deepEqual(pairs(readWalk([{ arc: 'ab', from: 'c' }]).diagnostics), [[`${W}/0`, 'walk-spelling']]);
 });
 
-test('a chain dropped for its walk still reports the diagnostics of its other keys', () => {
+test('a highlight dropped for its walk still reports the diagnostics of its other keys', () => {
   const { diagnostics } = readWalk([{ arc: 'ghost', from: 'a', to: 'b' }], { hidden: 'no' });
   assert.deepEqual(pairs(diagnostics).sort(), [
-    ['/networks/0/chains/0/hidden', 'wrong-type-optional'],
+    ['/networks/0/highlights/0/hidden', 'wrong-type-optional'],
     [`${W}/0`, 'pass-arc-absent'],
   ]);
 });
 
-test('a chain with no `walk`, or a `walk` that is not an array, is dropped', () => {
-  for (const chain of [{ name: 'x' }, { walk: {} }]) {
-    const { document, diagnostics } = decodeText(doc({ networks: [{ nodes: NODES, arcs: ARCS, chains: [chain] }] }));
+test('a highlight with no `walk`, or a `walk` that is not an array, is dropped', () => {
+  for (const highlight of [{ name: 'x' }, { walk: {} }]) {
+    const { document, diagnostics } = decodeText(
+      doc({ networks: [{ nodes: NODES, arcs: ARCS, highlights: [highlight] }] }),
+    );
     assert.deepEqual(pairs(diagnostics), [[W, 'wrong-type-required']]);
-    assert.equal(document.networks[0].chains.length, 0);
+    assert.equal(document.networks[0].highlights.length, 0);
   }
 });
 
@@ -237,7 +239,7 @@ test('an elevation or a time on a walk position is dropped, and the pass kept', 
     [`${W}/0/from`, 'extra-channel'],
     [`${W}/0/to`, 'extra-channel'],
   ]);
-  const pass = document.networks[0].chains[0].walk[0];
+  const pass = document.networks[0].highlights[0].walk[0];
   assert.deepEqual(pass.from.position.channels, [0.0002, 0]);
   assert.deepEqual(pass.to.position.channels, [0.0005, 0]);
 });
@@ -289,14 +291,14 @@ test('a time on arc pips is reported ONCE for the arc, and every time is dropped
 
 // --- arcs -------------------------------------------------------------------
 
-test('a self-loop arc is dropped, and each chain walking it goes with its own diagnostic', () => {
+test('a self-loop arc is dropped, and each highlight walking it goes with its own diagnostic', () => {
   const { document, diagnostics } = decodeText(
     doc({
       networks: [
         {
           nodes: NODES,
           arcs: { ...ARCS, loop: { from: 'b', to: 'b', pips: [[0.001, 0.001]] } },
-          chains: [
+          highlights: [
             {
               walk: [
                 { arc: 'ab', from: 'a' },
@@ -311,10 +313,10 @@ test('a self-loop arc is dropped, and each chain walking it goes with its own di
   );
   assert.deepEqual(pairs(diagnostics).sort(), [
     ['/networks/0/arcs/loop', 'self-loop-arc'],
-    ['/networks/0/chains/0/walk/1', 'pass-arc-absent'],
+    ['/networks/0/highlights/0/walk/1', 'pass-arc-absent'],
   ]);
   assert.equal(document.networks[0].arcs.size, 3);
-  assert.equal(document.networks[0].chains.length, 1, 'only the chain that walks the loop goes');
+  assert.equal(document.networks[0].highlights.length, 1, 'only the highlight that walks the loop goes');
 });
 
 test('an arc naming absent nodes is dropped, with one diagnostic per absent end', () => {
@@ -336,20 +338,20 @@ test('an arc naming absent nodes is dropped, with one diagnostic per absent end'
   assert.equal(document.networks[0].arcs.size, 0);
 });
 
-test('a node that will not parse takes its arcs, and they take their chains', () => {
+test('a node that will not parse takes its arcs, and they take their highlights', () => {
   const { document, diagnostics } = readWalkWithNodes({ ...NODES, b: 'here' });
   assert.deepEqual(pairs(diagnostics).sort(), [
     ['/networks/0/arcs/ab/to', 'arc-node-absent'],
     ['/networks/0/arcs/bc/from', 'arc-node-absent'],
-    ['/networks/0/chains/0/walk/0', 'pass-arc-absent'],
+    ['/networks/0/highlights/0/walk/0', 'pass-arc-absent'],
     ['/networks/0/nodes/b', 'position-unusable'],
   ]);
-  assert.equal(document.networks[0].chains.length, 0);
+  assert.equal(document.networks[0].highlights.length, 0);
 });
 
 function readWalkWithNodes(nodes) {
   return decodeText(
-    doc({ networks: [{ nodes, arcs: ARCS, chains: [{ walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }] }),
+    doc({ networks: [{ nodes, arcs: ARCS, highlights: [{ walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }] }),
   );
 }
 
@@ -400,7 +402,7 @@ test('a position, a turn or a pin in a route drops the route, named at the key',
   }
 });
 
-test('where a chain would be dropped, the route is', () => {
+test('where a highlight would be dropped, the route is', () => {
   const { document, diagnostics } = route([
     { arc: 'ab', from: 'a' },
     { arc: 'bc', from: 'b', to: 'c' },
@@ -522,15 +524,15 @@ test('the positions index holds walk positions and route nodes, and no node key'
         {
           nodes: NODES,
           arcs: ARCS,
-          chains: [{ walk: [{ arc: 'ab', from: [0.0002, 0], to: 'b', turn: [0.0007, 0] }] }],
+          highlights: [{ walk: [{ arc: 'ab', from: [0.0002, 0], to: 'b', turn: [0.0007, 0] }] }],
         },
       ],
       routes: [{ nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
     }),
   );
-  assert.equal(positions.get('/networks/0/chains/0/walk/0/from').lon, 0.0002);
-  assert.equal(positions.get('/networks/0/chains/0/walk/0/turn').lon, 0.0007);
-  assert.equal(positions.has('/networks/0/chains/0/walk/0/to'), false);
+  assert.equal(positions.get('/networks/0/highlights/0/walk/0/from').lon, 0.0002);
+  assert.equal(positions.get('/networks/0/highlights/0/walk/0/turn').lon, 0.0007);
+  assert.equal(positions.has('/networks/0/highlights/0/walk/0/to'), false);
   assert.equal(positions.get('/routes/0/nodes/b').lon, 0.001);
   assert.equal(positions.get('/routes/0/arcs/bc/pips/0').lon, 0.0015);
 });
@@ -545,7 +547,7 @@ function readBack(extra) {
 
 const GRAPH = () =>
   readBack({
-    networks: [{ nodes: NODES, arcs: ARCS, chains: [{ name: 'c', walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }],
+    networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ name: 'c', walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }],
     routes: [{ name: 'r', nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
     areas: [
       {
@@ -565,7 +567,7 @@ test('a legal walk, route and ring are written back as read', () => {
       {
         nodes: NODES,
         arcs: ARCS,
-        chains: [
+        highlights: [
           { walk: [{ arc: 'ab', from: [0.0002, 0], to: [0.0003, 0] }] },
           {
             walk: [
@@ -613,16 +615,16 @@ const refusals = {
     d.routes[0].arcs.get('ad').to = 'ghost';
   },
   'a walk naming an absent arc': (d) => {
-    d.networks[0].chains[0].walk[0].arc = 'ghost';
+    d.networks[0].highlights[0].walk[0].arc = 'ghost';
   },
   'a walk missing its last `to`': (d) => {
-    d.networks[0].chains[0].walk[0].to = undefined;
+    d.networks[0].highlights[0].walk[0].to = undefined;
   },
   'a walk that does not join': (d) => {
-    d.networks[0].chains[0].walk[0].to.node = 'd';
+    d.networks[0].highlights[0].walk[0].to.node = 'd';
   },
   'a pass with turn and pin': (d) => {
-    const p = d.networks[0].chains[0].walk[0];
+    const p = d.networks[0].highlights[0].walk[0];
     p.turn = d.networks[0].nodes.get('a');
     p.pinned = true;
   },
@@ -637,7 +639,7 @@ const refusals = {
   },
   'an elevation on a walk position': (d) => {
     const n = d.networks[0];
-    n.chains[0].walk[0].to = { kind: 'position', position: n.nodes.get('b') };
+    n.highlights[0].walk[0].to = { kind: 'position', position: n.nodes.get('b') };
   },
 };
 
@@ -666,9 +668,9 @@ function assertLine(got, want) {
 }
 
 function graph(walk) {
-  const d = readBack({ networks: [{ nodes: NODES, arcs: ARCS, chains: [{ walk }] }] });
+  const d = readBack({ networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ walk }] }] });
   const n = d.networks[0];
-  return [n.nodes, n.arcs, n.chains[0].walk];
+  return [n.nodes, n.arcs, n.highlights[0].walk];
 }
 
 test('a pass walking its arc from `to` to `from` is drawn reversed', () => {
@@ -741,12 +743,12 @@ test('where two segments are equally near, the earlier one wins', () => {
       {
         nodes: { a: [0, 0], d: [0, 0] },
         arcs: { v: { from: 'a', to: 'd', pips: [[1, 0]] } },
-        chains: [{ walk: [{ arc: 'v', from: [0.5, 0.001], to: 'd' }] }],
+        highlights: [{ walk: [{ arc: 'v', from: [0.5, 0.001], to: 'd' }] }],
       },
     ],
   });
   const n = d.networks[0];
-  const [leg] = walkLegs(n.nodes, n.arcs, n.chains[0].walk);
+  const [leg] = walkLegs(n.nodes, n.arcs, n.highlights[0].walk);
   assertLine(leg, [
     [0.5, 0],
     [1, 0],

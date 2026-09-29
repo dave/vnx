@@ -97,13 +97,13 @@ fn network(n: &Network, path: &Path) -> Built {
     o.str("folder", n.folder.as_deref());
     o.hidden(n.hidden);
     graph(&mut o, &n.nodes, &n.arcs, path)?;
-    let chains_path = path.key("chains");
-    if let Some(chains) = &n.chains {
-        let mut out = Vec::with_capacity(chains.len());
-        for (i, c) in chains.iter().enumerate() {
-            out.push(chain(c, &n.arcs, &chains_path.index(i))?);
+    let highlights_path = path.key("highlights");
+    if let Some(highlights) = &n.highlights {
+        let mut out = Vec::with_capacity(highlights.len());
+        for (i, c) in highlights.iter().enumerate() {
+            out.push(highlight(c, &n.arcs, &highlights_path.index(i))?);
         }
-        o.raw("chains", Json::Array(out));
+        o.raw("highlights", Json::Array(out));
     }
     o.list("points", &n.points, path, waypoint)?;
     o.list("areas", &n.areas, path, area)?;
@@ -144,9 +144,9 @@ fn arc(a: &Arc) -> Json {
     o.done()
 }
 
-/// A chain of a network whose arcs are `arcs`. The walk is checked against
+/// A highlight of a network whose arcs are `arcs`. The walk is checked against
 /// them first: a writer never emits a walk its own reader would drop.
-fn chain(c: &Chain, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> Built {
+fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> Built {
     check_walk(&c.walk, arcs, false, &path.key("walk"))?;
     let mut o = Obj::new();
     o.str("name", c.name.as_deref());
@@ -514,7 +514,7 @@ mod tests {
             br#"{"vnx":"0.2.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
-                 "chains":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
+                 "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
                  "routes":[{"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
                  "walk":[{"arc":"ab","from":"b","to":"a"}]}],
@@ -559,15 +559,16 @@ mod tests {
             "{absent:?}"
         );
 
-        let spelling =
-            refused(&|d: &mut Document| network(d).chains.as_mut().unwrap()[0].walk[0].to = None);
+        let spelling = refused(&|d: &mut Document| {
+            network(d).highlights.as_mut().unwrap()[0].walk[0].to = None
+        });
         assert!(
-            matches!(&spelling, EncodeError::Walk { path, cause } if path == "/networks/0/chains/0/walk/0" && cause.code() == "walk-spelling"),
+            matches!(&spelling, EncodeError::Walk { path, cause } if path == "/networks/0/highlights/0/walk/0" && cause.code() == "walk-spelling"),
             "{spelling:?}"
         );
 
         let ghost = refused(&|d: &mut Document| {
-            network(d).chains.as_mut().unwrap()[0].walk[0].arc = "ghost".into()
+            network(d).highlights.as_mut().unwrap()[0].walk[0].arc = "ghost".into()
         });
         assert!(
             matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"),
@@ -604,7 +605,7 @@ mod tests {
             r#"{"vnx":"0.2.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,5],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101,null,9]]}},
-                 "chains":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,
+                 "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,
         );
         assert!(!out.contains("pinned"), "{out}");
         assert!(

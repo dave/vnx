@@ -112,9 +112,9 @@ export class Pass {
 
 /**
  * A walk over arcs the network owns (SPEC.md 3.3.3). Its geometry is by
- * reference: two chains that cross one trail name the same arc.
+ * reference: two highlights that cross one trail name the same arc.
  */
-export class Chain {
+export class Highlight {
   constructor() {
     /** @type {Pass[]} */ this.walk = undefined;
     /** @type {string|undefined} */ this.name = undefined;
@@ -157,7 +157,7 @@ export class Network {
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
     /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
-    /** @type {Chain[]|undefined} */ this.chains = undefined;
+    /** @type {Highlight[]|undefined} */ this.highlights = undefined;
     /** @type {Waypoint[]|undefined} */ this.points = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;

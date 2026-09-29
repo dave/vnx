@@ -1,13 +1,13 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "A time on a node, and an elevation on a walk's `turn` (SPEC 3.3.1, 3.3.3). A node is a place in a graph rather than a moment in a recording, and a walk position takes its elevation from the arc's line, so a stored one would be a second copy of a fact the arc holds. Each channel is dropped and its owner kept: the node survives with its elevation, and the chain survives with its turn. Nothing else changes, which `counts` pins: a reader that treated either as an unusable position would drop the node, the three arcs at c, or the chain, and fail. The two diagnostics are at two paths, the node and the `turn` key, because each names the element that carried the channel.",
+  "note": "A time on a node, and an elevation on a walk's `turn` (SPEC 3.3.1, 3.3.3). A node is a place in a graph rather than a moment in a recording, and a walk position takes its elevation from the arc's line, so a stored one would be a second copy of a fact the arc holds. Each channel is dropped and its owner kept: the node survives with its elevation, and the highlight survives with its turn. Nothing else changes, which `counts` pins: a reader that treated either as an unusable position would drop the node, the three arcs at c, or the highlight, and fail. The two diagnostics are at two paths, the node and the `turn` key, because each names the element that carried the channel.",
   "counts": {
     "networks": 1,
     "/networks/0/nodes": 4,
     "/networks/0/arcs": 3,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cd/pips": 2
   },
@@ -18,7 +18,7 @@
       "lat": 57.1
     },
     {
-      "at": "/networks/0/chains/0/walk/0/turn",
+      "at": "/networks/0/highlights/0/walk/0/turn",
       "lon": -3.574,
       "lat": 57.102
     }
@@ -30,7 +30,7 @@
       "message_advisory": "a node carries no time — the channel is dropped"
     },
     {
-      "path": "/networks/0/chains/0/walk/0/turn",
+      "path": "/networks/0/highlights/0/walk/0/turn",
       "code": "extra-channel",
       "message_advisory": "a walk position carries longitude and latitude only — the channel is dropped"
     }

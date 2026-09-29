@@ -31,7 +31,7 @@
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "Mid-arc start, pin, turn, revisit, mid-arc end",
           "walk": [

@@ -335,14 +335,14 @@ left, and where it leaves depends on whether it has a `to` and whether it has a
 `turn` (`SPEC §3.3.3`). Carry the current node through the walk, pass by pass;
 do not try to validate a pass from its own keys.
 
-`SPEC §6.2` drops the whole chain at the first problem in its walk and lists the
+`SPEC §6.2` drops the whole highlight at the first problem in its walk and lists the
 order in which to look. The order is what makes two readers name the same pass
 and the same code for a walk with two problems in it. Checking the rule for
 `from` and `to` across the whole walk before looking at connection is a
 plausible structure and reports a different pass.
 
 The two node-level problems, a self-loop and an arc naming an absent node, are
-reported on the arc. The chains that walk it are then dropped for naming an
+reported on the arc. The highlights that walk it are then dropped for naming an
 absent arc, each with its own diagnostic, so a reader resolves the arcs before
 it reads any walk.
 
@@ -388,7 +388,7 @@ zero, and `corpus/accept/track-without-times.vnx` and
 The two absences that legitimately carry a meaning are in section 4.1, and they
 are absences in a conforming document, not malformed values.
 
-### 8.3 A position drops its owner, and a walk drops its chain
+### 8.3 A position drops its owner, and a walk drops its highlight
 
 `SPEC §6.2`'s remedies read as severe and are not. A position inside `pips`
 that will not parse drops the arc or segment that holds it, not the position. A
@@ -396,7 +396,7 @@ missing vertex changes the shape of a line and leaves nothing to indicate it: a
 shorter, plausible, wrong line. A ring vertex that will not parse drops the
 area for the same reason.
 
-A walk goes further: any problem in it drops the chain. A pass removed from the
+A walk goes further: any problem in it drops the highlight. A pass removed from the
 middle joins two arcs that do not meet, a `turn` removed reverses everything
 after it, and a `from` removed moves the start to a node. Each of those is a
 different walk that reads as a valid one, and a caller holding it has no way to

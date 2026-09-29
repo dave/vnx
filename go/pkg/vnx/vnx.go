@@ -1,7 +1,7 @@
 // Package vnx reads and writes Viatrail Network eXchange documents.
 //
 // VNX carries a Viatrail library — above all its networks: the graph of nodes
-// and arcs, and the chains drawn over it as ordered traversals, where two
+// and arcs, and the highlights drawn over it as ordered traversals, where two
 // routes sharing a trail share the same arc. The specification lives at
 // ~/src/knowledge/features/export/format-spec.md.
 //

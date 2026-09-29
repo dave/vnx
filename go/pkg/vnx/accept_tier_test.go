@@ -28,8 +28,8 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 					a.Data = nil
 					d.Networks[i].Arcs[k] = a
 				}
-				for j := range d.Networks[i].Chains {
-					d.Networks[i].Chains[j].Data = nil
+				for j := range d.Networks[i].Highlights {
+					d.Networks[i].Highlights[j].Data = nil
 				}
 				for j := range d.Networks[i].Points {
 					d.Networks[i].Points[j].Data = nil
@@ -39,16 +39,16 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 		{"drops every application key", func(d *Document) { d.AppKeys = nil }},
 		{"drops every style", func(d *Document) {
 			for i := range d.Networks {
-				for j := range d.Networks[i].Chains {
-					d.Networks[i].Chains[j].Style = Style{}
+				for j := range d.Networks[i].Highlights {
+					d.Networks[i].Highlights[j].Style = Style{}
 				}
 			}
 		}},
 		{"drops every notes", func(d *Document) {
 			for i := range d.Networks {
 				d.Networks[i].Notes = ""
-				for j := range d.Networks[i].Chains {
-					d.Networks[i].Chains[j].Notes = ""
+				for j := range d.Networks[i].Highlights {
+					d.Networks[i].Highlights[j].Notes = ""
 				}
 			}
 		}},

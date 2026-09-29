@@ -42,7 +42,7 @@ pub enum Cause {
     ///
     /// `dropped` names what goes, because the remedy is not the same
     /// everywhere: SPEC 6.2's table drops the node, the arc, the segment, the
-    /// area or the chain that owns the position.
+    /// area or the highlight that owns the position.
     PositionUnusable {
         detail: String,
         dropped: &'static str,
@@ -56,20 +56,20 @@ pub enum Cause {
     /// pips carried a time.
     ArcPipTime,
     /// SPEC 3.3.2: an arc whose `from` and `to` name the same node. The arc is
-    /// dropped, and every chain walking it with it.
+    /// dropped, and every highlight walking it with it.
     SelfLoopArc { node: String },
     /// SPEC 3.3.2: an arc naming a node its owner does not have. The arc is
-    /// dropped, and every chain walking it with it.
+    /// dropped, and every highlight walking it with it.
     ArcNodeAbsent { node: String },
     /// SPEC 3.3.3: a pass that is not an object, or that names no arc of its
-    /// owner, including an arc another rule dropped. The chain is dropped.
+    /// owner, including an arc another rule dropped. The highlight is dropped.
     PassArcAbsent { detail: String },
     /// SPEC 3.3.3: a walk that breaks the rule for where `from` and `to`
-    /// appear. The chain is dropped.
+    /// appear. The highlight is dropped.
     WalkSpelling { detail: String },
-    /// SPEC 3.3.3: valid-walk rules 3, 4 and 5. The chain is dropped.
+    /// SPEC 3.3.3: valid-walk rules 3, 4 and 5. The highlight is dropped.
     WalkNotConnected { detail: String },
-    /// SPEC 3.3.3: a pass carrying both `turn` and `pinned`. The chain is
+    /// SPEC 3.3.3: a pass carrying both `turn` and `pinned`. The highlight is
     /// dropped.
     PinnedTurn,
     /// SPEC 3.4: a position, a `turn` or `pinned` in a route's walk. The route
@@ -201,13 +201,13 @@ impl std::fmt::Display for Cause {
                 f,
                 "the node `{node}` is not in this network or route, so the arc is dropped"
             ),
-            Cause::PassArcAbsent { detail } => write!(f, "{detail}; the chain is dropped"),
-            Cause::WalkSpelling { detail } => write!(f, "{detail}; the chain is dropped"),
-            Cause::WalkNotConnected { detail } => write!(f, "{detail}; the chain is dropped"),
+            Cause::PassArcAbsent { detail } => write!(f, "{detail}; the highlight is dropped"),
+            Cause::WalkSpelling { detail } => write!(f, "{detail}; the highlight is dropped"),
+            Cause::WalkNotConnected { detail } => write!(f, "{detail}; the highlight is dropped"),
             Cause::PinnedTurn => write!(
                 f,
                 "a pass with a turn is never pinned, because the turn already fixes it; \
-                 the chain is dropped"
+                 the highlight is dropped"
             ),
             Cause::RoutePinOrPosition { detail } => {
                 write!(f, "{detail}; the route is dropped")

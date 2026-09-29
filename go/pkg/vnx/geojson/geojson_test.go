@@ -73,7 +73,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 
 // A network emits ALL FOUR KINDS: the arcs as one MultiLineString Feature, a
 // Point Feature per in-network waypoint, a Polygon Feature per in-network area,
-// and a LineString Feature per chain — each named (§2.6, redesigned 2026-09-03).
+// and a LineString Feature per highlight — each named (§2.6, redesigned 2026-09-03).
 //
 // ⚠ Network.Points AND Network.Areas EXIST AND ARE POPULATED, and an earlier
 // draft of the spec described arcs only — a writer built literally from it
@@ -83,7 +83,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 // ⚠ AND THEY ARE NOT BARE GEOMETRIES IN A GeometryCollection ANY MORE. That
 // shape kept their coordinates and destroyed their Name and Notes, because a
 // GeometryCollection member has no properties of its own.
-func TestNetworkEmitsArcsPointsAreasAndChains(t *testing.T) {
+func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Net", Notes: "graph",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
@@ -92,13 +92,13 @@ func TestNetworkEmitsArcsPointsAreasAndChains(t *testing.T) {
 		},
 		Points: []vnx.Waypoint{{Name: "hut", At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "bog", Polygon: square()}},
-		Chains: []vnx.Chain{{Name: "Traverse", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "Traverse", Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1"), To: node("n2")},
 		}}},
 	}}})
 
 	if report.Emitted != 4 {
-		t.Errorf("emitted %d, wanted the arcs Feature and one each for the point, the area and the chain", report.Emitted)
+		t.Errorf("emitted %d, wanted the arcs Feature and one each for the point, the area and the highlight", report.Emitted)
 	}
 	if strings.Contains(out, `"GeometryCollection"`) {
 		t.Errorf("the GeometryCollection is back, and with it the loss of every in-network name and note:\n%s", out)
@@ -221,10 +221,10 @@ func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 	}
 }
 
-// ⚠ THE BARE ARCS ARE NOT DROPPED TO AVOID DUPLICATING THE CHAIN'S GEOMETRY.
-// An arc no chain traverses would then vanish silently — the same class of
+// ⚠ THE BARE ARCS ARE NOT DROPPED TO AVOID DUPLICATING THE HIGHLIGHT'S GEOMETRY.
+// An arc no highlight traverses would then vanish silently — the same class of
 // loss §2.6 exists to prevent.
-func TestAnArcNoChainTraversesStillReachesTheFile(t *testing.T) {
+func TestAnArcNoHighlightTraversesStillReachesTheFile(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Net",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
@@ -232,32 +232,32 @@ func TestAnArcNoChainTraversesStillReachesTheFile(t *testing.T) {
 			"walked": {From: "n1", To: "n2"},
 			"lonely": {From: "n1", To: "n2", Pips: vs(pos(5, 5, nil), pos(6, 6, nil))},
 		},
-		Chains: []vnx.Chain{{Name: "c", Walk: []vnx.Pass{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
+		Highlights: []vnx.Highlight{{Name: "c", Walk: []vnx.Pass{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
 	}}})
 	if !strings.Contains(out, `[[0,0],[5,5],[6,6],[1,1]]`) {
 		t.Errorf("the untraversed arc is not in the file:\n%s", out)
 	}
 }
 
-// A chain walks its passes in order, reversing an arc it walks backwards, and
+// A highlight walks its passes in order, reversing an arc it walks backwards, and
 // does not double the position two passes share.
-func TestChainGeometryFollowsItsWalk(t *testing.T) {
+func TestHighlightGeometryFollowsItsWalk(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Net",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil)), "n3": vx(pos(2, 2, nil))},
 		Arcs: map[string]vnx.Arc{
 			"a": {From: "n1", To: "n2", Pips: vs(pos(0.5, 0.5, nil))},
-			// Stored n3 -> n2; the chain walks it the other way.
+			// Stored n3 -> n2; the highlight walks it the other way.
 			"b": {From: "n3", To: "n2", Pips: vs(pos(1.5, 1.5, nil))},
 		},
-		Chains: []vnx.Chain{{Name: "c", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "c", Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1")},
 			{Arc: "b", To: node("n3")},
 		}}},
 	}}})
 	const want = `[[0,0],[0.5,0.5],[1,1],[1.5,1.5],[2,2]]`
 	if !strings.Contains(out, want) {
-		t.Errorf("chain geometry is not the walked line.\nwanted %s in\n%s", want, out)
+		t.Errorf("highlight geometry is not the walked line.\nwanted %s in\n%s", want, out)
 	}
 }
 

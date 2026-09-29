@@ -118,7 +118,7 @@ final class LibraryTests: XCTestCase {
       "tracks":[{"segments":"nope"}],
       "areas":[{"polygon":[[1,2],[3,4]]}],
       "folders":[{"name":"no id"}],
-      "networks":[{"arcs":{"a":{"from":"x","to":"y","pips":[[0,0],[1,1]]}},"chains":[{"walk":[{"arc":"ghost","from":"x","to":"y"}]}]}]
+      "networks":[{"arcs":{"a":{"from":"x","to":"y","pips":[[0,0],[1,1]]}},"highlights":[{"walk":[{"arc":"ghost","from":"x","to":"y"}]}]}]
       """)
     let result = try read(damaged)
     XCTAssertGreaterThan(result.diagnostics.count, 5)
@@ -775,8 +775,10 @@ final class LibraryTests: XCTestCase {
         name: "N", notes: nil, folder: "f", hidden: nil,
         nodes: ["a": Vertex(lon: 0, lat: 0, elevation: 10), "b": Vertex(lon: 1, lat: 1)],
         arcs: ["x": Arc(from: "a", to: "b", pips: [Vertex(lon: 0.5, lat: 0.5, elevation: 12)])],
-        chains: [
-          Chain(walk: [Pass(arc: "x", from: .node("a"), to: .position(LonLat(lon: 0.7, lat: 0.7)))])
+        highlights: [
+          Highlight(walk: [
+            Pass(arc: "x", from: .node("a"), to: .position(LonLat(lon: 0.7, lat: 0.7)))
+          ])
         ],
         points: nil, areas: nil, data: nil)
     ]

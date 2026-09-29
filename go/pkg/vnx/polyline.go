@@ -6,7 +6,7 @@ import (
 )
 
 // Cutting an arc where a walk enters, turns and leaves it. ONE implementation,
-// [WalkLegs], and every writer draws a chain or a route through it.
+// [WalkLegs], and every writer draws a highlight or a route through it.
 //
 // ⚠ A WALK IS NOT A LIST OF WHOLE ARCS. Each of its passes covers one arc from
 // an entry to an exit, perhaps by way of a turn, and an entry or exit is either
@@ -17,7 +17,7 @@ import (
 // ⚠ IT LIVES HERE BECAUSE TWO WRITERS MUST DRAW THE SAME LINE. It used to live
 // in kml only, with geojson carrying a second answer that SNAPPED an inline
 // endpoint to the nearest recorded pip instead of cutting the segment. One
-// library then exported one chain as two different polylines, differing by up
+// library then exported one highlight as two different polylines, differing by up
 // to half a segment at each end — the four-writers drift round.go's header
 // warns about, made real. Following DocumentIsEmpty's discipline (a rule two
 // callers must obey belongs in pkg/vnx), the answer is here and there is only
@@ -111,7 +111,7 @@ func at(pips []Position, c cut) Position {
 }
 
 // between is the piece of pips running from a to b, in that order. When b comes
-// first along the polyline the piece is reversed, which is how a chain walking
+// first along the polyline the piece is reversed, which is how a highlight walking
 // an arc backwards gets drawn the way it is walked.
 func between(pips []Position, a, b cut) []Position {
 	if b.before(a) {

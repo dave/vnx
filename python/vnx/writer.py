@@ -83,7 +83,7 @@ def _networks(items: Union[list[Network], None]) -> Union[list[Network], None]:
         _unhidden(
             replace(
                 network,
-                chains=_unhidden_all(network.chains),
+                highlights=_unhidden_all(network.highlights),
                 points=_unhidden_all(network.points),
                 areas=_unhidden_all(network.areas),
             )

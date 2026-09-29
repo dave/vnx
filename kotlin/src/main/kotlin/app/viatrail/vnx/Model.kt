@@ -131,7 +131,7 @@ data class Network(
     /** Keyed by node identifier, scoped to this network (SPEC.md section 4.4). */
     val nodes: Map<String, Vertex>? = null,
     val arcs: Map<String, Arc>? = null,
-    val chains: List<Chain>? = null,
+    val highlights: List<Highlight>? = null,
     val points: List<Waypoint>? = null,
     val areas: List<Area>? = null,
     val data: List<DataRecord>? = null,
@@ -153,8 +153,8 @@ data class Arc(
     val data: List<DataRecord>? = null,
 )
 
-/** A chain: a walk over arcs its network owns (SPEC.md section 3.3.3). */
-data class Chain(
+/** A highlight: a walk over arcs its network owns (SPEC.md section 3.3.3). */
+data class Highlight(
     val walk: List<Pass>,
     val name: String? = null,
     val notes: String? = null,

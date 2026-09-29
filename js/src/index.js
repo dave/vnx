@@ -7,7 +7,7 @@ export {
   Folder,
   Network,
   Arc,
-  Chain,
+  Highlight,
   Pass,
   Endpoint,
   Route,

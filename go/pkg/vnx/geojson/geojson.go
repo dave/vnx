@@ -262,7 +262,7 @@ func (f *features) routes(d *vnx.Document) {
 
 // networks emits §2.6's shape as redesigned 2026-09-03: ONE MultiLineString
 // Feature holding the network's arcs and carrying the network's own name and
-// notes, then ONE NAMED FEATURE PER in-network point, area and chain.
+// notes, then ONE NAMED FEATURE PER in-network point, area and highlight.
 //
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
 // in-network points and areas had somewhere to go, and the price was their Name,
@@ -287,7 +287,7 @@ func (f *features) routes(d *vnx.Document) {
 // part of it not. Dave ruled the loss acceptable; he did not rule it silent, and
 // a silent drop is the fallback the house rule forbids.
 //
-// ⚠ A CHAIN CANNOT EXIST WITHOUT ARCS — it is a traversal of them — so the
+// ⚠ A HIGHLIGHT CANNOT EXIST WITHOUT ARCS — it is a traversal of them — so the
 // no-arcs case holds points and areas and nothing else.
 //
 // ⚠ A NETWORK HOLDING NOTHING AT ALL IS DROPPED with [vnx.CodeItemNoGeometry]
@@ -301,8 +301,8 @@ func (f *features) routes(d *vnx.Document) {
 // GeoJSON names are not identifiers and folder flattening already collides when
 // two items share a name in one folder. Do NOT "fix" it.
 //
-// ⚠ THE DUPLICATION IS DELIBERATE. A chain's line covers arcs the network Feature
-// also emits. Do NOT "optimise" it by dropping the bare arcs: an arc no chain
+// ⚠ THE DUPLICATION IS DELIBERATE. A highlight's line covers arcs the network Feature
+// also emits. Do NOT "optimise" it by dropping the bare arcs: an arc no highlight
 // traverses would then vanish silently, which is the same class of loss this
 // shape exists to prevent.
 func (f *features) networks(d *vnx.Document) {
@@ -367,7 +367,7 @@ func (f *features) networks(d *vnx.Document) {
 					"network has no arc, so it has no Feature of its own and its notes are not written; "+
 						"its name survives in the names of the points and areas it holds")
 			}
-			// ⚠ THE WALK IS POINTS, AREAS, CHAINS — the order the old shared
+			// ⚠ THE WALK IS POINTS, AREAS, HIGHLIGHTS — the order the old shared
 			// GeometryCollection used, kept so the diagnostics of one document
 			// stay comparable with the runs that came before the redesign. The
 			// spec illustrates a different order in its KML snippet than its
@@ -387,13 +387,13 @@ func (f *features) networks(d *vnx.Document) {
 			}
 		}
 
-		f.chains(d, n, at)
+		f.highlights(d, n, at)
 	}
 }
 
 // inNetworkName is §2.7's join applied inside a network: the network's own
 // flattened name, then the item's. It is the ONE spelling of that join, so the
-// points, areas and chains of a network cannot drift apart on it.
+// points, areas and highlights of a network cannot drift apart on it.
 //
 // An empty base — a network with no name at the root — leaves the item's bare
 // name rather than a leading separator.
@@ -404,8 +404,8 @@ func inNetworkName(base, name string) string {
 	return base + vnx.PathSeparator + name
 }
 
-func (f *features) chains(d *vnx.Document, n *vnx.Network, at string) {
-	// The network's own flattened name prefixes every chain: "Folder /
+func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string) {
+	// The network's own flattened name prefixes every highlight: "Folder /
 	// Cairngorms / Lairig Ghru" (§2.7). The separator is the same one, because
 	// a second spelling of the same join is the drift the shared constant
 	// exists to prevent.
@@ -413,21 +413,21 @@ func (f *features) chains(d *vnx.Document, n *vnx.Network, at string) {
 	if !ok {
 		base = n.Name // already diagnosed by the network's own flatName call
 	}
-	for j := range n.Chains {
-		c := &n.Chains[j]
-		cat := fmt.Sprintf("%s/chains/%d", at, j)
+	for j := range n.Highlights {
+		c := &n.Highlights[j]
+		cat := fmt.Sprintf("%s/highlights/%d", at, j)
 		// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. It cannot come from
-		// a file — the reader drops such a chain — so only a hand-built
+		// a file — the reader drops such a highlight — so only a hand-built
 		// Document reaches here with one, and drawing part of it, or the whole
 		// arc forwards, would put a line on the map nobody walked.
 		line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 		if err != nil {
-			f.fail(fmt.Errorf("geojson: network %q chain %q: %w", n.Name, c.Name, err))
+			f.fail(fmt.Errorf("geojson: network %q highlight %q: %w", n.Name, c.Name, err))
 			return
 		}
 		if len(line) < 2 {
 			f.warn(vnx.CodeItemNoGeometry, cat, []string{c.Name},
-				fmt.Sprintf("chain has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(c.Walk)))
+				fmt.Sprintf("highlight has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(c.Walk)))
 			continue
 		}
 		f.begin(inNetworkName(base, c.Name), c.Notes)

@@ -134,7 +134,7 @@ enum Tree {
 
   private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
     normGraph(&o, opt)
-    normItems(&o, "chains", opt, normChain)
+    normItems(&o, "highlights", opt, normHighlight)
     normItems(&o, "points", opt, normWaypoint)
     normItems(&o, "areas", opt, normArea)
     dropEmptyContainer(&o, "data")
@@ -159,7 +159,7 @@ enum Tree {
       })
   }
 
-  private static func normChain(_ o: inout OpaqueObject, _ opt: Options) {
+  private static func normHighlight(_ o: inout OpaqueObject, _ opt: Options) {
     normWalk(&o, opt)
     dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")

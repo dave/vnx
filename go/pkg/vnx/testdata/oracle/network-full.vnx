@@ -90,7 +90,7 @@
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "node to node",
           "walk": [

@@ -77,11 +77,20 @@ const DOCUMENT_KEYS: &[&str] = &[
 ];
 const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "notes", "hidden", "data"];
 const NETWORK_KEYS: &[&str] = &[
-    "name", "notes", "folder", "hidden", "nodes", "arcs", "chains", "points", "areas", "data",
+    "name",
+    "notes",
+    "folder",
+    "hidden",
+    "nodes",
+    "arcs",
+    "highlights",
+    "points",
+    "areas",
+    "data",
 ];
 /// An arc, in a network or a route.
 const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
-const CHAIN_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
+const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pinned"];
 const ROUTE_KEYS: &[&str] = &[
     "walk", "name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data",
@@ -580,15 +589,17 @@ impl Decoder {
         }
 
         // A walk can only be checked against the arcs that survived, so the
-        // chains are read once the graph is in hand.
-        if let Some(items) = self.opt_array(entries, "chains", path) {
-            let chains_path = path.key("chains");
-            let chains: Vec<Chain> = items
+        // highlights are read once the graph is in hand.
+        if let Some(items) = self.opt_array(entries, "highlights", path) {
+            let highlights_path = path.key("highlights");
+            let highlights: Vec<Highlight> = items
                 .iter()
                 .enumerate()
-                .filter_map(|(i, item)| self.chain(item, &chains_path.index(i), &network.arcs))
+                .filter_map(|(i, item)| {
+                    self.highlight(item, &highlights_path.index(i), &network.arcs)
+                })
                 .collect();
-            network.chains = Some(chains);
+            network.highlights = Some(highlights);
         }
         Some(network)
     }
@@ -625,8 +636,8 @@ impl Decoder {
 
     /// A network's or a route's `arcs`.
     ///
-    /// ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not
-    /// here: the chain goes when its walk is read, under `pass-arc-absent`,
+    /// ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not
+    /// here: the highlight goes when its walk is read, under `pass-arc-absent`,
     /// with a diagnostic of its own (SPEC 6.2).
     fn arcs(
         &mut self,
@@ -690,15 +701,15 @@ impl Decoder {
         })
     }
 
-    fn chain(
+    fn highlight(
         &mut self,
         value: &Json,
         path: &Path,
         arcs: &Option<Vec<(String, Arc)>>,
-    ) -> Option<Chain> {
+    ) -> Option<Highlight> {
         let entries = self.object(value, path)?;
-        self.check_keys(entries, CHAIN_KEYS, path);
-        let chain = Chain {
+        self.check_keys(entries, HIGHLIGHT_KEYS, path);
+        let highlight = Highlight {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             hidden: self.opt_bool(entries, "hidden", path),
@@ -707,18 +718,18 @@ impl Decoder {
             walk: Vec::new(),
         };
         let walk = self.walk(entries, path, arcs, false)?;
-        Some(Chain { walk, ..chain })
+        Some(Highlight { walk, ..highlight })
     }
 
-    /// A chain's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+    /// A highlight's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
     /// `None` drops the owner.
     ///
     /// ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC 6.2). A walk with one pass
     /// removed is a different walk, not a shorter one: two arcs joined that do
     /// not meet, a direction reversed by a lost turn, a start moved to a node.
-    /// So the first fault drops the chain, it alone is reported, and nothing
+    /// So the first fault drops the highlight, it alone is reported, and nothing
     /// after it in the walk is examined. Diagnostics that do not drop the
-    /// chain are recorded as they are met.
+    /// highlight are recorded as they are met.
     fn walk(
         &mut self,
         entries: &[(String, Json)],
@@ -813,7 +824,7 @@ impl Decoder {
                             Some(key),
                             Cause::PositionUnusable {
                                 detail,
-                                dropped: "the chain",
+                                dropped: "the highlight",
                             },
                         )
                     })?;
@@ -842,7 +853,7 @@ impl Decoder {
                         Some(key),
                         Cause::PositionUnusable {
                             detail: format!("expected {expected} but found {}", other.type_name()),
-                            dropped: "the chain",
+                            dropped: "the highlight",
                         },
                     ));
                 }
@@ -873,7 +884,7 @@ impl Decoder {
             nodes,
             arcs,
         };
-        // Where a chain would be dropped, the route is: it IS the chain
+        // Where a highlight would be dropped, the route is: it IS the highlight
         // (SPEC 3.4).
         let walk = self.walk(entries, path, &route.arcs, true)?;
         Some(Route { walk, ..route })
@@ -1490,34 +1501,34 @@ mod tests {
         assert_eq!(reading.document.areas.expect("kept").len(), 1);
     }
 
-    fn network_with(chains: &str) -> String {
+    fn network_with(highlights: &str) -> String {
         format!(
             r#"{{"vnx":"0.2.0","networks":[{{
                  "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10]}},
                  "arcs":{{"ab":{{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                           "cb":{{"from":"c","to":"b","pips":[]}},
                           "cd":{{"from":"c","to":"d","pips":[]}}}},
-                 "chains":{chains}}}]}}"#
+                 "highlights":{highlights}}}]}}"#
         )
     }
 
     fn walk_verdict(walk: &str) -> Vec<(String, &'static str)> {
         let reading = read(&network_with(&format!(r#"[{{"walk":{walk}}}]"#)));
         let kept = reading.document.networks.as_ref().expect("kept")[0]
-            .chains
+            .highlights
             .as_ref()
-            .expect("chains")
+            .expect("highlights")
             .len();
         let found = pairs(&reading);
-        // A walk is used whole or not at all: a fault that drops the chain
-        // leaves no chain, and a clean walk leaves one.
+        // A walk is used whole or not at all: a fault that drops the highlight
+        // leaves no highlight, and a clean walk leaves one.
         let drops = found
             .iter()
             .any(|(_, c)| !matches!(*c, "unknown-key" | "wrong-type-optional" | "extra-channel"));
         assert_eq!(
             kept,
             usize::from(!drops),
-            "{walk} kept {kept} chain(s) with {found:?}"
+            "{walk} kept {kept} highlight(s) with {found:?}"
         );
         found
     }
@@ -1527,7 +1538,7 @@ mod tests {
     #[test]
     fn each_walk_rule_takes_its_own_code_at_its_own_path() {
         let at = |path: &str, code: &'static str| {
-            vec![(format!("/networks/0/chains/0/walk/{path}"), code)]
+            vec![(format!("/networks/0/highlights/0/walk/{path}"), code)]
         };
         let cases: Vec<(&str, Vec<(String, &'static str)>)> = vec![
             // Valid: every form in one walk.
@@ -1544,7 +1555,7 @@ mod tests {
             ),
             (r#"[7]"#, at("0", "pass-arc-absent")),
             (r#"[{"from":"a","to":"b"}]"#, at("0", "pass-arc-absent")),
-            // 2. an unknown key is reported and the chain kept.
+            // 2. an unknown key is reported and the highlight kept.
             (
                 r#"[{"arc":"ab","from":"a","to":"b","via":1}]"#,
                 at("0/via", "unknown-key"),
@@ -1611,19 +1622,19 @@ mod tests {
         }
     }
 
-    /// SPEC 6.2: the first fault drops the chain, and NOTHING after it in the
+    /// SPEC 6.2: the first fault drops the highlight, and NOTHING after it in the
     /// walk is examined, so a second fault further on is not reported.
     #[test]
     fn only_the_first_fault_in_a_walk_is_reported() {
         assert_eq!(
             walk_verdict(r#"[{"arc":"ab","to":"b"},{"arc":"ghost"},{"arc":"cd","turn":"x"}]"#),
-            vec![("/networks/0/chains/0/walk/0".into(), "walk-spelling")]
+            vec![("/networks/0/highlights/0/walk/0".into(), "walk-spelling")]
         );
         // Within one pass, the steps run in order: an absent arc is found
         // before the unknown key on the same pass, and the key is not reported.
         assert_eq!(
             walk_verdict(r#"[{"arc":"ghost","via":1}]"#),
-            vec![("/networks/0/chains/0/walk/0".into(), "pass-arc-absent")]
+            vec![("/networks/0/highlights/0/walk/0".into(), "pass-arc-absent")]
         );
     }
 
@@ -1642,7 +1653,10 @@ mod tests {
             walk_verdict(
                 r#"[{"arc":"ab","from":"a","turn":[-3.595,57.101]},{"arc":"cb","to":"c"}]"#
             ),
-            vec![("/networks/0/chains/0/walk/1".into(), "walk-not-connected")]
+            vec![(
+                "/networks/0/highlights/0/walk/1".into(),
+                "walk-not-connected"
+            )]
         );
     }
 
@@ -1722,16 +1736,16 @@ mod tests {
     }
 
     /// SPEC 3.3.2, 6.2: a self-loop, or an arc naming an absent node, drops
-    /// the ARC now, and each chain walking it goes under `pass-arc-absent`.
+    /// the ARC now, and each highlight walking it goes under `pass-arc-absent`.
     #[test]
-    fn a_dropped_arc_takes_the_chains_that_walk_it() {
+    fn a_dropped_arc_takes_the_highlights_that_walk_it() {
         let reading = read(
             r#"{"vnx":"0.2.0","networks":[{
                  "nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]},
                          "loop":{"from":"a","to":"a","pips":[[-3.6,57.2]]},
                          "gone":{"from":"x","to":"y","pips":[]}},
-                 "chains":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},
+                 "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},
                            {"walk":[{"arc":"loop","from":"a","to":"a"}]},
                            {"walk":[{"arc":"ab","from":"a"},{"arc":"gone","to":"y"}]}]}]}"#,
         );
@@ -1741,16 +1755,16 @@ mod tests {
                 ("/networks/0/arcs/gone/from".into(), "arc-node-absent"),
                 ("/networks/0/arcs/gone/to".into(), "arc-node-absent"),
                 ("/networks/0/arcs/loop".into(), "self-loop-arc"),
-                ("/networks/0/chains/1/walk/0".into(), "pass-arc-absent"),
-                ("/networks/0/chains/2/walk/1".into(), "pass-arc-absent"),
+                ("/networks/0/highlights/1/walk/0".into(), "pass-arc-absent"),
+                ("/networks/0/highlights/2/walk/1".into(), "pass-arc-absent"),
             ]
         );
         let network = &reading.document.networks.expect("kept")[0];
         assert_eq!(network.arcs.as_ref().expect("arcs").len(), 1);
         assert_eq!(
-            network.chains.as_ref().expect("chains").len(),
+            network.highlights.as_ref().expect("highlights").len(),
             1,
-            "only the sound chain stays"
+            "only the sound highlight stays"
         );
     }
 
@@ -1777,11 +1791,14 @@ mod tests {
     #[test]
     fn an_absent_required_key_is_reported_at_the_key() {
         let reading =
-            read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x"}],"networks":[{"chains":[{}]}]}"#);
+            read(r#"{"vnx":"0.2.0","waypoints":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
         assert_eq!(
             pairs(&reading),
             vec![
-                ("/networks/0/chains/0/walk".into(), "wrong-type-required"),
+                (
+                    "/networks/0/highlights/0/walk".into(),
+                    "wrong-type-required"
+                ),
                 ("/waypoints/0/at".into(), "wrong-type-required"),
             ]
         );

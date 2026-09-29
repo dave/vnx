@@ -41,13 +41,13 @@
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "Over it",
           "data": [
             {
               "@type": "org.other.whatever",
-              "on": "a chain"
+              "on": "a highlight"
             }
           ],
           "walk": [

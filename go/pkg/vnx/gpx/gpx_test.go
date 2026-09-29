@@ -230,11 +230,11 @@ func TestAreaRaisesExactlyTheAreaDiagnostic(t *testing.T) {
 func TestNetworkRaisesExactlyTheNetworkDiagnostic(t *testing.T) {
 	arc := vnx.Arc{From: "n1", To: "n2"}
 	d := &vnx.Document{Networks: []vnx.Network{{
-		Name:   "Paths",
-		Nodes:  map[string]vnx.Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
-		Arcs:   map[string]vnx.Arc{"a1": arc},
-		Chains: []vnx.Chain{{Name: "Through Route"}},
-		Points: []vnx.Waypoint{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
+		Name:       "Paths",
+		Nodes:      map[string]vnx.Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
+		Arcs:       map[string]vnx.Arc{"a1": arc},
+		Highlights: []vnx.Highlight{{Name: "Through Route"}},
+		Points:     []vnx.Waypoint{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
 	}}}
 	out, rep := write(t, d)
 	wantCodes(t, rep, vnx.CodeGPXNetworkUnsupported)

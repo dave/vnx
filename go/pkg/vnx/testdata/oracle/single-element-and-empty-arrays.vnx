@@ -77,13 +77,13 @@
   ],
   "networks": [
     {
-      "name": "chains without passes",
+      "name": "highlights without passes",
       "nodes": {
         "node-1": [1, 2]
       },
-      "chains": [
+      "highlights": [
         {
-          "name": "empty chain",
+          "name": "empty highlight",
           "walk": []
         }
       ]

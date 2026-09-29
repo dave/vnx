@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "A longitude or latitude outside its range, in every place a position appears (SPEC 4.1, 6.2). Longitude runs from -180 to 180 and latitude from -90 to 90, both bounds included, and a position outside either will not parse. Each takes the remedy SPEC 6.2 gives a position that will not parse in that place: a waypoint and a network point are dropped, a ring vertex drops its area, a segment pip drops its segment, an arc pip drops its arc, a node is dropped and the arc naming it goes with it, and a `turn` drops its chain. Every value is just past its bound, and the second waypoint sits exactly on the pole and survives, so a reader with an exclusive bound, or with the latitude range applied to longitude, fails. `counts` pins what survives of each container, and `positions` pins that the survivors are the valid ones.",
+  "note": "A longitude or latitude outside its range, in every place a position appears (SPEC 4.1, 6.2). Longitude runs from -180 to 180 and latitude from -90 to 90, both bounds included, and a position outside either will not parse. Each takes the remedy SPEC 6.2 gives a position that will not parse in that place: a waypoint and a network point are dropped, a ring vertex drops its area, a segment pip drops its segment, an arc pip drops its arc, a node is dropped and the arc naming it goes with it, and a `turn` drops its highlight. Every value is just past its bound, and the second waypoint sits exactly on the pole and survives, so a reader with an exclusive bound, or with the latitude range applied to longitude, fails. `counts` pins what survives of each container, and `positions` pins that the survivors are the valid ones.",
   "counts": {
     "waypoints": 1,
     "areas": 1,
@@ -13,8 +13,8 @@
     "/networks/0/nodes": 3,
     "/networks/0/arcs": 1,
     "/networks/0/arcs/ab/pips": 1,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/points": 0
   },
   "positions": [
@@ -34,7 +34,7 @@
       "lat": 57.02
     },
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
@@ -71,9 +71,9 @@
       "message_advisory": "the arc names node x, which is not here — the arc is dropped"
     },
     {
-      "path": "/networks/0/chains/1/walk/0/turn",
+      "path": "/networks/0/highlights/1/walk/0/turn",
       "code": "position-unusable",
-      "message_advisory": "latitude -90.001 is off the globe — the chain is dropped"
+      "message_advisory": "latitude -90.001 is off the globe — the highlight is dropped"
     },
     {
       "path": "/networks/0/points/0/at",

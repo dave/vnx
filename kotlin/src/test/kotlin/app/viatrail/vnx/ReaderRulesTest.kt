@@ -195,26 +195,26 @@ class ReaderRulesTest {
     @Test
     fun `a node that will not parse is dropped, and the arc naming it goes after it`() {
         // Section 6.2's cascade: the node goes under position-unusable, the arc
-        // under arc-node-absent, and the chain under pass-arc-absent. Three
+        // under arc-node-absent, and the highlight under pass-arc-absent. Three
         // facts, three diagnostics.
         val r =
             read(
                 """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":"somewhere"},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
-               "chains":[{"walk":[{"arc":"ab","from":"a","to":"b"}]}]}]}""",
+               "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]}]}]}""",
             )
         assertEquals(
             setOf(
                 "/networks/0/nodes/b" to "position-unusable",
                 "/networks/0/arcs/ab/to" to "arc-node-absent",
-                "/networks/0/chains/0/walk/0" to "pass-arc-absent",
+                "/networks/0/highlights/0/walk/0" to "pass-arc-absent",
             ),
             r.diagnostics.map { it.path to it.code }.toSet(),
         )
         assertEquals(
             0,
             r.document.networks!![0]
-                .chains!!
+                .highlights!!
                 .size,
         )
     }
@@ -301,20 +301,20 @@ class ReaderRulesTest {
 
     /**
      * A network of four nodes in a row, a to d, and three arcs: `ab` runs a to b,
-     * `cb` runs c to b, and `cd` runs c to d. [chains] is the network's `chains`.
+     * `cb` runs c to b, and `cd` runs c to d. [highlights] is the network's `highlights`.
      */
-    private fun network(chains: String) =
+    private fun network(highlights: String) =
         """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1],"d":[-3.57,57.1]},
            "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]},"cb":{"from":"c","to":"b","pips":[]},
                    "cd":{"from":"c","to":"d","pips":[[-3.575,57.102]]}},
-           "chains":$chains}]}"""
+           "highlights":$highlights}]}"""
 
     private fun walkOf(passes: String) = read(network("""[{"walk":$passes}]"""))
 
     private fun ReadResult.pairs() = diagnostics.map { it.path to it.code }
 
     @Test
-    fun `a pass naming an absent arc drops the chain, and nothing after it is examined`() {
+    fun `a pass naming an absent arc drops the highlight, and nothing after it is examined`() {
         // Section 6.2: a walk is used whole or not at all, and only its first
         // problem is reported. Pass 2 breaks the spelling rule as well and is not
         // reported.
@@ -322,38 +322,38 @@ class ReaderRulesTest {
         assertEquals(
             0,
             r.document.networks!![0]
-                .chains!!
+                .highlights!!
                 .size,
         )
-        assertEquals(listOf("/networks/0/chains/0/walk/1" to "pass-arc-absent"), r.pairs())
+        assertEquals(listOf("/networks/0/highlights/0/walk/1" to "pass-arc-absent"), r.pairs())
     }
 
     @Test
     fun `a pass that is not an object, or names no arc, is an absent arc`() {
         for (pass in listOf("7", "{}", """{"arc":7}""")) {
             val r = walkOf("""[$pass]""")
-            assertEquals(listOf("/networks/0/chains/0/walk/0" to "pass-arc-absent"), r.pairs(), pass)
+            assertEquals(listOf("/networks/0/highlights/0/walk/0" to "pass-arc-absent"), r.pairs(), pass)
         }
     }
 
     @Test
-    fun `a chain walking a dropped arc is dropped with a diagnostic of its own`() {
-        // The arc going and the chain going are two facts (section 6.2).
+    fun `a highlight walking a dropped arc is dropped with a diagnostic of its own`() {
+        // The arc going and the highlight going are two facts (section 6.2).
         val r =
             read(
                 """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]},"bb":{"from":"b","to":"b","pips":[]}},
-               "chains":[{"name":"Keep","walk":[{"arc":"ab","from":"a","to":"b"}]},
+               "highlights":[{"name":"Keep","walk":[{"arc":"ab","from":"a","to":"b"}]},
                          {"name":"Loses its arc","walk":[{"arc":"ab","from":"a"},{"arc":"bb","to":"b"}]}]}]}""",
             )
         assertEquals(
             listOf("Keep"),
             r.document.networks!![0]
-                .chains!!
+                .highlights!!
                 .map { it.name },
         )
         assertEquals(
-            setOf("/networks/0/arcs/bb" to "self-loop-arc", "/networks/0/chains/1/walk/1" to "pass-arc-absent"),
+            setOf("/networks/0/arcs/bb" to "self-loop-arc", "/networks/0/highlights/1/walk/1" to "pass-arc-absent"),
             r.pairs().toSet(),
         )
     }
@@ -364,13 +364,13 @@ class ReaderRulesTest {
         // the pass; a key the rule forbids names that key.
         val cases =
             listOf(
-                """[{"arc":"ab","to":"b"}]""" to "/networks/0/chains/0/walk/0",
-                """[{"arc":"ab","from":"a"}]""" to "/networks/0/chains/0/walk/0",
-                """[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/1/from",
-                """[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0/to",
-                """[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]""" to "/networks/0/chains/0/walk/0",
+                """[{"arc":"ab","to":"b"}]""" to "/networks/0/highlights/0/walk/0",
+                """[{"arc":"ab","from":"a"}]""" to "/networks/0/highlights/0/walk/0",
+                """[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/highlights/0/walk/1/from",
+                """[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]""" to "/networks/0/highlights/0/walk/0/to",
+                """[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]""" to "/networks/0/highlights/0/walk/0",
                 // Both keys wrong: `from` is checked first, so only the pass is named.
-                """[{"arc":"ab"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/chains/0/walk/0",
+                """[{"arc":"ab"},{"arc":"cb","from":"b","to":"c"}]""" to "/networks/0/highlights/0/walk/0",
             )
         for ((passes, path) in cases) {
             val r = walkOf(passes)
@@ -378,7 +378,7 @@ class ReaderRulesTest {
             assertEquals(
                 0,
                 r.document.networks!![0]
-                    .chains!!
+                    .highlights!!
                     .size,
                 passes,
             )
@@ -390,14 +390,14 @@ class ReaderRulesTest {
         val cases =
             listOf(
                 // A `from` node that is not an end of its arc.
-                """[{"arc":"ab","from":"c","to":"b"}]""" to "/networks/0/chains/0/walk/0/from",
+                """[{"arc":"ab","from":"c","to":"b"}]""" to "/networks/0/highlights/0/walk/0/from",
                 // A pass that does not touch the node the previous one left at.
-                """[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]""" to "/networks/0/chains/0/walk/1",
+                """[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]""" to "/networks/0/highlights/0/walk/1",
                 // A `to` node that is not an end of its arc.
-                """[{"arc":"ab","from":"a","to":"d"}]""" to "/networks/0/chains/0/walk/0/to",
+                """[{"arc":"ab","from":"a","to":"d"}]""" to "/networks/0/highlights/0/walk/0/to",
                 // A `to` position on a pass other than the last.
                 """[{"arc":"ab","from":[-3.597,57.1005],"to":[-3.596,57.1006]},{"arc":"cb","to":"c"}]""" to
-                    "/networks/0/chains/0/walk/0/to",
+                    "/networks/0/highlights/0/walk/0/to",
             )
         for ((passes, path) in cases) {
             val r = walkOf(passes)
@@ -412,15 +412,15 @@ class ReaderRulesTest {
         val turn = """{"arc":"ab","from":"b","turn":[-3.596,57.1005]}"""
         assertEquals(emptyList(), walkOf("""[$turn,{"arc":"cb","to":"c"}]""").diagnostics)
         assertEquals(
-            listOf("/networks/0/chains/0/walk/1" to "walk-not-connected"),
+            listOf("/networks/0/highlights/0/walk/1" to "walk-not-connected"),
             walkOf("""[$turn,{"arc":"cd","to":"d"}]""").pairs(),
         )
     }
 
     @Test
-    fun `a pass carrying both turn and pinned drops the chain, at the pass`() {
+    fun `a pass carrying both turn and pinned drops the highlight, at the pass`() {
         val r = walkOf("""[{"arc":"cd","from":"c","turn":[-3.574,57.102],"pinned":true,"to":"c"}]""")
-        assertEquals(listOf("/networks/0/chains/0/walk/0" to "pinned-turn"), r.pairs())
+        assertEquals(listOf("/networks/0/highlights/0/walk/0" to "pinned-turn"), r.pairs())
     }
 
     @Test
@@ -429,80 +429,80 @@ class ReaderRulesTest {
         assertEquals(emptyList(), clean.diagnostics)
         assertFalse(
             clean.document.networks!![0]
-                .chains!![0]
+                .highlights!![0]
                 .walk[0]
                 .pinned,
         )
 
         val typed = walkOf("""[{"arc":"ab","from":"a","pinned":"yes"},{"arc":"cb","to":"c"}]""")
-        assertEquals(listOf("/networks/0/chains/0/walk/0/pinned" to "wrong-type-optional"), typed.pairs())
+        assertEquals(listOf("/networks/0/highlights/0/walk/0/pinned" to "wrong-type-optional"), typed.pairs())
         assertEquals(
             2,
             typed.document.networks!![0]
-                .chains!![0]
+                .highlights!![0]
                 .walk.size,
-            "the chain is kept",
+            "the highlight is kept",
         )
     }
 
     @Test
-    fun `a walk position that will not parse drops the chain, at the key`() {
+    fun `a walk position that will not parse drops the highlight, at the key`() {
         for ((pass, key) in listOf(
             """{"arc":"cd","from":"c","turn":"d","to":"c"}""" to "turn",
             """{"arc":"cd","from":7,"to":"d"}""" to "from",
             """{"arc":"cd","from":"c","to":[-3.57]}""" to "to",
         )) {
             val r = walkOf("[$pass]")
-            assertEquals(listOf("/networks/0/chains/0/walk/0/$key" to "position-unusable"), r.pairs(), pass)
+            assertEquals(listOf("/networks/0/highlights/0/walk/0/$key" to "position-unusable"), r.pairs(), pass)
         }
     }
 
     @Test
-    fun `an elevation or a time on a walk position is dropped and the chain kept`() {
+    fun `an elevation or a time on a walk position is dropped and the highlight kept`() {
         val r = walkOf("""[{"arc":"ab","from":[-3.597,57.1005,400],"to":[-3.596,57.1006,null,1000]}]""")
         val pass =
             r.document.networks!![0]
-                .chains!![0]
+                .highlights!![0]
                 .walk[0]
         assertEquals(Endpoint.At(LonLat(-3.597, 57.1005)), pass.from)
         assertEquals(Endpoint.At(LonLat(-3.596, 57.1006)), pass.to)
         assertEquals(
-            setOf("/networks/0/chains/0/walk/0/from" to "extra-channel", "/networks/0/chains/0/walk/0/to" to "extra-channel"),
+            setOf("/networks/0/highlights/0/walk/0/from" to "extra-channel", "/networks/0/highlights/0/walk/0/to" to "extra-channel"),
             r.pairs().toSet(),
         )
     }
 
     @Test
     fun `what a pass reports before its fault is kept, and what comes after is not`() {
-        // Section 6.2: diagnostics that do not drop the chain are recorded as they
+        // Section 6.2: diagnostics that do not drop the highlight are recorded as they
         // are met, and nothing after the first fault is examined.
         val r = walkOf("""[{"arc":"ab","from":"a","x":1},{"arc":"cd","y":2},{"arc":"cb","z":3,"to":"c"}]""")
         assertEquals(
             listOf(
-                "/networks/0/chains/0/walk/0/x" to "unknown-key",
-                "/networks/0/chains/0/walk/1/y" to "unknown-key",
-                "/networks/0/chains/0/walk/1" to "walk-not-connected",
+                "/networks/0/highlights/0/walk/0/x" to "unknown-key",
+                "/networks/0/highlights/0/walk/1/y" to "unknown-key",
+                "/networks/0/highlights/0/walk/1" to "walk-not-connected",
             ),
             r.pairs(),
         )
     }
 
     @Test
-    fun `an empty walk is valid, and a missing one drops the chain`() {
+    fun `an empty walk is valid, and a missing one drops the highlight`() {
         assertEquals(emptyList(), walkOf("[]").diagnostics)
         assertEquals(
             1,
             walkOf("[]")
                 .document.networks!![0]
-                .chains!!
+                .highlights!!
                 .size,
         )
         val r = read(network("""[{"name":"no walk"}]"""))
-        assertEquals(listOf("/networks/0/chains/0/walk" to "wrong-type-required"), r.pairs())
+        assertEquals(listOf("/networks/0/highlights/0/walk" to "wrong-type-required"), r.pairs())
         assertEquals(
             0,
             r.document.networks!![0]
-                .chains!!
+                .highlights!!
                 .size,
         )
     }
@@ -530,7 +530,7 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `a route is its own chain, so a route walking a dropped arc is dropped`() {
+    fun `a route is its own highlight, so a route walking a dropped arc is dropped`() {
         val r =
             read(
                 """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57]},
@@ -738,12 +738,12 @@ class ReaderRulesTest {
                 """{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
                "arcs":{"broken":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
                        "sound":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}},
-               "chains":[{"walk":[{"arc":"broken","from":"n1","to":"n2"}]}]}]}""",
+               "highlights":[{"walk":[{"arc":"broken","from":"n1","to":"n2"}]}]}]}""",
             )
         val network = r.document.networks!![0]
         assertEquals(listOf("sound"), network.arcs!!.keys.toList(), "the whole arc goes, and only it")
         // The cascade is what proves the arc left rather than the pip: the pass
-        // now names an arc that is not there, and the chain goes with it.
+        // now names an arc that is not there, and the highlight goes with it.
         assertEquals(
             listOf("position-unusable", "pass-arc-absent"),
             r.diagnostics.map { it.code },

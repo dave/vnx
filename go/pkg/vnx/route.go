@@ -50,7 +50,7 @@ func decodeRoutes(arr []any, path string, diags []Diagnostic) ([]Route, []Diagno
 		r.Arcs, diags = decodeArcs(obj["arcs"], at+"/arcs", r.Nodes, diags)
 		r.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, routeKeys, diags)
-		// Where a chain would be dropped, the route is: it IS the chain.
+		// Where a highlight would be dropped, the route is: it IS the highlight.
 		var walkOK bool
 		r.Walk, walkOK, diags = decodeWalk(obj, at, r.Arcs, true, diags)
 		if !walkOK {

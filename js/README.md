@@ -36,7 +36,7 @@ try {
 
 const { document, diagnostics } = reading;
 for (const network of document.networks ?? []) {
-  for (const chain of network.chains ?? []) console.log('chain', chain.name);
+  for (const highlight of network.highlights ?? []) console.log('highlight', highlight.name);
 }
 for (const d of diagnostics) console.log(d.code, d.path, d.message);
 
@@ -80,7 +80,7 @@ a key with no full stop or a key listed twice. `encode` also throws on
 `undefined`, a function, a symbol, a bigint or a non-finite number anywhere in
 the document, where `JSON.stringify` would drop the value or write `null`.
 
-A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `chains`,
+A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `highlights`,
 `points` and `areas`. A `Route` carries its own `nodes`, `arcs` and one `walk`.
 A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pinned`) over the
 arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
@@ -115,9 +115,9 @@ consequences for a caller:
   array; `lon`, `lat`, `ele` and `time` are the channels. A node and an arc pip
   keep only `lon`, `lat` and `ele`, and a walk position only `lon` and `lat`:
   the reader drops any other channel with a diagnostic.
-- A walk is used whole or not at all. Any problem in a walk drops its chain, or
+- A walk is used whole or not at all. Any problem in a walk drops its highlight, or
   its route, and the diagnostic names the pass and the rule. A dropped arc drops
-  every chain that walks it, with a diagnostic of its own.
+  every highlight that walks it, with a diagnostic of its own.
 - `Track#movingTimeMs()` returns `null` for unknown. Unknown is not zero.
 - Opaque values come back whole. Data record bodies, `style` objects and
   application-key values are the parsed JSON value, and nothing inspects them.

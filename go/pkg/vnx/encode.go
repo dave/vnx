@@ -102,7 +102,7 @@ type wirePass struct {
 	Pinned bool         `json:"pinned,omitempty"`
 }
 
-type wireChain struct {
+type wireHighlight struct {
 	Name   string     `json:"name,omitempty"`
 	Notes  string     `json:"notes,omitempty"`
 	Hidden bool       `json:"hidden,omitempty"`
@@ -261,21 +261,21 @@ func routeWire(r Route) (wireRoute, error) {
 	return out, nil
 }
 
-// chainWire builds a chain of n. The walk is checked against n's arcs first:
+// highlightWire builds a highlight of n. The walk is checked against n's arcs first:
 // a writer never emits a walk its own reader would drop.
-func chainWire(n Network, c Chain) (wireChain, error) {
+func highlightWire(n Network, c Highlight) (wireHighlight, error) {
 	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
-		return wireChain{}, fmt.Errorf("chain %q: %w", c.Name, err)
+		return wireHighlight{}, fmt.Errorf("highlight %q: %w", c.Name, err)
 	}
-	out := wireChain{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Style: c.Style}
+	out := wireHighlight{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Style: c.Style}
 	walk, err := walkWire(c.Walk)
 	if err != nil {
-		return wireChain{}, err
+		return wireHighlight{}, err
 	}
 	out.Walk = walk
 	data, err := dataBodies(c.Data)
 	if err != nil {
-		return wireChain{}, err
+		return wireHighlight{}, err
 	}
 	out.Data = data
 	return out, nil

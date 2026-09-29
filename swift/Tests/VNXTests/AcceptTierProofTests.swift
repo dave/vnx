@@ -33,8 +33,8 @@ final class AcceptTierProofTests: XCTestCase {
             for key in d.networks?[i].arcs?.keys ?? [:].keys {
               d.networks?[i].arcs?[key]?.data = nil
             }
-            for j in d.networks?[i].chains?.indices ?? (0..<0) {
-              d.networks?[i].chains?[j].data = nil
+            for j in d.networks?[i].highlights?.indices ?? (0..<0) {
+              d.networks?[i].highlights?[j].data = nil
             }
             for j in d.networks?[i].points?.indices ?? (0..<0) {
               d.networks?[i].points?[j].data = nil
@@ -47,8 +47,8 @@ final class AcceptTierProofTests: XCTestCase {
         "drops every style",
         { d in
           for i in d.networks?.indices ?? (0..<0) {
-            for j in d.networks?[i].chains?.indices ?? (0..<0) {
-              d.networks?[i].chains?[j].style = nil
+            for j in d.networks?[i].highlights?.indices ?? (0..<0) {
+              d.networks?[i].highlights?[j].style = nil
             }
           }
           for i in d.waypoints?.indices ?? (0..<0) { d.waypoints?[i].style = nil }
@@ -59,8 +59,8 @@ final class AcceptTierProofTests: XCTestCase {
         { d in
           for i in d.networks?.indices ?? (0..<0) {
             d.networks?[i].notes = nil
-            for j in d.networks?[i].chains?.indices ?? (0..<0) {
-              d.networks?[i].chains?[j].notes = nil
+            for j in d.networks?[i].highlights?.indices ?? (0..<0) {
+              d.networks?[i].highlights?[j].notes = nil
             }
           }
         }

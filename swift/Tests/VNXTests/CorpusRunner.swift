@@ -286,14 +286,14 @@ extension Document {
       switch tokens.first {
       case "nodes", "arcs":
         return graphPosition(nodes: network.nodes, arcs: network.arcs, next: next, index: index)
-      case "chains":
+      case "highlights":
         _ = next()
         // Only a POSITION in a walk is a position. A node key is a
         // reference, and is addressed at the node.
-        guard let c = index(), let chains = network.chains, chains.indices.contains(c),
-          next() == "walk", let k = index(), chains[c].walk.indices.contains(k)
+        guard let c = index(), let highlights = network.highlights, highlights.indices.contains(c),
+          next() == "walk", let k = index(), highlights[c].walk.indices.contains(k)
         else { return nil }
-        let pass = chains[c].walk[k]
+        let pass = highlights[c].walk[k]
         switch next() {
         case "from": if case .position(let p)? = pass.from { return p.position }
         case "to": if case .position(let p)? = pass.to { return p.position }
@@ -362,7 +362,7 @@ extension Document {
   ///
   /// It exists because `counts` counted only the top-level collections.
   /// A reader that dropped every route's arcs, truncated an arc's pips, or
-  /// lost a pass of a chain's walk changed nothing a sidecar could see: the document
+  /// lost a pass of a highlight's walk changed nothing a sidecar could see: the document
   /// still carried one route, one network, one track. That matters most in
   /// the DIAGNOSE tier, which SPEC 8.1 exempts from the round-trip — exactly
   /// the tier where a reader is meant to drop something in a SCOPED way, and
@@ -393,9 +393,9 @@ extension Document {
       for (key, arc) in network.arcs ?? [:] {
         out["/networks/\(i)/arcs/\(key)/pips"] = arc.pips.count
       }
-      out["/networks/\(i)/chains"] = network.chains?.count ?? 0
-      for (j, chain) in (network.chains ?? []).enumerated() {
-        out["/networks/\(i)/chains/\(j)/walk"] = chain.walk.count
+      out["/networks/\(i)/highlights"] = network.highlights?.count ?? 0
+      for (j, highlight) in (network.highlights ?? []).enumerated() {
+        out["/networks/\(i)/highlights/\(j)/walk"] = highlight.walk.count
       }
       out["/networks/\(i)/points"] = network.points?.count ?? 0
       out["/networks/\(i)/areas"] = network.areas?.count ?? 0

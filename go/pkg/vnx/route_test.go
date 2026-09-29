@@ -71,7 +71,7 @@ func TestARouteDrawsAReversedArcTheWayItIsWalked(t *testing.T) {
 	}
 }
 
-// A route is its own chain: where a chain would be dropped, the route is. Its
+// A route is its own highlight: where a highlight would be dropped, the route is. Its
 // walk runs node to node, so a position, a turn or a pin drops it too.
 func TestEachRouteRemedy(t *testing.T) {
 	route := func(walk string) string {

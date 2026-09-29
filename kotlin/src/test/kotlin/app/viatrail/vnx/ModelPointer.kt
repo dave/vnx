@@ -66,13 +66,13 @@ object ModelPointer {
                 when (token) {
                     "nodes" -> value.nodes
                     "arcs" -> value.arcs
-                    "chains" -> value.chains
+                    "highlights" -> value.highlights
                     "points" -> value.points
                     "areas" -> value.areas
                     else -> null
                 }
             is Arc -> if (token == "pips") value.pips else null
-            is Chain -> if (token == "walk") value.walk else null
+            is Highlight -> if (token == "walk") value.walk else null
             // Only a POSITION in a walk is a position. A node key is a
             // reference, and is addressed at the node.
             is Pass ->

@@ -289,8 +289,8 @@ final class DocumentDecoder {
     route.hidden = optionalBool(o, "hidden", at: path)
     route.style = style(o, at: path)
     route.data = dataRecords(o, at: path)
-    // SPEC 3.4: where a chain would be dropped, the route is. It IS the
-    // chain.
+    // SPEC 3.4: where a highlight would be dropped, the route is. It IS the
+    // highlight.
     guard let walk = decodeWalk(o, at: path, arcs: route.arcs ?? [:], route: true) else {
       return nil
     }
@@ -346,10 +346,10 @@ final class DocumentDecoder {
     network.hidden = optionalBool(o, "hidden", at: path)
     network.data = dataRecords(o, at: path)
 
-    // Nodes, then arcs, then chains: an arc is checked against the nodes
+    // Nodes, then arcs, then highlights: an arc is checked against the nodes
     // that survived, and a walk against the arcs that survived. That order
     // is the whole cascade of SPEC 6.2 — a dropped node drops each arc
-    // naming it, and a dropped arc drops each chain walking it, each with
+    // naming it, and a dropped arc drops each highlight walking it, each with
     // its own diagnostic.
     network.nodes = decodeNodes(o, at: path)
     network.arcs = decodeArcs(o, at: path, nodes: network.nodes ?? [:])
@@ -359,8 +359,8 @@ final class DocumentDecoder {
     network.areas = optionalItems(o, "areas", at: path) { v, p in
       self.decodeArea(v, at: p, shape: Keys.networkArea, allowsFolder: false)
     }
-    network.chains = optionalItems(o, "chains", at: path) { v, p in
-      self.decodeChain(v, at: p, arcs: network.arcs ?? [:])
+    network.highlights = optionalItems(o, "highlights", at: path) { v, p in
+      self.decodeHighlight(v, at: p, arcs: network.arcs ?? [:])
     }
     return network
   }
@@ -449,21 +449,23 @@ final class DocumentDecoder {
     return arcs
   }
 
-  private func decodeChain(_ value: JSONValue, at path: String, arcs: [JSONKey: Arc]) -> Chain? {
-    guard let o = object(value, at: path, what: "a chain") else { return nil }
-    report(unknownKeysIn: o, against: Keys.chain, at: path)
-    var chain = Chain(walk: [])
-    chain.name = optionalString(o, "name", at: path)
-    chain.notes = optionalString(o, "notes", at: path)
-    chain.hidden = optionalBool(o, "hidden", at: path)
-    chain.style = style(o, at: path)
-    chain.data = dataRecords(o, at: path)
+  private func decodeHighlight(_ value: JSONValue, at path: String, arcs: [JSONKey: Arc])
+    -> Highlight?
+  {
+    guard let o = object(value, at: path, what: "a highlight") else { return nil }
+    report(unknownKeysIn: o, against: Keys.highlight, at: path)
+    var highlight = Highlight(walk: [])
+    highlight.name = optionalString(o, "name", at: path)
+    highlight.notes = optionalString(o, "notes", at: path)
+    highlight.hidden = optionalBool(o, "hidden", at: path)
+    highlight.style = style(o, at: path)
+    highlight.data = dataRecords(o, at: path)
     guard let walk = decodeWalk(o, at: path, arcs: arcs, route: false) else { return nil }
-    chain.walk = walk
-    return chain
+    highlight.walk = walk
+    return highlight
   }
 
-  /// Reads a chain's or a route's REQUIRED `walk`, and checks it in SPEC
+  /// Reads a highlight's or a route's REQUIRED `walk`, and checks it in SPEC
   /// 6.2's order. Nil means the owner is dropped: a missing or wrong-typed
   /// `walk`, or the first pass that breaks a rule, which is reported alone —
   /// nothing after it in the walk is examined.
@@ -477,7 +479,7 @@ final class DocumentDecoder {
     _ o: [JSONKey: JSONValue], at owner: String, arcs: [JSONKey: Arc], route: Bool
   ) -> [Pass]? {
     let walkPath = pointer(owner, "walk")
-    let ownerName = route ? "route" : "chain"
+    let ownerName = route ? "route" : "highlight"
     guard let raw = o["walk"] else {
       diagnose(
         .wrongTypeRequired, at: walkPath,
@@ -841,7 +843,7 @@ final class DocumentDecoder {
     // SPEC 6.2: ONE UNUSABLE PIP DROPS THE CONTAINER, not the pip. Geometry
     // is continuous and structure is not — a missing vertex leaves a
     // shorter, plausible, wrong line with nothing to indicate it, while a
-    // missing arc is seen by every chain that walks it, and a missing
+    // missing arc is seen by every highlight that walks it, and a missing
     // segment is a pause (SPEC 3.5).
     var out: [Position] = []
     for (i, v) in array.enumerated() {

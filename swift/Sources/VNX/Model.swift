@@ -176,9 +176,9 @@ public struct Pass: Equatable, Sendable {
   }
 }
 
-/// A walk over arcs its network owns (SPEC 3.3.3). The chain does not own the
-/// arcs: two chains over one trail name the same arc.
-public struct Chain: Equatable, Sendable {
+/// A walk over arcs its network owns (SPEC 3.3.3). The highlight does not own the
+/// arcs: two highlights over one trail name the same arc.
+public struct Highlight: Equatable, Sendable {
   public var walk: [Pass]
   public var name: String?
   public var notes: String?
@@ -194,7 +194,7 @@ public struct Network: Equatable, Sendable {
   public var hidden: Bool?
   public var nodes: [JSONKey: Vertex]?
   public var arcs: [JSONKey: Arc]?
-  public var chains: [Chain]?
+  public var highlights: [Highlight]?
   public var points: [Waypoint]?
   public var areas: [Area]?
   public var data: [DataRecord]?
@@ -217,7 +217,7 @@ public struct Route: Equatable, Sendable {
 
 // In extensions, so that the memberwise initialisers stay available to this
 // module's tests.
-extension Chain {
+extension Highlight {
   public init(walk: [Pass]) {
     self.init(walk: walk, name: nil)
   }

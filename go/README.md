@@ -73,7 +73,7 @@ func main() {
 | Command | Flags | What it does |
 |---|---|---|
 | `vnx validate <file>` | `--json` | Reads the file and prints its diagnostics. |
-| `vnx outline <file>` | `--json` | Prints the document's structure: names, folder count, and per-network node, arc, chain, point and area counts. No coordinates. |
+| `vnx outline <file>` | `--json` | Prints the document's structure: names, folder count, and per-network node, arc, highlight, point and area counts. No coordinates. |
 | `vnx convert <file>` | `--to gpx\|kml\|geojson`, `--out <file>` | Writes the document as GPX, KML or GeoJSON. |
 
 Every command takes one file, and reads either a `.vnx` document or a `.vnz`
@@ -100,7 +100,7 @@ vnx validate --json corpus/diagnose/walk-not-connected.vnx
   "diagnostics": [
     {
       "code": "walk-not-connected",
-      "path": "/networks/0/chains/1/walk/1",
+      "path": "/networks/0/highlights/1/walk/1",
       "message": "the walk is at node \"b\", which is not an end of arc \"cd\" — dropped"
     }
   ]

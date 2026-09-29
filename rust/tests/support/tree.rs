@@ -113,7 +113,7 @@ fn arc(o: &mut Entries, emit: EmitBoundary) {
 
 fn network(o: &mut Entries, emit: EmitBoundary) {
     graph(o, emit);
-    items(o, "chains", emit, chain);
+    items(o, "highlights", emit, highlight);
     items(o, "points", emit, waypoint);
     items(o, "areas", emit, area);
     drop_empty(o, "data");
@@ -150,7 +150,7 @@ fn graph(o: &mut Entries, emit: EmitBoundary) {
     drop_empty(o, "arcs");
 }
 
-fn chain(o: &mut Entries, emit: EmitBoundary) {
+fn highlight(o: &mut Entries, emit: EmitBoundary) {
     walk(o, emit);
     drop_empty(o, "style");
     drop_empty(o, "data");

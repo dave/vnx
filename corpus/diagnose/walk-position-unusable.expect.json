@@ -1,28 +1,28 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "A `turn` that is not a position (SPEC 3.3.3, 6.2). A turn is a position on the arc and never a node key, so `\"d\"` cannot be read. The chain is dropped rather than the turn: without its turn this pass would run from c to d instead of out and back to c, which reverses everything after it, and that is a different walk that reads as valid. The diagnostic names the `turn` key and uses the one code every unparsable position takes.",
+  "note": "A `turn` that is not a position (SPEC 3.3.3, 6.2). A turn is a position on the arc and never a node key, so `\"d\"` cannot be read. The highlight is dropped rather than the turn: without its turn this pass would run from c to d instead of out and back to c, which reverses everything after it, and that is a different walk that reads as valid. The diagnostic names the `turn` key and uses the one code every unparsable position takes.",
   "counts": {
     "networks": 1,
-    "/networks/0/chains": 1,
+    "/networks/0/highlights": 1,
     "/networks/0/arcs": 3,
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cd/pips": 2,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/nodes": 4
   },
   "positions": [
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
   ],
   "diagnostics": [
     {
-      "path": "/networks/0/chains/1/walk/0/turn",
+      "path": "/networks/0/highlights/1/walk/0/turn",
       "code": "position-unusable",
-      "message_advisory": "`turn` is a string, expected a position — the chain is dropped"
+      "message_advisory": "`turn` is a string, expected a position — the highlight is dropped"
     }
   ]
 }

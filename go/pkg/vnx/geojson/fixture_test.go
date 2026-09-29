@@ -96,7 +96,7 @@ func fixture() *vnx.Document {
 				pos(-3.53, 57.00, nil), pos(-3.52, 57.00, nil),
 				pos(-3.52, 57.01, nil),
 			}}},
-			Chains: []vnx.Chain{{
+			Highlights: []vnx.Highlight{{
 				Name: "North traverse", Notes: "n1 to n3",
 				Walk: []vnx.Pass{
 					{Arc: "arc-a", From: node("n1")},

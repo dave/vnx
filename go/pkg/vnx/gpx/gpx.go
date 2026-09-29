@@ -253,8 +253,8 @@ func (g *writer) collectNetworkDiagnostics() {
 	for i := range g.doc.Networks {
 		// ⚠ DO NOT INVENT A FLATTENING TO BE HELPFUL. Excluding networks is a
 		// deliberate deferral with a named future (§2.6, Dave 2026-09-02), and
-		// both obvious flattenings are bad: per-chain duplicates the geometry
-		// two chains share, per-arc produces dozens of unnamed fragments.
+		// both obvious flattenings are bad: per-highlight duplicates the geometry
+		// two highlights share, per-arc produces dozens of unnamed fragments.
 		g.networkDiags = append(g.networkDiags, vnx.Diagnostic{
 			Severity: vnx.Warning,
 			Code:     vnx.CodeGPXNetworkUnsupported,

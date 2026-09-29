@@ -1,28 +1,28 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A pass naming an arc that is not in the network (SPEC 6.2). A walk is used whole or not at all, so the chain carrying it is dropped: keeping the first pass alone would hand the caller a walk that ends at b, which nobody drew. Exactly one diagnostic is expected, at the pass: the first problem in a walk is reported and nothing after it is examined. The second chain is valid and survives, so a reader that dropped every chain in the network on one bad walk fails `counts`. The survivor carries a position so that `positions` pins WHICH chain survived: counts alone cannot tell the good chain from the bad one.",
+  "note": "A pass naming an arc that is not in the network (SPEC 6.2). A walk is used whole or not at all, so the highlight carrying it is dropped: keeping the first pass alone would hand the caller a walk that ends at b, which nobody drew. Exactly one diagnostic is expected, at the pass: the first problem in a walk is reported and nothing after it is examined. The second highlight is valid and survives, so a reader that dropped every highlight in the network on one bad walk fails `counts`. The survivor carries a position so that `positions` pins WHICH highlight survived: counts alone cannot tell the good highlight from the bad one.",
   "counts": {
     "networks": 1,
     "/networks/0/arcs": 3,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cd/pips": 2,
     "/networks/0/nodes": 4
   },
   "positions": [
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
   ],
   "diagnostics": [
     {
-      "path": "/networks/0/chains/1/walk/1",
+      "path": "/networks/0/highlights/1/walk/1",
       "code": "pass-arc-absent",
-      "message_advisory": "the pass names arc `ghost`, which is not in this network — the chain is dropped"
+      "message_advisory": "the pass names arc `ghost`, which is not in this network — the highlight is dropped"
     }
   ]
 }

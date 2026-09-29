@@ -157,7 +157,7 @@
     },
     "style": {
       "type": "object",
-      "description": "A style object is OPAQUE (SPEC 3.10): a reader carries every key through a read-modify-write and reports none of them as unrecognised, so this definition constrains almost nothing. `importance` is the one exception, because it is the one style value SPEC 3.6 gives a normative range. Nothing else here is typed ON PURPOSE, not by omission: SPEC 3.6 states that `icon-size` has no stated range and that `\"icon-size\": \"large\"` therefore passes unremarked, so a schema typing it as an integer would refuse a document every conforming reader accepts. One definition rather than three because the reference implementation's style is a plain map — a point, an area and a chain do not carry different shapes.",
+      "description": "A style object is OPAQUE (SPEC 3.10): a reader carries every key through a read-modify-write and reports none of them as unrecognised, so this definition constrains almost nothing. `importance` is the one exception, because it is the one style value SPEC 3.6 gives a normative range. Nothing else here is typed ON PURPOSE, not by omission: SPEC 3.6 states that `icon-size` has no stated range and that `\"icon-size\": \"large\"` therefore passes unremarked, so a schema typing it as an integer would refuse a document every conforming reader accepts. One definition rather than three because the reference implementation's style is a plain map — a point, an area and a highlight do not carry different shapes.",
       "properties": {
         "importance": {
           "type": "integer",
@@ -283,7 +283,7 @@
       "required": [
         "walk"
       ],
-      "description": "A top-level route owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a chain's. Its walk runs node to node: no position, no `turn`, no `pinned`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
+      "description": "A top-level route owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pinned`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
       "properties": {
         "name": {
           "type": "string"
@@ -367,7 +367,7 @@
         }
       ]
     },
-    "chain": {
+    "highlight": {
       "type": "object",
       "required": [
         "walk"
@@ -453,10 +453,10 @@
             "$ref": "#/$defs/namedArc"
           }
         },
-        "chains": {
+        "highlights": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/chain"
+            "$ref": "#/$defs/highlight"
           }
         },
         "points": {

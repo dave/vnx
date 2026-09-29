@@ -67,15 +67,15 @@ func brokenWalks() map[string]*vnx.Document {
 	arcs := func() map[string]vnx.Arc {
 		return map[string]vnx.Arc{"ab": {From: "a", To: "b"}, "bc": {From: "b", To: "c"}}
 	}
-	chain := func(walk ...vnx.Pass) *vnx.Document {
+	highlight := func(walk ...vnx.Pass) *vnx.Document {
 		return &vnx.Document{Networks: []vnx.Network{{Name: "Net", Nodes: nodes(), Arcs: arcs(),
-			Chains: []vnx.Chain{{Name: "Broken", Walk: walk}}}}}
+			Highlights: []vnx.Highlight{{Name: "Broken", Walk: walk}}}}}
 	}
 	at := func(n string) *vnx.Endpoint { return &vnx.Endpoint{Node: n} }
 	return map[string]*vnx.Document{
-		"a chain naming an absent arc":                  chain(vnx.Pass{Arc: "ghost", From: at("a"), To: at("b")}),
-		"a chain entering at a node that is not an end": chain(vnx.Pass{Arc: "bc", From: at("a"), To: at("c")}),
-		"a chain that does not join":                    chain(vnx.Pass{Arc: "ab", From: at("b")}, vnx.Pass{Arc: "bc", To: at("c")}),
+		"a highlight naming an absent arc":                  highlight(vnx.Pass{Arc: "ghost", From: at("a"), To: at("b")}),
+		"a highlight entering at a node that is not an end": highlight(vnx.Pass{Arc: "bc", From: at("a"), To: at("c")}),
+		"a highlight that does not join":                    highlight(vnx.Pass{Arc: "ab", From: at("b")}, vnx.Pass{Arc: "bc", To: at("c")}),
 		"a route that does not join": {Routes: []vnx.Route{{Name: "Broken", Nodes: nodes(), Arcs: arcs(),
 			Walk: []vnx.Pass{{Arc: "ab", From: at("b")}, {Arc: "bc", To: at("c")}}}}},
 		"an arc naming an absent node": {Networks: []vnx.Network{{Name: "Net", Nodes: nodes(),

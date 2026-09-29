@@ -12,7 +12,7 @@ const simpleNetwork = `{"vnx":"0.2.0","networks":[{
   "arcs":{
     "arc-1":{"from":"node-1","to":"node-2","pips":[[-3.6644,57.1085,451.9]]},
     "arc-2":{"from":"node-2","to":"node-3","pips":[[-3.6540,57.1009,561]]}},
-  "chains":[{"name":"Chalamain Gap","walk":[
+  "highlights":[{"name":"Chalamain Gap","walk":[
     {"arc":"arc-1","from":"node-1","pinned":true},
     {"arc":"arc-2","to":[-3.6540,57.1009]}]}]}]}`
 
@@ -25,13 +25,13 @@ func TestNetworkRoundTrip(t *testing.T) {
 		t.Fatalf("clean network produced %v", diags)
 	}
 	n := doc.Networks[0]
-	if len(n.Nodes) != 3 || len(n.Arcs) != 2 || len(n.Chains) != 1 {
-		t.Fatalf("got %d nodes, %d arcs, %d chains", len(n.Nodes), len(n.Arcs), len(n.Chains))
+	if len(n.Nodes) != 3 || len(n.Arcs) != 2 || len(n.Highlights) != 1 {
+		t.Fatalf("got %d nodes, %d arcs, %d highlights", len(n.Nodes), len(n.Arcs), len(n.Highlights))
 	}
 	if a := n.Arcs["arc-1"]; a.From != "node-1" || a.To != "node-2" || len(a.Pips) != 1 {
 		t.Fatalf("arc-1 = %+v, want node-1 to node-2 with its one interior pip", a)
 	}
-	w := n.Chains[0].Walk
+	w := n.Highlights[0].Walk
 	if len(w) != 2 {
 		t.Fatalf("got %d passes", len(w))
 	}
@@ -69,13 +69,13 @@ func TestNodeIDsAreScopedToTheirContainer(t *testing.T) {
 // a..f, arc ab from a to b and so on, with arc cb running BACKWARDS from c to
 // b so that a walk crossing it covers it in reverse. It exists so each case
 // below states only its walk.
-func walkNetwork(chains string) string {
+func walkNetwork(highlights string) string {
 	return `{"vnx":"0.2.0","networks":[{"name":"n",` +
 		`"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10],"e":[-3.56,57.10],"f":[-3.55,57.10]},` +
 		`"arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]},"cb":{"from":"c","to":"b","pips":[]},` +
 		`"cd":{"from":"c","to":"d","pips":[[-3.575,57.102],[-3.572,57.101]]},"de":{"from":"d","to":"e","pips":[]},` +
 		`"ef":{"from":"e","to":"f","pips":[]}},` +
-		`"chains":[` + chains + `]}]}`
+		`"highlights":[` + highlights + `]}]}`
 }
 
 // Every walk form SPEC §3.3.3 names reads clean: the examples it gives, a
@@ -104,8 +104,8 @@ func TestEveryWalkFormReadsClean(t *testing.T) {
 			if len(diags) != 0 {
 				t.Fatalf("a valid walk produced %v", diags)
 			}
-			if len(doc.Networks[0].Chains) != 1 {
-				t.Fatal("a valid walk's chain was dropped")
+			if len(doc.Networks[0].Highlights) != 1 {
+				t.Fatal("a valid walk's highlight was dropped")
 			}
 		})
 	}
@@ -113,63 +113,63 @@ func TestEveryWalkFormReadsClean(t *testing.T) {
 
 // TestEachWalkRemedy is one case per SPEC §6.2 row that concerns a network:
 // the code, the path, and what survives. The network always carries a second,
-// valid chain named "keep", so a remedy that dropped more than its chain goes
+// valid highlight named "keep", so a remedy that dropped more than its highlight goes
 // red here, not only one that dropped less.
 func TestEachWalkRemedy(t *testing.T) {
 	const keep = `{"name":"keep","walk":[{"arc":"de","from":"d","to":"e"}]}`
 	type diag struct{ path, code string }
 	for _, tc := range []struct {
-		name   string
-		doc    string
-		want   []diag
-		chains int // chains that survive, "keep" included
+		name       string
+		doc        string
+		want       []diag
+		highlights int // highlights that survive, "keep" included
 	}{
 		{"a pass names an absent arc", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a"},{"arc":"ghost","to":"c"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/1", CodePassArcAbsent}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/1", CodePassArcAbsent}}, 1},
 		{"a pass that is not an object", walkNetwork(keep + `,{"name":"c","walk":["ab"]}`),
-			[]diag{{"/networks/0/chains/1/walk/0", CodePassArcAbsent}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0", CodePassArcAbsent}}, 1},
 		{"a turn that is not a position", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":"d","to":"c"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/turn", CodePositionUnusable}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/turn", CodePositionUnusable}}, 1},
 		{"a from that will not parse", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":[-3.57],"to":"d"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/from", CodePositionUnusable}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/from", CodePositionUnusable}}, 1},
 		{"a from off the globe", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":[-3.57,91],"to":"d"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/from", CodePositionUnusable}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/from", CodePositionUnusable}}, 1},
 		{"a to that is a number", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":7}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/to", CodePositionUnusable}}, 1},
-		{"a turn with an elevation keeps the chain", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102,900],"to":"c"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/turn", CodeExtraChannel}}, 2},
+			[]diag{{"/networks/0/highlights/1/walk/0/to", CodePositionUnusable}}, 1},
+		{"a turn with an elevation keeps the highlight", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102,900],"to":"c"}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/turn", CodeExtraChannel}}, 2},
 		{"a pinned pass with a turn", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102],"to":"c","pinned":true}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0", CodePinnedTurn}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0", CodePinnedTurn}}, 1},
 		{"from on a pass after the first", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/1/from", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/1/from", CodeWalkSpelling}}, 1},
 		{"a first pass without from", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","to":"b"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0", CodeWalkSpelling}}, 1},
 		{"a last pass without to", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a"},{"arc":"cb"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/1", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/1", CodeWalkSpelling}}, 1},
 		{"to on a pass that is neither last nor from a position", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a","to":"b"},{"arc":"cb","to":"c"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/to", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/to", CodeWalkSpelling}}, 1},
 		{"a position from without a to", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":[-3.575,57.102]},{"arc":"de","to":"e"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0", CodeWalkSpelling}}, 1},
 		{"a from node that is not an end of its arc", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"a","to":"d"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/from", CodeWalkNotConnected}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/from", CodeWalkNotConnected}}, 1},
 		{"a from node that is in no arc of the network", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"ghost","to":"d"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/from", CodeWalkNotConnected}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/from", CodeWalkNotConnected}}, 1},
 		{"a pass whose arc does not touch the walk", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a"},{"arc":"de","to":"e"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/1", CodeWalkNotConnected}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/1", CodeWalkNotConnected}}, 1},
 		{"a to node that is not an end of its arc", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"e"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/to", CodeWalkNotConnected}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/to", CodeWalkNotConnected}}, 1},
 		{"a pass other than the last leaving at a position", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":[-3.575,57.102],"to":[-3.572,57.101]},{"arc":"de","to":"e"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/to", CodeWalkNotConnected}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/to", CodeWalkNotConnected}}, 1},
 		{"pinned of the wrong type drops the field only", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pinned":"yes"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/pinned", CodeWrongTypeOptional}}, 2},
-		{"a chain with no walk", walkNetwork(keep + `,{"name":"c"}`),
-			[]diag{{"/networks/0/chains/1/walk", CodeWrongTypeRequired}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0/pinned", CodeWrongTypeOptional}}, 2},
+		{"a highlight with no walk", walkNetwork(keep + `,{"name":"c"}`),
+			[]diag{{"/networks/0/highlights/1/walk", CodeWrongTypeRequired}}, 1},
 		{"a walk that is not an array", walkNetwork(keep + `,{"name":"c","walk":{}}`),
-			[]diag{{"/networks/0/chains/1/walk", CodeWrongTypeRequired}}, 1},
-		{"an unknown key on a pass keeps the chain", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","via":true}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0/via", CodeUnknownKey}}, 2},
+			[]diag{{"/networks/0/highlights/1/walk", CodeWrongTypeRequired}}, 1},
+		{"an unknown key on a pass keeps the highlight", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","via":true}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/via", CodeUnknownKey}}, 2},
 		{"only the first fault in a walk is reported", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","to":"b"},{"arc":"ghost"}]}`),
-			[]diag{{"/networks/0/chains/1/walk/0", CodeWalkSpelling}}, 1},
+			[]diag{{"/networks/0/highlights/1/walk/0", CodeWalkSpelling}}, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, diags, err := Decode([]byte(tc.doc))
@@ -183,11 +183,11 @@ func TestEachWalkRemedy(t *testing.T) {
 			if fmt.Sprint(got) != fmt.Sprint(tc.want) {
 				t.Fatalf("diagnostics = %v, want %v\n%v", got, tc.want, diags)
 			}
-			if n := len(doc.Networks[0].Chains); n != tc.chains {
-				t.Fatalf("%d chain(s) survive, want %d", n, tc.chains)
+			if n := len(doc.Networks[0].Highlights); n != tc.highlights {
+				t.Fatalf("%d highlight(s) survive, want %d", n, tc.highlights)
 			}
-			if doc.Networks[0].Chains[0].Name != "keep" {
-				t.Fatal("the valid chain was dropped")
+			if doc.Networks[0].Highlights[0].Name != "keep" {
+				t.Fatal("the valid highlight was dropped")
 			}
 		})
 	}
@@ -199,11 +199,11 @@ func TestExtraChannelsAreDroppedFromNodesAndWalkPositions(t *testing.T) {
 	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","networks":[{"name":"n",
 	  "nodes":{"a":[-3.60,57.10,340,1778569391000],"b":[-3.59,57.10]},
 	  "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
-	  "chains":[{"name":"c","walk":[{"arc":"ab","from":[-3.598,57.10,null,1778569391000],"to":"b"}]}]}]}`))
+	  "highlights":[{"name":"c","walk":[{"arc":"ab","from":[-3.598,57.10,null,1778569391000],"to":"b"}]}]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"/networks/0/nodes/a": CodeExtraChannel, "/networks/0/chains/0/walk/0/from": CodeExtraChannel}
+	want := map[string]string{"/networks/0/nodes/a": CodeExtraChannel, "/networks/0/highlights/0/walk/0/from": CodeExtraChannel}
 	if len(diags) != len(want) {
 		t.Fatalf("got %v, want %v", diags, want)
 	}
@@ -216,25 +216,25 @@ func TestExtraChannelsAreDroppedFromNodesAndWalkPositions(t *testing.T) {
 	if a := n.Nodes["a"]; a.Ele == nil || *a.Ele != 340 {
 		t.Fatalf("node a lost its elevation along with its time: %+v", a)
 	}
-	if got := *n.Chains[0].Walk[0].From.At; got != (LonLat{Lon: -3.598, Lat: 57.10}) {
+	if got := *n.Highlights[0].Walk[0].From.At; got != (LonLat{Lon: -3.598, Lat: 57.10}) {
 		t.Fatalf("from = %v", got)
 	}
 }
 
-// TestEachArcRemedy: an arc that cannot be used is dropped, and every chain
+// TestEachArcRemedy: an arc that cannot be used is dropped, and every highlight
 // walking it goes with it under pass-arc-absent — two diagnostics, because two
-// things are gone. A chain that does not walk it survives.
+// things are gone. A highlight that does not walk it survives.
 func TestEachArcRemedy(t *testing.T) {
 	const keep = `{"name":"keep","walk":[{"arc":"ok","from":"a","to":"b"}]}`
 	const walker = `{"name":"walker","walk":[{"arc":"bad","from":"b","to":"c"}]}`
 	net := func(badArc, nodes string) string {
 		return `{"vnx":"0.2.0","networks":[{"name":"n","nodes":{` + nodes + `},` +
 			`"arcs":{"ok":{"from":"a","to":"b","pips":[]},"bad":` + badArc + `},` +
-			`"chains":[` + keep + `,` + walker + `]}]}`
+			`"highlights":[` + keep + `,` + walker + `]}]}`
 	}
 	const abc = `"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10]`
 	type diag struct{ path, code string }
-	walkerGone := diag{"/networks/0/chains/1/walk/0", CodePassArcAbsent}
+	walkerGone := diag{"/networks/0/highlights/1/walk/0", CodePassArcAbsent}
 	for _, tc := range []struct {
 		name string
 		doc  string
@@ -250,7 +250,7 @@ func TestEachArcRemedy(t *testing.T) {
 			[]diag{{"/networks/0/arcs/bad/from", CodeWrongTypeRequired}, walkerGone}},
 		{"a pip that will not parse", net(`{"from":"b","to":"c","pips":[[-3.585]]}`, abc),
 			[]diag{{"/networks/0/arcs/bad/pips/0", CodePositionUnusable}, walkerGone}},
-		{"a node that will not parse drops its arcs, which drop their chains",
+		{"a node that will not parse drops its arcs, which drop their highlights",
 			net(`{"from":"b","to":"c","pips":[]}`, `"a":[-3.60,57.10],"b":[-3.59,57.10],"c":"here"`),
 			[]diag{{"/networks/0/nodes/c", CodePositionUnusable}, {"/networks/0/arcs/bad/to", CodeArcNodeAbsent}, walkerGone}},
 	} {
@@ -273,8 +273,8 @@ func TestEachArcRemedy(t *testing.T) {
 			if _, ok := n.Arcs["ok"]; !ok {
 				t.Fatal("the good arc was dropped")
 			}
-			if len(n.Chains) != 1 || n.Chains[0].Name != "keep" {
-				t.Fatalf("chains = %+v, want only keep", n.Chains)
+			if len(n.Highlights) != 1 || n.Highlights[0].Name != "keep" {
+				t.Fatalf("highlights = %+v, want only keep", n.Highlights)
 			}
 		})
 	}
@@ -304,9 +304,9 @@ func TestArcPipTimeIsDroppedOncePerArc(t *testing.T) {
 func TestEncoderRefusesWhatTheReaderWouldDrop(t *testing.T) {
 	good := func() Network {
 		return Network{Name: "n",
-			Nodes:  map[string]Vertex{"a": {Lon: -3.60, Lat: 57.10}, "b": {Lon: -3.59, Lat: 57.10}},
-			Arcs:   map[string]Arc{"ab": {From: "a", To: "b"}},
-			Chains: []Chain{{Name: "c", Walk: []Pass{{Arc: "ab", From: &Endpoint{Node: "a"}, To: &Endpoint{Node: "b"}}}}},
+			Nodes:      map[string]Vertex{"a": {Lon: -3.60, Lat: 57.10}, "b": {Lon: -3.59, Lat: 57.10}},
+			Arcs:       map[string]Arc{"ab": {From: "a", To: "b"}},
+			Highlights: []Highlight{{Name: "c", Walk: []Pass{{Arc: "ab", From: &Endpoint{Node: "a"}, To: &Endpoint{Node: "b"}}}}},
 		}
 	}
 	if _, err := Encode(&Document{Networks: []Network{good()}}); err != nil {
@@ -319,14 +319,14 @@ func TestEncoderRefusesWhatTheReaderWouldDrop(t *testing.T) {
 	}{
 		{"a self-loop", func(n *Network) { n.Arcs["ab"] = Arc{From: "a", To: "a"} }, "self-loop"},
 		{"an absent node", func(n *Network) { n.Arcs["ab"] = Arc{From: "a", To: "ghost"} }, "ghost"},
-		{"an absent arc", func(n *Network) { n.Chains[0].Walk[0].Arc = "ghost" }, CodePassArcAbsent},
-		{"a missing to", func(n *Network) { n.Chains[0].Walk[0].To = nil }, CodeWalkSpelling},
+		{"an absent arc", func(n *Network) { n.Highlights[0].Walk[0].Arc = "ghost" }, CodePassArcAbsent},
+		{"a missing to", func(n *Network) { n.Highlights[0].Walk[0].To = nil }, CodeWalkSpelling},
 		{"a pinned turn", func(n *Network) {
-			n.Chains[0].Walk[0].Pinned, n.Chains[0].Walk[0].Turn = true, &LonLat{Lon: -3.595, Lat: 57.10}
+			n.Highlights[0].Walk[0].Pinned, n.Highlights[0].Walk[0].Turn = true, &LonLat{Lon: -3.595, Lat: 57.10}
 		}, CodePinnedTurn},
 		{"a to that is not an end", func(n *Network) {
-			n.Chains[0].Walk[0].To = &Endpoint{Node: "a"}
-			n.Chains[0].Walk[0].From = &Endpoint{Node: "ghost"}
+			n.Highlights[0].Walk[0].To = &Endpoint{Node: "a"}
+			n.Highlights[0].Walk[0].From = &Endpoint{Node: "ghost"}
 		}, CodeWalkNotConnected},
 		{"a closed ring", func(n *Network) {
 			n.Areas = []Area{{Polygon: []Position{{Lon: 0, Lat: 0}, {Lon: 1, Lat: 0}, {Lon: 1, Lat: 1}, {Lon: 0, Lat: 0}}}}

@@ -231,32 +231,34 @@ class RedProof(unittest.TestCase):
     # is SUPPOSED to come back from with less than it was given.  That
     # exemption is the hole: with no round trip and only top-level counts,
     # nothing looked at how much less.  In 0.2 the scoped drop that matters is
-    # one chain of several: a reader whose dropped chain takes its siblings
+    # one highlight of several: a reader whose dropped highlight takes its siblings
     # with it passes every top-level count, because the network is still there.
 
     @staticmethod
-    def _over_broad_chain_drop() -> Any:
-        """A reader whose scoped drop is over-broad: one dropped chain takes
-        every chain of its network with it."""
-        original = decode._Reader._chains
+    def _over_broad_highlight_drop() -> Any:
+        """A reader whose scoped drop is over-broad: one dropped highlight takes
+        every highlight of its network with it."""
+        original = decode._Reader._highlights
 
         def emptying(self: Any, obj: Any, path: str, arcs: Any) -> Any:
-            chains = original(self, obj, path, arcs)
-            if chains is not None and len(chains) < len(obj.get("chains") or []):
+            highlights = original(self, obj, path, arcs)
+            if highlights is not None and len(highlights) < len(
+                obj.get("highlights") or []
+            ):
                 return []
-            return chains
+            return highlights
 
-        return mock.patch.object(decode._Reader, "_chains", emptying)
+        return mock.patch.object(decode._Reader, "_highlights", emptying)
 
     def test_an_over_broad_scoped_drop_is_caught(self) -> None:
         """The nested `counts` containers, ruled 2026-09-14.
 
-        Every case that drops one chain of two names
-        `/networks/0/chains: 1`, and the over-broad reader leaves 0.
+        Every case that drops one highlight of two names
+        `/networks/0/highlights: 1`, and the over-broad reader leaves 0.
 
         ⚠ `positions` IS A SECOND GUARD HERE, and it is switched off so that
         this proof credits `counts` alone.  The 0.2 cases pin a position on
-        the SURVIVING chain (`/networks/0/chains/0/walk/0/to`), which an
+        the SURVIVING highlight (`/networks/0/highlights/0/walk/0/to`), which an
         over-broad reader no longer has.  Measured: with `counts` cut back to
         the top level, those pins still redden all six cases.
         """
@@ -266,7 +268,7 @@ class RedProof(unittest.TestCase):
             lambda self, expect, document, name: None,
         )
         self.assertRedCases(
-            _both(self._over_broad_chain_drop(), unchecked),
+            _both(self._over_broad_highlight_drop(), unchecked),
             "DiagnoseTier.test_diagnose",
             {
                 "arc-names-absent-node.vnx",
@@ -282,7 +284,7 @@ class RedProof(unittest.TestCase):
                 "walk-to-forbidden.vnx",
                 "walk-to-not-an-end.vnx",
             },
-            "reader whose dropped chain takes its siblings with it",
+            "reader whose dropped highlight takes its siblings with it",
         )
 
     def test_the_top_level_counts_rule_could_not_see_that(self) -> None:
@@ -309,7 +311,7 @@ class RedProof(unittest.TestCase):
                     self.assertIn(collection, pinned)
 
         with (
-            self._over_broad_chain_drop(),
+            self._over_broad_highlight_drop(),
             mock.patch.object(test_corpus._CorpusCase, "_check_counts", top_level_only),
             mock.patch.object(
                 test_corpus._CorpusCase,
@@ -766,7 +768,7 @@ class RedProof(unittest.TestCase):
         """`pass-arc-absent`, and the cascade that ends in it.
 
         A pass naming a missing arc cannot be stepped at all, so the defect is
-        the nearest one that runs: the chain is still dropped, and the
+        the nearest one that runs: the highlight is still dropped, and the
         diagnostic saying why is lost.  Four cases end in this code, three of
         them as the second half of a cascade.
         """
@@ -791,7 +793,7 @@ class RedProof(unittest.TestCase):
         )
 
     def test_only_the_first_fault_in_a_walk_is_reported(self) -> None:
-        """SPEC 6.2: at the first check that drops the chain, nothing further
+        """SPEC 6.2: at the first check that drops the highlight, nothing further
         in the walk is examined.  A reader that reported every fault it could
         find would be more informative and non-conforming, and no corpus case
         carries two faults in one walk, so the unit test is the guard."""

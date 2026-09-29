@@ -6,8 +6,8 @@ Version 0.2.0
 
 VNX (Viatrail Network eXchange) is a JSON interchange format for trail data. It
 carries folders, networks, routes, tracks, waypoints and areas. A network is a
-graph of nodes and arcs together with chains, each of which walks those arcs in
-order; two chains that follow the same trail reference the same arc.
+graph of nodes and arcs together with highlights, each of which walks those arcs in
+order; two highlights that follow the same trail reference the same arc.
 
 This document defines the format. The conformance corpus distributed with this
 specification (Section 8) defines whether an implementation conforms.
@@ -72,7 +72,7 @@ a term is listed after every term its definition uses.
 - A **folder** is a named grouping with an `id`. A top-level item other than a
   folder places itself in a folder by naming that `id` in its `folder` key; a
   folder places itself in another folder with `parent` (Section 3.2).
-- A **network** is a graph of nodes and arcs, together with the chains that
+- A **network** is a graph of nodes and arcs, together with the highlights that
   traverse those arcs and the points and areas that belong to the network
   (Section 3.3).
 - A **node** is a position in a network, keyed by an identifier, at which arcs
@@ -84,7 +84,7 @@ a term is listed after every term its definition uses.
   enters, turns and leaves (Section 3.3.3).
 - A **walk** is an ordered array of passes forming one connected journey along
   arcs; the order is the direction of travel (Section 3.3.3).
-- A **chain** is an item carrying a walk over a network's arcs; a chain does not
+- A **highlight** is an item carrying a walk over a network's arcs; a highlight does not
   own the arcs it walks (Section 3.3.3).
 - A **route** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
@@ -140,7 +140,7 @@ rule. The document below is complete and is read with no diagnostics.
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "Chalamain Gap",
           "style": { "color": "#c1440e", "width": 4 },
@@ -168,7 +168,7 @@ rule. The document below is complete and is read with no diagnostics.
 informational (Section 3.1). The one folder, `cairngorms`, is named by the
 `folder` key of the network and of the waypoint (Section 3.2). The network
 holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
-one chain whose walk is a single pass over that arc from `node-1` to `node-2`
+one highlight whose walk is a single pass over that arc from `node-1` to `node-2`
 (Section 3.3). The waypoint carries its position in
 `at` and one data record of type `app.viatrail.tag` (Sections 3.6 and 5).
 
@@ -279,7 +279,7 @@ exceptions stated where they arise: `label-visible`, where absence means Auto
 All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
 wherever a container appears in this format, except an application key and
-anything inside its value (Section 3.9): an empty `data` bag, an empty `chains`
+anything inside its value (Section 3.9): an empty `data` bag, an empty `highlights`
 array and an empty `nodes` object each carry the same content as the key being
 absent.
 
@@ -323,7 +323,7 @@ because walks reference their entries by key.
   "notes": "...",
   "nodes": { "node-1": [-3.6521, 57.1000, 940], "node-2": [-3.6402, 57.0931, 811] },
   "arcs":  { "arc-1": { "from": "node-1", "to": "node-2", "pips": [ ], "data": [ ] } },
-  "chains": [ ],
+  "highlights": [ ],
   "points": [ ],
   "areas":  [ ],
   "data":   [ ]
@@ -362,12 +362,12 @@ self-loop arc and records a diagnostic.
 A reader drops an arc whose `from` or `to` names a node that is not in the
 network, and records a diagnostic.
 
-A chain whose walk names a dropped arc is itself dropped, under the rule for a
+A highlight whose walk names a dropped arc is itself dropped, under the rule for a
 pass naming an absent arc (Section 6.2).
 
-#### 3.3.3 Chains
+#### 3.3.3 Highlights
 
-A chain carries a walk over arcs that it does not own.
+A highlight carries a walk over arcs that it does not own.
 
 ```json
 {
@@ -457,7 +457,7 @@ line from the arc's `from` node.
 5. Only the last pass leaves at a position.
 6. No pass carries both `turn` and `pinned`.
 
-An empty walk is valid and covers nothing. A reader drops a chain whose walk is
+An empty walk is valid and covers nothing. A reader drops a highlight whose walk is
 not valid and records a diagnostic that names the pass and the rule
 (Section 6.2).
 
@@ -465,7 +465,7 @@ not valid and records a diagnostic that names the pass and the rule
 
 A top-level route owns its graph. It carries `nodes` and `arcs` of the same
 shape as a network's (Sections 3.3.1 and 3.3.2), and one `walk` of the same
-shape as a chain's (Section 3.3.3). Nothing outside the route can reference
+shape as a highlight's (Section 3.3.3). Nothing outside the route can reference
 its nodes or arcs.
 
 ```json
@@ -483,8 +483,8 @@ its nodes or arcs.
 A route's walk runs from node to node. Every `from` and `to` in it is a node
 key, and no pass in it carries `turn` or `pinned`.
 
-Every rule Section 3.3 states for a network's nodes and arcs and for a chain's
-walk applies to a route's. Where that section has a reader drop a chain, a
+Every rule Section 3.3 states for a network's nodes and arcs and for a highlight's
+walk applies to a route's. Where that section has a reader drop a highlight, a
 reader drops the route.
 
 Arc boundaries are preserved by the arcs, so a route that is partly hand-drawn
@@ -599,7 +599,7 @@ merge the rings.
 
 ### 3.8 Hidden state
 
-`hidden` is a boolean carried on folders, networks, chains, routes, points,
+`hidden` is a boolean carried on folders, networks, highlights, routes, points,
 areas and tracks. It is user-visible state rather than a rendering cache.
 
 Absence means visible. A writer MUST emit the key only when its value is `true`,
@@ -656,9 +656,9 @@ array is distinct from an absent one.
 |---|---|---|
 | document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
-| network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `chains`, `points`, `areas`, `data` |
+| network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a route | `from`, `to`, `pips` | `data` |
-| chain | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
+| highlight | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pinned` |
 | route | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
@@ -856,7 +856,7 @@ misreading a VNX document.
 4. A record of an unrecognised type MUST survive a read-modify-write at value
    level.
 5. The meaning of a record is the pair of its type and its host, not the type
-   alone. One type can mean one thing on a chain and another on an area.
+   alone. One type can mean one thing on a highlight and another on an area.
 6. A type with a single primary payload names it `value`. A type with several
    fields keeps its own names, and MAY carry `value` alongside modifiers.
 
@@ -873,8 +873,8 @@ omission:
   what a user would see in the application.
 - Durable identity, plans, offline map tiles and download state, and creation
   and modification timestamps of items.
-- A network's or chain's default routing configuration.
-- A network's default style for unstyled chains. This is deferred rather than
+- A network's or highlight's default routing configuration.
+- A network's default style for unstyled highlights. This is deferred rather than
   refused, and is expected in a later version.
 
 How a consumer derives elevation gain and loss is its own business.
@@ -941,12 +941,12 @@ a shorter, plausible, wrong line with nothing to indicate it. A track's owner
 is the segment rather than the whole track, because Section 3.5 already makes
 the interval between two segments a pause rather than geometry.
 
-A walk is used whole or not at all: any problem in a walk drops the chain that
+A walk is used whole or not at all: any problem in a walk drops the highlight that
 carries it. A walk with one pass removed is a different walk, not a shorter one.
 Removing a pass from the middle joins two arcs that do not meet. Removing only a
 `turn` reverses the direction of everything after it. Removing only a `from`
 position moves the start of the walk to a node, which is a guess. Keeping the
-rest of the chain would therefore report a journey nobody drew. The diagnostic
+rest of the highlight would therefore report a journey nobody drew. The diagnostic
 names the pass and the rule, so the cause is known.
 
 The remedies for the constructs this document constrains:
@@ -963,37 +963,37 @@ The remedies for the constructs this document constrains:
 | a position that will not parse, inside an arc's `pips` (3.3.2) | drop the arc | `position-unusable` |
 | a position that will not parse, inside a track segment's `pips` (3.5) | drop the segment | `position-unusable` |
 | a position that will not parse, inside a `polygon` ring (3.7) | drop the area | `position-unusable` |
-| a `from`, `to` or `turn` that is neither a node key where one is allowed nor a position that parses (3.3.3) | drop the chain | `position-unusable` |
+| a `from`, `to` or `turn` that is neither a node key where one is allowed nor a position that parses (3.3.3) | drop the highlight | `position-unusable` |
 | a time on a node (3.3.1), or an elevation or a time on a position in a walk (3.3.3) | drop the channel | `extra-channel` |
 | a time on an arc pip (3.3.2) | drop the time channel, from every pip of the arc that carries one | `arc-pip-time` |
 | an arc whose `from` and `to` name the same node (3.3.2) | drop the arc | `self-loop-arc` |
 | an arc whose `from` or `to` names a node that is not in its network or route (3.3.2) | drop the arc | `arc-node-absent` |
-| a pass that is not an object, or that names no arc of its network or route (3.3.3) | drop the chain | `pass-arc-absent` |
-| a walk that breaks the rule for `from` and `to` (3.3.3) | drop the chain | `walk-spelling` |
-| a walk that is not connected: valid-walk rules 3, 4 and 5 (3.3.3) | drop the chain | `walk-not-connected` |
-| a pass carrying both `turn` and `pinned` (3.3.3) | drop the chain | `pinned-turn` |
+| a pass that is not an object, or that names no arc of its network or route (3.3.3) | drop the highlight | `pass-arc-absent` |
+| a walk that breaks the rule for `from` and `to` (3.3.3) | drop the highlight | `walk-spelling` |
+| a walk that is not connected: valid-walk rules 3, 4 and 5 (3.3.3) | drop the highlight | `walk-not-connected` |
+| a pass carrying both `turn` and `pinned` (3.3.3) | drop the highlight | `pinned-turn` |
 | a position, a `turn` or `pinned` in a route's walk (3.4) | drop the route | `route-pin-or-position` |
 | a `polygon` carrying a ring beyond the first (3.7) | drop the area | `polygon-nested-rings` |
 | a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
 | a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
 | an attachment that cannot be recovered (7) | drop the attachment | `attachment-unreadable` |
 
-In a route, "the chain" in this table is the route itself (Section 3.4).
+In a route, "the highlight" in this table is the route itself (Section 3.4).
 
 A node dropped by a row above leaves every arc that names it naming an absent
 node, and that arc is then dropped under `arc-node-absent`. An arc dropped by
-any row above leaves every chain whose walk names it with a
-pass that names no arc of its network, and that chain is then dropped under
+any row above leaves every highlight whose walk names it with a
+pass that names no arc of its network, and that highlight is then dropped under
 `pass-arc-absent`. Each is its own diagnostic: the first says the arc is gone,
-the second that the chain is.
+the second that the highlight is.
 
 A ring that repeats its first position and holds too few distinct positions
 takes both `ring-closed` and `ring-too-few-points`, at their two paths.
 
 **The order in which a walk is checked.** A reader checks the passes of a walk
 in order, and each pass in the order of the list below. At the first check that
-drops the chain, it records that diagnostic and examines nothing further in the
-walk. Diagnostics that do not drop the chain are recorded as they are met.
+drops the highlight, it records that diagnostic and examines nothing further in the
+walk. Diagnostics that do not drop the highlight are recorded as they are met.
 
 1. The pass is an object and its `arc` names an arc of its network or route.
    Otherwise `pass-arc-absent`, at the pass.
@@ -1057,7 +1057,7 @@ diagnostic rather than one rule with two exceptions.
 
 1. Where something is unusable, `path` names the smallest element no part of
    which could be used. That is not always the element the remedy drops: a
-   `turn` that will not parse names the `turn` while the chain is dropped around
+   `turn` that will not parse names the `turn` while the highlight is dropped around
    it, and a polygon with nested rings names the polygon while the area is
    dropped around it. A ring's repeated closing position is named by its index
    in the ring as written.

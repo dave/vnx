@@ -10,8 +10,8 @@
     "/areas/0/polygon": 3,
     "/networks/0/arcs": 1,
     "/networks/0/arcs/a1/pips": 1,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/nodes": 2
   }
 }

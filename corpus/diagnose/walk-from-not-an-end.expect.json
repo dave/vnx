@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A `from` node that is not an end of its pass's arc (SPEC 3.3.3, valid-walk rule 3). Node a exists, so a reader that checks only that a node key resolves reads this chain clean; the rule is that the node is one of the arc's two ends. The diagnostic names the `from` key. The spelling is right, so a reader that stops at the spelling rule reads it clean too.",
+  "note": "A `from` node that is not an end of its pass's arc (SPEC 3.3.3, valid-walk rule 3). Node a exists, so a reader that checks only that a node key resolves reads this highlight clean; the rule is that the node is one of the arc's two ends. The diagnostic names the `from` key. The spelling is right, so a reader that stops at the spelling rule reads it clean too.",
   "counts": {
     "networks": 1,
     "/networks/0/nodes": 4,
@@ -9,21 +9,21 @@
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cb/pips": 0,
     "/networks/0/arcs/cd/pips": 2,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1
   },
   "positions": [
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
   ],
   "diagnostics": [
     {
-      "path": "/networks/0/chains/1/walk/0/from",
+      "path": "/networks/0/highlights/1/walk/0/from",
       "code": "walk-not-connected",
-      "message_advisory": "`from` node a is not an end of arc cd — the chain is dropped"
+      "message_advisory": "`from` node a is not an end of arc cd — the highlight is dropped"
     }
   ]
 }

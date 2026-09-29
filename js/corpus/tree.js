@@ -98,7 +98,7 @@ function normArc(o, opt) {
 
 function normNetwork(o, opt) {
   normGraph(o, opt);
-  normItems(o, 'chains', opt, normChain);
+  normItems(o, 'highlights', opt, normHighlight);
   normItems(o, 'points', opt, normWaypoint);
   normItems(o, 'areas', opt, normArea);
   dropEmptyContainer(o, 'data');
@@ -125,7 +125,7 @@ function normGraph(o, opt) {
   dropEmptyContainer(o, 'arcs');
 }
 
-function normChain(o, opt) {
+function normHighlight(o, opt) {
   normWalk(o, opt);
   dropEmptyContainer(o, 'style');
   dropEmptyContainer(o, 'data');
@@ -136,7 +136,7 @@ function normChain(o, opt) {
  * 3.3.3), `turn` a position; normPosition leaves a string alone.
  *
  * ⚠ `walk` IS REQUIRED, SO AN EMPTY ONE IS NOT DROPPED. `"walk": []` is a legal
- * chain that covers nothing, and a chain with no `walk` key is not a chain.
+ * highlight that covers nothing, and a highlight with no `walk` key is not a highlight.
  */
 function normWalk(o, opt) {
   if (!Array.isArray(o.walk)) return;

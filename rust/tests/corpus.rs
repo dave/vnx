@@ -788,7 +788,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
                 for (_, arc) in n.arcs.iter_mut().flatten() {
                     arc.data = None;
                 }
-                for c in n.chains.iter_mut().flatten() {
+                for c in n.highlights.iter_mut().flatten() {
                     c.data = None;
                 }
                 for p in n.points.iter_mut().flatten() {
@@ -799,7 +799,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
         ("drops every application key", |d| d.app_keys.clear()),
         ("drops every style", |d| {
             for n in d.networks.iter_mut().flatten() {
-                for c in n.chains.iter_mut().flatten() {
+                for c in n.highlights.iter_mut().flatten() {
                     c.style = None;
                 }
             }
@@ -807,7 +807,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
         ("drops every notes", |d| {
             for n in d.networks.iter_mut().flatten() {
                 n.notes = None;
-                for c in n.chains.iter_mut().flatten() {
+                for c in n.highlights.iter_mut().flatten() {
                     c.notes = None;
                 }
             }
@@ -1143,9 +1143,9 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
 ///
 /// ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL ARRAYS. A reader
 /// that dropped every route's arcs, or truncated an arc's pips, or lost every
-/// chain in a network, changed nothing a sidecar could see in the diagnose
+/// highlight in a network, changed nothing a sidecar could see in the diagnose
 /// tier, which SPEC 8.1 exempts from the round-trip comparison. Measured: a
-/// dangling link taking the rest of its chain with it passed the whole corpus
+/// dangling link taking the rest of its highlight with it passed the whole corpus
 /// green before this existed.
 ///
 /// It is a producer rather than a pointer resolver, for the reason
@@ -1176,11 +1176,14 @@ fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
             );
         }
         out.insert(
-            format!("/networks/{i}/chains"),
-            network.chains.as_ref().map_or(0, Vec::len),
+            format!("/networks/{i}/highlights"),
+            network.highlights.as_ref().map_or(0, Vec::len),
         );
-        for (j, chain) in network.chains.iter().flatten().enumerate() {
-            out.insert(format!("/networks/{i}/chains/{j}/walk"), chain.walk.len());
+        for (j, highlight) in network.highlights.iter().flatten().enumerate() {
+            out.insert(
+                format!("/networks/{i}/highlights/{j}/walk"),
+                highlight.walk.len(),
+            );
         }
         out.insert(
             format!("/networks/{i}/points"),
@@ -1461,13 +1464,13 @@ fn graph_position(
 fn network_position(network: &Network, tokens: &[String]) -> Option<(f64, f64)> {
     match tokens.get(2)?.as_str() {
         "nodes" | "arcs" => graph_position(&network.nodes, &network.arcs, tokens),
-        // /networks/N/chains/C/walk/P/{from,to,turn}
-        "chains" => {
+        // /networks/N/highlights/C/walk/P/{from,to,turn}
+        "highlights" => {
             if tokens.get(4)? != "walk" {
                 return None;
             }
             let pass = network
-                .chains
+                .highlights
                 .as_ref()?
                 .get(tokens.get(3)?.parse::<usize>().ok()?)?
                 .walk

@@ -12,8 +12,8 @@ It edits files in place and restores them from a snapshot after each mutation,
 so it must be run on a clean tree. It needs no dependencies beyond cargo and
 Python 3.
 
-Measured 2026-09-29, when format 0.2 replaced a chain's `links` with a `walk`.
-The 50 m tolerance, the terminal-pip check and the chain continuity check went
+Measured 2026-09-29, when format 0.2 replaced a highlight's `links` with a `walk`.
+The 50 m tolerance, the terminal-pip check and the highlight continuity check went
 with it, and so did their mutations; continuity is now valid-walk rule 4, and
 the walk mutations below hold it. `take a stored entry's compressed size` went
 too: `6d58c62` removed the check it broke, so its pattern no longer exists.
@@ -45,7 +45,7 @@ too: `6d58c62` removed the check it broke, so its pattern no longer exists.
     walk: ignore a turn when finding the exit       accept (walk-forms), unit
     walk: `from` on a pass after the first          diagnose, unit
     walk: skip pinned-turn / the route rule         diagnose, unit
-    walk: drop the bad pass, keep the chain         diagnose, unit
+    walk: drop the bad pass, keep the highlight         diagnose, unit
     skip extra-channel (walk, node) / arc-pip-time  diagnose, unit
     report arc-pip-time on every arc                accept, diagnose, write
     keep a self-loop / an arc naming an absent node diagnose, unit
@@ -376,7 +376,7 @@ MUTATIONS = [
     # SPEC 6.2: a walk is used whole or not at all. Keeping the passes that
     # read and dropping the one that did not hands the caller a different walk.
     (
-        "drop the bad pass and keep the chain",
+        "drop the bad pass and keep the highlight",
         "src/decode.rs",
         "                    self.report(&fault.path(&walk_path), fault.cause);\n                    return None;",
         "                    self.report(&fault.path(&walk_path), fault.cause);\n                    continue;",

@@ -2,9 +2,9 @@
   "vnx": "0.2.0",
   "networks": [
     {
-      "name": "A network with an empty node map and an empty chain list",
+      "name": "A network with an empty node map and an empty highlight list",
       "arcs": {},
-      "chains": [],
+      "highlights": [],
       "nodes": {}
     }
   ],

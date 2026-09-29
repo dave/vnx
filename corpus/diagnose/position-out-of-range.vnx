@@ -31,7 +31,7 @@
         "bc": {"from": "b", "to": "c", "pips": [[-3.585, 95]]},
         "cx": {"from": "c", "to": "x", "pips": []}
       },
-      "chains": [
+      "highlights": [
         {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
         {"name": "Turns off the globe", "walk": [{"arc": "ab", "from": "a", "turn": [-3.595, -90.001], "to": "a"}]}
       ],

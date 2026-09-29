@@ -76,7 +76,7 @@ enum class DiagnosticCause(
      * A position that will not parse. (4.1, 6.2)
      *
      * The remedy drops the OWNER rather than the position: a node, an arc, a
-     * segment, an area, or the chain whose walk carries it. A missing vertex
+     * segment, an area, or the highlight whose walk carries it. A missing vertex
      * would leave a shorter, plausible, wrong line with nothing to indicate it.
      */
     POSITION_UNUSABLE("position-unusable", null),
@@ -122,7 +122,7 @@ enum class DiagnosticCause(
 
     /**
      * A pass that is not an object, or that names no arc of its owner — an arc
-     * another rule dropped included. The chain, or the route, is dropped.
+     * another rule dropped included. The highlight, or the route, is dropped.
      * (3.3.3, 6.2)
      */
     PASS_ARC_ABSENT("pass-arc-absent", null),

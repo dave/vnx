@@ -43,7 +43,7 @@ internal class Decoder(
                 "hidden",
                 "nodes",
                 "arcs",
-                "chains",
+                "highlights",
                 "points",
                 "areas",
                 "data",
@@ -52,8 +52,8 @@ internal class Decoder(
         // An arc has one shape in a network and in a route (section 3.4).
         val ARC_REQUIRED = setOf("from", "to", "pips")
         val ARC_OPTIONAL = setOf("data")
-        val CHAIN_REQUIRED = setOf("walk")
-        val CHAIN_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
+        val HIGHLIGHT_REQUIRED = setOf("walk")
+        val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pinned")
         val ROUTE_REQUIRED = setOf("walk")
@@ -547,7 +547,7 @@ internal class Decoder(
             hidden = optionalBool(obj, "hidden", at),
             nodes = nodes,
             arcs = arcs,
-            chains = optionalItems(obj, "chains", at) { o, p -> chain(o, p, arcs ?: emptyMap()) },
+            highlights = optionalItems(obj, "highlights", at) { o, p -> highlight(o, p, arcs ?: emptyMap()) },
             points = optionalItems(obj, "points", at) { o, p -> waypoint(o, p, inNetwork = true) },
             areas = optionalItems(obj, "areas", at) { o, p -> area(o, p, inNetwork = true) },
             data = optionalData(obj, at),
@@ -555,8 +555,8 @@ internal class Decoder(
     }
 
     /**
-     * A route is its own chain (section 3.4): it owns nodes and arcs of a
-     * network's shape and one walk over them, and wherever a chain would be
+     * A route is its own highlight (section 3.4): it owns nodes and arcs of a
+     * network's shape and one walk over them, and wherever a highlight would be
      * dropped the whole route is.
      */
     private fun route(
@@ -613,8 +613,8 @@ internal class Decoder(
     /**
      * A network's or a route's `arcs` (section 3.3.2).
      *
-     * AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
-     * the chain is dropped when its walk is read, under `pass-arc-absent`, with a
+     * AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
+     * the highlight is dropped when its walk is read, under `pass-arc-absent`, with a
      * diagnostic of its own (section 6.2).
      */
     private fun arcs(
@@ -661,7 +661,7 @@ internal class Decoder(
         }
         val (from, to) = ends
         val pips = requiredPips(obj, at, "arc") ?: return null
-        // An arc is geometry every chain walking it shares, and a time belongs to
+        // An arc is geometry every highlight walking it shares, and a time belongs to
         // one recording. ONE diagnostic for the arc, at its `pips`, however many
         // pips carried a time (section 6.3 rule 3).
         if (pips.any { it.timeMs != null }) {
@@ -697,15 +697,15 @@ internal class Decoder(
         return Arc(from, to, pips.map { Vertex(it.lon, it.lat, it.ele) }, data)
     }
 
-    // ------------------------------------------------------------ chains
+    // ------------------------------------------------------------ highlights
 
-    private fun chain(
+    private fun highlight(
         obj: JsonObject,
         at: Pointer,
         arcs: Map<String, Arc>,
-    ): Chain? {
-        recogniseKeys(obj, at, Keys.CHAIN_REQUIRED, Keys.CHAIN_OPTIONAL)
-        // Every field is read before the walk, so a chain the walk drops still
+    ): Highlight? {
+        recogniseKeys(obj, at, Keys.HIGHLIGHT_REQUIRED, Keys.HIGHLIGHT_OPTIONAL)
+        // Every field is read before the walk, so a highlight the walk drops still
         // reports what else was wrong with it.
         val name = optionalString(obj, "name", at)
         val notes = optionalString(obj, "notes", at)
@@ -713,11 +713,11 @@ internal class Decoder(
         val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs, route = false) ?: return null
-        return Chain(walk, name, notes, hidden, style, data)
+        return Highlight(walk, name, notes, hidden, style, data)
     }
 
     /**
-     * A chain's or a route's REQUIRED `walk`, checked in the order section 6.2
+     * A highlight's or a route's REQUIRED `walk`, checked in the order section 6.2
      * fixes. Returns null when the owner is to be dropped.
      *
      * A WALK IS USED WHOLE OR NOT AT ALL. Dropping a pass would hand the caller
@@ -738,12 +738,12 @@ internal class Decoder(
         if (raw !is JsonArray) {
             report(
                 here,
-                "`walk` must be an array of passes; the ${if (route) "route" else "chain"} is dropped",
+                "`walk` must be an array of passes; the ${if (route) "route" else "highlight"} is dropped",
                 if (raw == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
-        val dropped = if (route) "the route is dropped" else "the chain is dropped"
+        val dropped = if (route) "the route is dropped" else "the highlight is dropped"
 
         fun drop(fault: WalkFault): List<Pass>? {
             val at = here.child(fault.pass).let { if (fault.key == null) it else it.child(fault.key) }

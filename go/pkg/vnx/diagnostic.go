@@ -161,7 +161,7 @@ var (
 
 	// CodePartialGeometry is raised when an item IS exported but part of it
 	// could not be placed — one degenerate segment of a multi-segment track, a
-	// network arc under two pips, a chain link naming an arc the network does
+	// network arc under two pips, a highlight link naming an arc the network does
 	// not hold.
 	//
 	// ⚠ IT EXISTS BECAUSE CodeItemNoGeometry'S ENGLISH IS WRONG FOR THIS CASE.
@@ -243,24 +243,24 @@ var (
 	// at the arc's `pips`, however many pips carried one.
 	CodeArcPipTime = decodeCode("arc-pip-time")
 	// CodeSelfLoopArc: an arc whose `from` and `to` name one node (§3.3.2).
-	// The arc is dropped, and every chain walking it with it.
+	// The arc is dropped, and every highlight walking it with it.
 	CodeSelfLoopArc = decodeCode("self-loop-arc")
 	// CodeArcNodeAbsent: an arc naming a node its owner does not have
-	// (§3.3.2). The arc is dropped, and every chain walking it with it.
+	// (§3.3.2). The arc is dropped, and every highlight walking it with it.
 	CodeArcNodeAbsent = decodeCode("arc-node-absent")
 	// CodePassArcAbsent: a pass that is not an object or names no arc of its
-	// owner (§3.3.3), including an arc another rule dropped. The chain — or
-	// the route, which is its own chain — is dropped.
+	// owner (§3.3.3), including an arc another rule dropped. The highlight — or
+	// the route, which is its own highlight — is dropped.
 	CodePassArcAbsent = decodeCode("pass-arc-absent")
 	// CodeWalkSpelling: a walk that breaks §3.3.3's rule for where `from` and
-	// `to` appear. The chain is dropped.
+	// `to` appear. The highlight is dropped.
 	CodeWalkSpelling = decodeCode("walk-spelling")
 	// CodeWalkNotConnected: a node `from` or `to` that is not an end of its
 	// arc, a pass not entered at an end of its arc, or a pass other than the
-	// last leaving at a position (§3.3.3). The chain is dropped.
+	// last leaving at a position (§3.3.3). The highlight is dropped.
 	CodeWalkNotConnected = decodeCode("walk-not-connected")
 	// CodePinnedTurn: a pass carrying both `turn` and `pinned` (§3.3.3). The
-	// chain is dropped.
+	// highlight is dropped.
 	CodePinnedTurn = decodeCode("pinned-turn")
 	// CodeRoutePinOrPosition: a position, a `turn` or `pinned` in a route's
 	// walk (§3.4). The route is dropped.

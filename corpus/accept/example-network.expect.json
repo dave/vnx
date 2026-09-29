@@ -1,7 +1,7 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/chains/points/areas, a top-level route, a track, a waypoint, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries — network node, network arc pip, walk position, in-network point, in-network area vertex, top-level area vertex, route node, route arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so a reader that swapped the two channels everywhere EXCEPT on waypoints would pass every other case in the corpus. Do not narrow this list.",
+  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/highlights/points/areas, a top-level route, a track, a waypoint, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries — network node, network arc pip, walk position, in-network point, in-network area vertex, top-level area vertex, route node, route arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so a reader that swapped the two channels everywhere EXCEPT on waypoints would pass every other case in the corpus. Do not narrow this list.",
   "counts": {
     "areas": 1,
     "folders": 2,
@@ -16,9 +16,9 @@
     "/networks/0/arcs/arc-3/pips": 0,
     "/networks/0/areas": 1,
     "/networks/0/areas/0/polygon": 4,
-    "/networks/0/chains": 2,
-    "/networks/0/chains/0/walk": 2,
-    "/networks/0/chains/1/walk": 1,
+    "/networks/0/highlights": 2,
+    "/networks/0/highlights/0/walk": 2,
+    "/networks/0/highlights/1/walk": 1,
     "/networks/0/nodes": 4,
     "/networks/0/points": 2,
     "/routes/0/arcs": 2,
@@ -42,7 +42,7 @@
       "lat": 57.1131
     },
     {
-      "at": "/networks/0/chains/0/walk/1/to",
+      "at": "/networks/0/highlights/0/walk/1/to",
       "lon": -3.6521,
       "lat": 57.1
     },

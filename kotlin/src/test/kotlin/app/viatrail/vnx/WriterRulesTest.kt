@@ -117,7 +117,7 @@ class WriterRulesTest {
     private fun network(
         walk: List<Pass>,
         arcs: Map<String, Arc> = ab,
-    ) = VnxDocument(vnx = "0.2.0", networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))))
+    ) = VnxDocument(vnx = "0.2.0", networks = listOf(Network(nodes = nodes, arcs = arcs, highlights = listOf(Highlight(walk)))))
 
     private fun refused(document: VnxDocument): String = assertFailsWith<IllegalArgumentException> { Vnx.write(document) }.message!!
 
@@ -187,7 +187,7 @@ class WriterRulesTest {
         val document =
             VnxDocument(
                 vnx = "0.2.0",
-                networks = listOf(Network(nodes = nodes, arcs = arcs, chains = listOf(Chain(walk)))),
+                networks = listOf(Network(nodes = nodes, arcs = arcs, highlights = listOf(Highlight(walk)))),
             )
         val written = Vnx.write(document)
         assertTrue(

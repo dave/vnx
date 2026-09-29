@@ -387,7 +387,7 @@ WALK_NETWORK = """
     "cb": {"from": "c", "to": "b", "pips": []},
     "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
   },
-  "chains": [{"name": "under test", "walk": %s}, {"name": "sibling", "walk": []}]
+  "highlights": [{"name": "under test", "walk": %s}, {"name": "sibling", "walk": []}]
 }]}
 """
 
@@ -401,40 +401,42 @@ class Walks(unittest.TestCase):
 
     The corpus pins one case per code.  These pin what a single case cannot:
     each clause of each rule, the ORDER in which two faults are found, and that
-    a dropped chain leaves its sibling alone.
+    a dropped highlight leaves its sibling alone.
     """
 
-    WALK = "/networks/0/chains/0/walk"
+    WALK = "/networks/0/highlights/0/walk"
 
     def walk(self, passes: str) -> vnx.ReadResult:
         return read(WALK_NETWORK % passes)
 
-    def chains(self, result: vnx.ReadResult) -> list[str]:
+    def highlights(self, result: vnx.ReadResult) -> list[str]:
         networks = result.document.networks
         assert networks is not None
-        return [chain.name or "" for chain in networks[0].chains or []]
+        return [highlight.name or "" for highlight in networks[0].highlights or []]
 
     def assertDropped(self, passes: str, path: str, code: str) -> None:
         result = self.walk(passes)
         self.assertEqual(codes(result), [(self.WALK + path, code)], messages(result))
-        self.assertEqual(self.chains(result), ["sibling"], "only the faulty chain goes")
+        self.assertEqual(
+            self.highlights(result), ["sibling"], "only the faulty highlight goes"
+        )
 
-    def assertKept(self, passes: str) -> vnx.Chain:
+    def assertKept(self, passes: str) -> vnx.Highlight:
         result = self.walk(passes)
         self.assertEqual(messages(result), [])
         networks = result.document.networks
-        assert networks is not None and networks[0].chains is not None
-        return networks[0].chains[0]
+        assert networks is not None and networks[0].highlights is not None
+        return networks[0].highlights[0]
 
     # -- every walk form is valid ----------------------------------------
 
     def test_a_node_to_node_walk_against_an_arcs_direction(self) -> None:
-        chain = self.assertKept(
+        highlight = self.assertKept(
             '[{"arc": "cb", "from": "b"}, {"arc": "cd", "to": "d"}]'
         )
-        assert chain.walk is not None
-        self.assertEqual([p.arc for p in chain.walk], ["cb", "cd"])
-        self.assertEqual(chain.walk[0].from_, "b")
+        assert highlight.walk is not None
+        self.assertEqual([p.arc for p in highlight.walk], ["cb", "cd"])
+        self.assertEqual(highlight.walk[0].from_, "b")
 
     def test_a_turn_leaves_by_the_node_it_entered(self) -> None:
         """After a turn on `ab` entered at `a`, the walk is at `a` again, so a
@@ -463,11 +465,11 @@ class Walks(unittest.TestCase):
         self.assertEqual(self.assertKept("[]").walk, [])
 
     def test_pinned_false_reads_as_absent(self) -> None:
-        chain = self.assertKept(
+        highlight = self.assertKept(
             '[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]'
         )
-        assert chain.walk is not None
-        self.assertIs(chain.walk[0].pinned, False)
+        assert highlight.walk is not None
+        self.assertIs(highlight.walk[0].pinned, False)
         self.assertNotIn(
             b"pinned",
             vnx.encode_bytes(
@@ -480,12 +482,12 @@ class Walks(unittest.TestCase):
 
     # -- the required walk -----------------------------------------------
 
-    def test_an_absent_walk_drops_the_chain(self) -> None:
+    def test_an_absent_walk_drops_the_highlight(self) -> None:
         result = read(WALK_NETWORK.replace('"walk": %s', '"notes": "no walk"'))
         self.assertEqual(codes(result), [(self.WALK, "wrong-type-required")])
-        self.assertEqual(self.chains(result), ["sibling"])
+        self.assertEqual(self.highlights(result), ["sibling"])
 
-    def test_a_walk_that_is_not_an_array_drops_the_chain(self) -> None:
+    def test_a_walk_that_is_not_an_array_drops_the_highlight(self) -> None:
         self.assertDropped('{"arc": "ab"}', "", "wrong-type-required")
 
     # -- SPEC 6.2's steps, one clause each -------------------------------
@@ -502,23 +504,23 @@ class Walks(unittest.TestCase):
             '{"vnx": "0.2.0", "networks": ['
             '{"nodes": {"n1": [0,0], "n2": [1,1]}, "arcs": {"only-here":'
             ' {"from": "n1", "to": "n2", "pips": []}}},'
-            '{"chains": [{"walk": [{"arc": "only-here", "from": "n1", "to": "n2"}]}]}]}'
+            '{"highlights": [{"walk": [{"arc": "only-here", "from": "n1", "to": "n2"}]}]}]}'
         )
         self.assertEqual(
-            codes(result), [("/networks/1/chains/0/walk/0", "pass-arc-absent")]
+            codes(result), [("/networks/1/highlights/0/walk/0", "pass-arc-absent")]
         )
 
-    def test_2_an_unknown_key_on_a_pass_keeps_the_chain(self) -> None:
+    def test_2_an_unknown_key_on_a_pass_keeps_the_highlight(self) -> None:
         result = self.walk('[{"arc": "ab", "from": "a", "to": "b", "via": "x"}]')
         self.assertEqual(codes(result), [(self.WALK + "/0/via", "unknown-key")])
-        self.assertEqual(self.chains(result), ["under test", "sibling"])
+        self.assertEqual(self.highlights(result), ["under test", "sibling"])
 
     def test_3_a_wrong_typed_pinned_drops_the_field_only(self) -> None:
         result = self.walk('[{"arc": "ab", "from": "a", "to": "b", "pinned": "yes"}]')
         self.assertEqual(
             codes(result), [(self.WALK + "/0/pinned", "wrong-type-optional")]
         )
-        self.assertEqual(self.chains(result), ["under test", "sibling"])
+        self.assertEqual(self.highlights(result), ["under test", "sibling"])
 
     def test_4_a_turn_spelled_as_a_node_key(self) -> None:
         self.assertDropped(
@@ -538,8 +540,8 @@ class Walks(unittest.TestCase):
         )
         self.assertEqual(codes(result), [(self.WALK + "/0/from", "extra-channel")])
         networks = result.document.networks
-        assert networks is not None and networks[0].chains is not None
-        walk = networks[0].chains[0].walk
+        assert networks is not None and networks[0].highlights is not None
+        walk = networks[0].highlights[0].walk
         assert walk is not None
         self.assertEqual(walk[0].from_, vnx.Position(-3.597, 57.1005))
 
@@ -623,10 +625,10 @@ class Walks(unittest.TestCase):
             '[{"arc": "ghost", "turn": "x", "via": 1}]', "/0", "pass-arc-absent"
         )
 
-    def test_an_unknown_key_is_still_reported_on_a_pass_that_drops_the_chain(
+    def test_an_unknown_key_is_still_reported_on_a_pass_that_drops_the_highlight(
         self,
     ) -> None:
-        """Diagnostics that do not drop the chain are recorded as they are met."""
+        """Diagnostics that do not drop the highlight are recorded as they are met."""
         result = self.walk('[{"arc": "ab", "via": 1, "to": "b"}]')
         self.assertEqual(
             codes(result),
@@ -639,7 +641,7 @@ class Walks(unittest.TestCase):
 
 class Routes(unittest.TestCase):
     """SPEC 3.4: a route owns a graph of a network's shape and is its own
-    chain, so where a chain would be dropped the route is."""
+    highlight, so where a highlight would be dropped the route is."""
 
     ROUTE = """
     {"vnx": "0.2.0", "routes": [{
@@ -710,7 +712,7 @@ class Graphs(unittest.TestCase):
     def network(self, nodes: str, arcs: str, walk: str = "[]") -> vnx.ReadResult:
         return read(
             '{"vnx": "0.2.0", "networks": [{"nodes": %s, "arcs": %s,'
-            ' "chains": [{"walk": %s}]}]}' % (nodes, arcs, walk)
+            ' "highlights": [{"walk": %s}]}]}' % (nodes, arcs, walk)
         )
 
     NODES = '{"a": [-3.6, 57.1], "b": [-3.5, 57.1]}'
@@ -766,9 +768,9 @@ class Graphs(unittest.TestCase):
                     [(f"/networks/0/arcs/ab/{key}", "wrong-type-required")],
                 )
 
-    def test_a_bad_node_cascades_to_the_arc_and_then_the_chain(self) -> None:
+    def test_a_bad_node_cascades_to_the_arc_and_then_the_highlight(self) -> None:
         """SPEC 6.2: the node goes, the arc naming it goes under
-        `arc-node-absent`, the chain walking it under `pass-arc-absent`.
+        `arc-node-absent`, the highlight walking it under `pass-arc-absent`.
         Three diagnostics, one per element lost."""
         result = self.network(
             '{"a": [-3.6], "b": [-3.5, 57.1]}',
@@ -779,7 +781,7 @@ class Graphs(unittest.TestCase):
             codes(result),
             [
                 ("/networks/0/arcs/ab/from", "arc-node-absent"),
-                ("/networks/0/chains/0/walk/0", "pass-arc-absent"),
+                ("/networks/0/highlights/0/walk/0", "pass-arc-absent"),
                 ("/networks/0/nodes/a", "position-unusable"),
             ],
         )
@@ -1201,7 +1203,7 @@ class RequiredKeys(unittest.TestCase):
     def test_an_empty_required_array_is_present(self) -> None:
         """SPEC 3.10: requiring a key does not require a non-empty value."""
         result = read(
-            '{"vnx": "0.2.0", "networks": [{"chains": [{"walk": []}]}],'
+            '{"vnx": "0.2.0", "networks": [{"highlights": [{"walk": []}]}],'
             ' "tracks": [{"segments": []}]}'
         )
         self.assertEqual(messages(result), [])

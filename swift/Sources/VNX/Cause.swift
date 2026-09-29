@@ -76,7 +76,7 @@ public enum Cause: String, Sendable, CaseIterable {
   /// to find out which happened, which is the lookup a code exists to save."
   case wrongTypeOptional
   /// A position that will not parse. SPEC 6.2's table says which object
-  /// goes: the node, the arc, the segment, the area, or the chain.
+  /// goes: the node, the arc, the segment, the area, or the highlight.
   case positionUnusable
   /// `importance` outside 1 to 5 (SPEC 3.6), the one normative range this
   /// format states for a style key.
@@ -103,7 +103,7 @@ public enum Cause: String, Sendable, CaseIterable {
   /// The arc goes.
   case arcNodeAbsent
   /// A pass that is not an object, or that names no arc of its network or
-  /// route — including an arc another rule dropped (SPEC 3.3.3). The chain
+  /// route — including an arc another rule dropped (SPEC 3.3.3). The highlight
   /// goes; in a route, the route.
   case passArcAbsent
   /// A walk that breaks SPEC 3.3.3's rule for where `from` and `to` appear.

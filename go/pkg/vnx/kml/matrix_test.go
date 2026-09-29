@@ -22,11 +22,11 @@ import (
 // an omission here.
 
 // Row: Network topology — "a Folder holding an arcs Placemark and one named
-// Placemark per in-network point, area and chain; SHARING lost".
+// Placemark per in-network point, area and highlight; SHARING lost".
 func TestMatrixNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	// CARRIED: every arc, once, in one Placemark; every in-network item and
-	// every chain, named, with its own style and visibility. Asserted in
+	// every highlight, named, with its own style and visibility. Asserted in
 	// write_test.go's network tests.
 	//
 	// ⚠ TWICE, NOT ONCE, AND ON PURPOSE (ruled 2026-09-03). The Folder carries
@@ -40,8 +40,8 @@ func TestMatrixNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 	if n := countOf(out, "<MultiGeometry>"); n != 2 {
 		t.Errorf("<MultiGeometry> count = %d, want 2 (the fixture track and the network's arcs)", n)
 	}
-	// LOST: the graph. Nothing in the output says which arcs a chain traverses,
-	// or that two chains traverse the same one — a chain's line is a flat list
+	// LOST: the graph. Nothing in the output says which arcs a highlight traverses,
+	// or that two highlights traverse the same one — a highlight's line is a flat list
 	// of coordinates, and the arc ids appear nowhere.
 	for _, id := range []string{"a-north", "a-south"} {
 		if strings.Contains(out, id) {
@@ -176,9 +176,9 @@ func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 func TestMatrixHiddenIsCarriedOnEveryNamedThingIncludingInNetworkItems(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	// CARRIED: on every Placemark and Folder that has one of its own — an empty
-	// folder, a waypoint, a chain, and the in-network area that used to lose it.
+	// folder, a waypoint, a highlight, and the in-network area that used to lose it.
 	if n := countOf(out, "<visibility>0</visibility>"); n != 4 {
-		t.Errorf("<visibility>0</visibility> count = %d, want 4 (a folder, a waypoint, a chain, an in-network area)\n%s", n, out)
+		t.Errorf("<visibility>0</visibility> count = %d, want 4 (a folder, a waypoint, a highlight, an in-network area)\n%s", n, out)
 	}
 	// The arcs are the ONE thing left that cannot carry visibility, and they
 	// carry none of their own to lose: vnx.Arc has no Hidden field.

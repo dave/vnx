@@ -305,7 +305,7 @@ func TestCellMovingTimeIsNotCarriedAndIsNotDerivable(t *testing.T) {
 }
 
 // CELL: Network topology — "one MultiLineString Feature for the arcs, one named
-// Feature per in-network point, area and chain; SHARING lost". The SHAPE is
+// Feature per in-network point, area and highlight; SHARING lost". The SHAPE is
 // pinned in geojson_test.go; what
 // was never asserted is the loss itself, which is the half the matrix cell
 // exists to state. KML's equivalent is kml/matrix_test.go's network test.
@@ -317,12 +317,12 @@ func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 			"arc-north": {From: "node-north", To: "node-mid"},
 			"arc-south": {From: "node-mid", To: "node-south"},
 		},
-		Chains: []vnx.Chain{
+		Highlights: []vnx.Highlight{
 			{Name: "Full Traverse", Walk: []vnx.Pass{
 				{Arc: "arc-north", From: node("node-north")},
 				{Arc: "arc-south", To: node("node-south")},
 			}},
-			// SHARES arc-north with the chain above. That sharing is the whole
+			// SHARES arc-north with the highlight above. That sharing is the whole
 			// of what this cell loses.
 			{Name: "Half Way", Walk: []vnx.Pass{
 				{Arc: "arc-north", From: node("node-north"), To: node("node-mid")},
@@ -330,20 +330,20 @@ func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 		},
 	}}})
 	// CARRIED: one Feature for the network, holding every arc once, and one
-	// NAMED Feature per chain.
+	// NAMED Feature per highlight.
 	if n := strings.Count(out, `"name":"Lairig Ghru"`); n != 1 {
 		t.Errorf("the network is written %d times, want exactly one Feature:\n%s", n, out)
 	}
 	for _, want := range []string{`"name":"Lairig Ghru / Full Traverse"`, `"name":"Lairig Ghru / Half Way"`} {
 		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — a chain is its own named Feature (§2.6):\n%s", want, out)
+			t.Errorf("missing %s — a highlight is its own named Feature (§2.6):\n%s", want, out)
 		}
 	}
 	if report.Emitted != 3 {
-		t.Errorf("emitted %d, want 3 (the network and its two chains)", report.Emitted)
+		t.Errorf("emitted %d, want 3 (the network and its two highlights)", report.Emitted)
 	}
-	// LOST: the graph. Nothing in the file says which arcs a chain traverses,
-	// or that both chains traverse arc-north — a chain's line is a flat list of
+	// LOST: the graph. Nothing in the file says which arcs a highlight traverses,
+	// or that both highlights traverse arc-north — a highlight's line is a flat list of
 	// coordinates, and no arc or node id appears anywhere. Putting one there
 	// would be an invented vendor property (§2.3).
 	for _, leaked := range []string{"arc-north", "arc-south", "node-north", "node-mid", "node-south", "links", "arcs", "nodes"} {
@@ -423,7 +423,7 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 func TestFixtureDiagnostics(t *testing.T) {
 	_, report := writeDoc(t, fixture())
 	// 3 waypoints, 1 area, 1 track, 1 route, then the network's arcs Feature,
-	// its in-network point, its in-network area and its one chain.
+	// its in-network point, its in-network area and its one highlight.
 	if report.Emitted != 10 {
 		t.Errorf("emitted %d features, wanted 10", report.Emitted)
 	}

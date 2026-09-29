@@ -130,7 +130,7 @@
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "c",
           "walk": [
@@ -142,8 +142,8 @@
           ],
           "data": [
             {
-              "@type": "t/chain",
-              "value": "chain"
+              "@type": "t/highlight",
+              "value": "highlight"
             }
           ]
         }

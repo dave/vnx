@@ -168,13 +168,13 @@ def _walk(obj: dict[str, Any], options: Options) -> None:
 
 def _network(obj: dict[str, Any], options: Options) -> None:
     _graph(obj, options)
-    _items(obj, "chains", options, _chain)
+    _items(obj, "highlights", options, _highlight)
     _items(obj, "points", options, _waypoint)
     _items(obj, "areas", options, _area)
     _drop_empty(obj, "data")
 
 
-def _chain(obj: dict[str, Any], options: Options) -> None:
+def _highlight(obj: dict[str, Any], options: Options) -> None:
     _walk(obj, options)
     _drop_empty(obj, "style")
     _drop_empty(obj, "data")

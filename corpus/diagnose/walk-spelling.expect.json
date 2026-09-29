@@ -1,28 +1,28 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A `from` on a pass after the first (SPEC 3.3.3, the rule for `from` and `to`). The value is not wrong: the walk IS at b when the second pass starts. It is a second spelling of a fact the walk already states, and a walk has one spelling so that a walk read and written back is the same walk, so the chain is dropped. That is what separates this rule from continuity: a reader that checks only whether the walk joins reads this chain clean. The diagnostic names the `from` key, because the key the rule forbids is the element at fault.",
+  "note": "A `from` on a pass after the first (SPEC 3.3.3, the rule for `from` and `to`). The value is not wrong: the walk IS at b when the second pass starts. It is a second spelling of a fact the walk already states, and a walk has one spelling so that a walk read and written back is the same walk, so the highlight is dropped. That is what separates this rule from continuity: a reader that checks only whether the walk joins reads this highlight clean. The diagnostic names the `from` key, because the key the rule forbids is the element at fault.",
   "counts": {
     "networks": 1,
-    "/networks/0/chains": 1,
+    "/networks/0/highlights": 1,
     "/networks/0/arcs": 3,
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cd/pips": 2,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/0/nodes": 4
   },
   "positions": [
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
   ],
   "diagnostics": [
     {
-      "path": "/networks/0/chains/1/walk/1/from",
+      "path": "/networks/0/highlights/1/walk/1/from",
       "code": "walk-spelling",
-      "message_advisory": "only the first pass carries `from` — the chain is dropped"
+      "message_advisory": "only the first pass carries `from` — the highlight is dropped"
     }
   ]
 }

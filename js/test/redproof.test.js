@@ -38,15 +38,15 @@ function requireFixture(relative, predicate, why) {
 
 let counter = 0;
 
-/** A chain over a fixed three-node line, a --ab-- b --bc-- c. */
-function chainDoc(walk) {
+/** A highlight over a fixed three-node line, a --ab-- b --bc-- c. */
+function highlightDoc(walk) {
   return JSON.stringify({
     vnx: '0.2.0',
     networks: [
       {
         nodes: { a: [0, 0], b: [1, 0], c: [2, 0] },
         arcs: { ab: { from: 'a', to: 'b', pips: [] }, bc: { from: 'b', to: 'c', pips: [] } },
-        chains: [{ walk }],
+        highlights: [{ walk }],
       },
     ],
   });
@@ -729,16 +729,16 @@ test('a reader that does not require `to` on the last pass is caught', async () 
   // the mutant reddens. The second half below proves the same mutant on a
   // document built here.
   assert.deepEqual(await failingDelta(cases), ['diagnose/walk-last-pass-lacks-to.vnx']);
-  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(highlightDoc([{ arc: 'ab', from: 'a' }]));
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
     [],
     'the mutant must stop reporting it',
   );
-  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a' }]));
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(highlightDoc([{ arc: 'ab', from: 'a' }]));
   assert.deepEqual(
     sound.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/walk/0', 'walk-spelling']],
+    [['/networks/0/highlights/0/walk/0', 'walk-spelling']],
   );
 });
 
@@ -750,7 +750,7 @@ test('a reader that allows a `to` the rule forbids is caught', async () => {
   // document built here.
   assert.deepEqual(await failingDelta(cases), ['diagnose/walk-to-forbidden.vnx']);
   const { diagnostics } = (await mutatedApi(edits)).decodeText(
-    chainDoc([
+    highlightDoc([
       { arc: 'ab', from: 'a', to: 'b' },
       { arc: 'bc', to: 'c' },
     ]),
@@ -761,14 +761,14 @@ test('a reader that allows a `to` the rule forbids is caught', async () => {
     'the mutant must stop reporting it',
   );
   const { diagnostics: sound } = (await mutatedApi([])).decodeText(
-    chainDoc([
+    highlightDoc([
       { arc: 'ab', from: 'a', to: 'b' },
       { arc: 'bc', to: 'c' },
     ]),
   );
   assert.deepEqual(
     sound.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/walk/0/to', 'walk-spelling']],
+    [['/networks/0/highlights/0/walk/0/to', 'walk-spelling']],
   );
 });
 
@@ -792,16 +792,16 @@ test('a reader that accepts a `from` node off its arc is caught', async () => {
   // the mutant reddens. The second half below proves the same mutant on a
   // document built here.
   assert.deepEqual(await failingDelta(cases), ['diagnose/walk-from-not-an-end.vnx']);
-  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(highlightDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
     [],
     'the mutant must stop reporting it',
   );
-  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(highlightDoc([{ arc: 'ab', from: 'c', to: 'b' }]));
   assert.deepEqual(
     sound.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/walk/0/from', 'walk-not-connected']],
+    [['/networks/0/highlights/0/walk/0/from', 'walk-not-connected']],
   );
 });
 
@@ -818,16 +818,16 @@ test('a reader that accepts a `to` node off its arc is caught', async () => {
   // the mutant reddens. The second half below proves the same mutant on a
   // document built here.
   assert.deepEqual(await failingDelta(cases), ['diagnose/walk-to-not-an-end.vnx']);
-  const { diagnostics } = (await mutatedApi(edits)).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
+  const { diagnostics } = (await mutatedApi(edits)).decodeText(highlightDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
     [],
     'the mutant must stop reporting it',
   );
-  const { diagnostics: sound } = (await mutatedApi([])).decodeText(chainDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
+  const { diagnostics: sound } = (await mutatedApi([])).decodeText(highlightDoc([{ arc: 'ab', from: 'a', to: 'c' }]));
   assert.deepEqual(
     sound.map((d) => [d.path, d.code]),
-    [['/networks/0/chains/0/walk/0/to', 'walk-not-connected']],
+    [['/networks/0/highlights/0/walk/0/to', 'walk-not-connected']],
   );
 });
 

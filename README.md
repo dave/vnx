@@ -8,7 +8,7 @@ The format is at major version 0 and is unstable. Through 0.x the minor version
 is a breaking axis, and constructs may be added, changed or removed without a
 compatibility guarantee.
 
-A small document: two nodes, an arc joining them, and a chain that names a walk
+A small document: two nodes, an arc joining them, and a highlight that names a walk
 along that arc.
 
 ```json
@@ -23,7 +23,7 @@ along that arc.
     "arcs": {
       "arc-1": { "from": "node-1", "to": "node-2", "pips": [[-3.6644, 57.1085, 451.9]] }
     },
-    "chains": [{ "name": "Chalamain Gap", "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
+    "highlights": [{ "name": "Chalamain Gap", "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
   }]
 }
 ```
@@ -34,7 +34,7 @@ file that parses perfectly and draws in the wrong hemisphere, which
 [`corpus/accept/lonlat-transposition.vnx`](corpus/accept/lonlat-transposition.vnx)
 catches.
 
-A network owns its graph: `nodes` and `arcs` keyed by identifier, with `chains`
+A network owns its graph: `nodes` and `arcs` keyed by identifier, with `highlights`
 walking those arcs by reference. That reference is the construct GPX, KML and
 GeoJSON cannot express. A top-level route owns a graph of the same shape and
 carries one walk over it.
@@ -68,8 +68,8 @@ language's install line, usage and API.
 ## Why it exists
 
 Viatrail's central structure is a network: a graph of nodes and arcs, with named
-chains drawn over it as ordered traversals. Two chains that follow the same
-trail reference the same arc, so editing that trail once changes every chain
+highlights drawn over it as ordered traversals. Two highlights that follow the same
+trail reference the same arc, so editing that trail once changes every highlight
 over it. The shared geometry is the meaning, not a storage optimisation.
 
 No interchange format in general use carries that. GPX has tracks and routes as
@@ -100,7 +100,7 @@ corpus/
 Each case carries a `.expect.json` sidecar. The sidecar is plain JSON with no
 language-specific metadata, but running the corpus is more than parse and
 compare: some expectations are model-level, such as a track's moving-time span
-or a chain's continuity, so a harness has to implement the format's semantics
+or a highlight's continuity, so a harness has to implement the format's semantics
 and not only its syntax.
 
 See [`corpus/README.md`](corpus/README.md) for the sidecar fields and for what

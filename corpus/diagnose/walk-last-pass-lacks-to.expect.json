@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A last pass with no `to` (SPEC 3.3.3, the rule for `from` and `to`, rule 2). Without `to` the pass would leave cb by its other end, c, which is a plausible walk, so a reader that derives the exit and moves on reads this chain clean. The rule makes the end explicit, so that a walk has one spelling, and the chain is dropped. The diagnostic names the pass that lacks the key, not a key that is not there. The other chain is valid and survives, which `positions` proves by name.",
+  "note": "A last pass with no `to` (SPEC 3.3.3, the rule for `from` and `to`, rule 2). Without `to` the pass would leave cb by its other end, c, which is a plausible walk, so a reader that derives the exit and moves on reads this highlight clean. The rule makes the end explicit, so that a walk has one spelling, and the highlight is dropped. The diagnostic names the pass that lacks the key, not a key that is not there. The other highlight is valid and survives, which `positions` proves by name.",
   "counts": {
     "networks": 1,
     "/networks/0/nodes": 4,
@@ -9,21 +9,21 @@
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cb/pips": 0,
     "/networks/0/arcs/cd/pips": 2,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1
   },
   "positions": [
     {
-      "at": "/networks/0/chains/0/walk/0/to",
+      "at": "/networks/0/highlights/0/walk/0/to",
       "lon": -3.597,
       "lat": 57.1005
     }
   ],
   "diagnostics": [
     {
-      "path": "/networks/0/chains/1/walk/1",
+      "path": "/networks/0/highlights/1/walk/1",
       "code": "walk-spelling",
-      "message_advisory": "the last pass must carry `to` — the chain is dropped"
+      "message_advisory": "the last pass must carry `to` — the highlight is dropped"
     }
   ]
 }

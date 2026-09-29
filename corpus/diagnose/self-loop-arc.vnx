@@ -15,7 +15,7 @@
         "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]},
         "loop": {"from": "b", "to": "b", "pips": [[-3.585, 57.11], [-3.585, 57.105]]}
       },
-      "chains": [
+      "highlights": [
         {"name": "Round the loop", "walk": [{"arc": "ab", "from": "a"}, {"arc": "loop", "to": "b"}]}
       ]
     }

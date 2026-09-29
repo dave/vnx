@@ -7,7 +7,7 @@ import XCTest
 ///
 /// The corpus pins one case per code. These tests pin what one case cannot: each
 /// branch of a rule, the order SPEC 6.2 checks a walk in, the cascade from a
-/// dropped node to a dropped chain, and the writer's refusals, which no corpus
+/// dropped node to a dropped highlight, and the writer's refusals, which no corpus
 /// tier reaches because every corpus case starts from bytes.
 final class WalkTests: XCTestCase {
 
@@ -30,10 +30,10 @@ final class WalkTests: XCTestCase {
             "cd":{"from":"c","to":"d","pips":[[-3.575,57.102],[-3.572,57.101]]}}
     """
 
-  /// A network over `graph` carrying one chain per walk.
+  /// A network over `graph` carrying one highlight per walk.
   private func network(_ walks: String...) throws -> VNX.ReadResult {
-    let chains = walks.map { "{\"walk\":\($0)}" }.joined(separator: ",")
-    return try read("\"networks\":[{\(graph),\"chains\":[\(chains)]}]")
+    let highlights = walks.map { "{\"walk\":\($0)}" }.joined(separator: ",")
+    return try read("\"networks\":[{\(graph),\"highlights\":[\(highlights)]}]")
   }
 
   /// A route over `graph`'s shape carrying `walk`.
@@ -51,7 +51,7 @@ final class WalkTests: XCTestCase {
       #"[{"arc":"ab","from":[-3.595,57.101],"to":[-3.595,57.101]}]"#,
       #"[]"#)
     XCTAssertEqual(reported(result), [])
-    let walk = try XCTUnwrap(result.document.networks?[0].chains?[0].walk)
+    let walk = try XCTUnwrap(result.document.networks?[0].highlights?[0].walk)
     XCTAssertEqual(
       walk,
       [
@@ -61,7 +61,7 @@ final class WalkTests: XCTestCase {
         Pass(arc: "cb"),
         Pass(arc: "ab", to: .position(LonLat(lon: -3.598, lat: 57.1002))),
       ])
-    XCTAssertEqual(result.document.networks?[0].chains?.map(\.walk.count), [5, 1, 1, 1, 0])
+    XCTAssertEqual(result.document.networks?[0].highlights?.map(\.walk.count), [5, 1, 1, 1, 0])
 
     let again = try VNX.read(try VNX.write(result.document))
     XCTAssertEqual(again.diagnostics, [])
@@ -86,10 +86,10 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "walk-not-connected /networks/0/chains/1/walk/1",
-        "walk-not-connected /networks/0/chains/2/walk/1",
+        "walk-not-connected /networks/0/highlights/1/walk/1",
+        "walk-not-connected /networks/0/highlights/2/walk/1",
       ])
-    XCTAssertEqual(result.document.networks?[0].chains?.count, 2)
+    XCTAssertEqual(result.document.networks?[0].highlights?.count, 2)
   }
 
   // MARK: - `pinned` (SPEC 3.3.3)
@@ -97,18 +97,18 @@ final class WalkTests: XCTestCase {
   func testPinnedFalseIsAbsentAndIsNotWrittenBack() throws {
     let result = try network(#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#)
     XCTAssertEqual(reported(result), [])
-    XCTAssertEqual(result.document.networks?[0].chains?[0].walk[0].pinned, false)
+    XCTAssertEqual(result.document.networks?[0].highlights?[0].walk[0].pinned, false)
     XCTAssertFalse(
       String(decoding: try VNX.write(result.document), as: UTF8.self).contains("pinned"))
   }
 
   /// SPEC 6.2 step 3: `pinned` of the wrong type drops the FIELD, and the
-  /// chain stays.
+  /// highlight stays.
   func testPinnedOfTheWrongTypeDropsOnlyTheField() throws {
     let result = try network(#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#)
-    XCTAssertEqual(reported(result), ["wrong-type-optional /networks/0/chains/0/walk/0/pinned"])
+    XCTAssertEqual(reported(result), ["wrong-type-optional /networks/0/highlights/0/walk/0/pinned"])
     XCTAssertEqual(
-      result.document.networks?.first?.chains?.first?.walk,
+      result.document.networks?.first?.highlights?.first?.walk,
       [Pass(arc: "ab", from: .node("a"), to: .node("b"))])
   }
 
@@ -150,32 +150,32 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "extra-channel /networks/0/chains/0/walk/0/from",
-        "extra-channel /networks/0/chains/0/walk/0/turn",
+        "extra-channel /networks/0/highlights/0/walk/0/from",
+        "extra-channel /networks/0/highlights/0/walk/0/turn",
       ], "`[lon, lat, null]` carries no extra channel")
     XCTAssertEqual(
-      result.document.networks?[0].chains?[0].walk[0].from,
+      result.document.networks?[0].highlights?[0].walk[0].from,
       .position(LonLat(lon: -3.576, lat: 57.1015)))
   }
 
   // MARK: - Arcs (SPEC 3.3.2) and the cascade (SPEC 6.2)
 
-  func testASelfLoopArcIsDroppedAndTakesEveryChainWalkingItWithIt() throws {
+  func testASelfLoopArcIsDroppedAndTakesEveryHighlightWalkingItWithIt() throws {
     let result = try read(
       """
       "networks":[{"nodes":{"a":[0,0],"b":[1,1]},
       "arcs":{"ab":{"from":"a","to":"b","pips":[]},"loop":{"from":"a","to":"a","pips":[[0.5,0.5]]}},
-      "chains":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},{"walk":[{"arc":"loop","from":"a","to":"a"}]}]}]
+      "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},{"walk":[{"arc":"loop","from":"a","to":"a"}]}]}]
       """)
     XCTAssertEqual(
       reported(result),
       [
-        "pass-arc-absent /networks/0/chains/1/walk/0",
+        "pass-arc-absent /networks/0/highlights/1/walk/0",
         "self-loop-arc /networks/0/arcs/loop",
       ])
     XCTAssertEqual(result.document.networks?[0].arcs?.keys.map(\.string), ["ab"])
     XCTAssertEqual(
-      result.document.networks?[0].chains?.count, 1, "only the chain walking the loop goes")
+      result.document.networks?[0].highlights?.count, 1, "only the highlight walking the loop goes")
   }
 
   func testAnArcNamingAnAbsentNodeIsDroppedAndEachEndIsReported() throws {
@@ -194,14 +194,14 @@ final class WalkTests: XCTestCase {
   }
 
   /// A node that will not parse goes; each arc naming it then goes under
-  /// arc-node-absent, and each chain walking that arc under pass-arc-absent.
+  /// arc-node-absent, and each highlight walking that arc under pass-arc-absent.
   /// Three diagnostics for three things lost, and the route beside it — its
   /// own graph, with the same keys — is untouched.
-  func testADroppedNodeCascadesToItsArcAndToItsChain() throws {
+  func testADroppedNodeCascadesToItsArcAndToItsHighlight() throws {
     let result = try read(
       """
       "networks":[{"nodes":{"a":["x",0],"b":[1,1]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},
-      "chains":[{"walk":[{"arc":"ab","from":"b","to":"a"}]}]}],
+      "highlights":[{"walk":[{"arc":"ab","from":"b","to":"a"}]}]}],
       "routes":[{"nodes":{"a":[0,0],"b":[1,1]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},
       "walk":[{"arc":"ab","from":"b","to":"a"}]}]
       """)
@@ -209,14 +209,14 @@ final class WalkTests: XCTestCase {
       reported(result),
       [
         "arc-node-absent /networks/0/arcs/ab/from",
-        "pass-arc-absent /networks/0/chains/0/walk/0",
+        "pass-arc-absent /networks/0/highlights/0/walk/0",
         "position-unusable /networks/0/nodes/a",
       ])
-    XCTAssertEqual(result.document.networks?[0].chains, [])
+    XCTAssertEqual(result.document.networks?[0].highlights, [])
     XCTAssertEqual(result.document.routes?.count, 1)
   }
 
-  func testAPassThatIsNotAnObjectOrNamesNoArcDropsItsChain() throws {
+  func testAPassThatIsNotAnObjectOrNamesNoArcDropsItsHighlight() throws {
     let result = try network(
       #"[{"arc":"ab","from":"a"}, "ab"]"#,
       #"[{"from":"a","to":"b"}]"#,
@@ -225,12 +225,12 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "pass-arc-absent /networks/0/chains/0/walk/1",
-        "pass-arc-absent /networks/0/chains/1/walk/0",
-        "pass-arc-absent /networks/0/chains/2/walk/0",
-        "pass-arc-absent /networks/0/chains/3/walk/0",
+        "pass-arc-absent /networks/0/highlights/0/walk/1",
+        "pass-arc-absent /networks/0/highlights/1/walk/0",
+        "pass-arc-absent /networks/0/highlights/2/walk/0",
+        "pass-arc-absent /networks/0/highlights/3/walk/0",
       ])
-    XCTAssertEqual(result.document.networks?[0].chains, [])
+    XCTAssertEqual(result.document.networks?[0].highlights, [])
   }
 
   // MARK: - The rules a walk is checked against (SPEC 3.3.3, 6.2)
@@ -252,13 +252,13 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "walk-spelling /networks/0/chains/0/walk/0",
-        "walk-spelling /networks/0/chains/1/walk/0",
-        "walk-spelling /networks/0/chains/2/walk/0",
-        "walk-spelling /networks/0/chains/3/walk/1/from",
-        "walk-spelling /networks/0/chains/4/walk/0/to",
+        "walk-spelling /networks/0/highlights/0/walk/0",
+        "walk-spelling /networks/0/highlights/1/walk/0",
+        "walk-spelling /networks/0/highlights/2/walk/0",
+        "walk-spelling /networks/0/highlights/3/walk/1/from",
+        "walk-spelling /networks/0/highlights/4/walk/0/to",
       ])
-    XCTAssertEqual(result.document.networks?[0].chains, [])
+    XCTAssertEqual(result.document.networks?[0].highlights, [])
   }
 
   /// Valid-walk rules 3, 4 and 5, each at the path SPEC 6.2 step 8 gives it.
@@ -275,20 +275,20 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "walk-not-connected /networks/0/chains/0/walk/0/from",
-        "walk-not-connected /networks/0/chains/1/walk/1",
-        "walk-not-connected /networks/0/chains/2/walk/0/to",
-        "walk-not-connected /networks/0/chains/3/walk/0/to",
+        "walk-not-connected /networks/0/highlights/0/walk/0/from",
+        "walk-not-connected /networks/0/highlights/1/walk/1",
+        "walk-not-connected /networks/0/highlights/2/walk/0/to",
+        "walk-not-connected /networks/0/highlights/3/walk/0/to",
       ])
   }
 
-  func testAPassCarryingBothTurnAndPinnedDropsItsChain() throws {
+  func testAPassCarryingBothTurnAndPinnedDropsItsHighlight() throws {
     let result = try network(
       #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pinned":true,"to":"a"}]"#)
-    XCTAssertEqual(reported(result), ["pinned-turn /networks/0/chains/0/walk/0"])
+    XCTAssertEqual(reported(result), ["pinned-turn /networks/0/highlights/0/walk/0"])
   }
 
-  func testAFromToOrTurnThatWillNotParseDropsItsChainAtThatKey() throws {
+  func testAFromToOrTurnThatWillNotParseDropsItsHighlightAtThatKey() throws {
     let result = try network(
       #"[{"arc":"ab","from":7,"to":"b"}]"#,
       #"[{"arc":"ab","from":"a","to":[1]}]"#,
@@ -297,10 +297,10 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "position-unusable /networks/0/chains/0/walk/0/from",
-        "position-unusable /networks/0/chains/1/walk/0/to",
-        "position-unusable /networks/0/chains/2/walk/0/turn",
-        "position-unusable /networks/0/chains/3/walk/0/turn",
+        "position-unusable /networks/0/highlights/0/walk/0/from",
+        "position-unusable /networks/0/highlights/1/walk/0/to",
+        "position-unusable /networks/0/highlights/2/walk/0/turn",
+        "position-unusable /networks/0/highlights/3/walk/0/turn",
       ])
   }
 
@@ -322,17 +322,17 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(kept.document.routes?.first?.walk.count, 2)
   }
 
-  /// SPEC 6.2: a route is its own chain, so a route's walk takes every
-  /// chain rule too, and where a chain would go the route goes.
-  func testARouteIsDroppedWhereAChainWouldBe() throws {
+  /// SPEC 6.2: a route is its own highlight, so a route's walk takes every
+  /// highlight rule too, and where a highlight would go the route goes.
+  func testARouteIsDroppedWhereAHighlightWouldBe() throws {
     let result = try route(#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#)
     XCTAssertEqual(reported(result), ["walk-not-connected /routes/0/walk/1"])
     XCTAssertEqual(result.document.routes, [])
   }
 
   /// SPEC 6.2's order: the passes in order, and each pass through the list
-  /// in order. At the first check that drops the chain nothing further in
-  /// the walk is examined — but a diagnostic that does not drop the chain,
+  /// in order. At the first check that drops the highlight nothing further in
+  /// the walk is examined — but a diagnostic that does not drop the highlight,
   /// met before it, is still recorded.
   func testOnlyTheFirstFaultInAWalkIsReported() throws {
     let result = try network(
@@ -350,11 +350,11 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "pinned-turn /networks/0/chains/0/walk/0",
-        "pinned-turn /networks/0/chains/1/walk/0",
-        "position-unusable /networks/0/chains/2/walk/0/turn",
-        "unknown-key /networks/0/chains/0/walk/0/x",
-        "walk-spelling /networks/0/chains/3/walk/1/from",
+        "pinned-turn /networks/0/highlights/0/walk/0",
+        "pinned-turn /networks/0/highlights/1/walk/0",
+        "position-unusable /networks/0/highlights/2/walk/0/turn",
+        "unknown-key /networks/0/highlights/0/walk/0/x",
+        "walk-spelling /networks/0/highlights/3/walk/1/from",
       ])
   }
 
@@ -371,14 +371,14 @@ final class WalkTests: XCTestCase {
   func testAMissingOrWrongTypedWalkDropsItsOwner() throws {
     let result = try read(
       """
-      "networks":[{"chains":[{"name":"none"},{"walk":{}}]}],
+      "networks":[{"highlights":[{"name":"none"},{"walk":{}}]}],
       "routes":[{"name":"none"},{"walk":"ab"}]
       """)
     XCTAssertEqual(
       reported(result),
       [
-        "wrong-type-required /networks/0/chains/0/walk",
-        "wrong-type-required /networks/0/chains/1/walk",
+        "wrong-type-required /networks/0/highlights/0/walk",
+        "wrong-type-required /networks/0/highlights/1/walk",
         "wrong-type-required /routes/0/walk",
         "wrong-type-required /routes/1/walk",
       ])
@@ -516,10 +516,12 @@ final class WalkTests: XCTestCase {
         ], "pinned-turn"
       ),
     ] {
-      n.chains = [Chain(walk: walk)]
+      n.highlights = [Highlight(walk: walk)]
       assertRefused(document(network: n), code)
     }
-    n.chains = [Chain(walk: [Pass(arc: "ab", from: .node("a")), Pass(arc: "bc", to: .node("c"))])]
+    n.highlights = [
+      Highlight(walk: [Pass(arc: "ab", from: .node("a")), Pass(arc: "bc", to: .node("c"))])
+    ]
     XCTAssertNoThrow(try VNX.write(document(network: n)))
   }
 
@@ -541,8 +543,8 @@ final class WalkTests: XCTestCase {
     var n = Network()
     n.nodes = nodes
     n.arcs = arcs
-    n.chains = [
-      Chain(walk: [
+    n.highlights = [
+      Highlight(walk: [
         Pass(arc: "ab", from: .node("a"), pinned: true), Pass(arc: "bc", to: .node("c")),
       ])
     ]

@@ -125,28 +125,28 @@ class WordingTest {
                     causeOf(
                         """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
                    "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
-                   "chains":[{"walk":[{"arc":"ghost","from":"a","to":"b"}]}]}]}""",
+                   "highlights":[{"walk":[{"arc":"ghost","from":"a","to":"b"}]}]}]}""",
                         DiagnosticCause.PASS_ARC_ABSENT,
                     ),
                 DiagnosticCause.WALK_SPELLING to
                     causeOf(
                         """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
                    "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
-                   "chains":[{"walk":[{"arc":"ab","to":"b"}]}]}]}""",
+                   "highlights":[{"walk":[{"arc":"ab","to":"b"}]}]}]}""",
                         DiagnosticCause.WALK_SPELLING,
                     ),
                 DiagnosticCause.WALK_NOT_CONNECTED to
                     causeOf(
                         """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
                    "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
-                   "chains":[{"walk":[{"arc":"ab","from":"c","to":"b"}]}]}]}""",
+                   "highlights":[{"walk":[{"arc":"ab","from":"c","to":"b"}]}]}]}""",
                         DiagnosticCause.WALK_NOT_CONNECTED,
                     ),
                 DiagnosticCause.PINNED_TURN to
                     causeOf(
                         """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
                    "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
-                   "chains":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pinned":true,"to":"a"}]}]}]}""",
+                   "highlights":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pinned":true,"to":"a"}]}]}]}""",
                         DiagnosticCause.PINNED_TURN,
                     ),
                 DiagnosticCause.ROUTE_PIN_OR_POSITION to

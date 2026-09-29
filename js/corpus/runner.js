@@ -213,7 +213,7 @@ function checkCounts(c, doc, counts) {
   // A sidecar MUST name every collection its document carries non-empty. An
   // omitted collection used to mean "unchecked", which let a decoder invent or
   // drop items in it with nothing to say so. Naming a zero stays legal — a
-  // diagnose case whose only chain is dropped pins `chains: 0` on purpose.
+  // diagnose case whose only highlight is dropped pins `highlights: 0` on purpose.
   for (const [key, n] of Object.entries(got)) {
     if (n === 0) continue;
     if (!Object.prototype.hasOwnProperty.call(counts, key)) {
@@ -230,11 +230,11 @@ function checkCounts(c, doc, counts) {
  *
  * ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
  * that dropped every route's arcs, or truncated an arc's pips to the first two,
- * or lost every chain in a network, changed nothing a sidecar could see: the
+ * or lost every highlight in a network, changed nothing a sidecar could see: the
  * document still carried one route, one network, one track. `positions` does
  * not close it either — it pins the VALUE at a few named indices and says
  * nothing about how many there are. Measured on the pre-D2 tree: a reader that
- * dropped a dangling link AND THE REST OF ITS CHAIN passed the whole corpus
+ * dropped a dangling link AND THE REST OF ITS HIGHLIGHT passed the whole corpus
  * green, because the diagnose tier is exempt from the round trip (SPEC.md 8.1)
  * and the diagnose tier is exactly where a reader is supposed to drop things.
  *
@@ -262,9 +262,9 @@ function containerCountsByPointer(doc) {
   };
   (doc.networks ?? []).forEach((n, i) => {
     graph(`/networks/${i}`, n);
-    out.set(`/networks/${i}/chains`, (n.chains ?? []).length);
-    (n.chains ?? []).forEach((chain, j) => {
-      out.set(`/networks/${i}/chains/${j}/walk`, (chain.walk ?? []).length);
+    out.set(`/networks/${i}/highlights`, (n.highlights ?? []).length);
+    (n.highlights ?? []).forEach((highlight, j) => {
+      out.set(`/networks/${i}/highlights/${j}/walk`, (highlight.walk ?? []).length);
     });
     // ⚠ UNCONDITIONALLY, EMPTY OR NOT, like every other container in this walk.
     // These two once carried a non-empty guard, and it bought nothing: a zero

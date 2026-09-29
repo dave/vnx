@@ -114,9 +114,9 @@ This library has none. The reference command-line tool is Go's; see
 | `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?` |
 | `Vertex` | `lon`, `lat`, `ele: Double?`: a node or an arc pip, which carries no time |
 | `LonLat` | `lon`, `lat`: a position in a walk |
-| `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `chains`, `points`, `areas`, and the item fields |
+| `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `highlights`, `points`, `areas`, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
-| `Chain` | `walk: List<Pass>`, and the item fields |
+| `Highlight` | `walk: List<Pass>`, and the item fields |
 | `Route` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Boolean` |
 | `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |
@@ -170,9 +170,9 @@ that is a thrown exception against the list returned beside the document.
   arc pip are a `Vertex`, and a walk position is a `LonLat`, so a channel the
   format forbids there cannot be built. The reader drops it with an
   `extra-channel` or `arc-pip-time` diagnostic.
-- **A walk is used whole or not at all.** Any problem in a walk drops the chain,
+- **A walk is used whole or not at all.** Any problem in a walk drops the highlight,
   or the route, that carries it, and only the first problem is reported (SPEC
-  §6.2). An arc that is dropped takes each chain that walks it, and each drop
+  §6.2). An arc that is dropped takes each highlight that walks it, and each drop
   has its own diagnostic.
 - **This reader bounds nothing.** SPEC §9 has a reader of untrusted documents
   bound what one may consume; impose that limit before handing it an upload.

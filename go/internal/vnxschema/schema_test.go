@@ -116,13 +116,13 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 	schema := compile(t)
 	for _, c := range []struct{ name, doc string }{
 		{
-			// The whole meaning of the format is that two chains crossing one
+			// The whole meaning of the format is that two highlights crossing one
 			// trail name the SAME arc. A pass naming an arc that does not exist
 			// is a broken reference, and JSON Schema has no cross-references.
 			"a pass naming an arc that is not in the document",
 			`{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
-			  "chains":[{"walk":[{"arc":"ghost","from":"n1","to":"n2"}]}]}]}`,
+			  "highlights":[{"walk":[{"arc":"ghost","from":"n1","to":"n2"}]}]}]}`,
 		},
 		{
 			// A ring is stored open: the last position does not repeat the
@@ -142,7 +142,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			"a walk that does not join",
 			`{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]},"a2":{"from":"n2","to":"n3","pips":[]}},
-			  "chains":[{"walk":[{"arc":"a1","from":"n2"},{"arc":"a2","to":"n3"}]}]}]}`,
+			  "highlights":[{"walk":[{"arc":"a1","from":"n2"},{"arc":"a2","to":"n3"}]}]}]}`,
 		},
 		{
 			// `from` and `to` appear only where the walk's one spelling puts
@@ -150,7 +150,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			"a from on a pass after the first",
 			`{"vnx":"0.2.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]},"a2":{"from":"n2","to":"n3","pips":[]}},
-			  "chains":[{"walk":[{"arc":"a1","from":"n1"},{"arc":"a2","from":"n2","to":"n3"}]}]}]}`,
+			  "highlights":[{"walk":[{"arc":"a1","from":"n1"},{"arc":"a2","from":"n2","to":"n3"}]}]}]}`,
 		},
 		{
 			// An arc must run between two DIFFERENT nodes. Two string values

@@ -1,7 +1,7 @@
 """The rules of a walk (SPEC 3.3.3), and the other rules the reader and the
 writer share: an arc's two ends (SPEC 3.3.2) and an open ring (SPEC 3.7).
 
-⚠ ONE COPY OF EACH RULE, AND TWO CALLERS.  The reader drops a chain whose walk
+⚠ ONE COPY OF EACH RULE, AND TWO CALLERS.  The reader drops a highlight whose walk
 breaks a rule, and the writer refuses to emit one.  If the two held separate
 copies, a writer could emit a walk its own reader drops, and nothing would say
 so until another implementation read the file.

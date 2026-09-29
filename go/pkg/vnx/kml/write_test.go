@@ -52,7 +52,7 @@ func countOf(s, sub string) int { return strings.Count(s, sub) }
 func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 	out, report := writeDoc(t, fixture())
 	// 2 waypoints, 1 area, 1 track, 1 route, 1 network arcs Placemark, 1
-	// in-network point, 1 in-network area, 2 chains.
+	// in-network point, 1 in-network area, 2 highlights.
 	if report.Emitted != 10 {
 		t.Errorf("Emitted = %d, want 10", report.Emitted)
 	}
@@ -70,36 +70,36 @@ func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 	}
 }
 
-// ⚠ THE SUBTLE RULING OF §2.6, ASSERTED DIRECTLY. Chains are separate named
+// ⚠ THE SUBTLE RULING OF §2.6, ASSERTED DIRECTLY. Highlights are separate named
 // Placemarks; folding them into the network's MultiGeometry would discard their
 // name, notes, style and visibility, which is exactly what this checks did not
 // happen.
 //
 // ⚠ THE NAMES ARE BARE SINCE THE 2026-09-03 REDESIGN. The network is a <Folder>
-// now, so the nesting says which network a chain belongs to and the old
+// now, so the nesting says which network a highlight belongs to and the old
 // "Lairig Ghru / Full Traverse" prefix would be the folder's name written twice.
-func TestNetworkChainsAreTheirOwnNamedPlacemarks(t *testing.T) {
+func TestNetworkHighlightsAreTheirOwnNamedPlacemarks(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	for _, want := range []string{
 		"<name>Full Traverse</name>",
 		"<name>Half Way</name>",
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — a chain lost its name to the shared MultiGeometry\n%s", want, out)
+			t.Errorf("missing %s — a highlight lost its name to the shared MultiGeometry\n%s", want, out)
 		}
 	}
 	if strings.Contains(out, "Lairig Ghru / Full Traverse") {
-		t.Errorf("a chain still carries its network's name as a prefix; the Folder already says it\n%s", out)
+		t.Errorf("a highlight still carries its network's name as a prefix; the Folder already says it\n%s", out)
 	}
-	// The chain's own style survived, which it could not have inside a shared
+	// The highlight's own style survived, which it could not have inside a shared
 	// Placemark: a Placemark has one style.
 	if !strings.Contains(out, "<color>ffa84f7b</color>") {
-		t.Errorf("the chain's own style is missing\n%s", out)
+		t.Errorf("the highlight's own style is missing\n%s", out)
 	}
 	// And its own visibility: "Half Way" is hidden, the network is not.
 	half := out[strings.Index(out, "<name>Half Way</name>"):]
 	if !strings.HasPrefix(strings.TrimSpace(half[strings.Index(half, "\n"):]), "<visibility>0</visibility>") {
-		t.Errorf("the hidden chain did not get <visibility>0</visibility>\n%s", out)
+		t.Errorf("the hidden highlight did not get <visibility>0</visibility>\n%s", out)
 	}
 }
 
@@ -129,13 +129,13 @@ func arcsMultiGeometry(t *testing.T, out string) string {
 }
 
 // ⚠ THE ONE THE SPEC OMISSION WOULD HAVE DROPPED SILENTLY. A network with
-// points, areas and chains must come out with all four kinds present.
+// points, areas and highlights must come out with all four kinds present.
 //
 // ⚠ SINCE THE 2026-09-03 REDESIGN ONLY THE ARCS ARE BARE GEOMETRY. The point,
-// the area and the chains are Placemarks of their own inside the network's
+// the area and the highlights are Placemarks of their own inside the network's
 // Folder, which is what lets them keep the name, notes, visibility and style a
 // shared MultiGeometry destroyed.
-func TestNetworkCarriesArcsPointsAreasAndChains(t *testing.T) {
+func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 	out, report := writeDoc(t, fixture())
 	multi := arcsMultiGeometry(t, out)
 	if n := countOf(multi, "<LineString>"); n != 2 {
@@ -257,9 +257,9 @@ func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 	}
 }
 
-// The arcs are emitted once each, INCLUDING an arc no chain traverses, and the
-// chains duplicate the geometry they walk. Both halves are deliberate (§2.6).
-func TestBareArcsSurviveAndChainGeometryIsAllowedToDuplicateThem(t *testing.T) {
+// The arcs are emitted once each, INCLUDING an arc no highlight traverses, and the
+// highlights duplicate the geometry they walk. Both halves are deliberate (§2.6).
+func TestBareArcsSurviveAndHighlightGeometryIsAllowedToDuplicateThem(t *testing.T) {
 	d := fixture()
 	// "a-south" is traversed by "Full Traverse"; add an arc nothing traverses.
 	d.Networks[0].Nodes["n4"] = vx(pos(-3.64, 57.12))
@@ -273,43 +273,43 @@ func TestBareArcsSurviveAndChainGeometryIsAllowedToDuplicateThem(t *testing.T) {
 	if !strings.Contains(multi, "-3.64,57.12") {
 		t.Errorf("the untraversed arc's geometry is missing\n%s", multi)
 	}
-	// The shared arc a-north appears in the network object AND in both chains
+	// The shared arc a-north appears in the network object AND in both highlights
 	// that walk it. That duplication is the accepted price.
 	if n := countOf(out, "-3.7,57 -3.69,57.02"); n < 3 {
-		t.Errorf("the shared arc appears %d times, want at least 3 (network + two chains)", n)
+		t.Errorf("the shared arc appears %d times, want at least 3 (network + two highlights)", n)
 	}
 }
 
 // A pass that stops PART WAY along an arc must cut the arc, not emit it
-// whole. Emitting the whole arc would draw the chain past where it ends.
-func TestChainCutsItsArcAtAPosition(t *testing.T) {
+// whole. Emitting the whole arc would draw the highlight past where it ends.
+func TestHighlightCutsItsArcAtAPosition(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:  "N",
 		Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 0.4))},
 		Arcs: map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(
 			pos(0, 0.1), pos(0, 0.2), pos(0, 0.3),
 		)}},
-		Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{
 			{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{At: &vnx.LonLat{Lon: 0, Lat: 0.2}}},
 		}}},
 	}}}
 	out, _ := writeDoc(t, d)
-	chain := out[strings.Index(out, "<name>C</name>"):]
-	line := chain[strings.Index(chain, "<coordinates>")+len("<coordinates>"):]
+	highlight := out[strings.Index(out, "<name>C</name>"):]
+	line := highlight[strings.Index(highlight, "<coordinates>")+len("<coordinates>"):]
 	line = line[:strings.Index(line, "</coordinates>")]
 	if line != "0,0 0,0.1 0,0.2" {
-		t.Fatalf("chain coordinates = %q, want %q — the arc was not cut at the inline endpoint", line, "0,0 0,0.1 0,0.2")
+		t.Fatalf("highlight coordinates = %q, want %q — the arc was not cut at the inline endpoint", line, "0,0 0,0.1 0,0.2")
 	}
 }
 
 // A pass walked from its arc's `to` node back to its `from` node draws
 // backwards.
-func TestChainWalkingAnArcBackwardsIsDrawnBackwards(t *testing.T) {
+func TestHighlightWalkingAnArcBackwardsIsDrawnBackwards(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:  "N",
 		Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 0.2))},
 		Arcs:  map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(pos(0, 0.1))}},
-		Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{
 			{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}},
 		}}},
 	}}}
@@ -572,8 +572,8 @@ func TestAWhollyLostItemGetsOnlyTheWholeItemCode(t *testing.T) {
 			Arcs: map[string]vnx.Arc{
 				"good": {From: "a", To: "b"},
 			},
-			// This chain's walk is empty, so the chain is WHOLLY lost.
-			Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{}}},
+			// This highlight's walk is empty, so the highlight is WHOLLY lost.
+			Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{}}},
 		}},
 	})
 	for _, d := range report.Diagnostics {
@@ -582,7 +582,7 @@ func TestAWhollyLostItemGetsOnlyTheWholeItemCode(t *testing.T) {
 		}
 	}
 	if got := codes(report); len(got) != 2 {
-		t.Errorf("diagnostics = %v, want one %s each for the track and the chain", got, vnx.CodeItemNoGeometry)
+		t.Errorf("diagnostics = %v, want one %s each for the track and the highlight", got, vnx.CodeItemNoGeometry)
 	}
 }
 
@@ -633,7 +633,7 @@ func mustTime(t *testing.T, s string) time.Time {
 // partial". It is not: Args[0] there is the AREA's own name, and none of that
 // area could be placed, so "dropped" is a true statement about the thing the
 // sentence names. Where Args[0] names the CONTAINER — a track for its segment, a
-// network for its arc, a chain for its link — the container survived and the
+// network for its arc, a highlight for its link — the container survived and the
 // loss is partial.
 //
 // ⚠ ASSERTING THE CODE ALONE IS NOT ENOUGH. Getting this backwards produces no
@@ -694,13 +694,13 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 			args0: "Boulder Field", path: "/networks/0/areas/0", marker: "9,9",
 		},
 		{
-			name: "a chain with nothing to draw is WHOLE",
+			name: "a highlight with nothing to draw is WHOLE",
 			doc: &vnx.Document{Networks: []vnx.Network{{
 				Name: "N", Nodes: nodes, Arcs: goodArc,
-				Chains: []vnx.Chain{{Name: "C", Walk: []vnx.Pass{}}},
+				Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{}}},
 			}}},
 			code: vnx.CodeItemNoGeometry, namedThingPlaced: false,
-			args0: "C", path: "/networks/0/chains/0", marker: "<name>C</name>",
+			args0: "C", path: "/networks/0/highlights/0", marker: "<name>C</name>",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -386,7 +386,7 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 			checkName(w.Name, nonASCII, rtl, &unicodeName, &rtlName)
 		}
 		for _, n := range d.Networks {
-			for _, ch := range n.Chains {
+			for _, ch := range n.Highlights {
 				if len(ch.Walk) == 0 {
 					emptyArray = true
 				}
@@ -743,9 +743,9 @@ func oracleDegenerateArrays() *Document {
 				Walk: []Pass{{Arc: "arc", From: &Endpoint{Node: "b"}, To: &Endpoint{Node: "a"}}}},
 		},
 		Networks: []Network{{
-			Name:   "chains without passes",
-			Nodes:  map[string]Vertex{"node-1": {Lon: 1, Lat: 2}},
-			Chains: []Chain{{Name: "empty chain", Walk: []Pass{}}},
+			Name:       "highlights without passes",
+			Nodes:      map[string]Vertex{"node-1": {Lon: 1, Lat: 2}},
+			Highlights: []Highlight{{Name: "empty highlight", Walk: []Pass{}}},
 		}},
 	}
 }
@@ -819,8 +819,8 @@ func oracleData() *Document {
 			Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
 			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2",
 				Data: []Record{rec("t/network-arc", map[string]any{"value": "arc"})}}},
-			Chains: []Chain{{Name: "c", Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
-				Data: []Record{rec("t/chain", map[string]any{"value": "chain"})}}},
+			Highlights: []Highlight{{Name: "c", Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
+				Data: []Record{rec("t/highlight", map[string]any{"value": "highlight"})}}},
 			Data: []Record{rec("t/network", map[string]any{"value": "net"})},
 		}},
 	}
@@ -855,7 +855,7 @@ func oracleNetwork() Network {
 		}
 	}
 	mid := LonLat{Lon: -3.55, Lat: 57.55}
-	n.Chains = []Chain{
+	n.Highlights = []Highlight{
 		{
 			Name:  "node to node",
 			Style: Style{"color": "#00aa00", "line-style": "dashed", "opacity": float64(0.5), "width": float64(3)},
@@ -999,8 +999,8 @@ func eachPosition(d *Document, fn func(Position)) {
 		graph(r.Nodes, r.Arcs, r.Walk)
 	}
 	for _, n := range d.Networks {
-		walks := make([][]Pass, 0, len(n.Chains))
-		for _, c := range n.Chains {
+		walks := make([][]Pass, 0, len(n.Highlights))
+		for _, c := range n.Highlights {
 			walks = append(walks, c.Walk)
 		}
 		graph(n.Nodes, n.Arcs, walks...)
@@ -1055,7 +1055,7 @@ func eachData(d *Document, fn func(Record)) {
 		for _, a := range n.Arcs {
 			emit(a.Data)
 		}
-		for _, c := range n.Chains {
+		for _, c := range n.Highlights {
 			emit(c.Data)
 		}
 		for _, w := range n.Points {

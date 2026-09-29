@@ -13,7 +13,7 @@ import {
   Folder,
   Network,
   Arc,
-  Chain,
+  Highlight,
   Pass,
   Endpoint,
   Route,
@@ -435,7 +435,7 @@ function readNetwork(raw, path, ctx) {
     raw,
     path,
     [],
-    ['name', 'notes', 'folder', 'hidden', 'nodes', 'arcs', 'chains', 'points', 'areas', 'data'],
+    ['name', 'notes', 'folder', 'hidden', 'nodes', 'arcs', 'highlights', 'points', 'areas', 'data'],
     ctx,
   );
   const n = new Network();
@@ -448,7 +448,7 @@ function readNetwork(raw, path, ctx) {
   // survived, and an arc against the nodes that survived (SPEC.md 6.2).
   n.nodes = readNodes(kv, path, ctx);
   n.arcs = readArcs(kv, path, n.nodes, ctx);
-  n.chains = subCollection(kv, path, 'chains', ctx, (r, p, c) => readChain(r, p, c, n.arcs));
+  n.highlights = subCollection(kv, path, 'highlights', ctx, (r, p, c) => readHighlight(r, p, c, n.arcs));
   n.points = subCollection(kv, path, 'points', ctx, (r, p, c) => readPointLike(r, p, c, false));
   n.areas = subCollection(kv, path, 'areas', ctx, (r, p, c) => readArea(r, p, c, false));
   return n;
@@ -478,8 +478,8 @@ function readNodes(kv, path, ctx) {
 /**
  * The `arcs` of a network or a route (SPEC.md 3.3.2).
  *
- * ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
- * the chain goes when its walk is read, under `pass-arc-absent`, with a
+ * ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
+ * the highlight goes when its walk is read, under `pass-arc-absent`, with a
  * diagnostic of its own (SPEC.md 6.2).
  */
 function readArcs(kv, path, nodes, ctx) {
@@ -564,9 +564,9 @@ function subCollection(kv, path, key, ctx, read) {
   return out;
 }
 
-function readChain(raw, path, ctx, arcs) {
+function readHighlight(raw, path, ctx, arcs) {
   const kv = known(raw, path, ['walk'], ['name', 'notes', 'hidden', 'style', 'data'], ctx);
-  const c = new Chain();
+  const c = new Highlight();
   c.name = str('name', path, kv, false, ctx);
   c.notes = str('notes', path, kv, false, ctx);
   c.hidden = bool('hidden', path, kv, false, ctx);
@@ -577,7 +577,7 @@ function readChain(raw, path, ctx, arcs) {
 }
 
 /**
- * A chain's or a route's REQUIRED `walk`, checked pass by pass in the order
+ * A highlight's or a route's REQUIRED `walk`, checked pass by pass in the order
  * SPEC.md 6.2 lists. Returns DROP when the owner is to be dropped: a missing or
  * wrong-typed `walk`, or the first pass that breaks a rule, which is reported
  * alone — nothing after it in the walk is examined.
@@ -589,7 +589,7 @@ function readChain(raw, path, ctx, arcs) {
 function readWalk(kv, owner, arcs, route, ctx) {
   const list = arr('walk', owner, kv, true, ctx);
   if (list === DROP) return DROP;
-  const what = route ? 'route' : 'chain';
+  const what = route ? 'route' : 'highlight';
   const cursor = new WalkCursor(list.length - 1, route);
   const walk = [];
   for (const [i, raw] of list.entries()) {
@@ -639,7 +639,7 @@ function readWalk(kv, owner, arcs, route, ctx) {
 }
 
 /**
- * A route owns its graph (SPEC.md 3.4), and is its own chain: wherever a chain
+ * A route owns its graph (SPEC.md 3.4), and is its own highlight: wherever a highlight
  * would be dropped, the whole route is.
  */
 function readRoute(raw, path, ctx) {
@@ -861,7 +861,7 @@ export function indexPositions(doc) {
   (doc.networks ?? []).forEach((n, i) => {
     const base = `/networks/${i}`;
     graph(base, n);
-    (n.chains ?? []).forEach((c, j) => walk(`${base}/chains/${j}/walk`, c.walk));
+    (n.highlights ?? []).forEach((c, j) => walk(`${base}/highlights/${j}/walk`, c.walk));
     (n.points ?? []).forEach((pt, j) => put(`${base}/points/${j}/at`, pt.at));
     (n.areas ?? []).forEach((a, j) => ring(`${base}/areas/${j}`, a.polygon));
   });

@@ -24,7 +24,7 @@ __all__ = [
     "Folder",
     "Arc",
     "Pass",
-    "Chain",
+    "Highlight",
     "Network",
     "Route",
     "Segment",
@@ -132,7 +132,7 @@ class Pass:
 
 
 @dataclass(slots=True)
-class Chain:
+class Highlight:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
@@ -149,7 +149,7 @@ class Network:
     hidden: Union[bool, None] = None
     nodes: Union[dict[str, Position], None] = None
     arcs: Union[dict[str, Arc], None] = None
-    chains: Union[list[Chain], None] = None
+    highlights: Union[list[Highlight], None] = None
     points: Union[list["Waypoint"], None] = None
     areas: Union[list["Area"], None] = None
     data: Union[list[DataRecord], None] = None

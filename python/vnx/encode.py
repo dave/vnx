@@ -17,7 +17,7 @@ from . import walk as W
 from .model import (
     Area,
     Arc,
-    Chain,
+    Highlight,
     DataRecord,
     Document,
     Endpoint,
@@ -151,14 +151,16 @@ def _walk(
     return [_pass(p) for p in walk]
 
 
-def _chain(chain: Chain, arcs: dict[str, Arc]) -> JSONValue:
+def _highlight(highlight: Highlight, arcs: dict[str, Arc]) -> JSONValue:
     obj: dict[str, JSONValue] = {}
-    _put(obj, "name", chain.name)
-    _put(obj, "notes", chain.notes)
-    _put(obj, "hidden", chain.hidden)
-    _put(obj, "style", chain.style)
-    _put(obj, "walk", _walk(chain.walk, arcs, False, f"chain {chain.name!r}"))
-    _put(obj, "data", _records(chain.data))
+    _put(obj, "name", highlight.name)
+    _put(obj, "notes", highlight.notes)
+    _put(obj, "hidden", highlight.hidden)
+    _put(obj, "style", highlight.style)
+    _put(
+        obj, "walk", _walk(highlight.walk, arcs, False, f"highlight {highlight.name!r}")
+    )
+    _put(obj, "data", _records(highlight.data))
     return obj
 
 
@@ -188,8 +190,11 @@ def _network(network: Network) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, network)
     _graph(obj, network.nodes, network.arcs, f"network {network.name!r}")
-    if network.chains is not None:
-        obj["chains"] = [_chain(chain, network.arcs or {}) for chain in network.chains]
+    if network.highlights is not None:
+        obj["highlights"] = [
+            _highlight(highlight, network.arcs or {})
+            for highlight in network.highlights
+        ]
     if network.points is not None:
         obj["points"] = [_waypoint(point) for point in network.points]
     if network.areas is not None:

@@ -304,10 +304,10 @@ func (x *writer) areaStyle(s vnx.Style) {
 	x.close("Style")
 }
 
-// chainStyle writes the <Style> for anything drawn as a line — a track, a
-// route, a chain. Width without a usable colour still gets a LineStyle: a width
+// highlightStyle writes the <Style> for anything drawn as a line — a track, a
+// route, a highlight. Width without a usable colour still gets a LineStyle: a width
 // is not a colour and carrying it invents nothing.
-func (x *writer) chainStyle(s vnx.Style) {
+func (x *writer) highlightStyle(s vnx.Style) {
 	colour, _ := s.String("color")
 	opacity, hasOpacity := s.Float("opacity")
 	var op *float64
@@ -369,7 +369,7 @@ func (x *writer) track(t vnx.Track, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(t.Name, t.Notes, t.Hidden)
-	x.chainStyle(t.Style)
+	x.highlightStyle(t.Style)
 	x.open("MultiGeometry", "")
 	for _, line := range lines {
 		x.lineString(line)
@@ -391,14 +391,14 @@ func (x *writer) route(r vnx.Route, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(r.Name, r.Notes, r.Hidden)
-	x.chainStyle(r.Style)
+	x.highlightStyle(r.Style)
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++
 }
 
 // network writes a network as a <Folder> holding ONE Placemark for its arcs,
-// then ONE NAMED PLACEMARK PER in-network point, area and chain (§2.6, redesigned
+// then ONE NAMED PLACEMARK PER in-network point, area and highlight (§2.6, redesigned
 // 2026-09-03).
 //
 // ⚠ THE ARCS PLACEMARK REPEATS THE FOLDER'S NAME ON PURPOSE. It is not
@@ -407,7 +407,7 @@ func (x *writer) route(r vnx.Route, path string) {
 // same; and an unnamed <Placemark> renders in Google Earth as a blank sidebar row
 // a user can neither identify nor search for.
 //
-// ⚠ POINTS, AREAS AND CHAINS ARE PLACEMARKS OF THEIR OWN BECAUSE A PLACEMARK HAS
+// ⚠ POINTS, AREAS AND HIGHLIGHTS ARE PLACEMARKS OF THEIR OWN BECAUSE A PLACEMARK HAS
 // ONE NAME, ONE STYLE AND ONE VISIBILITY. vnx.Arc carries none of those — it is
 // pure geometry — while Network.Points are full vnx.Waypoints and Network.Areas
 // full vnx.Areas, each with Name, Notes, Hidden AND Style (item.go:34-55). Until
@@ -415,16 +415,16 @@ func (x *writer) route(r vnx.Route, path string) {
 // bare geometry inside the network's shared MultiGeometry. Folding any of them
 // back in would destroy them again, silently.
 //
-// ⚠ THIS DUPLICATES GEOMETRY — a chain's line covers arcs the arcs Placemark also
+// ⚠ THIS DUPLICATES GEOMETRY — a highlight's line covers arcs the arcs Placemark also
 // emits — AND THAT IS ACCEPTED AND DELIBERATE. Do NOT "optimise" it by dropping
 // the bare arcs, and do NOT quieten the display with <visibility>0</visibility> on
-// the arcs Placemark: either would silently hide an arc no chain traverses, the
+// the arcs Placemark: either would silently hide an arc no highlight traverses, the
 // exact loss this shape exists to prevent.
 //
-// ⚠ WHAT KML CANNOT SAY IS THE SHARING. Two chains crossing the same trail
+// ⚠ WHAT KML CANNOT SAY IS THE SHARING. Two highlights crossing the same trail
 // reference the same arc, and no target format can express that; the geometry
 // survives, the graph does not. That is a class-level fact for the matrix and the
-// export screen, NOT a per-item diagnostic — one per chain would bury the real
+// export screen, NOT a per-item diagnostic — one per highlight would bury the real
 // casualties.
 func (x *writer) network(n vnx.Network, path string) {
 	arcIDs := make([]string, 0, len(n.Arcs))
@@ -466,11 +466,11 @@ func (x *writer) network(n vnx.Network, path string) {
 		// The whole network object is gone, Folder and all. The arcs are not
 		// "partly" lost — reporting them as well would double-report one loss.
 		x.diag(vnx.CodeItemNoGeometry, path, n.Name, "network holds no drawable arc, point or area")
-		// ⚠ THE CHAINS STILL RUN. A network with no arc can only hold chains
+		// ⚠ THE HIGHLIGHTS STILL RUN. A network with no arc can only hold highlights
 		// with empty walks, each of which is wholly lost and writes nothing;
 		// without this loop those whole-item casualties would go unreported.
-		for i, c := range n.Chains {
-			x.chain(c, fmt.Sprintf("%s/chains/%d", path, i), n)
+		for i, c := range n.Highlights {
+			x.highlight(c, fmt.Sprintf("%s/highlights/%d", path, i), n)
 		}
 		return
 	}
@@ -501,40 +501,40 @@ func (x *writer) network(n vnx.Network, path string) {
 	for _, i := range areaOrder {
 		x.areaPlacemark(n.Areas[i], drawableAreas[i])
 	}
-	for i, c := range n.Chains {
-		x.chain(c, fmt.Sprintf("%s/chains/%d", path, i), n)
+	for i, c := range n.Highlights {
+		x.highlight(c, fmt.Sprintf("%s/highlights/%d", path, i), n)
 	}
 	x.close("Folder")
 }
 
-// chain writes one named Placemark for a chain.
+// highlight writes one named Placemark for a highlight.
 //
-// ⚠ THE NAME IS THE CHAIN'S OWN, BARE. Before the 2026-09-03 redesign it was
-// "Network / Chain", because the network was a Placemark and nesting could not
-// say which network a chain belonged to. The network is a <Folder> now and the
+// ⚠ THE NAME IS THE HIGHLIGHT'S OWN, BARE. Before the 2026-09-03 redesign it was
+// "Network / Highlight", because the network was a Placemark and nesting could not
+// say which network a highlight belonged to. The network is a <Folder> now and the
 // nesting says it, so the prefix would be the folder's name written twice.
 //
-// ⚠ HIDDEN IS THE CHAIN'S ALONE, for the same reason. The Placemark is a CHILD
+// ⚠ HIDDEN IS THE HIGHLIGHT'S ALONE, for the same reason. The Placemark is a CHILD
 // of the network's Folder rather than a sibling of a network Placemark, and KML
 // visibility inherits down a folder, so a hidden network already hides it.
-// ORing the network's state in here would hide a visible chain the moment its
+// ORing the network's state in here would hide a visible highlight the moment its
 // network was hidden AND make it impossible to unhide in Google Earth.
-func (x *writer) chain(c vnx.Chain, path string, n vnx.Network) {
+func (x *writer) highlight(c vnx.Highlight, path string, n vnx.Network) {
 	// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. The reader drops such a
-	// chain, so only a hand-built Document reaches here with one, and drawing
+	// highlight, so only a hand-built Document reaches here with one, and drawing
 	// part of it would put a line on the map nobody walked.
 	line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 	if err != nil {
-		x.fail(fmt.Errorf("kml: network %q chain %q: %w", n.Name, c.Name, err))
+		x.fail(fmt.Errorf("kml: network %q highlight %q: %w", n.Name, c.Name, err))
 		return
 	}
 	if len(line) < 2 {
-		x.diag(vnx.CodeItemNoGeometry, path, c.Name, "chain's walk covers fewer than two positions")
+		x.diag(vnx.CodeItemNoGeometry, path, c.Name, "highlight's walk covers fewer than two positions")
 		return
 	}
 	x.open("Placemark", "")
 	x.feature(c.Name, c.Notes, c.Hidden)
-	x.chainStyle(c.Style)
+	x.highlightStyle(c.Style)
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++

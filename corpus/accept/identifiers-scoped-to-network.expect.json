@@ -1,20 +1,20 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "Two networks that reuse the node keys n1 and n2 and the arc key a1 (spec 4.4: identifiers are scoped to the object that contains them, and a reader MUST NOT build one document-wide identifier map). Every other document in the corpus has at most one network, so a reader keying nodes and arcs by document passes all of them. The reused keys sit at different coordinates in each network and the two networks differ in shape, which is what makes a merge visible: a last-wins map puts the second network's n1 and a1 into the first, and the first network's positions and its a1 pip count come out wrong; a first-wins map does the same to the second network. The second network's chain names a2 and n3, which the first network lacks, so a reader that resolves a walk against the wrong network drops that chain and reports diagnostics this tier forbids. Positions are pinned on both networks, because pinning one network only catches one of the two merge orders.",
+  "note": "Two networks that reuse the node keys n1 and n2 and the arc key a1 (spec 4.4: identifiers are scoped to the object that contains them, and a reader MUST NOT build one document-wide identifier map). Every other document in the corpus has at most one network, so a reader keying nodes and arcs by document passes all of them. The reused keys sit at different coordinates in each network and the two networks differ in shape, which is what makes a merge visible: a last-wins map puts the second network's n1 and a1 into the first, and the first network's positions and its a1 pip count come out wrong; a first-wins map does the same to the second network. The second network's highlight names a2 and n3, which the first network lacks, so a reader that resolves a walk against the wrong network drops that highlight and reports diagnostics this tier forbids. Positions are pinned on both networks, because pinning one network only catches one of the two merge orders.",
   "counts": {
     "networks": 2,
     "/networks/0/nodes": 2,
     "/networks/0/arcs": 1,
     "/networks/0/arcs/a1/pips": 0,
-    "/networks/0/chains": 1,
-    "/networks/0/chains/0/walk": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1,
     "/networks/1/nodes": 3,
     "/networks/1/arcs": 2,
     "/networks/1/arcs/a1/pips": 1,
     "/networks/1/arcs/a2/pips": 0,
-    "/networks/1/chains": 1,
-    "/networks/1/chains/0/walk": 2
+    "/networks/1/highlights": 1,
+    "/networks/1/highlights/0/walk": 2
   },
   "positions": [
     {

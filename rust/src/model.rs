@@ -196,7 +196,7 @@ pub struct Network {
     /// crate takes no dependency on a hasher.
     pub nodes: Option<Vec<(String, Vertex)>>,
     pub arcs: Option<Vec<(String, Arc)>>,
-    pub chains: Option<Vec<Chain>>,
+    pub highlights: Option<Vec<Highlight>>,
     pub points: Option<Vec<Waypoint>>,
     pub areas: Option<Vec<Area>>,
     pub data: Option<Vec<Record>>,
@@ -255,10 +255,10 @@ pub struct Arc {
     pub data: Option<Vec<Record>>,
 }
 
-/// A chain walks arcs its network owns. Its geometry is by reference: two
-/// chains on one trail name the same arc.
+/// A highlight walks arcs its network owns. Its geometry is by reference: two
+/// highlights on one trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Chain {
+pub struct Highlight {
     pub name: Option<String>,
     pub notes: Option<String>,
     pub hidden: Option<bool>,
@@ -311,7 +311,7 @@ pub enum Endpoint {
 ///
 /// Nothing outside the route can reference its nodes or arcs. Its walk runs
 /// node to node, with no position, turn or pin. Where a reader would drop a
-/// chain, it drops the route: the route is its own chain.
+/// highlight, it drops the route: the route is its own highlight.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Route {
     pub name: Option<String>,

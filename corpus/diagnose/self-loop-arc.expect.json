@@ -1,11 +1,11 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A self-loop arc (SPEC 3.3.2): `from` and `to` name the same node, so a pass over it would have no other end to leave by. The arc is dropped, and the only chain in the network walks it, so that chain is dropped too under `pass-arc-absent`. Two diagnostics, because two things are gone and a caller has to be told about each: one names the arc, the other the pass that named it. `/networks/0/chains: 0` is load-bearing: a reader that dropped the arc and kept the chain with its first pass would report the right arc diagnostic and still fail here. The three other arcs survive, so the drop is scoped to the loop.",
+  "note": "A self-loop arc (SPEC 3.3.2): `from` and `to` name the same node, so a pass over it would have no other end to leave by. The arc is dropped, and the only highlight in the network walks it, so that highlight is dropped too under `pass-arc-absent`. Two diagnostics, because two things are gone and a caller has to be told about each: one names the arc, the other the pass that named it. `/networks/0/highlights: 0` is load-bearing: a reader that dropped the arc and kept the highlight with its first pass would report the right arc diagnostic and still fail here. The three other arcs survive, so the drop is scoped to the loop.",
   "counts": {
     "networks": 1,
     "/networks/0/arcs": 3,
-    "/networks/0/chains": 0,
+    "/networks/0/highlights": 0,
     "/networks/0/nodes": 4,
     "/networks/0/arcs/ab/pips": 1,
     "/networks/0/arcs/cd/pips": 2
@@ -17,9 +17,9 @@
       "message_advisory": "the arc runs from node b to itself — the arc is dropped"
     },
     {
-      "path": "/networks/0/chains/0/walk/1",
+      "path": "/networks/0/highlights/0/walk/1",
       "code": "pass-arc-absent",
-      "message_advisory": "the pass names arc `loop`, which is not in this network — the chain is dropped"
+      "message_advisory": "the pass names arc `loop`, which is not in this network — the highlight is dropped"
     }
   ]
 }

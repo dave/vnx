@@ -12,10 +12,10 @@
       "arcs": {
         "a1": {"from": "n1", "to": "n2", "pips": [[1, 1.5]], "x.arc": 1}
       },
-      "chains": [
+      "highlights": [
         {
           "name": "Walk",
-          "x.chain": 1,
+          "x.highlight": 1,
           "walk": [{"arc": "a1", "from": "n1", "to": "n2", "x.pass": 1}]
         }
       ],

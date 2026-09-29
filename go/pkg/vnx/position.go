@@ -29,7 +29,7 @@ type Position struct {
 
 // Equal compares by value, following the pointers. Positions are compared by
 // VALUE and not by identity throughout this package — spec §3.2 requires it for
-// shared chain handles, where two links referencing one turnaround point are
+// shared highlight handles, where two links referencing one turnaround point are
 // recognised only by their coordinates being equal.
 func (p Position) Equal(q Position) bool {
 	if p.Lon != q.Lon || p.Lat != q.Lat {

@@ -177,9 +177,9 @@ test('a pip that will not parse drops the SEGMENT, not the pip', () => {
   );
 });
 
-test('a pip that will not parse drops the ARC, and the chain walking it then goes too', () => {
+test('a pip that will not parse drops the ARC, and the highlight walking it then goes too', () => {
   // Two diagnostics, one per loss: the first says the arc is gone, the second
-  // that the chain is (SPEC.md 6.2).
+  // that the highlight is (SPEC.md 6.2).
   const { document, diagnostics } = decodeText(
     doc({
       networks: [
@@ -196,16 +196,16 @@ test('a pip that will not parse drops the ARC, and the chain walking it then goe
               ],
             },
           },
-          chains: [{ walk: [{ arc: 'broken', from: 'n1', to: 'n2' }] }],
+          highlights: [{ walk: [{ arc: 'broken', from: 'n1', to: 'n2' }] }],
         },
       ],
     }),
   );
   assert.equal(document.networks[0].arcs.size, 0, 'the arc is gone');
-  assert.equal(document.networks[0].chains.length, 0, 'and the chain with it');
+  assert.equal(document.networks[0].highlights.length, 0, 'and the highlight with it');
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
     ['/networks/0/arcs/broken/pips/1', 'position-unusable'],
-    ['/networks/0/chains/0/walk/0', 'pass-arc-absent'],
+    ['/networks/0/highlights/0/walk/0', 'pass-arc-absent'],
   ]);
 });
 

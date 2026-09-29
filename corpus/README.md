@@ -86,14 +86,14 @@ collections. An application key (`SPEC §3.9`) is not a collection and has no
 entry in `counts`: the tree comparison of an accept case is what checks it. A name **starting with `/`** is a container nested inside one,
 addressed by the same JSON Pointer vocabulary `positions` uses —
 `/networks/0/nodes`, `/routes/0/arcs/arc-2/pips`, `/tracks/0/segments`,
-`/networks/0/chains/2/walk`, `/areas/0/polygon`.
+`/networks/0/highlights/2/walk`, `/areas/0/polygon`.
 
 ⚠ **THE NESTED KEYS ARE WHAT THE `diagnose/` TIER HAS INSTEAD OF A ROUND TRIP.**
 `SPEC §8.1` exempts `reject/` and `diagnose/` from the decode-then-encode
 comparison, and `diagnose/` is exactly where a reader is required to drop
-something in a SCOPED way: one area of two, one segment of two, one chain of
+something in a SCOPED way: one area of two, one segment of two, one highlight of
 two. Before these keys existed nothing pinned what SURVIVED, and an over-broad
-drop, such as a dropped arc taking every chain in its network with it, passed
+drop, such as a dropped arc taking every highlight in its network with it, passed
 the whole corpus green.
 
 ⚠ **AN ARC OR NODE CONTAINER IS KEYED BY ITS OWN KEY, NEVER BY AN INDEX**:
@@ -106,8 +106,8 @@ HOLDS.** `diagnose/polygon-second-ring.vnx` carries two areas and its sidecar
 records one, because the nested-ring area is dropped whole. Read the case's
 `note` before changing a number: the note states the rule that decides it.
 A count of `0` is legal and sometimes load-bearing:
-`diagnose/self-loop-arc.expect.json` pins `/networks/0/chains: 0` because the
-network's only chain walks the dropped arc.
+`diagnose/self-loop-arc.expect.json` pins `/networks/0/highlights: 0` because the
+network's only highlight walks the dropped arc.
 
 `positions` is the only available defence against a longitude and latitude
 transposition (`SPEC §8.1`). Both orderings parse, both are in range, and
@@ -128,7 +128,7 @@ of position the format carries:
 ```
 /waypoints/0/at                     /networks/0/nodes/node-1
 /areas/0/polygon/0                  /networks/0/arcs/arc-1/pips/0
-/routes/0/arcs/arc-1/pips/0         /networks/0/chains/0/walk/0/from
+/routes/0/arcs/arc-1/pips/0         /networks/0/highlights/0/walk/0/from
 /tracks/0/segments/0/pips/0         /networks/0/points/0/at
                                     /networks/0/areas/0/polygon/0
 ```

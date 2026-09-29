@@ -140,13 +140,13 @@ internal object Tree {
         opt: Options,
     ) {
         graph(o, opt)
-        items(o, "chains", opt, ::chain)
+        items(o, "highlights", opt, ::highlight)
         items(o, "points", opt, ::waypoint)
         items(o, "areas", opt, ::area)
         dropEmptyContainer(o, "data")
     }
 
-    private fun chain(
+    private fun highlight(
         o: MutableMap<String, JsonValue>,
         opt: Options,
     ) {

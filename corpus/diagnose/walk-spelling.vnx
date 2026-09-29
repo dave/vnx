@@ -14,7 +14,7 @@
         "cb": {"from": "c", "to": "b", "pips": []},
         "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
       },
-      "chains": [
+      "highlights": [
         {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
         {"name": "Spelt twice", "walk": [{"arc": "ab", "from": "a"}, {"arc": "cb", "from": "b", "to": "c"}]}
       ]

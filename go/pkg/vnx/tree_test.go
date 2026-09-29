@@ -164,13 +164,13 @@ func normWalk(o map[string]any, opt treeOptions) {
 
 func normNetwork(o map[string]any, opt treeOptions) {
 	normGraph(o, opt)
-	normItems(o, "chains", opt, normChain)
+	normItems(o, "highlights", opt, normHighlight)
 	normItems(o, "points", opt, normWaypoint)
 	normItems(o, "areas", opt, normArea)
 	dropEmptyContainer(o, "data")
 }
 
-func normChain(o map[string]any, opt treeOptions) {
+func normHighlight(o map[string]any, opt treeOptions) {
 	normWalk(o, opt)
 	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")

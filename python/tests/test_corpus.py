@@ -47,13 +47,13 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
     `positions` uses.
 
     ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS.  A
-    reader that dropped a chain's passes, or truncated an arc's pips, changed
+    reader that dropped a highlight's passes, or truncated an arc's pips, changed
     nothing a sidecar could see: the document still carried one network, one
     route, one track.  The accept tier's decode->encode->tree comparison catches
     most of that already, but the DIAGNOSE tier is exempt from the round trip
     (SPEC 8.1) -- and those are exactly the cases where a reader is supposed to
     drop something in a SCOPED way.  Measured on the pre-D2 corpus: a reader
-    that dropped the REST OF THE CHAIN along with a dangling link passed every
+    that dropped the REST OF THE HIGHLIGHT along with a dangling link passed every
     tier green.  Container (.vnz) accept cases are the other gap, because the
     round trip returns early for them.  `positions` does not close either: it
     pins the value at a few named indices and says nothing about how many there
@@ -72,7 +72,7 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
 
     A sidecar MAY name a container the document carries empty (see
     `corpus/diagnose/self-loop-arc.expect.json`, which records
-    `/networks/0/chains: 0`).  Failing to name a NON-empty
+    `/networks/0/highlights: 0`).  Failing to name a NON-empty
     container is the error; naming a zero is legal.
 
     ⚠ EVERY CONTAINER IS EMITTED UNCONDITIONALLY, ZERO-COUNT ONES INCLUDED, and
@@ -91,9 +91,9 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
         out[f"/networks/{i}/arcs"] = len(network.arcs or {})
         for key, arc in (network.arcs or {}).items():
             out[f"/networks/{i}/arcs/{key}/pips"] = len(arc.pips or [])
-        out[f"/networks/{i}/chains"] = len(network.chains or [])
-        for j, chain in enumerate(network.chains or []):
-            out[f"/networks/{i}/chains/{j}/walk"] = len(chain.walk or [])
+        out[f"/networks/{i}/highlights"] = len(network.highlights or [])
+        for j, highlight in enumerate(network.highlights or []):
+            out[f"/networks/{i}/highlights/{j}/walk"] = len(highlight.walk or [])
         out[f"/networks/{i}/points"] = len(network.points or [])
         out[f"/networks/{i}/areas"] = len(network.areas or [])
         for j, area in enumerate(network.areas or []):

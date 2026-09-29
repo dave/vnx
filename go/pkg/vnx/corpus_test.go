@@ -459,7 +459,7 @@ func checkPositions(t *testing.T, doc *Document, e expectation) {
 //
 // ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
 // that dropped every route's arcs, or truncated an arc's pips to the first two,
-// or lost every chain in a network, changed nothing a sidecar could see: the
+// or lost every highlight in a network, changed nothing a sidecar could see: the
 // document still carried one route, one network, one track. The transposition
 // defence (`positions`) does not close it either — it pins the value at a few
 // named indices and says nothing about how many there are.
@@ -481,9 +481,9 @@ func containerCountsByPointer(doc *Document) map[string]int {
 		for key, a := range n.Arcs {
 			out[fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key)] = len(a.Pips)
 		}
-		out[fmt.Sprintf("/networks/%d/chains", i)] = len(n.Chains)
-		for j, c := range n.Chains {
-			out[fmt.Sprintf("/networks/%d/chains/%d/walk", i, j)] = len(c.Walk)
+		out[fmt.Sprintf("/networks/%d/highlights", i)] = len(n.Highlights)
+		for j, c := range n.Highlights {
+			out[fmt.Sprintf("/networks/%d/highlights/%d/walk", i, j)] = len(c.Walk)
 		}
 		// Emitted unconditionally, like every other container here. The
 		// conditional these two used to carry was arbitrary — a zero never
@@ -565,8 +565,8 @@ func positionsByPointer(doc *Document) map[string]Position {
 		for key, arc := range n.Arcs {
 			vertices(fmt.Sprintf("/networks/%d/arcs/%s/pips", i, key), arc.Pips)
 		}
-		for j, c := range n.Chains {
-			walk(fmt.Sprintf("/networks/%d/chains/%d/walk", i, j), c.Walk)
+		for j, c := range n.Highlights {
+			walk(fmt.Sprintf("/networks/%d/highlights/%d/walk", i, j), c.Walk)
 		}
 		for j, w := range n.Points {
 			out[fmt.Sprintf("/networks/%d/points/%d/at", i, j)] = w.At
@@ -823,8 +823,8 @@ func TestMatchDiagnostics(t *testing.T) {
 			// that let one reported diagnostic satisfy both would report a
 			// reader that found half the defects as fully correct.
 			name:      "duplicates are not double-counted",
-			got:       []Diagnostic{d("/networks/0/chains/0/links/1", "link-arc-absent")},
-			want:      []expectedDiagnostic{w("/networks/0/chains/0/links/1", "link-arc-absent"), w("/networks/0/chains/0/links/1", "link-arc-absent")},
+			got:       []Diagnostic{d("/networks/0/highlights/0/links/1", "link-arc-absent")},
+			want:      []expectedDiagnostic{w("/networks/0/highlights/0/links/1", "link-arc-absent"), w("/networks/0/highlights/0/links/1", "link-arc-absent")},
 			unmatched: 1,
 		},
 		{

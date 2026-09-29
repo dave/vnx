@@ -13,7 +13,7 @@ import "github.com/dave/vnx/go/pkg/vnx"
 // things that are easy to drop silently: an empty folder, a name with an XML
 // metacharacter in it, a hidden item, a pip with no elevation beside pips that
 // have one, pip times (which KML cannot carry), a two-arc route, a two-segment
-// track, in-network points AND areas, two chains SHARING an arc, and an
+// track, in-network points AND areas, two highlights SHARING an arc, and an
 // application key.
 // A fixture without them makes a golden that cannot see the losses this format
 // is supposed to have.
@@ -90,7 +90,7 @@ func fixture() *vnx.Document {
 				"a-south": {From: "n2", To: "n3", Pips: vs(pos(-3.67, 57.06))},
 				"a-north": {From: "n1", To: "n2", Pips: vs(pos(-3.69, 57.02))},
 			},
-			Chains: []vnx.Chain{
+			Highlights: []vnx.Highlight{
 				{
 					Name: "Full Traverse", Notes: "north to south",
 					Style: vnx.Style{"color": "#7B4FA8", "width": 4.0},
@@ -100,7 +100,7 @@ func fixture() *vnx.Document {
 					},
 				},
 				{
-					// SHARES a-north with the chain above, and stops part-way
+					// SHARES a-north with the highlight above, and stops part-way
 					// along it at a position. Both facts matter: the sharing is
 					// what KML cannot express, and the position is what proves
 					// the arc is cut rather than emitted whole.

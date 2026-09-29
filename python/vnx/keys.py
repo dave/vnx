@@ -18,7 +18,7 @@ __all__ = [
     "FOLDER",
     "NETWORK",
     "ARC",
-    "CHAIN",
+    "HIGHLIGHT",
     "PASS",
     "ROUTE",
     "TRACK",
@@ -66,7 +66,7 @@ NETWORK = frozenset(
         "hidden",
         "nodes",
         "arcs",
-        "chains",
+        "highlights",
         "points",
         "areas",
         "data",
@@ -79,9 +79,9 @@ NETWORK = frozenset(
 ARC = frozenset({"from", "to", "pips", "data"})
 
 # SPEC 3.3.3.
-CHAIN = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
+HIGHLIGHT = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
 
-# SPEC 3.3.3.  A pass of a chain's walk or of a route's.
+# SPEC 3.3.3.  A pass of a highlight's walk or of a route's.
 PASS = frozenset({"arc", "from", "to", "turn", "pinned"})
 
 # SPEC 3.4.  A route owns a graph of a network's shape, and one walk over it.
@@ -150,7 +150,7 @@ AREA_IN_NETWORK = AREA - {"folder"}
 # corpus; it is constrained by the table.
 REQUIRED_FOLDER = frozenset({"id"})
 REQUIRED_ARC = frozenset({"from", "to", "pips"})
-REQUIRED_CHAIN = frozenset({"walk"})
+REQUIRED_HIGHLIGHT = frozenset({"walk"})
 REQUIRED_PASS = frozenset({"arc"})
 REQUIRED_ROUTE = frozenset({"walk"})
 REQUIRED_TRACK = frozenset({"segments"})

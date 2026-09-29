@@ -179,7 +179,7 @@ func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walk
 	return entry, exit, nil
 }
 
-// decodeWalk reads a chain's or a route's REQUIRED `walk` and checks it in
+// decodeWalk reads a highlight's or a route's REQUIRED `walk` and checks it in
 // §6.2's order. ok is false when the owner is to be dropped: a missing or
 // wrong-typed `walk`, or the first pass that breaks a rule, which is reported
 // alone — nothing after it in the walk is examined.
@@ -187,7 +187,7 @@ func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walk
 // ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC §6.2). Dropping a pass would hand
 // the caller a different walk that reads as valid — two arcs joined that do not
 // meet, a direction reversed by a lost turn, a start moved to a node — so any
-// fault drops the chain, and the diagnostic names the pass and the rule.
+// fault drops the highlight, and the diagnostic names the pass and the rule.
 func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route bool, diags []Diagnostic) ([]Pass, bool, []Diagnostic) {
 	path := owner + "/walk"
 	arr, isArr := obj["walk"].([]any)

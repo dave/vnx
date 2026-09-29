@@ -21,7 +21,7 @@ from vnx.model import (
     AppKey,
     Arc,
     Area,
-    Chain,
+    Highlight,
     Document,
     Network,
     Pass,
@@ -247,7 +247,9 @@ def _network(walk: list[Pass], **overrides: object) -> Document:
         "ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101)]),
         "cb": Arc(from_="c", to="b", pips=[]),
     }
-    network = Network(nodes=nodes, arcs=arcs, chains=[Chain(name="C", walk=walk)])
+    network = Network(
+        nodes=nodes, arcs=arcs, highlights=[Highlight(name="C", walk=walk)]
+    )
     for key, value in overrides.items():
         setattr(network, key, value)
     return Document(networks=[network])

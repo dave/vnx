@@ -162,7 +162,7 @@ class CorpusTest {
      *
      * IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS. A
      * reader that dropped every route's arcs, or truncated an arc's pips, or
-     * lost every chain in a network, changed nothing a sidecar could see: the
+     * lost every highlight in a network, changed nothing a sidecar could see: the
      * document still carried one route, one network, one track. The accept tier
      * catches that through its decode-encode-compare, but section 8.1 exempts
      * the diagnose tier from the round trip — which is exactly the tier where a
@@ -185,8 +185,8 @@ class CorpusTest {
             out["/networks/$i/nodes"] = network.nodes?.size ?: 0
             out["/networks/$i/arcs"] = network.arcs?.size ?: 0
             network.arcs?.forEach { (key, arc) -> out["/networks/$i/arcs/$key/pips"] = arc.pips.size }
-            out["/networks/$i/chains"] = network.chains?.size ?: 0
-            network.chains?.forEachIndexed { j, chain -> out["/networks/$i/chains/$j/walk"] = chain.walk.size }
+            out["/networks/$i/highlights"] = network.highlights?.size ?: 0
+            network.highlights?.forEachIndexed { j, highlight -> out["/networks/$i/highlights/$j/walk"] = highlight.walk.size }
             // UNCONDITIONALLY, like every other container here. A guard on these
             // two alone would make `/networks/0/points: 0` a legal sidecar entry
             // for a runner that emits it and a hard "not a collection the

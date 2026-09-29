@@ -46,7 +46,7 @@
           ]
         }
       },
-      "chains": [
+      "highlights": [
         {
           "name": "Keep",
           "walk": [

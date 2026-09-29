@@ -15,7 +15,7 @@
         "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]},
         "bx": {"from": "b", "to": "x", "pips": [[-3.585, 57.09]]}
       },
-      "chains": [
+      "highlights": [
         {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
         {"name": "Off the map", "walk": [{"arc": "ab", "from": "a"}, {"arc": "bx", "to": "x"}]}
       ]

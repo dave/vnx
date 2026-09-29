@@ -25,7 +25,7 @@ from .jsonio import parse_json
 from .model import (
     Area,
     Arc,
-    Chain,
+    Highlight,
     DataRecord,
     Document,
     Endpoint,
@@ -630,7 +630,7 @@ class _Reader:
         )
 
     def _route(self, value: JSONValue, path: str) -> Union[Route, None]:
-        """SPEC 3.4.  A route is its own chain: where a chain would be dropped,
+        """SPEC 3.4.  A route is its own highlight: where a highlight would be dropped,
         the whole route is."""
         obj = self._object(value, path, K.ROUTE, "a route")
         if obj is None:
@@ -685,7 +685,7 @@ class _Reader:
                 if area is not None:
                     network.areas.append(area)
 
-        network.chains = self._chains(obj, path, network.arcs or {})
+        network.highlights = self._highlights(obj, path, network.arcs or {})
         return network
 
     def _nodes(
@@ -719,8 +719,8 @@ class _Reader:
     ) -> Union[dict[str, Arc], None]:
         """A network's or a route's `arcs` (SPEC 3.3.2).
 
-        ⚠ A DROPPED ARC TAKES EVERY CHAIN WALKING IT WITH IT, but not here: the
-        chain is dropped when its walk is read, under `pass-arc-absent`, with a
+        ⚠ A DROPPED ARC TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here: the
+        highlight is dropped when its walk is read, under `pass-arc-absent`, with a
         diagnostic of its own (SPEC 6.2).  That is why nodes and arcs are read
         before any walk.
         """
@@ -803,26 +803,26 @@ class _Reader:
         )
         return [Position(pip.lon, pip.lat, pip.ele) for pip in pips]
 
-    def _chains(
+    def _highlights(
         self, obj: dict[str, JSONValue], path: str, arcs: dict[str, Arc]
-    ) -> Union[list[Chain], None]:
-        items = self._array(obj, "chains", path)
+    ) -> Union[list[Highlight], None]:
+        items = self._array(obj, "highlights", path)
         if items is None:
             return None
-        chains: list[Chain] = []
+        highlights: list[Highlight] = []
         for index, item in enumerate(items):
-            chain = self._chain(item, join(path, "chains", index), arcs)
-            if chain is not None:
-                chains.append(chain)
-        return chains
+            highlight = self._highlight(item, join(path, "highlights", index), arcs)
+            if highlight is not None:
+                highlights.append(highlight)
+        return highlights
 
-    def _chain(
+    def _highlight(
         self, value: JSONValue, path: str, arcs: dict[str, Arc]
-    ) -> Union[Chain, None]:
-        obj = self._object(value, path, K.CHAIN, "a chain")
+    ) -> Union[Highlight, None]:
+        obj = self._object(value, path, K.HIGHLIGHT, "a highlight")
         if obj is None:
             return None
-        chain = Chain(
+        highlight = Highlight(
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
@@ -832,8 +832,8 @@ class _Reader:
         walk = self._walk(obj, path, arcs, route=False)
         if walk is None:
             return None
-        chain.walk = walk
-        return chain
+        highlight.walk = walk
+        return highlight
 
     def _walk(
         self,
@@ -842,7 +842,7 @@ class _Reader:
         arcs: dict[str, Arc],
         route: bool,
     ) -> Union[list[Pass], None]:
-        """A chain's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+        """A highlight's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
 
         None means the owner is dropped: a missing or wrong-typed `walk`, or the
         first pass that breaks a rule, which is reported alone -- nothing after

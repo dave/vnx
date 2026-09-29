@@ -5,29 +5,29 @@ import (
 	"sort"
 )
 
-// Network is the graph: nodes and arcs that chains walk.
+// Network is the graph: nodes and arcs that highlights walk.
 //
 // ⚠ Nodes and arcs are MAPS because walks reference them by key, and those
 // keys are scoped TO THIS NETWORK — a route elsewhere in the document may use
 // the same names for entirely different geometry. A reader that flattens every
 // id into one document-wide map silently merges unrelated things.
 type Network struct {
-	Folder string
-	Name   string
-	Notes  string
-	Hidden bool
-	Nodes  map[string]Vertex
-	Arcs   map[string]Arc
-	Chains []Chain
-	Points []Waypoint
-	Areas  []Area
-	Data   []Record
+	Folder     string
+	Name       string
+	Notes      string
+	Hidden     bool
+	Nodes      map[string]Vertex
+	Arcs       map[string]Arc
+	Highlights []Highlight
+	Points     []Waypoint
+	Areas      []Area
+	Data       []Record
 }
 
-// Chain is a walk over arcs the network owns. Unlike a Route, its geometry is
-// BY REFERENCE — two chains crossing the same trail name the same arc, and
+// Highlight is a walk over arcs the network owns. Unlike a Route, its geometry is
+// BY REFERENCE — two highlights crossing the same trail name the same arc, and
 // that sharing is the whole reason this format exists.
-type Chain struct {
+type Highlight struct {
 	Name   string
 	Notes  string
 	Hidden bool
@@ -38,9 +38,9 @@ type Chain struct {
 
 var (
 	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true,
-		"nodes": true, "arcs": true, "chains": true, "points": true, "areas": true, "data": true}
-	chainKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "style": true, "walk": true, "data": true}
-	arcKeys   = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
+		"nodes": true, "arcs": true, "highlights": true, "points": true, "areas": true, "data": true}
+	highlightKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "style": true, "walk": true, "data": true}
+	arcKeys       = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
 )
 
 func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Diagnostic) {
@@ -60,7 +60,7 @@ func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Di
 		n.Hidden, diags = boolField(obj, "hidden", at, diags)
 		n.Nodes, diags = decodeNodes(obj["nodes"], at+"/nodes", diags)
 		n.Arcs, diags = decodeArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
-		n.Chains, diags = decodeChains(obj["chains"], at+"/chains", n.Arcs, diags)
+		n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
 		if sub, ok := obj["points"].([]any); ok {
 			n.Points, diags = decodeWaypoints(sub, at+"/points", diags)
 		}
@@ -112,8 +112,8 @@ func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Vertex, []D
 
 // decodeArcs reads a network's or a route's `arcs`.
 //
-// ⚠ AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
-// the chain is dropped when its walk is read, under pass-arc-absent, with a
+// ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
+// the highlight is dropped when its walk is read, under pass-arc-absent, with a
 // diagnostic of its own (§6.2). That is why nodes and arcs are read before any
 // walk — a walk can only be checked against the arcs that survived.
 func decodeArcs(v any, path string, nodes map[string]Vertex, diags []Diagnostic) (map[string]Arc, []Diagnostic) {
@@ -205,31 +205,31 @@ func decodeArc(obj map[string]any, at string, nodes map[string]Vertex, diags []D
 	return a, true, diags
 }
 
-func decodeChains(v any, path string, arcs map[string]Arc, diags []Diagnostic) ([]Chain, []Diagnostic) {
+func decodeHighlights(v any, path string, arcs map[string]Arc, diags []Diagnostic) ([]Highlight, []Diagnostic) {
 	if v == nil {
 		return nil, diags
 	}
 	arr, ok := v.([]any)
 	if !ok {
 		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`chains` is %s, expected an array — ignored", jsonKind(v))})
+			Message: fmt.Sprintf("`highlights` is %s, expected an array — ignored", jsonKind(v))})
 	}
-	out := make([]Chain, 0, len(arr))
+	out := make([]Highlight, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
 		obj, isObj := item.(map[string]any)
 		if !isObj {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("chain is %s, expected an object — dropped", jsonKind(item))})
+				Message: fmt.Sprintf("highlight is %s, expected an object — dropped", jsonKind(item))})
 			continue
 		}
-		var c Chain
+		var c Highlight
 		c.Name, diags = stringField(obj, "name", diags)
 		c.Notes, diags = stringField(obj, "notes", diags)
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
 		c.Style, diags = decodeStyle(obj, at, diags)
 		c.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, chainKeys, diags)
+		diags = reportUnknownKeys(obj, at, highlightKeys, diags)
 		var walkOK bool
 		c.Walk, walkOK, diags = decodeWalk(obj, at, arcs, false, diags)
 		if !walkOK {

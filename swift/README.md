@@ -98,10 +98,10 @@ This library has none. The reference command-line tool is Go's; see
 | `Position` | `lon`, `lat`, `elevation: Double?`, `timeMilliseconds: Double?`, `isSamePlace(as:)` |
 | `Vertex` | `lon`, `lat`, `elevation: Double?`, `position`; a node or an arc pip, which carries no time |
 | `LonLat` | `lon`, `lat`, `position`; a walk's `from`, `to` or `turn` |
-| `Network` | `nodes: [JSONKey: Vertex]?`, `arcs: [JSONKey: Arc]?`, `chains: [Chain]?`, `points`, `areas`, and the item fields |
+| `Network` | `nodes: [JSONKey: Vertex]?`, `arcs: [JSONKey: Arc]?`, `highlights: [Highlight]?`, `points`, `areas`, and the item fields |
 | `Route` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: [Vertex]` (interior points only), `data` |
-| `Chain` | `walk: [Pass]`, and the item fields |
+| `Highlight` | `walk: [Pass]`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Bool` |
 | `Endpoint` | `.node(String)` or `.position(LonLat)` |
 | `Area` | `polygon: [Position]`, one open ring, and the item fields |
@@ -125,12 +125,12 @@ document.
   which points into the archive's entries.
 - **An absent collection is `nil`, not `[]`.** `Document` keeps the spelling the
   document used, though the two carry the same content (SPEC §3.1). Where the key
-  is required — `Chain.walk`, `Route.walk`, `Track.segments`, an arc's `pips` —
+  is required — `Highlight.walk`, `Route.walk`, `Track.segments`, an arc's `pips` —
   it is a plain array.
-- **A walk is used whole or not at all.** Any fault in a walk drops the chain,
+- **A walk is used whole or not at all.** Any fault in a walk drops the highlight,
   or the route, that carries it, and only the first fault is reported, in the
   order of SPEC §6.2. A dropped node takes each arc naming it, and a dropped arc
-  takes each chain walking it, each with its own diagnostic.
+  takes each highlight walking it, each with its own diagnostic.
 - **`Pass.from` and `Pass.to` are `nil` where SPEC §3.3.3's rule leaves them
   out**, not where they are unknown. `pinned` is `false` for absent, and is
   written only when `true`.

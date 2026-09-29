@@ -211,16 +211,16 @@ function emitNetwork(n) {
   const owner = n.name === undefined ? 'a network' : `network ${JSON.stringify(n.name)}`;
   emitNodes(o, n.nodes, owner);
   emitArcs(o, n.nodes, n.arcs, owner);
-  if (n.chains !== undefined) o.chains = n.chains.map((c) => emitChain(c, n.arcs));
+  if (n.highlights !== undefined) o.highlights = n.highlights.map((c) => emitHighlight(c, n.arcs));
   if (n.points !== undefined) o.points = n.points.map((p) => emitPointLike(p));
   if (n.areas !== undefined) o.areas = n.areas.map((a) => emitArea(a));
   put(o, 'data', n.data);
   return o;
 }
 
-function emitChain(c, arcs) {
+function emitHighlight(c, arcs) {
   const o = {};
-  const owner = c.name === undefined ? 'a chain' : `chain ${JSON.stringify(c.name)}`;
+  const owner = c.name === undefined ? 'a highlight' : `highlight ${JSON.stringify(c.name)}`;
   put(o, 'name', c.name);
   put(o, 'notes', c.notes);
   putHidden(o, c.hidden);

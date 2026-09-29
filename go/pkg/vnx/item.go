@@ -61,7 +61,7 @@ func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []
 		pos, err := decodePosition(posArr, at+"/at")
 		if err != nil {
 			// A point IS its position; without one there is nothing to keep.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at", Code: CodePositionUnusable,
 				Message: err.Error() + " — item dropped"})
 			continue
 		}

@@ -552,7 +552,11 @@ different document for one input, the accept tier reaches it. Where a rule takes
 effect only when a model becomes a document, a write tier does. Where neither is
 true, the prose is the only statement of the rule and your own tests the only
 enforcement. The nearest point of an arc is one: a reader stores a walk position
-as written, so no tier observes the point it identifies (section 7.1).
+as written, so no tier observes the point it identifies (section 7.1). A
+writer's refusals are another. Every tier starts from a document, and the
+reader drops any walk, arc or ring the writer would refuse, so only a model
+built in code reaches those refusals. Test them in your own suite, once per
+refusal, and red-proof each.
 
 ### 10.2 A case only separates the readings its own data can separate
 

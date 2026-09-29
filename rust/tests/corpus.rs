@@ -494,11 +494,7 @@ fn write_container_case(dir: &Path, stem: &str, input: &[u8], manifest: &Path) {
 
     let attachments = read_manifest(manifest, stem);
     let reading = decode(input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
-    assert!(
-        reading.diagnostics.is_empty(),
-        "write/{stem}.in.vnx reported {}",
-        render_diagnostics(&reading.diagnostics)
-    );
+    check_write_diagnostics(&sidecar, &reading.diagnostics, stem);
 
     // The attachments are fed REVERSED. A writer's output must not depend on
     // the order it was handed, and feeding them in manifest order cannot see
@@ -643,6 +639,21 @@ fn read_manifest(manifest: &Path, stem: &str) -> Vec<vnz::Attachment> {
         .collect()
 }
 
+/// A write sidecar's `diagnostics` is what decoding the input must report,
+/// compared exactly as the diagnose tier compares it. Absent, the input must
+/// read cleanly: most write cases are documents a reader reads as written, and
+/// the one that is not exists to write back what the reader repaired.
+fn check_write_diagnostics(sidecar: &Json, reported: &[vnx::Diagnostic], stem: &str) {
+    let expected = if sidecar.get("diagnostics").is_some() {
+        read_expected_diagnostics(sidecar).unwrap_or_else(|why| panic!("write/{stem}: {why}"))
+    } else {
+        Vec::new()
+    };
+    if let Err(why) = pair_diagnostics(&expected, reported) {
+        panic!("write/{stem}.in.vnx: {why}");
+    }
+}
+
 /// SPEC 4.1's EMIT BOUNDARY, which is the one no other tier reaches.
 ///
 /// A case is a pair — `X.in.vnx` and `X.written.vnx` — plus a sidecar. The
@@ -704,11 +715,7 @@ fn write_tier() {
         );
 
         let reading = decode(&input).unwrap_or_else(|e| panic!("write/{stem}.in.vnx: {e}"));
-        assert!(
-            reading.diagnostics.is_empty(),
-            "write/{stem}.in.vnx reported {}",
-            render_diagnostics(&reading.diagnostics)
-        );
+        check_write_diagnostics(&sidecar, &reading.diagnostics, stem);
         let written = encode(&reading.document).expect("encodable");
         if let Some(difference) =
             tree::compare(written.as_bytes(), &expected, EmitBoundary::Keep)

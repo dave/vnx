@@ -566,6 +566,15 @@ class WriteTier(unittest.TestCase):
         listed = json.loads(path.read_text())["attachments"]
         return {a["name"]: a["body"].encode("utf-8") for a in listed}
 
+    def _check_decode(self, source: pathlib.Path, result: "vnx.ReadResult") -> None:
+        """The input's decode reports exactly the sidecar's `diagnostics`,
+        compared as the diagnose tier compares them; absent, nothing.  A
+        write case with diagnostics writes back what a reader repaired."""
+        stem = source.name[: -len(".in.vnx")]
+        expect = json.loads((CORPUS / "write" / f"{stem}.expect.json").read_text())
+        problem = match_diagnostics(expect.get("diagnostics", []), result.diagnostics)
+        self.assertIsNone(problem, f"{source.name}: {problem}")
+
     def test_every_input_has_its_written_bytes_and_sidecar(self) -> None:
         pairs = self._pairs()
         self.assertTrue(pairs, "write/ holds no cases")
@@ -585,10 +594,11 @@ class WriteTier(unittest.TestCase):
                 # an uncaught VNXRefusal names only its own text and leaves the
                 # reader to work out which tier raised it.
                 try:
-                    document = vnx.read_bytes(source.read_bytes()).document
-                    got = vnx.encode_bytes(document)
+                    result = vnx.read_bytes(source.read_bytes())
+                    got = vnx.encode_bytes(result.document)
                 except vnx.VNXRefusal as refusal:
                     self.fail(f"{source.name} was refused: {refusal}")
+                self._check_decode(source, result)
                 self.assertEqual(
                     tree.compare_documents(got, written.read_bytes(), _WRITE_TIER),
                     "",
@@ -614,10 +624,12 @@ class WriteTier(unittest.TestCase):
         the fixture rather than in the writer."""
         for _, written in self._pairs():
             with self.subTest(case=written.name):
-                document = vnx.read_bytes(written.read_bytes()).document
+                again = vnx.read_bytes(written.read_bytes())
+                self.assertIsNone(match_diagnostics([], again.diagnostics),
+                                  f"{written.name} must read cleanly")
                 self.assertEqual(
                     tree.compare_documents(
-                        vnx.encode_bytes(document), written.read_bytes(), _WRITE_TIER
+                        vnx.encode_bytes(again.document), written.read_bytes(), _WRITE_TIER
                     ),
                     "",
                 )
@@ -664,10 +676,11 @@ class WriteTier(unittest.TestCase):
                 attachments = self._manifest(manifest)
                 reversed_order = dict(reversed(list(attachments.items())))
                 try:
-                    document = vnx.read_bytes(source.read_bytes()).document
-                    got = vnx.encode_container_bytes(document, reversed_order)
+                    result = vnx.read_bytes(source.read_bytes())
+                    got = vnx.encode_container_bytes(result.document, reversed_order)
                 except vnx.VNXRefusal as refusal:
                     self.fail(f"{source.name} was refused: {refusal}")
+                self._check_decode(source, result)
                 with zipfile.ZipFile(io.BytesIO(got)) as archive:
                     names = archive.namelist()
                     bodies = {name: archive.read(name) for name in names}

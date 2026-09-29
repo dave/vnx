@@ -796,6 +796,23 @@ class RedProof(unittest.TestCase):
             "arc pip time check",
         )
 
+    def test_a_reader_that_reports_an_arc_pip_time_and_keeps_it_is_caught(self) -> None:
+        """The diagnose tier cannot see this: it never writes the document
+        back.  write/arc-pip-time does, so a time left in the model reaches
+        the writer."""
+        keep = decode._Reader._pip_times
+
+        def reports_and_keeps(self: Any, pips: Any, here: str) -> Any:
+            keep(self, pips, here)
+            return pips
+
+        self.assertRedCases(
+            mock.patch.object(decode._Reader, "_pip_times", reports_and_keeps),
+            "WriteTier.test_the_writer_emits_the_written_document",
+            {"arc-pip-time.in.vnx"},
+            "arc pip time drop",
+        )
+
     def test_a_reader_that_keeps_an_extra_channel_is_caught(self) -> None:
         self.assertRedCases(
             mock.patch.object(

@@ -1,0 +1,63 @@
+{
+  "vnx": "0.2.0",
+  "waypoints": [
+    {
+      "name": "On the pole",
+      "at": [-3.6, 90]
+    }
+  ],
+  "areas": [
+    {
+      "name": "Kept",
+      "polygon": [
+        [-3.7, 57.09],
+        [-3.68, 57.09],
+        [-3.68, 57.075]
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "One segment off the globe",
+      "segments": [
+        {
+          "pips": [
+            [-3.68, 57.02],
+            [-3.67, 57.03]
+          ]
+        }
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "Out of range",
+      "nodes": {
+        "a": [-3.6, 57.1],
+        "b": [-3.59, 57.1],
+        "c": [-3.58, 57.1]
+      },
+      "arcs": {
+        "ab": {
+          "from": "a",
+          "to": "b",
+          "pips": [
+            [-3.595, 57.101]
+          ]
+        }
+      },
+      "chains": [
+        {
+          "name": "Keep",
+          "walk": [
+            {
+              "arc": "ab",
+              "from": "a",
+              "to": [-3.597, 57.1005]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

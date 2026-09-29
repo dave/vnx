@@ -1,0 +1,23 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A ring of three positions, two of which differ only in elevation (SPEC 3.7). Two positions are distinct when they differ in longitude or latitude, and no other channel takes part, so this ring holds two distinct positions and its area is dropped. A reader that compares whole positions counts three and keeps an area with no inside. The first and last positions differ in longitude, so the ring is not closed and `ring-closed` does not apply. The second area is valid and survives, which `positions` proves.",
+  "counts": {
+    "areas": 1,
+    "/areas/0/polygon": 3
+  },
+  "positions": [
+    {
+      "at": "/areas/0/polygon/0",
+      "lon": -3.7,
+      "lat": 57.09
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/areas/0/polygon",
+      "code": "ring-too-few-points",
+      "message_advisory": "the ring has 2 distinct positions, needs at least 3 — the area is dropped"
+    }
+  ]
+}

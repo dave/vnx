@@ -1,0 +1,43 @@
+{
+  "vnx": "0.2.0",
+  "waypoints": [
+    {"name": "Beyond the pole", "at": [-3.60, 90.5]},
+    {"name": "On the pole", "at": [-3.60, 90]}
+  ],
+  "areas": [
+    {"name": "Off the edge", "polygon": [[-3.74, 57.09], [-180.5, 57.09], [-3.72, 57.075]]},
+    {"name": "Kept", "polygon": [[-3.70, 57.09], [-3.68, 57.09], [-3.68, 57.075]]}
+  ],
+  "tracks": [
+    {
+      "name": "One segment off the globe",
+      "segments": [
+        {"pips": [[-3.70, 57.00], [-3.69, -91]]},
+        {"pips": [[-3.68, 57.02], [-3.67, 57.03]]}
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "Out of range",
+      "nodes": {
+        "a": [-3.60, 57.10],
+        "b": [-3.59, 57.10],
+        "c": [-3.58, 57.10],
+        "x": [181, 57.10]
+      },
+      "arcs": {
+        "ab": {"from": "a", "to": "b", "pips": [[-3.595, 57.101]]},
+        "bc": {"from": "b", "to": "c", "pips": [[-3.585, 95]]},
+        "cx": {"from": "c", "to": "x", "pips": []}
+      },
+      "chains": [
+        {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
+        {"name": "Turns off the globe", "walk": [{"arc": "ab", "from": "a", "turn": [-3.595, -90.001], "to": "a"}]}
+      ],
+      "points": [
+        {"name": "Past the antimeridian", "at": [180.25, 57.10]}
+      ]
+    }
+  ]
+}

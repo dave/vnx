@@ -1,0 +1,29 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A pass other than the last that leaves at a position (SPEC 3.3.3, valid-walk rule 5). The spelling is right: a pass whose `from` is a position carries `to`. But a walk can continue only from a node, and this one stops part-way along ab and then claims to go on along cb. The diagnostic names the `to` key. A reader that checks only the spelling reads this chain clean.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/nodes": 4,
+    "/networks/0/arcs": 3,
+    "/networks/0/arcs/ab/pips": 1,
+    "/networks/0/arcs/cb/pips": 0,
+    "/networks/0/arcs/cd/pips": 2,
+    "/networks/0/chains": 1,
+    "/networks/0/chains/0/walk": 1
+  },
+  "positions": [
+    {
+      "at": "/networks/0/chains/0/walk/0/to",
+      "lon": -3.597,
+      "lat": 57.1005
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/chains/1/walk/0/to",
+      "code": "walk-not-connected",
+      "message_advisory": "only the last pass leaves at a position — the chain is dropped"
+    }
+  ]
+}

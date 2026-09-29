@@ -727,6 +727,12 @@ A position is a JSON array of fixed positional channels:
 The following rules apply:
 
 - A position MUST carry at least `lon` and `lat`.
+- `lon` is a number from -180 to 180 and `lat` a number from -90 to 90, both
+  bounds included. These ranges are normative.
+- A position whose `lon` or `lat` is outside its range will not parse, as one
+  that carries fewer than two channels, or a `lon` or `lat` that is not a
+  number, will not. Section 6.2 states what a reader drops for a position that
+  will not parse, for each place a position appears.
 - `null` marks an absent value in any channel from index 2 (`ele`) upward.
   Absent elevation and absent time are both first-class states and MUST be
   expressible.
@@ -953,6 +959,7 @@ The remedies for the constructs this document constrains:
 | a data record with no `@type`, or one that is not a string (5) | drop the record | `wrong-type-required` |
 | a record-level timestamp with an offset other than `Z` (4.3) | drop the field | `timestamp-not-utc` |
 | a position that will not parse, as a node (3.3.1) | drop the node | `position-unusable` |
+| a position that will not parse, as a waypoint's or a point's `at` (3.6) | drop the waypoint or point | `position-unusable` |
 | a position that will not parse, inside an arc's `pips` (3.3.2) | drop the arc | `position-unusable` |
 | a position that will not parse, inside a track segment's `pips` (3.5) | drop the segment | `position-unusable` |
 | a position that will not parse, inside a `polygon` ring (3.7) | drop the area | `position-unusable` |

@@ -265,8 +265,11 @@ class RedProof(unittest.TestCase):
             _both(self._over_broad_chain_drop(), unchecked),
             "DiagnoseTier.test_diagnose",
             {"arc-names-absent-node.vnx", "pass-names-absent-arc.vnx",
-             "pinned-turn.vnx", "walk-not-connected.vnx",
-             "walk-position-unusable.vnx", "walk-spelling.vnx"},
+             "pinned-turn.vnx", "position-out-of-range.vnx",
+             "walk-from-not-an-end.vnx", "walk-last-pass-lacks-to.vnx",
+             "walk-leaves-at-a-position-early.vnx", "walk-not-connected.vnx",
+             "walk-position-unusable.vnx", "walk-spelling.vnx",
+             "walk-to-forbidden.vnx", "walk-to-not-an-end.vnx"},
             "reader whose dropped chain takes its siblings with it",
         )
 
@@ -654,7 +657,9 @@ class RedProof(unittest.TestCase):
 
         defect = lambda: mock.patch.object(W, "connection", trusting)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"walk-not-connected.vnx"},
+            defect(), "DiagnoseTier.test_diagnose",
+            {"walk-from-not-an-end.vnx", "walk-leaves-at-a-position-early.vnx",
+             "walk-not-connected.vnx", "walk-to-not-an-end.vnx"},
             "walk continuity check",
         )
         for test in ("test_8_a_from_node_that_is_not_an_end",
@@ -674,7 +679,8 @@ class RedProof(unittest.TestCase):
     def test_a_reader_with_no_spelling_rule_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "spelling", lambda i, last, p: None)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"walk-spelling.vnx"},
+            defect(), "DiagnoseTier.test_diagnose",
+            {"walk-last-pass-lacks-to.vnx", "walk-spelling.vnx", "walk-to-forbidden.vnx"},
             "rule for `from` and `to`",
         )
         for test in ("test_7_the_first_pass_lacks_from", "test_7_a_later_pass_carries_from",
@@ -776,7 +782,7 @@ class RedProof(unittest.TestCase):
                 decode._Reader, "_ends_present", lambda self, arc, here, nodes: True
             ),
             "DiagnoseTier.test_diagnose",
-            {"arc-names-absent-node.vnx"},
+            {"arc-names-absent-node.vnx", "position-out-of-range.vnx"},
             "check that an arc's nodes are present",
         )
 
@@ -801,6 +807,14 @@ class RedProof(unittest.TestCase):
             "extra-channel check",
         )
 
+    def test_a_reader_with_no_coordinate_range_is_caught(self) -> None:
+        self.assertRedCases(
+            mock.patch.object(decode, "off_the_globe", lambda lon, lat: None),
+            "DiagnoseTier.test_diagnose",
+            {"position-out-of-range.vnx"},
+            "longitude and latitude range check",
+        )
+
     def test_a_reader_that_keeps_a_closed_ring_closed_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "ring_is_closed", lambda ring: False)  # noqa: E731
         self.assertRedCases(
@@ -816,7 +830,8 @@ class RedProof(unittest.TestCase):
     def test_a_reader_that_keeps_a_short_ring_is_caught(self) -> None:
         defect = lambda: mock.patch.object(W, "distinct_lon_lat", lambda ring: 3)  # noqa: E731
         self.assertRedCases(
-            defect(), "DiagnoseTier.test_diagnose", {"ring-too-few-points.vnx"},
+            defect(), "DiagnoseTier.test_diagnose",
+            {"ring-distinct-by-lon-lat.vnx", "ring-too-few-points.vnx"},
             "distinct-positions check",
         )
         self.assertGoesRed(

@@ -62,6 +62,15 @@ def decode_document(value: JSONValue) -> ReadResult:
     return ReadResult(document, reader.diagnostics)
 
 
+def off_the_globe(lon: float, lat: float) -> Union[str, None]:
+    """SPEC 4.1's normative ranges, both bounds included.  None when in range."""
+    if not -180 <= lon <= 180:
+        return f"longitude {lon!r} is off the globe"
+    if not -90 <= lat <= 90:
+        return f"latitude {lat!r} is off the globe"
+    return None
+
+
 class _Reader:
     def __init__(self) -> None:
         self.diagnostics: list[Diagnostic] = []
@@ -260,7 +269,10 @@ class _Reader:
         the channel would report a pointer no other reader reports, and the
         offending element under SPEC 6.2 is the position.
         """
-        unusable = code or "position-unusable"
+        # A value that is not an array fails as a TYPE and takes the caller's
+        # code; one that is an array and still will not parse fails as a
+        # position (SPEC 4.1) and takes position-unusable wherever it sits.
+        unusable = "position-unusable"
         if not isinstance(value, list):
             self.note(path, "a position must be an array of numbers", code)
             return None
@@ -298,6 +310,10 @@ class _Reader:
         # a position whichever index the string sits at.
         lon, lat = channels[0], channels[1]
         assert lon is not None and lat is not None
+        problem = off_the_globe(lon, lat)
+        if problem is not None:
+            self.note(path, problem, unusable)
+            return None
         return Position(
             lon,
             lat,

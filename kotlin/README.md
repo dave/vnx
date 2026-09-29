@@ -1,4 +1,4 @@
-# VNX for Kotlin
+# vnx for Kotlin
 
 `vnx` reads and writes VNX documents and VNZ containers on the JVM, and reports
 diagnostics.
@@ -8,15 +8,15 @@ itself, not a JDK. One dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
 1.8.0, which this library's POM declares, so it arrives on a consumer's runtime
 classpath without the consumer naming it.
-Implements VNX 0.1.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
-0.x the MINOR component is a breaking axis, so this reader reads the 0.1 series
+Implements VNX 0.2.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
+0.x the MINOR component is a breaking axis, so this reader reads the 0.2 series
 and refuses every other, in both directions (SPEC §2.2).
 
 ## Install
 
 ```kotlin
 dependencies {
-    implementation("app.viatrail:vnx:0.1.0")
+    implementation("app.viatrail:vnx:0.2.0")
 }
 ```
 
@@ -49,7 +49,7 @@ republishing — take it in as a composite build instead. In the consuming
 includeBuild("../vnx/kotlin")
 ```
 
-and the same `implementation("app.viatrail:vnx:0.1.0")` line. Gradle substitutes
+and the same `implementation("app.viatrail:vnx:0.2.0")` line. Gradle substitutes
 the included build for the coordinate because the two agree on `group` and name;
 no `dependencySubstitution` block, and no `mavenLocal()`.
 
@@ -87,6 +87,11 @@ fun main(args: Array<String>) {
 }
 ```
 
+## Command-line tool
+
+This library has none. The reference command-line tool is Go's; see
+[`go/README.md`](../go/README.md#command-line-tool).
+
 ## API
 
 | Call | Takes | Returns | Throws |
@@ -94,7 +99,7 @@ fun main(args: Array<String>) {
 | `Vnx.read` | `File`, read as a container where the extension is `.vnz` | `ReadResult` | `VnxRefusal`, and whatever reading the file raises |
 | `Vnx.readDocument` | `String` or `ByteArray`, a byte order mark tolerated | `ReadResult` | `VnxRefusal`, one of the four document causes |
 | `Vnx.readContainer` | `ByteArray` | `ReadResult` | `VnxRefusal`, a document or a container cause |
-| `Vnx.write` | `VnxDocument` | `String` | `IllegalArgumentException`, for a number JSON cannot spell, an application key with no full stop, or one listed twice (`SPEC §3.9`) |
+| `Vnx.write` | `VnxDocument` | `String` | `IllegalArgumentException`, for a number JSON cannot spell, an application key with no full stop or one listed twice (`SPEC §3.9`), an arc that is a self-loop or names an absent node (`SPEC §3.3.2`), a walk its reader would drop (`SPEC §3.3.3`, §3.4; the message names the pass and the code), or a ring that is closed or holds fewer than three distinct positions (`SPEC §3.7`) |
 | `Vnx.writeContainer` | `VnxDocument`, `Map<String, ByteArray>` of entry name to bytes | `ByteArray` | the same, from the document it carries; `VnxRefusal`, for an attachment name a reader would refuse |
 | `Vnx.version` | — | `Version` | — |
 
@@ -106,7 +111,15 @@ fun main(args: Array<String>) {
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
 | `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
 | `AppKey` | `key: String`, `value: JsonValue`; a JSON `null` is `JsonNull`; `AppKey.isAppKey(key)` |
-| `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?`, `meets()` |
+| `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?` |
+| `Vertex` | `lon`, `lat`, `ele: Double?`: a node or an arc pip, which carries no time |
+| `LonLat` | `lon`, `lat`: a position in a walk |
+| `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `chains`, `points`, `areas`, and the item fields |
+| `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
+| `Chain` | `walk: List<Pass>`, and the item fields |
+| `Route` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
+| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Boolean` |
+| `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
 | `Segment` | `pips: List<Position>` |
 
@@ -136,9 +149,9 @@ that is a thrown exception against the list returned beside the document.
 - **A refusal is a thrown `VnxRefusal`.** `refusal` is a `RefusalCause`, a closed
   enum, so the whole set is reachable from code; `Errors.kt` documents each one.
 - **Through 0.x a version refusal is about the SERIES, not about being newer.**
-  Each MINOR is its own series (SPEC §2.2), so this 0.1 reader refuses `0.0.9`
-  for the same reason it refuses `0.2.0`, and both raise
-  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.1.5` reads.
+  Each MINOR is its own series (SPEC §2.2), so this 0.2 reader refuses `0.1.9`
+  for the same reason it refuses `0.3.0`, and both raise
+  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.2.5` reads.
 - **Damage to one attachment is reported, not thrown.** SPEC §7 rules refusing a
   whole trail library over one damaged photograph disproportionate, so a
   corrupt or unreadable attachment leaves the document intact and raises an
@@ -153,7 +166,14 @@ that is a thrown exception against the list returned beside the document.
   Inside an item it is a plain list.
 - **`Track.movingTimeMs()` returns null for unknown.** Unknown is not zero.
 - **A `Position` holds four values, not the arity the document spelled.** `ele`
-  and `timeMs` are null where a channel was absent or JSON `null`.
+  and `timeMs` are null where a channel was absent or JSON `null`. A node and an
+  arc pip are a `Vertex`, and a walk position is a `LonLat`, so a channel the
+  format forbids there cannot be built. The reader drops it with an
+  `extra-channel` or `arc-pip-time` diagnostic.
+- **A walk is used whole or not at all.** Any problem in a walk drops the chain,
+  or the route, that carries it, and only the first problem is reported (SPEC
+  §6.2). An arc that is dropped takes each chain that walks it, and each drop
+  has its own diagnostic.
 - **This reader bounds nothing.** SPEC §9 has a reader of untrusted documents
   bound what one may consume; impose that limit before handing it an upload.
 
@@ -174,8 +194,8 @@ tiers. A green run is the conformance claim.
 | `Serialise.kt` | the tree to bytes, through kotlinx-serialization |
 | `Model.kt` | the decoded document (SPEC §3) |
 | `Decoder.kt` | what is refused, dropped and reported (SPEC §6.2) |
-| `Encoder.kt` | the emit boundary and its precision (SPEC §4.1) |
-| `Geo.kt` | the equirectangular map and its tolerance (SPEC §3.3.3) |
+| `Encoder.kt` | the emit boundary (SPEC §4.1), and what a writer refuses |
+| `Walk.kt` | the walk rules of SPEC §3.3.3, in the order §6.2 fixes, for the reader and the writer |
 | `Zip.kt`, `Vnx.kt` | the VNZ container (SPEC §7), and the public API |
 | `Version.kt` | `MAJOR.MINOR.PATCH`, compared as numbers of any length |
 | `Errors.kt`, `Diagnostics.kt` | the reason codes, and the tables tying them to the corpus |

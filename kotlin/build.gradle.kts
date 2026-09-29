@@ -3,12 +3,12 @@ plugins {
     `maven-publish`
 }
 
-// The coordinate a consumer writes: app.viatrail:vnx:0.1.0. `app.viatrail`
+// The coordinate a consumer writes: app.viatrail:vnx:0.2.0. `app.viatrail`
 // matches the package namespace the source already uses, and the version is the
 // VNX version this library implements, as in the Python, JavaScript and Rust
 // builds beside it.
 group = "app.viatrail"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -75,6 +75,10 @@ tasks.test {
     // build rather than inside it. Passing its location explicitly means the
     // runner never has to guess a working directory.
     systemProperty("vnx.corpus", layout.projectDirectory.dir("../corpus").asFile.absolutePath)
+    // AND AS AN INPUT. Gradle does not look inside a system property, so
+    // without this a corpus edit left the task UP-TO-DATE and `./gradlew test`
+    // reported the last run's green against cases it never read.
+    inputs.dir(layout.projectDirectory.dir("../corpus")).withPropertyName("corpus")
     testLogging {
         events("passed", "failed", "skipped")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

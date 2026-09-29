@@ -44,53 +44,92 @@ class WordingTest {
     fun `each diagnostic cause emits the code and the advisory wording its table claims`() {
         val provoked = mapOf(
             DiagnosticCause.WRONG_TYPE_OPTIONAL to causeOf(
-                """{"vnx":"0.1.0","waypoints":[{"at":[-3,57],"hidden":"yes"}]}""",
+                """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"hidden":"yes"}]}""",
                 DiagnosticCause.WRONG_TYPE_OPTIONAL,
             ),
             DiagnosticCause.WRONG_TYPE_REQUIRED to causeOf(
-                """{"vnx":"0.1.0","waypoints":[{"at":"beside the burn"}]}""",
+                """{"vnx":"0.2.0","waypoints":[{"at":"beside the burn"}]}""",
                 DiagnosticCause.WRONG_TYPE_REQUIRED,
             ),
             DiagnosticCause.POSITION_UNUSABLE to causeOf(
-                """{"vnx":"0.1.0","tracks":[{"segments":[{"pips":[[-3,57],[null,57]]}]}]}""",
+                """{"vnx":"0.2.0","tracks":[{"segments":[{"pips":[[-3,57],[null,57]]}]}]}""",
                 DiagnosticCause.POSITION_UNUSABLE,
             ),
             DiagnosticCause.UNKNOWN_KEY to causeOf(
-                """{"vnx":"0.1.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
+                """{"vnx":"0.2.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
                 DiagnosticCause.UNKNOWN_KEY,
             ),
             DiagnosticCause.TIMESTAMP_NOT_UTC to causeOf(
-                """{"vnx":"0.1.0","tracks":[{"started":"2026-05-12T08:03:11+01:00","segments":[]}]}""",
+                """{"vnx":"0.2.0","tracks":[{"started":"2026-05-12T08:03:11+01:00","segments":[]}]}""",
                 DiagnosticCause.TIMESTAMP_NOT_UTC,
             ),
             DiagnosticCause.POLYGON_NESTED_RINGS to causeOf(
-                """{"vnx":"0.1.0","areas":[{"polygon":[[[-3,57],[-2,57],[-2,58],[-3,57]],[[-3,57],[-2,57],[-2,58],[-3,57]]]}]}""",
+                """{"vnx":"0.2.0","areas":[{"polygon":[[[-3,57],[-2,57],[-2,58],[-3,57]],[[-3,57],[-2,57],[-2,58],[-3,57]]]}]}""",
                 DiagnosticCause.POLYGON_NESTED_RINGS,
             ),
-            DiagnosticCause.LINK_ARC_ABSENT to causeOf(
-                """{"vnx":"0.1.0","networks":[{"arcs":{},"nodes":{},"chains":[{"links":[{"arc":"ghost","from":"a","to":"b"}]}]}]}""",
-                DiagnosticCause.LINK_ARC_ABSENT,
+            DiagnosticCause.MISSING_REQUIRED_KEY to causeOf(
+                """{"vnx":"0.2.0","waypoints":[{"name":"nowhere"}]}""",
+                DiagnosticCause.MISSING_REQUIRED_KEY,
             ),
-            DiagnosticCause.INLINE_ENDPOINT_BEYOND_TOLERANCE to causeOf(
-                """{"vnx":"0.1.0","networks":[{"nodes":{"a":[-3,55],"b":[-3,68]},
-                   "arcs":{"up":{"from":"a","to":"b","pips":[[-3,55],[-3,68]]}},
-                   "chains":[{"links":[{"arc":"up","from":"a","to":[-2.99,67.5]}]}]}]}""",
-                DiagnosticCause.INLINE_ENDPOINT_BEYOND_TOLERANCE,
+            DiagnosticCause.DATA_RECORD_TYPE_MISSING to causeOf(
+                """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"data":[{"value":1}]}]}""",
+                DiagnosticCause.DATA_RECORD_TYPE_MISSING,
             ),
-            DiagnosticCause.CHAIN_NOT_CONNECTED to causeOf(
-                """{"vnx":"0.1.0","networks":[{"nodes":{"a":[-3.68,57.12],"b":[-3.67,57.11],"c":[-3.6,57.05],"d":[-3.59,57.04]},
-                   "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.68,57.12],[-3.67,57.11]]},
-                           "cd":{"from":"c","to":"d","pips":[[-3.6,57.05],[-3.59,57.04]]}},
-                   "chains":[{"links":[{"arc":"ab","from":"a","to":"b"},{"arc":"cd","from":"c","to":"d"}]}]}]}""",
-                DiagnosticCause.CHAIN_NOT_CONNECTED,
+            DiagnosticCause.OUT_OF_RANGE to causeOf(
+                """{"vnx":"0.2.0","waypoints":[{"at":[-3,57],"style":{"importance":9}}]}""",
+                DiagnosticCause.OUT_OF_RANGE,
             ),
-            // The node sits 100 m north of the pip the arc's `from` end names,
-            // and the arc's other end coincides exactly — so this provokes the
-            // cause once rather than twice.
-            DiagnosticCause.TERMINAL_PIP_OFF_NODE to causeOf(
-                """{"vnx":"0.1.0","networks":[{"nodes":{"a":[-3.68,57.1209],"b":[-3.67,57.11]},
-                   "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.68,57.12],[-3.67,57.11]]}}}]}""",
-                DiagnosticCause.TERMINAL_PIP_OFF_NODE,
+            DiagnosticCause.RING_CLOSED to causeOf(
+                """{"vnx":"0.2.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58],[-3,57]]}]}""",
+                DiagnosticCause.RING_CLOSED,
+            ),
+            DiagnosticCause.RING_TOO_FEW_POINTS to causeOf(
+                """{"vnx":"0.2.0","areas":[{"polygon":[[-3,57],[-2,57]]}]}""",
+                DiagnosticCause.RING_TOO_FEW_POINTS,
+            ),
+            DiagnosticCause.EXTRA_CHANNEL to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57,400,1000]}}]}""",
+                DiagnosticCause.EXTRA_CHANNEL,
+            ),
+            DiagnosticCause.ARC_PIP_TIME to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[[-2.5,57,null,1000]]}}}]}""",
+                DiagnosticCause.ARC_PIP_TIME,
+            ),
+            DiagnosticCause.SELF_LOOP_ARC to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"aa":{"from":"a","to":"a","pips":[]}}}]}""",
+                DiagnosticCause.SELF_LOOP_ARC,
+            ),
+            DiagnosticCause.ARC_NODE_ABSENT to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}}}]}""",
+                DiagnosticCause.ARC_NODE_ABSENT,
+            ),
+            DiagnosticCause.PASS_ARC_ABSENT to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
+                   "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
+                   "chains":[{"walk":[{"arc":"ghost","from":"a","to":"b"}]}]}]}""",
+                DiagnosticCause.PASS_ARC_ABSENT,
+            ),
+            DiagnosticCause.WALK_SPELLING to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
+                   "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
+                   "chains":[{"walk":[{"arc":"ab","to":"b"}]}]}]}""",
+                DiagnosticCause.WALK_SPELLING,
+            ),
+            DiagnosticCause.WALK_NOT_CONNECTED to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
+                   "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
+                   "chains":[{"walk":[{"arc":"ab","from":"c","to":"b"}]}]}]}""",
+                DiagnosticCause.WALK_NOT_CONNECTED,
+            ),
+            DiagnosticCause.PINNED_TURN to causeOf(
+                """{"vnx":"0.2.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
+                   "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
+                   "chains":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pinned":true,"to":"a"}]}]}]}""",
+                DiagnosticCause.PINNED_TURN,
+            ),
+            DiagnosticCause.ROUTE_PIN_OR_POSITION to causeOf(
+                """{"vnx":"0.2.0","routes":[{"nodes":{"a":[-3,57],"b":[-2,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":[-2.5,57]}]}]}""",
+                DiagnosticCause.ROUTE_PIN_OR_POSITION,
             ),
             // The one cause that needs a CONTAINER rather than a document: an
             // archive entry compressed by a method neither stored nor deflate.
@@ -127,11 +166,11 @@ class WordingTest {
         // reader that answered both directions with the same sentence would leave
         // one of its two claimed substrings unprovoked and fail below.
         val provoked = listOf(
-            RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.1.0","waypoints":[{"at":[NaN,57]}]}"""),
+            RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.2.0","waypoints":[{"at":[NaN,57]}]}"""),
             RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"generator":"x"}"""),
-            RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.1"}"""),
+            RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.2"}"""),
             RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"9.9.9"}"""),
-            RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"0.0.9"}"""),
+            RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"0.1.9"}"""),
             RefusalCause.CONTAINER_DUPLICATE_ENTRY to containerRefusal("reject/container-duplicate-entries.vnz"),
             RefusalCause.CONTAINER_PATH_ESCAPES to containerRefusal("reject/container-escapes.vnz"),
         )
@@ -206,8 +245,8 @@ class WordingTest {
             "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
         )
         assertEquals(
-            11, corpusCodes.size,
-            "the corpus pinned eleven codes on 2026-09-10; it now pins ${corpusCodes.size}. " +
+            18, corpusCodes.size,
+            "the corpus pinned eighteen codes for format 0.2 on 2026-09-29; it now pins ${corpusCodes.size}. " +
                 "A new one is a deliberate edit here, not a silent widening.",
         )
     }

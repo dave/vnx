@@ -62,21 +62,33 @@ data class Position(
     val ele: Double? = null,
     val timeMs: Double? = null,
 ) {
-
-    /**
-     * Equality for the continuity rule of SPEC.md section 6.2 and the shared
-     * reversal endpoint of section 3.3.3.
-     *
-     * Longitude and latitude only. Section 3.3.3 says an inline endpoint never
-     * carries an elevation and takes it from the polyline, so a node at
-     * `[lon, lat, ele]` and the inline endpoint that names the same point can
-     * never agree on a third channel.
-     */
-    fun meets(other: Position): Boolean = lon == other.lon && lat == other.lat
-
     companion object {
         fun of(lon: Double, lat: Double) = Position(lon, lat)
     }
+}
+
+/**
+ * A point that carries no time: a node, or an arc pip (SPEC.md sections 3.3.1
+ * and 3.3.2).
+ *
+ * A TYPE OF ITS OWN rather than a [Position], so that a time on a node or an arc
+ * pip cannot be built and so cannot be written. The reader drops such a time
+ * with a diagnostic, and nothing downstream has to remember to.
+ */
+data class Vertex(val lon: Double, val lat: Double, val ele: Double? = null) {
+    /** The vertex as a wire position, with no time. */
+    fun position() = Position(lon, lat, ele)
+}
+
+/**
+ * A position in a walk: a pass's `from`, `to` or `turn` (SPEC.md section 3.3.3).
+ *
+ * Longitude and latitude only. Its elevation is the arc line's at the point it
+ * identifies, so a stored one would be a second copy of a fact the arc holds.
+ */
+data class LonLat(val lon: Double, val lat: Double) {
+    /** The walk position as a wire position. */
+    fun position() = Position(lon, lat)
 }
 
 /**
@@ -101,8 +113,8 @@ data class Network(
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** Keyed by node identifier, scoped to this network (SPEC.md section 4.4). */
-    val nodes: Map<String, Position>? = null,
-    val arcs: Map<String, NetworkArc>? = null,
+    val nodes: Map<String, Vertex>? = null,
+    val arcs: Map<String, Arc>? = null,
     val chains: List<Chain>? = null,
     val points: List<Waypoint>? = null,
     val areas: List<Area>? = null,
@@ -110,19 +122,24 @@ data class Network(
 )
 
 /**
- * An arc in a network. `pips` is the arc's COMPLETE point list including the
- * positions of both endpoint nodes (SPEC.md section 3.3.2); a reader must not
- * prepend or append node positions to it.
+ * An arc of a network or of a route: a line between the two DIFFERENT nodes
+ * [from] and [to] name (SPEC.md section 3.3.2).
+ *
+ * [pips] holds the INTERIOR points only. The line runs from the position of the
+ * [from] node, through [pips] in order, to the position of the [to] node, so a
+ * pip list never repeats either node. An arc with no pips is the straight line
+ * between its nodes.
  */
-data class NetworkArc(
+data class Arc(
     val from: String,
     val to: String,
-    val pips: List<Position>,
+    val pips: List<Vertex>,
     val data: List<DataRecord>? = null,
 )
 
+/** A chain: a walk over arcs its network owns (SPEC.md section 3.3.3). */
 data class Chain(
-    val links: List<Link>,
+    val walk: List<Pass>,
     val name: String? = null,
     val notes: String? = null,
     val hidden: Boolean? = null,
@@ -131,18 +148,45 @@ data class Chain(
 )
 
 /**
- * A link endpoint: either a node key or an inline position on the named arc
+ * One entry of a walk: the arc it covers, and where on that arc it enters,
+ * turns and leaves (SPEC.md section 3.3.3).
+ *
+ * [from] AND [to] ARE PRESENT ONLY WHERE SECTION 3.3.3's RULE PUTS THEM: on the
+ * first pass, on the last pass, and on a pass whose [from] is a position.
+ * Everywhere else the entry is the node the walk is at, and the exit is derived.
+ * A null [from] or [to] is that absence, not "unknown".
+ *
+ * [pinned] is a plain boolean because section 3.3.3 makes `"pinned": false` the
+ * same as an absent key.
+ */
+data class Pass(
+    val arc: String,
+    val from: Endpoint? = null,
+    val to: Endpoint? = null,
+    val turn: LonLat? = null,
+    val pinned: Boolean = false,
+)
+
+/**
+ * Where a pass enters or leaves its arc: a node key, or a position on the arc
  * (SPEC.md section 3.3.3).
  */
 sealed interface Endpoint {
     data class Node(val key: String) : Endpoint
-    data class Inline(val position: Position) : Endpoint
+    data class At(val position: LonLat) : Endpoint
 }
 
-data class Link(val arc: String, val from: Endpoint, val to: Endpoint)
-
+/**
+ * A top-level route (SPEC.md section 3.4). It OWNS its nodes and arcs, which
+ * have a network's shape, and carries one walk over them. Nothing outside the
+ * route can reference its nodes or arcs.
+ *
+ * The walk runs node to node: no position, no turn and no pin.
+ */
 data class Route(
-    val arcs: List<RouteArc>,
+    val walk: List<Pass>,
+    val nodes: Map<String, Vertex>? = null,
+    val arcs: Map<String, Arc>? = null,
     val name: String? = null,
     val notes: String? = null,
     val folder: String? = null,
@@ -150,8 +194,6 @@ data class Route(
     val style: JsonObject? = null,
     val data: List<DataRecord>? = null,
 )
-
-data class RouteArc(val pips: List<Position>, val data: List<DataRecord>? = null)
 
 data class Track(
     val segments: List<Segment>,
@@ -218,8 +260,10 @@ data class Waypoint(
 )
 
 /**
- * A closed ring (SPEC.md section 3.7). Holes and multiple rings are not
- * expressible in this format.
+ * An area: ONE OPEN RING (SPEC.md section 3.7). [polygon] holds at least three
+ * distinct positions, and its last position does NOT repeat its first: the
+ * boundary runs from the last position back to the first. Holes and multiple
+ * rings are not expressible in this format.
  */
 data class Area(
     val polygon: List<Position>,

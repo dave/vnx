@@ -65,17 +65,14 @@ internal object Tree {
     }
 
     private fun route(o: MutableMap<String, JsonValue>, opt: Options) {
-        items(o, "arcs", opt, ::arc)
+        graph(o, opt)
+        items(o, "walk", opt, ::pass)
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
-    private fun arc(o: MutableMap<String, JsonValue>, opt: Options) {
-        positionList(o, "pips", opt)
-        dropEmptyContainer(o, "data")
-    }
-
-    private fun network(o: MutableMap<String, JsonValue>, opt: Options) {
+    /** A network's or a route's `nodes` and `arcs`, which have one shape (section 3.4). */
+    private fun graph(o: MutableMap<String, JsonValue>, opt: Options) {
         (o["nodes"] as? JsonObject)?.let { nodes ->
             o["nodes"] = JsonObject(nodes.entries().map { (k, v) -> k to position(v, opt) })
         }
@@ -90,20 +87,33 @@ internal object Tree {
                 },
             )
         }
+        dropEmptyContainer(o, "nodes")
+        dropEmptyContainer(o, "arcs")
+    }
+
+    /**
+     * A pass. `from` and `to` are a node key or a position (section 3.3.3), and
+     * `turn` is a position; [position] leaves a string alone.
+     */
+    private fun pass(o: MutableMap<String, JsonValue>, opt: Options) {
+        for (key in listOf("from", "to", "turn")) o[key]?.let { o[key] = position(it, opt) }
+    }
+
+    private fun arc(o: MutableMap<String, JsonValue>, opt: Options) {
+        positionList(o, "pips", opt)
+        dropEmptyContainer(o, "data")
+    }
+
+    private fun network(o: MutableMap<String, JsonValue>, opt: Options) {
+        graph(o, opt)
         items(o, "chains", opt, ::chain)
         items(o, "points", opt, ::waypoint)
         items(o, "areas", opt, ::area)
-        dropEmptyContainer(o, "nodes")
-        dropEmptyContainer(o, "arcs")
         dropEmptyContainer(o, "data")
     }
 
     private fun chain(o: MutableMap<String, JsonValue>, opt: Options) {
-        items(o, "links", opt) { link, _ ->
-            // An endpoint is a node key or an inline position (section 3.3.3).
-            // Only the second is a position, and [position] leaves a string alone.
-            for (side in listOf("from", "to")) link[side]?.let { link[side] = position(it, opt) }
-        }
+        items(o, "walk", opt, ::pass)
         dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }

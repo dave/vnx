@@ -94,23 +94,79 @@ internal class Encoder {
         .put("data", data(f.data))
         .build()
 
-    private fun network(n: Network) = JsonObject.Builder()
-        .putString("name", n.name)
-        .putString("notes", n.notes)
-        .putString("folder", n.folder)
-        .putBool("hidden", hidden(n.hidden))
-        .put("nodes", n.nodes?.let { JsonObject(it.map { (k, v) -> k to position(v) }) })
-        .put("arcs", n.arcs?.let { JsonObject(it.map { (k, v) -> k to networkArc(v) }) })
-        .put("chains", n.chains?.let { array(it, ::chain) })
-        .put("points", n.points?.let { array(it) { w -> waypoint(w, inNetwork = true) } })
-        .put("areas", n.areas?.let { array(it) { a -> area(a, inNetwork = true) } })
-        .put("data", data(n.data))
-        .build()
+    /**
+     * A network, checked first: every arc runs between two different nodes it
+     * holds, and every chain's walk follows section 3.3.3. A writer never emits
+     * what its own reader would drop.
+     */
+    private fun network(n: Network): JsonObject {
+        val nodes = n.nodes ?: emptyMap()
+        val arcs = n.arcs ?: emptyMap()
+        checkArcs("network \"${n.name}\"", nodes, arcs)
+        n.chains?.forEach { checkWalkOf("chain \"${it.name}\"", it.walk, arcs, route = false) }
+        return JsonObject.Builder()
+            .putString("name", n.name)
+            .putString("notes", n.notes)
+            .putString("folder", n.folder)
+            .putBool("hidden", hidden(n.hidden))
+            .put("nodes", n.nodes?.let(::nodes))
+            .put("arcs", n.arcs?.let(::arcs))
+            .put("chains", n.chains?.let { array(it, ::chain) })
+            .put("points", n.points?.let { array(it) { w -> waypoint(w, inNetwork = true) } })
+            .put("areas", n.areas?.let { array(it) { a -> area(a, inNetwork = true) } })
+            .put("data", data(n.data))
+            .build()
+    }
 
-    private fun networkArc(a: NetworkArc) = JsonObject.Builder()
+    /** A route: a network's nodes and arcs, and one walk that runs node to node (section 3.4). */
+    private fun route(r: Route): JsonObject {
+        val arcs = r.arcs ?: emptyMap()
+        checkArcs("route \"${r.name}\"", r.nodes ?: emptyMap(), arcs)
+        checkWalkOf("route \"${r.name}\"", r.walk, arcs, route = true)
+        return JsonObject.Builder()
+            .putString("name", r.name)
+            .putString("notes", r.notes)
+            .putString("folder", r.folder)
+            .putBool("hidden", hidden(r.hidden))
+            .put("style", r.style)
+            .put("nodes", r.nodes?.let(::nodes))
+            .put("arcs", r.arcs?.let(::arcs))
+            .put("walk", walk(r.walk))
+            .put("data", data(r.data))
+            .build()
+    }
+
+    /**
+     * Section 3.3.2: an arc's `from` and `to` name two DIFFERENT nodes of its
+     * owner. A self-loop cannot be walked, and an arc naming an absent node has
+     * no line; a reader drops either, so this writer refuses to emit one.
+     */
+    private fun checkArcs(owner: String, nodes: Map<String, Vertex>, arcs: Map<String, Arc>) {
+        for ((key, arc) in arcs) {
+            require(arc.from != arc.to) {
+                "$owner: arc \"$key\" runs from node \"${arc.from}\" to itself, and a self-loop cannot be written"
+            }
+            for (node in listOf(arc.from, arc.to)) {
+                require(node in nodes) { "$owner: arc \"$key\" names node \"$node\", which is not in its owner's nodes" }
+            }
+        }
+    }
+
+    private fun checkWalkOf(owner: String, walk: List<Pass>, arcs: Map<String, Arc>, route: Boolean) {
+        val fault = checkWalk(walk, arcs, route) ?: return
+        val at = "pass ${fault.pass}" + (fault.key?.let { " `$it`" } ?: "")
+        throw IllegalArgumentException("$owner: $at: ${fault.message} (${fault.cause.corpusCode})")
+    }
+
+    private fun nodes(nodes: Map<String, Vertex>) = JsonObject(nodes.map { (k, v) -> k to position(v.position()) })
+
+    private fun arcs(arcs: Map<String, Arc>) = JsonObject(arcs.map { (k, v) -> k to arc(v) })
+
+    /** `pips` is always written, empty for a straight arc: section 3.10 makes the key required. */
+    private fun arc(a: Arc) = JsonObject.Builder()
         .putString("from", a.from)
         .putString("to", a.to)
-        .put("pips", positions(a.pips))
+        .put("pips", JsonArray(a.pips.map { position(it.position()) }))
         .put("data", data(a.data))
         .build()
 
@@ -119,35 +175,30 @@ internal class Encoder {
         .putString("notes", c.notes)
         .putBool("hidden", hidden(c.hidden))
         .put("style", c.style)
-        .put("links", JsonArray(c.links.map(::link)))
+        .put("walk", walk(c.walk))
         .put("data", data(c.data))
         .build()
 
-    private fun link(l: Link) = JsonObject.Builder()
-        .putString("arc", l.arc)
-        .put("from", endpoint(l.from))
-        .put("to", endpoint(l.to))
-        .build()
+    /**
+     * A walk. `from` and `to` are written where the pass carries them, which is
+     * where section 3.3.3's rule puts them; `pinned` is written only when true.
+     */
+    private fun walk(walk: List<Pass>) = JsonArray(
+        walk.map { p ->
+            JsonObject.Builder()
+                .putString("arc", p.arc)
+                .put("from", p.from?.let(::endpoint))
+                .put("to", p.to?.let(::endpoint))
+                .put("turn", p.turn?.let { position(it.position()) })
+                .putBool("pinned", if (p.pinned) true else null)
+                .build()
+        },
+    )
 
     private fun endpoint(e: Endpoint): JsonValue = when (e) {
         is Endpoint.Node -> JsonString(e.key)
-        is Endpoint.Inline -> position(e.position)
+        is Endpoint.At -> position(e.position.position())
     }
-
-    private fun route(r: Route) = JsonObject.Builder()
-        .putString("name", r.name)
-        .putString("notes", r.notes)
-        .putString("folder", r.folder)
-        .putBool("hidden", hidden(r.hidden))
-        .put("style", r.style)
-        .put("arcs", JsonArray(r.arcs.map(::routeArc)))
-        .put("data", data(r.data))
-        .build()
-
-    private fun routeArc(a: RouteArc) = JsonObject.Builder()
-        .put("pips", positions(a.pips))
-        .put("data", data(a.data))
-        .build()
 
     private fun track(t: Track) = JsonObject.Builder()
         .putString("name", t.name)
@@ -171,15 +222,33 @@ internal class Encoder {
         .put("data", data(w.data))
         .build()
 
-    private fun area(a: Area, inNetwork: Boolean) = JsonObject.Builder()
-        .putString("name", a.name)
-        .putString("notes", a.notes)
-        .putString("folder", if (inNetwork) null else a.folder)
-        .putBool("hidden", hidden(a.hidden))
-        .put("polygon", positions(a.polygon))
-        .put("style", a.style)
-        .put("data", data(a.data))
-        .build()
+    /**
+     * An area, whose ring is checked first. A writer emits a ring OPEN, with at
+     * least three distinct positions (section 3.7).
+     *
+     * A CLOSED RING IS REFUSED, NOT OPENED. Opening it would be this writer
+     * guessing that its caller meant the repeat, and that is the caller's to fix.
+     */
+    private fun area(a: Area, inNetwork: Boolean): JsonObject {
+        val ring = a.polygon
+        val n = ring.size
+        require(!(n >= 2 && ring[0].lon == ring[n - 1].lon && ring[0].lat == ring[n - 1].lat)) {
+            "area \"${a.name}\": a ring is written open, and this one's last position repeats its first"
+        }
+        val distinct = distinctLonLat(ring)
+        require(distinct >= 3) {
+            "area \"${a.name}\": a ring needs at least 3 distinct positions, and this one has $distinct"
+        }
+        return JsonObject.Builder()
+            .putString("name", a.name)
+            .putString("notes", a.notes)
+            .putString("folder", if (inNetwork) null else a.folder)
+            .putBool("hidden", hidden(a.hidden))
+            .put("polygon", positions(a.polygon))
+            .put("style", a.style)
+            .put("data", data(a.data))
+            .build()
+    }
 
     /**
      * Section 3.8: a writer emits `hidden` only when its value is true, and a

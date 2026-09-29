@@ -15,8 +15,14 @@ object ModelPointer {
     fun resolve(document: VnxDocument, pointer: String): Position {
         require(pointer.startsWith("/")) { "a JSON Pointer starts with '/': $pointer" }
         val tokens = pointer.substring(1).split("/").map { it.replace("~1", "/").replace("~0", "~") }
-        val value = walk(document, tokens, pointer)
-        return value as? Position ?: fail(pointer, "resolves to ${value?.let { it::class.simpleName }}, not a position")
+        return when (val value = walk(document, tokens, pointer)) {
+            is Position -> value
+            // A node, an arc pip and a walk position are positions with fewer
+            // channels, and are compared as positions.
+            is Vertex -> value.position()
+            is LonLat -> value.position()
+            else -> fail(pointer, "resolves to ${value?.let { it::class.simpleName }}, not a position")
+        }
     }
 
     private fun fail(pointer: String, why: String): Nothing = error("the pointer $pointer $why")
@@ -51,15 +57,22 @@ object ModelPointer {
                 "areas" -> value.areas
                 else -> null
             }
-            is NetworkArc -> if (token == "pips") value.pips else null
-            is Chain -> if (token == "links") value.links else null
-            is Link -> when (token) {
-                "from" -> (value.from as? Endpoint.Inline)?.position
-                "to" -> (value.to as? Endpoint.Inline)?.position
+            is Arc -> if (token == "pips") value.pips else null
+            is Chain -> if (token == "walk") value.walk else null
+            // Only a POSITION in a walk is a position. A node key is a
+            // reference, and is addressed at the node.
+            is Pass -> when (token) {
+                "from" -> (value.from as? Endpoint.At)?.position
+                "to" -> (value.to as? Endpoint.At)?.position
+                "turn" -> value.turn
                 else -> null
             }
-            is Route -> if (token == "arcs") value.arcs else null
-            is RouteArc -> if (token == "pips") value.pips else null
+            is Route -> when (token) {
+                "nodes" -> value.nodes
+                "arcs" -> value.arcs
+                "walk" -> value.walk
+                else -> null
+            }
             is Track -> if (token == "segments") value.segments else null
             is Segment -> if (token == "pips") value.pips else null
             is Waypoint -> if (token == "at") value.at else null

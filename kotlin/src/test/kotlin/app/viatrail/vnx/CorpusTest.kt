@@ -175,7 +175,7 @@ class CorpusTest {
             out["/networks/$i/arcs"] = network.arcs?.size ?: 0
             network.arcs?.forEach { (key, arc) -> out["/networks/$i/arcs/$key/pips"] = arc.pips.size }
             out["/networks/$i/chains"] = network.chains?.size ?: 0
-            network.chains?.forEachIndexed { j, chain -> out["/networks/$i/chains/$j/links"] = chain.links.size }
+            network.chains?.forEachIndexed { j, chain -> out["/networks/$i/chains/$j/walk"] = chain.walk.size }
             // UNCONDITIONALLY, like every other container here. A guard on these
             // two alone would make `/networks/0/points: 0` a legal sidecar entry
             // for a runner that emits it and a hard "not a collection the
@@ -188,8 +188,10 @@ class CorpusTest {
             network.areas?.forEachIndexed { j, area -> out["/networks/$i/areas/$j/polygon"] = area.polygon.size }
         }
         document.routes?.forEachIndexed { i, route ->
-            out["/routes/$i/arcs"] = route.arcs.size
-            route.arcs.forEachIndexed { j, arc -> out["/routes/$i/arcs/$j/pips"] = arc.pips.size }
+            out["/routes/$i/nodes"] = route.nodes?.size ?: 0
+            out["/routes/$i/arcs"] = route.arcs?.size ?: 0
+            route.arcs?.forEach { (key, arc) -> out["/routes/$i/arcs/$key/pips"] = arc.pips.size }
+            out["/routes/$i/walk"] = route.walk.size
         }
         document.tracks?.forEachIndexed { i, track ->
             out["/tracks/$i/segments"] = track.segments.size

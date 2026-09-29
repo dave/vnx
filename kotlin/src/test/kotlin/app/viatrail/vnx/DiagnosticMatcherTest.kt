@@ -27,18 +27,18 @@ class DiagnosticMatcherTest {
     @Test
     fun `a correct pairing passes, in either emission order`() {
         // Section 6.3: a reader that resolves cross-references in a second pass
-        // emits its link diagnostics after its key diagnostics, and is correct.
-        val expected = expect("/a" to "unknown-key", "/b" to "link-arc-absent")
+        // emits its walk diagnostics after its key diagnostics, and is correct.
+        val expected = expect("/a" to "unknown-key", "/b" to "pass-arc-absent")
         assertNull(
             DiagnosticMatcher.mismatch(
                 expected,
-                report("/a" to DiagnosticCause.UNKNOWN_KEY, "/b" to DiagnosticCause.LINK_ARC_ABSENT),
+                report("/a" to DiagnosticCause.UNKNOWN_KEY, "/b" to DiagnosticCause.PASS_ARC_ABSENT),
             ),
         )
         assertNull(
             DiagnosticMatcher.mismatch(
                 expected,
-                report("/b" to DiagnosticCause.LINK_ARC_ABSENT, "/a" to DiagnosticCause.UNKNOWN_KEY),
+                report("/b" to DiagnosticCause.PASS_ARC_ABSENT, "/a" to DiagnosticCause.UNKNOWN_KEY),
             ),
         )
     }
@@ -100,12 +100,12 @@ class DiagnosticMatcherTest {
     @Test
     fun `a reported diagnostic the case did not list is a failure`() {
         // Finding a defect the case did not name is not a bonus. The corpus for
-        // link-names-absent-arc says so in as many words: dropping a link must not
-        // then also report the chain as broken.
+        // pass-names-absent-arc says so in as many words: only the first problem
+        // in a walk is reported, and nothing after it is examined.
         assertNotNull(
             DiagnosticMatcher.mismatch(
                 expect("/a" to "unknown-key"),
-                report("/a" to DiagnosticCause.UNKNOWN_KEY, "/b" to DiagnosticCause.CHAIN_NOT_CONNECTED),
+                report("/a" to DiagnosticCause.UNKNOWN_KEY, "/b" to DiagnosticCause.WALK_NOT_CONNECTED),
             ),
         )
     }
@@ -130,11 +130,11 @@ class DiagnosticMatcherTest {
     fun `a greedy pairing that would fail is still found`() {
         // The first report matches both expectations; the second matches only one.
         // A matcher that took the first match and moved on would fail this.
-        val expected = expect("/a" to "unknown-key", "/a" to "link-arc-absent")
+        val expected = expect("/a" to "unknown-key", "/a" to "pass-arc-absent")
         assertNull(
             DiagnosticMatcher.mismatch(
                 expected,
-                report("/a" to DiagnosticCause.LINK_ARC_ABSENT, "/a" to DiagnosticCause.UNKNOWN_KEY),
+                report("/a" to DiagnosticCause.PASS_ARC_ABSENT, "/a" to DiagnosticCause.UNKNOWN_KEY),
             ),
         )
     }

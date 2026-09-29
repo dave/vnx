@@ -43,12 +43,12 @@ enum class RefusalCause(
      * `vnx` names a MAJOR series, or through 0.x a MINOR series, that this
      * reader does not support. (2.2)
      *
-     * NOT "too new". Through 0.x each MINOR is its own series, so 0.0.9 is
-     * refused by a 0.1 reader for the same reason 0.2.0 is. The cause was named
+     * NOT "too new". Through 0.x each MINOR is its own series, so 0.1.9 is
+     * refused by a 0.2 reader for the same reason 0.3.0 is. The cause was named
      * VERSION_TOO_NEW until 2026-09-12, when it turned out the name had made
      * the lower direction easy to forget in six implementations at once.
      */
-    VERSION_SERIES_UNSUPPORTED("a newer reader is needed", "0.0 series"),
+    VERSION_SERIES_UNSUPPORTED("a newer reader is needed", "0.1 series"),
 
     /** A number in the document is not finite. (4.2) */
     NON_FINITE_NUMBER(),

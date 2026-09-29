@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  */
 class ContainerWriteTest {
 
-    private val fullPrecision = """{"vnx":"0.1.0","waypoints":[{"name":"Precise","at":[-3.6712345678901235,57.11812345678901]}]}"""
+    private val fullPrecision = """{"vnx":"0.2.0","waypoints":[{"name":"Precise","at":[-3.6712345678901235,57.11812345678901]}]}"""
 
     private fun documentOf(json: String) = Vnx.readDocument(json).document
 
@@ -36,7 +36,7 @@ class ContainerWriteTest {
         val other = LinkedHashMap<String, ByteArray>()
         for (name in bodies.keys.reversed()) other[name] = bodies.getValue(name).toByteArray()
 
-        val document = documentOf("""{"vnx":"0.1.0"}""")
+        val document = documentOf("""{"vnx":"0.2.0"}""")
         assertContentEquals(
             Vnx.writeContainer(document, one), Vnx.writeContainer(document, other),
             "the archive changed when the caller iterated its attachments the other way",
@@ -51,7 +51,7 @@ class ContainerWriteTest {
 
     @Test
     fun `a container round-trips through this library's own reader`() {
-        val document = documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
+        val document = documentOf("""{"vnx":"0.2.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
         val bytes = Vnx.writeContainer(document, linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()))
         val back = Vnx.readContainer(bytes)
         assertEquals(emptyList(), back.diagnostics)
@@ -72,7 +72,7 @@ class ContainerWriteTest {
     @Test
     fun `the archive is a valid ZIP to a reader that is not mine`() {
         val bytes = Vnx.writeContainer(
-            documentOf("""{"vnx":"0.1.0"}"""),
+            documentOf("""{"vnx":"0.2.0"}"""),
             linkedMapOf("a.txt" to "hello".toByteArray(), "deep/b.bin" to ByteArray(5000) { it.toByte() }),
         )
         val seen = LinkedHashMap<String, ByteArray>()
@@ -139,7 +139,7 @@ class ContainerWriteTest {
             "a\\b", "..\\x", "dir\\file.jpg",
         )) {
             val e = assertFailsWith<VnxRefusal>("\"$name\" must be refused") {
-                Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+                Vnx.writeContainer(documentOf("""{"vnx":"0.2.0"}"""), linkedMapOf(name to "x".toByteArray()))
             }
             assertEquals(RefusalCause.CONTAINER_PATH_ESCAPES, e.refusal, "for \"$name\"")
         }
@@ -149,7 +149,7 @@ class ContainerWriteTest {
     fun `an attachment may not collide with the root document, case-insensitively`() {
         for (name in listOf("doc.vnx", "DOC.VNX", "Doc.Vnx")) {
             val e = assertFailsWith<VnxRefusal>("\"$name\" must collide") {
-                Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+                Vnx.writeContainer(documentOf("""{"vnx":"0.2.0"}"""), linkedMapOf(name to "x".toByteArray()))
             }
             assertEquals(RefusalCause.CONTAINER_DUPLICATE_ENTRY, e.refusal, "for \"$name\"")
         }
@@ -161,7 +161,7 @@ class ContainerWriteTest {
         // flag, rather than guessing between UTF-8 and CP437 — so this round trip
         // failing is exactly how a missing flag would announce itself.
         val name = "photos/caf\u00e9-\u5c71.jpg"
-        val bytes = Vnx.writeContainer(documentOf("""{"vnx":"0.1.0"}"""), linkedMapOf(name to "x".toByteArray()))
+        val bytes = Vnx.writeContainer(documentOf("""{"vnx":"0.2.0"}"""), linkedMapOf(name to "x".toByteArray()))
         assertEquals(listOf(name), Vnx.readContainer(bytes).attachments!!.map { it.path })
     }
 
@@ -169,7 +169,7 @@ class ContainerWriteTest {
     fun `an empty attachment and a large one both survive`() {
         val big = ByteArray(300_000) { (it * 31).toByte() }
         val bytes = Vnx.writeContainer(
-            documentOf("""{"vnx":"0.1.0"}"""),
+            documentOf("""{"vnx":"0.2.0"}"""),
             linkedMapOf("empty.bin" to ByteArray(0), "big.bin" to big),
         )
         val read = Vnx.readContainer(bytes).attachments!!.sortedBy { it.path }
@@ -289,7 +289,7 @@ class ContainerWriteTest {
         val out = java.io.ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(out).use { zo ->
             zo.putNextEntry(java.util.zip.ZipEntry("doc.vnx"))
-            zo.write(Vnx.write(documentOf("""{"vnx":"0.1.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
+            zo.write(Vnx.write(documentOf("""{"vnx":"0.2.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
             zo.closeEntry()
         }
         val result = Vnx.readContainer(out.toByteArray())

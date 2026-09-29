@@ -36,8 +36,14 @@ enum class DiagnosticCause(
     /** An unrecognised key on an object this format defines. (6.2) */
     UNKNOWN_KEY("unknown-key", "unknown key"),
 
-    /** A REQUIRED key is absent, so the object cannot exist. (3.10, 6.2) */
-    MISSING_REQUIRED_KEY(null, null),
+    /**
+     * A REQUIRED key is absent, so the object cannot exist. (3.10, 6.2)
+     *
+     * Section 6.2's table gives it the code of [WRONG_TYPE_REQUIRED]: the
+     * remedy is the same, and so is what a caller can do about it. The cause
+     * stays separate because the English says which of the two happened.
+     */
+    MISSING_REQUIRED_KEY("wrong-type-required", null),
 
     /**
      * A value of the wrong JSON type in an OPTIONAL key: the field is dropped and
@@ -58,17 +64,20 @@ enum class DiagnosticCause(
      */
     WRONG_TYPE_REQUIRED("wrong-type-required", null),
 
-    /** A value outside a range or enumeration this format states. (6.2) */
-    OUT_OF_RANGE(null, null),
+    /**
+     * A value outside a range or enumeration this format states, which section
+     * 6.2 makes an unusable value in an optional key: the field is dropped and
+     * the item kept. It takes the code of [WRONG_TYPE_OPTIONAL] because the
+     * outcome is the same; the English says which fact it was. (6.2)
+     */
+    OUT_OF_RANGE("wrong-type-optional", null),
 
     /**
      * A position that will not parse. (4.1, 6.2)
      *
-     * The remedy drops the CONTAINER rather than the position: an arc, a segment
-     * or an area, not the pip or the vertex. Geometry is continuous and structure
-     * is not — a missing vertex leaves a shorter, plausible, wrong line with
-     * nothing to indicate it, where a missing link leaves a gap the continuity
-     * rule of 3.3.3 can see and report.
+     * The remedy drops the OWNER rather than the position: a node, an arc, a
+     * segment, an area, or the chain whose walk carries it. A missing vertex
+     * would leave a shorter, plausible, wrong line with nothing to indicate it.
      */
     POSITION_UNUSABLE("position-unusable", null),
 
@@ -78,42 +87,73 @@ enum class DiagnosticCause(
     /** A `polygon` carrying a second or nested ring. (3.7, 6.2) */
     POLYGON_NESTED_RINGS("polygon-nested-rings", "nested rings"),
 
-    /** A `polygon` that does not close, or holds fewer than four positions. (3.7, 6.2) */
-    POLYGON_NOT_A_CLOSED_RING(null, null),
+    /**
+     * A ring whose last position repeats its first. (3.7, 6.2)
+     *
+     * The repeat is dropped and the area kept: it is one fact written twice, so
+     * nothing is lost. The path names the repeat by its index as written.
+     */
+    RING_CLOSED("ring-closed", null),
 
-    /** A link naming an arc that is absent from its network. (6.2) */
-    LINK_ARC_ABSENT("link-arc-absent", "not in this network"),
+    /** A ring with fewer than three distinct positions. The area is dropped. (3.7, 6.2) */
+    RING_TOO_FEW_POINTS("ring-too-few-points", null),
 
-    /** A link endpoint naming a node that is absent from its network. */
-    LINK_NODE_ABSENT(null, null),
+    /**
+     * A time on a node, or an elevation or a time on a walk's `from`, `to` or
+     * `turn`. The channel is dropped and its owner kept. (3.3.1, 3.3.3, 6.2)
+     */
+    EXTRA_CHANNEL("extra-channel", null),
 
-    /** An arc naming a node that is not in its network. (3.3.2, 6.2) */
-    ARC_NODE_ABSENT(null, null),
+    /**
+     * A time on an arc pip. Every time channel on the arc is dropped and its
+     * pips kept, and the fact is reported ONCE, at the arc's `pips`, however
+     * many pips carried one. (3.3.2, 6.3 rule 3)
+     */
+    ARC_PIP_TIME("arc-pip-time", null),
 
-    /** An inline endpoint that does not project onto its arc within 50 m. (3.3.3) */
-    INLINE_ENDPOINT_BEYOND_TOLERANCE("endpoint-off-arc", "beyond the 50 m tolerance"),
+    /** An arc whose `from` and `to` name one node. The arc is dropped. (3.3.2) */
+    SELF_LOOP_ARC("self-loop-arc", null),
 
-    /** An inline endpoint on an arc with no vertices, which has no distance. (3.3.3) */
-    INLINE_ENDPOINT_ON_EMPTY_ARC(null, null),
+    /**
+     * An arc whose `from` or `to` names a node that is not in its network or
+     * route. There is no line without the node, so the arc is dropped. (3.3.2)
+     */
+    ARC_NODE_ABSENT("arc-node-absent", null),
 
-    /** Consecutive links in a chain that do not meet. (6.2) */
-    CHAIN_NOT_CONNECTED("chain-discontinuity", "not one connected walk"),
+    /**
+     * A pass that is not an object, or that names no arc of its owner — an arc
+     * another rule dropped included. The chain, or the route, is dropped.
+     * (3.3.3, 6.2)
+     */
+    PASS_ARC_ABSENT("pass-arc-absent", null),
+
+    /** A walk that breaks section 3.3.3's rule for `from` and `to`. (6.2) */
+    WALK_SPELLING("walk-spelling", null),
+
+    /**
+     * A node `from` or `to` that is not an end of its arc, a pass not entered at
+     * an end of its arc, or a pass other than the last leaving at a position:
+     * valid-walk rules 3, 4 and 5 of section 3.3.3. (6.2)
+     */
+    WALK_NOT_CONNECTED("walk-not-connected", null),
+
+    /** A pass carrying both `turn` and `pinned`. (3.3.3, 6.2) */
+    PINNED_TURN("pinned-turn", null),
+
+    /** A position, a `turn` or `pinned` in a route's walk. The route is dropped. (3.4, 6.2) */
+    ROUTE_PIN_OR_POSITION("route-pin-or-position", null),
 
     /** A `folder` naming a folder that is not present in the document. (6.2) */
     FOLDER_ABSENT(null, null),
 
-    /** A data record with no `@type`, or one that is not a string. (5, 6.2) */
-    DATA_RECORD_TYPE_MISSING(null, null),
-
     /**
-     * An arc terminal pip further than 50 m from the node that end names. (3.3.2)
+     * A data record with no `@type`, or one that is not a string. The record is
+     * dropped. (5, 6.2)
      *
-     * An arc's pips are its COMPLETE point list, so the first pip states the
-     * position of the node `from` names and the last states `to`'s: the two are
-     * one fact written twice. Both are kept — the pips are authoritative for
-     * geometry — and the disagreement is reported.
+     * Section 6.2's table gives it the code of [WRONG_TYPE_REQUIRED]: `@type` is
+     * the record's one required key, and the record is what goes.
      */
-    TERMINAL_PIP_OFF_NODE("terminal-pip-off-node", "beyond the 50 m tolerance"),
+    DATA_RECORD_TYPE_MISSING("wrong-type-required", null),
 
     /**
      * An attachment whose bytes this reader could not return, so it was dropped

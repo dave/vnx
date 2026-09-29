@@ -17,7 +17,7 @@ data class Version(val major: BigInteger, val minor: BigInteger, val patch: BigI
 
     companion object {
         /** The version of this format that this library implements. */
-        val SUPPORTED = Version(BigInteger.ZERO, BigInteger.ONE, BigInteger.ZERO)
+        val SUPPORTED = Version(BigInteger.ZERO, BigInteger.TWO, BigInteger.ZERO)
 
         private val SHAPE = Regex("^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
 
@@ -36,14 +36,14 @@ data class Version(val major: BigInteger, val minor: BigInteger, val patch: BigI
      * Whether a reader at [reader] supports this document's version.
      *
      * The rule is "the same series", not "not greater than" (SPEC.md section
-     * 2.2). Through 0.x each MINOR is its own series: a 0.1.0 reader reads
-     * 0.1.3, and refuses 0.2.0 AND 0.0.9. A lower minor is refused for the same
-     * reason as a higher one — 0.0 is not an older spelling of 0.1, it is a
+     * 2.2). Through 0.x each MINOR is its own series: a 0.2.0 reader reads
+     * 0.2.3, and refuses 0.3.0 AND 0.1.9. A lower minor is refused for the same
+     * reason as a higher one — 0.1 is not an older spelling of 0.2, it is a
      * series this reader has no rules for. The PATCH component never refuses at
      * any version, because a patch increment is additive by definition.
      *
      * From 1.0 onward minor versions are additive and only a MAJOR increment
-     * refuses. This reader is at 0.1, so the second branch is unreachable here;
+     * refuses. This reader is at 0.2, so the second branch is unreachable here;
      * it is written out because the rule is the format's, not this reader's.
      *
      * A reader that supported several series would hold a set of them and ask

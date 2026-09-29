@@ -30,16 +30,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val NETWORK_OPTIONAL = setOf(
             "name", "notes", "folder", "hidden", "nodes", "arcs", "chains", "points", "areas", "data",
         )
-        val NETWORK_ARC_REQUIRED = setOf("from", "to", "pips")
-        val NETWORK_ARC_OPTIONAL = setOf("data")
-        val CHAIN_REQUIRED = setOf("links")
+        // An arc has one shape in a network and in a route (section 3.4).
+        val ARC_REQUIRED = setOf("from", "to", "pips")
+        val ARC_OPTIONAL = setOf("data")
+        val CHAIN_REQUIRED = setOf("walk")
         val CHAIN_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
-        val LINK_REQUIRED = setOf("arc", "from", "to")
-        val LINK_OPTIONAL = emptySet<String>()
-        val ROUTE_REQUIRED = setOf("arcs")
-        val ROUTE_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "data")
-        val ROUTE_ARC_REQUIRED = setOf("pips")
-        val ROUTE_ARC_OPTIONAL = setOf("data")
+        val PASS_REQUIRED = setOf("arc")
+        val PASS_OPTIONAL = setOf("from", "to", "turn", "pinned")
+        val ROUTE_REQUIRED = setOf("walk")
+        val ROUTE_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
         val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
@@ -316,6 +315,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return out
     }
 
+
     // --------------------------------------------------------- positions
 
     /**
@@ -323,28 +323,15 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
      * absent value from index 2 upward; trailing channels may be omitted; and a
      * channel beyond those this version names is read, checked and dropped, with
      * no diagnostic, so that a future channel is additive.
+     *
+     * Returns null after calling [unusable] with the reason when the position
+     * will not parse. It reports nothing itself: what the reader drops, and so
+     * what the diagnostic says, belongs to the caller, which knows what the
+     * position was part of.
      */
-    private fun position(value: JsonValue, at: Pointer): Position? {
-        if (value !is JsonArray) {
-            // A value of the wrong JSON TYPE, not a malformed position: the two
-            // are different facts and the corpus gives them different codes. Every
-            // caller drops the thing that held it, so this is the required-key
-            // remedy — a waypoint whose `at` is a string is a waypoint that is
-            // nowhere.
-            report(
-                at,
-                "a position must be an array of numbers, and this is ${value.typeName()}; " +
-                    "the item is dropped",
-                DiagnosticCause.WRONG_TYPE_REQUIRED,
-            )
-            return null
-        }
+    private fun parsePosition(value: JsonArray, unusable: (String) -> Unit): Position? {
         if (value.elements.size < 2) {
-            report(
-                at,
-                "a position must carry at least lon and lat, and this one has ${value.elements.size} channels",
-                DiagnosticCause.POSITION_UNUSABLE,
-            )
+            unusable("a position must carry at least lon and lat, and this one has ${value.elements.size} channels")
             return null
         }
         val channels = ArrayList<Double?>(value.elements.size)
@@ -353,15 +340,11 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 channel is JsonNumber -> channels.add(channel.value)
                 channel is JsonNull && index >= 2 -> channels.add(null)
                 index < 2 -> {
-                    report(at, "lon and lat must both be numbers", DiagnosticCause.POSITION_UNUSABLE)
+                    unusable("lon and lat must both be numbers, and channel $index is ${channel.typeName()}")
                     return null
                 }
                 else -> {
-                    report(
-                        at,
-                        "channel $index of a position must be a number or null",
-                        DiagnosticCause.POSITION_UNUSABLE,
-                    )
+                    unusable("channel $index of a position must be a number or null, and is ${channel.typeName()}")
                     return null
                 }
             }
@@ -372,27 +355,69 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         return Position(channels[0]!!, channels[1]!!, channels.getOrNull(2), channels.getOrNull(3))
     }
 
-    /** A required `pips` array. Returns null when the host item must be dropped. */
+    /**
+     * A position that IS its owner's required value: a waypoint's `at`.
+     *
+     * A value that is not an array at all is a value of the wrong JSON TYPE, not
+     * a malformed position: the two are different facts and section 6.2 gives
+     * them different codes. Both drop the owner, because a waypoint whose `at` is
+     * a string is a waypoint that is nowhere.
+     */
+    private fun requiredPosition(value: JsonValue, at: Pointer): Position? {
+        if (value !is JsonArray) {
+            report(
+                at,
+                "a position must be an array of numbers, and this is ${value.typeName()}; the item is dropped",
+                DiagnosticCause.WRONG_TYPE_REQUIRED,
+            )
+            return null
+        }
+        return parsePosition(value) { why ->
+            report(at, "$why; the item is dropped", DiagnosticCause.POSITION_UNUSABLE)
+        }
+    }
+
+    /**
+     * A position inside something that holds positions: a node in `nodes`, a
+     * pip in `pips`, a vertex in a ring. Section 6.2's table gives every one of
+     * them `position-unusable`, whether the element is not an array or is an
+     * array that will not parse, and has the caller drop the OWNER — [dropped]
+     * says which owner that is.
+     */
+    private fun memberPosition(value: JsonValue, at: Pointer, dropped: String): Position? {
+        if (value !is JsonArray) {
+            report(
+                at,
+                "a position must be an array of numbers, and this is ${value.typeName()}; $dropped",
+                DiagnosticCause.POSITION_UNUSABLE,
+            )
+            return null
+        }
+        return parsePosition(value) { why -> report(at, "$why; $dropped", DiagnosticCause.POSITION_UNUSABLE) }
+    }
+
+    /**
+     * A required `pips` array. Returns null when the owner must be dropped.
+     *
+     * A position inside `pips` that will not parse drops the OWNER — the arc or
+     * the segment — and not the pip (section 6.2). `pips` is an array and is
+     * perfectly usable; one element in it is not, and dropping just that element
+     * leaves a shorter, plausible, wrong line that nothing downstream can notice.
+     */
     private fun requiredPips(obj: JsonObject, at: Pointer, owner: String): List<Position>? {
+        val here = at.child("pips")
         val v = obj["pips"]
         if (v == null) {
-            report(at, "$owner requires `pips`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(here, "$owner requires `pips`; the $owner is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
         if (v !is JsonArray) {
-            report(at.child("pips"), "`pips` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
+            report(here, "`pips` must be an array; the $owner is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
             return null
         }
-        val here = at.child("pips")
         val out = ArrayList<Position>()
         for ((index, element) in v.elements.withIndex()) {
-            // Section 6.2: a position inside `pips` that will not parse drops the
-            // ARC — or the segment — and not the pip. This is not the required-key
-            // rule: `pips` is an array and is perfectly usable; one element in it
-            // is not, and dropping just that element leaves a shorter, plausible,
-            // wrong line that nothing downstream can notice.
-            val p = position(element, here.child(index)) ?: return null
-            out.add(p)
+            out.add(memberPosition(element, here.child(index), "the $owner is dropped") ?: return null)
         }
         return out
     }
@@ -423,12 +448,14 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         )
     }
 
-    // ---------------------------------------------------------- networks
+    // ---------------------------------------------------- networks and routes
 
     private fun network(obj: JsonObject, at: Pointer): Network {
         recogniseKeys(obj, at, Keys.NETWORK_REQUIRED, Keys.NETWORK_OPTIONAL)
+        // Nodes, then arcs, then walks: a walk can only be checked against the
+        // arcs that survived, and an arc only against the nodes that did.
         val nodes = nodes(obj, at)
-        val arcs = networkArcs(obj, at, nodes)
+        val arcs = arcs(obj, at, nodes)
         return Network(
             name = optionalString(obj, "name", at),
             notes = optionalString(obj, "notes", at),
@@ -436,340 +463,244 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
             hidden = optionalBool(obj, "hidden", at),
             nodes = nodes,
             arcs = arcs,
-            chains = optionalItems(obj, "chains", at) { o, p -> chain(o, p, nodes ?: emptyMap(), arcs ?: emptyMap()) },
+            chains = optionalItems(obj, "chains", at) { o, p -> chain(o, p, arcs ?: emptyMap()) },
             points = optionalItems(obj, "points", at) { o, p -> waypoint(o, p, inNetwork = true) },
             areas = optionalItems(obj, "areas", at) { o, p -> area(o, p, inNetwork = true) },
             data = optionalData(obj, at),
         )
     }
 
-    private fun nodes(obj: JsonObject, at: Pointer): Map<String, Position>? {
+    /**
+     * A route is its own chain (section 3.4): it owns nodes and arcs of a
+     * network's shape and one walk over them, and wherever a chain would be
+     * dropped the whole route is.
+     */
+    private fun route(obj: JsonObject, at: Pointer): Route? {
+        recogniseKeys(obj, at, Keys.ROUTE_REQUIRED, Keys.ROUTE_OPTIONAL)
+        val nodes = nodes(obj, at)
+        val arcs = arcs(obj, at, nodes)
+        // Every field is read before the walk, so a route the walk drops still
+        // reports what else was wrong with it.
+        val name = optionalString(obj, "name", at)
+        val notes = optionalString(obj, "notes", at)
+        val folder = optionalFolderRef(obj, at)
+        val hidden = optionalBool(obj, "hidden", at)
+        val style = optionalStyle(obj, at)
+        val data = optionalData(obj, at)
+        val walk = walk(obj, at, arcs ?: emptyMap(), route = true) ?: return null
+        return Route(walk, nodes, arcs, name, notes, folder, hidden, style, data)
+    }
+
+    /**
+     * A network's or a route's `nodes` (section 3.3.1). A node that will not
+     * parse is dropped; an arc naming it is then dropped under
+     * `arc-node-absent`, so the loss surfaces on everything that depended on it.
+     */
+    private fun nodes(obj: JsonObject, at: Pointer): Map<String, Vertex>? {
         val v = obj["nodes"] ?: return null
         if (v !is JsonObject) {
             wrongType(at, "nodes", "an object keyed by node identifier", "the field is dropped")
             return null
         }
         val here = at.child("nodes")
-        val out = LinkedHashMap<String, Position>()
+        val out = LinkedHashMap<String, Vertex>()
         for ((key, value) in v.entries()) {
-            position(value, here.child(key))?.let { out[key] = it }
+            val nodeAt = here.child(key)
+            val p = memberPosition(value, nodeAt, "the node is dropped") ?: continue
+            // A node is a place in a graph rather than a moment in a recording.
+            if (p.timeMs != null) {
+                report(
+                    nodeAt,
+                    "a node carries no time; the time channel is dropped and the node kept",
+                    DiagnosticCause.EXTRA_CHANNEL,
+                )
+            }
+            out[key] = Vertex(p.lon, p.lat, p.ele)
         }
         return out
     }
 
-    private fun networkArcs(obj: JsonObject, at: Pointer, nodes: Map<String, Position>?): Map<String, NetworkArc>? {
+    /**
+     * A network's or a route's `arcs` (section 3.3.2).
+     *
+     * AN ARC THAT IS DROPPED TAKES EVERY CHAIN WALKING IT WITH IT, but not here:
+     * the chain is dropped when its walk is read, under `pass-arc-absent`, with a
+     * diagnostic of its own (section 6.2).
+     */
+    private fun arcs(obj: JsonObject, at: Pointer, nodes: Map<String, Vertex>?): Map<String, Arc>? {
         val v = obj["arcs"] ?: return null
         if (v !is JsonObject) {
             wrongType(at, "arcs", "an object keyed by arc identifier", "the field is dropped")
             return null
         }
         val here = at.child("arcs")
-        val out = LinkedHashMap<String, NetworkArc>()
+        val out = LinkedHashMap<String, Arc>()
         for ((key, value) in v.entries()) {
             val arcAt = here.child(key)
             if (value !is JsonObject) {
                 report(arcAt, "an arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
                 continue
             }
-            recogniseKeys(value, arcAt, Keys.NETWORK_ARC_REQUIRED, Keys.NETWORK_ARC_OPTIONAL)
-            val from = value["from"]
-            val to = value["to"]
-            if (from !is JsonString || to !is JsonString) {
-                report(
-                    arcAt,
-                    "an arc requires `from` and `to` node keys; the arc is dropped",
-                    DiagnosticCause.MISSING_REQUIRED_KEY,
-                )
-                continue
-            }
-            val pips = requiredPips(value, arcAt, "an arc") ?: continue
-            // Section 6.2: an arc naming a node that is not in its network keeps
-            // the arc — its geometry is real — and reports the fact.
-            if (nodes != null) {
-                // An arc with no pips has no terminal to compare, so the
-                // section 3.3.2 check below simply has nothing to say about it.
-                // Section 3.3.3 already reports the empty polyline where it
-                // matters, at the link that could not be projected onto it.
-                val terminals = listOf(
-                    Triple(from.value, "from", pips.firstOrNull()),
-                    Triple(to.value, "to", pips.lastOrNull()),
-                )
-                for ((endpointKey, endpointName, terminal) in terminals) {
-                    val node = nodes[endpointKey]
-                    if (node == null) {
-                        report(
-                            arcAt.child(endpointName),
-                            "`$endpointName` names node \"$endpointKey\", which is not in this network; " +
-                                "the arc is kept because its geometry is real",
-                            DiagnosticCause.ARC_NODE_ABSENT,
-                        )
-                        continue
-                    }
-                    // Section 3.3.2: an arc's pips are its COMPLETE point list,
-                    // so its first pip is the position of the node `from` names
-                    // and its last is `to`'s. The two are one fact written
-                    // twice; the pips are authoritative and both are kept.
-                    //
-                    // The path names the END rather than the arc, which is what
-                    // the corpus case pins: the arc's other end and its interior
-                    // pips are all usable, and a reader naming the arc emits two
-                    // diagnostics at one identical path that a runner cannot
-                    // tell apart, since section 6.3 forbids comparing English.
-                    if (terminal == null) continue
-                    val metres = Geo.distanceToPolyline(node, listOf(terminal)) ?: continue
-                    if (metres > Geo.TOLERANCE_M) {
-                        report(
-                            arcAt.child(endpointName),
-                            "node \"$endpointKey\" is ${Math.round(metres)} m from the $endpointName pip, " +
-                                "beyond the 50 m tolerance; both are kept and the pips are authoritative",
-                            DiagnosticCause.TERMINAL_PIP_OFF_NODE,
-                        )
-                    }
-                }
-            }
-            out[key] = NetworkArc(
-                from = from.value,
-                to = to.value,
-                pips = pips,
-                data = optionalData(value, arcAt),
-            )
+            recogniseKeys(value, arcAt, Keys.ARC_REQUIRED, Keys.ARC_OPTIONAL)
+            arc(value, arcAt, nodes ?: emptyMap())?.let { out[key] = it }
         }
         return out
     }
 
+    private fun arc(obj: JsonObject, at: Pointer, nodes: Map<String, Vertex>): Arc? {
+        val ends = ArrayList<String>(2)
+        for (end in listOf("from", "to")) {
+            val v = obj[end]
+            if (v !is JsonString) {
+                report(
+                    at.child(end),
+                    "an arc requires `$end` naming a node; the arc is dropped",
+                    if (v == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
+                )
+                return null
+            }
+            ends.add(v.value)
+        }
+        val (from, to) = ends
+        val pips = requiredPips(obj, at, "arc") ?: return null
+        // An arc is geometry every chain walking it shares, and a time belongs to
+        // one recording. ONE diagnostic for the arc, at its `pips`, however many
+        // pips carried a time (section 6.3 rule 3).
+        if (pips.any { it.timeMs != null }) {
+            report(
+                at.child("pips"),
+                "an arc pip carries no time; every time channel on this arc is dropped and its pips kept",
+                DiagnosticCause.ARC_PIP_TIME,
+            )
+        }
+        val data = optionalData(obj, at)
+        if (from == to) {
+            report(
+                at,
+                "the arc runs from node \"$from\" to itself, and a self-loop cannot be walked; the arc is dropped",
+                DiagnosticCause.SELF_LOOP_ARC,
+            )
+            return null
+        }
+        // Both ends are checked, and each absent one is its own diagnostic at
+        // its own key: the other end, and the pips, are usable.
+        var absent = false
+        for ((end, node) in listOf("from" to from, "to" to to)) {
+            if (node !in nodes) {
+                absent = true
+                report(
+                    at.child(end),
+                    "`$end` names node \"$node\", which is not in this network or route; the arc is dropped",
+                    DiagnosticCause.ARC_NODE_ABSENT,
+                )
+            }
+        }
+        if (absent) return null
+        return Arc(from, to, pips.map { Vertex(it.lon, it.lat, it.ele) }, data)
+    }
+
     // ------------------------------------------------------------ chains
 
-    private fun chain(
-        obj: JsonObject,
-        at: Pointer,
-        nodes: Map<String, Position>,
-        arcs: Map<String, NetworkArc>,
-    ): Chain? {
+    private fun chain(obj: JsonObject, at: Pointer, arcs: Map<String, Arc>): Chain? {
         recogniseKeys(obj, at, Keys.CHAIN_REQUIRED, Keys.CHAIN_OPTIONAL)
-        val rawLinks = obj["links"]
-        if (rawLinks !is JsonArray) {
-            report(
-                at,
-                "a chain requires a `links` array; the chain is dropped",
-                if (rawLinks == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
-            )
-            return null
-        }
-        val linksAt = at.child("links")
-
-        // Decoded links positionally, so the continuity check below can skip a
-        // pair whose member was dropped. Section 6.2's link-names-absent-arc case
-        // requires exactly one diagnostic: dropping a link must not then also
-        // report the chain as broken, or one defect becomes two.
-        val slots = arrayOfNulls<Link>(rawLinks.elements.size)
-        for ((index, element) in rawLinks.elements.withIndex()) {
-            slots[index] = link(element, linksAt.child(index), nodes, arcs)
-        }
-        checkContinuity(slots, linksAt, nodes)
-        return Chain(
-            links = slots.filterNotNull(),
-            name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
-            hidden = optionalBool(obj, "hidden", at),
-            style = optionalStyle(obj, at),
-            data = optionalData(obj, at),
-        )
-    }
-
-    private fun link(
-        value: JsonValue,
-        at: Pointer,
-        nodes: Map<String, Position>,
-        arcs: Map<String, NetworkArc>,
-    ): Link? {
-        if (value !is JsonObject) {
-            report(at, "a link must be an object; the link is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
-            return null
-        }
-        recogniseKeys(value, at, Keys.LINK_REQUIRED, Keys.LINK_OPTIONAL)
-        val arcKey = value["arc"]
-        if (arcKey !is JsonString) {
-            report(
-                at,
-                "a link requires an `arc` key naming the arc it traverses; the link is dropped",
-                if (value["arc"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
-            )
-            return null
-        }
-        val arc = arcs[arcKey.value]
-        if (arc == null) {
-            // Section 6.2: the link's whole meaning is the arc it traverses, so
-            // there is no geometry to keep and the link is dropped — but the
-            // chain, and the links that are fine, survive.
-            report(
-                at,
-                "`arc` names \"${arcKey.value}\", which is not in this network; the link is dropped",
-                DiagnosticCause.LINK_ARC_ABSENT,
-            )
-            return null
-        }
-        val from = endpoint(value, "from", at) ?: return null
-        val to = endpoint(value, "to", at) ?: return null
-        for ((endpoint, name) in listOf(from to "from", to to "to")) {
-            if (!endpointIsUsable(endpoint, name, at, arc, nodes)) return null
-        }
-        return Link(arcKey.value, from, to)
-    }
-
-    private fun endpoint(obj: JsonObject, key: String, at: Pointer): Endpoint? {
-        return when (val v = obj[key]) {
-            null -> {
-                report(
-                    at,
-                    "a link requires `$key`; the link is dropped",
-                    DiagnosticCause.MISSING_REQUIRED_KEY,
-                )
-                null
-            }
-            // Section 3.3.3: a node key given as a string, or an inline position
-            // given as an array.
-            is JsonString -> Endpoint.Node(v.value)
-            is JsonArray -> position(v, at.child(key))?.let(Endpoint::Inline)
-            else -> {
-                report(
-                    at.child(key),
-                    "a link endpoint is a node key or an inline position; the link is dropped",
-                    DiagnosticCause.WRONG_TYPE_REQUIRED,
-                )
-                null
-            }
-        }
+        // Every field is read before the walk, so a chain the walk drops still
+        // reports what else was wrong with it.
+        val name = optionalString(obj, "name", at)
+        val notes = optionalString(obj, "notes", at)
+        val hidden = optionalBool(obj, "hidden", at)
+        val style = optionalStyle(obj, at)
+        val data = optionalData(obj, at)
+        val walk = walk(obj, at, arcs, route = false) ?: return null
+        return Chain(walk, name, notes, hidden, style, data)
     }
 
     /**
-     * The inline-position rule of section 3.3.3. Returns false when the link must
-     * be dropped.
+     * A chain's or a route's REQUIRED `walk`, checked in the order section 6.2
+     * fixes. Returns null when the owner is to be dropped.
      *
-     * A node key naming a node absent from the network keeps the link — the arc
-     * it traverses is real geometry, exactly as for an arc naming an absent node
-     * (6.2) — and the continuity check below then declines to compare that end.
+     * A WALK IS USED WHOLE OR NOT AT ALL. Dropping a pass would hand the caller
+     * a different walk that reads as valid — two arcs joined that do not meet, a
+     * direction reversed by a lost turn, a start moved to a node — so the first
+     * fault drops the owner, it is reported alone, and nothing after it in the
+     * walk is examined. Diagnostics that do not drop the owner are recorded as
+     * they are met.
      */
-    private fun endpointIsUsable(
-        endpoint: Endpoint,
-        name: String,
-        at: Pointer,
-        arc: NetworkArc,
-        nodes: Map<String, Position>,
-    ): Boolean {
-        when (endpoint) {
-            is Endpoint.Node -> {
-                if (endpoint.key !in nodes) {
-                    report(
-                        at.child(name),
-                        "`$name` names node \"${endpoint.key}\", which is not in this network; " +
-                            "the link is kept and this end is left unresolved",
-                        DiagnosticCause.LINK_NODE_ABSENT,
-                    )
-                }
-                return true
-            }
-            is Endpoint.Inline -> {
-                val distance = Geo.distanceToPolyline(endpoint.position, arc.pips)
-                if (distance == null) {
-                    report(
-                        at.child(name),
-                        "the arc has no vertices, so an inline endpoint has no distance to it; the link is dropped",
-                        DiagnosticCause.INLINE_ENDPOINT_ON_EMPTY_ARC,
-                    )
-                    return false
-                }
-                if (distance > Geo.TOLERANCE_M) {
-                    report(
-                        at.child(name),
-                        "the inline endpoint does not project onto its arc: it is beyond the 50 m tolerance; " +
-                            "the link is dropped",
-                        DiagnosticCause.INLINE_ENDPOINT_BEYOND_TOLERANCE,
-                    )
-                    return false
-                }
-                return true
-            }
-        }
-    }
-
-    /**
-     * Section 6.2: a chain's links MUST form one connected walk. The point at
-     * which link k ends must be the point at which link k+1 begins, and the
-     * diagnostic addresses the SECOND link of the pair.
-     *
-     * A node key and an inline position meet when the node's resolved position
-     * and the inline position are equal by value; two node keys meet when the
-     * keys are equal. The spec stops there, and two DISTINCT keys at one
-     * position is a case it does not name — this reader compares their resolved
-     * positions, on the reasoning section 6.2 gives for comparing a node key at
-     * all: "or a walk that is continuous is reported as broken".
-     *
-     * A pair either of whose links was dropped is not compared. Dropping a link
-     * must not then manufacture a break, or one defect becomes two and the reader
-     * cannot tell how much is actually wrong.
-     */
-    private fun checkContinuity(slots: Array<Link?>, linksAt: Pointer, nodes: Map<String, Position>) {
-        for (i in 0 until slots.size - 1) {
-            val a = slots[i] ?: continue
-            val b = slots[i + 1] ?: continue
-            if (meets(a.to, b.from, nodes) == false) {
-                report(
-                    linksAt.child(i + 1),
-                    "this link does not begin where the previous one ends, " +
-                        "so the chain is not one connected walk",
-                    DiagnosticCause.CHAIN_NOT_CONNECTED,
-                )
-            }
-        }
-    }
-
-    /** Null where an endpoint could not be resolved and the question cannot be answered. */
-    private fun meets(end: Endpoint, start: Endpoint, nodes: Map<String, Position>): Boolean? {
-        if (end is Endpoint.Node && start is Endpoint.Node && end.key == start.key) return true
-        val a = resolve(end, nodes) ?: return null
-        val b = resolve(start, nodes) ?: return null
-        return a.meets(b)
-    }
-
-    private fun resolve(endpoint: Endpoint, nodes: Map<String, Position>): Position? = when (endpoint) {
-        is Endpoint.Inline -> endpoint.position
-        is Endpoint.Node -> nodes[endpoint.key]
-    }
-
-    // ------------------------------------------------------------ routes
-
-    private fun route(obj: JsonObject, at: Pointer): Route? {
-        recogniseKeys(obj, at, Keys.ROUTE_REQUIRED, Keys.ROUTE_OPTIONAL)
-        val rawArcs = obj["arcs"]
-        if (rawArcs !is JsonArray) {
+    private fun walk(obj: JsonObject, owner: Pointer, arcs: Map<String, Arc>, route: Boolean): List<Pass>? {
+        val here = owner.child("walk")
+        val raw = obj["walk"]
+        if (raw !is JsonArray) {
             report(
-                at,
-                "a route requires an `arcs` array; the route is dropped",
-                if (rawArcs == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
+                here,
+                "`walk` must be an array of passes; the ${if (route) "route" else "chain"} is dropped",
+                if (raw == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
-        val arcsAt = at.child("arcs")
-        val arcs = ArrayList<RouteArc>()
-        for ((index, element) in rawArcs.elements.withIndex()) {
-            val arcAt = arcsAt.child(index)
+        val dropped = if (route) "the route is dropped" else "the chain is dropped"
+        fun drop(fault: WalkFault): List<Pass>? {
+            val at = here.child(fault.pass).let { if (fault.key == null) it else it.child(fault.key) }
+            report(at, "${fault.message}; $dropped", fault.cause)
+            return null
+        }
+        val cursor = WalkCursor(raw.elements.size, route)
+        val out = ArrayList<Pass>(raw.elements.size)
+        for ((i, element) in raw.elements.withIndex()) {
+            val passAt = here.child(i)
+            // 1. The pass is an object naming an arc of its owner.
             if (element !is JsonObject) {
-                report(arcAt, "a route arc must be an object; the arc is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
-                continue
+                return drop(
+                    WalkFault(i, null, DiagnosticCause.PASS_ARC_ABSENT, "a pass must be an object, and this is ${element.typeName()}"),
+                )
             }
-            recogniseKeys(element, arcAt, Keys.ROUTE_ARC_REQUIRED, Keys.ROUTE_ARC_OPTIONAL)
-            val pips = requiredPips(element, arcAt, "a route arc") ?: continue
-            arcs.add(RouteArc(pips, optionalData(element, arcAt)))
+            val arcKey = (element["arc"] as? JsonString)?.value
+            val arc = arcKey?.let { arcs[it] }
+                ?: return drop(
+                    WalkFault(
+                        i, null, DiagnosticCause.PASS_ARC_ABSENT,
+                        if (arcKey != null) "the pass names arc \"$arcKey\", which is not in this network or route"
+                        else "the pass names no arc",
+                    ),
+                )
+            // 2. Unrecognised keys. 3. `pinned`, dropped alone if it is not a
+            // boolean; `"pinned": false` is the same as absent.
+            recogniseKeys(element, passAt, Keys.PASS_REQUIRED, Keys.PASS_OPTIONAL)
+            val pinned = optionalBool(element, "pinned", passAt) ?: false
+            // 4. `from`, `to` and `turn`, in that order, each parse.
+            val ends = HashMap<String, Endpoint>()
+            for (key in listOf("from", "to", "turn")) {
+                val v = element[key] ?: continue
+                if (v is JsonString && key != "turn") {
+                    ends[key] = Endpoint.Node(v.value)
+                    continue
+                }
+                if (v !is JsonArray) {
+                    val want = if (key == "turn") "a position" else "a node key or a position"
+                    return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, "`$key` is ${v.typeName()}, expected $want"))
+                }
+                var why: String? = null
+                val p = parsePosition(v) { why = it }
+                    ?: return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, why!!))
+                if (p.ele != null || p.timeMs != null) {
+                    report(
+                        passAt.child(key),
+                        "a walk position carries longitude and latitude only; its other channels are dropped",
+                        DiagnosticCause.EXTRA_CHANNEL,
+                    )
+                }
+                ends[key] = Endpoint.At(LonLat(p.lon, p.lat))
+            }
+            val pass = Pass(
+                arc = arcKey,
+                from = ends["from"],
+                to = ends["to"],
+                turn = (ends["turn"] as Endpoint.At?)?.position,
+                pinned = pinned,
+            )
+            // 5 to 8: a route's rule, pin and turn, spelling, connection.
+            cursor.step(i, pass, arc)?.let { return drop(it) }
+            out.add(pass)
         }
-        return Route(
-            arcs = arcs,
-            name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
-            folder = optionalFolderRef(obj, at),
-            hidden = optionalBool(obj, "hidden", at),
-            style = optionalStyle(obj, at),
-            data = optionalData(obj, at),
-        )
+        return out
     }
 
     // ------------------------------------------------------------ tracks
@@ -779,7 +710,7 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val rawSegments = obj["segments"]
         if (rawSegments !is JsonArray) {
             report(
-                at,
+                at.child("segments"),
                 "a track requires a `segments` array; the track is dropped",
                 if (rawSegments == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
@@ -794,7 +725,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
                 continue
             }
             recogniseKeys(element, segmentAt, Keys.SEGMENT_REQUIRED, Keys.SEGMENT_OPTIONAL)
-            val pips = requiredPips(element, segmentAt, "a segment") ?: continue
+            // The owner of a track's pips is the SEGMENT rather than the track:
+            // section 3.5 already makes the interval between two segments a
+            // pause, so a missing segment leaves a gap a consumer can see.
+            val pips = requiredPips(element, segmentAt, "segment") ?: continue
             segments.add(Segment(pips))
         }
         return Track(
@@ -821,10 +755,10 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         )
         val rawAt = obj["at"]
         if (rawAt == null) {
-            report(at, "a waypoint requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(at.child("at"), "a waypoint requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
-        val position = position(rawAt, at.child("at")) ?: return null
+        val position = requiredPosition(rawAt, at.child("at")) ?: return null
         return Waypoint(
             at = position,
             name = optionalString(obj, "name", at),
@@ -858,19 +792,27 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
     }
 
     /**
-     * Section 3.7: `polygon` is ONE closed ring — at least four positions whose
-     * first and last are equal. Holes and multiple rings are not expressible, and
-     * a reader that encounters a nested or additional ring must report and DROP
-     * the item: keeping the outer ring silently would draw an area whose hole had
-     * vanished, with nothing anywhere to say so.
+     * Section 3.7: `polygon` is ONE OPEN RING of at least three distinct
+     * positions.
+     *
+     * Holes and multiple rings are not expressible, and a reader that meets a
+     * nested or additional ring reports and DROPS the item: keeping the outer
+     * ring silently would draw an area whose hole had vanished, with nothing
+     * anywhere to say so.
+     *
+     * A CLOSED RING IS REPAIRED, NOT DROPPED. Its last position repeating its
+     * first is one fact written twice, so dropping the repeat loses nothing; the
+     * diagnostic is kept so that a writer that closes rings can be seen. The
+     * distinct positions are counted after that, so `[A, B, A]` is two points
+     * and its area goes, with both diagnostics.
      */
     private fun polygon(obj: JsonObject, at: Pointer): List<Position>? {
+        val here = at.child("polygon")
         val v = obj["polygon"]
         if (v == null) {
-            report(at, "an area requires `polygon`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(here, "an area requires `polygon`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
-        val here = at.child("polygon")
         if (v !is JsonArray) {
             report(here, "`polygon` must be an array; the item is dropped", DiagnosticCause.WRONG_TYPE_REQUIRED)
             return null
@@ -885,25 +827,23 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         }
         val ring = ArrayList<Position>()
         for ((index, element) in v.elements.withIndex()) {
-            // The position diagnostic IS the report: the vertex is the unusable
-            // value and the item is what goes. Adding a second "not a ring"
-            // diagnostic would turn one defect into two.
-            val p = position(element, here.child(index)) ?: return null
-            ring.add(p)
+            ring.add(memberPosition(element, here.child(index), "the item is dropped") ?: return null)
         }
-        if (ring.size < 4) {
+        val n = ring.size
+        if (n >= 2 && ring[0].lon == ring[n - 1].lon && ring[0].lat == ring[n - 1].lat) {
             report(
-                here,
-                "`polygon` holds ${ring.size} positions and a closed ring needs at least four; the item is dropped",
-                DiagnosticCause.POLYGON_NOT_A_CLOSED_RING,
+                here.child(n - 1),
+                "a ring is stored open, and this last position repeats the first; the repeat is dropped",
+                DiagnosticCause.RING_CLOSED,
             )
-            return null
+            ring.removeAt(n - 1)
         }
-        if (!ring.first().meets(ring.last())) {
+        val distinct = distinctLonLat(ring)
+        if (distinct < 3) {
             report(
                 here,
-                "`polygon` does not close: its first and last positions differ; the item is dropped",
-                DiagnosticCause.POLYGON_NOT_A_CLOSED_RING,
+                "the ring holds $distinct distinct position(s) and needs at least 3; the item is dropped",
+                DiagnosticCause.RING_TOO_FEW_POINTS,
             )
             return null
         }
@@ -924,3 +864,13 @@ internal class Decoder(private val readerVersion: Version = Version.SUPPORTED) {
         val TIMESTAMP = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$")
     }
 }
+
+/**
+ * The number of positions in [ring] that differ in longitude or in latitude; no
+ * other channel takes part (SPEC.md section 3.7).
+ *
+ * Compared as numbers, so `-0.0` and `0.0` are one longitude. Adding `0.0` makes
+ * the two one key: a boxed [Double] tells them apart, and `==` does not.
+ */
+internal fun distinctLonLat(ring: List<Position>): Int =
+    ring.map { (it.lon + 0.0) to (it.lat + 0.0) }.toSet().size

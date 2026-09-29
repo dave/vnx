@@ -31,7 +31,7 @@ class AcceptTierTest {
             d.copy(
                 waypoints = d.waypoints?.map { it.copy(data = null) },
                 tracks = d.tracks?.map { it.copy(data = null) },
-                routes = d.routes?.map { r -> r.copy(data = null, arcs = r.arcs.map { it.copy(data = null) }) },
+                routes = d.routes?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
                 networks = d.networks?.map { n ->
                     n.copy(
                         data = null,

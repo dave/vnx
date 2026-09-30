@@ -206,6 +206,18 @@ func decodeCode(s string) string {
 	return s
 }
 
+// DecodeCodes is every Code a decode diagnostic can carry, in declaration
+// order. It is the registry a bridge's mapping guard reads, for the reason
+// writerCodes gives: a guard that enumerated its own mapping table would pass
+// vacuously, so a decode Code with no mapping must redden the bridge's suite.
+//
+// It returns a copy, as WriterCodes does.
+func DecodeCodes() []string {
+	out := make([]string, len(decodeCodes))
+	copy(out, decodeCodes)
+	return out
+}
+
 // The decode Codes the conformance corpus pins.
 var (
 	// CodeUnknownKey: an unrecognised key on an object this format defines

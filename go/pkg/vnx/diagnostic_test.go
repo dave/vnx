@@ -2,7 +2,10 @@ package vnx
 
 import (
 	"errors"
+	"os"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -214,5 +217,34 @@ func TestUnknownKeysOnASegmentAndARouteArcAreReported(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("diagnostics %v, want %v", got, want)
+	}
+}
+
+// TestDecodeCodesListsEveryDecodeCodeAndNothingElse reads the declarations
+// themselves — every `= decodeCode("…")` in diagnostic.go — and compares them
+// with DecodeCodes(), in order. Enumerating from the source text, not from the
+// slice DecodeCodes copies, is what makes a registry that lost or gained a
+// code go red.
+func TestDecodeCodesListsEveryDecodeCodeAndNothingElse(t *testing.T) {
+	src, err := os.ReadFile("diagnostic.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var declared []string
+	for _, m := range regexp.MustCompile(`= decodeCode\("([^"]+)"\)`).FindAllStringSubmatch(string(src), -1) {
+		declared = append(declared, m[1])
+	}
+	if len(declared) == 0 {
+		t.Fatal("found no decodeCode declarations in diagnostic.go; the scan is not reading them")
+	}
+	got := DecodeCodes()
+	if strings.Join(got, ",") != strings.Join(declared, ",") {
+		t.Fatalf("DecodeCodes() = %v\nthe declarations are %v", got, declared)
+	}
+	// The copy: changing the returned slice must not change the registry.
+	got[0] = "test.mutated"
+	if DecodeCodes()[0] != declared[0] {
+		t.Error("DecodeCodes() handed out the live slice — a caller mutating it would be " +
+			"editing the registry the bridge's mapping guard reads")
 	}
 }

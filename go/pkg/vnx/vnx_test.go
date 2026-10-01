@@ -81,6 +81,47 @@ func TestOlderMinorRefused(t *testing.T) {
 	}
 }
 
+// TestVersionRefusalSaysWhichWay pins that each version refusal names its own
+// reason, so a caller can tell the person holding the file the true remedy. A
+// newer file needs a newer reader; an older-series file needs an older one, and
+// updating does not help; a declaration that is not a version is damage. All
+// three are still ErrUnsupportedVersion, so a caller that matches only that
+// sentinel behaves as before.
+//
+// ⚠ EACH CASE ASSERTS THE TWO SIBLINGS ARE ABSENT. A refinement that every
+// refusal carried would pass the positive half and still collapse the three
+// reasons into one.
+func TestVersionRefusalSaysWhichWay(t *testing.T) {
+	reasons := []error{ErrNewerVersion, ErrOlderVersion, ErrInvalidVersion}
+	cases := []struct {
+		declared string
+		want     error
+	}{
+		{"0.3.0", ErrNewerVersion},
+		{"1.0.0", ErrNewerVersion},
+		{"0.1.0", ErrOlderVersion},
+		{"0.1.99", ErrOlderVersion},
+		{"0.0.9", ErrOlderVersion},
+		{"0.1", ErrInvalidVersion},
+		{"9.9", ErrInvalidVersion},
+		{"0.1.x", ErrInvalidVersion},
+		{"zero point one", ErrInvalidVersion},
+	}
+	for _, c := range cases {
+		t.Run(c.declared, func(t *testing.T) {
+			_, _, err := Decode([]byte(`{"vnx":"` + c.declared + `"}`))
+			if !errors.Is(err, ErrUnsupportedVersion) {
+				t.Fatalf("got %v, want an ErrUnsupportedVersion", err)
+			}
+			for _, r := range reasons {
+				if got, want := errors.Is(err, r), r == c.want; got != want {
+					t.Errorf("errors.Is(err, %v) = %v, want %v; err = %v", r, got, want, err)
+				}
+			}
+		})
+	}
+}
+
 // TestNewerPatchAccepted pins the third component's rule, which is the OPPOSITE
 // of MINOR's: PATCH is not a breaking axis, so a 0.1.0 reader accepts a document
 // written by a 0.1.3 writer and reads it with the rules it has. Anything 0.1.3

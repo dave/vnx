@@ -48,6 +48,22 @@ var (
 	// Per spec §2.1, through 0.x a reader refuses anything ABOVE its own MAJOR
 	// or MINOR rather than half-reading it; PATCH never refuses.
 	ErrUnsupportedVersion = errors.New("vnx: unsupported version")
+
+	// The three reasons a version is refused. Each wraps ErrUnsupportedVersion,
+	// so errors.Is matches both the reason and ErrUnsupportedVersion; a caller
+	// that needs only "refused for its version" matches the parent.
+
+	// ErrNewerVersion means the document's MAJOR or MINOR is above this
+	// reader's. A newer reader can read it.
+	ErrNewerVersion = fmt.Errorf("%w: newer than this reader", ErrUnsupportedVersion)
+	// ErrOlderVersion means the document is in an earlier series than this
+	// reader's, which spec §2.2 refuses through 0.x. A newer reader does not
+	// help; a reader of that series is needed.
+	ErrOlderVersion = fmt.Errorf("%w: older series than this reader", ErrUnsupportedVersion)
+	// ErrInvalidVersion means the `vnx` key is a string but not a
+	// MAJOR.MINOR.PATCH version, so the document says nothing about which
+	// reader it needs.
+	ErrInvalidVersion = fmt.Errorf("%w: not a version", ErrUnsupportedVersion)
 )
 
 // Document is a decoded VNX document: the header fields, the six collections,
@@ -412,7 +428,7 @@ func checkVersion(declared string) error {
 	dMaj, dMin, _, err := parseVersion(declared)
 	if err != nil {
 		return fmt.Errorf("%w: %q is not a version — expected MAJOR.MINOR.PATCH, three numbers, like %q (%s)",
-			ErrUnsupportedVersion, declared, Version, err)
+			ErrInvalidVersion, declared, Version, err)
 	}
 	oMaj, oMin, _, err := parseVersion(Version)
 	if err != nil {
@@ -421,7 +437,7 @@ func checkVersion(declared string) error {
 	// PATCH is deliberately absent from this comparison: see the doc comment.
 	if dMaj > oMaj || (dMaj == oMaj && dMin > oMin) {
 		return fmt.Errorf("%w: document is %s, this reader implements %s — a newer reader is needed",
-			ErrUnsupportedVersion, declared, Version)
+			ErrNewerVersion, declared, Version)
 	}
 	// ⚠ A LOWER MINOR IS REFUSED TOO, THROUGH 0.x. Spec §2.2 makes each 0.x
 	// minor its OWN SERIES, because the minor number is a breaking axis there:
@@ -435,7 +451,7 @@ func checkVersion(declared string) error {
 	// document's own series rules.
 	if dMaj == 0 && oMaj == 0 && dMin < oMin {
 		return fmt.Errorf("%w: document is %s and this reader implements %s — through 0.x each minor is a separate series, and this reader does not implement the %d.%d series",
-			ErrUnsupportedVersion, declared, Version, dMaj, dMin)
+			ErrOlderVersion, declared, Version, dMaj, dMin)
 	}
 	return nil
 }

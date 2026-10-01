@@ -176,6 +176,12 @@ Refusals are Go errors, matched with `errors.Is` against four sentinels:
 usable `vnx` key, `ErrUnsupportedVersion` for a version this reader does not
 implement, and `ErrContainer` for an archive that yields no document at all.
 
+A version refusal also matches one of three narrower sentinels, which say what
+the holder of the file needs: `ErrNewerVersion` for a version above this
+reader's, `ErrOlderVersion` for an earlier series
+([`SPEC §2.2`](../SPEC.md#22-version)), and `ErrInvalidVersion` for a `vnx`
+string that is not a version.
+
 `ErrContainer` means what it says: an archive is refused only when no document
 comes out of it. A fault in an ATTACHMENT is never one of those — whether its
 compression method is one this reader does not have, or its bytes will not come

@@ -560,11 +560,15 @@ def want_for(version: str, kind: str) -> str:
     return read_site(tuple(render_site(version, kind)), kind)
 
 
-def check_versions(problems: list[str]) -> None:
-    """The format and every library carry one version (CONTRIBUTING.md)."""
+def check_versions(problems: list[str], root: pathlib.Path = ROOT) -> None:
+    """The format and every library carry one version (CONTRIBUTING.md).
+
+    `root` is where the files are read from. The pre-commit hook passes a copy
+    of the staged files, so it checks what would be committed.
+    """
     found_at = []
     for rel, pattern, what, kind in VERSION_SITES:
-        text = (ROOT / rel).read_text(encoding="utf-8")
+        text = (root / rel).read_text(encoding="utf-8")
         found = re.search(pattern, text, re.MULTILINE)
         if not found:
             problems.append(
@@ -644,6 +648,20 @@ def check_ruling_backlog(problems: list[str]) -> None:
 def main() -> None:
     if sys.argv[1:2] == ["--write-version"] and len(sys.argv) == 3:
         write_versions(sys.argv[2])
+        return
+    # .githooks/pre-commit: the files that state the version, then the version
+    # check alone over a copy of their staged contents.
+    if sys.argv[1:] == ["--version-files"]:
+        print("\n".join(sorted({rel for rel, *_ in VERSION_SITES})))
+        return
+    if sys.argv[1:2] == ["--versions-only"] and len(sys.argv) <= 3:
+        problems: list[str] = []
+        check_versions(
+            problems, pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else ROOT
+        )
+        if problems:
+            sys.exit("check-spec: the versions disagree.\n\n" + "\n".join(problems))
+        print(f"check-spec: all {len(VERSION_SITES)} version sites agree")
         return
     problems: list[str] = []
     check_ruling_backlog(problems)

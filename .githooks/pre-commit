@@ -1,0 +1,10 @@
+#!/bin/sh
+# The format and all six libraries carry one version (CONTRIBUTING.md). This
+# checks the STAGED copy of every file that states it, so what it refuses is
+# what would be committed. It runs the version check only, not all of
+# check-spec.py, which runs every formatter.
+set -eu
+staged="$(mktemp -d)"
+trap 'rm -rf "$staged"' EXIT
+python3 scripts/check-spec.py --version-files | xargs git checkout-index --prefix="$staged/" --
+python3 scripts/check-spec.py --versions-only "$staged" > /dev/null

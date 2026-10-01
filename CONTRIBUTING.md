@@ -121,6 +121,9 @@ its own series ([`SPEC.md`](SPEC.md) section 2.2).
 
 `python3 scripts/check-spec.py`, the check that also runs every formatter,
 fails when a manifest or a library constant differs from the `SPEC.md` version.
+`.githooks/pre-commit` runs the same version check on the staged files and
+refuses a commit whose versions disagree; `git config core.hooksPath .githooks`
+enables it, as for the commit-message hook.
 
 ## Commit messages
 

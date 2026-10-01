@@ -407,118 +407,198 @@ def check_diagnose_codes(problems: list[str]) -> None:
         )
 
 
-# Every place a library states the version it is, or the format version it
-# implements or writes. CONTRIBUTING.md: the format and all six libraries carry
-# ONE version number. Each entry is (file, pattern, what it is); the pattern's
-# group is the version, or for a MAJOR.MINOR constant the two numbers. An
-# anchor that matches nothing is a failure, not a pass: a check that found no
-# version has compared nothing.
+# Every place that states the version. CONTRIBUTING.md: the format and all six
+# libraries carry ONE version number. Each entry is (file, pattern, what, kind).
+# The pattern's groups hold the version, and the kind says how:
+#
+#   version  one group, MAJOR.MINOR.PATCH
+#   series   one group, MAJOR.MINOR
+#   pair     two groups, MAJOR and MINOR as bare integers
+#   bigint   three groups, Kotlin BigInteger expressions
+#
+# check_versions() compares every entry after the first with the first, the
+# SPEC.md Version line. scripts/set-version.sh writes every entry, the first
+# included, through write_versions(), so the script and the check read one list
+# and cannot disagree. An anchor that matches nothing is a failure, not a pass:
+# a check that found no version has compared nothing.
 VERSION_SITES = [
-    ("js/package.json", r'^  "version": "([^"]+)"', "npm package version"),
-    ("js/package-lock.json", r'^  "version": "([^"]+)"', "npm lock, top level"),
+    ("SPEC.md", r"^Version (\d+\.\d+\.\d+)$", "Version line", "version"),
+    (
+        "SPEC.md",
+        r"^\| Current version \| `([^`]+)` \|$",
+        "Current version table row",
+        "version",
+    ),
+    (
+        "SPEC.md",
+        r"^A reader of this version supports the (\d+\.\d+) series only\.$",
+        "supported-series sentence",
+        "series",
+    ),
+    ("js/package.json", r'^  "version": "([^"]+)"', "npm package version", "version"),
+    (
+        "js/package-lock.json",
+        r'^  "version": "([^"]+)"',
+        "npm lock, top level",
+        "version",
+    ),
     (
         "js/package-lock.json",
         r'^    "": \{\n      "name": "@viatrail/vnx",\n      "version": "([^"]+)"',
         "npm lock, root package",
+        "version",
     ),
     (
         "js/src/decode.js",
         r"^export const READER_MAJOR = (\d+);\nexport const READER_MINOR = (\d+);",
         "JS reader MAJOR.MINOR",
+        "pair",
     ),
-    ("python/pyproject.toml", r'^version = "([^"]+)"', "Python package version"),
-    ("python/vnx/__init__.py", r'^__version__ = "([^"]+)"', "Python __version__"),
+    (
+        "python/pyproject.toml",
+        r'^version = "([^"]+)"',
+        "Python package version",
+        "version",
+    ),
+    (
+        "python/vnx/__init__.py",
+        r'^__version__ = "([^"]+)"',
+        "Python __version__",
+        "version",
+    ),
     (
         "python/vnx/decode.py",
         r"^SUPPORTED_VERSION = \((\d+), (\d+)\)",
         "Python reader MAJOR.MINOR",
+        "pair",
     ),
     (
         "python/vnx/model.py",
         r'^    vnx: str = "([^"]+)"',
         "Python Document default version",
+        "version",
     ),
-    ("kotlin/build.gradle.kts", r'^version = "([^"]+)"', "Kotlin artifact version"),
+    (
+        "kotlin/build.gradle.kts",
+        r'^version = "([^"]+)"',
+        "Kotlin artifact version",
+        "version",
+    ),
     (
         "kotlin/src/main/kotlin/app/viatrail/vnx/Version.kt",
         r"val SUPPORTED = Version\((BigInteger\.\w+(?:\(\d+\))?), (BigInteger\.\w+(?:\(\d+\))?), (BigInteger\.\w+(?:\(\d+\))?)\)",
         "Kotlin reader version",
+        "bigint",
     ),
     (
         "scripts/interop/kotlin/build.gradle.kts",
         r'implementation\("app\.viatrail:vnx:([^"]+)"\)',
         "interop dependency on the Kotlin library",
+        "version",
     ),
     (
         "rust/Cargo.toml",
         r'^\[package\]\nname = "vnx"\nversion = "([^"]+)"',
         "Rust crate version",
+        "version",
     ),
     (
         "rust/src/model.rs",
         r"^pub const SUPPORTED: \(u64, u64\) = \((\d+), (\d+)\);",
         "Rust reader MAJOR.MINOR",
+        "pair",
     ),
-    ("go/pkg/vnx/vnx.go", r'^const Version = "([^"]+)"', "Go package Version"),
+    (
+        "go/pkg/vnx/vnx.go",
+        r'^const Version = "([^"]+)"',
+        "Go package Version",
+        "version",
+    ),
     (
         "swift/Sources/VNX/VNX.swift",
         r'^  public static let version = "([^"]+)"',
         "Swift VNX.version",
+        "version",
     ),
 ]
 
+VERSION = re.compile(r"\d+\.\d+\.\d+")
 BIGINTEGER = re.compile(r"BigInteger\.(?:(ZERO|ONE|TWO|TEN)|valueOf\((\d+)\))")
 BIGINTEGER_NAMED = {"ZERO": "0", "ONE": "1", "TWO": "2", "TEN": "10"}
 
 
+def read_site(groups: tuple[str, ...], kind: str) -> str:
+    """The version a site states, spelled as its kind spells it."""
+    if kind == "bigint":
+        numbers = []
+        for g in groups:
+            named, value = BIGINTEGER.fullmatch(g).groups()
+            numbers.append(BIGINTEGER_NAMED[named] if named else value)
+        return ".".join(numbers)
+    return ".".join(groups)
+
+
+def render_site(version: str, kind: str) -> list[str]:
+    """The group values that make a site of this kind state `version`."""
+    major, minor, patch = version.split(".")
+    if kind == "version":
+        return [version]
+    if kind == "series":
+        return [f"{major}.{minor}"]
+    if kind == "pair":
+        return [major, minor]
+    if kind == "bigint":
+        named = {v: k for k, v in BIGINTEGER_NAMED.items()}
+        return [
+            f"BigInteger.{named[n]}" if n in named else f"BigInteger.valueOf({n})"
+            for n in (major, minor, patch)
+        ]
+    raise ValueError(f"unknown version site kind {kind!r}")
+
+
+def want_for(version: str, kind: str) -> str:
+    return read_site(tuple(render_site(version, kind)), kind)
+
+
 def check_versions(problems: list[str]) -> None:
     """The format and every library carry one version (CONTRIBUTING.md)."""
-    spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
-    stated = re.search(r"^Version (\d+\.\d+\.\d+)$", spec, re.MULTILINE)
-    if not stated:
-        problems.append(
-            "SPEC.md: no 'Version MAJOR.MINOR.PATCH' line, so no library version was checked"
-        )
-        return
-    version = stated.group(1)
-    series = ".".join(version.split(".")[:2])
-    for pattern, what in [
-        (r"^\| Current version \| `([^`]+)` \|$", "the Current version table row"),
-        (
-            r"^A reader of this version supports the (\d+\.\d+) series only\.$",
-            "the supported-series sentence",
-        ),
-    ]:
-        found = re.search(pattern, spec, re.MULTILINE)
-        want = series if "series" in what else version
-        if not found:
-            problems.append(f"SPEC.md: {what} is missing")
-        elif found.group(1) != want:
-            problems.append(
-                f"SPEC.md: {what} says {found.group(1)}, the Version line says {version}"
-            )
-
-    for rel, pattern, what in VERSION_SITES:
+    found_at = []
+    for rel, pattern, what, kind in VERSION_SITES:
         text = (ROOT / rel).read_text(encoding="utf-8")
         found = re.search(pattern, text, re.MULTILINE)
         if not found:
             problems.append(
                 f"{rel}: the {what} was not found, so it was not compared with SPEC.md"
             )
+            if not found_at:
+                return
             continue
-        parts = list(found.groups())
-        if parts[0].startswith("BigInteger"):
-            parts = [
-                next(g for g in BIGINTEGER.fullmatch(p).groups() if g) for p in parts
-            ]
-            parts = [BIGINTEGER_NAMED.get(p, p) for p in parts]
-        got = ".".join(parts)
-        want = version if len(parts) != 2 else series
-        if got != want:
+        found_at.append((rel, what, kind, read_site(found.groups(), kind)))
+    (_, _, _, version), *rest = found_at
+    for rel, what, kind, got in rest:
+        if got != want_for(version, kind):
             problems.append(
                 f"{rel}: the {what} is {got} and SPEC.md is {version}. The format and all "
-                "six libraries carry one version; see CONTRIBUTING.md."
+                "six libraries carry one version; change it with scripts/set-version.sh."
             )
+
+
+def write_versions(version: str) -> None:
+    """Write `version` to every site. scripts/set-version.sh calls this."""
+    if not VERSION.fullmatch(version):
+        sys.exit(f"set-version: {version!r} is not MAJOR.MINOR.PATCH")
+    for rel, pattern, what, kind in VERSION_SITES:
+        path = ROOT / rel
+        text = path.read_text(encoding="utf-8")
+        found = list(re.finditer(pattern, text, re.MULTILINE))
+        if len(found) != 1:
+            sys.exit(
+                f"set-version: {rel}: the {what} matched {len(found)} times, not once"
+            )
+        match, values = found[0], render_site(version, kind)
+        for i in reversed(range(len(values))):
+            text = text[: match.start(i + 1)] + values[i] + text[match.end(i + 1) :]
+        path.write_text(text, encoding="utf-8")
 
 
 def check_format(problems: list[str]) -> None:
@@ -562,6 +642,9 @@ def check_ruling_backlog(problems: list[str]) -> None:
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["--write-version"] and len(sys.argv) == 3:
+        write_versions(sys.argv[2])
+        return
     problems: list[str] = []
     check_ruling_backlog(problems)
     check_diagnose_codes(problems)

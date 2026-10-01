@@ -43,6 +43,9 @@ import (
 // rather than trusting that someone remembered.
 const oracleDir = "testdata/oracle"
 
+// oracleVersion is the version a generated case declares when it names none.
+const oracleVersion = "0.8.0"
+
 func ip(v int) *int             { return &v }
 func bp(v bool) *bool           { return &v }
 func tp(t time.Time) *time.Time { return &t }
@@ -472,6 +475,15 @@ func TestNegativeZeroCaseIsFrozenAsPlainZero(t *testing.T) {
 func oracleCases(t *testing.T) []oracleCase {
 	t.Helper()
 	cases := generatedOracleCases()
+	// A frozen expectation is a document, and a document declares its version.
+	// A generated case left without one would take the package Version, so
+	// every release would change these goldens. The default itself is pinned by
+	// TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike, against Version.
+	for _, c := range cases {
+		if c.doc.Version == "" {
+			c.doc.Version = oracleVersion
+		}
+	}
 	cases = append(cases, corpusOracleCases(t)...)
 	seen := map[string]bool{}
 	for _, c := range cases {

@@ -71,9 +71,10 @@ final class VersionRuleTests: XCTestCase {
       "the identical minor gap is fine once the document's major is 1")
   }
 
-  /// SPEC 2.2: "It refuses 0.2.0, and it refuses 0.0.9 unless it declares
-  /// support for the 0.0 series. A lower minor is refused for the same reason
-  /// as a higher one."
+  /// SPEC 2.2, of a 0.8.0 reader: "It refuses 0.9.0, and it refuses 0.1.9
+  /// unless it declares support for the 0.1 series. A lower minor is refused
+  /// for the same reason as a higher one." This test applies the same rule to
+  /// a 0.1.0 reader, one series down.
   ///
   /// BOTH DIRECTIONS AND THE MIDDLE, in one test, because the defect this
   /// pins was a reader that had only the upward half: `minorOrder > 0` passed
@@ -118,9 +119,11 @@ final class VersionRuleTests: XCTestCase {
   }
 
   /// The shipped reader is a 0.8 reader, and that is not an accident of
-  /// configuration.
+  /// configuration. PATCH is not pinned here: scripts/check-spec.py compares
+  /// the whole of `VNX.version` with SPEC.md, and a PATCH release changes it.
   func testTheShippedReaderIsTheOneTheLibraryDeclares() {
-    XCTAssertEqual(DocumentDecoder().readerVersion.display, VNX.version)
-    XCTAssertEqual(VNX.version, "0.8.0")
+    let reader = DocumentDecoder().readerVersion
+    XCTAssertEqual(reader.display, VNX.version)
+    XCTAssertEqual("\(reader.major).\(reader.minor)", "0.8")
   }
 }

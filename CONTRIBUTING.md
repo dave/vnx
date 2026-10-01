@@ -87,7 +87,28 @@ The format and the six libraries carry one version number, in the
 manifest carries it, and so does every library constant that names the format
 version the library reads or writes.
 
-A release bumps all of them together, in one commit, and tags that commit twice:
+`scripts/set-version.sh` is the only way to change the version. It writes the
+`SPEC.md` version line, table row and series sentence, every manifest and every
+library constant, then runs `check-spec.py`:
+
+```sh
+./scripts/set-version.sh 0.8.1
+```
+
+It does not change the version that a corpus document or a test fixture
+declares. Those are data, and they are a separate step:
+
+- A PATCH bump needs no other change. Every fixture stays in its series, and a
+  reader accepts any PATCH of its own series.
+- A MINOR or MAJOR bump needs a sweep of every corpus document, every test
+  fixture and every `SPEC.md` example, because a reader refuses a document from
+  another series. A fixture that tests the version rule keeps its meaning: a
+  newer minor stays one minor above, an older series stays older, and a
+  malformed version stays a malformed spelling of the current series. The
+  `.vnz` archives are rebuilt from `corpus/tools/`, or patched in place with
+  their CRC-32 where no generator makes them.
+
+A release bumps the version in one commit and tags that commit twice:
 
 ```sh
 git tag -a v0.8.0 -m "VNX 0.8.0"      # the repository root, which SwiftPM resolves
@@ -98,8 +119,8 @@ A change to one library alone, with no change to the format, is a PATCH bump of
 everything: the format version moves with it, and a reader accepts any PATCH of
 its own series ([`SPEC.md`](SPEC.md) section 2.2).
 
-`python3 scripts/check-spec.py` fails when a manifest or a library constant
-differs from the `SPEC.md` version.
+`python3 scripts/check-spec.py`, the check that also runs every formatter,
+fails when a manifest or a library constant differs from the `SPEC.md` version.
 
 ## Commit messages
 

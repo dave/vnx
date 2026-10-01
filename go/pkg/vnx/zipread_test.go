@@ -579,7 +579,7 @@ func TestACorruptAttachmentIsDroppedAndTheRootStillRefuses(t *testing.T) {
 	if len(c.Attachments) != 1 || c.Attachments[0].Path != "ok.jpg" {
 		t.Errorf("attachments = %v, want just ok.jpg: the corrupt one is dropped, not blanked", c.Attachments)
 	}
-	if c.Document == nil || c.Document.Version != vnx.Version {
+	if c.Document == nil || c.Document.Version != "0.8.0" {
 		t.Errorf("document = %+v; §7 returns it, damaged photograph or not", c.Document)
 	}
 	if len(diags) != 1 {

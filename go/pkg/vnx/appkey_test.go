@@ -13,7 +13,7 @@ import (
 // round-trips a corpus file holding several, so without these that round trip
 // rests on behaviour nothing tested directly.
 func TestAppKeysArePreservedOpaquelyAndSorted(t *testing.T) {
-	const src = `{"vnx":"0.2.0",
+	const src = `{"vnx":"0.8.0",
 	  "org.example.z": {"anything":{"at":["all"]}},
 	  "app.viatrail.rulesets":[{"name":"Hide minor","rules":[{"op":"equals"}]}],
 	  "com.example.null": null,
@@ -48,7 +48,7 @@ func TestAppKeysArePreservedOpaquelyAndSorted(t *testing.T) {
 // unrecognised key and is reported; an undotted unknown key at the top level
 // is still unknown too.
 func TestADottedKeyBelowTheTopLevelIsReported(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0","rulesets":[],
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","rulesets":[],
 	  "waypoints":[{"at":[1,2],"app.viatrail.x":1}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestADottedKeyBelowTheTopLevelIsReported(t *testing.T) {
 // null and an empty value stays empty, because §3.9 exempts it from §8.1's
 // absent-equals-empty normalisation.
 func TestAppKeysSurviveAReadModifyWrite(t *testing.T) {
-	const src = `{"vnx":"0.2.0","app.viatrail.rulesets":[{"zebra":1,"apple":[2,{"nested":true}]}],
+	const src = `{"vnx":"0.8.0","app.viatrail.rulesets":[{"zebra":1,"apple":[2,{"nested":true}]}],
 	  "com.example.null":null,"com.example.empty-array":[],"com.example.empty-object":{},"com.example.n":0}`
 	doc, _, err := Decode([]byte(src))
 	if err != nil {
@@ -89,8 +89,8 @@ func TestAppKeysSurviveAReadModifyWrite(t *testing.T) {
 // The comparison must not normalise an application key's empty value away,
 // or the round trip above could not fail on a writer that dropped one.
 func TestTheTreeComparisonSeesADroppedEmptyAppKey(t *testing.T) {
-	diff, err := compareDocuments([]byte(`{"vnx":"0.2.0"}`),
-		[]byte(`{"vnx":"0.2.0","com.example.empty":[]}`), treeOptions{emitBoundary: true})
+	diff, err := compareDocuments([]byte(`{"vnx":"0.8.0"}`),
+		[]byte(`{"vnx":"0.8.0","com.example.empty":[]}`), treeOptions{emitBoundary: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestANilAppKeyValueIsWrittenAsNull(t *testing.T) {
 // An unknown key's diagnostic path is a JSON Pointer, so `/` and `~` in the
 // key are escaped (RFC 6901). Unescaped, "a/b" would point at "b" inside "a".
 func TestAnUnknownKeyPathIsEscaped(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0","a/b":1,"x~y.z":1,
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","a/b":1,"x~y.z":1,
 	  "waypoints":[{"at":[1,2],"a/b":1,"x~y.z":1}]}`))
 	if err != nil {
 		t.Fatal(err)

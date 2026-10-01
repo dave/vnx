@@ -42,7 +42,7 @@ class Sidecar(
                 // names without content cannot pass the container tier.
                 "attachment_contents",
                 // 2026-09-13: `schema` is the verdict the JSON Schema reaches on
-                // this case. It is about corpus/schema/vnx-0.2.schema.json rather
+                // this case. It is about corpus/schema/vnx-0.8.schema.json rather
                 // than about any reader, so no implementation runner compares it —
                 // go/internal/vnxschema is what asserts it, and it fails if a case
                 // records no verdict. Named here so this runner's unknown-field

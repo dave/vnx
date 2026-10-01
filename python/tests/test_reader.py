@@ -31,7 +31,7 @@ def read(body: str) -> vnx.ReadResult:
 
 # A minimal VALID area: `polygon` is REQUIRED (SPEC 3.10), so a test about
 # something else still has to supply one.
-RING = '{"vnx": "0.2.0", "areas": [{"polygon": [[0,0],[1,0],[1,1]]}]}'
+RING = '{"vnx": "0.8.0", "areas": [{"polygon": [[0,0],[1,0],[1,1]]}]}'
 
 
 def messages(result: vnx.ReadResult) -> list[tuple[str, str]]:
@@ -43,15 +43,15 @@ class Versions(unittest.TestCase):
     two-component version; these are the rest of the rule."""
 
     def test_a_matching_version_is_accepted(self) -> None:
-        self.assertEqual(read('{"vnx": "0.2.0"}').document.vnx, "0.2.0")
+        self.assertEqual(read('{"vnx": "0.8.0"}').document.vnx, "0.8.0")
 
     def test_a_lower_minor_is_refused(self) -> None:
         """SPEC 2.2: through 0.x each MINOR is ITS OWN SERIES.
 
-        0.1 is not an older spelling of 0.2, and this reader has no rules for
+        0.1 is not an older spelling of 0.8, and this reader has no rules for
         it -- "a lower minor is refused for the same reason as a higher one".
         Written as "greater than", which is what this library once shipped, a
-        0.1.9 document is read under 0.2 rules it was never written to.
+        0.1.9 document is read under 0.8 rules it was never written to.
         """
         for version, series in (("0.1.9", "0.1 series"), ("0.0.9", "0.0 series")):
             with self.subTest(version=version):
@@ -66,12 +66,12 @@ class Versions(unittest.TestCase):
     def test_a_higher_minor_is_refused(self) -> None:
         """The counterpart direction, so a fix cannot swap one for the other."""
         with self.assertRaises(VNXRefusal) as caught:
-            read('{"vnx": "0.3.0"}')
-        self.assertIn("0.3.0", str(caught.exception))
+            read('{"vnx": "0.9.0"}')
+        self.assertIn("0.9.0", str(caught.exception))
 
     def test_any_patch_within_the_series_is_accepted(self) -> None:
         """SPEC 2.2: PATCH never refuses, in either direction."""
-        for version in ("0.2.0", "0.2.5", "0.2.99", "00.02.0000"):
+        for version in ("0.8.0", "0.8.5", "0.8.99", "00.08.0000"):
             with self.subTest(version=version):
                 self.assertEqual(read(f'{{"vnx": "{version}"}}').document.vnx, version)
 
@@ -82,11 +82,11 @@ class Versions(unittest.TestCase):
 
     def test_four_components_are_refused(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
-            read('{"vnx": "0.2.0.0"}')
+            read('{"vnx": "0.8.0.0"}')
         self.assertIn("MAJOR.MINOR.PATCH", str(caught.exception))
 
     def test_a_non_numeric_component_is_refused(self) -> None:
-        for bad in ("0.2", "0.2.x", "0.2.+1", "0.2.", "v0.2.0", " 0.2.0"):
+        for bad in ("0.8", "0.8.x", "0.8.+1", "0.8.", "v0.8.0", " 0.8.0"):
             with self.subTest(version=bad), self.assertRaises(VNXRefusal):
                 read(f'{{"vnx": "{bad}"}}')
 
@@ -96,9 +96,9 @@ class Versions(unittest.TestCase):
         self.assertIn("MAJOR.MINOR.PATCH", str(caught.exception))
 
     def test_the_declared_version_is_written_back(self) -> None:
-        # SPEC 2.2: a 0.2.0 reader that reads a 0.2.3 document writes `0.2.3`.
-        document = read('{"vnx": "0.2.3"}').document
-        self.assertIn(b'"vnx":"0.2.3"', vnx.encode_bytes(document))
+        # SPEC 2.2: a 0.8.0 reader that reads a 0.8.3 document writes `0.8.3`.
+        document = read('{"vnx": "0.8.3"}').document
+        self.assertIn(b'"vnx":"0.8.3"', vnx.encode_bytes(document))
 
     def test_the_top_level_must_be_an_object(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -112,24 +112,24 @@ class NonFinite(unittest.TestCase):
 
     def test_an_overflowing_literal_is_refused(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
-            read('{"vnx": "0.2.0", "waypoints": [{"at": [1e999, 0]}]}')
+            read('{"vnx": "0.8.0", "waypoints": [{"at": [1e999, 0]}]}')
         self.assertIn("non-finite", str(caught.exception))
 
     def test_a_byte_order_mark_is_refused(self) -> None:
         with self.assertRaises(VNXRefusal):
-            read_bytes(("\ufeff" + '{"vnx": "0.2.0"}').encode("utf-8"))
+            read_bytes(("\ufeff" + '{"vnx": "0.8.0"}').encode("utf-8"))
 
 
 class UnknownKeys(unittest.TestCase):
     """SPEC 6.2.  The corpus diagnoses one unknown key on one waypoint."""
 
     def test_an_unknown_top_level_key_is_diagnosed(self) -> None:
-        result = read('{"vnx": "0.2.0", "netwroks": []}')
+        result = read('{"vnx": "0.8.0", "netwroks": []}')
         self.assertEqual(messages(result), [("/netwroks", "unknown key")])
 
     def test_the_item_survives(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "areas": [{"name": "A", "colour": "red",'
+            '{"vnx": "0.8.0", "areas": [{"name": "A", "colour": "red",'
             ' "polygon": [[0,0],[1,0],[1,1]]}]}'
         )
         self.assertEqual(messages(result), [("/areas/0/colour", "unknown key")])
@@ -147,7 +147,7 @@ class UnknownKeys(unittest.TestCase):
         would still catch a reader that dropped what it did not recognise.
         """
         result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0],'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0],'
             ' "style": {"color": "#fff", "colour": "#fff"}}]}'
         )
         self.assertEqual(messages(result), [])
@@ -158,7 +158,7 @@ class UnknownKeys(unittest.TestCase):
 
     def test_an_unrecognised_style_key_survives_a_round_trip(self) -> None:
         source = (
-            '{"vnx":"0.2.0","waypoints":[{"at":[0,0],"style":{"future-key":"value"}}]}'
+            '{"vnx":"0.8.0","waypoints":[{"at":[0,0],"style":{"future-key":"value"}}]}'
         )
         document = read(source).document
         self.assertEqual(
@@ -169,7 +169,7 @@ class UnknownKeys(unittest.TestCase):
         )
 
     def test_a_style_that_is_not_an_object_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": 3}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "style": 3}]}')
         self.assertEqual(
             messages(result), [("/waypoints/0/style", "a style must be an object")]
         )
@@ -177,7 +177,7 @@ class UnknownKeys(unittest.TestCase):
     def test_a_data_record_body_has_no_unknown_keys(self) -> None:
         # SPEC 5.1.2: a record body is opaque apart from @type.
         result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data":'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "data":'
             ' [{"@type": "com.example.x", "anything": {"at": "all"}}]}]}'
         )
         self.assertEqual(messages(result), [])
@@ -189,7 +189,7 @@ class ApplicationKeys(unittest.TestCase):
 
     def test_they_are_kept_sorted_by_key_with_null_as_none(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "org.example.z": {"a": []}, "com.example.null": null,'
+            '{"vnx": "0.8.0", "org.example.z": {"a": []}, "com.example.null": null,'
             ' "app.viatrail.rulesets": [], "com.example.s": "text"}'
         )
         self.assertEqual(messages(result), [])
@@ -205,7 +205,7 @@ class ApplicationKeys(unittest.TestCase):
 
     def test_the_rule_is_top_level_only(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "rulesets": [],'
+            '{"vnx": "0.8.0", "rulesets": [],'
             ' "waypoints": [{"at": [1,2], "app.viatrail.x": 1}]}'
         )
         self.assertEqual(
@@ -218,7 +218,7 @@ class ApplicationKeys(unittest.TestCase):
 
     def test_null_and_empty_values_survive_a_round_trip(self) -> None:
         source = (
-            '{"vnx":"0.2.0","com.example.null":null,"com.example.a":[],'
+            '{"vnx":"0.8.0","com.example.null":null,"com.example.a":[],'
             '"com.example.o":{},"com.example.n":0}'
         )
         document = read(source).document
@@ -241,7 +241,7 @@ class Positions(unittest.TestCase):
         surviving segment is what proves the drop is scoped rather than total.
         """
         result = read(
-            '{"vnx": "0.2.0", "tracks": [{"segments": ['
+            '{"vnx": "0.8.0", "tracks": [{"segments": ['
             '{"pips": [[-3.6, 57.1], [-3.6]]},'
             ' {"pips": [[-3.5, 57.2], [-3.4, 57.3]]}]}]}'
         )
@@ -257,7 +257,7 @@ class Positions(unittest.TestCase):
 
     def test_a_null_longitude_drops_the_segment(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "tracks": [{"segments": [{"pips": [[null, 57.1, 3]]}]}]}'
+            '{"vnx": "0.8.0", "tracks": [{"segments": [{"pips": [[null, 57.1, 3]]}]}]}'
         )
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "position-unusable")
@@ -270,7 +270,7 @@ class Positions(unittest.TestCase):
         SPEC 6.2's offending element is the position, so the path stops there
         and the channel is named in the English, which nothing compares.
         """
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
         self.assertEqual(result.diagnostics[0].path, "/waypoints/0/at")
         self.assertIn("channel 1", result.diagnostics[0].message)
 
@@ -282,17 +282,17 @@ class Positions(unittest.TestCase):
         where it failed, and the item's disappearance is that same defect rather
         than a second one.
         """
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [-3.6, "57.1"]}]}')
         self.assertEqual(len(result.diagnostics), 1, messages(result))
         self.assertEqual(result.document.waypoints, [])
 
     def test_a_boolean_channel_is_not_a_number(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [-3.6, true]}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [-3.6, true]}]}')
         self.assertEqual(len(result.diagnostics), 1)
 
     def test_mixed_arity_within_one_array_is_legal(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "tracks": [{"segments": [{"pips":'
+            '{"vnx": "0.8.0", "tracks": [{"segments": [{"pips":'
             " [[-3.6, 57.1], [-3.6, 57.1, 3], [-3.6, 57.1, null, 5]]}]}]}"
         )
         self.assertEqual(messages(result), [])
@@ -304,7 +304,7 @@ class Positions(unittest.TestCase):
         Ignoring is what the rule says.  No rule asks a writer to reproduce
         one, so this library does not carry it in the model.
         """
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [-3.6, 57.1, 3, 5, 7]}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [-3.6, 57.1, 3, 5, 7]}]}')
         self.assertEqual(messages(result), [])
         self.assertIn(b'"at":[-3.6,57.1,3.0,5.0]', vnx.encode_bytes(result.document))
 
@@ -317,7 +317,7 @@ class Polygons(unittest.TestCase):
     """
 
     def area(self, polygon: str) -> vnx.ReadResult:
-        return read('{"vnx": "0.2.0", "areas": [{"polygon": %s}]}' % polygon)
+        return read('{"vnx": "0.8.0", "areas": [{"polygon": %s}]}' % polygon)
 
     def diagnostics(self, result: vnx.ReadResult) -> list[tuple[str, Union[str, None]]]:
         return sorted((d.path, d.code) for d in result.diagnostics)
@@ -370,7 +370,7 @@ class Polygons(unittest.TestCase):
         self.assertEqual(messages(result), [])
 
     def test_an_absent_polygon_drops_the_area_with_the_required_code(self) -> None:
-        result = read('{"vnx": "0.2.0", "areas": [{"name": "Shapeless"}]}')
+        result = read('{"vnx": "0.8.0", "areas": [{"name": "Shapeless"}]}')
         self.assertEqual(
             self.diagnostics(result), [("/areas/0/polygon", "wrong-type-required")]
         )
@@ -379,7 +379,7 @@ class Polygons(unittest.TestCase):
 # A network with every shape a walk test needs.  `cb` runs c to b and has no
 # pips, so it is the straight line between its nodes.
 WALK_NETWORK = """
-{"vnx": "0.2.0", "networks": [{
+{"vnx": "0.8.0", "networks": [{
   "nodes": {"a": [-3.60, 57.10, 410], "b": [-3.59, 57.10, 420],
             "c": [-3.58, 57.10, 430], "d": [-3.57, 57.10, 440]},
   "arcs": {
@@ -501,7 +501,7 @@ class Walks(unittest.TestCase):
     def test_1_a_pass_naming_another_networks_arc(self) -> None:
         """SPEC 4.4: identifiers are scoped to their network."""
         result = read(
-            '{"vnx": "0.2.0", "networks": ['
+            '{"vnx": "0.8.0", "networks": ['
             '{"nodes": {"n1": [0,0], "n2": [1,1]}, "arcs": {"only-here":'
             ' {"from": "n1", "to": "n2", "pips": []}}},'
             '{"highlights": [{"walk": [{"arc": "only-here", "from": "n1", "to": "n2"}]}]}]}'
@@ -644,7 +644,7 @@ class Routes(unittest.TestCase):
     highlight, so where a highlight would be dropped the route is."""
 
     ROUTE = """
-    {"vnx": "0.2.0", "routes": [{
+    {"vnx": "0.8.0", "routes": [{
       "name": "R",
       "nodes": {"a": [-3.60, 57.10], "b": [-3.59, 57.10], "c": [-3.58, 57.10]},
       "arcs": {"ab": {"from": "a", "to": "b", "pips": []},
@@ -700,7 +700,7 @@ class Routes(unittest.TestCase):
         self.assertEqual(result.document.routes, [])
 
     def test_an_absent_walk_drops_the_route(self) -> None:
-        result = read('{"vnx": "0.2.0", "routes": [{"name": "No walk"}]}')
+        result = read('{"vnx": "0.8.0", "routes": [{"name": "No walk"}]}')
         self.assertEqual(codes(result), [("/routes/0/walk", "wrong-type-required")])
         self.assertEqual(result.document.routes, [])
 
@@ -711,7 +711,7 @@ class Graphs(unittest.TestCase):
 
     def network(self, nodes: str, arcs: str, walk: str = "[]") -> vnx.ReadResult:
         return read(
-            '{"vnx": "0.2.0", "networks": [{"nodes": %s, "arcs": %s,'
+            '{"vnx": "0.8.0", "networks": [{"nodes": %s, "arcs": %s,'
             ' "highlights": [{"walk": %s}]}]}' % (nodes, arcs, walk)
         )
 
@@ -798,18 +798,18 @@ class Timestamps(unittest.TestCase):
     """SPEC 4.3.  The corpus carries one offset timestamp on a track."""
 
     def test_fractional_seconds_are_accepted(self) -> None:
-        result = read('{"vnx": "0.2.0", "created": "2026-08-31T06:45:12.5Z"}')
+        result = read('{"vnx": "0.8.0", "created": "2026-08-31T06:45:12.5Z"}')
         self.assertEqual(messages(result), [])
 
     def test_a_bare_date_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "created": "2026-08-31"}')
+        result = read('{"vnx": "0.8.0", "created": "2026-08-31"}')
         self.assertEqual(
             messages(result), [("/created", "must be UTC with a Z suffix")]
         )
         self.assertIsNone(result.document.created)
 
     def test_a_lower_case_z_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "created": "2026-08-31T06:45:12z"}')
+        result = read('{"vnx": "0.8.0", "created": "2026-08-31T06:45:12z"}')
         self.assertEqual(len(result.diagnostics), 1)
 
 
@@ -817,7 +817,7 @@ class MovingTime(unittest.TestCase):
     """SPEC 3.5.  The corpus covers all-timed and never-timed tracks."""
 
     def track(self, segments: str) -> vnx.Track:
-        result = read('{"vnx": "0.2.0", "tracks": [{"segments": %s}]}' % segments)
+        result = read('{"vnx": "0.8.0", "tracks": [{"segments": %s}]}' % segments)
         assert result.document.tracks is not None
         return result.document.tracks[0]
 
@@ -869,7 +869,7 @@ class HiddenAndAbsence(unittest.TestCase):
         and `test_the_writer_omits_a_false_hidden` below pins that half.
         """
         source = (
-            '{"vnx":"0.2.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
+            '{"vnx":"0.8.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
         )
         document = read(source).document
         assert document.areas is not None
@@ -877,7 +877,7 @@ class HiddenAndAbsence(unittest.TestCase):
 
     def test_the_writer_omits_a_false_hidden(self) -> None:
         source = (
-            '{"vnx":"0.2.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
+            '{"vnx":"0.8.0","areas":[{"hidden":false,"polygon":[[0,0],[1,0],[1,1]]}]}'
         )
         self.assertNotIn(b"hidden", vnx.encode_bytes(read(source).document))
 
@@ -888,7 +888,7 @@ class HiddenAndAbsence(unittest.TestCase):
 
     def test_an_absent_label_visible_is_not_false(self) -> None:
         document = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": {}}]}'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "style": {}}]}'
         ).document
         assert document.waypoints is not None
         self.assertNotIn("label-visible", document.waypoints[0].style or {})
@@ -896,8 +896,8 @@ class HiddenAndAbsence(unittest.TestCase):
     def test_an_empty_collection_is_not_an_absent_one_in_the_model(self) -> None:
         """SPEC 3.1 has a reader treat the two alike, and the model still tells
         them apart: `None` is absent, `[]` is present and empty."""
-        self.assertEqual(read('{"vnx": "0.2.0", "areas": []}').document.areas, [])
-        self.assertIsNone(read('{"vnx": "0.2.0"}').document.areas)
+        self.assertEqual(read('{"vnx": "0.8.0", "areas": []}').document.areas, [])
+        self.assertIsNone(read('{"vnx": "0.8.0"}').document.areas)
 
     def test_a_non_boolean_hidden_is_dropped(self) -> None:
         result = read(RING.replace('{"polygon"', '{"hidden": "yes", "polygon"'))
@@ -913,7 +913,7 @@ class Records(unittest.TestCase):
 
     def test_a_record_without_a_type_is_dropped(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data": [{"value": 1}]}]}'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "data": [{"value": 1}]}]}'
         )
         self.assertEqual(len(result.diagnostics), 1)
         assert result.document.waypoints is not None
@@ -923,7 +923,7 @@ class Records(unittest.TestCase):
         # SPEC 5: a @type value is compared exactly, including case, so
         # `App.viatrail.tag` is not `app.viatrail.tag`.
         document = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data":'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "data":'
             ' [{"@type": "App.viatrail.tag", "value": "x"}]}]}'
         ).document
         assert document.waypoints is not None
@@ -934,7 +934,7 @@ class Records(unittest.TestCase):
     def test_several_records_of_one_type_are_all_kept(self) -> None:
         # SPEC 5.1.1: data is a bag, not a map; three tags are three records.
         document = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "data": ['
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "data": ['
             '{"@type": "app.viatrail.tag", "value": "a"},'
             '{"@type": "app.viatrail.tag", "value": "b"},'
             '{"@type": "app.viatrail.tag", "value": "c"}]}]}'
@@ -949,7 +949,7 @@ class Identifiers(unittest.TestCase):
 
     def test_two_networks_may_use_the_same_node_key(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "networks": ['
+            '{"vnx": "0.8.0", "networks": ['
             '{"nodes": {"n1": [0,0], "n2": [1,1]}, "arcs": {"a": {"from": "n1",'
             ' "to": "n2", "pips": [[0.5,0.5]]}}},'
             '{"nodes": {"n1": [9,9], "n2": [8,8]}, "arcs": {"a": {"from": "n1",'
@@ -976,7 +976,7 @@ class Containers(unittest.TestCase):
                 archive.writestr(name, body)
         return buffer.getvalue()
 
-    DOC = b'{"vnx": "0.2.0"}'
+    DOC = b'{"vnx": "0.8.0"}'
 
     def test_an_absolute_path_is_refused(self) -> None:
         with self.assertRaises(VNXRefusal) as caught:
@@ -1002,8 +1002,8 @@ class Containers(unittest.TestCase):
         result = vnx.read_container_bytes(
             self.build(
                 [
-                    ("aaa.vnx", b'{"vnx": "0.2.0", "areas": []}'),
-                    ("doc.vnx", b'{"vnx": "0.2.0", "folders": []}'),
+                    ("aaa.vnx", b'{"vnx": "0.8.0", "areas": []}'),
+                    ("doc.vnx", b'{"vnx": "0.8.0", "folders": []}'),
                 ]
             )
         )
@@ -1011,7 +1011,7 @@ class Containers(unittest.TestCase):
         self.assertEqual(result.document.folders, [])
         self.assertEqual(
             result.attachments,
-            [vnx.Attachment("aaa.vnx", b'{"vnx": "0.2.0", "areas": []}')],
+            [vnx.Attachment("aaa.vnx", b'{"vnx": "0.8.0", "areas": []}')],
         )
 
     def test_the_match_is_on_the_full_entry_name(self) -> None:
@@ -1020,8 +1020,8 @@ class Containers(unittest.TestCase):
         result = vnx.read_container_bytes(
             self.build(
                 [
-                    ("nested/doc.vnx", b'{"vnx": "0.2.0", "areas": []}'),
-                    ("zzz.vnx", b'{"vnx": "0.2.0", "folders": []}'),
+                    ("nested/doc.vnx", b'{"vnx": "0.8.0", "areas": []}'),
+                    ("zzz.vnx", b'{"vnx": "0.8.0", "folders": []}'),
                 ]
             )
         )
@@ -1033,7 +1033,7 @@ class Containers(unittest.TestCase):
 
     def test_a_written_container_reads_back(self) -> None:
         document = vnx.read_bytes(
-            b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}'
+            b'{"vnx": "0.8.0", "waypoints": [{"at": [1, 2]}]}'
         ).document
         data = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         result = vnx.read_container_bytes(data)
@@ -1049,7 +1049,7 @@ class Containers(unittest.TestCase):
         import io
         import zipfile
 
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         with zipfile.ZipFile(
             io.BytesIO(vnx.encode_container_bytes(document))
         ) as archive:
@@ -1066,7 +1066,7 @@ class RuledStyleValues(unittest.TestCase):
 
     def style(self, body: str) -> vnx.ReadResult:
         return read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "style": %s}]}' % body
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "style": %s}]}' % body
         )
 
     def test_importance_in_range_is_kept(self) -> None:
@@ -1113,7 +1113,7 @@ class RuledFolderScope(unittest.TestCase):
         self.assertEqual(
             messages(
                 read(
-                    '{"vnx": "0.2.0", "folders": [{"id": "f"}], "waypoints":'
+                    '{"vnx": "0.8.0", "folders": [{"id": "f"}], "waypoints":'
                     ' [{"at": [0,0], "folder": "f"}]}'
                 )
             ),
@@ -1122,7 +1122,7 @@ class RuledFolderScope(unittest.TestCase):
 
     def test_a_network_point_may_not(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "networks": [{"points": [{"at": [0,0], "folder": "f"}]}]}'
+            '{"vnx": "0.8.0", "networks": [{"points": [{"at": [0,0], "folder": "f"}]}]}'
         )
         self.assertEqual(
             messages(result), [("/networks/0/points/0/folder", "unknown key")]
@@ -1130,7 +1130,7 @@ class RuledFolderScope(unittest.TestCase):
 
     def test_a_network_area_may_not(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "networks": [{"areas":'
+            '{"vnx": "0.8.0", "networks": [{"areas":'
             ' [{"folder": "f", "polygon": [[0,0],[1,0],[1,1]]}]}]}'
         )
         self.assertEqual(
@@ -1171,7 +1171,7 @@ class RequiredKeys(unittest.TestCase):
     """
 
     def test_a_folder_without_an_id_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "folders": [{"name": "Nameless"}]}')
+        result = read('{"vnx": "0.8.0", "folders": [{"name": "Nameless"}]}')
         self.assertEqual(
             messages(result), [("/folders/0/id", "a folder must carry `id`")]
         )
@@ -1179,21 +1179,21 @@ class RequiredKeys(unittest.TestCase):
         self.assertEqual(result.document.folders, [])
 
     def test_a_waypoint_without_a_position_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"name": "Nowhere"}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"name": "Nowhere"}]}')
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.document.waypoints, [])
 
     def test_an_area_without_a_polygon_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "areas": [{"name": "Shapeless"}]}')
+        result = read('{"vnx": "0.8.0", "areas": [{"name": "Shapeless"}]}')
         self.assertEqual(result.document.areas, [])
 
     def test_a_track_without_segments_is_dropped(self) -> None:
-        result = read('{"vnx": "0.2.0", "tracks": [{"name": "No geometry"}]}')
+        result = read('{"vnx": "0.8.0", "tracks": [{"name": "No geometry"}]}')
         self.assertEqual(result.document.tracks, [])
 
     def test_an_arc_without_pips_is_dropped_and_the_network_survives(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "networks": [{"name": "N", "nodes": {"a": [0,0], "b": [1,1]},'
+            '{"vnx": "0.8.0", "networks": [{"name": "N", "nodes": {"a": [0,0], "b": [1,1]},'
             ' "arcs": {"bad": {"from": "a", "to": "b"}}}]}'
         )
         assert result.document.networks is not None
@@ -1203,7 +1203,7 @@ class RequiredKeys(unittest.TestCase):
     def test_an_empty_required_array_is_present(self) -> None:
         """SPEC 3.10: requiring a key does not require a non-empty value."""
         result = read(
-            '{"vnx": "0.2.0", "networks": [{"highlights": [{"walk": []}]}],'
+            '{"vnx": "0.8.0", "networks": [{"highlights": [{"walk": []}]}],'
             ' "tracks": [{"segments": []}]}'
         )
         self.assertEqual(messages(result), [])
@@ -1212,8 +1212,8 @@ class RequiredKeys(unittest.TestCase):
 
     def test_an_absent_key_and_an_unusable_one_each_report_once(self) -> None:
         """One defect, one diagnostic, whichever way the key fails."""
-        absent = read('{"vnx": "0.2.0", "waypoints": [{}]}')
-        unusable = read('{"vnx": "0.2.0", "waypoints": [{"at": "here"}]}')
+        absent = read('{"vnx": "0.8.0", "waypoints": [{}]}')
+        unusable = read('{"vnx": "0.8.0", "waypoints": [{"at": "here"}]}')
         self.assertEqual(len(absent.diagnostics), 1, messages(absent))
         self.assertEqual(len(unusable.diagnostics), 1, messages(unusable))
 
@@ -1223,7 +1223,7 @@ class DanglingFolder(unittest.TestCase):
 
     def test_the_item_survives_at_the_top_level(self) -> None:
         result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "folder": "ghost"}]}'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "folder": "ghost"}]}'
         )
         self.assertEqual(
             messages(result),
@@ -1237,7 +1237,7 @@ class DanglingFolder(unittest.TestCase):
         # SPEC 4.4: element order carries no meaning, so the check is a second
         # pass rather than a running one.
         result = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "folder": "f"}],'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "folder": "f"}],'
             ' "folders": [{"id": "f"}]}'
         )
         self.assertEqual(messages(result), [])
@@ -1246,7 +1246,7 @@ class DanglingFolder(unittest.TestCase):
         """SPEC 6.2's worked case: a folder with no `id` is dropped, and the
         items that named it are then covered by the dangling-folder rule."""
         result = read(
-            '{"vnx": "0.2.0", "folders": [{"name": "No id"}],'
+            '{"vnx": "0.8.0", "folders": [{"name": "No id"}],'
             ' "tracks": [{"segments": [], "folder": "whatever"}]}'
         )
         self.assertEqual(len(result.diagnostics), 2, messages(result))
@@ -1262,7 +1262,7 @@ class ContainerPathRules(unittest.TestCase):
     case below is outside both.
     """
 
-    DOC = b'{"vnx": "0.2.0"}'
+    DOC = b'{"vnx": "0.8.0"}'
 
     def build(self, names: list[str]) -> bytes:
         import zipfile
@@ -1355,7 +1355,7 @@ class ContainerCompression(unittest.TestCase):
     here is reachable by the corpus.
     """
 
-    DOC = b'{"vnx": "0.2.0"}'
+    DOC = b'{"vnx": "0.8.0"}'
 
     def archive(self, doc_method: int, attachment_method: int) -> bytes:
         import zipfile
@@ -1425,7 +1425,7 @@ class ContainerCorruptAttachment(unittest.TestCase):
     fixture.
     """
 
-    DOC = b'{"vnx": "0.2.0", "waypoints": [{"at": [1, 2]}]}'
+    DOC = b'{"vnx": "0.8.0", "waypoints": [{"at": [1, 2]}]}'
 
     def archive(self) -> bytes:
         """A deflated attachment whose stream is damaged, CRC untouched."""
@@ -1522,7 +1522,7 @@ class ContainerWriterDeflates(unittest.TestCase):
         )
 
     def test_the_archive_is_byte_reproducible(self) -> None:
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         first = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         second = vnx.encode_container_bytes(document, {"attachments/p.txt": b"x"})
         self.assertEqual(first, second)
@@ -1538,7 +1538,7 @@ class ContainerWriterDeflates(unittest.TestCase):
         """
         import zipfile
 
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         data = vnx.encode_container_bytes(document, {"a.txt": b"x"})
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             for info in archive.infolist():
@@ -1559,7 +1559,7 @@ class ContainerWriterDeflates(unittest.TestCase):
         """
         import zipfile
 
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         supplied = {"zebra.txt": b"z", "middle.txt": b"m", "alpha.txt": b"a"}
         self.assertEqual(
             list(supplied),
@@ -1578,7 +1578,7 @@ class ContainerWriterDeflates(unittest.TestCase):
         the fallback of SPEC 7 and the preferred-name rule agree."""
         import zipfile
 
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         data = vnx.encode_container_bytes(document, {"aaa.txt": b"a"})
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             self.assertEqual(archive.namelist()[0], "doc.vnx")
@@ -1593,7 +1593,7 @@ class WrongTypedValues(unittest.TestCase):
     """
 
     def test_an_optional_key_drops_the_field_and_keeps_the_item(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}')
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "wrong-type-optional")
         assert result.document.waypoints is not None
@@ -1601,7 +1601,7 @@ class WrongTypedValues(unittest.TestCase):
         self.assertIsNone(result.document.waypoints[0].hidden)
 
     def test_a_required_key_drops_the_item(self) -> None:
-        result = read('{"vnx": "0.2.0", "waypoints": [{"at": "beside the burn"}]}')
+        result = read('{"vnx": "0.8.0", "waypoints": [{"at": "beside the burn"}]}')
         self.assertEqual(len(result.diagnostics), 1)
         self.assertEqual(result.diagnostics[0].code, "wrong-type-required")
         self.assertEqual(result.document.waypoints, [])
@@ -1613,9 +1613,9 @@ class WrongTypedValues(unittest.TestCase):
         only one of them, which is why the corpus case carries both.
         """
         optional = read(
-            '{"vnx": "0.2.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
+            '{"vnx": "0.8.0", "waypoints": [{"at": [0,0], "hidden": "yes"}]}'
         )
-        required = read('{"vnx": "0.2.0", "waypoints": [{"at": "nowhere"}]}')
+        required = read('{"vnx": "0.8.0", "waypoints": [{"at": "nowhere"}]}')
         self.assertNotEqual(optional.diagnostics[0].code, required.diagnostics[0].code)
 
 
@@ -1635,7 +1635,7 @@ class ContainerHeadersAgree(unittest.TestCase):
     """
 
     def archive(self) -> bytes:
-        document = vnx.read_bytes(b'{"vnx": "0.2.0"}').document
+        document = vnx.read_bytes(b'{"vnx": "0.8.0"}').document
         return vnx.encode_container_bytes(document, {"z.txt": b"zz", "a.txt": b"a"})
 
     def test_the_two_headers_agree_on_every_shared_field(self) -> None:

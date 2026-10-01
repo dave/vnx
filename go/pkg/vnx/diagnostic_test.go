@@ -13,7 +13,7 @@ import (
 // dropped". A reader that returns a document and nothing else has discarded the
 // only evidence anything was wrong.
 func TestCleanDocumentHasNoDiagnostics(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0","created":"2026-08-31T06:45:12Z"}`))
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","created":"2026-08-31T06:45:12Z"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,11 +27,11 @@ func TestCleanDocumentHasNoDiagnostics(t *testing.T) {
 // count is surfaced, one bad character does not kill the file. Applied at KEY
 // granularity here: an unknown key is not an unusable value, so the item lives.
 func TestUnknownKeyIsDiagnosedAndSkipped(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","nmae":"typo"}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","nmae":"typo"}`))
 	if err != nil {
 		t.Fatalf("an unknown key must not refuse the document: %v", err)
 	}
-	if doc == nil || doc.Version != "0.2.0" {
+	if doc == nil || doc.Version != "0.8.0" {
 		t.Fatalf("the rest of the document must survive, got %+v", doc)
 	}
 	if len(diags) != 1 {
@@ -46,7 +46,7 @@ func TestUnknownKeyIsDiagnosedAndSkipped(t *testing.T) {
 }
 
 func TestUnknownKeysEachGetTheirOwnDiagnostic(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0","one":1,"two":2,"three":3}`))
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","one":1,"two":2,"three":3}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestRefusalReturnsNoPartialDocument(t *testing.T) {
 // unknown — that would train a caller to ignore diagnostics, which is the one
 // habit this channel cannot survive.
 func TestKnownCollectionsAreNotReportedAsUnknown(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0","folders":[],"networks":[],"routes":[],
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","folders":[],"networks":[],"routes":[],
 	  "tracks":[],"waypoints":[],"areas":[],"app.viatrail.rulesets":[]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestDecodeDiagnosticsCarryACodeOnlyWhereTheCorpusPinsOne(t *testing.T) {
 		known[c] = true
 	}
 
-	const src = `{"vnx":"0.2.0",` +
+	const src = `{"vnx":"0.8.0",` +
 		`"folders":[{"id":"f1","name":"F"},{"name":"no id"}],` +
 		`"nonsense":[1,2,3]}`
 	_, diags, err := Decode([]byte(src))
@@ -200,7 +200,7 @@ func TestWriterCodeRegistryRegistersAndCopies(t *testing.T) {
 // A segment and a route's arc have fixed key sets too (SPEC §3.10), and an
 // unknown key on either is reported rather than dropped in silence.
 func TestUnknownKeysOnASegmentAndARouteArcAreReported(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.2.0",
+	_, diags, err := Decode([]byte(`{"vnx":"0.8.0",
 	  "tracks":[{"segments":[{"pips":[[1,2],[1,3]],"zz":1}]}],
 	  "routes":[{"nodes":{"n1":[1,2],"n2":[1,3]},"arcs":{"a":{"pips":[],"from":"n1","to":"n2","zz":1}},
 	    "walk":[{"arc":"a","from":"n1","to":"n2"}]}]}`))

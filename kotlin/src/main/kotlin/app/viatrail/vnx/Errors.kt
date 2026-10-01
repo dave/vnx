@@ -44,7 +44,7 @@ enum class RefusalCause(
      * reader does not support. (2.2)
      *
      * NOT "too new". Through 0.x each MINOR is its own series, so 0.1.9 is
-     * refused by a 0.2 reader for the same reason 0.3.0 is. The cause was named
+     * refused by a 0.8 reader for the same reason 0.9.0 is. The cause was named
      * VERSION_TOO_NEW until 2026-09-12, when it turned out the name had made
      * the lower direction easy to forget in six implementations at once.
      */

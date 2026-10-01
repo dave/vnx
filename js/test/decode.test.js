@@ -7,7 +7,7 @@ import { decodeText } from '../src/decode.js';
 import { VnxRefusal } from '../src/errors.js';
 import { encode } from '../src/index.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.2.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.8.0', ...extra });
 
 function refusal(text) {
   try {
@@ -23,7 +23,7 @@ function refusal(text) {
 
 test('a top level that is not an object is refused', () => {
   assert.equal(refusal('[]').cause_code, 'not-a-vnx-document');
-  assert.equal(refusal('"0.2.0"').cause_code, 'not-a-vnx-document');
+  assert.equal(refusal('"0.8.0"').cause_code, 'not-a-vnx-document');
   assert.equal(refusal('null').cause_code, 'not-a-vnx-document');
 });
 
@@ -49,11 +49,11 @@ test("a MAJOR or MINOR outside the reader's series is refused; PATCH never is", 
   // is refused for the same reason as a higher one". Both directions are here
   // because a reader written as "greater than" passes the first two lines and
   // reads 0.1.9, which is the defect this pair exists to catch.
-  assert.equal(refusal(doc0('0.3.0').text).cause_code, 'version-too-new');
+  assert.equal(refusal(doc0('0.9.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('1.0.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('0.1.9').text).cause_code, 'version-too-old');
   assert.equal(refusal(doc0('0.0.9').text).cause_code, 'version-too-old');
-  for (const v of ['0.2.99', '0.2.0']) {
+  for (const v of ['0.8.99', '0.8.0']) {
     assert.equal(decodeText(doc0(v).text).document.vnx, v);
   }
 });
@@ -71,19 +71,19 @@ function doc0(v) {
 }
 
 test('leading zeros are a legal spelling and compare numerically', () => {
-  assert.equal(decodeText('{"vnx": "00.02.0000"}').document.vnx, '00.02.0000');
+  assert.equal(decodeText('{"vnx": "00.08.0000"}').document.vnx, '00.08.0000');
 });
 
 test('a NaN or Infinity literal is refused as malformed JSON', () => {
-  assert.equal(refusal('{"vnx": "0.2.0", "a": NaN}').cause_code, 'malformed-json');
-  assert.equal(refusal('{"vnx": "0.2.0", "a": Infinity}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.8.0", "a": NaN}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.8.0", "a": Infinity}').cause_code, 'malformed-json');
 });
 
 test('a numeric literal that overflows to Infinity is refused as not finite', () => {
   // `1e400` is well-formed JSON and parses to Infinity. SPEC.md 4.2 forbids a
   // non-finite number throughout a document; the corpus has no case for this
   // spelling, so the guard is proved here.
-  const err = refusal('{"vnx": "0.2.0", "a": 1e400}');
+  const err = refusal('{"vnx": "0.8.0", "a": 1e400}');
   assert.equal(err.cause_code, 'non-finite-number');
   assert.ok(err.message.includes('not finite'), err.message);
 });
@@ -107,9 +107,9 @@ test('a trailing null survives into the model and is shortened on the way out', 
   // The model keeps the arity the document spelled; SPEC.md 4.1 puts the
   // shortest spelling at the emit boundary, so the two answers differ and both
   // are right.
-  const { document } = decodeText('{"vnx":"0.2.0","waypoints":[{"at":[1,2,null]}]}');
+  const { document } = decodeText('{"vnx":"0.8.0","waypoints":[{"at":[1,2,null]}]}');
   assert.equal(document.waypoints[0].at.arity, 3);
-  assert.equal(encode(document), '{"vnx":"0.2.0","waypoints":[{"at":[1,2]}]}');
+  assert.equal(encode(document), '{"vnx":"0.8.0","waypoints":[{"at":[1,2]}]}');
 });
 
 test('an interior absence keeps its null', () => {
@@ -127,7 +127,7 @@ test('a channel beyond those the reader knows survives the round trip', () => {
   // SPEC.md 4.1 says a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding: the position is
   // kept whole, so the unknown channel comes back out.
-  const text = '{"vnx":"0.2.0","waypoints":[{"at":[1,2,3,4,5]}]}';
+  const text = '{"vnx":"0.8.0","waypoints":[{"at":[1,2,3,4,5]}]}';
   assert.equal(encode(decodeText(text).document), text);
 });
 
@@ -464,15 +464,15 @@ test('an absent label-visible is neither true nor false', () => {
 });
 
 test('an absent collection stays absent and does not become empty', () => {
-  const { document } = decodeText('{"vnx": "0.2.0"}');
+  const { document } = decodeText('{"vnx": "0.8.0"}');
   assert.equal(document.waypoints, undefined);
-  assert.equal(encode(document), '{"vnx":"0.2.0"}');
+  assert.equal(encode(document), '{"vnx":"0.8.0"}');
 });
 
 test('an empty collection is distinct from an absent one', () => {
-  const { document } = decodeText('{"vnx": "0.2.0", "waypoints": []}');
+  const { document } = decodeText('{"vnx": "0.8.0", "waypoints": []}');
   assert.deepEqual(document.waypoints, []);
-  assert.equal(encode(document), '{"vnx":"0.2.0","waypoints":[]}');
+  assert.equal(encode(document), '{"vnx":"0.8.0","waypoints":[]}');
 });
 
 test('moving time reads the FIRST and LAST pip, not the first and last TIMED pip', () => {

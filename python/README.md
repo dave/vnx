@@ -3,7 +3,7 @@
 `vnx` reads and writes VNX documents and VNZ containers in Python, and reports
 diagnostics.
 
-Python 3.11 or later, and no dependencies. Implements VNX 0.2.0 —
+Python 3.11 or later, and no dependencies. Implements VNX 0.8.0 —
 [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -70,7 +70,7 @@ except vnx.VNXRefusal as refusal:
 ```
 document entry doc.vnx
 attachment attachments/photo.txt 19 bytes
-refused: this document is version 0.1.9 and this reader does not support the 0.1 series: it reads 0.2.x
+refused: this document is version 0.1.9 and this reader does not support the 0.1 series: it reads 0.8.x
 ```
 
 ## Command-line tool
@@ -152,8 +152,8 @@ is a raised exception against the `diagnostics` list returned beside a document.
   `null` or left off.
 - **A version outside this reader's series is refused, in either direction.**
   Through 0.x each MINOR is its own series (SPEC §2.2), so `0.1.9` is refused
-  exactly as `0.3.0` is, and the message names the series. Any PATCH within
-  `0.2` reads.
+  exactly as `0.9.0` is, and the message names the series. Any PATCH within
+  `0.8` reads.
 - **Damaged geometry costs its container.** A position inside `pips` that will
   not parse drops the arc or segment holding it (SPEC §6.2).
 - **A walk is used whole or not at all.** The first problem in a walk drops the

@@ -12,7 +12,7 @@ use tree::EmitBoundary;
 
 #[test]
 fn app_keys_are_preserved_opaquely_and_sorted() {
-    let src = r#"{"vnx":"0.2.0",
+    let src = r#"{"vnx":"0.8.0",
       "org.example.z": {"anything":{"at":["all"]}},
       "app.viatrail.rulesets":[{"name":"Hide minor","rules":[{"op":"equals"}]}],
       "com.example.null": null,
@@ -64,7 +64,7 @@ fn app_keys_are_preserved_opaquely_and_sorted() {
 #[test]
 fn a_dotted_key_below_the_top_level_is_reported() {
     let reading =
-        decode(br#"{"vnx":"0.2.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}"#)
+        decode(br#"{"vnx":"0.8.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}"#)
             .expect("accepted");
     let mut got: Vec<(String, &str)> = reading
         .diagnostics
@@ -86,7 +86,7 @@ fn a_dotted_key_below_the_top_level_is_reported() {
 /// absent-equals-empty normalisation.
 #[test]
 fn app_keys_survive_a_read_modify_write() {
-    let src = br#"{"vnx":"0.2.0","app.viatrail.rulesets":[{"zebra":1,"apple":[2,{"nested":true}]}],
+    let src = br#"{"vnx":"0.8.0","app.viatrail.rulesets":[{"zebra":1,"apple":[2,{"nested":true}]}],
       "com.example.null":null,"com.example.empty-array":[],"com.example.empty-object":{},"com.example.n":0}"#;
     let document = decode(src).expect("accepted").document;
     let out = encode(&document).expect("encodable");
@@ -102,8 +102,8 @@ fn app_keys_survive_a_read_modify_write() {
 fn the_tree_comparison_sees_a_dropped_empty_app_key() {
     assert!(
         tree::compare(
-            br#"{"vnx":"0.2.0"}"#,
-            br#"{"vnx":"0.2.0","com.example.empty":[]}"#,
+            br#"{"vnx":"0.8.0"}"#,
+            br#"{"vnx":"0.8.0","com.example.empty":[]}"#,
             EmitBoundary::Normalise
         )
         .is_some(),

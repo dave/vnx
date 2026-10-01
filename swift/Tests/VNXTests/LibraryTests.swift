@@ -16,7 +16,7 @@ final class LibraryTests: XCTestCase {
   }
 
   private func minimal(_ body: String) -> String {
-    "{\"vnx\":\"0.2.0\"\(body.isEmpty ? "" : ",")\(body)}"
+    "{\"vnx\":\"0.8.0\"\(body.isEmpty ? "" : ",")\(body)}"
   }
 
   // MARK: - Versions (SPEC 2.2)
@@ -24,25 +24,25 @@ final class LibraryTests: XCTestCase {
   func testVersionComponentsAreCompletelyNumeric() throws {
     // "Each component is one or more decimal digits, with no bound on
     // length and no rule against a leading zero: `00.01.0000` is a legal
-    // spelling of 0.1.0." The same holds of 0.2.0, the series this reader
+    // spelling of 0.1.0." The same holds of 0.8.0, the series this reader
     // implements.
-    let result = try read("{\"vnx\":\"00.02.0000\"}")
+    let result = try read("{\"vnx\":\"00.08.0000\"}")
     XCTAssertEqual(
-      result.document.vnx, "00.02.0000",
+      result.document.vnx, "00.08.0000",
       "a reader that re-encodes writes the version the document declared")
-    XCTAssertEqual(try VNX.write(result.document), Data("{\"vnx\":\"00.02.0000\"}".utf8))
+    XCTAssertEqual(try VNX.write(result.document), Data("{\"vnx\":\"00.08.0000\"}".utf8))
   }
 
   func testVersionsAcceptedAndRefused() throws {
-    // Every accepted spelling is in the 0.2 series. A long or
+    // Every accepted spelling is in the 0.8 series. A long or
     // leading-zeroed component is a SPELLING of a series, not another one.
-    for accepted in ["0.2.0", "0.2.3", "0.2.99", "00.2.0", "0.02.000000000000000000005"] {
+    for accepted in ["0.8.0", "0.8.3", "0.8.99", "00.8.0", "0.08.000000000000000000005"] {
       XCTAssertNoThrow(try read("{\"vnx\":\"\(accepted)\"}"), accepted)
     }
     // Another series, in either direction: SPEC 2.2 refuses a lower minor
     // for the same reason as a higher one, so `0.0.9` belongs in this list
-    // and not the one above. A 0.2 reader does not read 0.1.
-    for otherSeries in ["0.1.0", "0.1.99", "0.0.9", "0.0.0", "0.3.0", "1.0.0", "9.9.9", "0.20.0"] {
+    // and not the one above. A 0.8 reader does not read 0.1.
+    for otherSeries in ["0.1.0", "0.1.99", "0.0.9", "0.0.0", "0.9.0", "1.0.0", "9.9.9", "0.80.0"] {
       XCTAssertThrowsError(try read("{\"vnx\":\"\(otherSeries)\"}"), otherSeries) {
         XCTAssertEqual(($0 as? Refusal)?.cause, .versionUnsupportedSeries, otherSeries)
       }
@@ -81,7 +81,7 @@ final class LibraryTests: XCTestCase {
     }
     // A minor either side of the reader's is refused for the MINOR rule,
     // which names the series rather than the major regime.
-    for otherMinor in ["0.3.0", "0.1.0"] {
+    for otherMinor in ["0.9.0", "0.1.0"] {
       XCTAssertThrowsError(try read("{\"vnx\":\"" + otherMinor + "\"}"), otherMinor) {
         let refusal = $0 as! Refusal
         XCTAssertTrue(
@@ -90,7 +90,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(refusal.message.contains("MUST NOT read another one under its own rules"))
       }
     }
-    XCTAssertNoThrow(try read("{\"vnx\":\"0.2.99\"}"))
+    XCTAssertNoThrow(try read("{\"vnx\":\"0.8.99\"}"))
   }
 
   func testTopLevelMustBeAnObjectCarryingVNX() {
@@ -230,7 +230,7 @@ final class LibraryTests: XCTestCase {
   func testTheWritePathPreservesEveryDigitItIsHanded() throws {
     let source = Data(
       """
-      {"vnx":"0.2.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
+      {"vnx":"0.8.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
       """.utf8)
     let written = String(decoding: try VNX.write(try VNX.read(source).document), as: UTF8.self)
     XCTAssertTrue(
@@ -299,10 +299,10 @@ final class LibraryTests: XCTestCase {
     // the model holds, which is what makes the round trip a fixed point.
     XCTAssertEqual(
       try VNX.write(try read(minimal("\"waypoints\":[]")).document),
-      Data("{\"vnx\":\"0.2.0\",\"waypoints\":[]}".utf8))
+      Data("{\"vnx\":\"0.8.0\",\"waypoints\":[]}".utf8))
     XCTAssertEqual(
-      try VNX.write(try read("{\"vnx\":\"0.2.0\"}").document),
-      Data("{\"vnx\":\"0.2.0\"}".utf8))
+      try VNX.write(try read("{\"vnx\":\"0.8.0\"}").document),
+      Data("{\"vnx\":\"0.8.0\"}".utf8))
   }
 
   // MARK: - Data records (SPEC 5)
@@ -471,7 +471,7 @@ final class LibraryTests: XCTestCase {
 
   func testDuplicateObjectKeysResolveLastWinsWithNoDiagnostic() throws {
     let result = try read(
-      "{\"vnx\":\"0.2.0\",\"waypoints\":[{\"at\":[1,2]}],\"waypoints\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
+      "{\"vnx\":\"0.8.0\",\"waypoints\":[{\"at\":[1,2]}],\"waypoints\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
     )
     XCTAssertEqual(result.document.waypoints?.count, 2)
     XCTAssertEqual(result.diagnostics, [], "a documented limitation, not a rule")
@@ -481,7 +481,7 @@ final class LibraryTests: XCTestCase {
 
   func testTheParserIsStrict() {
     for bad in [
-      "{\"vnx\":\"0.2.0\",}", "{'vnx':'0.1.0'}", "{\"vnx\":\"0.2.0\"} trailing",
+      "{\"vnx\":\"0.8.0\",}", "{'vnx':'0.1.0'}", "{\"vnx\":\"0.8.0\"} trailing",
       "{\"vnx\":NaN}", "{\"vnx\":Infinity}", "{\"vnx\":-Infinity}", "{\"vnx\":01}",
       "{\"vnx\":.5}", "{\"vnx\":+1}", "{\"vnx\":\"a\\u00\"}", "// c\n{}",
       "{\"vnx\":\"tab\there\"}",
@@ -534,7 +534,7 @@ final class LibraryTests: XCTestCase {
 
   func testTheParserAcceptsWhatJSONAllows() throws {
     let result = try read(
-      "{\"vnx\":\"0.2.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
+      "{\"vnx\":\"0.8.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
     XCTAssertEqual(result.document.generator, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")
   }
 
@@ -733,7 +733,7 @@ final class LibraryTests: XCTestCase {
   }
 
   func testNotAZipAtAll() {
-    XCTAssertThrowsError(try VNX.readContainer(Data("{\"vnx\":\"0.2.0\"}".utf8))) {
+    XCTAssertThrowsError(try VNX.readContainer(Data("{\"vnx\":\"0.8.0\"}".utf8))) {
       XCTAssertEqual(($0 as? Refusal)?.cause, .containerMalformed)
     }
   }

@@ -41,7 +41,7 @@ let counter = 0;
 /** A highlight over a fixed three-node line, a --ab-- b --bc-- c. */
 function highlightDoc(walk) {
   return JSON.stringify({
-    vnx: '0.2.0',
+    vnx: '0.8.0',
     networks: [
       {
         nodes: { a: [0, 0], b: [1, 0], c: [2, 0] },
@@ -379,7 +379,7 @@ test("accepting a version outside the reader's series is caught by the reject ti
 
 test('comparing versions as "newer than" rather than "not this series" is caught by one file only', async () => {
   // The historical defect, restored exactly: SPEC.md 2.2 makes each 0.x MINOR
-  // its own series, and a "greater than" reader reads a 0.1 document under 0.2
+  // its own series, and a "greater than" reader reads a 0.1 document under 0.8
   // rules. reject/version-too-new.vnx does NOT catch it, which is why the pair
   // was incomplete and five of the six implementations shared the shape.
   const cases = await runMutated([
@@ -400,7 +400,7 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
       to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
     },
   ]);
-  // write/emit-boundary declares 0.2.99 too, so the same defect reddens both.
+  // write/emit-boundary declares 0.8.99 too, so the same defect reddens both.
   // reject/version-too-old.vnx is red for a third reason: 0.1.9 has a non-zero
   // PATCH, so the mutant refuses it before reaching the series check and says
   // "a newer reader is needed" about a document below the reader. It is refused
@@ -888,7 +888,7 @@ test('a reader that reports an arc pip time and keeps it is caught by the write 
   // reaches the writer, which refuses it, and the case fails.
   assert.deepEqual(await failingDelta(cases), ['write/arc-pip-time']);
   const text = JSON.stringify({
-    vnx: '0.2.0',
+    vnx: '0.8.0',
     networks: [{ nodes: { a: [0, 0], b: [1, 0] }, arcs: { ab: { from: 'a', to: 'b', pips: [[0.5, 0, 3, 100]] } } }],
   });
   const pip = (api) => api.decodeText(text).document.networks[0].arcs.get('ab').pips[0].channels;

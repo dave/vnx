@@ -4,7 +4,7 @@
 diagnostics.
 
 Rust 1.77 or later. Two dependencies, resolved by cargo: `serde_json` and
-`flate2`. Implements VNX 0.2.0, and reads the 0.2 series only —
+`flate2`. Implements VNX 0.8.0, and reads the 0.8 series only —
 [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install

@@ -1,5 +1,5 @@
 {
-  "vnx": "0.2.0",
+  "vnx": "0.8.0",
   "networks": [
     {
       "name": "A turn that is not a position",

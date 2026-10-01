@@ -28,7 +28,7 @@ import { WalkCursor } from './walk.js';
 
 /** The MAJOR.MINOR this reader implements (SPEC.md 2.2). */
 export const READER_MAJOR = 0;
-export const READER_MINOR = 2;
+export const READER_MINOR = 8;
 
 const DROP = Symbol('drop');
 
@@ -126,7 +126,7 @@ export function decodeValue(value) {
   // SPEC.md 2.2: through 0.x each MINOR is its own series, so the question is
   // whether the document is in THIS reader's series, not whether it is newer
   // than it. A lower minor is refused for the same reason as a higher one: a
-  // 0.2 reader has no rules for 0.1, exactly as it has none for 0.3. PATCH
+  // 0.8 reader has no rules for 0.1, exactly as it has none for 0.9. PATCH
   // never refuses, at any version, because a patch increment is additive.
   if (major !== READER_MAJOR || minor !== READER_MINOR) {
     const newer = major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR);

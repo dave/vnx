@@ -8,15 +8,15 @@ itself, not a JDK. One dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
 1.8.0, which this library's POM declares, so it arrives on a consumer's runtime
 classpath without the consumer naming it.
-Implements VNX 0.2.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
-0.x the MINOR component is a breaking axis, so this reader reads the 0.2 series
+Implements VNX 0.8.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
+0.x the MINOR component is a breaking axis, so this reader reads the 0.8 series
 and refuses every other, in both directions (SPEC §2.2).
 
 ## Install
 
 ```kotlin
 dependencies {
-    implementation("app.viatrail:vnx:0.2.0")
+    implementation("app.viatrail:vnx:0.8.0")
 }
 ```
 
@@ -49,7 +49,7 @@ republishing — take it in as a composite build instead. In the consuming
 includeBuild("../vnx/kotlin")
 ```
 
-and the same `implementation("app.viatrail:vnx:0.2.0")` line. Gradle substitutes
+and the same `implementation("app.viatrail:vnx:0.8.0")` line. Gradle substitutes
 the included build for the coordinate because the two agree on `group` and name;
 no `dependencySubstitution` block, and no `mavenLocal()`.
 
@@ -149,9 +149,9 @@ that is a thrown exception against the list returned beside the document.
 - **A refusal is a thrown `VnxRefusal`.** `refusal` is a `RefusalCause`, a closed
   enum, so the whole set is reachable from code; `Errors.kt` documents each one.
 - **Through 0.x a version refusal is about the SERIES, not about being newer.**
-  Each MINOR is its own series (SPEC §2.2), so this 0.2 reader refuses `0.1.9`
-  for the same reason it refuses `0.3.0`, and both raise
-  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.2.5` reads.
+  Each MINOR is its own series (SPEC §2.2), so this 0.8 reader refuses `0.1.9`
+  for the same reason it refuses `0.9.0`, and both raise
+  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.8.5` reads.
 - **Damage to one attachment is reported, not thrown.** SPEC §7 rules refusing a
   whole trail library over one damaged photograph disproportionate, so a
   corrupt or unreadable attachment leaves the document intact and raises an

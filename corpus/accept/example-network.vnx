@@ -1,7 +1,7 @@
 {
   "created": "2026-08-31T06:45:12Z",
   "generator": "Viatrail 0.1.93",
-  "vnx": "0.2.0",
+  "vnx": "0.8.0",
   "areas": [
     {
       "folder": "cairngorms",

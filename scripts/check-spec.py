@@ -43,6 +43,10 @@ checks the two things a script can decide:
     belong in SPEC.md. A rationale that states rules is a second definition of
     the format, which is the failure the generator existed to prevent.
 
+It also checks that every package manifest and every library's format-version
+constant carries the `SPEC.md` version, because CONTRIBUTING.md makes them one
+number.
+
 Widening a check here publishes the problem instead of solving it.
 """
 
@@ -403,6 +407,120 @@ def check_diagnose_codes(problems: list[str]) -> None:
         )
 
 
+# Every place a library states the version it is, or the format version it
+# implements or writes. CONTRIBUTING.md: the format and all six libraries carry
+# ONE version number. Each entry is (file, pattern, what it is); the pattern's
+# group is the version, or for a MAJOR.MINOR constant the two numbers. An
+# anchor that matches nothing is a failure, not a pass: a check that found no
+# version has compared nothing.
+VERSION_SITES = [
+    ("js/package.json", r'^  "version": "([^"]+)"', "npm package version"),
+    ("js/package-lock.json", r'^  "version": "([^"]+)"', "npm lock, top level"),
+    (
+        "js/package-lock.json",
+        r'^    "": \{\n      "name": "@viatrail/vnx",\n      "version": "([^"]+)"',
+        "npm lock, root package",
+    ),
+    (
+        "js/src/decode.js",
+        r"^export const READER_MAJOR = (\d+);\nexport const READER_MINOR = (\d+);",
+        "JS reader MAJOR.MINOR",
+    ),
+    ("python/pyproject.toml", r'^version = "([^"]+)"', "Python package version"),
+    ("python/vnx/__init__.py", r'^__version__ = "([^"]+)"', "Python __version__"),
+    (
+        "python/vnx/decode.py",
+        r"^SUPPORTED_VERSION = \((\d+), (\d+)\)",
+        "Python reader MAJOR.MINOR",
+    ),
+    (
+        "python/vnx/model.py",
+        r'^    vnx: str = "([^"]+)"',
+        "Python Document default version",
+    ),
+    ("kotlin/build.gradle.kts", r'^version = "([^"]+)"', "Kotlin artifact version"),
+    (
+        "kotlin/src/main/kotlin/app/viatrail/vnx/Version.kt",
+        r"val SUPPORTED = Version\((BigInteger\.\w+(?:\(\d+\))?), (BigInteger\.\w+(?:\(\d+\))?), (BigInteger\.\w+(?:\(\d+\))?)\)",
+        "Kotlin reader version",
+    ),
+    (
+        "scripts/interop/kotlin/build.gradle.kts",
+        r'implementation\("app\.viatrail:vnx:([^"]+)"\)',
+        "interop dependency on the Kotlin library",
+    ),
+    (
+        "rust/Cargo.toml",
+        r'^\[package\]\nname = "vnx"\nversion = "([^"]+)"',
+        "Rust crate version",
+    ),
+    (
+        "rust/src/model.rs",
+        r"^pub const SUPPORTED: \(u64, u64\) = \((\d+), (\d+)\);",
+        "Rust reader MAJOR.MINOR",
+    ),
+    ("go/pkg/vnx/vnx.go", r'^const Version = "([^"]+)"', "Go package Version"),
+    (
+        "swift/Sources/VNX/VNX.swift",
+        r'^  public static let version = "([^"]+)"',
+        "Swift VNX.version",
+    ),
+]
+
+BIGINTEGER = re.compile(r"BigInteger\.(?:(ZERO|ONE|TWO|TEN)|valueOf\((\d+)\))")
+BIGINTEGER_NAMED = {"ZERO": "0", "ONE": "1", "TWO": "2", "TEN": "10"}
+
+
+def check_versions(problems: list[str]) -> None:
+    """The format and every library carry one version (CONTRIBUTING.md)."""
+    spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+    stated = re.search(r"^Version (\d+\.\d+\.\d+)$", spec, re.MULTILINE)
+    if not stated:
+        problems.append(
+            "SPEC.md: no 'Version MAJOR.MINOR.PATCH' line, so no library version was checked"
+        )
+        return
+    version = stated.group(1)
+    series = ".".join(version.split(".")[:2])
+    for pattern, what in [
+        (r"^\| Current version \| `([^`]+)` \|$", "the Current version table row"),
+        (
+            r"^A reader of this version supports the (\d+\.\d+) series only\.$",
+            "the supported-series sentence",
+        ),
+    ]:
+        found = re.search(pattern, spec, re.MULTILINE)
+        want = series if "series" in what else version
+        if not found:
+            problems.append(f"SPEC.md: {what} is missing")
+        elif found.group(1) != want:
+            problems.append(
+                f"SPEC.md: {what} says {found.group(1)}, the Version line says {version}"
+            )
+
+    for rel, pattern, what in VERSION_SITES:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        found = re.search(pattern, text, re.MULTILINE)
+        if not found:
+            problems.append(
+                f"{rel}: the {what} was not found, so it was not compared with SPEC.md"
+            )
+            continue
+        parts = list(found.groups())
+        if parts[0].startswith("BigInteger"):
+            parts = [
+                next(g for g in BIGINTEGER.fullmatch(p).groups() if g) for p in parts
+            ]
+            parts = [BIGINTEGER_NAMED.get(p, p) for p in parts]
+        got = ".".join(parts)
+        want = version if len(parts) != 2 else series
+        if got != want:
+            problems.append(
+                f"{rel}: the {what} is {got} and SPEC.md is {version}. The format and all "
+                "six libraries carry one version; see CONTRIBUTING.md."
+            )
+
+
 def check_format(problems: list[str]) -> None:
     """Every source file is in its formatter's style (CONTRIBUTING.md).
 
@@ -447,6 +565,7 @@ def main() -> None:
     problems: list[str] = []
     check_ruling_backlog(problems)
     check_diagnose_codes(problems)
+    check_versions(problems)
     check_format(problems)
     check_sidecar_notes(problems)
     check_markdown_structure(problems)

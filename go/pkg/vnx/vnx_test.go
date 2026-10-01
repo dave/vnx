@@ -11,7 +11,7 @@ import (
 )
 
 func TestDecodeEnvelope(t *testing.T) {
-	src := `{"vnx":"0.2.0","generator":"Viatrail 0.1.93","created":"2026-08-31T06:45:12Z"}`
+	src := `{"vnx":"0.8.0","generator":"Viatrail 0.1.93","created":"2026-08-31T06:45:12Z"}`
 	doc, diags, err := Decode([]byte(src))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
@@ -19,7 +19,7 @@ func TestDecodeEnvelope(t *testing.T) {
 	if len(diags) != 0 {
 		t.Fatalf("clean document produced %d diagnostics: %v", len(diags), diags)
 	}
-	if doc.Version != "0.2.0" || doc.Generator != "Viatrail 0.1.93" {
+	if doc.Version != "0.8.0" || doc.Generator != "Viatrail 0.1.93" {
 		t.Fatalf("envelope not carried: %+v", doc)
 	}
 }
@@ -30,7 +30,7 @@ func TestDecodeRefusals(t *testing.T) {
 		src  string
 		want error
 	}{
-		{"newer minor", `{"vnx":"0.3.0"}`, ErrUnsupportedVersion},
+		{"newer minor", `{"vnx":"0.9.0"}`, ErrUnsupportedVersion},
 		{"newer major", `{"vnx":"1.0.0"}`, ErrUnsupportedVersion},
 		{"two components", `{"vnx":"0.1"}`, ErrUnsupportedVersion},
 		{"four components", `{"vnx":"0.1.0.0"}`, ErrUnsupportedVersion},
@@ -70,7 +70,7 @@ func TestOlderMinorRefused(t *testing.T) {
 	for _, declared := range []string{"0.1.0", "0.1.99", "0.0.9"} {
 		_, _, err := Decode([]byte(`{"vnx":"` + declared + `"}`))
 		if err == nil {
-			t.Errorf("%s must be refused by a %s reader that supports the 0.2 series only", declared, Version)
+			t.Errorf("%s must be refused by a %s reader that supports the 0.8 series only", declared, Version)
 			continue
 		}
 		// The refusal must name the version, so whoever holds the file knows
@@ -97,7 +97,7 @@ func TestVersionRefusalSaysWhichWay(t *testing.T) {
 		declared string
 		want     error
 	}{
-		{"0.3.0", ErrNewerVersion},
+		{"0.9.0", ErrNewerVersion},
 		{"1.0.0", ErrNewerVersion},
 		{"0.1.0", ErrOlderVersion},
 		{"0.1.99", ErrOlderVersion},
@@ -128,14 +128,14 @@ func TestVersionRefusalSaysWhichWay(t *testing.T) {
 // added arrives as an unknown-key diagnostic (§6.2), not as a refusal.
 //
 // A reader that compared all three components would refuse this, and the refusal
-// would be indistinguishable to a user from the correct 0.2.0 one — which is why
+// would be indistinguishable to a user from the correct 0.8.0 one — which is why
 // it has its own test rather than riding on TestOlderMinorAccepted.
 func TestNewerPatchAccepted(t *testing.T) {
 	// ⚠ EVERY CASE IS IN THIS READER'S OWN MINOR SERIES. "0.0.99" used to be
 	// here, which made the test's name wrong about what it covered: that is a
 	// lower minor carrying a high patch, and spec §2.2 now refuses it, so it was
 	// never testing the patch rule. It moved to TestOlderMinorRefused.
-	for _, declared := range []string{"0.2.0", "0.2.1", "0.2.3", "0.2.99"} {
+	for _, declared := range []string{"0.8.0", "0.8.1", "0.8.3", "0.8.99"} {
 		doc, _, err := Decode([]byte(`{"vnx":"` + declared + `"}`))
 		if err != nil {
 			t.Fatalf("%s must be accepted by a %s reader: %v", declared, Version, err)

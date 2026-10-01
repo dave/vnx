@@ -72,9 +72,9 @@ func TestDecodePositionRefusals(t *testing.T) {
 // Python implementation writes files nothing else can parse.
 func TestNonFiniteRefused(t *testing.T) {
 	for _, src := range []string{
-		`{"vnx":"0.2.0","generator":NaN}`,
-		`{"vnx":"0.2.0","generator":Infinity}`,
-		`{"vnx":"0.2.0","generator":-Infinity}`,
+		`{"vnx":"0.8.0","generator":NaN}`,
+		`{"vnx":"0.8.0","generator":Infinity}`,
+		`{"vnx":"0.8.0","generator":-Infinity}`,
 	} {
 		if _, _, err := Decode([]byte(src)); !errors.Is(err, ErrMalformed) {
 			t.Fatalf("%s: got %v, want ErrMalformed", src, err)
@@ -121,7 +121,7 @@ func TestTimestampTimeRefusesWhatNoCalendarHas(t *testing.T) {
 // writes it back unchanged: the trailing zero of .250 survives.
 func TestTimestampsAreKeptVerbatim(t *testing.T) {
 	for _, s := range []string{"2026-05-12T07:03:11.250Z", "2026-13-45T99:99:99Z"} {
-		src := `{"vnx":"0.2.0","tracks":[{"started":"` + s + `","segments":[{"pips":[[-3.67,57.11]]}]}]}`
+		src := `{"vnx":"0.8.0","tracks":[{"started":"` + s + `","segments":[{"pips":[[-3.67,57.11]]}]}]}`
 		doc, diags, err := Decode([]byte(src))
 		if err != nil || len(diags) != 0 {
 			t.Fatalf("%s: err %v, diags %v", s, err, diags)
@@ -143,9 +143,9 @@ func TestTimestampsAreKeptVerbatim(t *testing.T) {
 // document §4.3 forbids — on a track and on the document header alike.
 func TestEncodeRefusesAMalformedTimestamp(t *testing.T) {
 	for name, doc := range map[string]*Document{
-		"track ended": {Version: "0.2.0", Tracks: []Track{{Name: "t", Ended: "2026-05-12T07:03:11+01:00",
+		"track ended": {Version: "0.8.0", Tracks: []Track{{Name: "t", Ended: "2026-05-12T07:03:11+01:00",
 			Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}}}},
-		"document created": {Version: "0.2.0", Created: "2026-05-12T07:03:11+01:00"},
+		"document created": {Version: "0.8.0", Created: "2026-05-12T07:03:11+01:00"},
 	} {
 		if _, err := Encode(doc); err == nil {
 			t.Errorf("%s: Encode wrote a timestamp outside §4.3's grammar", name)
@@ -156,7 +156,7 @@ func TestEncodeRefusesAMalformedTimestamp(t *testing.T) {
 // §4.3 names `created` beside `started` and `ended`: the same shape check, the
 // same drop-and-diagnose, and a calendar-invalid value kept verbatim.
 func TestCreatedIsARecordLevelTimestamp(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.2.0","created":"2026-05-12T08:03:11+01:00"}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","created":"2026-05-12T08:03:11+01:00"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestCreatedIsARecordLevelTimestamp(t *testing.T) {
 		t.Fatalf("got %v", diags)
 	}
 	const odd = "2026-13-45T99:99:99Z"
-	doc, diags, err = Decode([]byte(`{"vnx":"0.2.0","created":"` + odd + `"}`))
+	doc, diags, err = Decode([]byte(`{"vnx":"0.8.0","created":"` + odd + `"}`))
 	if err != nil || len(diags) != 0 || doc.Created != odd {
 		t.Fatalf("err %v, diags %v, created %q", err, diags, doc.Created)
 	}

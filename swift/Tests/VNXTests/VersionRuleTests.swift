@@ -117,10 +117,10 @@ final class VersionRuleTests: XCTestCase {
     }
   }
 
-  /// The shipped reader is a 0.2 reader, and that is not an accident of
+  /// The shipped reader is a 0.8 reader, and that is not an accident of
   /// configuration.
   func testTheShippedReaderIsTheOneTheLibraryDeclares() {
     XCTAssertEqual(DocumentDecoder().readerVersion.display, VNX.version)
-    XCTAssertEqual(VNX.version, "0.2.0")
+    XCTAssertEqual(VNX.version, "0.8.0")
   }
 }

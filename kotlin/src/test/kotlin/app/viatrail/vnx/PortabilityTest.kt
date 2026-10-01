@@ -30,9 +30,9 @@ class PortabilityTest {
                 // separator: a comma there would not be JSON at all.
                 val written =
                     Vnx.write(
-                        Vnx.readDocument("""{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
+                        Vnx.readDocument("""{"vnx":"0.8.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
                     )
-                assertEquals("""{"vnx":"0.2.0","waypoints":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
+                assertEquals("""{"vnx":"0.8.0","waypoints":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
             }
         } finally {
             Locale.setDefault(original)
@@ -86,9 +86,9 @@ class PortabilityTest {
     @Test
     fun `a byte order mark on the way in does not become one on the way out`() {
         // This writer emits none. A reader still meets one.
-        val bytes = "{\"vnx\":\"0.2.0\"}".toByteArray(Charsets.UTF_8)
+        val bytes = "{\"vnx\":\"0.8.0\"}".toByteArray(Charsets.UTF_8)
         val r = Vnx.readDocument(bytes)
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals("{\"vnx\":\"0.2.0\"}\n", Vnx.write(r.document))
+        assertEquals("{\"vnx\":\"0.8.0\"}\n", Vnx.write(r.document))
     }
 }

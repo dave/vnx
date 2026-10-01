@@ -13,7 +13,7 @@ format is.
 | [`go/`](go/) | The reference implementation, and the `vnx` command-line tool under `go/cmd/vnx`. |
 | [`python/`](python/), [`js/`](js/), [`rust/`](rust/), [`kotlin/`](kotlin/), [`swift/`](swift/) | The five other libraries. Each is a standalone build with no dependency on the others. |
 | [`IMPLEMENTING.md`](IMPLEMENTING.md) | What a seventh implementation has to get right, and what it costs. |
-| [`scripts/`](scripts/) | `check-spec.py`, which checks the published documents for dead links and register defects. |
+| [`scripts/`](scripts/) | `check-spec.py`, which checks the published documents for dead links and register defects, and that every library carries the `SPEC.md` version. |
 
 ## The corpus decides conformance
 
@@ -78,6 +78,28 @@ that is missing fails the check rather than skipping its language.
 
 A commit that reformats code carries formatting only, under
 `style(<scope>): format with <tool>`.
+
+## Versions and releases
+
+The format and the six libraries carry one version number, in the
+`MAJOR.MINOR.PATCH` form of [Semantic Versioning](https://semver.org). The
+`Version` line at the top of [`SPEC.md`](SPEC.md) is that number. Every package
+manifest carries it, and so does every library constant that names the format
+version the library reads or writes.
+
+A release bumps all of them together, in one commit, and tags that commit twice:
+
+```sh
+git tag -a v0.8.0 -m "VNX 0.8.0"      # the repository root, which SwiftPM resolves
+git tag -a go/v0.8.0 -m "VNX 0.8.0"   # the Go module in go/, whose tags carry its directory
+```
+
+A change to one library alone, with no change to the format, is a PATCH bump of
+everything: the format version moves with it, and a reader accepts any PATCH of
+its own series ([`SPEC.md`](SPEC.md) section 2.2).
+
+`python3 scripts/check-spec.py` fails when a manifest or a library constant
+differs from the `SPEC.md` version.
 
 ## Commit messages
 

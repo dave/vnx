@@ -280,9 +280,9 @@ pub struct Pass {
     pub from: Option<Endpoint>,
     pub to: Option<Endpoint>,
     pub turn: Option<LonLat>,
-    /// `false` is written as nothing: SPEC 3.3.3 has a writer emit `pinned`
-    /// only when it is `true`, and a reader treat `false` as absent.
-    pub pinned: bool,
+    /// The pass is pinned when this is set: the user fixed it with a handle at
+    /// this position. The pin leaves what the pass covers unchanged.
+    pub pin: Option<LonLat>,
 }
 
 impl Pass {
@@ -293,7 +293,7 @@ impl Pass {
             from: None,
             to: None,
             turn: None,
-            pinned: false,
+            pin: None,
         }
     }
 }

@@ -54,7 +54,7 @@ impl Cursor {
     }
 
     /// Check pass `i` against the rules that span more than the pass's own
-    /// values, in SPEC 6.2's order (steps 5 to 8), and move to where the pass
+    /// values, in SPEC 6.2's order (steps 4 to 7), and move to where the pass
     /// leaves. Returns the pass's entry and exit.
     pub fn step(
         &mut self,
@@ -68,7 +68,7 @@ impl Cursor {
             cause,
         };
 
-        // 5. A route's walk carries no position, turn or pin.
+        // 4. A route's walk carries no position, turn or pin.
         if self.route {
             let route_fault = |key: &'static str, detail: &str| {
                 fault(
@@ -93,17 +93,17 @@ impl Cursor {
             if p.turn.is_some() {
                 return Err(route_fault("turn", "a route's walk carries no turn"));
             }
-            if p.pinned {
-                return Err(route_fault("pinned", "a route's walk carries no pin"));
+            if p.pin.is_some() {
+                return Err(route_fault("pin", "a route's walk carries no pin"));
             }
         }
 
-        // 6. A turn already fixes a pass, so it is never also pinned.
-        if p.turn.is_some() && p.pinned {
+        // 5. A turn already fixes a pass, so it carries no pin.
+        if p.turn.is_some() && p.pin.is_some() {
             return Err(fault(None, Cause::PinnedTurn));
         }
 
-        // 7. The rule for `from` and `to`: first `from`, then `to`.
+        // 6. The rule for `from` and `to`: first `from`, then `to`.
         let spelling = |key: Option<&'static str>, detail: &str| {
             fault(
                 key,
@@ -137,7 +137,7 @@ impl Cursor {
             ));
         }
 
-        // 8. The walk is connected.
+        // 7. The walk is connected.
         let not_connected = |key: Option<&'static str>, detail: String| {
             fault(key, Cause::WalkNotConnected { detail })
         };

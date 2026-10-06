@@ -77,7 +77,7 @@ root.
 | `Network`, `Route` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `highlights`, a route its own `walk` |
 | `Arc` | `from`, `to`, `pips: Vec<Vertex>` (the interior points only), `data` |
 | `Highlight` | `walk: Vec<Pass>`, and `name`, `notes`, `hidden`, `style`, `data` |
-| `Pass` | `arc`, `from` and `to` (`Option<Endpoint>`), `turn: Option<LonLat>`, `pinned: bool` |
+| `Pass` | `arc`, `from` and `to` (`Option<Endpoint>`), `turn: Option<LonLat>`, `pin: Option<LonLat>` |
 | `Endpoint` | `Node(String)` or `At(LonLat)` |
 | `Vertex` | `lon`, `lat`, `ele: Option<f64>`: a node or an arc pip, which carries no time |
 | `LonLat` | `lon`, `lat`: a position in a walk |

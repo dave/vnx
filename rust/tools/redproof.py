@@ -51,7 +51,7 @@ too: `6d58c62` removed the check it broke, so its pattern no longer exists.
     keep a self-loop / an arc naming an absent node diagnose, unit
     keep a ring's repeat / a ring under 3 points    diagnose, unit
     count distinct ring positions by every channel  unit only
-    write a false `pinned`               accept, unit
+    write a pass without its pin         accept, unit
     write without the arc/walk/ring checks   unit only (no tier writes a model
                                          the reader did not produce)
 
@@ -364,8 +364,8 @@ MUTATIONS = [
     (
         "skip the pinned-turn check",
         "src/walk.rs",
-        "        if p.turn.is_some() && p.pinned {",
-        "        if false && p.turn.is_some() && p.pinned {",
+        "        if p.turn.is_some() && p.pin.is_some() {",
+        "        if false && p.turn.is_some() && p.pin.is_some() {",
     ),
     (
         "skip the route rule",
@@ -439,12 +439,12 @@ MUTATIONS = [
         "        if !seen.iter().any(|q| q.same_point(p)) {",
         "        if !seen.iter().any(|q| *q == p) {",
     ),
-    # SPEC 3.3.3: a writer emits `pinned` only when it is true.
+    # SPEC 3.3.3: a pinned pass is written with its pin.
     (
-        "write a false `pinned`",
+        "write a pass without its pin",
         "src/encode.rs",
-        '                if p.pinned {\n                    o.raw("pinned", Json::Bool(true));\n                }',
-        '                o.raw("pinned", Json::Bool(p.pinned));',
+        '                if let Some(pin) = &p.pin {\n                    o.raw("pin", lon_lat(pin));\n                }',
+        "",
     ),
     # The writer's checks. No corpus tier writes a model the reader did not
     # produce, so the unit tests in `encode.rs` are what hold these.

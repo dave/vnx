@@ -1490,6 +1490,7 @@ fn network_position(network: &Network, tokens: &[String]) -> Option<(f64, f64)> 
                     }
                 }
                 "turn" => pass.turn?,
+                "pin" => pass.pin?,
                 _ => return None,
             };
             Some((at.lon, at.lat))

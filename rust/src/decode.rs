@@ -91,7 +91,7 @@ const NETWORK_KEYS: &[&str] = &[
 /// An arc, in a network or a route.
 const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
 const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
-const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pinned"];
+const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
 const ROUTE_KEYS: &[&str] = &[
     "walk", "name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data",
 ];
@@ -757,7 +757,7 @@ impl Decoder {
         Some(walk)
     }
 
-    /// Read one pass: SPEC 6.2's steps 1 to 4. Steps 5 to 8 need the walk
+    /// Read one pass: SPEC 6.2's steps 1 to 3. Steps 4 to 7 need the walk
     /// around it and are the [`Cursor`]'s.
     fn pass<'a>(
         &mut self,
@@ -806,18 +806,18 @@ impl Decoder {
             ));
         };
 
-        // 2. Unrecognised keys. 3. `pinned`, which reads `false` as absent.
+        // 2. Unrecognised keys.
         self.check_keys(members, PASS_KEYS, &at);
         let mut pass = Pass::over(&arc_key);
-        pass.pinned = self.opt_bool(members, "pinned", &at).unwrap_or(false);
 
-        // 4. `from`, `to` and `turn`, in that order: each parses.
-        for key in ["from", "to", "turn"] {
+        // 3. `from`, `to`, `turn` and `pin`, in that order: each parses.
+        for key in ["from", "to", "turn", "pin"] {
             let Some(value) = self.field(members, key) else {
                 continue;
             };
+            let position_only = key == "turn" || key == "pin";
             let endpoint = match value {
-                Json::String(node) if key != "turn" => Endpoint::Node(node.clone()),
+                Json::String(node) if !position_only => Endpoint::Node(node.clone()),
                 Json::Array(channels) => {
                     let position = parse_position(channels).map_err(|detail| {
                         fault(
@@ -844,7 +844,7 @@ impl Decoder {
                     })
                 }
                 other => {
-                    let expected = if key == "turn" {
+                    let expected = if position_only {
                         "a position"
                     } else {
                         "a node key or a position"
@@ -861,8 +861,11 @@ impl Decoder {
             match (key, endpoint) {
                 ("from", e) => pass.from = Some(e),
                 ("to", e) => pass.to = Some(e),
-                (_, Endpoint::At(p)) => pass.turn = Some(p),
-                (_, Endpoint::Node(_)) => unreachable!("a turn is never read as a node key"),
+                ("turn", Endpoint::At(p)) => pass.turn = Some(p),
+                (_, Endpoint::At(p)) => pass.pin = Some(p),
+                (_, Endpoint::Node(_)) => {
+                    unreachable!("a turn or a pin is never read as a node key")
+                }
             }
         }
         Ok((pass, arc))
@@ -1543,7 +1546,7 @@ mod tests {
         let cases: Vec<(&str, Vec<(String, &'static str)>)> = vec![
             // Valid: every form in one walk.
             (
-                r#"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pinned":true},
+                r#"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pin":[-3.585,57.1]},
                     {"arc":"cd","turn":[-3.574,57.1]},{"arc":"cb"},{"arc":"ab","to":[-3.598,57.1]}]"#,
                 vec![],
             ),
@@ -1560,31 +1563,43 @@ mod tests {
                 r#"[{"arc":"ab","from":"a","to":"b","via":1}]"#,
                 at("0/via", "unknown-key"),
             ),
-            // 3. `pinned` of the wrong type drops the field only.
+            // 2. `pinned` is an unknown key, reported, and the highlight kept.
             (
-                r#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#,
-                at("0/pinned", "wrong-type-optional"),
+                r#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#,
+                at("0/pinned", "unknown-key"),
             ),
-            // 4. a position that will not parse, or a node key as a turn.
+            // 3. a position that will not parse, or a node key as a turn or a pin.
             (
                 r#"[{"arc":"ab","from":"a","to":"b","turn":"b"}]"#,
                 at("0/turn", "position-unusable"),
             ),
             (
+                r#"[{"arc":"ab","from":"a","to":"b","pin":"b"}]"#,
+                at("0/pin", "position-unusable"),
+            ),
+            (
+                r#"[{"arc":"ab","from":"a","to":"b","pin":true}]"#,
+                at("0/pin", "position-unusable"),
+            ),
+            (
                 r#"[{"arc":"ab","from":[null,57.1],"to":"b"}]"#,
                 at("0/from", "position-unusable"),
             ),
-            // 4. an elevation on a walk position is dropped, the pass kept.
+            // 3. an elevation on a walk position is dropped, the pass kept.
             (
                 r#"[{"arc":"ab","from":[-3.597,57.1005,410],"to":"b"}]"#,
                 at("0/from", "extra-channel"),
             ),
-            // 6. a turn and a pin together.
             (
-                r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.101],"pinned":true}]"#,
+                r#"[{"arc":"ab","from":"a","to":"b","pin":[-3.596,57.1003,410]}]"#,
+                at("0/pin", "extra-channel"),
+            ),
+            // 5. a turn and a pin together.
+            (
+                r#"[{"arc":"ab","from":"a","to":"a","turn":[-3.595,57.101],"pin":[-3.596,57.1003]}]"#,
                 at("0", "pinned-turn"),
             ),
-            // 7. the rule for `from` and `to`.
+            // 6. the rule for `from` and `to`.
             (r#"[{"arc":"ab","to":"b"}]"#, at("0", "walk-spelling")),
             (r#"[{"arc":"ab","from":"a"}]"#, at("0", "walk-spelling")),
             (
@@ -1599,7 +1614,7 @@ mod tests {
                 r#"[{"arc":"ab","from":[-3.597,57.1005]},{"arc":"cb","to":"c"}]"#,
                 at("0", "walk-spelling"),
             ),
-            // 8. the walk is connected.
+            // 7. the walk is connected.
             (
                 r#"[{"arc":"ab","from":"c","to":"b"}]"#,
                 at("0/from", "walk-not-connected"),
@@ -1683,8 +1698,8 @@ mod tests {
                 "turn",
             ),
             (
-                r#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#,
-                "pinned",
+                r#"[{"arc":"ab","from":"a","to":"b","pin":[-3.595,57.1]}]"#,
+                "pin",
             ),
         ] {
             let reading = route(walk);
@@ -1695,13 +1710,6 @@ mod tests {
             );
             assert_eq!(reading.document.routes.expect("kept").len(), 0, "{walk}");
         }
-        // `"pinned": false` is absent (SPEC 3.3.3), so it is no pin.
-        assert_eq!(
-            pairs(&route(
-                r#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#
-            )),
-            vec![]
-        );
     }
 
     /// SPEC 3.3.1, 3.3.2: a node and an arc pip carry no time. The time goes,

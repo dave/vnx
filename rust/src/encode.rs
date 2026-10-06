@@ -174,9 +174,8 @@ fn walk(passes: &[Pass]) -> Json {
                 if let Some(turn) = &p.turn {
                     o.raw("turn", lon_lat(turn));
                 }
-                // SPEC 3.3.3: `pinned` is written only when it is `true`.
-                if p.pinned {
-                    o.raw("pinned", Json::Bool(true));
+                if let Some(pin) = &p.pin {
+                    o.raw("pin", lon_lat(pin));
                 }
                 o.done()
             })
@@ -575,9 +574,14 @@ mod tests {
             "{ghost:?}"
         );
 
-        let pinned_route = refused(&|d: &mut Document| route(d).walk[0].pinned = true);
+        let pinned_route = refused(&|d: &mut Document| {
+            route(d).walk[0].pin = Some(LonLat {
+                lon: -3.6,
+                lat: 57.1,
+            })
+        });
         assert!(
-            matches!(&pinned_route, EncodeError::Walk { path, cause } if path == "/routes/0/walk/0/pinned" && cause.code() == "route-pin-or-position"),
+            matches!(&pinned_route, EncodeError::Walk { path, cause } if path == "/routes/0/walk/0/pin" && cause.code() == "route-pin-or-position"),
             "{pinned_route:?}"
         );
 
@@ -597,17 +601,17 @@ mod tests {
         assert!(matches!(&thin, EncodeError::Ring { .. }), "{thin:?}");
     }
 
-    /// SPEC 3.3.3: `pinned` is written only when true, and a walk position,
-    /// a node and an arc pip carry no channel the format does not give them.
+    /// SPEC 3.3.3: a pin is written as a position, and a walk position, a node
+    /// and an arc pip carry no channel the format does not give them.
     #[test]
     fn a_walk_is_written_in_its_one_spelling() {
         let out = encode_text(
             r#"{"vnx":"0.9.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,5],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101,null,9]]}},
-                 "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,
+                 "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pin":[-3.596,57.1003,4]}]}]}]}"#,
         );
-        assert!(!out.contains("pinned"), "{out}");
+        assert!(out.contains(r#""pin":[-3.596,57.1003]"#), "{out}");
         assert!(
             out.contains(r#""a":[-3.6,57.1,410]"#),
             "the node's time is gone: {out}"

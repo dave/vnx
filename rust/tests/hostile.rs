@@ -241,7 +241,7 @@ fn the_declared_size_bounds_the_output_while_it_is_produced() {
 fn no_truncation_or_corruption_of_a_document_panics() {
     let source: &[u8] = br#"{"vnx":"0.9.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
         "arcs":{"a":{"from":"n1","to":"n2","pips":[[-3.67,57.11,340]]}},
-        "highlights":[{"walk":[{"arc":"a","from":"n1","turn":[-3.67,57.11]},{"arc":"a","pinned":true},
+        "highlights":[{"walk":[{"arc":"a","from":"n1","turn":[-3.67,57.11]},{"arc":"a","pin":[-3.67,57.11]},
                            {"arc":"a","to":[-3.67,57.11]}]}]}],
         "routes":[{"nodes":{"a":[-3.6,57.1]},"arcs":{},"walk":[]}],
         "tracks":[{"segments":[{"pips":[[-3.6,57.1,1,2]]}]}],

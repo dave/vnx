@@ -69,10 +69,10 @@ pub enum Cause {
     WalkSpelling { detail: String },
     /// SPEC 3.3.3: valid-walk rules 3, 4 and 5. The highlight is dropped.
     WalkNotConnected { detail: String },
-    /// SPEC 3.3.3: a pass carrying both `turn` and `pinned`. The highlight is
+    /// SPEC 3.3.3: a pass carrying both `turn` and `pin`. The highlight is
     /// dropped.
     PinnedTurn,
-    /// SPEC 3.4: a position, a `turn` or `pinned` in a route's walk. The route
+    /// SPEC 3.4: a position, a `turn` or a `pin` in a route's walk. The route
     /// is dropped.
     RoutePinOrPosition { detail: String },
     /// SPEC 3.7: a `polygon` holding rings rather than positions. The area is
@@ -206,7 +206,7 @@ impl std::fmt::Display for Cause {
             Cause::WalkNotConnected { detail } => write!(f, "{detail}; the highlight is dropped"),
             Cause::PinnedTurn => write!(
                 f,
-                "a pass with a turn is never pinned, because the turn already fixes it; \
+                "a pass with a turn carries no pin, because the turn already fixes it; \
                  the highlight is dropped"
             ),
             Cause::RoutePinOrPosition { detail } => {

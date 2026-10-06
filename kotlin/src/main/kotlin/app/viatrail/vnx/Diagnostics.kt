@@ -137,10 +137,10 @@ enum class DiagnosticCause(
      */
     WALK_NOT_CONNECTED("walk-not-connected", null),
 
-    /** A pass carrying both `turn` and `pinned`. (3.3.3, 6.2) */
+    /** A pass carrying both `turn` and `pin`. (3.3.3, 6.2) */
     PINNED_TURN("pinned-turn", null),
 
-    /** A position, a `turn` or `pinned` in a route's walk. The route is dropped. (3.4, 6.2) */
+    /** A position, a `turn` or a `pin` in a route's walk. The route is dropped. (3.4, 6.2) */
     ROUTE_PIN_OR_POSITION("route-pin-or-position", null),
 
     /** A `folder` naming a folder that is not present in the document. (6.2) */

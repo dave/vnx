@@ -55,7 +55,7 @@ internal class Decoder(
         val HIGHLIGHT_REQUIRED = setOf("walk")
         val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
         val PASS_REQUIRED = setOf("arc")
-        val PASS_OPTIONAL = setOf("from", "to", "turn", "pinned")
+        val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
         val ROUTE_REQUIRED = setOf("walk")
         val ROUTE_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
@@ -775,20 +775,19 @@ internal class Decoder(
                             },
                         ),
                     )
-            // 2. Unrecognised keys. 3. `pinned`, dropped alone if it is not a
-            // boolean; `"pinned": false` is the same as absent.
+            // 2. Unrecognised keys.
             recogniseKeys(element, passAt, Keys.PASS_REQUIRED, Keys.PASS_OPTIONAL)
-            val pinned = optionalBool(element, "pinned", passAt) ?: false
-            // 4. `from`, `to` and `turn`, in that order, each parse.
+            // 3. `from`, `to`, `turn` and `pin`, in that order, each parse.
             val ends = HashMap<String, Endpoint>()
-            for (key in listOf("from", "to", "turn")) {
+            for (key in listOf("from", "to", "turn", "pin")) {
                 val v = element[key] ?: continue
-                if (v is JsonString && key != "turn") {
+                val positionOnly = key == "turn" || key == "pin"
+                if (v is JsonString && !positionOnly) {
                     ends[key] = Endpoint.Node(v.value)
                     continue
                 }
                 if (v !is JsonArray) {
-                    val want = if (key == "turn") "a position" else "a node key or a position"
+                    val want = if (positionOnly) "a position" else "a node key or a position"
                     return drop(WalkFault(i, key, DiagnosticCause.POSITION_UNUSABLE, "`$key` is ${v.typeName()}, expected $want"))
                 }
                 var why: String? = null
@@ -810,9 +809,9 @@ internal class Decoder(
                     from = ends["from"],
                     to = ends["to"],
                     turn = (ends["turn"] as Endpoint.At?)?.position,
-                    pinned = pinned,
+                    pin = (ends["pin"] as Endpoint.At?)?.position,
                 )
-            // 5 to 8: a route's rule, pin and turn, spelling, connection.
+            // 4 to 7: a route's rule, pin and turn, spelling, connection.
             cursor.step(i, pass, arc)?.let { return drop(it) }
             out.add(pass)
         }

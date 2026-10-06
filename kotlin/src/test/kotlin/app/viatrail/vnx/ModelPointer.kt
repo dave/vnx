@@ -80,6 +80,7 @@ object ModelPointer {
                     "from" -> (value.from as? Endpoint.At)?.position
                     "to" -> (value.to as? Endpoint.At)?.position
                     "turn" -> value.turn
+                    "pin" -> value.pin
                     else -> null
                 }
             is Route ->

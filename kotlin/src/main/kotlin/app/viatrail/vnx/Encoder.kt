@@ -202,7 +202,7 @@ internal class Encoder {
 
     /**
      * A walk. `from` and `to` are written where the pass carries them, which is
-     * where section 3.3.3's rule puts them; `pinned` is written only when true.
+     * where section 3.3.3's rule puts them; `turn` and `pin` where the pass has one.
      */
     private fun walk(walk: List<Pass>) =
         JsonArray(
@@ -213,7 +213,7 @@ internal class Encoder {
                     .put("from", p.from?.let(::endpoint))
                     .put("to", p.to?.let(::endpoint))
                     .put("turn", p.turn?.let { position(it.position()) })
-                    .putBool("pinned", if (p.pinned) true else null)
+                    .put("pin", p.pin?.let { position(it.position()) })
                     .build()
             },
         )

@@ -418,24 +418,43 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `a pass carrying both turn and pinned drops the highlight, at the pass`() {
-        val r = walkOf("""[{"arc":"cd","from":"c","turn":[-3.574,57.102],"pinned":true,"to":"c"}]""")
+    fun `a pass carrying both turn and pin drops the highlight, at the pass`() {
+        val r = walkOf("""[{"arc":"cd","from":"c","turn":[-3.574,57.102],"pin":[-3.575,57.102],"to":"c"}]""")
         assertEquals(listOf("/networks/0/highlights/0/walk/0" to "pinned-turn"), r.pairs())
     }
 
     @Test
-    fun `pinned false is the same as absent, and a pinned of the wrong type drops only the field`() {
-        val clean = walkOf("""[{"arc":"cd","from":"c","turn":[-3.574,57.102],"pinned":false,"to":"c"}]""")
-        assertEquals(emptyList(), clean.diagnostics)
-        assertFalse(
-            clean.document.networks!![0]
+    fun `a pin is read as a position, a pin that is not one drops the highlight, and pinned is an unknown key`() {
+        val pinned = walkOf("""[{"arc":"cd","from":"c","pin":[-3.574,57.102,900],"to":"d"}]""")
+        assertEquals(listOf("/networks/0/highlights/0/walk/0/pin" to "extra-channel"), pinned.pairs())
+        assertEquals(
+            LonLat(-3.574, 57.102),
+            pinned.document.networks!![0]
                 .highlights!![0]
                 .walk[0]
-                .pinned,
+                .pin,
         )
 
-        val typed = walkOf("""[{"arc":"ab","from":"a","pinned":"yes"},{"arc":"cb","to":"c"}]""")
-        assertEquals(listOf("/networks/0/highlights/0/walk/0/pinned" to "wrong-type-optional"), typed.pairs())
+        for (pin in listOf("\"d\"", "true", "[-3.574]")) {
+            val bad = walkOf("""[{"arc":"cd","from":"c","pin":$pin,"to":"d"}]""")
+            assertEquals(listOf("/networks/0/highlights/0/walk/0/pin" to "position-unusable"), bad.pairs(), pin)
+            assertEquals(
+                0,
+                bad.document.networks!![0]
+                    .highlights!!
+                    .size,
+                pin,
+            )
+        }
+
+        val typed = walkOf("""[{"arc":"ab","from":"a","pinned":true},{"arc":"cb","to":"c"}]""")
+        assertEquals(listOf("/networks/0/highlights/0/walk/0/pinned" to "unknown-key"), typed.pairs())
+        assertNull(
+            typed.document.networks!![0]
+                .highlights!![0]
+                .walk[0]
+                .pin,
+        )
         assertEquals(
             2,
             typed.document.networks!![0]
@@ -520,8 +539,8 @@ class ReaderRulesTest {
             """[{"arc":"ab","from":"a","to":[-2.5,57]}]""" to "to",
             // The route's rule comes before pinned-turn, so the pair is reported
             // at `turn` and not at the pass.
-            """[{"arc":"ab","from":"a","turn":[-2.5,57],"pinned":true,"to":"a"}]""" to "turn",
-            """[{"arc":"ab","from":"a","pinned":true,"to":"b"}]""" to "pinned",
+            """[{"arc":"ab","from":"a","turn":[-2.5,57],"pin":[-2.6,57],"to":"a"}]""" to "turn",
+            """[{"arc":"ab","from":"a","pin":[-2.5,57],"to":"b"}]""" to "pin",
         )) {
             val r = route(walk)
             assertEquals(0, r.document.routes!!.size, walk)

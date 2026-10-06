@@ -172,15 +172,15 @@ data class Highlight(
  * Everywhere else the entry is the node the walk is at, and the exit is derived.
  * A null [from] or [to] is that absence, not "unknown".
  *
- * [pinned] is a plain boolean because section 3.3.3 makes `"pinned": false` the
- * same as an absent key.
+ * The pass is pinned when [pin] is set: the user fixed it with a handle at that
+ * position. The pin leaves what the pass covers unchanged.
  */
 data class Pass(
     val arc: String,
     val from: Endpoint? = null,
     val to: Endpoint? = null,
     val turn: LonLat? = null,
-    val pinned: Boolean = false,
+    val pin: LonLat? = null,
 )
 
 /**

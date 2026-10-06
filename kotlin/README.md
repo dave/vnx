@@ -118,7 +118,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
 | `Highlight` | `walk: List<Pass>`, and the item fields |
 | `Route` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
-| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Boolean` |
+| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
 | `Segment` | `pips: List<Position>` |

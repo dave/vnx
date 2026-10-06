@@ -48,7 +48,7 @@ internal class WalkCursor(
             message: String,
         ) = WalkFault(i, key, cause, message)
 
-        // 5. A route's walk runs node to node (section 3.4).
+        // 4. A route's walk runs node to node (section 3.4).
         if (route) {
             when {
                 pass.from is Endpoint.At -> return fault(
@@ -66,18 +66,18 @@ internal class WalkCursor(
                     DiagnosticCause.ROUTE_PIN_OR_POSITION,
                     "a route's walk carries no turn",
                 )
-                pass.pinned -> return fault(
-                    "pinned",
+                pass.pin != null -> return fault(
+                    "pin",
                     DiagnosticCause.ROUTE_PIN_OR_POSITION,
                     "a route's walk carries no pin",
                 )
             }
         }
-        // 6. A turn already fixes a pass, so a pin on it states nothing.
-        if (pass.turn != null && pass.pinned) {
-            return fault(null, DiagnosticCause.PINNED_TURN, "a pass with a turn is never pinned: the turn already fixes it")
+        // 5. A turn already fixes a pass, so a pin on it states nothing.
+        if (pass.turn != null && pass.pin != null) {
+            return fault(null, DiagnosticCause.PINNED_TURN, "a pass with a turn carries no pin: the turn already fixes it")
         }
-        // 7. The rule for `from` and `to`: first `from`, then `to`.
+        // 6. The rule for `from` and `to`: first `from`, then `to`.
         if (i == 0 && pass.from == null) {
             return fault(null, DiagnosticCause.WALK_SPELLING, "the first pass must carry `from`")
         }
@@ -100,7 +100,7 @@ internal class WalkCursor(
             )
         }
 
-        // 8. The walk is connected.
+        // 7. The walk is connected.
         fun isEnd(node: String?) = node == arc.from || node == arc.to
         val entry: Endpoint
         val from = pass.from

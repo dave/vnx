@@ -146,7 +146,7 @@ class WordingTest {
                     causeOf(
                         """{"vnx":"0.9.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1]},
                    "arcs":{"ab":{"from":"a","to":"b","pips":[]},"cb":{"from":"c","to":"b","pips":[]}},
-                   "highlights":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pinned":true,"to":"a"}]}]}]}""",
+                   "highlights":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pin":[-3.596,57.1],"to":"a"}]}]}]}""",
                         DiagnosticCause.PINNED_TURN,
                     ),
                 DiagnosticCause.ROUTE_PIN_OR_POSITION to

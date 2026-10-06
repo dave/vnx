@@ -118,13 +118,13 @@ internal object Tree {
 
     /**
      * A pass. `from` and `to` are a node key or a position (section 3.3.3), and
-     * `turn` is a position; [position] leaves a string alone.
+     * `turn` and `pin` are positions; [position] leaves a string alone.
      */
     private fun pass(
         o: MutableMap<String, JsonValue>,
         opt: Options,
     ) {
-        for (key in listOf("from", "to", "turn")) o[key]?.let { o[key] = position(it, opt) }
+        for (key in listOf("from", "to", "turn", "pin")) o[key]?.let { o[key] = position(it, opt) }
     }
 
     private fun arc(

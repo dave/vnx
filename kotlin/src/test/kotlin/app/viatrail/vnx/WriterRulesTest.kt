@@ -151,7 +151,9 @@ class WriterRulesTest {
                 listOf(Pass("ghost", from = Endpoint.Node("a"), to = Endpoint.Node("b"))) to "pass-arc-absent",
                 listOf(Pass("ab", to = Endpoint.Node("b"))) to "walk-spelling",
                 listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.Node("x"))) to "walk-not-connected",
-                listOf(Pass("ab", from = Endpoint.Node("a"), turn = LonLat(-2.5, 57.0), pinned = true, to = Endpoint.Node("a"))) to
+                listOf(
+                    Pass("ab", from = Endpoint.Node("a"), turn = LonLat(-2.5, 57.0), pin = LonLat(-2.6, 57.0), to = Endpoint.Node("a")),
+                ) to
                     "pinned-turn",
             )
         for ((walk, code) in cases) {
@@ -172,17 +174,17 @@ class WriterRulesTest {
     }
 
     @Test
-    fun `a writer emits pinned only when true, and from and to only where the pass carries them`() {
-        // Section 3.3.3: a writer MUST emit `pinned` only when its value is true.
+    fun `a writer emits a pin as a position, and from and to only where the pass carries them`() {
+        // Section 3.3.3: a pass is pinned when it carries `pin`, a position.
         val nodes = nodes + ("c" to Vertex(-1.0, 57.0))
         val arcs = ab + ("bc" to Arc("b", "c", listOf(Vertex(-1.5, 57.1, 40.0))))
         val walk =
             listOf(
                 Pass("ab", from = Endpoint.At(LonLat(-2.5, 57.0)), to = Endpoint.Node("b")),
-                Pass("bc", pinned = true),
+                Pass("bc", pin = LonLat(-1.3, 57.05)),
                 Pass("bc", turn = LonLat(-1.2, 57.05)),
                 Pass("bc"),
-                Pass("ab", pinned = false, to = Endpoint.Node("a")),
+                Pass("ab", to = Endpoint.Node("a")),
             )
         val document =
             VnxDocument(
@@ -192,7 +194,7 @@ class WriterRulesTest {
         val written = Vnx.write(document)
         assertTrue(
             written.contains(
-                """"walk":[{"arc":"ab","from":[-2.5,57],"to":"b"},{"arc":"bc","pinned":true},""" +
+                """"walk":[{"arc":"ab","from":[-2.5,57],"to":"b"},{"arc":"bc","pin":[-1.3,57.05]},""" +
                     """{"arc":"bc","turn":[-1.2,57.05]},{"arc":"bc"},{"arc":"ab","to":"a"}]""",
             ),
             written,

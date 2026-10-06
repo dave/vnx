@@ -206,11 +206,13 @@ compares one.
 ## Run the tests
 
 ```sh
-cd go && go test ./...
+cd go && go test -count=1 ./...
 ```
 
 This runs the unit tests, the corpus harness over [`corpus/`](../corpus/), and
-the guards that keep the import set to the standard library.
+the guards that keep the import set to the standard library. `-count=1` runs
+them again each time: Go's test cache checks only the files inside the module,
+so it does not see a change to `corpus/`.
 
 ## Layout
 

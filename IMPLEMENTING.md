@@ -16,7 +16,7 @@ appear to disagree, `SPEC.md` is right.
 
     ```sh
     cd js  && node corpus/run.js     # prints "n/m cases passed" and exits 0
-    cd go  && go test ./...
+    cd go  && go test -count=1 ./...
     ```
 
 4.  Write the runner before the library. Point it at `corpus/`, walk every

@@ -31,7 +31,7 @@ Each command runs that language's unit tests and its corpus harness.
 
 | Language | Command |
 |---|---|
-| Go | `cd go && go test ./...` |
+| Go | `cd go && go test -count=1 ./...` |
 | Python | `cd python && python3 -m unittest discover -s tests -t .` |
 | JavaScript | `cd js && npm test` |
 | Rust | `cd rust && cargo test` |

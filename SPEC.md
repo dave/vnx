@@ -376,7 +376,7 @@ A highlight carries a walk over arcs that it does not own.
   "walk": [
     { "arc": "arc-7", "from": [-3.6521, 57.1000], "to": "node-5" },
     { "arc": "arc-1" },
-    { "arc": "arc-3", "pinned": true },
+    { "arc": "arc-3", "pin": [-3.6495, 57.0984] },
     { "arc": "arc-4", "turn": [-3.6488, 57.0977] },
     { "arc": "arc-3" },
     { "arc": "arc-8", "to": [-3.6402, 57.0931] }
@@ -396,16 +396,16 @@ A pass carries these keys besides `arc`:
 | `from` | a node key, or a position | where the pass enters its arc |
 | `to` | a node key, or a position | where the pass leaves its arc |
 | `turn` | a position | where the walk turns round on this arc |
-| `pinned` | `true` | the pass is fixed by the user who drew the walk |
+| `pin` | a position | the pass is fixed by the user who drew the walk, with a handle at this position |
 
-A position in `from`, `to` or `turn` carries longitude and latitude only. Its
-elevation is the elevation of the arc's line at the point the position
+A position in `from`, `to`, `turn` or `pin` carries longitude and latitude
+only. Its elevation is the elevation of the arc's line at the point the position
 identifies. A reader that meets an elevation or a time on such a position drops
 that channel, keeps the pass and records a diagnostic (Section 6.2).
 
-A writer MUST emit `pinned` only when its value is `true`, and a document SHOULD
-NOT contain `"pinned": false`. A reader treats `"pinned": false` as absent. A
-pass with a `turn` MUST NOT be `pinned`: the turn already fixes it.
+A pass is pinned when it carries `pin`, and the pin leaves what the pass covers
+unchanged. A pass with a `turn` MUST NOT carry a `pin`: the turn already fixes
+it.
 
 **The rule for `from` and `to`.** Every walk has one spelling, so that a walk
 read and written back is the same walk:
@@ -426,8 +426,8 @@ from there to its exit, in that order, whatever order those points lie in along
 the line. A pass whose entry and exit are the same point, with no turn, covers
 that point alone. Such a pass is legal.
 
-**Positions on an arc.** A position in `from`, `to` or `turn` identifies the
-point of the arc's line nearest to it. There is no limit on the distance
+**Positions on an arc.** A position in `from`, `to`, `turn` or `pin` identifies
+the point of the arc's line nearest to it. There is no limit on the distance
 between the position and the line: every position identifies a point.
 
 Two readers must identify the same point, so the distance is defined exactly.
@@ -455,7 +455,7 @@ line from the arc's `from` node.
 4. Each pass after the first enters its arc at an end of that arc: the node at
    which the previous pass left is one of the arc's two nodes.
 5. Only the last pass leaves at a position.
-6. No pass carries both `turn` and `pinned`.
+6. No pass carries both `turn` and `pin`.
 
 An empty walk is valid and covers nothing. A reader drops a highlight whose walk is
 not valid and records a diagnostic that names the pass and the rule
@@ -481,7 +481,7 @@ its nodes or arcs.
 ```
 
 A route's walk runs from node to node. Every `from` and `to` in it is a node
-key, and no pass in it carries `turn` or `pinned`.
+key, and no pass in it carries `turn` or `pin`.
 
 Every rule Section 3.3 states for a network's nodes and arcs and for a highlight's
 walk applies to a route's. Where that section has a reader drop a highlight, a
@@ -659,7 +659,7 @@ array is distinct from an absent one.
 | network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a route | `from`, `to`, `pips` | `data` |
 | highlight | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
-| pass | `arc` | `from`, `to`, `turn`, `pinned` |
+| pass | `arc` | `from`, `to`, `turn`, `pin` |
 | route | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
 | segment | `pips` | — |
@@ -963,7 +963,7 @@ The remedies for the constructs this document constrains:
 | a position that will not parse, inside an arc's `pips` (3.3.2) | drop the arc | `position-unusable` |
 | a position that will not parse, inside a track segment's `pips` (3.5) | drop the segment | `position-unusable` |
 | a position that will not parse, inside a `polygon` ring (3.7) | drop the area | `position-unusable` |
-| a `from`, `to` or `turn` that is neither a node key where one is allowed nor a position that parses (3.3.3) | drop the highlight | `position-unusable` |
+| a `from`, `to`, `turn` or `pin` that is neither a node key where one is allowed nor a position that parses (3.3.3) | drop the highlight | `position-unusable` |
 | a time on a node (3.3.1), or an elevation or a time on a position in a walk (3.3.3) | drop the channel | `extra-channel` |
 | a time on an arc pip (3.3.2) | drop the time channel, from every pip of the arc that carries one | `arc-pip-time` |
 | an arc whose `from` and `to` name the same node (3.3.2) | drop the arc | `self-loop-arc` |
@@ -971,8 +971,8 @@ The remedies for the constructs this document constrains:
 | a pass that is not an object, or that names no arc of its network or route (3.3.3) | drop the highlight | `pass-arc-absent` |
 | a walk that breaks the rule for `from` and `to` (3.3.3) | drop the highlight | `walk-spelling` |
 | a walk that is not connected: valid-walk rules 3, 4 and 5 (3.3.3) | drop the highlight | `walk-not-connected` |
-| a pass carrying both `turn` and `pinned` (3.3.3) | drop the highlight | `pinned-turn` |
-| a position, a `turn` or `pinned` in a route's walk (3.4) | drop the route | `route-pin-or-position` |
+| a pass carrying both `turn` and `pin` (3.3.3) | drop the highlight | `pinned-turn` |
+| a position, a `turn` or a `pin` in a route's walk (3.4) | drop the route | `route-pin-or-position` |
 | a `polygon` carrying a ring beyond the first (3.7) | drop the area | `polygon-nested-rings` |
 | a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
 | a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
@@ -998,20 +998,18 @@ walk. Diagnostics that do not drop the highlight are recorded as they are met.
 1. The pass is an object and its `arc` names an arc of its network or route.
    Otherwise `pass-arc-absent`, at the pass.
 2. Each unrecognised key on the pass: `unknown-key`, at the key.
-3. `pinned`, where present, is a boolean. Otherwise `wrong-type-optional`, at
-   `pinned`, and the field is dropped.
-4. `from`, `to` and `turn`, in that order, where present: each parses.
+3. `from`, `to`, `turn` and `pin`, in that order, where present: each parses.
    Otherwise `position-unusable`, at that key. A position carrying an elevation
    or a time takes `extra-channel`, at that key.
-5. In a route: `from`, `to`, `turn` and `pinned`, in that order, where present,
+4. In a route: `from`, `to`, `turn` and `pin`, in that order, where present,
    carry no position, turn or pin. Otherwise `route-pin-or-position`, at that
    key.
-6. The pass does not carry both `turn` and `pinned: true`. Otherwise
-   `pinned-turn`, at the pass.
-7. The rule for `from` and `to`: first `from`, then `to`. A key the rule
+5. The pass does not carry both `turn` and `pin`. Otherwise `pinned-turn`, at
+   the pass.
+6. The rule for `from` and `to`: first `from`, then `to`. A key the rule
    requires and the pass lacks takes `walk-spelling` at the pass; a key the pass
    carries and the rule forbids takes it at that key.
-8. The walk is connected. In this order: a `from` node that is not an end of
+7. The walk is connected. In this order: a `from` node that is not an end of
    the pass's arc takes `walk-not-connected` at `from`; a pass after the first
    whose arc does not touch the node at which the previous pass left takes it at
    the pass; a `to` node that is not an end of the arc, or a `to` position on a
@@ -1069,13 +1067,13 @@ diagnostic rather than one rule with two exceptions.
 2. Where the diagnostic is about a relationship between parts that are each
    usable, `path` names the part that breaks it. A pass that does not continue
    from the node where the previous pass left names the later pass, not the one
-   it failed to continue from. A pass carrying both `turn` and `pinned` names
+   it failed to continue from. A pass carrying both `turn` and `pin` names
    the pass. A key the rule for `from` and `to` forbids names that key, and a
    key it requires names the pass that lacks it.
 3. Where the diagnostic reports channels dropped across one element, it names
    that element. `arc-pip-time` names the arc's `pips` array, once for the arc,
    however many pips carried a time. `extra-channel` names the node, or the
-   `from`, `to` or `turn` key, that carried the channel.
+   `from`, `to`, `turn` or `pin` key, that carried the channel.
 
 One invariant holds across all three. No two diagnostics about one document may
 share both a `path` and a `code`. Those are the only two fields a conforming

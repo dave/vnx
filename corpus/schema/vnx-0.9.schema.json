@@ -283,7 +283,7 @@
       "required": [
         "walk"
       ],
-      "description": "A top-level route owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pinned`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
+      "description": "A top-level route owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pin`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
       "properties": {
         "name": {
           "type": "string"
@@ -506,7 +506,7 @@
     "walkPosition": {
       "type": "array",
       "minItems": 2,
-      "description": "A `from`, `to` or `turn` position (spec §3.3.3): [lon, lat] only. Elevation comes from the arc's line. Whether it lies anywhere near its arc does not matter: it identifies the nearest point, at any distance.",
+      "description": "A `from`, `to`, `turn` or `pin` position (spec §3.3.3): [lon, lat] only. Elevation comes from the arc's line. Whether it lies anywhere near its arc does not matter: it identifies the nearest point, at any distance.",
       "prefixItems": [
         {
           "type": "number",
@@ -532,7 +532,7 @@
       "required": [
         "arc"
       ],
-      "description": "One pass of a walk (spec §3.3.3). Where `from` and `to` may appear, whether the walk is connected, and that `turn` and `pinned` do not appear together are all rules over several values, which the reader checks.",
+      "description": "One pass of a walk (spec §3.3.3). Where `from` and `to` may appear, whether the walk is connected, and that `turn` and `pin` do not appear together are all rules over several values, which the reader checks.",
       "properties": {
         "arc": {
           "$ref": "#/$defs/identifier"
@@ -546,8 +546,8 @@
         "turn": {
           "$ref": "#/$defs/walkPosition"
         },
-        "pinned": {
-          "type": "boolean"
+        "pin": {
+          "$ref": "#/$defs/walkPosition"
         }
       }
     },
@@ -562,7 +562,7 @@
       "required": [
         "arc"
       ],
-      "description": "A pass in a route's walk: `from` and `to` are node keys only, and there is no `turn` or `pinned`. A reader that meets one drops the route (spec §6.2); the schema reports the shape as invalid.",
+      "description": "A pass in a route's walk: `from` and `to` are node keys only, and there is no `turn` or `pin`. A reader that meets one drops the route (spec §6.2); the schema reports the shape as invalid.",
       "properties": {
         "arc": {
           "$ref": "#/$defs/identifier"
@@ -574,7 +574,7 @@
           "$ref": "#/$defs/identifier"
         },
         "turn": false,
-        "pinned": false
+        "pin": false
       }
     }
   }

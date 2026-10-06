@@ -21,9 +21,9 @@ schema can only check shape.
 - A position is an array of at least two numbers, longitude within ±180 and
   latitude within ±90, `null` permitted from index 2, extra trailing channels
   ignored.
-- A node and an arc pip carry no time, and a walk's `from`, `to` and `turn`
-  carry longitude and latitude only.
-- A route's walk carries no position, `turn` or `pinned`.
+- A node and an arc pip carry no time, and a walk's `from`, `to`, `turn` and
+  `pin` carry longitude and latitude only.
+- A route's walk carries no position, `turn` or `pin`.
 - A ring holds at least three positions, and holds positions, so a
   GeoJSON-shaped polygon with nested rings is caught here.
 - A record-level timestamp is UTC with a `Z` suffix, and nothing else.

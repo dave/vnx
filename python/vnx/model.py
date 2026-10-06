@@ -120,15 +120,15 @@ class Pass:
     exit is derived, so ``None`` there is that absence, not "unknown".
 
     A position here carries longitude and latitude only: its elevation is the
-    arc line's.  ``pinned`` is a plain boolean because SPEC 3.3.3 has a reader
-    treat ``"pinned": false`` as absent, so the two are one model.
+    arc line's.  A pass is pinned when ``pin`` is set: the user fixed it with a
+    handle at that position, and the pin leaves what the pass covers unchanged.
     """
 
     arc: str
     from_: Union[Endpoint, None] = None
     to: Union[Endpoint, None] = None
     turn: Union[Position, None] = None
-    pinned: bool = False
+    pin: Union[Position, None] = None
 
 
 @dataclass(slots=True)

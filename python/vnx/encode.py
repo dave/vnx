@@ -133,9 +133,7 @@ def _pass(p: Pass) -> JSONValue:
     _put(obj, "from", _endpoint(p.from_))
     _put(obj, "to", _endpoint(p.to))
     _put(obj, "turn", _endpoint(p.turn))
-    # SPEC 3.3.3: `pinned` is written only when it is true.
-    if p.pinned:
-        obj["pinned"] = True
+    _put(obj, "pin", _endpoint(p.pin))
     return obj
 
 

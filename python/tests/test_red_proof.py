@@ -279,6 +279,7 @@ class RedProof(unittest.TestCase):
                 "walk-last-pass-lacks-to.vnx",
                 "walk-leaves-at-a-position-early.vnx",
                 "walk-not-connected.vnx",
+                "walk-pin-unusable.vnx",
                 "walk-position-unusable.vnx",
                 "walk-spelling.vnx",
                 "walk-to-forbidden.vnx",
@@ -691,10 +692,10 @@ class RedProof(unittest.TestCase):
             "walk continuity check",
         )
         for test in (
-            "test_8_a_from_node_that_is_not_an_end",
-            "test_8_a_pass_that_does_not_join",
-            "test_8_a_to_node_that_is_not_an_end",
-            "test_8_a_position_exit_before_the_last_pass",
+            "test_7_a_from_node_that_is_not_an_end",
+            "test_7_a_pass_that_does_not_join",
+            "test_7_a_to_node_that_is_not_an_end",
+            "test_7_a_position_exit_before_the_last_pass",
             "test_a_turn_leaves_by_the_node_it_entered",
         ):
             with self.subTest(test=test):
@@ -721,11 +722,11 @@ class RedProof(unittest.TestCase):
             "rule for `from` and `to`",
         )
         for test in (
-            "test_7_the_first_pass_lacks_from",
-            "test_7_a_later_pass_carries_from",
-            "test_7_the_last_pass_lacks_to",
-            "test_7_a_middle_pass_carries_to",
-            "test_7_a_position_from_needs_a_to",
+            "test_6_the_first_pass_lacks_from",
+            "test_6_a_later_pass_carries_from",
+            "test_6_the_last_pass_lacks_to",
+            "test_6_a_middle_pass_carries_to",
+            "test_6_a_position_from_needs_a_to",
         ):
             with self.subTest(test=test):
                 self.assertGoesRed(
@@ -878,7 +879,7 @@ class RedProof(unittest.TestCase):
                 lambda self, position, path, keep_ele: position,
             ),
             "DiagnoseTier.test_diagnose",
-            {"extra-channel.vnx"},
+            {"extra-channel.vnx", "walk-pin-unusable.vnx"},
             "extra-channel check",
         )
 
@@ -886,7 +887,7 @@ class RedProof(unittest.TestCase):
         self.assertRedCases(
             mock.patch.object(decode, "off_the_globe", lambda lon, lat: None),
             "DiagnoseTier.test_diagnose",
-            {"position-out-of-range.vnx"},
+            {"position-out-of-range.vnx", "walk-pin-unusable.vnx"},
             "longitude and latitude range check",
         )
 

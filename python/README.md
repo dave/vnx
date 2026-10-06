@@ -104,7 +104,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
 | `Highlight` | `walk: list[Pass]` |
-| `Pass` | `arc`, `from_`, `to`, `turn`, `pinned: bool`; `from_` and `to` are a node key or a `Position` |
+| `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
 | `Route` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
 | `Position` | `lon`, `lat`, `ele`, `time_ms` |

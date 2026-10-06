@@ -82,7 +82,7 @@ ARC = frozenset({"from", "to", "pips", "data"})
 HIGHLIGHT = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
 
 # SPEC 3.3.3.  A pass of a highlight's walk or of a route's.
-PASS = frozenset({"arc", "from", "to", "turn", "pinned"})
+PASS = frozenset({"arc", "from", "to", "turn", "pin"})
 
 # SPEC 3.4.  A route owns a graph of a network's shape, and one walk over it.
 ROUTE = frozenset(

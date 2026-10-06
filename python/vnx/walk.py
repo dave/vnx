@@ -88,16 +88,16 @@ def route_rule(p: Pass) -> Union[Broken, None]:
         )
     if p.turn is not None:
         return Broken("turn", "a route's walk carries no turn")
-    if p.pinned:
-        return Broken("pinned", "a route's walk carries no pin")
+    if p.pin is not None:
+        return Broken("pin", "a route's walk carries no pin")
     return None
 
 
 def pinned_turn(p: Pass) -> Union[Broken, None]:
-    """SPEC 3.3.3: a pass with a turn is never pinned."""
-    if p.turn is not None and p.pinned:
+    """SPEC 3.3.3: a pass with a turn carries no pin."""
+    if p.turn is not None and p.pin is not None:
         return Broken(
-            None, "a pass with a turn is never pinned: the turn already fixes it"
+            None, "a pass with a turn carries no pin: the turn already fixes it"
         )
     return None
 
@@ -186,7 +186,7 @@ class Cursor:
         self, index: int, p: Pass, arc: Arc
     ) -> Union[WalkFault, tuple[Endpoint, Endpoint]]:
         """Check pass *index* against the rules that span more than its own
-        values -- SPEC 6.2's steps 5 to 8 -- and move to where it leaves."""
+        values -- SPEC 6.2's steps 4 to 7 -- and move to where it leaves."""
         if self.route:
             broken = route_rule(p)
             if broken is not None:
@@ -223,7 +223,12 @@ def check_walk(
                 "pass-arc-absent",
                 f"pass names arc {p.arc!r}, which is not here",
             )
-        for key, value in (("from", p.from_), ("to", p.to), ("turn", p.turn)):
+        for key, value in (
+            ("from", p.from_),
+            ("to", p.to),
+            ("turn", p.turn),
+            ("pin", p.pin),
+        ):
             if isinstance(value, Position) and (
                 value.ele is not None or value.time_ms is not None
             ):

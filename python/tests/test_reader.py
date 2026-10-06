@@ -464,21 +464,28 @@ class Walks(unittest.TestCase):
     def test_an_empty_walk_is_valid(self) -> None:
         self.assertEqual(self.assertKept("[]").walk, [])
 
-    def test_pinned_false_reads_as_absent(self) -> None:
+    def test_a_pin_is_read_and_written_back_as_a_position(self) -> None:
         highlight = self.assertKept(
-            '[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]'
+            '[{"arc": "ab", "from": "a", "to": "b", "pin": [-3.595, 57.101]}]'
         )
         assert highlight.walk is not None
-        self.assertIs(highlight.walk[0].pinned, False)
-        self.assertNotIn(
-            b"pinned",
+        self.assertEqual(highlight.walk[0].pin, vnx.Position(-3.595, 57.101))
+        self.assertIn(
+            b'"pin":[-3.595,57.101]',
             vnx.encode_bytes(
                 read(
                     WALK_NETWORK
-                    % ('[{"arc": "ab", "from": "a", "to": "b", "pinned": false}]')
+                    % (
+                        '[{"arc": "ab", "from": "a", "to": "b", "pin": [-3.595, 57.101]}]'
+                    )
                 ).document
             ),
         )
+
+    def test_a_pass_without_a_pin_is_not_pinned(self) -> None:
+        highlight = self.assertKept('[{"arc": "ab", "from": "a", "to": "b"}]')
+        assert highlight.walk is not None
+        self.assertIsNone(highlight.walk[0].pin)
 
     # -- the required walk -----------------------------------------------
 
@@ -515,24 +522,41 @@ class Walks(unittest.TestCase):
         self.assertEqual(codes(result), [(self.WALK + "/0/via", "unknown-key")])
         self.assertEqual(self.highlights(result), ["under test", "sibling"])
 
-    def test_3_a_wrong_typed_pinned_drops_the_field_only(self) -> None:
-        result = self.walk('[{"arc": "ab", "from": "a", "to": "b", "pinned": "yes"}]')
-        self.assertEqual(
-            codes(result), [(self.WALK + "/0/pinned", "wrong-type-optional")]
-        )
+    def test_2_pinned_is_an_unknown_key_and_pins_nothing(self) -> None:
+        result = self.walk('[{"arc": "ab", "from": "a", "to": "b", "pinned": true}]')
+        self.assertEqual(codes(result), [(self.WALK + "/0/pinned", "unknown-key")])
         self.assertEqual(self.highlights(result), ["under test", "sibling"])
+        networks = result.document.networks
+        assert networks is not None and networks[0].highlights is not None
+        walk = networks[0].highlights[0].walk
+        assert walk is not None
+        self.assertIsNone(walk[0].pin)
 
-    def test_4_a_turn_spelled_as_a_node_key(self) -> None:
+    def test_3_a_turn_spelled_as_a_node_key(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "turn": "b"}]', "/0/turn", "position-unusable"
         )
 
-    def test_4_a_from_that_is_neither_key_nor_position(self) -> None:
+    def test_3_a_pin_spelled_as_a_node_key(self) -> None:
+        self.assertDropped(
+            '[{"arc": "ab", "from": "a", "to": "b", "pin": "b"}]',
+            "/0/pin",
+            "position-unusable",
+        )
+
+    def test_3_a_pin_spelled_as_the_old_boolean(self) -> None:
+        self.assertDropped(
+            '[{"arc": "ab", "from": "a", "to": "b", "pin": true}]',
+            "/0/pin",
+            "position-unusable",
+        )
+
+    def test_3_a_from_that_is_neither_key_nor_position(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": 7, "to": "b"}]', "/0/from", "position-unusable"
         )
 
-    def test_4_an_elevation_on_a_walk_position_is_dropped_and_the_pass_kept(
+    def test_3_an_elevation_on_a_walk_position_is_dropped_and_the_pass_kept(
         self,
     ) -> None:
         result = self.walk(
@@ -545,58 +569,58 @@ class Walks(unittest.TestCase):
         assert walk is not None
         self.assertEqual(walk[0].from_, vnx.Position(-3.597, 57.1005))
 
-    def test_6_a_turn_and_a_pin_on_one_pass(self) -> None:
+    def test_5_a_turn_and_a_pin_on_one_pass(self) -> None:
         self.assertDropped(
-            '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.101], "pinned": true, "to": "a"}]',
+            '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.101], "pin": [-3.596, 57.1], "to": "a"}]',
             "/0",
             "pinned-turn",
         )
 
-    def test_7_the_first_pass_lacks_from(self) -> None:
+    def test_6_the_first_pass_lacks_from(self) -> None:
         self.assertDropped('[{"arc": "ab", "to": "b"}]', "/0", "walk-spelling")
 
-    def test_7_a_later_pass_carries_from(self) -> None:
+    def test_6_a_later_pass_carries_from(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a"}, {"arc": "cb", "from": "b", "to": "c"}]',
             "/1/from",
             "walk-spelling",
         )
 
-    def test_7_the_last_pass_lacks_to(self) -> None:
+    def test_6_the_last_pass_lacks_to(self) -> None:
         self.assertDropped('[{"arc": "ab", "from": "a"}]', "/0", "walk-spelling")
 
-    def test_7_a_middle_pass_carries_to(self) -> None:
+    def test_6_a_middle_pass_carries_to(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "to": "b"}, {"arc": "cb", "to": "c"}]',
             "/0/to",
             "walk-spelling",
         )
 
-    def test_7_a_position_from_needs_a_to(self) -> None:
+    def test_6_a_position_from_needs_a_to(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": [-3.597, 57.1005]}, {"arc": "cb", "to": "c"}]',
             "/0",
             "walk-spelling",
         )
 
-    def test_8_a_from_node_that_is_not_an_end(self) -> None:
+    def test_7_a_from_node_that_is_not_an_end(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "c", "to": "b"}]', "/0/from", "walk-not-connected"
         )
 
-    def test_8_a_pass_that_does_not_join(self) -> None:
+    def test_7_a_pass_that_does_not_join(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a"}, {"arc": "cd", "to": "d"}]',
             "/1",
             "walk-not-connected",
         )
 
-    def test_8_a_to_node_that_is_not_an_end(self) -> None:
+    def test_7_a_to_node_that_is_not_an_end(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": "a", "to": "d"}]', "/0/to", "walk-not-connected"
         )
 
-    def test_8_a_position_exit_before_the_last_pass(self) -> None:
+    def test_7_a_position_exit_before_the_last_pass(self) -> None:
         self.assertDropped(
             '[{"arc": "ab", "from": [-3.597, 57.1005], "to": [-3.596, 57.1006]},'
             ' {"arc": "ab", "to": "b"}]',
@@ -615,7 +639,7 @@ class Walks(unittest.TestCase):
 
     def test_a_pinned_turn_is_found_before_the_spelling(self) -> None:
         self.assertDropped(
-            '[{"arc": "ab", "turn": [-3.595, 57.101], "pinned": true}]',
+            '[{"arc": "ab", "turn": [-3.595, 57.101], "pin": [-3.596, 57.1]}]',
             "/0",
             "pinned-turn",
         )
@@ -672,7 +696,7 @@ class Routes(unittest.TestCase):
                 '[{"arc": "ab", "from": "a", "turn": [-3.595, 57.10], "to": "a"}]',
                 "turn",
             ),
-            ('[{"arc": "ab", "from": "a", "to": "b", "pinned": true}]', "pinned"),
+            ('[{"arc": "ab", "from": "a", "to": "b", "pin": [-3.595, 57.10]}]', "pin"),
         ):
             with self.subTest(key=key):
                 result = self.route(walk)

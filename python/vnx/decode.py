@@ -868,11 +868,11 @@ class _Reader:
             if arc_key is None:
                 return None
             assert isinstance(item, dict)
-            # 2. Unrecognised keys.  3. `pinned`.
+            # 2. Unrecognised keys.
             self._object(item, at, K.PASS, "a pass")
-            p = Pass(arc=arc_key, pinned=self._bool(item, "pinned", at) is True)
-            # 4. `from`, `to` and `turn` each parse.
-            for key in ("from", "to", "turn"):
+            p = Pass(arc=arc_key)
+            # 3. `from`, `to`, `turn` and `pin` each parse.
+            for key in ("from", "to", "turn", "pin"):
                 if key not in item:
                     continue
                 endpoint = self._walk_position(item[key], join(at, key), key)
@@ -882,10 +882,13 @@ class _Reader:
                     p.from_ = endpoint
                 elif key == "to":
                     p.to = endpoint
-                else:
+                elif key == "turn":
                     assert isinstance(endpoint, Position)
                     p.turn = endpoint
-            # 5 to 8: the route rule, pin and turn, spelling, connection.
+                else:
+                    assert isinstance(endpoint, Position)
+                    p.pin = endpoint
+            # 4 to 7: the route rule, pin and turn, spelling, connection.
             stepped = cursor.step(index, p, arcs[arc_key])
             if isinstance(stepped, W.WalkFault):
                 self.note(stepped.path(path), stepped.message, stepped.code)
@@ -913,13 +916,13 @@ class _Reader:
     def _walk_position(
         self, value: JSONValue, path: str, key: str
     ) -> Union[Endpoint, None]:
-        """A pass's `from`, `to` or `turn`: a node key where one is allowed, or
-        a position carrying longitude and latitude only (SPEC 3.3.3).
+        """A pass's `from`, `to`, `turn` or `pin`: a node key where one is
+        allowed, or a position carrying longitude and latitude only (SPEC 3.3.3).
 
         A position identifies the nearest point of its arc's line, at ANY
         distance, so nothing here measures one against the arc.
         """
-        if isinstance(value, str) and key != "turn":
+        if isinstance(value, str) and key in ("from", "to"):
             return value
         position = self._position(value, path, "position-unusable")
         if position is None:

@@ -274,17 +274,17 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         document = _network(
             [
                 Pass("ab", from_=Position(-3.597, 57.1005), to="b"),
-                Pass("cb", pinned=True),
+                Pass("cb", pin=Position(-3.586, 57.1)),
                 Pass("cb", turn=Position(-3.585, 57.10), to="c"),
             ]
         )
         encoded = encode_bytes(document)
-        self.assertIn(b'"pinned":true', encoded)
+        self.assertIn(b'"pin":[-3.586,57.1]', encoded)
         self.assertEqual(vnx.read_bytes(encoded).diagnostics, [])
 
-    def test_pinned_false_is_not_written(self) -> None:
-        encoded = encode_bytes(_network([Pass("ab", from_="a", to="b", pinned=False)]))
-        self.assertNotIn(b"pinned", encoded)
+    def test_a_pass_without_a_pin_writes_no_pin(self) -> None:
+        encoded = encode_bytes(_network([Pass("ab", from_="a", to="b")]))
+        self.assertNotIn(b"pin", encoded)
 
     def test_a_walk_that_breaks_a_rule_is_refused_naming_pass_and_code(self) -> None:
         for walk, code in (
@@ -297,7 +297,7 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
                         "ab",
                         from_="a",
                         turn=Position(-3.595, 57.1),
-                        pinned=True,
+                        pin=Position(-3.596, 57.1),
                         to="a",
                     )
                 ],

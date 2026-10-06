@@ -550,6 +550,9 @@ func positionsByPointer(doc *Document) map[string]Position {
 			if p.Turn != nil {
 				out[fmt.Sprintf("%s/%d/turn", prefix, k)] = p.Turn.Position()
 			}
+			if p.Pin != nil {
+				out[fmt.Sprintf("%s/%d/pin", prefix, k)] = p.Pin.Position()
+			}
 		}
 	}
 	for i, w := range doc.Waypoints {

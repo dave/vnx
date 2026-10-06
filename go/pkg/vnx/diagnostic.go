@@ -271,10 +271,10 @@ var (
 	// arc, a pass not entered at an end of its arc, or a pass other than the
 	// last leaving at a position (§3.3.3). The highlight is dropped.
 	CodeWalkNotConnected = decodeCode("walk-not-connected")
-	// CodePinnedTurn: a pass carrying both `turn` and `pinned` (§3.3.3). The
+	// CodePinnedTurn: a pass carrying both `turn` and `pin` (§3.3.3). The
 	// highlight is dropped.
 	CodePinnedTurn = decodeCode("pinned-turn")
-	// CodeRoutePinOrPosition: a position, a `turn` or `pinned` in a route's
+	// CodeRoutePinOrPosition: a position, a `turn` or a `pin` in a route's
 	// walk (§3.4). The route is dropped.
 	CodeRoutePinOrPosition = decodeCode("route-pin-or-position")
 	// CodeRingClosed: a ring whose last position repeats its first (§3.7). The

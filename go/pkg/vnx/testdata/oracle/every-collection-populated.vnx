@@ -318,7 +318,7 @@
             {
               "arc": "arc-2",
               "to": "node-3",
-              "pinned": true
+              "pin": [-3.52, 57.52]
             }
           ],
           "style": {

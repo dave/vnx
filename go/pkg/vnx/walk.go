@@ -53,12 +53,15 @@ type Arc struct {
 // pass, the last pass, and a pass whose From is a position. Everywhere else
 // the entry is the node the walk is at and the exit is derived. A nil From or
 // To is that absence, not "unknown".
+//
+// A pass is pinned when Pin is set: the user fixed it with a handle at that
+// position. The pin leaves what the pass covers unchanged.
 type Pass struct {
-	Arc    string
-	From   *Endpoint
-	To     *Endpoint
-	Turn   *LonLat
-	Pinned bool
+	Arc  string
+	From *Endpoint
+	To   *Endpoint
+	Turn *LonLat
+	Pin  *LonLat
 }
 
 // Endpoint is where a pass enters or leaves its arc: either a node key or a
@@ -75,7 +78,7 @@ func (e Endpoint) String() string {
 	return e.Node
 }
 
-var passKeys = map[string]bool{"arc": true, "from": true, "to": true, "turn": true, "pinned": true}
+var passKeys = map[string]bool{"arc": true, "from": true, "to": true, "turn": true, "pin": true}
 
 // walkFault is the first rule a walk breaks. key is "" when the diagnostic
 // names the pass itself, else the pass key it names.
@@ -122,12 +125,12 @@ func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walk
 			return fault("to", CodeRoutePinOrPosition, "a route's walk runs node to node, and this `to` is a position")
 		case p.Turn != nil:
 			return fault("turn", CodeRoutePinOrPosition, "a route's walk carries no turn")
-		case p.Pinned:
-			return fault("pinned", CodeRoutePinOrPosition, "a route's walk carries no pin")
+		case p.Pin != nil:
+			return fault("pin", CodeRoutePinOrPosition, "a route's walk carries no pin")
 		}
 	}
-	if p.Turn != nil && p.Pinned {
-		return fault("", CodePinnedTurn, "a pass with a turn is never pinned: the turn already fixes it")
+	if p.Turn != nil && p.Pin != nil {
+		return fault("", CodePinnedTurn, "a pass with a turn carries no pin: the turn already fixes it")
 	}
 	// The rule for `from` and `to`: first `from`, then `to`.
 	switch {
@@ -224,23 +227,23 @@ func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route boo
 				msg: fmt.Sprintf("pass names arc %v, which is not here", describeArc(pObj["arc"]))})
 		}
 		p := Pass{Arc: arcID}
-		// 2. Unrecognised keys. 3. `pinned`.
+		// 2. Unrecognised keys.
 		diags = reportUnknownKeys(pObj, at, passKeys, diags)
-		p.Pinned, diags = boolField(pObj, "pinned", at, diags)
-		// 4. `from`, `to`, `turn` each parse.
-		for _, k := range []string{"from", "to", "turn"} {
+		// 3. `from`, `to`, `turn` and `pin` each parse.
+		for _, k := range []string{"from", "to", "turn", "pin"} {
 			v, present := pObj[k]
 			if !present {
 				continue
 			}
 			var ep Endpoint
-			if s, isStr := v.(string); isStr && k != "turn" {
+			onlyPosition := k == "turn" || k == "pin"
+			if s, isStr := v.(string); isStr && !onlyPosition {
 				ep.Node = s
 			} else {
 				posArr, isArr := v.([]any)
 				if !isArr {
 					want := "a node key or a position"
-					if k == "turn" {
+					if onlyPosition {
 						want = "a position"
 					}
 					return drop(walkFault{pass: i, key: k, code: CodePositionUnusable,
@@ -263,9 +266,11 @@ func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route boo
 				p.To = &ep
 			case "turn":
 				p.Turn = ep.At
+			case "pin":
+				p.Pin = ep.At
 			}
 		}
-		// 5 to 8: the route rule, pin and turn, spelling, connection.
+		// 4 to 7: the route rule, pin and turn, spelling, connection.
 		if _, _, f := cur.step(i, p, arc); f != nil {
 			return drop(*f)
 		}

@@ -873,7 +873,7 @@ func oracleNetwork() Network {
 			Style: Style{"color": "#00aa00", "line-style": "dashed", "opacity": float64(0.5), "width": float64(3)},
 			Walk: []Pass{
 				{Arc: "arc-1", From: &Endpoint{Node: "node-1"}},
-				{Arc: "arc-2", Pinned: true, To: &Endpoint{Node: "node-3"}},
+				{Arc: "arc-2", Pin: &LonLat{Lon: -3.52, Lat: 57.52}, To: &Endpoint{Node: "node-3"}},
 			},
 		},
 		{

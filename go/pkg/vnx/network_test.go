@@ -13,7 +13,7 @@ const simpleNetwork = `{"vnx":"0.9.0","networks":[{
     "arc-1":{"from":"node-1","to":"node-2","pips":[[-3.6644,57.1085,451.9]]},
     "arc-2":{"from":"node-2","to":"node-3","pips":[[-3.6540,57.1009,561]]}},
   "highlights":[{"name":"Chalamain Gap","walk":[
-    {"arc":"arc-1","from":"node-1","pinned":true},
+    {"arc":"arc-1","from":"node-1","pin":[-3.6644,57.1085]},
     {"arc":"arc-2","to":[-3.6540,57.1009]}]}]}]}`
 
 func TestNetworkRoundTrip(t *testing.T) {
@@ -35,7 +35,7 @@ func TestNetworkRoundTrip(t *testing.T) {
 	if len(w) != 2 {
 		t.Fatalf("got %d passes", len(w))
 	}
-	if w[0].From == nil || w[0].From.Node != "node-1" || w[0].To != nil || !w[0].Pinned {
+	if w[0].From == nil || w[0].From.Node != "node-1" || w[0].To != nil || w[0].Pin == nil || *w[0].Pin != (LonLat{Lon: -3.6644, Lat: 57.1085}) {
 		t.Fatalf("first pass wrong: %+v", w[0])
 	}
 	if w[1].From != nil || w[1].To == nil || w[1].To.At == nil || *w[1].To.At != (LonLat{Lon: -3.6540, Lat: 57.1009}) {
@@ -85,7 +85,7 @@ func TestEveryWalkFormReadsClean(t *testing.T) {
 	for _, tc := range []struct{ name, walk string }{
 		{"node to node", `[{"arc":"ab","from":"a"},{"arc":"cb"},{"arc":"cd","to":"d"}]`},
 		{"mid-arc start, pinned, turn, revisit, mid-arc end",
-			`[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pinned":true},{"arc":"cd","turn":[-3.574,57.102]},` +
+			`[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pin":[-3.5853,57.1001]},{"arc":"cd","turn":[-3.574,57.102]},` +
 				`{"arc":"cb"},{"arc":"ab","to":[-3.598,57.1002]}]`},
 		{"whole walk inside one arc", `[{"arc":"cd","from":[-3.576,57.101],"to":[-3.573,57.101]}]`},
 		{"start mid-arc, turn back past the start, end at a node",
@@ -138,7 +138,7 @@ func TestEachWalkRemedy(t *testing.T) {
 			[]diag{{"/networks/0/highlights/1/walk/0/to", CodePositionUnusable}}, 1},
 		{"a turn with an elevation keeps the highlight", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102,900],"to":"c"}]}`),
 			[]diag{{"/networks/0/highlights/1/walk/0/turn", CodeExtraChannel}}, 2},
-		{"a pinned pass with a turn", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102],"to":"c","pinned":true}]}`),
+		{"a pinned pass with a turn", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","turn":[-3.575,57.102],"to":"c","pin":[-3.574,57.1015]}]}`),
 			[]diag{{"/networks/0/highlights/1/walk/0", CodePinnedTurn}}, 1},
 		{"from on a pass after the first", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"ab","from":"a"},{"arc":"cb","from":"b","to":"c"}]}`),
 			[]diag{{"/networks/0/highlights/1/walk/1/from", CodeWalkSpelling}}, 1},
@@ -160,8 +160,16 @@ func TestEachWalkRemedy(t *testing.T) {
 			[]diag{{"/networks/0/highlights/1/walk/0/to", CodeWalkNotConnected}}, 1},
 		{"a pass other than the last leaving at a position", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":[-3.575,57.102],"to":[-3.572,57.101]},{"arc":"de","to":"e"}]}`),
 			[]diag{{"/networks/0/highlights/1/walk/0/to", CodeWalkNotConnected}}, 1},
-		{"pinned of the wrong type drops the field only", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pinned":"yes"}]}`),
-			[]diag{{"/networks/0/highlights/1/walk/0/pinned", CodeWrongTypeOptional}}, 2},
+		{"a pin that is not a position", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pin":true}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/pin", CodePositionUnusable}}, 1},
+		{"a pin that is a node key", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pin":"d"}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/pin", CodePositionUnusable}}, 1},
+		{"a pin off the globe", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pin":[-3.574,91]}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/pin", CodePositionUnusable}}, 1},
+		{"a pin with an elevation keeps the highlight", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pin":[-3.574,57.1015,900]}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/pin", CodeExtraChannel}}, 2},
+		{"pinned is an unknown key and keeps the highlight", walkNetwork(keep + `,{"name":"c","walk":[{"arc":"cd","from":"c","to":"d","pinned":true}]}`),
+			[]diag{{"/networks/0/highlights/1/walk/0/pinned", CodeUnknownKey}}, 2},
 		{"a highlight with no walk", walkNetwork(keep + `,{"name":"c"}`),
 			[]diag{{"/networks/0/highlights/1/walk", CodeWrongTypeRequired}}, 1},
 		{"a walk that is not an array", walkNetwork(keep + `,{"name":"c","walk":{}}`),
@@ -322,7 +330,7 @@ func TestEncoderRefusesWhatTheReaderWouldDrop(t *testing.T) {
 		{"an absent arc", func(n *Network) { n.Highlights[0].Walk[0].Arc = "ghost" }, CodePassArcAbsent},
 		{"a missing to", func(n *Network) { n.Highlights[0].Walk[0].To = nil }, CodeWalkSpelling},
 		{"a pinned turn", func(n *Network) {
-			n.Highlights[0].Walk[0].Pinned, n.Highlights[0].Walk[0].Turn = true, &LonLat{Lon: -3.595, Lat: 57.10}
+			n.Highlights[0].Walk[0].Pin, n.Highlights[0].Walk[0].Turn = &LonLat{Lon: -3.596, Lat: 57.10}, &LonLat{Lon: -3.595, Lat: 57.10}
 		}, CodePinnedTurn},
 		{"a to that is not an end", func(n *Network) {
 			n.Highlights[0].Walk[0].To = &Endpoint{Node: "a"}

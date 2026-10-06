@@ -92,14 +92,14 @@ type wireRoute struct {
 
 // wirePass's `from` and `to` are `any` because §3.3.3 gives them two
 // spellings: a node key is a string, a position is an array. A nil one is
-// ABSENT, which is where §3.3.3's rule puts it; `pinned` is written only when
-// true.
+// ABSENT, which is where §3.3.3's rule puts it; `turn` and `pin` are written
+// only when the pass has one.
 type wirePass struct {
-	Arc    string       `json:"arc"`
-	From   any          `json:"from,omitempty"`
-	To     any          `json:"to,omitempty"`
-	Turn   wirePosition `json:"turn,omitempty"`
-	Pinned bool         `json:"pinned,omitempty"`
+	Arc  string       `json:"arc"`
+	From any          `json:"from,omitempty"`
+	To   any          `json:"to,omitempty"`
+	Turn wirePosition `json:"turn,omitempty"`
+	Pin  wirePosition `json:"pin,omitempty"`
 }
 
 type wireHighlight struct {
@@ -284,7 +284,7 @@ func highlightWire(n Network, c Highlight) (wireHighlight, error) {
 func walkWire(walk []Pass) ([]wirePass, error) {
 	out := make([]wirePass, 0, len(walk))
 	for _, p := range walk {
-		wp := wirePass{Arc: p.Arc, Pinned: p.Pinned}
+		wp := wirePass{Arc: p.Arc}
 		var err error
 		if p.From != nil {
 			if wp.From, err = endpointWire(*p.From); err != nil {
@@ -298,6 +298,11 @@ func walkWire(walk []Pass) ([]wirePass, error) {
 		}
 		if p.Turn != nil {
 			if wp.Turn, err = positionWire(p.Turn.Position()); err != nil {
+				return nil, err
+			}
+		}
+		if p.Pin != nil {
+			if wp.Pin, err = positionWire(p.Pin.Position()); err != nil {
 				return nil, err
 			}
 		}

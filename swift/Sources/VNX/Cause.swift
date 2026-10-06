@@ -110,9 +110,9 @@ public enum Cause: String, Sendable, CaseIterable {
   case walkSpelling
   /// A walk that is not connected: valid-walk rules 3, 4 and 5 of SPEC 3.3.3.
   case walkNotConnected
-  /// A pass carrying both `turn` and `pinned` (SPEC 3.3.3).
+  /// A pass carrying both `turn` and `pin` (SPEC 3.3.3).
   case pinnedTurn
-  /// A position, a `turn` or `pinned` in a route's walk (SPEC 3.4). The route
+  /// A position, a `turn` or a `pin` in a route's walk (SPEC 3.4). The route
   /// goes.
   case routePinOrPosition
   /// A `folder` or `parent` naming a folder that is not in the document.

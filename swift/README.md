@@ -102,7 +102,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Route` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: [Vertex]` (interior points only), `data` |
 | `Highlight` | `walk: [Pass]`, and the item fields |
-| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pinned: Bool` |
+| `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `.node(String)` or `.position(LonLat)` |
 | `Area` | `polygon: [Position]`, one open ring, and the item fields |
 | `Track` | `segments: [TrackSegment]`, `movingTimeMilliseconds: Double?` |
@@ -132,8 +132,7 @@ document.
   order of SPEC §6.2. A dropped node takes each arc naming it, and a dropped arc
   takes each highlight walking it, each with its own diagnostic.
 - **`Pass.from` and `Pass.to` are `nil` where SPEC §3.3.3's rule leaves them
-  out**, not where they are unknown. `pinned` is `false` for absent, and is
-  written only when `true`.
+  out**, not where they are unknown. A pass is pinned when `pin` is set.
 - **The writer refuses what its own reader would repair or drop**, with a
   `WriteError`: a closed ring, a ring of fewer than three distinct positions, a
   self-loop arc, an arc naming an absent node, or a walk that is not valid. It

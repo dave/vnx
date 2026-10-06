@@ -41,8 +41,8 @@ struct WalkCursor {
     func fault(_ key: String?, _ cause: Cause, _ message: String) -> WalkFault {
       WalkFault(pass: i, key: key, cause: cause, message: message)
     }
-    // 5. In a route: no position, no turn and no pin, in the key order
-    // `from`, `to`, `turn`, `pinned`.
+    // 4. In a route: no position, no turn and no pin, in the key order
+    // `from`, `to`, `turn`, `pin`.
     if route {
       if case .position = p.from {
         throw fault(
@@ -57,15 +57,15 @@ struct WalkCursor {
       if p.turn != nil {
         throw fault("turn", .routePinOrPosition, "a route's walk carries no turn")
       }
-      if p.pinned {
-        throw fault("pinned", .routePinOrPosition, "a route's walk carries no pin")
+      if p.pin != nil {
+        throw fault("pin", .routePinOrPosition, "a route's walk carries no pin")
       }
     }
-    // 6. A turn already fixes a pass.
-    if p.turn != nil && p.pinned {
-      throw fault(nil, .pinnedTurn, "a pass with a turn is never pinned: the turn already fixes it")
+    // 5. A turn already fixes a pass.
+    if p.turn != nil && p.pin != nil {
+      throw fault(nil, .pinnedTurn, "a pass with a turn carries no pin: the turn already fixes it")
     }
-    // 7. The rule for `from` and `to`: first `from`, then `to`.
+    // 6. The rule for `from` and `to`: first `from`, then `to`.
     if i == 0 && p.from == nil {
       throw fault(nil, .walkSpelling, "the first pass must carry `from`")
     }
@@ -87,7 +87,7 @@ struct WalkCursor {
         "to", .walkSpelling,
         "`to` appears only on the last pass, or on a pass whose `from` is a position")
     }
-    // 8. The walk is connected.
+    // 7. The walk is connected.
     // Node keys compare by Unicode scalar, as every key in this format does:
     // Swift's `String ==` is canonical equivalence, which would make two
     // different keys spelled NFC and NFD one node.

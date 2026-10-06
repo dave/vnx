@@ -188,7 +188,7 @@ enum DocumentEncoder {
 
   /// A walk. `from` and `to` appear where the model holds them — a walk that
   /// passed `checkWalk` holds them exactly where SPEC 3.3.3's rule puts them
-  /// — and `pinned` only when it is `true`.
+  /// — and `turn` and `pin` where the pass has one.
   private static func walk(_ passes: [Pass]) -> JSONValue {
     .array(
       passes.map { p in
@@ -196,7 +196,7 @@ enum DocumentEncoder {
         if let from = p.from { o["from"] = endpoint(from) }
         if let to = p.to { o["to"] = endpoint(to) }
         if let turn = p.turn { o["turn"] = position(turn.position) }
-        if p.pinned { o["pinned"] = .bool(true) }
+        if let pin = p.pin { o["pin"] = position(pin.position) }
         return .object(o)
       })
   }

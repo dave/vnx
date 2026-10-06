@@ -160,19 +160,19 @@ public struct Pass: Equatable, Sendable {
   public var from: Endpoint?
   public var to: Endpoint?
   public var turn: LonLat?
-  /// `false` is absent: a writer emits `pinned` only when it is `true`, and a
-  /// reader treats `"pinned": false` as absent (SPEC 3.3.3).
-  public var pinned: Bool
+  /// The pass is pinned when this is set: the user fixed it with a handle at
+  /// this position. The pin leaves what the pass covers unchanged (SPEC 3.3.3).
+  public var pin: LonLat?
 
   public init(
     arc: String, from: Endpoint? = nil, to: Endpoint? = nil, turn: LonLat? = nil,
-    pinned: Bool = false
+    pin: LonLat? = nil
   ) {
     self.arc = arc
     self.from = from
     self.to = to
     self.turn = turn
-    self.pinned = pinned
+    self.pin = pin
   }
 }
 

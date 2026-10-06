@@ -66,7 +66,7 @@ enum Keys {
 
   static let pass = Shape(
     required: ["arc"],
-    optional: ["from", "to", "turn", "pinned"])
+    optional: ["from", "to", "turn", "pin"])
 
   static let route = Shape(
     required: ["walk"],

@@ -516,15 +516,13 @@ final class DocumentDecoder {
             pass: i, key: nil, cause: .passArcAbsent,
             message: "the pass names no arc that is here"))
       }
-      // 2. Unrecognised keys. 3. `pinned`, whose wrong type drops the
-      // field only.
+      // 2. Unrecognised keys.
       report(unknownKeysIn: po, against: Keys.pass, at: passPath)
       var pass = Pass(arc: arcName)
-      pass.pinned = optionalBool(po, "pinned", at: passPath) ?? false
-      // 4. `from`, `to` and `turn`, in that order, each parse.
-      for key in ["from", "to", "turn"] {
+      // 3. `from`, `to`, `turn` and `pin`, in that order, each parse.
+      for key in ["from", "to", "turn", "pin"] {
         guard let v = po[JSONKey(key)] else { continue }
-        if key != "turn", let node = v.stringValue {
+        if key == "from" || key == "to", let node = v.stringValue {
           if key == "from" { pass.from = .node(node) } else { pass.to = .node(node) }
           continue
         }
@@ -547,10 +545,11 @@ final class DocumentDecoder {
         switch key {
         case "from": pass.from = .position(at)
         case "to": pass.to = .position(at)
-        default: pass.turn = at
+        case "turn": pass.turn = at
+        default: pass.pin = at
         }
       }
-      // 5 to 8: a route's rule, pin and turn, spelling, connection.
+      // 4 to 7: a route's rule, pin and turn, spelling, connection.
       do {
         _ = try cursor.step(i, pass, arc: arc)
       } catch let fault as WalkFault {

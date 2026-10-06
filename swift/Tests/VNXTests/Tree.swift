@@ -152,7 +152,7 @@ enum Tree {
     o["walk"] = .array(
       passes.map { item in
         guard var p = item.objectValue else { return item }
-        for key: JSONKey in ["from", "to", "turn"] {
+        for key: JSONKey in ["from", "to", "turn", "pin"] {
           if let v = p[key] { p[key] = normPosition(v, opt) }
         }
         return .object(p)

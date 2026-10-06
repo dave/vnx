@@ -45,7 +45,7 @@ final class WalkTests: XCTestCase {
 
   func testEveryWalkFormReadsCleanAndWritesBackEqual() throws {
     let result = try network(
-      #"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pinned":true},{"arc":"cd","turn":[-3.574,57.102]},{"arc":"cb"},{"arc":"ab","to":[-3.598,57.1002]}]"#,
+      #"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"},{"arc":"cb","pin":[-3.5853,57.1001]},{"arc":"cd","turn":[-3.574,57.102]},{"arc":"cb"},{"arc":"ab","to":[-3.598,57.1002]}]"#,
       #"[{"arc":"cd","from":[-3.576,57.1015],"to":[-3.573,57.1012]}]"#,
       #"[{"arc":"cd","from":[-3.575,57.102],"turn":[-3.579,57.1003],"to":"d"}]"#,
       #"[{"arc":"ab","from":[-3.595,57.101],"to":[-3.595,57.101]}]"#,
@@ -56,7 +56,7 @@ final class WalkTests: XCTestCase {
       walk,
       [
         Pass(arc: "ab", from: .position(LonLat(lon: -3.597, lat: 57.1005)), to: .node("b")),
-        Pass(arc: "cb", pinned: true),
+        Pass(arc: "cb", pin: LonLat(lon: -3.5853, lat: 57.1001)),
         Pass(arc: "cd", turn: LonLat(lon: -3.574, lat: 57.102)),
         Pass(arc: "cb"),
         Pass(arc: "ab", to: .position(LonLat(lon: -3.598, lat: 57.1002))),
@@ -92,21 +92,40 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(result.document.networks?[0].highlights?.count, 2)
   }
 
-  // MARK: - `pinned` (SPEC 3.3.3)
+  // MARK: - `pin` (SPEC 3.3.3)
 
-  func testPinnedFalseIsAbsentAndIsNotWrittenBack() throws {
-    let result = try network(#"[{"arc":"ab","from":"a","to":"b","pinned":false}]"#)
+  func testAPinIsReadAsAPositionAndWrittenBack() throws {
+    let result = try network(#"[{"arc":"ab","from":"a","to":"b","pin":[-3.596,57.1003]}]"#)
     XCTAssertEqual(reported(result), [])
-    XCTAssertEqual(result.document.networks?[0].highlights?[0].walk[0].pinned, false)
-    XCTAssertFalse(
-      String(decoding: try VNX.write(result.document), as: UTF8.self).contains("pinned"))
+    XCTAssertEqual(
+      result.document.networks?[0].highlights?[0].walk[0].pin, LonLat(lon: -3.596, lat: 57.1003))
+    XCTAssertTrue(
+      String(decoding: try VNX.write(result.document), as: UTF8.self).contains(
+        "\"pin\":[-3.596,57.1003]"))
   }
 
-  /// SPEC 6.2 step 3: `pinned` of the wrong type drops the FIELD, and the
-  /// highlight stays.
-  func testPinnedOfTheWrongTypeDropsOnlyTheField() throws {
-    let result = try network(#"[{"arc":"ab","from":"a","to":"b","pinned":"yes"}]"#)
-    XCTAssertEqual(reported(result), ["wrong-type-optional /networks/0/highlights/0/walk/0/pinned"])
+  /// SPEC 6.2 step 3: a `pin` is a position only. One that will not parse
+  /// drops the highlight, named at `pin`.
+  func testAPinThatIsNotAPositionDropsItsHighlightAtThePin() throws {
+    let result = try network(
+      #"[{"arc":"ab","from":"a","to":"b","pin":"b"}]"#,
+      #"[{"arc":"ab","from":"a","to":"b","pin":true}]"#,
+      #"[{"arc":"ab","from":"a","to":"b","pin":[-3.596]}]"#)
+    XCTAssertEqual(
+      reported(result),
+      [
+        "position-unusable /networks/0/highlights/0/walk/0/pin",
+        "position-unusable /networks/0/highlights/1/walk/0/pin",
+        "position-unusable /networks/0/highlights/2/walk/0/pin",
+      ])
+    XCTAssertEqual(result.document.networks?[0].highlights, [])
+  }
+
+  /// SPEC 6.2 step 2: `pinned` is an unknown key. It is skipped, the
+  /// highlight stays, and the pass is not pinned.
+  func testPinnedIsAnUnknownKeyAndPinsNothing() throws {
+    let result = try network(#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#)
+    XCTAssertEqual(reported(result), ["unknown-key /networks/0/highlights/0/walk/0/pinned"])
     XCTAssertEqual(
       result.document.networks?.first?.highlights?.first?.walk,
       [Pass(arc: "ab", from: .node("a"), to: .node("b"))])
@@ -282,9 +301,9 @@ final class WalkTests: XCTestCase {
       ])
   }
 
-  func testAPassCarryingBothTurnAndPinnedDropsItsHighlight() throws {
+  func testAPassCarryingBothTurnAndPinDropsItsHighlight() throws {
     let result = try network(
-      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pinned":true,"to":"a"}]"#)
+      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pin":[-3.596,57.1003],"to":"a"}]"#)
     XCTAssertEqual(reported(result), ["pinned-turn /networks/0/highlights/0/walk/0"])
   }
 
@@ -305,13 +324,13 @@ final class WalkTests: XCTestCase {
   }
 
   /// SPEC 3.4: a route's walk runs node to node. Each of `from`, `to`,
-  /// `turn` and `pinned` is named at its key, and the ROUTE goes.
+  /// `turn` and `pin` is named at its key, and the ROUTE goes.
   func testARouteWalkCarriesNoPositionTurnOrPin() throws {
     for (walk, key) in [
       (#"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]"#, "from"),
       (#"[{"arc":"ab","from":"a","to":[-3.596,57.1006]}]"#, "to"),
       (#"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"to":"a"}]"#, "turn"),
-      (#"[{"arc":"ab","from":"a","to":"b","pinned":true}]"#, "pinned"),
+      (#"[{"arc":"ab","from":"a","to":"b","pin":[-3.596,57.1003]}]"#, "pin"),
     ] {
       let result = try route(walk)
       XCTAssertEqual(reported(result), ["route-pin-or-position /routes/0/walk/0/\(key)"], walk)
@@ -336,15 +355,15 @@ final class WalkTests: XCTestCase {
   /// met before it, is still recorded.
   func testOnlyTheFirstFaultInAWalkIsReported() throws {
     let result = try network(
-      // Pass 0: an unknown key (kept), then pinned and turn (dropped).
+      // Pass 0: an unknown key (kept), then pin and turn (dropped).
       // Pass 1 names an absent arc, and is never reached.
-      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pinned":true,"x":1},{"arc":"zz","to":"b"}]"#,
-      // Within one pass, step 6 (pinned-turn) comes before step 7
+      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pin":[-3.596,57.1003],"x":1},{"arc":"zz","to":"b"}]"#,
+      // Within one pass, step 5 (pinned-turn) comes before step 6
       // (spelling): this first pass also lacks `from`.
-      #"[{"arc":"ab","turn":[-3.595,57.101],"pinned":true,"to":"a"}]"#,
-      // Step 4 (a position that will not parse) comes before step 6.
-      #"[{"arc":"ab","from":"a","turn":[],"pinned":true,"to":"a"}]"#,
-      // Step 7 (spelling) comes before step 8 (connection): `from` on a
+      #"[{"arc":"ab","turn":[-3.595,57.101],"pin":[-3.596,57.1003],"to":"a"}]"#,
+      // Step 3 (a position that will not parse) comes before step 5.
+      #"[{"arc":"ab","from":"a","turn":[],"pin":[-3.596,57.1003],"to":"a"}]"#,
+      // Step 6 (spelling) comes before step 7 (connection): `from` on a
       // later pass that is also not an end of its arc.
       #"[{"arc":"ab","from":"a"},{"arc":"cd","from":"a","to":"d"}]"#)
     XCTAssertEqual(
@@ -358,11 +377,11 @@ final class WalkTests: XCTestCase {
       ])
   }
 
-  /// In a route, step 5 comes before step 6: a pass with a turn and a pin is
+  /// In a route, step 4 comes before step 5: a pass with a turn and a pin is
   /// a route rule broken, not a pinned turn.
   func testInARouteThePinOrPositionRuleComesBeforePinnedTurn() throws {
     let result = try route(
-      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pinned":true,"to":"a"}]"#)
+      #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pin":[-3.596,57.1003],"to":"a"}]"#)
     XCTAssertEqual(reported(result), ["route-pin-or-position /routes/0/walk/0/turn"])
   }
 
@@ -512,7 +531,7 @@ final class WalkTests: XCTestCase {
         [
           Pass(
             arc: "ab", from: .node("a"), to: .node("a"), turn: LonLat(lon: 0.5, lat: 0),
-            pinned: true)
+            pin: LonLat(lon: 0.4, lat: 0))
         ], "pinned-turn"
       ),
     ] {
@@ -531,25 +550,26 @@ final class WalkTests: XCTestCase {
     r.nodes = nodes
     r.arcs = arcs
     assertRefused(document(route: r), "route-pin-or-position")
-    r.walk = [Pass(arc: "ab", from: .node("a"), to: .node("b"), pinned: true)]
+    r.walk = [Pass(arc: "ab", from: .node("a"), to: .node("b"), pin: LonLat(lon: 0.5, lat: 0))]
     assertRefused(document(route: r), "route-pin-or-position")
     r.walk = [Pass(arc: "ab", from: .node("a"), to: .node("b"))]
     XCTAssertNoThrow(try VNX.write(document(route: r)))
   }
 
-  /// SPEC 3.3.3: "A writer MUST emit `pinned` only when its value is
-  /// `true`."
-  func testTheWriterEmitsPinnedOnlyWhenTrue() throws {
+  /// SPEC 3.3.3: a pinned pass is written with its `pin`, a position, and a
+  /// pass without one is written without it.
+  func testTheWriterEmitsAPinAsAPosition() throws {
     var n = Network()
     n.nodes = nodes
     n.arcs = arcs
     n.highlights = [
       Highlight(walk: [
-        Pass(arc: "ab", from: .node("a"), pinned: true), Pass(arc: "bc", to: .node("c")),
+        Pass(arc: "ab", from: .node("a"), pin: LonLat(lon: 0.5, lat: 0)),
+        Pass(arc: "bc", to: .node("c")),
       ])
     ]
     let written = String(decoding: try VNX.write(document(network: n)), as: UTF8.self)
-    XCTAssertEqual(written.components(separatedBy: "\"pinned\"").count - 1, 1)
-    XCTAssertTrue(written.contains("\"pinned\":true"))
+    XCTAssertEqual(written.components(separatedBy: "\"pin\"").count - 1, 1)
+    XCTAssertTrue(written.contains("\"pin\":[0.5,0]"))
   }
 }

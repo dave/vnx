@@ -298,6 +298,7 @@ extension Document {
         case "from": if case .position(let p)? = pass.from { return p.position }
         case "to": if case .position(let p)? = pass.to { return p.position }
         case "turn": return pass.turn?.position
+        case "pin": return pass.pin?.position
         default: break
         }
         return nil

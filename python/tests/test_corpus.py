@@ -173,7 +173,7 @@ class CorpusStructure(unittest.TestCase):
         # `diagnostics` list which IS checked.
         "cannot_detect",
         # The verdict the JSON Schema reaches on this case.  It is about
-        # `corpus/schema/vnx-0.8.schema.json`, not about any reader, so no
+        # `corpus/schema/vnx-0.9.schema.json`, not about any reader, so no
         # implementation runner compares it; `go/internal/vnxschema` is the one
         # thing that does, and it fails if a sidecar records no verdict.
         "schema",

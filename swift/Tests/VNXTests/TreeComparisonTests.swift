@@ -10,7 +10,7 @@ import XCTest
 /// to, and the liveness that stops the blindness becoming blanket agreement.
 final class TreeComparisonTests: XCTestCase {
 
-  private func doc(_ body: String) -> Data { Data("{\"vnx\":\"0.8.0\",\(body)}".utf8) }
+  private func doc(_ body: String) -> Data { Data("{\"vnx\":\"0.9.0\",\(body)}".utf8) }
 
   /// ⚠ A NUMBER COMPARES BY VALUE, NEVER BY ITS SPELLING. SPEC 4.2 defines the
   /// round trip at value level and the rewritten specification states no rule
@@ -52,7 +52,7 @@ final class TreeComparisonTests: XCTestCase {
   /// what keeps a writer that omits an empty collection conforming.
   func testAnAbsentCollectionAndAnEmptyOneCompareEqual() throws {
     XCTAssertNil(
-      try Tree.difference(got: doc("\"waypoints\":[]"), want: Data("{\"vnx\":\"0.8.0\"}".utf8)))
+      try Tree.difference(got: doc("\"waypoints\":[]"), want: Data("{\"vnx\":\"0.9.0\"}".utf8)))
     XCTAssertNil(
       try Tree.difference(
         got: doc("\"waypoints\":[{\"at\":[1,2],\"data\":[]}]"),

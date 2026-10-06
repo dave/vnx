@@ -44,7 +44,7 @@ class WriterRulesTest {
     @Test
     fun `an interior absence keeps its null`() {
         // Section 4.1: dropping it would move the time into the elevation channel.
-        val document = Vnx.readDocument("""{"vnx":"0.8.0","waypoints":[{"at":[-3,57,null,1778914991000]}]}""").document
+        val document = Vnx.readDocument("""{"vnx":"0.9.0","waypoints":[{"at":[-3,57,null,1778914991000]}]}""").document
         assertTrue(Vnx.write(document).contains("[-3,57,null,1778914991000]"), Vnx.write(document))
     }
 
@@ -53,7 +53,7 @@ class WriterRulesTest {
         // The trap this replaces: `Math.round(x * 10) / 10` on the elevation, and
         // a six-place round on the coordinates. Every channel here would move
         // under the rule that left the format, and none may move now.
-        val document = Vnx.readDocument("""{"vnx":"0.8.0","waypoints":[{"at":[-3.12345678,57.87654321,340.25,1778914991000]}]}""").document
+        val document = Vnx.readDocument("""{"vnx":"0.9.0","waypoints":[{"at":[-3.12345678,57.87654321,340.25,1778914991000]}]}""").document
         assertTrue(Vnx.write(document).contains("[-3.12345678,57.87654321,340.25,1778914991000]"), Vnx.write(document))
     }
 
@@ -61,8 +61,8 @@ class WriterRulesTest {
     fun `a writer omits hidden false`() {
         // Section 3.8: a writer emits the key only when its value is `true`, and a
         // document SHOULD NOT contain `"hidden": false`.
-        val document = Vnx.readDocument("""{"vnx":"0.8.0","networks":[{"hidden":false},{"hidden":true}]}""").document
-        assertEquals("""{"vnx":"0.8.0","networks":[{},{"hidden":true}]}""" + "\n", Vnx.write(document))
+        val document = Vnx.readDocument("""{"vnx":"0.9.0","networks":[{"hidden":false},{"hidden":true}]}""").document
+        assertEquals("""{"vnx":"0.9.0","networks":[{},{"hidden":true}]}""" + "\n", Vnx.write(document))
     }
 
     @Test
@@ -70,8 +70,8 @@ class WriterRulesTest {
         // Nothing about a document's bytes is constrained, and indentation cost
         // about three times the file where the reference implementation measured
         // it. Pretty-printing is a tool somebody may want; it is not a rule.
-        val written = Vnx.write(Vnx.readDocument("""{"vnx":"0.8.0"}""").document)
-        assertEquals("{\"vnx\":\"0.8.0\"}\n", written)
+        val written = Vnx.write(Vnx.readDocument("""{"vnx":"0.9.0"}""").document)
+        assertEquals("{\"vnx\":\"0.9.0\"}\n", written)
     }
 
     @Test
@@ -92,7 +92,7 @@ class WriterRulesTest {
         val document =
             Vnx
                 .readDocument(
-                    """{"vnx":"0.8.0","waypoints":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
+                    """{"vnx":"0.9.0","waypoints":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
                 ).document
         val written = Vnx.write(document)
         assertTrue(written.contains("\"t\":1778914991000"), written)
@@ -117,7 +117,7 @@ class WriterRulesTest {
     private fun network(
         walk: List<Pass>,
         arcs: Map<String, Arc> = ab,
-    ) = VnxDocument(vnx = "0.8.0", networks = listOf(Network(nodes = nodes, arcs = arcs, highlights = listOf(Highlight(walk)))))
+    ) = VnxDocument(vnx = "0.9.0", networks = listOf(Network(nodes = nodes, arcs = arcs, highlights = listOf(Highlight(walk)))))
 
     private fun refused(document: VnxDocument): String = assertFailsWith<IllegalArgumentException> { Vnx.write(document) }.message!!
 
@@ -126,16 +126,16 @@ class WriterRulesTest {
         // Section 3.7. Opening the ring would be the writer guessing that its
         // caller meant the repeat.
         val open = listOf(Position(-3.0, 57.0), Position(-2.0, 57.0), Position(-2.0, 58.0))
-        val written = Vnx.write(VnxDocument(vnx = "0.8.0", areas = listOf(Area(open))))
-        assertEquals("""{"vnx":"0.8.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58]]}]}""" + "\n", written)
-        val message = refused(VnxDocument(vnx = "0.8.0", areas = listOf(Area(open + Position(-3.0, 57.0, 5.0)))))
+        val written = Vnx.write(VnxDocument(vnx = "0.9.0", areas = listOf(Area(open))))
+        assertEquals("""{"vnx":"0.9.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58]]}]}""" + "\n", written)
+        val message = refused(VnxDocument(vnx = "0.9.0", areas = listOf(Area(open + Position(-3.0, 57.0, 5.0)))))
         assertTrue(message.contains("repeats its first"), message)
     }
 
     @Test
     fun `a writer refuses a ring of fewer than three distinct positions`() {
         val ring = listOf(Position(-3.0, 57.0), Position(-2.0, 57.0), Position(-2.0, 57.0, 9.0))
-        assertTrue(refused(VnxDocument(vnx = "0.8.0", areas = listOf(Area(ring)))).contains("3 distinct"))
+        assertTrue(refused(VnxDocument(vnx = "0.9.0", areas = listOf(Area(ring)))).contains("3 distinct"))
     }
 
     @Test
@@ -168,7 +168,7 @@ class WriterRulesTest {
                 nodes = nodes,
                 arcs = ab,
             )
-        assertTrue(refused(VnxDocument(vnx = "0.8.0", routes = listOf(route))).contains("route-pin-or-position"))
+        assertTrue(refused(VnxDocument(vnx = "0.9.0", routes = listOf(route))).contains("route-pin-or-position"))
     }
 
     @Test
@@ -186,7 +186,7 @@ class WriterRulesTest {
             )
         val document =
             VnxDocument(
-                vnx = "0.8.0",
+                vnx = "0.9.0",
                 networks = listOf(Network(nodes = nodes, arcs = arcs, highlights = listOf(Highlight(walk)))),
             )
         val written = Vnx.write(document)

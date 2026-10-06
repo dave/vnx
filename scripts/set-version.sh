@@ -1,7 +1,7 @@
 #!/bin/bash
 # Set the one version the format and all six libraries carry.
 #
-#     ./scripts/set-version.sh 0.8.1
+#     ./scripts/set-version.sh 0.9.1
 #
 # Writes the version to the SPEC.md Version line, table row and series
 # sentence, to every package manifest, and to every library constant that
@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [ $# -ne 1 ] || ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "usage: scripts/set-version.sh MAJOR.MINOR.PATCH, three runs of digits, like 0.8.1" >&2
+  echo "usage: scripts/set-version.sh MAJOR.MINOR.PATCH, three runs of digits, like 0.9.1" >&2
   exit 2
 fi
 

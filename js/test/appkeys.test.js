@@ -8,7 +8,7 @@ import { decodeText } from '../src/decode.js';
 import { encode, AppKey, Document } from '../src/index.js';
 
 test('application keys are kept verbatim, sorted by key, and not reported', () => {
-  const text = `{"vnx":"0.8.0",
+  const text = `{"vnx":"0.9.0",
     "org.example.z": {"anything": {"at": ["all"]}},
     "app.viatrail.rulesets": [{"rules": [{"op": "equals"}]}],
     "com.example.null": null,
@@ -25,13 +25,13 @@ test('application keys are kept verbatim, sorted by key, and not reported', () =
 });
 
 test('a null or empty application key survives a read and a write', () => {
-  const text = '{"vnx":"0.8.0","com.example.null":null,"com.example.a":[],"com.example.o":{}}';
+  const text = '{"vnx":"0.9.0","com.example.null":null,"com.example.a":[],"com.example.o":{}}';
   const out = JSON.parse(encode(decodeText(text).document));
   assert.deepEqual(out, JSON.parse(text));
 });
 
 test('a dotted key below the top level is an unknown key', () => {
-  const { diagnostics } = decodeText('{"vnx":"0.8.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}');
+  const { diagnostics } = decodeText('{"vnx":"0.9.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}');
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
     ['/rulesets', 'unknown-key'],
     ['/waypoints/0/app.viatrail.x', 'unknown-key'],
@@ -46,7 +46,7 @@ test('encode refuses an application key it cannot write', () => {
     [[new AppKey('a.b', 1), new AppKey('a.b', 2)], /twice/],
   ]) {
     const d = new Document();
-    d.vnx = '0.8.0';
+    d.vnx = '0.9.0';
     d.appKeys = keys;
     assert.throws(() => encode(d), want);
   }

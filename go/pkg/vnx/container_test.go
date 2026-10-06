@@ -28,10 +28,10 @@ func makeZip(t *testing.T, entries [][2]string) []byte {
 	return buf.Bytes()
 }
 
-const minimalDoc = `{"vnx":"0.8.0","generator":"test"}`
+const minimalDoc = `{"vnx":"0.9.0","generator":"test"}`
 
 func TestContainerPrefersDocAtRoot(t *testing.T) {
-	z := makeZip(t, [][2]string{{"other.vnx", `{"vnx":"0.8.0","generator":"other"}`}, {"doc.vnx", minimalDoc}})
+	z := makeZip(t, [][2]string{{"other.vnx", `{"vnx":"0.9.0","generator":"other"}`}, {"doc.vnx", minimalDoc}})
 	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestContainerPrefersDocAtRoot(t *testing.T) {
 // the conventional root name is an EXPECTED absence, which is exactly where the
 // house rule puts a fallback rather than an error.
 func TestContainerFallsBackToFirstVnxInArchiveOrder(t *testing.T) {
-	z := makeZip(t, [][2]string{{"a/first.vnx", minimalDoc}, {"b/second.vnx", `{"vnx":"0.8.0","generator":"second"}`}})
+	z := makeZip(t, [][2]string{{"a/first.vnx", minimalDoc}, {"b/second.vnx", `{"vnx":"0.9.0","generator":"second"}`}})
 	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestContainerFallsBackToFirstVnxInArchiveOrder(t *testing.T) {
 // Copy the intent, not the code: doc.vnx in a subdirectory is NOT the root
 // document, so a root .vnx that precedes it wins on archive order.
 func TestSubdirectoryDocVnxDoesNotBeatARootEntryThatComesFirst(t *testing.T) {
-	z := makeZip(t, [][2]string{{"root.vnx", minimalDoc}, {"nested/doc.vnx", `{"vnx":"0.8.0","generator":"nested"}`}})
+	z := makeZip(t, [][2]string{{"root.vnx", minimalDoc}, {"nested/doc.vnx", `{"vnx":"0.9.0","generator":"nested"}`}})
 	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestSubdirectoryDocVnxDoesNotBeatARootEntryThatComesFirst(t *testing.T) {
 }
 
 func TestContainerRootNameIsCaseInsensitive(t *testing.T) {
-	z := makeZip(t, [][2]string{{"other.vnx", `{"vnx":"0.8.0","generator":"other"}`}, {"DOC.VNX", minimalDoc}})
+	z := makeZip(t, [][2]string{{"other.vnx", `{"vnx":"0.9.0","generator":"other"}`}, {"DOC.VNX", minimalDoc}})
 	c, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestContainerRootNameIsCaseInsensitive(t *testing.T) {
 // would yield different documents in different languages. Refused, not
 // arbitrated.
 func TestDuplicateEntriesRefused(t *testing.T) {
-	z := makeZip(t, [][2]string{{"doc.vnx", minimalDoc}, {"doc.vnx", `{"vnx":"0.8.0","generator":"twin"}`}})
+	z := makeZip(t, [][2]string{{"doc.vnx", minimalDoc}, {"doc.vnx", `{"vnx":"0.9.0","generator":"twin"}`}})
 	if _, _, err := DecodeContainer(bytes.NewReader(z), int64(len(z))); err == nil {
 		t.Fatal("duplicate entry names must be refused")
 	}
@@ -162,7 +162,7 @@ func TestContainerAttachmentsCarryTheirBytes(t *testing.T) {
 // validate` called a .vnz clean however broken the document inside it was, and
 // nothing failed, because no test ever looked.
 func TestContainerSurfacesDocumentDiagnostics(t *testing.T) {
-	z := makeZip(t, [][2]string{{"doc.vnx", `{"vnx":"0.8.0","nmae":"typo"}`}})
+	z := makeZip(t, [][2]string{{"doc.vnx", `{"vnx":"0.9.0","nmae":"typo"}`}})
 	c, diags, err := DecodeContainer(bytes.NewReader(z), int64(len(z)))
 	if err != nil {
 		t.Fatal(err)

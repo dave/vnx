@@ -39,7 +39,7 @@ def waypoint_at(
     time_ms: float | None = None,
 ) -> Document:
     return Document(
-        vnx="0.8.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
+        vnx="0.9.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
     )
 
 
@@ -68,7 +68,7 @@ class TheEmitBoundary(unittest.TestCase):
     def test_the_writer_does_not_touch_the_caller_s_model(self) -> None:
         """The `hidden` normalisation builds a new model rather than editing
         the caller's."""
-        document = Document(vnx="0.8.0", areas=[Area(hidden=False)])
+        document = Document(vnx="0.9.0", areas=[Area(hidden=False)])
         encode_bytes(document)
         assert document.areas is not None
         self.assertIs(document.areas[0].hidden, False)
@@ -146,11 +146,11 @@ class HiddenIsWrittenOnlyWhenTrue(unittest.TestCase):
     """SPEC 3.8. Absence already means visible, so a false carries nothing."""
 
     def test_a_false_hidden_is_dropped(self) -> None:
-        document = Document(vnx="0.8.0", areas=[Area(hidden=False)])
+        document = Document(vnx="0.9.0", areas=[Area(hidden=False)])
         self.assertNotIn(b"hidden", encode_bytes(document))
 
     def test_a_true_hidden_is_kept(self) -> None:
-        document = Document(vnx="0.8.0", areas=[Area(hidden=True)])
+        document = Document(vnx="0.9.0", areas=[Area(hidden=True)])
         self.assertIn(b'"hidden":true', encode_bytes(document))
 
 
@@ -159,19 +159,19 @@ class ApplicationKeysAreWrittenAsHeld(unittest.TestCase):
     is refused rather than lost."""
 
     def test_a_null_value_is_written(self) -> None:
-        document = Document(vnx="0.8.0", app_keys=[AppKey("com.example.x", None)])
+        document = Document(vnx="0.9.0", app_keys=[AppKey("com.example.x", None)])
         self.assertEqual(
-            encode_bytes(document), b'{"vnx":"0.8.0","com.example.x":null}'
+            encode_bytes(document), b'{"vnx":"0.9.0","com.example.x":null}'
         )
 
     def test_a_key_with_no_full_stop_is_refused(self) -> None:
         for key in ("rulesets", "folders", ""):
             with self.subTest(key=key):
                 with self.assertRaisesRegex(ValueError, "no full stop"):
-                    encode_bytes(Document(vnx="0.8.0", app_keys=[AppKey(key, [])]))
+                    encode_bytes(Document(vnx="0.9.0", app_keys=[AppKey(key, [])]))
 
     def test_a_key_written_twice_is_refused(self) -> None:
-        document = Document(vnx="0.8.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)])
+        document = Document(vnx="0.9.0", app_keys=[AppKey("a.b", 1), AppKey("a.b", 2)])
         with self.assertRaisesRegex(ValueError, "twice"):
             encode_bytes(document)
 
@@ -189,7 +189,7 @@ class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
             target = os.path.join(directory, "out.vnx")
             with open(target, "wb") as handle:
                 handle.write(b"previous bytes")
-            bad = Document(vnx="0.8.0", app_keys=[AppKey("nodot", 1)])
+            bad = Document(vnx="0.9.0", app_keys=[AppKey("nodot", 1)])
             with self.assertRaises(ValueError):
                 vnx.encode_file(target, bad)
             with open(target, "rb") as handle:
@@ -208,7 +208,7 @@ class EncodeFileLeavesTheTargetOnRefusal(unittest.TestCase):
             target = os.path.join(directory, "out.vnx")
             with open(target, "wb") as handle:
                 handle.write(b"previous bytes")
-            document = Document(vnx="0.8.0", app_keys=[AppKey("a.b", None)])
+            document = Document(vnx="0.9.0", app_keys=[AppKey("a.b", None)])
             vnx.encode_file(target, document)
             with open(target, "rb") as handle:
                 self.assertEqual(handle.read(), encode_bytes(document))

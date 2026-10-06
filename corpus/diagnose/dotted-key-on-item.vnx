@@ -1,5 +1,5 @@
 {
-  "vnx": "0.8.0",
+  "vnx": "0.9.0",
   "app.viatrail.datatypes": [],
   "folders": [
     {"id": "f1", "name": "Hills", "x.folder": 1}

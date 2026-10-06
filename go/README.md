@@ -10,7 +10,7 @@ three conversion writers import the standard library and nothing else.
 
 ## Install
 
-This module implements VNX 0.8.0. From a checkout of the repository, in the
+This module implements VNX 0.9.0. From a checkout of the repository, in the
 consuming module's `go.mod`:
 
 ```

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 /** SPEC.md section 7, beyond the four container cases the corpus carries. */
 class ContainerTest {
     private val doc =
-        "{\n  \"vnx\": \"0.8.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a container\"," +
+        "{\n  \"vnx\": \"0.9.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a container\"," +
             "\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n"
 
     private fun zip(
@@ -41,7 +41,7 @@ class ContainerTest {
 
     @Test
     fun `doc-vnx at the root wins over an earlier vnx entry`() {
-        val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.8.0"}""", "doc.vnx" to doc))
+        val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.9.0"}""", "doc.vnx" to doc))
         assertEquals("In a container", r.document.waypoints!![0].name)
         assertEquals(listOf("aaa.vnx"), r.attachments!!.map { it.path })
     }
@@ -52,7 +52,7 @@ class ContainerTest {
         // makes it one: "Where there is none, the reader takes the first entry
         // with a `.vnx` extension in archive order." `second.vnx` being the
         // attachment is what says `first.vnx` was taken.
-        val r = Vnx.readContainer(zip("first.vnx" to doc, "second.vnx" to """{"vnx":"0.8.0"}"""))
+        val r = Vnx.readContainer(zip("first.vnx" to doc, "second.vnx" to """{"vnx":"0.9.0"}"""))
         assertEquals("In a container", r.document.waypoints!![0].name)
         assertEquals(listOf("second.vnx"), r.attachments!!.map { it.path })
     }
@@ -61,7 +61,7 @@ class ContainerTest {
     fun `the root-document match is on the full entry name, not the base name`() {
         // Section 7's note: an implementation matching on the base name alone
         // matches at any depth and lets the last match win rather than the first.
-        val r = Vnx.readContainer(zip("first.vnx" to doc, "sub/doc.vnx" to """{"vnx":"0.8.0"}"""))
+        val r = Vnx.readContainer(zip("first.vnx" to doc, "sub/doc.vnx" to """{"vnx":"0.9.0"}"""))
         assertEquals(
             "In a container",
             r.document.waypoints!![0].name,
@@ -71,7 +71,7 @@ class ContainerTest {
 
     @Test
     fun `names are compared case-insensitively`() {
-        val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.8.0"}""", "DOC.VNX" to doc))
+        val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.9.0"}""", "DOC.VNX" to doc))
         assertEquals("In a container", r.document.waypoints!![0].name)
         val s = Vnx.readContainer(zip("only.VNX" to doc))
         assertEquals("In a container", s.document.waypoints!![0].name)
@@ -259,7 +259,7 @@ class ContainerTest {
         // an Error, so it escapes every catch a caller is likely to have written,
         // and it takes the process rather than the document. The declared size is
         // a limit, not an allocation.
-        val doc = "{\n  \"vnx\": \"0.8.0\"\n}\n".toByteArray()
+        val doc = "{\n  \"vnx\": \"0.9.0\"\n}\n".toByteArray()
         val e =
             assertFailsWith<VnxRefusal> {
                 Vnx.readContainer(
@@ -283,11 +283,11 @@ class ContainerTest {
         // The declared uncompressed size here is absurd rather than merely
         // wrong, so nothing can quietly treat it as a length: the bytes present
         // are the whole payload and their CRC is correct.
-        val doc = "{\n  \"vnx\": \"0.8.0\"\n}\n".toByteArray()
+        val doc = "{\n  \"vnx\": \"0.9.0\"\n}\n".toByteArray()
         val r = Vnx.readContainer(lying(body = doc, method = 0, declaredUncompressed = 0xFFFFFFFEL))
         // The document is checked for CONTENT, because a reader returning an
         // empty one would satisfy "did not throw" on its own.
-        assertEquals("0.8.0", r.document.vnx)
+        assertEquals("0.9.0", r.document.vnx)
         // Section 7 permits a diagnostic and does not require one, and the corpus
         // case expects none, so none is raised.
         assertEquals(emptyList(), r.diagnostics)
@@ -302,7 +302,7 @@ class ContainerTest {
         // and its checksum does not match the one the archive states. Section 7's
         // prohibition does not reach here — it holds only where the CRC over the
         // bytes read agrees, and here it does not.
-        val doc = "{\n  \"vnx\": \"0.8.0\"\n}\n".toByteArray()
+        val doc = "{\n  \"vnx\": \"0.9.0\"\n}\n".toByteArray()
         val e =
             assertFailsWith<VnxRefusal> {
                 Vnx.readContainer(lying(body = doc, method = 0, declaredCompressed = doc.size - 1L))
@@ -315,7 +315,7 @@ class ContainerTest {
 
     @Test
     fun `a truncated deflate stream is refused rather than throwing`() {
-        val doc = "{\n  \"vnx\": \"0.8.0\"\n}\n".toByteArray()
+        val doc = "{\n  \"vnx\": \"0.9.0\"\n}\n".toByteArray()
         val full = deflated(doc)
         val half = full.copyOfRange(0, full.size / 2)
         val e =
@@ -332,7 +332,7 @@ class ContainerTest {
         // argument is that two libraries agree byte for byte is the wrong way to
         // be lenient. What section 7 does require is the REMEDY, and for the root
         // document it is a refusal: there is no document to return.
-        val doc = "{\n  \"vnx\": \"0.8.0\"\n}\n".toByteArray()
+        val doc = "{\n  \"vnx\": \"0.9.0\"\n}\n".toByteArray()
         val e =
             assertFailsWith<VnxRefusal> {
                 Vnx.readContainer(lying(body = doc, method = 0, crc = 0xDEADBEEFL))

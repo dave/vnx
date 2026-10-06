@@ -21,7 +21,7 @@ final class UnicodeKeyTests: XCTestCase {
   func testBothSpellingsSurviveInARecordBodyAndAnApplicationKey() throws {
     let src = Data(
       """
-      {"vnx":"0.8.0",
+      {"vnx":"0.9.0",
        "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","\(nfc)":"precomposed","\(nfd)":"decomposed"}]}],
        "com.example.v":{"\(nfc)":1,"\(nfd)":2}}
       """.utf8)
@@ -40,7 +40,7 @@ final class UnicodeKeyTests: XCTestCase {
   func testBothSpellingsSurviveAsNetworkNodeKeys() throws {
     let src = Data(
       """
-      {"vnx":"0.8.0","networks":[{"nodes":{"\(nfc)":[1,1],"\(nfd)":[1,2]}}]}
+      {"vnx":"0.9.0","networks":[{"nodes":{"\(nfc)":[1,1],"\(nfd)":[1,2]}}]}
       """.utf8)
     let first = try VNX.read(src)
     let back = try VNX.read(try VNX.write(first.document))
@@ -64,7 +64,7 @@ final class UnicodeKeyTests: XCTestCase {
   /// followed by a combining mark is one `Character` that is not ".", and a
   /// test on `Character`s would miss it.
   func testAFullStopBeforeACombiningMarkStillMakesAnApplicationKey() throws {
-    let read = try VNX.read(Data("{\"vnx\":\"0.8.0\",\"a.\u{301}b\":1}".utf8))
+    let read = try VNX.read(Data("{\"vnx\":\"0.9.0\",\"a.\u{301}b\":1}".utf8))
     XCTAssertEqual(read.diagnostics, [])
     XCTAssertEqual(read.document.applicationKeys.map(\.key), ["a.\u{301}b"])
   }

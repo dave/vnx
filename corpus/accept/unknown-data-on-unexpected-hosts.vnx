@@ -1,6 +1,6 @@
 {
   "generator": "some other app 2.0",
-  "vnx": "0.8.0",
+  "vnx": "0.9.0",
   "areas": [
     {
       "name": "Reserve",

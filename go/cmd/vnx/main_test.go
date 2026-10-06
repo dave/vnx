@@ -28,7 +28,7 @@ func TestValidateCleanExitsZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("clean document must exit zero: %v\n%s", err, out)
 	}
-	if !strings.Contains(string(out), "ok, vnx 0.8") {
+	if !strings.Contains(string(out), "ok, vnx 0.9") {
 		t.Fatalf("got %s", out)
 	}
 }
@@ -54,7 +54,7 @@ func TestValidateRefusalExitsNonZero(t *testing.T) {
 func TestDiagnosticsDoNotFailTheExitCode(t *testing.T) {
 	bin := build(t)
 	f := filepath.Join(t.TempDir(), "warn.vnx")
-	if err := os.WriteFile(f, []byte(`{"vnx":"0.8.0","nmae":"typo"}`), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte(`{"vnx":"0.9.0","nmae":"typo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := exec.Command(bin, "validate", f).CombinedOutput()
@@ -68,7 +68,7 @@ func TestDiagnosticsDoNotFailTheExitCode(t *testing.T) {
 func TestJSONOutputCarriesDiagnosticPaths(t *testing.T) {
 	bin := build(t)
 	f := filepath.Join(t.TempDir(), "warn.vnx")
-	if err := os.WriteFile(f, []byte(`{"vnx":"0.8.0","nmae":"typo"}`), 0o644); err != nil {
+	if err := os.WriteFile(f, []byte(`{"vnx":"0.9.0","nmae":"typo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := exec.Command(bin, "validate", "--json", f).Output()

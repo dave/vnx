@@ -111,10 +111,10 @@ final class DocumentDecoder {
 
     // Within the document's own major series. Through 0.x EACH MINOR IS ITS
     // OWN SERIES, so the test is "not the same series" rather than "greater
-    // than": SPEC 2.2 says a 0.8.0 reader "refuses 0.9.0, and it refuses
+    // than": SPEC 2.2 says a 0.9.0 reader "refuses 0.10.0, and it refuses
     // 0.1.9 unless it declares support for the 0.1 series. A lower minor is
     // refused for the same reason as a higher one." A reader comparing with
-    // `> 0` reads a 0.1.9 document under 0.8's rules, which is a guess about
+    // `> 0` reads a 0.1.9 document under 0.9's rules, which is a guess about
     // guarantees that document never carried — and it is the shape this
     // library had until `corpus/reject/version-too-old.vnx` existed to
     // catch it.

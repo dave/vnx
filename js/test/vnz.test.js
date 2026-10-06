@@ -17,7 +17,7 @@ import { decodeContainer, encodeContainer, writeContainer } from '../src/vnz.js'
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
 import { VnxRefusal } from '../src/errors.js';
 
-const DOC = '{\n  "vnx": "0.8.0",\n  "waypoints": [\n    {\n      "at": [-3.6712, 57.118]\n    }\n  ]\n}\n';
+const DOC = '{\n  "vnx": "0.9.0",\n  "waypoints": [\n    {\n      "at": [-3.6712, 57.118]\n    }\n  ]\n}\n';
 
 function refusal(fn) {
   try {
@@ -41,7 +41,7 @@ test('a container round-trips through this library', () => {
 
 test('stored entries are read as well as deflated ones', () => {
   const buf = writeArchive([{ name: 'doc.vnx', data: Buffer.from(DOC), method: METHOD_STORE }]);
-  assert.equal(decodeContainer(buf).document.vnx, '0.8.0');
+  assert.equal(decodeContainer(buf).document.vnx, '0.9.0');
 });
 
 test('the root document is matched on the FULL entry name, not the base name', () => {
@@ -49,7 +49,7 @@ test('the root document is matched on the FULL entry name, not the base name', (
   // the defect SPEC.md 7 warns about and the corpus does not cover.
   const buf = writeArchive([
     { name: 'export.vnx', data: Buffer.from(DOC) },
-    { name: 'nested/doc.vnx', data: Buffer.from('{"vnx": "0.8.0", "waypoints": []}') },
+    { name: 'nested/doc.vnx', data: Buffer.from('{"vnx": "0.9.0", "waypoints": []}') },
   ]);
   const c = decodeContainer(buf);
   assert.equal(c.documentEntry, 'export.vnx');
@@ -58,7 +58,7 @@ test('the root document is matched on the FULL entry name, not the base name', (
 
 test('the root document match is case-insensitive', () => {
   const buf = writeArchive([
-    { name: 'aaa.vnx', data: Buffer.from('{"vnx": "0.8.0", "waypoints": []}') },
+    { name: 'aaa.vnx', data: Buffer.from('{"vnx": "0.9.0", "waypoints": []}') },
     { name: 'DOC.VNX', data: Buffer.from(DOC) },
   ]);
   assert.equal(decodeContainer(buf).documentEntry, 'DOC.VNX');
@@ -67,7 +67,7 @@ test('the root document match is case-insensitive', () => {
 test('the fallback takes the FIRST .vnx entry in archive order', () => {
   const buf = writeArchive([
     { name: 'a.vnx', data: Buffer.from(DOC) },
-    { name: 'b.vnx', data: Buffer.from('{"vnx": "0.8.0", "waypoints": []}') },
+    { name: 'b.vnx', data: Buffer.from('{"vnx": "0.9.0", "waypoints": []}') },
   ]);
   assert.equal(decodeContainer(buf).documentEntry, 'a.vnx');
 });
@@ -131,7 +131,7 @@ test('an unreadable ATTACHMENT is dropped with a diagnostic; the document surviv
 
 test('a corrupt entry fails its CRC rather than yielding wrong bytes', () => {
   const buf = writeArchive([{ name: 'doc.vnx', data: Buffer.from(DOC), method: METHOD_STORE }]);
-  const i = buf.indexOf(Buffer.from('"0.8.0"'));
+  const i = buf.indexOf(Buffer.from('"0.9.0"'));
   buf[i + 1] = '9'.charCodeAt(0);
   assert.equal(refusal(() => decodeContainer(buf)).cause_code, 'zip-malformed');
 });
@@ -141,7 +141,7 @@ test('a ZIP64 archive is readable', () => {
   const entries = readEntries(buf);
   assert.equal(entries.length, 1);
   assert.equal(readEntryData(buf, entries[0]).toString(), DOC);
-  assert.equal(decodeContainer(buf).document.vnx, '0.8.0');
+  assert.equal(decodeContainer(buf).document.vnx, '0.9.0');
 });
 
 test('crc32 matches the known value for the ZIP test vector', () => {
@@ -293,7 +293,7 @@ test('a container is smaller than the document it holds', () => {
   // switched back to stored fails this and satisfies every other rule in 7.1.
   const pips = [];
   for (let i = 0; i < 2000; i++) pips.push([-3.671235 + i / 1e6, 57.118123 + i / 1e6, 340.3]);
-  const text = JSON.stringify({ vnx: '0.8.0', tracks: [{ segments: [{ pips }] }] });
+  const text = JSON.stringify({ vnx: '0.9.0', tracks: [{ segments: [{ pips }] }] });
   const buf = encodeContainer(text);
   assert.ok(
     buf.length < Buffer.byteLength(text, 'utf8') / 2,

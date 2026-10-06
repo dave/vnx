@@ -7,7 +7,7 @@ import (
 
 // twoArcRoute is half hand-drawn, half routed, and walks its second arc
 // BACKWARDS: arc "routed" runs from col to top, and the walk goes top to col.
-const twoArcRoute = `{"vnx":"0.8.0","routes":[{
+const twoArcRoute = `{"vnx":"0.9.0","routes":[{
   "folder":"cairngorms","name":"Braeriach direct",
   "style":{"color":"#0b7a75","width":4,"opacity":1,"line-style":"dashed"},
   "nodes":{"start":[-3.7280,57.0782,1296],"top":[-3.7101,57.0699,1150],"col":[-3.7020,57.0655,1044]},
@@ -75,7 +75,7 @@ func TestARouteDrawsAReversedArcTheWayItIsWalked(t *testing.T) {
 // walk runs node to node, so a position, a turn or a pin drops it too.
 func TestEachRouteRemedy(t *testing.T) {
 	route := func(walk string) string {
-		return `{"vnx":"0.8.0","routes":[{"name":"keep","nodes":{"a":[-3.72,57.07],"b":[-3.71,57.06]},` +
+		return `{"vnx":"0.9.0","routes":[{"name":"keep","nodes":{"a":[-3.72,57.07],"b":[-3.71,57.06]},` +
 			`"arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":"b"}]},` +
 			`{"name":"r","nodes":{"a":[-3.72,57.07],"b":[-3.71,57.06],"c":[-3.70,57.05]},` +
 			`"arcs":{"ab":{"from":"a","to":"b","pips":[]},"bc":{"from":"b","to":"c","pips":[]}},` +
@@ -99,7 +99,7 @@ func TestEachRouteRemedy(t *testing.T) {
 			[]diag{{"/routes/1/walk/1", CodeWalkNotConnected}}},
 		{"a pass naming an arc the route does not own", route(`[{"arc":"cd","from":"c","to":"d"}]`),
 			[]diag{{"/routes/1/walk/0", CodePassArcAbsent}}},
-		{"no walk", `{"vnx":"0.8.0","routes":[{"name":"keep","walk":[]},{"name":"r"}]}`,
+		{"no walk", `{"vnx":"0.9.0","routes":[{"name":"keep","walk":[]},{"name":"r"}]}`,
 			[]diag{{"/routes/1/walk", CodeWrongTypeRequired}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestEachRouteRemedy(t *testing.T) {
 // A route with an empty walk is empty, not broken — it has nothing to draw but
 // nothing is wrong with it either.
 func TestEmptyRouteIsNotDiagnosed(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.8.0","routes":[{"name":"empty","walk":[]}]}`))
+	_, diags, err := Decode([]byte(`{"vnx":"0.9.0","routes":[{"name":"empty","walk":[]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

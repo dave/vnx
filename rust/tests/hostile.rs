@@ -31,7 +31,7 @@ use vnx::{decode, vnz, zip};
 /// A small, valid container, built by this crate's own writer.
 fn container() -> Vec<u8> {
     vnz::write(
-        b"{\n  \"vnx\": \"0.8.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
+        b"{\n  \"vnx\": \"0.9.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
         &[vnz::Attachment {
             path: "attachments/photo.txt".into(),
             bytes: b"not really a photo\n".to_vec(),
@@ -239,7 +239,7 @@ fn the_declared_size_bounds_the_output_while_it_is_produced() {
 /// never panic.
 #[test]
 fn no_truncation_or_corruption_of_a_document_panics() {
-    let source: &[u8] = br#"{"vnx":"0.8.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+    let source: &[u8] = br#"{"vnx":"0.9.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
         "arcs":{"a":{"from":"n1","to":"n2","pips":[[-3.67,57.11,340]]}},
         "highlights":[{"walk":[{"arc":"a","from":"n1","turn":[-3.67,57.11]},{"arc":"a","pinned":true},
                            {"arc":"a","to":[-3.67,57.11]}]}]}],
@@ -282,7 +282,7 @@ fn no_truncation_or_corruption_of_a_document_panics() {
 fn deep_nesting_is_refused_rather_than_overflowing_the_stack() {
     for depth in [300usize, 10_000, 1_000_000] {
         let document = format!(
-            "{{\"vnx\":\"0.8.0\",\"com.example.deep\":[{}{}]}}",
+            "{{\"vnx\":\"0.9.0\",\"com.example.deep\":[{}{}]}}",
             "[".repeat(depth),
             "]".repeat(depth)
         );

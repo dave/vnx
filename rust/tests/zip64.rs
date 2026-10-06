@@ -17,7 +17,7 @@
 
 use vnx::vnz;
 
-const DOCUMENT: &[u8] = b"{\n  \"vnx\": \"0.8.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a ZIP64 container\",\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n";
+const DOCUMENT: &[u8] = b"{\n  \"vnx\": \"0.9.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a ZIP64 container\",\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n";
 
 /// Bit 11: the entry name is UTF-8 (SPEC 7).
 const UTF8_FLAG: u16 = 1 << 11;

@@ -12,7 +12,7 @@ import XCTest
 final class WalkTests: XCTestCase {
 
   private func read(_ body: String) throws -> VNX.ReadResult {
-    try VNX.read(Data("{\"vnx\":\"0.8.0\",\(body)}".utf8))
+    try VNX.read(Data("{\"vnx\":\"0.9.0\",\(body)}".utf8))
   }
 
   /// The pairs a runner compares (SPEC 6.3), sorted so a failure reads as a

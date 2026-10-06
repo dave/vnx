@@ -3,7 +3,7 @@ package vnx
 import "testing"
 
 func TestWaypointCarriesEveryStyleField(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","waypoints":[{
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[{
 	  "folder":"cairngorms","name":"Car park","notes":"Pay and display.",
 	  "at":[-3.6750,57.1201,320],
 	  "style":{"color":"#444444","icon":"parking","icon-size":16,
@@ -40,7 +40,7 @@ func TestWaypointCarriesEveryStyleField(t *testing.T) {
 // silently flattens Auto to hidden — a silent default, and the house-rule
 // violation the audit caught.
 func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.8.0","waypoints":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
+	doc, _, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
 
 // §3.8: omitted means visible, and a writer emits the key only when true.
 func TestHiddenAbsentMeansVisible(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.8.0","waypoints":[
+	doc, _, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[
 	  {"name":"plain","at":[-3.6,57.1]},
 	  {"name":"tucked away","at":[-3.6,57.1],"hidden":true}
 	]}`))
@@ -67,7 +67,7 @@ func TestHiddenAbsentMeansVisible(t *testing.T) {
 }
 
 func TestWaypointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","waypoints":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[
 	  {"name":"bad","at":[-3.6]},{"name":"good","at":[-3.6,57.1]}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestWaypointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
 // holes and no multi-ring, so the format must not promise them.
 func TestAreaRing(t *testing.T) {
 	ring := `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.10]]`
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestAreaRing(t *testing.T) {
 // so at the position it dropped.
 func TestAClosedRingLosesItsRepeat(t *testing.T) {
 	ring := `[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.11]]`
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","areas":[{"name":"Bog","polygon":` + ring + `}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestAreaRingRefusals(t *testing.T) {
 		{"missing", `null`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","areas":[{"name":"x","polygon":` + c.polygon + `}]}`))
+			doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","areas":[{"name":"x","polygon":` + c.polygon + `}]}`))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,7 +141,7 @@ func TestAreaRingRefusals(t *testing.T) {
 // ignore and never silently merge.
 func TestNestedRingsAreDiagnosed(t *testing.T) {
 	nested := `[[[-3.67,57.11],[-3.66,57.11],[-3.66,57.10],[-3.67,57.11]]]`
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","areas":[{"name":"x","polygon":` + nested + `}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","areas":[{"name":"x","polygon":` + nested + `}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

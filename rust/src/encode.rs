@@ -427,14 +427,14 @@ mod tests {
 
     #[test]
     fn a_writer_emits_the_shortest_spelling_of_a_position() {
-        let out = encode_text(r#"{"vnx":"0.8.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
+        let out = encode_text(r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
         assert!(out.contains("[-3.6712,57.118]"), "{out}");
     }
 
     #[test]
     fn an_interior_null_is_never_dropped() {
         let out = encode_text(
-            r#"{"vnx":"0.8.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
+            r#"{"vnx":"0.9.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
         );
         assert!(out.contains("[-3.6,57.1,null,1778914991000]"), "{out}");
     }
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn a_writer_changes_no_value_it_was_handed() {
         let out = encode_text(
-            r#"{"vnx":"0.8.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
+            r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
         );
         assert!(
             out.contains("[-3.6712345678901235,57.11812345678901,340.06]"),
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn the_values_that_used_to_need_a_tie_rule_pass_through() {
         let out = encode_text(
-            r#"{"vnx":"0.8.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
+            r#"{"vnx":"0.9.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
         );
         assert!(out.contains("[-4e-8,0.15,340.25]"), "{out}");
         assert!(out.contains("[1.85,-0.04,340.75]"), "{out}");
@@ -475,7 +475,7 @@ mod tests {
     /// the half of it that is still a REQUIREMENT rather than a choice.
     #[test]
     fn a_reader_keeps_the_precision_the_document_carried() {
-        let text = r#"{"vnx":"0.8.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
+        let text = r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
         let document = decode(text.as_bytes()).expect("accepted").document;
         let at = &document.waypoints.as_ref().expect("waypoints")[0].at;
         assert_eq!(
@@ -489,29 +489,29 @@ mod tests {
     /// writer emits neither. `corpus/write/emit-boundary` pins it.
     #[test]
     fn a_false_hidden_is_not_written() {
-        let out = encode_text(r#"{"vnx":"0.8.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
+        let out = encode_text(r#"{"vnx":"0.9.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
         assert!(!out.contains("hidden"), "{out}");
-        let shown = encode_text(r#"{"vnx":"0.8.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
+        let shown = encode_text(r#"{"vnx":"0.9.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
         assert!(shown.contains(r#""hidden":true"#), "{shown}");
     }
 
     #[test]
     fn the_declared_version_is_written_back_not_the_readers() {
-        assert!(encode_text(r#"{"vnx":"0.8.99"}"#).contains("0.8.99"));
-        assert!(encode_text(r#"{"vnx":"00.08.0000"}"#).contains("00.08.0000"));
+        assert!(encode_text(r#"{"vnx":"0.9.99"}"#).contains("0.9.99"));
+        assert!(encode_text(r#"{"vnx":"00.09.0000"}"#).contains("00.09.0000"));
     }
 
     /// The output is compact. Nothing constrains a document's whitespace
     /// (SPEC 8.1), and this pins the decision rather than the rule.
     #[test]
     fn the_output_carries_no_whitespace() {
-        let out = encode_text(r#"{"vnx":"0.8.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
+        let out = encode_text(r#"{"vnx":"0.9.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
         assert!(!out.contains('\n') && !out.contains("  "), "{out}");
     }
 
     fn network_document() -> Document {
         decode(
-            br#"{"vnx":"0.8.0","networks":[{
+            br#"{"vnx":"0.9.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                  "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
@@ -602,7 +602,7 @@ mod tests {
     #[test]
     fn a_walk_is_written_in_its_one_spelling() {
         let out = encode_text(
-            r#"{"vnx":"0.8.0","networks":[{
+            r#"{"vnx":"0.9.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,5],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101,null,9]]}},
                  "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pinned":false}]}]}]}"#,

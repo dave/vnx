@@ -1,5 +1,5 @@
 {
-  "vnx": "0.8.99",
+  "vnx": "0.9.99",
   "networks": [
     {
       "name": "Every emit-boundary rule in one document",

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const simpleNetwork = `{"vnx":"0.8.0","networks":[{
+const simpleNetwork = `{"vnx":"0.9.0","networks":[{
   "folder":"approaches","name":"Lairig Ghru approaches",
   "nodes":{"node-1":[-3.6712,57.1180,340],"node-2":[-3.6605,57.1042,512.5],"node-3":[-3.6488,57.0977,604]},
   "arcs":{
@@ -48,7 +48,7 @@ func TestNetworkRoundTrip(t *testing.T) {
 // global map silently merges them, and the geometry it draws is a blend of two
 // unrelated things.
 func TestNodeIDsAreScopedToTheirContainer(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0",
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0",
 	  "networks":[{"name":"net","nodes":{"node-1":[-3.67,57.11],"node-2":[-3.66,57.10]},
 	    "arcs":{"arc-1":{"from":"node-1","to":"node-2","pips":[]}}}],
 	  "routes":[{"name":"r","nodes":{"node-1":[-100.0,10.0],"node-2":[-100.1,10.1]},
@@ -70,7 +70,7 @@ func TestNodeIDsAreScopedToTheirContainer(t *testing.T) {
 // b so that a walk crossing it covers it in reverse. It exists so each case
 // below states only its walk.
 func walkNetwork(highlights string) string {
-	return `{"vnx":"0.8.0","networks":[{"name":"n",` +
+	return `{"vnx":"0.9.0","networks":[{"name":"n",` +
 		`"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10],"e":[-3.56,57.10],"f":[-3.55,57.10]},` +
 		`"arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]},"cb":{"from":"c","to":"b","pips":[]},` +
 		`"cd":{"from":"c","to":"d","pips":[[-3.575,57.102],[-3.572,57.101]]},"de":{"from":"d","to":"e","pips":[]},` +
@@ -196,7 +196,7 @@ func TestEachWalkRemedy(t *testing.T) {
 // The channels a walk position and a node do not carry are dropped, and what
 // is kept is exactly longitude and latitude (and a node's elevation).
 func TestExtraChannelsAreDroppedFromNodesAndWalkPositions(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","networks":[{"name":"n",
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","networks":[{"name":"n",
 	  "nodes":{"a":[-3.60,57.10,340,1778569391000],"b":[-3.59,57.10]},
 	  "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
 	  "highlights":[{"name":"c","walk":[{"arc":"ab","from":[-3.598,57.10,null,1778569391000],"to":"b"}]}]}]}`))
@@ -228,7 +228,7 @@ func TestEachArcRemedy(t *testing.T) {
 	const keep = `{"name":"keep","walk":[{"arc":"ok","from":"a","to":"b"}]}`
 	const walker = `{"name":"walker","walk":[{"arc":"bad","from":"b","to":"c"}]}`
 	net := func(badArc, nodes string) string {
-		return `{"vnx":"0.8.0","networks":[{"name":"n","nodes":{` + nodes + `},` +
+		return `{"vnx":"0.9.0","networks":[{"name":"n","nodes":{` + nodes + `},` +
 			`"arcs":{"ok":{"from":"a","to":"b","pips":[]},"bad":` + badArc + `},` +
 			`"highlights":[` + keep + `,` + walker + `]}]}`
 	}
@@ -284,7 +284,7 @@ func TestEachArcRemedy(t *testing.T) {
 // and says so ONCE for the arc: a thousand-pip recorded arc is one fact, not a
 // thousand. The pips themselves, and their elevations, are kept.
 func TestArcPipTimeIsDroppedOncePerArc(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.8.0","networks":[{"name":"n",
+	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","networks":[{"name":"n",
 	  "nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
 	  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.598,57.101,300,1778569391000],[-3.596,57.102],[-3.594,57.103,null,1778569392000]]}}}]}`))
 	if err != nil {

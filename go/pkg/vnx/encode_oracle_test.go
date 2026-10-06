@@ -44,7 +44,7 @@ import (
 const oracleDir = "testdata/oracle"
 
 // oracleVersion is the version a generated case declares when it names none.
-const oracleVersion = "0.8.0"
+const oracleVersion = "0.9.0"
 
 func ip(v int) *int             { return &v }
 func bp(v bool) *bool           { return &v }
@@ -527,7 +527,7 @@ func generatedOracleCases() []oracleCase {
 	return []oracleCase{
 		{"empty-document", &Document{}},
 		{"scalars-only", &Document{
-			Version:   "0.8.0",
+			Version:   "0.9.0",
 			Generator: "viatrail/oracle",
 			Created:   "2026-09-02T10:00:00Z",
 		}},
@@ -951,7 +951,7 @@ func oracleTrackTimestamps() *Document {
 // The one case where every top-level collection is non-empty at once.
 func oracleEverything() *Document {
 	d := &Document{
-		Version:   "0.8.0",
+		Version:   "0.9.0",
 		Generator: "viatrail/oracle everything",
 		Created:   "2026-09-02T12:00:00Z",
 	}

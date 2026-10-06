@@ -62,10 +62,10 @@ export class WalkCursor {
       if (isPosition(p.to))
         return fault('to', 'route-pin-or-position', "a route's walk runs node to node, and this `to` is a position");
       if (p.turn !== undefined) return fault('turn', 'route-pin-or-position', "a route's walk carries no turn");
-      if (p.pinned === true) return fault('pinned', 'route-pin-or-position', "a route's walk carries no pin");
+      if (p.pin !== undefined) return fault('pin', 'route-pin-or-position', "a route's walk carries no pin");
     }
-    if (p.turn !== undefined && p.pinned === true) {
-      return fault('', 'pinned-turn', 'a pass with a turn is never pinned: the turn already fixes it');
+    if (p.turn !== undefined && p.pin !== undefined) {
+      return fault('', 'pinned-turn', 'a pass with a turn carries no pin: the turn already fixes it');
     }
     // The rule for `from` and `to`: first `from`, then `to`.
     if (i === 0 && p.from === undefined) return fault('', 'walk-spelling', 'the first pass must carry `from`');

@@ -184,7 +184,7 @@ function emitArcs(o, nodes, arcs, owner) {
 /**
  * A walk, checked first against its owner's arcs: a writer never emits a walk
  * its own reader would drop. `from` and `to` are written only where the model
- * holds them, and `pinned` only when it is true.
+ * holds them, and `turn` and `pin` only where the pass has one.
  */
 function emitWalk(walk, arcs, route, owner) {
   const fault = checkWalk(walk, arcs, route);
@@ -197,7 +197,7 @@ function emitWalk(walk, arcs, route, owner) {
       po[key] = e.kind === 'node' ? e.node : emitLonLat(e.position, `${owner} pass ${i} \`${key}\``);
     }
     if (p.turn !== undefined) po.turn = emitLonLat(p.turn, `${owner} pass ${i} \`turn\``);
-    if (p.pinned === true) po.pinned = true;
+    if (p.pin !== undefined) po.pin = emitLonLat(p.pin, `${owner} pass ${i} \`pin\``);
     return po;
   });
 }

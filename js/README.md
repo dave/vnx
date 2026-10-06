@@ -82,7 +82,7 @@ the document, where `JSON.stringify` would drop the value or write `null`.
 
 A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `highlights`,
 `points` and `areas`. A `Route` carries its own `nodes`, `arcs` and one `walk`.
-A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pinned`) over the
+A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pin`) over the
 arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
 or a `Position`, and are present only where [SPEC §3.3.3](../SPEC.md)'s rule for
 `from` and `to` puts them. An `Arc`'s `pips` are its interior points only.

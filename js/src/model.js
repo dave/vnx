@@ -98,7 +98,8 @@ export class Endpoint {
  * position. Everywhere else the entry is the node the walk is at, and the exit
  * is derived. An absent `from` or `to` is that absence, not "unknown".
  *
- * `pinned` is `true` or absent. A reader reads `"pinned": false` as absent.
+ * A pass is pinned when it has a `pin`: the user fixed it with a handle at that
+ * position. The pin leaves what the pass covers unchanged.
  */
 export class Pass {
   constructor() {
@@ -106,7 +107,7 @@ export class Pass {
     /** @type {Endpoint|undefined} */ this.from = undefined;
     /** @type {Endpoint|undefined} */ this.to = undefined;
     /** @type {Position|undefined} */ this.turn = undefined;
-    /** @type {true|undefined} */ this.pinned = undefined;
+    /** @type {Position|undefined} */ this.pin = undefined;
   }
 }
 
@@ -167,7 +168,7 @@ export class Network {
 /**
  * A top-level route (SPEC.md 3.4). It owns its graph: `nodes` and `arcs` of a
  * network's shape, and one walk over them. The walk runs node to node, with no
- * position, no `turn` and no `pinned`.
+ * position, no `turn` and no `pin`.
  */
 export class Route {
   constructor() {

@@ -606,14 +606,13 @@ function readWalk(kv, owner, arcs, route, ctx) {
     }
     const p = new Pass();
     p.arc = raw.arc;
-    // 2. Unrecognised keys. 3. `pinned`, where `false` is read as absent.
-    const pkv = known(raw, at, ['arc'], ['from', 'to', 'turn', 'pinned'], ctx);
-    if (bool('pinned', at, pkv, false, ctx) === true) p.pinned = true;
-    // 4. `from`, `to` and `turn`, in that order, each parse.
-    for (const k of ['from', 'to', 'turn']) {
+    // 2. Unrecognised keys.
+    const pkv = known(raw, at, ['arc'], ['from', 'to', 'turn', 'pin'], ctx);
+    // 3. `from`, `to`, `turn` and `pin`, in that order, each parse.
+    for (const k of ['from', 'to', 'turn', 'pin']) {
       const v = pkv[k];
       if (v === undefined) continue;
-      if (typeof v === 'string' && k !== 'turn') {
+      if (typeof v === 'string' && (k === 'from' || k === 'to')) {
         p[k] = new Endpoint('node', v);
         continue;
       }
@@ -628,9 +627,9 @@ function readWalk(kv, owner, arcs, route, ctx) {
         );
       }
       const lonLat = new Position(pos.channels.slice(0, 2));
-      p[k] = k === 'turn' ? lonLat : new Endpoint('position', lonLat);
+      p[k] = k === 'turn' || k === 'pin' ? lonLat : new Endpoint('position', lonLat);
     }
-    // 5 to 8: a route's rule, pin and turn, spelling, connection.
+    // 4 to 7: a route's rule, pin and turn, spelling, connection.
     const step = cursor.step(i, p, arc);
     if (step.fault) return drop(step.fault.key, step.fault.code, step.fault.message);
     walk.push(p);
@@ -849,6 +848,7 @@ export function indexPositions(doc) {
         if (p[which] !== undefined && p[which].kind === 'position') put(`${path}/${k}/${which}`, p[which].position);
       }
       put(`${path}/${k}/turn`, p.turn);
+      put(`${path}/${k}/pin`, p.pin);
     });
   const graph = (base, owner) => {
     for (const [key, p] of owner.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);

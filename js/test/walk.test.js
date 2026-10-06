@@ -63,25 +63,33 @@ test('a position `from` requires a `to`, and a pass whose entry and exit are one
   assert.deepEqual(diagnostics, []);
 });
 
-test('"pinned": false is read as absent, and pinned true is kept', () => {
+test('a pin is read as a position and written back, and a pass without one is not pinned', () => {
   const { document, diagnostics } = readWalk([
-    { arc: 'ab', from: 'a', pinned: false },
-    { arc: 'bc', to: 'c', pinned: true },
+    { arc: 'ab', from: 'a' },
+    { arc: 'bc', to: 'c', pin: [0.0015, 0] },
   ]);
   assert.deepEqual(diagnostics, []);
   const walk = document.networks[0].highlights[0].walk;
-  assert.equal(walk[0].pinned, undefined);
-  assert.equal(walk[1].pinned, true);
+  assert.equal(walk[0].pin, undefined);
+  assert.deepEqual(walk[1].pin.channels, [0.0015, 0]);
   assert.deepEqual(JSON.parse(encode(document)).networks[0].highlights[0].walk, [
     { arc: 'ab', from: 'a' },
-    { arc: 'bc', to: 'c', pinned: true },
+    { arc: 'bc', to: 'c', pin: [0.0015, 0] },
   ]);
 });
 
-test('a wrong-typed `pinned` drops the field and keeps the highlight', () => {
-  const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'b', pinned: 'yes' }]);
-  assert.deepEqual(pairs(diagnostics), [[`${W}/0/pinned`, 'wrong-type-optional']]);
-  assert.equal(document.networks[0].highlights[0].walk[0].pinned, undefined);
+test('a `pin` that is not a position drops the highlight, named at the `pin`', () => {
+  for (const pin of ['b', true, [0.0005]]) {
+    const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'b', pin }]);
+    assert.deepEqual(pairs(diagnostics), [[`${W}/0/pin`, 'position-unusable']], JSON.stringify(pin));
+    assert.equal(document.networks[0].highlights.length, 0);
+  }
+});
+
+test('`pinned` is an unknown key, and the pass stays unpinned', () => {
+  const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'b', pinned: true }]);
+  assert.deepEqual(pairs(diagnostics), [[`${W}/0/pinned`, 'unknown-key']]);
+  assert.equal(document.networks[0].highlights[0].walk[0].pin, undefined);
 });
 
 // --- SPEC.md 6.2: each rule, at its path -------------------------------------
@@ -149,8 +157,8 @@ test('a walk that is not connected is dropped, named at the right place', () => 
   }
 });
 
-test('a pass carrying both `turn` and `pinned` drops the highlight', () => {
-  const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0], pinned: true }]);
+test('a pass carrying both `turn` and `pin` drops the highlight', () => {
+  const { document, diagnostics } = readWalk([{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0], pin: [0.0004, 0] }]);
   assert.deepEqual(pairs(diagnostics), [[`${W}/0`, 'pinned-turn']]);
   assert.equal(document.networks[0].highlights.length, 0);
 });
@@ -201,15 +209,15 @@ test('within a pass, the checks run in the order SPEC.md 6.2 lists', () => {
     [`${W}/0`, 'walk-spelling'],
     [`${W}/0/nmae`, 'unknown-key'],
   ]);
-  // A position that will not parse (check 4) is found before pin and turn (6).
-  assert.deepEqual(pairs(readWalk([{ arc: 'ab', from: 'a', to: 'a', turn: 'x', pinned: true }]).diagnostics), [
+  // A position that will not parse (check 3) is found before pin and turn (5).
+  assert.deepEqual(pairs(readWalk([{ arc: 'ab', from: 'a', to: 'a', turn: 'x', pin: [0.0004, 0] }]).diagnostics), [
     [`${W}/0/turn`, 'position-unusable'],
   ]);
-  // Pin and turn (6) before the spelling rule (7).
-  assert.deepEqual(pairs(readWalk([{ arc: 'ab', turn: [0.0005, 0], pinned: true }]).diagnostics), [
+  // Pin and turn (5) before the spelling rule (6).
+  assert.deepEqual(pairs(readWalk([{ arc: 'ab', turn: [0.0005, 0], pin: [0.0004, 0] }]).diagnostics), [
     [`${W}/0`, 'pinned-turn'],
   ]);
-  // The spelling rule (7) before connection (8).
+  // The spelling rule (6) before connection (7).
   assert.deepEqual(pairs(readWalk([{ arc: 'ab', from: 'c' }]).diagnostics), [[`${W}/0`, 'walk-spelling']]);
 });
 
@@ -393,7 +401,7 @@ test('a position, a turn or a pin in a route drops the route, named at the key',
     [[{ arc: 'ab', from: [0.0005, 0], to: 'b' }], '/routes/0/walk/0/from'],
     [[{ arc: 'ab', from: 'a', to: [0.0005, 0] }], '/routes/0/walk/0/to'],
     [[{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0] }], '/routes/0/walk/0/turn'],
-    [[{ arc: 'ab', from: 'a', to: 'b', pinned: true }], '/routes/0/walk/0/pinned'],
+    [[{ arc: 'ab', from: 'a', to: 'b', pin: [0.0005, 0] }], '/routes/0/walk/0/pin'],
   ];
   for (const [walk, path] of cases) {
     const { document, diagnostics } = route(walk);
@@ -572,7 +580,7 @@ test('a legal walk, route and ring are written back as read', () => {
           {
             walk: [
               { arc: 'ab', from: 'a', turn: [0.0005, 0] },
-              { arc: 'ad', to: 'd', pinned: true },
+              { arc: 'ad', to: 'd', pin: [0, 0.0005] },
             ],
           },
         ],
@@ -626,7 +634,7 @@ const refusals = {
   'a pass with turn and pin': (d) => {
     const p = d.networks[0].highlights[0].walk[0];
     p.turn = d.networks[0].nodes.get('a');
-    p.pinned = true;
+    p.pin = d.networks[0].nodes.get('b');
   },
   'a turn in a route': (d) => {
     d.routes[0].walk[0].turn = d.routes[0].nodes.get('c');

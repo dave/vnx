@@ -461,7 +461,11 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
       to: '    else { /* silently skipped */ }',
     },
   ]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/dotted-key-on-item.vnx', 'diagnose/unknown-key.vnx']);
+  assert.deepEqual(await failingDelta(cases), [
+    'diagnose/dotted-key-on-item.vnx',
+    'diagnose/unknown-key.vnx',
+    'diagnose/walk-pin-unusable.vnx',
+  ]);
 });
 
 test('a container matching its root document on the base name is caught', async () => {
@@ -848,7 +852,7 @@ test('a reader that accepts a pinned turn is caught', async () => {
   const cases = await runMutated([
     {
       file: 'walk.js',
-      from: '    if (p.turn !== undefined && p.pinned === true) {',
+      from: '    if (p.turn !== undefined && p.pin !== undefined) {',
       to: '    if (false) {',
     },
   ]);
@@ -914,7 +918,7 @@ test('a reader that drops a walk position channel silently is caught', async () 
       to: '      if (false) {',
     },
   ]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/extra-channel.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/extra-channel.vnx', 'diagnose/walk-pin-unusable.vnx']);
 });
 
 test('a reader that keeps a closed ring closed is caught', async () => {
@@ -944,7 +948,7 @@ test('a reader with no coordinate range is caught', async () => {
       to: '  const range = null;',
     },
   ]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/position-out-of-range.vnx']);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/position-out-of-range.vnx', 'diagnose/walk-pin-unusable.vnx']);
 });
 
 test('a writer that closes its rings is caught by the accept tier', async () => {

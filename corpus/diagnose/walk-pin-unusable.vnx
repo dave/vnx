@@ -1,0 +1,33 @@
+{
+  "vnx": "0.9.0",
+  "networks": [
+    {
+      "name": "Pins that are not positions",
+      "nodes": {
+        "a": [-3.60, 57.10],
+        "b": [-3.59, 57.10],
+        "c": [-3.58, 57.10],
+        "d": [-3.57, 57.10]
+      },
+      "arcs": {
+        "ab": {"from": "a", "to": "b", "pips": [[-3.595, 57.101]]},
+        "cb": {"from": "c", "to": "b", "pips": []},
+        "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
+      },
+      "highlights": [
+        {
+          "name": "Keep: a pin with an elevation",
+          "walk": [
+            {"arc": "ab", "from": "a"},
+            {"arc": "cb", "pin": [-3.5853, 57.1001, 425]},
+            {"arc": "cd", "to": "d"}
+          ]
+        },
+        {"name": "Keep: the key of the old spelling", "walk": [{"arc": "cb", "from": "c", "to": "b", "pinned": true}]},
+        {"name": "Pinned at a name", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": "b"}]},
+        {"name": "Pinned with a boolean", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": true}]},
+        {"name": "Pinned off the globe", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": [-3.585, 97.1]}]}
+      ]
+    }
+  ]
+}

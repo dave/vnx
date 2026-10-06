@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "A pass carrying both `turn` and `pinned` (SPEC 3.3.3). A turn already fixes the pass, so a pin on it states nothing and a writer that emits one has two answers for what the user fixed. The highlight is dropped and the diagnostic names the pass, since the fault is the pair, not either key. Every other rule holds for this walk, so a reader that checks only connection and spelling reads it clean.",
+  "note": "A pass carrying both `turn` and `pin` (SPEC 3.3.3). A turn already fixes the pass, so a pin on it states nothing and a writer that emits one has two answers for where the user fixed it. The highlight is dropped and the diagnostic names the pass, since the fault is the pair, not either key. The code keeps the name `pinned-turn`. Every other rule holds for this walk, and the pin is a position that parses, so a reader that checks only connection, spelling and each key alone reads it clean.",
   "counts": {
     "networks": 1,
     "/networks/0/highlights": 1,
@@ -22,7 +22,7 @@
     {
       "path": "/networks/0/highlights/1/walk/0",
       "code": "pinned-turn",
-      "message_advisory": "a pass with a turn is never pinned — the highlight is dropped"
+      "message_advisory": "a pass with a turn carries no pin — the highlight is dropped"
     }
   ]
 }

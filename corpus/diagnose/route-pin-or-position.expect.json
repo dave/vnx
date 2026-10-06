@@ -1,7 +1,7 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "A position in a route's walk (SPEC 3.4). A route owns its graph and its walk runs from node to node, so a route ends at its own node and nothing else holds a handle part-way along one of its arcs. The same walk in a network's highlight is valid, which is why this rule is separate from every walk rule and needs its own case. A route is its own highlight, so the route is dropped where a highlight would be. The first route is the same route ending at its node, and survives.",
+  "note": "A position in a route's walk (SPEC 3.4). A route owns its graph and its walk runs from node to node, so a route ends at its own node and nothing else holds a handle part-way along one of its arcs. The same walk in a network's highlight is valid, which is why this rule is separate from every walk rule and needs its own case. A route is its own highlight, so the route is dropped where a highlight would be. The third route runs node to node and carries a `pin`: a pin is a handle on a highlight drawn over a network, and a route has none, so the same rule drops it and names the `pin` key. The first route is the same route ending at its node, and survives.",
   "counts": {
     "routes": 1,
     "/routes/0/walk": 1,
@@ -14,6 +14,11 @@
       "path": "/routes/1/walk/0/to",
       "code": "route-pin-or-position",
       "message_advisory": "a route's walk runs node to node, and this `to` is a position — the route is dropped"
+    },
+    {
+      "path": "/routes/2/walk/0/pin",
+      "code": "route-pin-or-position",
+      "message_advisory": "a route's walk carries no pin — the route is dropped"
     }
   ]
 }

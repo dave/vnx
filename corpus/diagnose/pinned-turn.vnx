@@ -16,7 +16,7 @@
       },
       "highlights": [
         {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
-        {"name": "Pinned out and back", "walk": [{"arc": "cd", "from": "c", "turn": [-3.574, 57.102], "to": "c", "pinned": true}]}
+        {"name": "Pinned out and back", "walk": [{"arc": "cd", "from": "c", "turn": [-3.574, 57.102], "to": "c", "pin": [-3.5735, 57.1015]}]}
       ]
     }
   ]

@@ -1,7 +1,7 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "Every walk form SPEC 3.3.3 names, read clean and written back equal. Highlight 0 has each kind of pass: a position start, a pinned pass over an arc walked against its direction (cb runs c to b and is walked b to c), an out-and-back turn that leaves by the node it entered, a revisit of cb the other way, and a position end. Highlights 1 to 4 are the single-pass forms: a walk inside one arc, a start that turns back past itself, a turn followed by a stop part-way back, and a degenerate pass whose entry and exit are one point. Highlight 5 is an empty walk, which is valid and covers nothing. Arc cb has no pips: it is the straight line between its nodes. A reader with any of the walk rules written too tight drops one of these highlights and fails `counts`; a refusal case cannot see that half. The `positions` list pins one position of each key, `from`, `turn` and `to`, so a transposition inside a walk is caught as it is for every other position.",
+  "note": "Every walk form SPEC 3.3.3 names, read clean and written back equal. Highlight 0 has each kind of pass: a position start, a pinned pass over an arc walked against its direction (cb runs c to b and is walked b to c), whose `pin` lies just off the arc's line, an out-and-back turn that leaves by the node it entered, a revisit of cb the other way, and a position end. Highlights 1 to 4 are the single-pass forms: a walk inside one arc, a start that turns back past itself, a turn followed by a stop part-way back, and a degenerate pass whose entry and exit are one point. Highlight 5 is an empty walk, which is valid and covers nothing. Arc cb has no pips: it is the straight line between its nodes. A reader with any of the walk rules written too tight drops one of these highlights and fails `counts`; a refusal case cannot see that half. The `positions` list pins one position of each key, `from`, `pin`, `turn` and `to`, each where it was written, so a transposition inside a walk is caught as it is for every other position.",
   "counts": {
     "networks": 1,
     "/networks/0/nodes": 4,
@@ -22,6 +22,11 @@
       "at": "/networks/0/highlights/0/walk/0/from",
       "lon": -3.597,
       "lat": 57.1005
+    },
+    {
+      "at": "/networks/0/highlights/0/walk/1/pin",
+      "lon": -3.5853,
+      "lat": 57.1001
     },
     {
       "at": "/networks/0/highlights/0/walk/2/turn",

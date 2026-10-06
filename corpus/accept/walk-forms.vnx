@@ -19,7 +19,7 @@
           "name": "Mid-arc start, pin, turn, revisit, mid-arc end",
           "walk": [
             {"arc": "ab", "from": [-3.597, 57.1005], "to": "b"},
-            {"arc": "cb", "pinned": true},
+            {"arc": "cb", "pin": [-3.5853, 57.1001]},
             {"arc": "cd", "turn": [-3.574, 57.102]},
             {"arc": "cb"},
             {"arc": "ab", "to": [-3.598, 57.1002]}

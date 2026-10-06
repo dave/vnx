@@ -310,8 +310,8 @@ defines no record type, so do not infer a record's shape from a case.
 
 ### Where the coordinates are
 
-Thirty-nine positions are pinned, longitude -3.74 to -3.574, latitude 57.0118
-to 57.1201. Measure it:
+Fifty-one positions are pinned, longitude -3.74 to -3.574, latitude 57.0118 to
+90. Measure it:
 
 ```sh
 cd corpus && python3 -c "

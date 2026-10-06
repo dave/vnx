@@ -1,0 +1,50 @@
+{
+  "kind": "diagnose",
+  "schema": "invalid",
+  "note": "A `pin` takes the rules of a `turn` (SPEC 3.3.3, 6.2): it is a position on the arc, longitude and latitude only, and never a node key. Highlight 0 pins a pass with a position that carries an elevation: the channel is dropped, the pin and the highlight are kept, and `positions` pins the pin where it was written. Highlight 1 carries `pinned`, the key of the old boolean spelling, which this version does not recognise: it is skipped and reported, and the pass stays as it is, unpinned. Highlights 2 to 4 carry a pin that will not parse: a node key, the boolean `true` of the old spelling moved to the new key, and a latitude beyond 90. Each drops its highlight, because a walk with its pin removed reads as valid and is not the walk the user fixed, and each diagnostic names the `pin` key with the one code every unparsable position takes. A reader that still reads a boolean pin, or reads `pinned` as a pin, keeps a highlight here or misses a diagnostic.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/nodes": 4,
+    "/networks/0/arcs": 3,
+    "/networks/0/arcs/ab/pips": 1,
+    "/networks/0/arcs/cb/pips": 0,
+    "/networks/0/arcs/cd/pips": 2,
+    "/networks/0/highlights": 2,
+    "/networks/0/highlights/0/walk": 3,
+    "/networks/0/highlights/1/walk": 1
+  },
+  "positions": [
+    {
+      "at": "/networks/0/highlights/0/walk/1/pin",
+      "lon": -3.5853,
+      "lat": 57.1001
+    }
+  ],
+  "diagnostics": [
+    {
+      "path": "/networks/0/highlights/0/walk/1/pin",
+      "code": "extra-channel",
+      "message_advisory": "a walk position carries longitude and latitude only — the elevation is dropped"
+    },
+    {
+      "path": "/networks/0/highlights/1/walk/0/pinned",
+      "code": "unknown-key",
+      "message_advisory": "`pinned` is not a key of a pass — skipped"
+    },
+    {
+      "path": "/networks/0/highlights/2/walk/0/pin",
+      "code": "position-unusable",
+      "message_advisory": "`pin` is a string, expected a position — the highlight is dropped"
+    },
+    {
+      "path": "/networks/0/highlights/3/walk/0/pin",
+      "code": "position-unusable",
+      "message_advisory": "`pin` is a boolean, expected a position — the highlight is dropped"
+    },
+    {
+      "path": "/networks/0/highlights/4/walk/0/pin",
+      "code": "position-unusable",
+      "message_advisory": "`pin` has a latitude beyond 90 — the highlight is dropped"
+    }
+  ]
+}

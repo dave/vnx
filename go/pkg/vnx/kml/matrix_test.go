@@ -15,11 +15,11 @@ import (
 // that only checked the second half would pass on a writer that dropped the
 // item entirely.
 //
-// ⚠ SIX ROWS OF §8 HAVE NO TEST HERE AND CANNOT: plans, offline maps, durable
-// identity, in-progress recording, app settings and download-job state are ❌
-// in the VNX column too, so a vnx.Document cannot hold one and there is nothing
-// for a writer test to construct. That is the plan's own rescoping of T11, not
-// an omission here.
+// ⚠ SIX ROWS OF §8 HAVE NO TEST HERE AND CANNOT: multi-day planning data,
+// offline maps, durable identity, in-progress recording, app settings and
+// download-job state are ❌ in the VNX column too, so a vnx.Document cannot
+// hold one and there is nothing for a writer test to construct. That is the
+// plan's own rescoping of T11, not an omission here.
 
 // Row: Network topology — "a Folder holding an arcs Placemark and one named
 // Placemark per in-network point, area and highlight; SHARING lost".

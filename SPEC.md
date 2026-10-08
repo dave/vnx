@@ -871,8 +871,8 @@ omission:
   from geometry the reader has just been handed.
 - Items the source library holds as soft-deleted, or trashed. An export carries
   what a user would see in the application.
-- Durable identity, plans, offline map tiles and download state, and creation
-  and modification timestamps of items.
+- Durable identity, multi-day planning data, offline map tiles and download
+  state, and creation and modification timestamps of items.
 - A network's or highlight's default routing configuration.
 - A network's default style for unstyled highlights. This is deferred rather than
   refused, and is expected in a later version.

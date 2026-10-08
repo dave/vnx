@@ -363,6 +363,9 @@ func TestItemsWithNoGeometryAreDiagnosedNotEmitted(t *testing.T) {
 	if strings.Contains(out, "<trk>") {
 		t.Errorf("an empty <trk> was written:\n%s", out)
 	}
+	if strings.Contains(out, "<rte>") {
+		t.Errorf("an empty <rte> was written:\n%s", out)
+	}
 }
 
 // TestOnlyUnsupportedItemsEmitNothing is the case vnxbridge refuses on
@@ -439,40 +442,64 @@ func TestEveryCodeRaisedIsRegistered(t *testing.T) {
 
 // -- the geometry rulings ----------------------------------------------------
 
-// TestARouteIsATrackNotARoute is §3.1's load-bearing ruling. <rte> is a list of
-// turn cues; a dense Viatrail route written as <rtept>s validates and is
-// useless on a device.
-func TestARouteIsATrackNotARoute(t *testing.T) {
+// TestARouteIsAnRteNotATrk pins Dave's ruling of 2026-10-08: "Plans should
+// definitely be exported as GPX routes." A Viatrail plan is a VNX top-level
+// route, so it is written as <rte>/<rtept> and never as a <trk>. It replaced
+// the earlier route-as-<trk> ruling (gpx.go, writeRoutes).
+func TestARouteIsAnRteNotATrk(t *testing.T) {
 	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Planned"},
 		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})}}
 	out, rep := write(t, d)
-	if strings.Contains(out, "<rte") || strings.Contains(out, "rtept") {
-		t.Fatalf("the route was written as <rte>:\n%s", out)
+	if strings.Contains(out, "<trk") {
+		t.Fatalf("the route was written as a <trk>:\n%s", out)
 	}
-	if !strings.Contains(out, "<trk>") || !strings.Contains(out, "<trkseg>") {
-		t.Fatalf("the route was not written as a <trk> with a <trkseg>:\n%s", out)
+	if strings.Count(out, "<rte>") != 1 || strings.Count(out, "<rtept") != 2 {
+		t.Fatalf("the route was not written as one <rte> with two <rtept>s:\n%s", out)
 	}
 	if rep.Emitted != 1 {
 		t.Errorf("emitted %d, want 1", rep.Emitted)
 	}
 }
 
-// TestARouteBecomesOneSegmentWithTheSharedNodeWrittenOnce pins the arc join.
-func TestARouteBecomesOneSegmentWithTheSharedNodeWrittenOnce(t *testing.T) {
+// TestATrackStaysATrkBesideARoute is the other half of the ruling: only the
+// route moved to <rte>. A track written as a <rte> would lose its pauses,
+// because rteType has no segments.
+func TestATrackStaysATrkBesideARoute(t *testing.T) {
+	d := &vnx.Document{
+		Tracks: []vnx.Track{{Name: "Walked", Segments: []vnx.Segment{
+			{Pips: []vnx.Position{{Lon: 5, Lat: 5}, {Lon: 6, Lat: 6}}},
+		}}},
+		Routes: []vnx.Route{route(vnx.Route{Name: "Planned"},
+			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})},
+	}
+	out, rep := write(t, d)
+	if strings.Count(out, "<trk>") != 1 || strings.Count(out, "<trkpt") != 2 {
+		t.Errorf("the track was not written as one <trk> with two <trkpt>s:\n%s", out)
+	}
+	if strings.Count(out, "<rte>") != 1 || strings.Count(out, "<rtept") != 2 {
+		t.Errorf("the route was not written as one <rte> with two <rtept>s:\n%s", out)
+	}
+	if rep.Emitted != 2 {
+		t.Errorf("emitted %d, want 2", rep.Emitted)
+	}
+}
+
+// TestARouteBecomesOneRteWithTheSharedNodeWrittenOnce pins the arc join.
+func TestARouteBecomesOneRteWithTheSharedNodeWrittenOnce(t *testing.T) {
 	shared := vnx.Position{Lon: 2, Lat: 2}
 	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Two arcs"},
 		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, shared}},
 		lineArc{Pips: []vnx.Position{shared, {Lon: 3, Lat: 3}}},
 	)}}
 	out, _ := write(t, d)
-	if n := strings.Count(out, "<trkseg>"); n != 1 {
-		t.Errorf("%d <trkseg>s, want 1 — a route's arcs are not pauses", n)
+	if n := strings.Count(out, "<rte>"); n != 1 {
+		t.Errorf("%d <rte>s, want 1 — a route's arcs are not separate routes", n)
 	}
 	if n := strings.Count(out, `lat="2" lon="2"`); n != 1 {
 		t.Errorf("the shared node appears %d times, want 1", n)
 	}
-	if n := strings.Count(out, "<trkpt"); n != 3 {
-		t.Errorf("%d <trkpt>s, want 3", n)
+	if n := strings.Count(out, "<rtept"); n != 3 {
+		t.Errorf("%d <rtept>s, want 3", n)
 	}
 }
 
@@ -528,16 +555,38 @@ func TestAbsentTimeOmitsTheElement(t *testing.T) {
 	}
 }
 
-// TestWaypointsPrecedeTracks — gpxType is a sequence, so interleaving produces
-// a file that some readers open and any validator rejects.
-func TestWaypointsPrecedeTracks(t *testing.T) {
+// TestWaypointsPrecedeRoutesPrecedeTracks — gpxType is a sequence (wpt*,
+// rte*, trk*), so interleaving produces a file that some readers open and any
+// validator rejects. The document lists tracks BEFORE routes, so a writer
+// that walked document order would put the <trk> first; two of each kind
+// catch a writer that interleaves them.
+func TestWaypointsPrecedeRoutesPrecedeTracks(t *testing.T) {
+	trk := func(name string) vnx.Track {
+		return vnx.Track{Name: name, Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 1}}}}}
+	}
+	rte := func(name string) vnx.Route {
+		return route(vnx.Route{Name: name}, lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})
+	}
 	d := &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "W", At: vnx.Position{Lon: 1, Lat: 1}}},
-		Tracks:    []vnx.Track{{Name: "T", Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 1}}}}}},
+		Waypoints: []vnx.Waypoint{{Name: "W1", At: vnx.Position{Lon: 1, Lat: 1}}, {Name: "W2", At: vnx.Position{Lon: 2, Lat: 2}}},
+		Tracks:    []vnx.Track{trk("T1"), trk("T2")},
+		Routes:    []vnx.Route{rte("R1"), rte("R2")},
 	}
 	out, _ := write(t, d)
-	if strings.Index(out, "<wpt") > strings.Index(out, "<trk>") {
-		t.Errorf("a <trk> precedes a <wpt>:\n%s", out)
+	var kinds []string
+	for _, line := range strings.Split(out, "\n") {
+		switch strings.TrimSpace(line) {
+		case "<rte>", "<trk>":
+			kinds = append(kinds, strings.TrimSpace(line))
+		default:
+			if strings.HasPrefix(strings.TrimSpace(line), "<wpt ") {
+				kinds = append(kinds, "<wpt>")
+			}
+		}
+	}
+	want := []string{"<wpt>", "<wpt>", "<rte>", "<rte>", "<trk>", "<trk>"}
+	if strings.Join(kinds, " ") != strings.Join(want, " ") {
+		t.Errorf("top-level order %v, want %v:\n%s", kinds, want, out)
 	}
 }
 

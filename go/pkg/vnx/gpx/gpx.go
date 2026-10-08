@@ -76,8 +76,9 @@ type writer struct {
 //
 // ⚠ THE EMISSION ORDER IS THE SCHEMA'S, NOT THE DOCUMENT'S. gpxType is a
 // SEQUENCE — metadata?, wpt*, rte*, trk*, extensions? — so every <wpt> must
-// precede every <trk> or the file does not validate, however the document
-// happened to be laid out. Interleaving them produces a file that opens in
+// precede every <rte>, and every <rte> every <trk>, or the file does not
+// validate, however the document happened to be laid out. That is why routes
+// are written BEFORE tracks although the document lists tracks first. Interleaving them produces a file that opens in
 // some readers and is rejected by any that validate, which is the worst of
 // both.
 //
@@ -87,8 +88,8 @@ func (g *writer) run() {
 	g.collectFolderDiagnostics()
 	g.b.WriteString(header)
 	g.writeWaypoints()
-	g.writeTracks()
 	g.writeRoutes()
+	g.writeTracks()
 	g.b.WriteString(footer)
 	g.collectAreaDiagnostics()
 	g.collectNetworkDiagnostics()
@@ -196,14 +197,48 @@ func (g *writer) writeRoutes() {
 			continue
 		}
 		name := g.flatName(path, r.Folder, r.Name, &g.routeDiags)
-		// ⚠ A ROUTE IS A <trk>, NOT A <rte>, AND THIS IS LOAD-BEARING. GPX's
-		// <rte> is a list of TURN CUES a device navigates between — sparse
-		// points it draws its own line through. A Viatrail route is a dense
-		// polyline that already follows the ground, which is a *track* in
-		// GPX's vocabulary whatever we call it internally. Hundreds of dense
-		// <rtept>s produce a file that validates and is useless on a device.
-		g.writeTrk(name, r.Notes, [][]vnx.Position{pips})
+		// ⚠ A ROUTE IS A <rte>, AND A TRACK IS A <trk> (Dave, 2026-10-08):
+		// "Plans should definitely be exported as GPX routes." A Viatrail plan
+		// is a VNX top-level route, so it is written as <rte>/<rtept>.
+		//
+		// This REPLACES the earlier ruling that wrote a route as a <trk>. That
+		// ruling's reason was put to Dave before he ruled, and he ruled <rte>
+		// with it in view: GPX means a <rte> as a list of sparse turn points
+		// that a device draws its own line through, and a Viatrail route is a
+		// dense polyline that already follows the ground. The file is still
+		// valid GPX; a device that re-routes between <rtept>s receives many
+		// close points. Do not change this back to <trk> to be helpful.
+		//
+		// The walk stays ONE list: a route's arcs are not pauses, so it is
+		// one <rte>, never one per arc.
+		g.writeRte(name, r.Notes, pips)
 	}
+}
+
+func (g *writer) writeRte(name, notes string, pips []vnx.Position) {
+	g.b.WriteString("  <rte>\n")
+	// rteType sequence: name, cmt, desc, src, link, number, type, extensions,
+	// rtept*. Each <rtept> is a wptType: ele, time, … in that order.
+	g.writeText("    ", "name", name)
+	g.writeText("    ", "desc", notes)
+	for i := range pips {
+		if g.err != nil {
+			return
+		}
+		p := pips[i]
+		g.b.WriteString(`    <rtept lat="` + g.number(vnx.RoundCoordinate(p.Lat), "latitude") +
+			`" lon="` + g.number(vnx.RoundCoordinate(p.Lon), "longitude") + `"`)
+		if p.Ele == nil && p.Time == nil {
+			g.b.WriteString("/>\n")
+			continue
+		}
+		g.b.WriteString(">\n")
+		g.writeEle("      ", p)
+		g.writeTime("      ", p)
+		g.b.WriteString("    </rtept>\n")
+	}
+	g.b.WriteString("  </rte>\n")
+	g.emitted++
 }
 
 func (g *writer) writeTrk(name, notes string, segs [][]vnx.Position) {

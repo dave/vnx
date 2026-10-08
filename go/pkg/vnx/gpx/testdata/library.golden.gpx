@@ -13,6 +13,146 @@
     <time>2024-09-01T14:13:20.123Z</time>
     <name>Scotland / Bothy</name>
   </wpt>
+  <rte>
+    <name>Scotland / Planned Line</name>
+    <rtept lat="57.1" lon="-3.5">
+      <ele>600</ele>
+    </rtept>
+    <rtept lat="57.1005" lon="-3.499"/>
+    <rtept lat="57.101" lon="-3.498">
+      <ele>602</ele>
+    </rtept>
+    <rtept lat="57.1015" lon="-3.497">
+      <ele>603</ele>
+    </rtept>
+    <rtept lat="57.102" lon="-3.496"/>
+    <rtept lat="57.1025" lon="-3.495">
+      <ele>605</ele>
+    </rtept>
+    <rtept lat="57.103" lon="-3.494">
+      <ele>606</ele>
+    </rtept>
+    <rtept lat="57.1035" lon="-3.493"/>
+    <rtept lat="57.104" lon="-3.492">
+      <ele>608</ele>
+    </rtept>
+    <rtept lat="57.1045" lon="-3.491">
+      <ele>609</ele>
+    </rtept>
+    <rtept lat="57.105" lon="-3.49"/>
+    <rtept lat="57.1055" lon="-3.489">
+      <ele>611</ele>
+    </rtept>
+    <rtept lat="57.106" lon="-3.488">
+      <ele>612</ele>
+    </rtept>
+    <rtept lat="57.1065" lon="-3.487"/>
+    <rtept lat="57.107" lon="-3.486">
+      <ele>614</ele>
+    </rtept>
+    <rtept lat="57.1075" lon="-3.485">
+      <ele>615</ele>
+    </rtept>
+    <rtept lat="57.108" lon="-3.484"/>
+    <rtept lat="57.1085" lon="-3.483">
+      <ele>617</ele>
+    </rtept>
+    <rtept lat="57.109" lon="-3.482">
+      <ele>618</ele>
+    </rtept>
+    <rtept lat="57.1095" lon="-3.481"/>
+    <rtept lat="57.11" lon="-3.48">
+      <ele>620</ele>
+    </rtept>
+    <rtept lat="57.1105" lon="-3.479">
+      <ele>621</ele>
+    </rtept>
+    <rtept lat="57.111" lon="-3.478"/>
+    <rtept lat="57.1115" lon="-3.477">
+      <ele>623</ele>
+    </rtept>
+    <rtept lat="57.112" lon="-3.476">
+      <ele>624</ele>
+    </rtept>
+    <rtept lat="57.1125" lon="-3.475"/>
+    <rtept lat="57.113" lon="-3.474">
+      <ele>626</ele>
+    </rtept>
+    <rtept lat="57.1135" lon="-3.473">
+      <ele>627</ele>
+    </rtept>
+    <rtept lat="57.114" lon="-3.472"/>
+    <rtept lat="57.1145" lon="-3.471">
+      <ele>629</ele>
+    </rtept>
+    <rtept lat="57.115" lon="-3.47">
+      <ele>630</ele>
+    </rtept>
+    <rtept lat="57.1155" lon="-3.469"/>
+    <rtept lat="57.116" lon="-3.468">
+      <ele>632</ele>
+    </rtept>
+    <rtept lat="57.1165" lon="-3.467">
+      <ele>633</ele>
+    </rtept>
+    <rtept lat="57.117" lon="-3.466"/>
+    <rtept lat="57.1175" lon="-3.465">
+      <ele>635</ele>
+    </rtept>
+    <rtept lat="57.118" lon="-3.464">
+      <ele>636</ele>
+    </rtept>
+    <rtept lat="57.1185" lon="-3.463"/>
+    <rtept lat="57.119" lon="-3.462">
+      <ele>638</ele>
+    </rtept>
+    <rtept lat="57.1195" lon="-3.461">
+      <ele>639</ele>
+    </rtept>
+    <rtept lat="57.12" lon="-3.46"/>
+    <rtept lat="57.1205" lon="-3.459">
+      <ele>641</ele>
+    </rtept>
+    <rtept lat="57.121" lon="-3.458">
+      <ele>642</ele>
+    </rtept>
+    <rtept lat="57.1215" lon="-3.457"/>
+    <rtept lat="57.122" lon="-3.456">
+      <ele>644</ele>
+    </rtept>
+    <rtept lat="57.1225" lon="-3.455">
+      <ele>645</ele>
+    </rtept>
+    <rtept lat="57.123" lon="-3.454"/>
+    <rtept lat="57.1235" lon="-3.453">
+      <ele>647</ele>
+    </rtept>
+    <rtept lat="57.124" lon="-3.452">
+      <ele>648</ele>
+    </rtept>
+    <rtept lat="57.1245" lon="-3.451"/>
+    <rtept lat="57.125" lon="-3.45">
+      <ele>650</ele>
+    </rtept>
+    <rtept lat="57.1255" lon="-3.449">
+      <ele>651</ele>
+    </rtept>
+    <rtept lat="57.126" lon="-3.448"/>
+    <rtept lat="57.1265" lon="-3.447">
+      <ele>653</ele>
+    </rtept>
+    <rtept lat="57.127" lon="-3.446">
+      <ele>654</ele>
+    </rtept>
+    <rtept lat="57.1275" lon="-3.445"/>
+    <rtept lat="57.128" lon="-3.444">
+      <ele>656</ele>
+    </rtept>
+    <rtept lat="57.1285" lon="-3.443">
+      <ele>657</ele>
+    </rtept>
+    <rtept lat="57.129" lon="-3.442"/>
+  </rte>
   <trk>
     <name>Scotland / Cairngorms / Lairig Ghru</name>
     <desc>Two days, one pause</desc>
@@ -312,148 +452,6 @@
         <ele>479</ele>
         <time>2024-09-01T14:33:05Z</time>
       </trkpt>
-    </trkseg>
-  </trk>
-  <trk>
-    <name>Scotland / Planned Line</name>
-    <trkseg>
-      <trkpt lat="57.1" lon="-3.5">
-        <ele>600</ele>
-      </trkpt>
-      <trkpt lat="57.1005" lon="-3.499"/>
-      <trkpt lat="57.101" lon="-3.498">
-        <ele>602</ele>
-      </trkpt>
-      <trkpt lat="57.1015" lon="-3.497">
-        <ele>603</ele>
-      </trkpt>
-      <trkpt lat="57.102" lon="-3.496"/>
-      <trkpt lat="57.1025" lon="-3.495">
-        <ele>605</ele>
-      </trkpt>
-      <trkpt lat="57.103" lon="-3.494">
-        <ele>606</ele>
-      </trkpt>
-      <trkpt lat="57.1035" lon="-3.493"/>
-      <trkpt lat="57.104" lon="-3.492">
-        <ele>608</ele>
-      </trkpt>
-      <trkpt lat="57.1045" lon="-3.491">
-        <ele>609</ele>
-      </trkpt>
-      <trkpt lat="57.105" lon="-3.49"/>
-      <trkpt lat="57.1055" lon="-3.489">
-        <ele>611</ele>
-      </trkpt>
-      <trkpt lat="57.106" lon="-3.488">
-        <ele>612</ele>
-      </trkpt>
-      <trkpt lat="57.1065" lon="-3.487"/>
-      <trkpt lat="57.107" lon="-3.486">
-        <ele>614</ele>
-      </trkpt>
-      <trkpt lat="57.1075" lon="-3.485">
-        <ele>615</ele>
-      </trkpt>
-      <trkpt lat="57.108" lon="-3.484"/>
-      <trkpt lat="57.1085" lon="-3.483">
-        <ele>617</ele>
-      </trkpt>
-      <trkpt lat="57.109" lon="-3.482">
-        <ele>618</ele>
-      </trkpt>
-      <trkpt lat="57.1095" lon="-3.481"/>
-      <trkpt lat="57.11" lon="-3.48">
-        <ele>620</ele>
-      </trkpt>
-      <trkpt lat="57.1105" lon="-3.479">
-        <ele>621</ele>
-      </trkpt>
-      <trkpt lat="57.111" lon="-3.478"/>
-      <trkpt lat="57.1115" lon="-3.477">
-        <ele>623</ele>
-      </trkpt>
-      <trkpt lat="57.112" lon="-3.476">
-        <ele>624</ele>
-      </trkpt>
-      <trkpt lat="57.1125" lon="-3.475"/>
-      <trkpt lat="57.113" lon="-3.474">
-        <ele>626</ele>
-      </trkpt>
-      <trkpt lat="57.1135" lon="-3.473">
-        <ele>627</ele>
-      </trkpt>
-      <trkpt lat="57.114" lon="-3.472"/>
-      <trkpt lat="57.1145" lon="-3.471">
-        <ele>629</ele>
-      </trkpt>
-      <trkpt lat="57.115" lon="-3.47">
-        <ele>630</ele>
-      </trkpt>
-      <trkpt lat="57.1155" lon="-3.469"/>
-      <trkpt lat="57.116" lon="-3.468">
-        <ele>632</ele>
-      </trkpt>
-      <trkpt lat="57.1165" lon="-3.467">
-        <ele>633</ele>
-      </trkpt>
-      <trkpt lat="57.117" lon="-3.466"/>
-      <trkpt lat="57.1175" lon="-3.465">
-        <ele>635</ele>
-      </trkpt>
-      <trkpt lat="57.118" lon="-3.464">
-        <ele>636</ele>
-      </trkpt>
-      <trkpt lat="57.1185" lon="-3.463"/>
-      <trkpt lat="57.119" lon="-3.462">
-        <ele>638</ele>
-      </trkpt>
-      <trkpt lat="57.1195" lon="-3.461">
-        <ele>639</ele>
-      </trkpt>
-      <trkpt lat="57.12" lon="-3.46"/>
-      <trkpt lat="57.1205" lon="-3.459">
-        <ele>641</ele>
-      </trkpt>
-      <trkpt lat="57.121" lon="-3.458">
-        <ele>642</ele>
-      </trkpt>
-      <trkpt lat="57.1215" lon="-3.457"/>
-      <trkpt lat="57.122" lon="-3.456">
-        <ele>644</ele>
-      </trkpt>
-      <trkpt lat="57.1225" lon="-3.455">
-        <ele>645</ele>
-      </trkpt>
-      <trkpt lat="57.123" lon="-3.454"/>
-      <trkpt lat="57.1235" lon="-3.453">
-        <ele>647</ele>
-      </trkpt>
-      <trkpt lat="57.124" lon="-3.452">
-        <ele>648</ele>
-      </trkpt>
-      <trkpt lat="57.1245" lon="-3.451"/>
-      <trkpt lat="57.125" lon="-3.45">
-        <ele>650</ele>
-      </trkpt>
-      <trkpt lat="57.1255" lon="-3.449">
-        <ele>651</ele>
-      </trkpt>
-      <trkpt lat="57.126" lon="-3.448"/>
-      <trkpt lat="57.1265" lon="-3.447">
-        <ele>653</ele>
-      </trkpt>
-      <trkpt lat="57.127" lon="-3.446">
-        <ele>654</ele>
-      </trkpt>
-      <trkpt lat="57.1275" lon="-3.445"/>
-      <trkpt lat="57.128" lon="-3.444">
-        <ele>656</ele>
-      </trkpt>
-      <trkpt lat="57.1285" lon="-3.443">
-        <ele>657</ele>
-      </trkpt>
-      <trkpt lat="57.129" lon="-3.442"/>
     </trkseg>
   </trk>
 </gpx>

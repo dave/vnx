@@ -134,8 +134,8 @@ func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 			},
 		)},
 	})
-	// CARRIED: the route, as a <trk> with its geometry (§3.1's ruling).
-	if !strings.Contains(out, "<name>Ridge</name>") || !strings.Contains(out, "<trkseg>") {
+	// CARRIED: the route, as a <rte> with its geometry (Dave, 2026-10-08).
+	if !strings.Contains(out, "<name>Ridge</name>") || !strings.Contains(out, "<rtept") {
 		t.Errorf("the route was not exported\n%s", out)
 	}
 	if rep.Emitted != 1 {

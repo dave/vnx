@@ -61,7 +61,7 @@ import "strings"
 // vnxbridge would be a second answer to that question, drifting from the first
 // the day either changes — the duplicated truth §2.4 exists to prevent.
 type WriteReport struct {
-	// Emitted is how many top-level OBJECTS the writer wrote: <wpt> and <trk>
+	// Emitted is how many top-level OBJECTS the writer wrote: <wpt>, <rte> and <trk>
 	// in GPX, <Placemark> in KML, Feature in GeoJSON.
 	//
 	// ⚠ A CONTAINER IS NOT AN OBJECT. KML's <Folder> nests real folders and

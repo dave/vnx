@@ -20,7 +20,7 @@ data class Version(
 
     companion object {
         /** The version of this format that this library implements. */
-        val SUPPORTED = Version(BigInteger.ZERO, BigInteger.valueOf(9), BigInteger.ZERO)
+        val SUPPORTED = Version(BigInteger.ZERO, BigInteger.valueOf(9), BigInteger.ONE)
 
         private val SHAPE = Regex("^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
 

@@ -15,7 +15,7 @@ ktlint {
 // VNX version this library implements, as in the Python, JavaScript and Rust
 // builds beside it.
 group = "app.viatrail"
-version = "0.9.0"
+version = "0.9.1"
 
 repositories {
     mavenCentral()

@@ -39,7 +39,7 @@ type layout struct {
 	placeable []bool
 }
 
-// plan arranges the document.
+// arrange lays out the document.
 //
 // ⚠ THE FIRST FOLDER WITH AN ID WINS, matching vnx.decodeFolders ("duplicate
 // folder id %q — dropped, the first one wins"). A later duplicate is written at
@@ -53,7 +53,7 @@ type layout struct {
 // to its parent — so every child's depth is exactly one more than its parent's,
 // and depth is bounded. This is why the emptiness of a `seen` set is a proof
 // rather than an oversight.
-func plan(d *vnx.Document) *layout {
+func arrange(d *vnx.Document) *layout {
 	l := &layout{
 		byIndex:   make(map[int]*bucket, len(d.Folders)),
 		placeable: make([]bool, len(d.Folders)),

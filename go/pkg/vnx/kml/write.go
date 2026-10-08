@@ -86,7 +86,7 @@ func (x *writer) fail(err error) {
 }
 
 func (x *writer) document() {
-	l := plan(x.d)
+	l := arrange(x.d)
 	x.w.WriteString(xml.Header)
 	x.open("kml", ` xmlns="http://www.opengis.net/kml/2.2"`)
 	x.open("Document", "")

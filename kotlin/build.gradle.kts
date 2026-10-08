@@ -10,12 +10,12 @@ ktlint {
     version.set("1.5.0")
 }
 
-// The coordinate a consumer writes: app.viatrail:vnx:0.9.0. `app.viatrail`
+// The coordinate a consumer writes: app.viatrail:vnx:0.10.0. `app.viatrail`
 // matches the package namespace the source already uses, and the version is the
 // VNX version this library implements, as in the Python, JavaScript and Rust
 // builds beside it.
 group = "app.viatrail"
-version = "0.9.1"
+version = "0.10.0"
 
 repositories {
     mavenCentral()

@@ -122,7 +122,7 @@ func excerpt(b []byte, i int) string {
 // spelling on purpose to keep that tolerance under test — and §4.1 has a WRITER
 // emit the short one.
 func TestTrailingNullDecodesAndReEncodesShort(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestTimestampsKeepTheirMilliseconds(t *testing.T) {
 // folder there would place an item that is not placed.
 func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 	doc := &Document{
-		Version: "0.9.0",
+		Version: "0.10.0",
 		// The same Folder value on both, so the test cannot pass by the
 		// in-network one simply being empty.
 		Waypoints: []Waypoint{{Name: "top", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
@@ -216,7 +216,7 @@ func ring() []Position {
 // is what a caller reading the document sees. The WRITER spells both as
 // absence, which is what `omitempty` does and what §3.1 permits.
 func TestAnEmptyDataBagIsWrittenAsAnAbsentOne(t *testing.T) {
-	const src = `{"vnx":"0.9.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","waypoints":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"data":[]}]}`
 	doc, diags, err := Decode([]byte(src))

@@ -14,7 +14,7 @@ import (
 // named, in a region spec §3.10 declares opaque. Nobody reported the second,
 // because a dropped key looks exactly like a key that was never there.
 func TestAStyleIsOpaque(t *testing.T) {
-	const src = `{"vnx":"0.9.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","waypoints":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"style":{}},` +
 		`{"name":"unknown keys","at":[-3,57],"style":{"color":"#abcdef","halo-width":3,"glyph":"cairn"}}]}`
@@ -62,7 +62,7 @@ func TestAStyleIsOpaque(t *testing.T) {
 // read-modify-write — so a field named `importance` inside a record is carried
 // untouched however wrong it looks.
 func TestImportanceIsCheckedInAStyleAndNotInARecord(t *testing.T) {
-	const src = `{"vnx":"0.9.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","waypoints":[` +
 		`{"name":"bad style importance","at":[-3,57],"style":{"importance":9}},` +
 		`{"name":"bad record importance","at":[-3,57],"data":[{"@type":"x.y","importance":9}]}]}`
 	doc, diags, err := Decode([]byte(src))
@@ -79,7 +79,7 @@ func TestImportanceIsCheckedInAStyleAndNotInARecord(t *testing.T) {
 		t.Errorf("a record body's importance was inspected; got %#v, want it carried untouched", got)
 	}
 	// `icon-size` has no stated range, so it is not checked at all.
-	doc2, diags2, err := Decode([]byte(`{"vnx":"0.9.0","waypoints":[{"name":"n","at":[-3,57],"style":{"icon-size":"large"}}]}`))
+	doc2, diags2, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"n","at":[-3,57],"style":{"icon-size":"large"}}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://viatrail.app/schema/vnx-0.9.schema.json",
-  "title": "VNX 0.9 — Viatrail Network eXchange",
-  "description": "Structural schema for a VNX 0.9 document. READ schema/README.md before trusting a green result: a JSON Schema can check shape, and several of this format's load-bearing rules are not about shape. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
+  "$id": "https://viatrail.app/schema/vnx-0.10.schema.json",
+  "title": "VNX 0.10 — Viatrail Network eXchange",
+  "description": "Structural schema for a VNX 0.10 document. READ schema/README.md before trusting a green result: a JSON Schema can check shape, and several of this format's load-bearing rules are not about shape. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
   "type": "object",
   "required": [
     "vnx"

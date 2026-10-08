@@ -8,7 +8,7 @@ import { encode } from '../src/index.js';
 import { decodeContainer, encodeContainer, writeContainer } from '../src/vnz.js';
 import { writeArchive } from '../src/zip.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.9.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.10.0', ...extra });
 
 /** The `at` of the first waypoint, as the encoded document spells it. */
 function encodedAt(document) {
@@ -81,15 +81,15 @@ test('a writer emits hidden only when it is true', () => {
 });
 
 test('a re-encoded document carries the version it declared, not the reader own', () => {
-  const { document } = decodeText('{"vnx": "0.9.99"}');
-  assert.equal(JSON.parse(encode(document)).vnx, '0.9.99');
+  const { document } = decodeText('{"vnx": "0.10.99"}');
+  assert.equal(JSON.parse(encode(document)).vnx, '0.10.99');
 });
 
 test('the output is compact: no space argument reaches JSON.stringify', () => {
   // SPEC.md 8.1 leaves whitespace to the writer, and a document is mostly
   // coordinates. Indentation would be pure size for no reader.
   const out = encode(decodeText(doc({ waypoints: [{ at: [1, 2] }] })).document);
-  assert.equal(out, '{"vnx":"0.9.0","waypoints":[{"at":[1,2]}]}');
+  assert.equal(out, '{"vnx":"0.10.0","waypoints":[{"at":[1,2]}]}');
 });
 
 test('encoding does not mutate the model', () => {

@@ -11,7 +11,7 @@ import { encode } from '../src/index.js';
 const base = () =>
   decodeText(
     JSON.stringify({
-      vnx: '0.9.0',
+      vnx: '0.10.0',
       waypoints: [
         {
           at: [1, 2],

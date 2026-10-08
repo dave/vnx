@@ -1,6 +1,6 @@
 # VNX Wire Format Specification
 
-Version 0.9.1
+Version 0.10.0
 
 ## Abstract
 
@@ -117,7 +117,7 @@ rule. The document below is complete and is read with no diagnostics.
 
 ```json
 {
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "generator": "example 1.0",
   "created": "2026-08-31T06:45:12Z",
   "folders": [
@@ -182,7 +182,7 @@ one highlight whose walk is a single pass over that arc from `node-1` to `node-2
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.9.1` |
+| Current version | `0.10.0` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document
@@ -228,11 +228,11 @@ Through 0.x:
   and MUST refuse a document in a series it does not support, naming the
   version.
 - A reader MUST accept a document in a series it supports, whatever the PATCH
-  component. A 0.9.0 reader accepts 0.9.3. It refuses 0.10.0, and it refuses
+  component. A 0.10.0 reader accepts 0.10.3. It refuses 0.11.0, and it refuses
   0.1.9 unless it declares support for the 0.1 series. A lower minor is refused
   for the same reason as a higher one.
 
-A reader of this version supports the 0.9 series only.
+A reader of this version supports the 0.10 series only.
 
 From version 1.0 onward, minor versions are additive: a reader MUST accept any
 minor version at or above its own and MUST ignore constructs it does not
@@ -240,8 +240,8 @@ recognise, and only a MAJOR increment is a refusal. The rule for PATCH does not
 change.
 
 A reader that re-encodes a document MUST write the version the document
-declared, not the reader's own. A 0.9.0 reader that reads a 0.9.3 document and
-writes it back writes `0.9.3`.
+declared, not the reader's own. A 0.10.0 reader that reads a 0.10.3 document and
+writes it back writes `0.10.3`.
 
 ## 3. Document structure
 
@@ -254,7 +254,7 @@ A VNX document is a JSON object.
 
 ```json
 {
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "generator": "Viatrail 0.1.93",
   "created": "2026-08-31T06:45:12Z",
 
@@ -683,7 +683,7 @@ Notes on the table:
   and a waypoint and a network's point are one shape (Section 3.6).
 - An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
   a segment carries `hidden`. A per-arc style is a plausible future addition and
-  is not part of version 0.9.
+  is not part of version 0.10.
 
 #### Objects this section does not reach
 

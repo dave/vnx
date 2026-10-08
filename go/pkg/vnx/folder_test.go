@@ -3,7 +3,7 @@ package vnx
 import "testing"
 
 func TestFoldersRoundTrip(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
 	  {"id":"cairngorms","name":"Cairngorms"},
 	  {"id":"approaches","name":"Approaches","parent":"cairngorms"}
 	]}`))
@@ -25,7 +25,7 @@ func TestFoldersRoundTrip(t *testing.T) {
 // element — the reference, not the folder. Dropping the folder would take its
 // contents with it; keeping it at root loses only its position.
 func TestDanglingParentIsDiagnosedAndFolderKeptAtRoot(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
 	  {"id":"orphan","name":"Orphan","parent":"nowhere"}
 	]}`))
 	if err != nil {
@@ -50,7 +50,7 @@ func TestDanglingParentIsDiagnosedAndFolderKeptAtRoot(t *testing.T) {
 // So the test asserts the INVARIANT (no chain cycles, nothing dropped, the
 // repair is reported) rather than one particular repair.
 func TestCycleIsBrokenMinimallyAndDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
 	  {"id":"a","name":"A","parent":"b"},
 	  {"id":"b","name":"B","parent":"a"}
 	]}`))
@@ -94,7 +94,7 @@ func TestCycleIsBrokenMinimallyAndDiagnosed(t *testing.T) {
 }
 
 func TestDuplicateFolderIDIsDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
 	  {"id":"same","name":"First"},{"id":"same","name":"Second"}
 	]}`))
 	if err != nil {
@@ -109,7 +109,7 @@ func TestDuplicateFolderIDIsDiagnosed(t *testing.T) {
 }
 
 func TestFolderWithoutIDIsDropped(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[{"name":"No id"},{"id":"ok","name":"Fine"}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"ok","name":"Fine"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

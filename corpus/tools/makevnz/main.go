@@ -25,7 +25,7 @@ type entry struct {
 // The document inside the archives is a plain accept-tier document,
 // like every other accept file in the corpus.
 const doc = `{
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "waypoints": [
     {
       "name": "In a container",
@@ -49,7 +49,7 @@ func main() {
 	})
 	write("reject/container-duplicate-entries.vnz", []entry{
 		{name: "doc.vnx", body: doc, method: zip.Deflate},
-		{name: "doc.vnx", body: `{"vnx":"0.9.0"}`, method: zip.Deflate},
+		{name: "doc.vnx", body: `{"vnx":"0.10.0"}`, method: zip.Deflate},
 	})
 	// The two names differ only in case. §7 compares entry names
 	// case-insensitively, so this is a duplicate exactly as the identical pair

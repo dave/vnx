@@ -1,5 +1,5 @@
 {
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "networks": [
     {
       "name": "A walk whose second arc is missing",

@@ -1150,7 +1150,7 @@ fn distinct_points(ring: &[Position], enough: usize) -> usize {
 }
 
 /// SPEC 2.2. Three runs of decimal digits separated by full stops. A leading
-/// zero is legal and the comparison is numeric, so `00.09.0000` is 0.9.0.
+/// zero is legal and the comparison is numeric, so `00.010.0000` is 0.10.0.
 fn parse_version(text: &str) -> Result<Version, Refusal> {
     let malformed = || Refusal::VersionMalformed {
         found: text.to_string(),
@@ -1179,7 +1179,7 @@ fn parse_version(text: &str) -> Result<Version, Refusal> {
     // SPEC 2.2, through 0.x: EACH MINOR IS ITS OWN SERIES, so the test is
     // "not this reader's series", NOT "above it". 0.0 is not an older spelling
     // of 0.1 and this reader has no rules for it, so `0.0.9` is refused for
-    // the same reason `0.9.0` is. PATCH never refuses, at any version.
+    // the same reason `0.10.0` is. PATCH never refuses, at any version.
     if (version.major, version.minor) != SUPPORTED {
         return Err(Refusal::VersionUnsupportedSeries {
             found: text.to_string(),
@@ -1244,7 +1244,7 @@ mod tests {
     fn versions_that_refuse_and_versions_that_do_not() {
         // Above this reader's series.
         assert!(matches!(
-            refuse(r#"{"vnx": "0.10.0"}"#),
+            refuse(r#"{"vnx": "0.11.0"}"#),
             Refusal::VersionUnsupportedSeries { .. }
         ));
         assert!(matches!(
@@ -1253,7 +1253,7 @@ mod tests {
         ));
         // And BELOW it, which is the same refusal for the same reason: a
         // reader comparing with `>` reads these and passes everything above.
-        // A 0.9 reader reads the 0.9 series only (SPEC 2.2), so 0.1 is refused.
+        // A 0.10 reader reads the 0.10 series only (SPEC 2.2), so 0.1 is refused.
         for text in ["0.1.0", "0.1.9", "0.0.9", "0.0.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
@@ -1262,7 +1262,7 @@ mod tests {
             );
         }
         for text in [
-            "0.9", "0.9.0.0", "0.9.x", "0.9.+1", "", "0.9.", ".8.0", "0.9.0 ",
+            "0.10", "0.10.0.0", "0.10.x", "0.10.+1", "", "0.10.", ".8.0", "0.10.0 ",
         ] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
@@ -1271,7 +1271,7 @@ mod tests {
             );
         }
         // PATCH never refuses, and a leading zero is a legal spelling.
-        for text in ["0.9.99", "0.9.4294967296", "00.09.0000", "0.9.0"] {
+        for text in ["0.10.99", "0.10.4294967296", "00.010.0000", "0.10.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             let reading = read(&document);
             assert_eq!(
@@ -1295,7 +1295,7 @@ mod tests {
     #[test]
     fn an_unknown_key_is_diagnosed_and_the_item_kept() {
         let reading = read(
-            r#"{"vnx":"0.9.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
+            r#"{"vnx":"0.10.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
         );
         assert_eq!(reading.diagnostics.len(), 1);
         assert_eq!(reading.diagnostics[0].path, "/waypoints/0/nmae");
@@ -1305,28 +1305,30 @@ mod tests {
 
     #[test]
     fn a_wrong_type_drops_an_optional_field_and_takes_a_required_one() {
-        let reading = read(r#"{"vnx":"0.9.0","waypoints":[{"name":7,"at":[-3.6,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"name":7,"at":[-3.6,57.1]}]}"#);
         assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
         assert_eq!(reading.document.waypoints.expect("kept")[0].name, None);
         assert_eq!(reading.diagnostics.len(), 1);
 
-        let reading = read(r#"{"vnx":"0.9.0","waypoints":[{"name":"x","at":"here"}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"name":"x","at":"here"}]}"#);
         assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
         assert_eq!(reading.diagnostics.len(), 1);
     }
 
     #[test]
     fn an_absent_collection_is_not_an_empty_one() {
-        assert_eq!(read(r#"{"vnx":"0.9.0"}"#).document.waypoints, None);
+        assert_eq!(read(r#"{"vnx":"0.10.0"}"#).document.waypoints, None);
         assert_eq!(
-            read(r#"{"vnx":"0.9.0","waypoints":[]}"#).document.waypoints,
+            read(r#"{"vnx":"0.10.0","waypoints":[]}"#)
+                .document
+                .waypoints,
             Some(vec![])
         );
     }
 
     #[test]
     fn a_position_keeps_every_channel_it_was_given() {
-        let reading = read(r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6,57.1,null,5,99]}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1,null,5,99]}]}"#);
         let at = &reading.document.waypoints.expect("kept")[0].at;
         assert_eq!(at.arity(), 5, "an unknown channel is kept, not truncated");
         assert_eq!(at.ele(), None);
@@ -1335,7 +1337,7 @@ mod tests {
 
     #[test]
     fn longitude_and_latitude_are_never_null() {
-        let reading = read(r#"{"vnx":"0.9.0","waypoints":[{"at":[null,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[null,57.1]}]}"#);
         assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
         assert!(matches!(
             reading.diagnostics[0].cause,
@@ -1383,7 +1385,7 @@ mod tests {
     #[test]
     fn an_out_of_range_importance_is_dropped_and_the_rest_of_the_style_kept() {
         let reading = read(
-            r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
+            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
         );
         let style = reading.document.waypoints.expect("kept")[0]
             .style
@@ -1400,7 +1402,7 @@ mod tests {
     #[test]
     fn a_record_body_is_never_inspected() {
         let reading = read(
-            r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6,57.1],"data":[
+            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"data":[
                  {"@type":"app.viatrail.settlement","size":"metropolis"},
                  {"@type":"com.example.x","nmae":1,"deep":{"a":[1,2,{"b":null}]}}]}]}"#,
         );
@@ -1416,7 +1418,7 @@ mod tests {
     #[test]
     fn a_record_with_no_type_is_dropped_and_the_bag_survives() {
         let reading = read(
-            r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
+            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
         );
         assert_eq!(reading.diagnostics[0].cause, Cause::RecordTypeMissing);
         assert_eq!(
@@ -1431,7 +1433,7 @@ mod tests {
 
     #[test]
     fn an_absent_folder_leaves_the_item_at_the_top_level() {
-        let reading = read(r#"{"vnx":"0.9.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
         assert_eq!(
             reading.diagnostics[0].cause,
             Cause::FolderAbsent { id: "ghost".into() }
@@ -1442,7 +1444,7 @@ mod tests {
     #[test]
     fn a_folder_with_no_id_is_dropped_and_its_contents_survive() {
         let reading = read(
-            r#"{"vnx":"0.9.0","folders":[{"name":"Nameless"}],"waypoints":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
+            r#"{"vnx":"0.10.0","folders":[{"name":"Nameless"}],"waypoints":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
         );
         assert_eq!(reading.document.folders.as_ref().expect("kept").len(), 0);
         assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
@@ -1472,7 +1474,7 @@ mod tests {
     #[test]
     fn a_closed_ring_loses_its_repeat_and_keeps_its_area() {
         let reading = read(
-            r#"{"vnx":"0.9.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
+            r#"{"vnx":"0.10.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
         );
         assert_eq!(
             pairs(&reading),
@@ -1488,7 +1490,7 @@ mod tests {
     #[test]
     fn a_ring_of_fewer_than_three_distinct_positions_drops_its_area() {
         let reading = read(
-            r#"{"vnx":"0.9.0","areas":[
+            r#"{"vnx":"0.10.0","areas":[
                  {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.7,57.09]]},
                  {"polygon":[[-3.7,57.09,1],[-3.7,57.09,2],[-3.6,57.09]]},
                  {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0]]}]}"#,
@@ -1506,7 +1508,7 @@ mod tests {
 
     fn network_with(highlights: &str) -> String {
         format!(
-            r#"{{"vnx":"0.9.0","networks":[{{
+            r#"{{"vnx":"0.10.0","networks":[{{
                  "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10]}},
                  "arcs":{{"ab":{{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                           "cb":{{"from":"c","to":"b","pips":[]}},
@@ -1681,7 +1683,7 @@ mod tests {
     fn a_plan_walk_carries_no_position_turn_or_pin() {
         let plan = |walk: &str| {
             read(&format!(
-                r#"{{"vnx":"0.9.0","plans":[{{
+                r#"{{"vnx":"0.10.0","plans":[{{
                      "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10]}},
                      "arcs":{{"ab":{{"from":"a","to":"b","pips":[]}}}},
                      "walk":{walk}}}]}}"#
@@ -1718,7 +1720,7 @@ mod tests {
     #[test]
     fn a_time_on_a_node_or_an_arc_pip_is_dropped_and_reported_once() {
         let reading = read(
-            r#"{"vnx":"0.9.0","networks":[{
+            r#"{"vnx":"0.10.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,1778914991000],"b":[-3.59,57.10,null,5]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.597,57.1,1,2],[-3.595,57.1,null,3]]}}}]}"#,
         );
@@ -1748,7 +1750,7 @@ mod tests {
     #[test]
     fn a_dropped_arc_takes_the_highlights_that_walk_it() {
         let reading = read(
-            r#"{"vnx":"0.9.0","networks":[{
+            r#"{"vnx":"0.10.0","networks":[{
                  "nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]},
                          "loop":{"from":"a","to":"a","pips":[[-3.6,57.2]]},
@@ -1781,7 +1783,7 @@ mod tests {
     #[test]
     fn a_dropped_node_takes_the_arcs_that_name_it() {
         let reading = read(
-            r#"{"vnx":"0.9.0","networks":[{
+            r#"{"vnx":"0.10.0","networks":[{
                  "nodes":{"a":[-3.60,57.10],"b":"here"},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]}}}]}"#,
         );
@@ -1799,7 +1801,7 @@ mod tests {
     #[test]
     fn an_absent_required_key_is_reported_at_the_key() {
         let reading =
-            read(r#"{"vnx":"0.9.0","waypoints":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
+            read(r#"{"vnx":"0.10.0","waypoints":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
         assert_eq!(
             pairs(&reading),
             vec![
@@ -1822,7 +1824,7 @@ mod tests {
     #[test]
     fn one_unusable_pip_drops_the_segment_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.9.0","tracks":[{"segments":[
+            r#"{"vnx":"0.10.0","tracks":[{"segments":[
                  {"pips":[[-3.6,57.1],["x",1],[-3.5,57.2]]},
                  {"pips":[[-3.4,57.3],[-3.3,57.4]]}]}]}"#,
         );
@@ -1844,7 +1846,7 @@ mod tests {
     #[test]
     fn one_unusable_pip_drops_the_arc_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.9.0","networks":[{
+            r#"{"vnx":"0.10.0","networks":[{
                  "nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
                  "arcs":{"bad":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
                          "good":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}}}]}"#,
@@ -1867,7 +1869,7 @@ mod tests {
     #[test]
     fn one_unusable_ring_vertex_drops_the_area() {
         let reading = read(
-            r#"{"vnx":"0.9.0","areas":[
+            r#"{"vnx":"0.10.0","areas":[
                  {"polygon":[[-3.7,57.09],[-3.6],[-3.6,57.0]]},
                  {"polygon":[[-3.5,57.09],[-3.4,57.09],[-3.4,57.0]]}]}"#,
         );

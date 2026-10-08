@@ -731,7 +731,7 @@ existed only because the rule did. That is the arithmetic of a rule: it does not
 only cost the words that state it.
 
 **The branch is unreachable.** A mutation of the version rule for 1.0 and above
-is a provable no-op in a 0.9 reader, which can never take that branch
+is a provable no-op in a 0.10 reader, which can never take that branch
 (`SPEC §2.2`), so it comes back green for a reason that is neither a weak guard
 nor a bad mutation. Record the proof in the code, so the next person does not run
 the same mutation, see green, and conclude the guard is weak.

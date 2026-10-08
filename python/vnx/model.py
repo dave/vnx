@@ -263,7 +263,7 @@ def is_app_key(key: str) -> bool:
 
 @dataclass(slots=True)
 class Document:
-    vnx: str = "0.9.1"
+    vnx: str = "0.10.0"
     generator: Union[str, None] = None
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None

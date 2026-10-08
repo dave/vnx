@@ -18,7 +18,7 @@ use crate::json::Json;
 ///
 /// The declared text is kept because SPEC 2.2 requires a reader that
 /// re-encodes a document to write the version the document declared, not its
-/// own: `00.09.0000` is a legal spelling of 0.9.0 and is written back as it
+/// own: `00.010.0000` is a legal spelling of 0.10.0 and is written back as it
 /// was read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
@@ -29,7 +29,7 @@ pub struct Version {
 }
 
 /// The version this crate implements.
-pub const SUPPORTED: (u64, u64) = (0, 9);
+pub const SUPPORTED: (u64, u64) = (0, 10);
 
 /// A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC 4.1).
 ///

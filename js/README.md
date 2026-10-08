@@ -2,7 +2,7 @@
 
 `@viatrail/vnx` reads and writes VNX documents and VNZ containers in
 JavaScript, and reports diagnostics. It implements
-[`SPEC.md`](../SPEC.md) version 0.9 and passes [`corpus/`](../corpus).
+[`SPEC.md`](../SPEC.md) version 0.10 and passes [`corpus/`](../corpus).
 
 Node 22 or later, ESM only, no runtime dependencies. The ZIP container is
 written here rather than imported, over `node:zlib`.
@@ -168,8 +168,8 @@ the shortest spelling of a position, which is about ARITY and not precision:
 not. See [`IMPLEMENTING.md`](../IMPLEMENTING.md).
 
 Version comparison is "not this reader's series", not "newer than this reader".
-Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.9
-reader refuses 0.1.9 for the same reason it refuses 0.10.0, and only PATCH is
+Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.10
+reader refuses 0.1.9 for the same reason it refuses 0.11.0, and only PATCH is
 free. A reader written with `>` reads the older document under rules that were
 never meant for it. `reject/version-too-old.vnx` is the case that catches it.
 

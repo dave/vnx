@@ -92,7 +92,7 @@ version the library reads or writes.
 library constant, then runs `check-spec.py`:
 
 ```sh
-./scripts/set-version.sh 0.9.1
+./scripts/set-version.sh 0.10.1
 ```
 
 It does not change the version that a corpus document or a test fixture
@@ -111,8 +111,8 @@ declares. Those are data, and they are a separate step:
 A release bumps the version in one commit and tags that commit twice:
 
 ```sh
-git tag -a v0.9.0 -m "VNX 0.9.0"      # the repository root, which SwiftPM resolves
-git tag -a go/v0.9.0 -m "VNX 0.9.0"   # the Go module in go/, whose tags carry its directory
+git tag -a v0.10.0 -m "VNX 0.10.0"      # the repository root, which SwiftPM resolves
+git tag -a go/v0.10.0 -m "VNX 0.10.0"   # the Go module in go/, whose tags carry its directory
 ```
 
 A change to one library alone, with no change to the format, is a PATCH bump of

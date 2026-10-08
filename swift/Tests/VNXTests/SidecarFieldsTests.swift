@@ -27,7 +27,7 @@ final class SidecarFieldsTests: XCTestCase {
     // A prose record of a limitation (SPEC 6.4), paired with an empty
     // `diagnostics` list which IS checked.
     "cannot_detect",
-    // The verdict corpus/schema/vnx-0.9.schema.json reaches on this case.
+    // The verdict corpus/schema/vnx-0.10.schema.json reaches on this case.
     // It is about the schema rather than about any reader, so no
     // implementation runner compares it — go/internal/vnxschema is the one
     // thing that does, and it fails if a case records no verdict.

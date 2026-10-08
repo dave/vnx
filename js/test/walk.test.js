@@ -8,7 +8,7 @@ import { decodeText } from '../src/decode.js';
 import { encode, walkLegs, walkLine } from '../src/index.js';
 import { nearestOnSegment, EARTH_RADIUS_M } from '../src/geo.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.9.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.10.0', ...extra });
 
 // a --ab-- b --bc-- c, and a --ad-- d. Node `b` has an elevation.
 const NODES = { a: [0, 0], b: [0.001, 0, 100], c: [0.002, 0], d: [0, 0.001] };

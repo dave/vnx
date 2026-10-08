@@ -1,6 +1,6 @@
 {
   "generator": "cross-language check",
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "waypoints": [
     {
       "name": "Ben Macdui",

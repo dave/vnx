@@ -5,7 +5,7 @@ diagnostics.
 
 Swift 5.9 or later, on macOS 10.15, iOS 13, tvOS 13 or watchOS 6. Foundation and
 zlib only — zlib is a system library, present in the macOS SDK and in every Linux
-distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the development package (`zlib1g-dev`) and no lock file. Implements VNX 0.9.0
+distribution, so nothing is fetched on macOS; on Debian and Ubuntu install the development package (`zlib1g-dev`) and no lock file. Implements VNX 0.10.0
 — [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install

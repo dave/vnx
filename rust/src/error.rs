@@ -61,7 +61,7 @@ impl std::fmt::Display for Refusal {
             Refusal::VersionMalformed { found } => write!(
                 f,
                 "the version `{found}` is not MAJOR.MINOR.PATCH — three runs of \
-                 decimal digits separated by full stops, as in `0.9.0`"
+                 decimal digits separated by full stops, as in `0.10.0`"
             ),
             Refusal::VersionUnsupportedSeries {
                 found,

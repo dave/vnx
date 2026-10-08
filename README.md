@@ -13,7 +13,7 @@ along that arc.
 
 ```json
 {
-  "vnx": "0.9.0",
+  "vnx": "0.10.0",
   "networks": [{
     "name": "Lairig Ghru approaches",
     "nodes": {

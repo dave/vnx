@@ -855,8 +855,8 @@ fn a_reader_that_discards_what_it_read_is_caught() {
 /// task that has each of them read every other's output.
 #[test]
 fn a_number_compares_by_value_and_not_by_spelling() {
-    let integers = br#"{"vnx":"0.9.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
-    let floats = br#"{"vnx":"0.9.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
+    let integers = br#"{"vnx":"0.10.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
+    let floats = br#"{"vnx":"0.10.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
     for emit in [EmitBoundary::Normalise, EmitBoundary::Keep] {
         assert_eq!(
             tree::compare(integers, floats, emit),
@@ -866,7 +866,7 @@ fn a_number_compares_by_value_and_not_by_spelling() {
     }
 
     // And a real difference is still seen, or the above passes vacuously.
-    let different = br#"{"vnx":"0.9.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
+    let different = br#"{"vnx":"0.10.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
     assert!(tree::compare(integers, different, EmitBoundary::Keep).is_some());
 }
 

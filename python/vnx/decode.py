@@ -47,7 +47,7 @@ from .pointer import join
 __all__ = ["ReadResult", "read_bytes", "decode_document", "SUPPORTED_VERSION"]
 
 # The MAJOR.MINOR this reader implements (SPEC 2.2).
-SUPPORTED_VERSION = (0, 9)
+SUPPORTED_VERSION = (0, 10)
 
 _VERSION = re.compile(r"\A(\d+)\.(\d+)\.(\d+)\Z")
 # SPEC 4.3: ISO 8601 in UTC, a literal Z suffix, optional fractional seconds.
@@ -439,10 +439,10 @@ class _Reader:
         # SPEC 2.2: PATCH never refuses.  Through 0.x, MAJOR and MINOR are both
         # breaking axes, and each MINOR is ITS OWN SERIES -- so the test is "not
         # the series this reader implements", not "above it".  0.1 is not an
-        # older spelling of 0.9; this reader has no rules for it and refuses it
+        # older spelling of 0.10; this reader has no rules for it and refuses it
         # for the same reason it refuses 0.3.  Written as `>` -- the shape five
         # of the six implementations once had -- a 0.1.9 document reads as
-        # though it were 0.9, under rules it was never written to.
+        # though it were 0.10, under rules it was never written to.
         if (major, minor) == SUPPORTED_VERSION:
             return
         supported = f"{SUPPORTED_VERSION[0]}.{SUPPORTED_VERSION[1]}"

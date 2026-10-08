@@ -63,7 +63,7 @@ fn document(value: &Json, emit: EmitBoundary) -> Json {
     let mut out = entries.clone();
     items(&mut out, "folders", emit, folder);
     items(&mut out, "networks", emit, network);
-    items(&mut out, "routes", emit, route);
+    items(&mut out, "plans", emit, plan);
     items(&mut out, "tracks", emit, track);
     items(&mut out, "waypoints", emit, waypoint);
     items(&mut out, "areas", emit, area);
@@ -99,7 +99,7 @@ fn track(o: &mut Entries, emit: EmitBoundary) {
     drop_empty(o, "data");
 }
 
-fn route(o: &mut Entries, emit: EmitBoundary) {
+fn plan(o: &mut Entries, emit: EmitBoundary) {
     graph(o, emit);
     walk(o, emit);
     drop_empty(o, "style");
@@ -119,7 +119,7 @@ fn network(o: &mut Entries, emit: EmitBoundary) {
     drop_empty(o, "data");
 }
 
-/// A network's or a route's `nodes` and `arcs`, which are objects keyed by
+/// A network's or a plan's `nodes` and `arcs`, which are objects keyed by
 /// identifier (SPEC 3.3).
 fn graph(o: &mut Entries, emit: EmitBoundary) {
     map_value(o, "nodes", |v| match v {

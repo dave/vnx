@@ -43,7 +43,7 @@ func TestNetworkRoundTrip(t *testing.T) {
 	}
 }
 
-// ⚠ IDS ARE SCOPED TO THEIR CONTAINING OBJECT, not the document. A route's
+// ⚠ IDS ARE SCOPED TO THEIR CONTAINING OBJECT, not the document. A plan's
 // node-1 and a network's node-1 are different nodes. A reader that builds one
 // global map silently merges them, and the geometry it draws is a blend of two
 // unrelated things.
@@ -51,7 +51,7 @@ func TestNodeIDsAreScopedToTheirContainer(t *testing.T) {
 	doc, diags, err := Decode([]byte(`{"vnx":"0.9.0",
 	  "networks":[{"name":"net","nodes":{"node-1":[-3.67,57.11],"node-2":[-3.66,57.10]},
 	    "arcs":{"arc-1":{"from":"node-1","to":"node-2","pips":[]}}}],
-	  "routes":[{"name":"r","nodes":{"node-1":[-100.0,10.0],"node-2":[-100.1,10.1]},
+	  "plans":[{"name":"r","nodes":{"node-1":[-100.0,10.0],"node-2":[-100.1,10.1]},
 	    "arcs":{"arc-1":{"from":"node-1","to":"node-2","pips":[]}},
 	    "walk":[{"arc":"arc-1","from":"node-1","to":"node-2"}]}]}`))
 	if err != nil {
@@ -60,8 +60,8 @@ func TestNodeIDsAreScopedToTheirContainer(t *testing.T) {
 	if len(diags) != 0 {
 		t.Fatalf("got %v", diags)
 	}
-	if doc.Networks[0].Nodes["node-1"].Lon == doc.Routes[0].Nodes["node-1"].Lon {
-		t.Fatal("the network's node-1 and the route's node-1 must not be conflated")
+	if doc.Networks[0].Nodes["node-1"].Lon == doc.Plans[0].Nodes["node-1"].Lon {
+		t.Fatal("the network's node-1 and the plan's node-1 must not be conflated")
 	}
 }
 

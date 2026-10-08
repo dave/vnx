@@ -116,13 +116,13 @@ enum class DiagnosticCause(
 
     /**
      * An arc whose `from` or `to` names a node that is not in its network or
-     * route. There is no line without the node, so the arc is dropped. (3.3.2)
+     * plan. There is no line without the node, so the arc is dropped. (3.3.2)
      */
     ARC_NODE_ABSENT("arc-node-absent", null),
 
     /**
      * A pass that is not an object, or that names no arc of its owner — an arc
-     * another rule dropped included. The highlight, or the route, is dropped.
+     * another rule dropped included. The highlight, or the plan, is dropped.
      * (3.3.3, 6.2)
      */
     PASS_ARC_ABSENT("pass-arc-absent", null),
@@ -140,8 +140,8 @@ enum class DiagnosticCause(
     /** A pass carrying both `turn` and `pin`. (3.3.3, 6.2) */
     PINNED_TURN("pinned-turn", null),
 
-    /** A position, a `turn` or a `pin` in a route's walk. The route is dropped. (3.4, 6.2) */
-    ROUTE_PIN_OR_POSITION("route-pin-or-position", null),
+    /** A position, a `turn` or a `pin` in a plan's walk. The plan is dropped. (3.4, 6.2) */
+    PLAN_PIN_OR_POSITION("plan-pin-or-position", null),
 
     /** A `folder` naming a folder that is not present in the document. (6.2) */
     FOLDER_ABSENT(null, null),

@@ -375,60 +375,60 @@ test('an arc missing a required key is dropped, named at the key', () => {
   ]);
 });
 
-// --- routes -----------------------------------------------------------------
+// --- plans -----------------------------------------------------------------
 
-const route = (walk, extra = {}) =>
+const plan = (walk, extra = {}) =>
   decodeText(
     doc({
-      routes: [{ nodes: NODES, arcs: ARCS, walk, ...extra }],
+      plans: [{ nodes: NODES, arcs: ARCS, walk, ...extra }],
     }),
   );
 
-test('a route owns its graph and walks it node to node', () => {
-  const { document, diagnostics } = route([
+test('a plan owns its graph and walks it node to node', () => {
+  const { document, diagnostics } = plan([
     { arc: 'ab', from: 'b' },
     { arc: 'ad', to: 'd' },
   ]);
   assert.deepEqual(diagnostics, []);
-  const r = document.routes[0];
+  const r = document.plans[0];
   assert.equal(r.nodes.size, 4);
   assert.equal(r.arcs.size, 3);
   assert.equal(r.walk.length, 2);
 });
 
-test('a position, a turn or a pin in a route drops the route, named at the key', () => {
+test('a position, a turn or a pin in a plan drops the plan, named at the key', () => {
   const cases = [
-    [[{ arc: 'ab', from: [0.0005, 0], to: 'b' }], '/routes/0/walk/0/from'],
-    [[{ arc: 'ab', from: 'a', to: [0.0005, 0] }], '/routes/0/walk/0/to'],
-    [[{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0] }], '/routes/0/walk/0/turn'],
-    [[{ arc: 'ab', from: 'a', to: 'b', pin: [0.0005, 0] }], '/routes/0/walk/0/pin'],
+    [[{ arc: 'ab', from: [0.0005, 0], to: 'b' }], '/plans/0/walk/0/from'],
+    [[{ arc: 'ab', from: 'a', to: [0.0005, 0] }], '/plans/0/walk/0/to'],
+    [[{ arc: 'ab', from: 'a', to: 'a', turn: [0.0005, 0] }], '/plans/0/walk/0/turn'],
+    [[{ arc: 'ab', from: 'a', to: 'b', pin: [0.0005, 0] }], '/plans/0/walk/0/pin'],
   ];
   for (const [walk, path] of cases) {
-    const { document, diagnostics } = route(walk);
-    assert.deepEqual(pairs(diagnostics), [[path, 'route-pin-or-position']], JSON.stringify(walk));
-    assert.equal(document.routes.length, 0);
+    const { document, diagnostics } = plan(walk);
+    assert.deepEqual(pairs(diagnostics), [[path, 'plan-pin-or-position']], JSON.stringify(walk));
+    assert.equal(document.plans.length, 0);
   }
 });
 
-test('where a highlight would be dropped, the route is', () => {
-  const { document, diagnostics } = route([
+test('where a highlight would be dropped, the plan is', () => {
+  const { document, diagnostics } = plan([
     { arc: 'ab', from: 'a' },
     { arc: 'bc', from: 'b', to: 'c' },
   ]);
-  assert.deepEqual(pairs(diagnostics), [['/routes/0/walk/1/from', 'walk-spelling']]);
-  assert.equal(document.routes.length, 0);
+  assert.deepEqual(pairs(diagnostics), [['/plans/0/walk/1/from', 'walk-spelling']]);
+  assert.equal(document.plans.length, 0);
 });
 
-test('a route with no `walk` is dropped', () => {
-  const { document, diagnostics } = decodeText(doc({ routes: [{ nodes: NODES, arcs: ARCS }] }));
-  assert.deepEqual(pairs(diagnostics), [['/routes/0/walk', 'wrong-type-required']]);
-  assert.equal(document.routes.length, 0);
+test('a plan with no `walk` is dropped', () => {
+  const { document, diagnostics } = decodeText(doc({ plans: [{ nodes: NODES, arcs: ARCS }] }));
+  assert.deepEqual(pairs(diagnostics), [['/plans/0/walk', 'wrong-type-required']]);
+  assert.equal(document.plans.length, 0);
 });
 
-test('a route arc that is a self-loop takes the route with it', () => {
+test('a plan arc that is a self-loop takes the plan with it', () => {
   const { document, diagnostics } = decodeText(
     doc({
-      routes: [
+      plans: [
         {
           nodes: NODES,
           arcs: { loop: { from: 'a', to: 'a', pips: [[1, 1]] } },
@@ -438,10 +438,10 @@ test('a route arc that is a self-loop takes the route with it', () => {
     }),
   );
   assert.deepEqual(pairs(diagnostics).sort(), [
-    ['/routes/0/arcs/loop', 'self-loop-arc'],
-    ['/routes/0/walk/0', 'pass-arc-absent'],
+    ['/plans/0/arcs/loop', 'self-loop-arc'],
+    ['/plans/0/walk/0', 'pass-arc-absent'],
   ]);
-  assert.equal(document.routes.length, 0);
+  assert.equal(document.plans.length, 0);
 });
 
 // --- rings ------------------------------------------------------------------
@@ -525,7 +525,7 @@ test('only the last position is dropped, even where the one before it repeats to
 
 // --- the positions index ------------------------------------------------------
 
-test('the positions index holds walk positions and route nodes, and no node key', () => {
+test('the positions index holds walk positions and plan nodes, and no node key', () => {
   const { positions } = decodeText(
     doc({
       networks: [
@@ -535,14 +535,14 @@ test('the positions index holds walk positions and route nodes, and no node key'
           highlights: [{ walk: [{ arc: 'ab', from: [0.0002, 0], to: 'b', turn: [0.0007, 0] }] }],
         },
       ],
-      routes: [{ nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
+      plans: [{ nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
     }),
   );
   assert.equal(positions.get('/networks/0/highlights/0/walk/0/from').lon, 0.0002);
   assert.equal(positions.get('/networks/0/highlights/0/walk/0/turn').lon, 0.0007);
   assert.equal(positions.has('/networks/0/highlights/0/walk/0/to'), false);
-  assert.equal(positions.get('/routes/0/nodes/b').lon, 0.001);
-  assert.equal(positions.get('/routes/0/arcs/bc/pips/0').lon, 0.0015);
+  assert.equal(positions.get('/plans/0/nodes/b').lon, 0.001);
+  assert.equal(positions.get('/plans/0/arcs/bc/pips/0').lon, 0.0015);
 });
 
 // --- the encoder refuses what its reader would drop -------------------------
@@ -556,7 +556,7 @@ function readBack(extra) {
 const GRAPH = () =>
   readBack({
     networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ name: 'c', walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }],
-    routes: [{ name: 'r', nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
+    plans: [{ name: 'r', nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
     areas: [
       {
         name: 'z',
@@ -569,7 +569,7 @@ const GRAPH = () =>
     ],
   });
 
-test('a legal walk, route and ring are written back as read', () => {
+test('a legal walk, plan and ring are written back as read', () => {
   const text = doc({
     networks: [
       {
@@ -586,7 +586,7 @@ test('a legal walk, route and ring are written back as read', () => {
         ],
       },
     ],
-    routes: [
+    plans: [
       {
         nodes: NODES,
         arcs: ARCS,
@@ -620,7 +620,7 @@ const refusals = {
     d.networks[0].arcs.get('ad').to = 'a';
   },
   'an arc naming an absent node': (d) => {
-    d.routes[0].arcs.get('ad').to = 'ghost';
+    d.plans[0].arcs.get('ad').to = 'ghost';
   },
   'a walk naming an absent arc': (d) => {
     d.networks[0].highlights[0].walk[0].arc = 'ghost';
@@ -636,8 +636,8 @@ const refusals = {
     p.turn = d.networks[0].nodes.get('a');
     p.pin = d.networks[0].nodes.get('b');
   },
-  'a turn in a route': (d) => {
-    d.routes[0].walk[0].turn = d.routes[0].nodes.get('c');
+  'a turn in a plan': (d) => {
+    d.plans[0].walk[0].turn = d.plans[0].nodes.get('c');
   },
   'a time on a node': (d) => {
     d.networks[0].nodes.get('a').channels.push(null, 5);

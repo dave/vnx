@@ -70,7 +70,7 @@ const DOCUMENT_KEYS: &[&str] = &[
     "created",
     "folders",
     "networks",
-    "routes",
+    "plans",
     "tracks",
     "waypoints",
     "areas",
@@ -88,11 +88,11 @@ const NETWORK_KEYS: &[&str] = &[
     "areas",
     "data",
 ];
-/// An arc, in a network or a route.
+/// An arc, in a network or a plan.
 const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
 const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
-const ROUTE_KEYS: &[&str] = &[
+const PLAN_KEYS: &[&str] = &[
     "walk", "name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data",
 ];
 const TRACK_KEYS: &[&str] = &[
@@ -477,13 +477,13 @@ impl Decoder {
                     .collect(),
             );
         }
-        if let Some(items) = self.opt_array(entries, "routes", &root) {
-            let path = root.key("routes");
-            document.routes = Some(
+        if let Some(items) = self.opt_array(entries, "plans", &root) {
+            let path = root.key("plans");
+            document.plans = Some(
                 items
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, item)| self.route(item, &path.index(i)))
+                    .filter_map(|(i, item)| self.plan(item, &path.index(i)))
                     .collect(),
             );
         }
@@ -604,7 +604,7 @@ impl Decoder {
         Some(network)
     }
 
-    /// A network's or a route's `nodes`. The keys are identifiers rather than
+    /// A network's or a plan's `nodes`. The keys are identifiers rather than
     /// format vocabulary, so the unrecognised-key rule does not apply to them.
     ///
     /// A node that will not parse is dropped (SPEC 6.2). An arc naming it is
@@ -634,7 +634,7 @@ impl Decoder {
         Some(out)
     }
 
-    /// A network's or a route's `arcs`.
+    /// A network's or a plan's `arcs`.
     ///
     /// ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not
     /// here: the highlight goes when its walk is read, under `pass-arc-absent`,
@@ -721,7 +721,7 @@ impl Decoder {
         Some(Highlight { walk, ..highlight })
     }
 
-    /// A highlight's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+    /// A highlight's or a plan's REQUIRED `walk`, checked in SPEC 6.2's order.
     /// `None` drops the owner.
     ///
     /// ⚠ A WALK IS USED WHOLE OR NOT AT ALL (SPEC 6.2). A walk with one pass
@@ -735,11 +735,11 @@ impl Decoder {
         entries: &[(String, Json)],
         owner: &Path,
         arcs: &Option<Vec<(String, Arc)>>,
-        route: bool,
+        plan: bool,
     ) -> Option<Vec<Pass>> {
         let items = self.req_array(entries, "walk", owner)?.to_vec();
         let walk_path = owner.key("walk");
-        let mut cursor = Cursor::new(items.len(), route);
+        let mut cursor = Cursor::new(items.len(), plan);
         let mut walk = Vec::with_capacity(items.len());
         for (i, item) in items.iter().enumerate() {
             let pass = match self.pass(item, i, &walk_path, arcs) {
@@ -871,12 +871,12 @@ impl Decoder {
         Ok((pass, arc))
     }
 
-    fn route(&mut self, value: &Json, path: &Path) -> Option<Route> {
+    fn plan(&mut self, value: &Json, path: &Path) -> Option<Plan> {
         let entries = self.object(value, path)?;
-        self.check_keys(entries, ROUTE_KEYS, path);
+        self.check_keys(entries, PLAN_KEYS, path);
         let nodes = self.nodes(entries, path);
         let arcs = self.arcs(entries, path, &nodes);
-        let route = Route {
+        let plan = Plan {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
@@ -887,10 +887,10 @@ impl Decoder {
             nodes,
             arcs,
         };
-        // Where a highlight would be dropped, the route is: it IS the highlight
+        // Where a highlight would be dropped, the plan is: it IS the highlight
         // (SPEC 3.4).
-        let walk = self.walk(entries, path, &route.arcs, true)?;
-        Some(Route { walk, ..route })
+        let walk = self.walk(entries, path, &plan.arcs, true)?;
+        Some(Plan { walk, ..plan })
     }
 
     fn track(&mut self, value: &Json, path: &Path) -> Option<Track> {
@@ -1054,8 +1054,8 @@ impl Decoder {
             for (i, item) in document.networks.iter_mut().flatten().enumerate() {
                 sweep(&mut item.folder, root.key("networks").index(i), "folder");
             }
-            for (i, item) in document.routes.iter_mut().flatten().enumerate() {
-                sweep(&mut item.folder, root.key("routes").index(i), "folder");
+            for (i, item) in document.plans.iter_mut().flatten().enumerate() {
+                sweep(&mut item.folder, root.key("plans").index(i), "folder");
             }
             for (i, item) in document.tracks.iter_mut().flatten().enumerate() {
                 sweep(&mut item.folder, root.key("tracks").index(i), "folder");
@@ -1675,21 +1675,21 @@ mod tests {
         );
     }
 
-    /// SPEC 3.4: a route's walk runs node to node. A position, a turn or a
-    /// pin drops the ROUTE, at the key that carries it.
+    /// SPEC 3.4: a plan's walk runs node to node. A position, a turn or a
+    /// pin drops the PLAN, at the key that carries it.
     #[test]
-    fn a_route_walk_carries_no_position_turn_or_pin() {
-        let route = |walk: &str| {
+    fn a_plan_walk_carries_no_position_turn_or_pin() {
+        let plan = |walk: &str| {
             read(&format!(
-                r#"{{"vnx":"0.9.0","routes":[{{
+                r#"{{"vnx":"0.9.0","plans":[{{
                      "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10]}},
                      "arcs":{{"ab":{{"from":"a","to":"b","pips":[]}}}},
                      "walk":{walk}}}]}}"#
             ))
         };
-        let clean = route(r#"[{"arc":"ab","from":"b","to":"a"}]"#);
+        let clean = plan(r#"[{"arc":"ab","from":"b","to":"a"}]"#);
         assert_eq!(pairs(&clean), vec![]);
-        assert_eq!(clean.document.routes.expect("kept").len(), 1);
+        assert_eq!(clean.document.plans.expect("kept").len(), 1);
         for (walk, key) in [
             (r#"[{"arc":"ab","from":[-3.6,57.1],"to":"b"}]"#, "from"),
             (r#"[{"arc":"ab","from":"a","to":[-3.595,57.1]}]"#, "to"),
@@ -1702,13 +1702,13 @@ mod tests {
                 "pin",
             ),
         ] {
-            let reading = route(walk);
+            let reading = plan(walk);
             assert_eq!(
                 pairs(&reading),
-                vec![(format!("/routes/0/walk/0/{key}"), "route-pin-or-position")],
+                vec![(format!("/plans/0/walk/0/{key}"), "plan-pin-or-position")],
                 "{walk}"
             );
-            assert_eq!(reading.document.routes.expect("kept").len(), 0, "{walk}");
+            assert_eq!(reading.document.plans.expect("kept").len(), 0, "{walk}");
         }
     }
 

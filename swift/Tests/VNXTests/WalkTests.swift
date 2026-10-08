@@ -36,9 +36,9 @@ final class WalkTests: XCTestCase {
     return try read("\"networks\":[{\(graph),\"highlights\":[\(highlights)]}]")
   }
 
-  /// A route over `graph`'s shape carrying `walk`.
-  private func route(_ walk: String) throws -> VNX.ReadResult {
-    try read("\"routes\":[{\(graph),\"walk\":\(walk)}]")
+  /// A plan over `graph`'s shape carrying `walk`.
+  private func plan(_ walk: String) throws -> VNX.ReadResult {
+    try read("\"plans\":[{\(graph),\"walk\":\(walk)}]")
   }
 
   // MARK: - Walks that are valid (SPEC 3.3.3)
@@ -214,14 +214,14 @@ final class WalkTests: XCTestCase {
 
   /// A node that will not parse goes; each arc naming it then goes under
   /// arc-node-absent, and each highlight walking that arc under pass-arc-absent.
-  /// Three diagnostics for three things lost, and the route beside it — its
+  /// Three diagnostics for three things lost, and the plan beside it — its
   /// own graph, with the same keys — is untouched.
   func testADroppedNodeCascadesToItsArcAndToItsHighlight() throws {
     let result = try read(
       """
       "networks":[{"nodes":{"a":["x",0],"b":[1,1]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},
       "highlights":[{"walk":[{"arc":"ab","from":"b","to":"a"}]}]}],
-      "routes":[{"nodes":{"a":[0,0],"b":[1,1]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},
+      "plans":[{"nodes":{"a":[0,0],"b":[1,1]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},
       "walk":[{"arc":"ab","from":"b","to":"a"}]}]
       """)
     XCTAssertEqual(
@@ -232,7 +232,7 @@ final class WalkTests: XCTestCase {
         "position-unusable /networks/0/nodes/a",
       ])
     XCTAssertEqual(result.document.networks?[0].highlights, [])
-    XCTAssertEqual(result.document.routes?.count, 1)
+    XCTAssertEqual(result.document.plans?.count, 1)
   }
 
   func testAPassThatIsNotAnObjectOrNamesNoArcDropsItsHighlight() throws {
@@ -323,30 +323,30 @@ final class WalkTests: XCTestCase {
       ])
   }
 
-  /// SPEC 3.4: a route's walk runs node to node. Each of `from`, `to`,
-  /// `turn` and `pin` is named at its key, and the ROUTE goes.
-  func testARouteWalkCarriesNoPositionTurnOrPin() throws {
+  /// SPEC 3.4: a plan's walk runs node to node. Each of `from`, `to`,
+  /// `turn` and `pin` is named at its key, and the PLAN goes.
+  func testAPlanWalkCarriesNoPositionTurnOrPin() throws {
     for (walk, key) in [
       (#"[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]"#, "from"),
       (#"[{"arc":"ab","from":"a","to":[-3.596,57.1006]}]"#, "to"),
       (#"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"to":"a"}]"#, "turn"),
       (#"[{"arc":"ab","from":"a","to":"b","pin":[-3.596,57.1003]}]"#, "pin"),
     ] {
-      let result = try route(walk)
-      XCTAssertEqual(reported(result), ["route-pin-or-position /routes/0/walk/0/\(key)"], walk)
-      XCTAssertEqual(result.document.routes, [], walk)
+      let result = try plan(walk)
+      XCTAssertEqual(reported(result), ["plan-pin-or-position /plans/0/walk/0/\(key)"], walk)
+      XCTAssertEqual(result.document.plans, [], walk)
     }
-    let kept = try route(#"[{"arc":"ab","from":"b"},{"arc":"ab","to":"b"}]"#)
+    let kept = try plan(#"[{"arc":"ab","from":"b"},{"arc":"ab","to":"b"}]"#)
     XCTAssertEqual(reported(kept), [])
-    XCTAssertEqual(kept.document.routes?.first?.walk.count, 2)
+    XCTAssertEqual(kept.document.plans?.first?.walk.count, 2)
   }
 
-  /// SPEC 6.2: a route is its own highlight, so a route's walk takes every
-  /// highlight rule too, and where a highlight would go the route goes.
-  func testARouteIsDroppedWhereAHighlightWouldBe() throws {
-    let result = try route(#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#)
-    XCTAssertEqual(reported(result), ["walk-not-connected /routes/0/walk/1"])
-    XCTAssertEqual(result.document.routes, [])
+  /// SPEC 6.2: a plan is its own highlight, so a plan's walk takes every
+  /// highlight rule too, and where a highlight would go the plan goes.
+  func testAPlanIsDroppedWhereAHighlightWouldBe() throws {
+    let result = try plan(#"[{"arc":"ab","from":"a"},{"arc":"cd","to":"d"}]"#)
+    XCTAssertEqual(reported(result), ["walk-not-connected /plans/0/walk/1"])
+    XCTAssertEqual(result.document.plans, [])
   }
 
   /// SPEC 6.2's order: the passes in order, and each pass through the list
@@ -377,12 +377,12 @@ final class WalkTests: XCTestCase {
       ])
   }
 
-  /// In a route, step 4 comes before step 5: a pass with a turn and a pin is
-  /// a route rule broken, not a pinned turn.
-  func testInARouteThePinOrPositionRuleComesBeforePinnedTurn() throws {
-    let result = try route(
+  /// In a plan, step 4 comes before step 5: a pass with a turn and a pin is
+  /// a plan rule broken, not a pinned turn.
+  func testInAPlanThePinOrPositionRuleComesBeforePinnedTurn() throws {
+    let result = try plan(
       #"[{"arc":"ab","from":"a","turn":[-3.595,57.101],"pin":[-3.596,57.1003],"to":"a"}]"#)
-    XCTAssertEqual(reported(result), ["route-pin-or-position /routes/0/walk/0/turn"])
+    XCTAssertEqual(reported(result), ["plan-pin-or-position /plans/0/walk/0/turn"])
   }
 
   /// A missing or wrong-typed `walk` is a REQUIRED key gone, named at the
@@ -391,15 +391,15 @@ final class WalkTests: XCTestCase {
     let result = try read(
       """
       "networks":[{"highlights":[{"name":"none"},{"walk":{}}]}],
-      "routes":[{"name":"none"},{"walk":"ab"}]
+      "plans":[{"name":"none"},{"walk":"ab"}]
       """)
     XCTAssertEqual(
       reported(result),
       [
         "wrong-type-required /networks/0/highlights/0/walk",
         "wrong-type-required /networks/0/highlights/1/walk",
-        "wrong-type-required /routes/0/walk",
-        "wrong-type-required /routes/1/walk",
+        "wrong-type-required /plans/0/walk",
+        "wrong-type-required /plans/1/walk",
       ])
   }
 
@@ -458,11 +458,10 @@ final class WalkTests: XCTestCase {
 
   // MARK: - The writer refuses what its reader would repair or drop
 
-  private func document(network: Network? = nil, route: Route? = nil, area: Area? = nil) -> Document
-  {
+  private func document(network: Network? = nil, plan: Plan? = nil, area: Area? = nil) -> Document {
     var d = Document()
     d.networks = network.map { [$0] }
-    d.routes = route.map { [$0] }
+    d.plans = plan.map { [$0] }
     d.areas = area.map { [$0] }
     return d
   }
@@ -544,16 +543,16 @@ final class WalkTests: XCTestCase {
     XCTAssertNoThrow(try VNX.write(document(network: n)))
   }
 
-  func testTheWriterRefusesARouteWalkWithAPositionTurnOrPin() {
-    var r = Route(walk: [Pass(arc: "ab", from: .node("a"), to: .position(LonLat(lon: 0.5, lat: 0)))]
+  func testTheWriterRefusesAPlanWalkWithAPositionTurnOrPin() {
+    var r = Plan(walk: [Pass(arc: "ab", from: .node("a"), to: .position(LonLat(lon: 0.5, lat: 0)))]
     )
     r.nodes = nodes
     r.arcs = arcs
-    assertRefused(document(route: r), "route-pin-or-position")
+    assertRefused(document(plan: r), "plan-pin-or-position")
     r.walk = [Pass(arc: "ab", from: .node("a"), to: .node("b"), pin: LonLat(lon: 0.5, lat: 0))]
-    assertRefused(document(route: r), "route-pin-or-position")
+    assertRefused(document(plan: r), "plan-pin-or-position")
     r.walk = [Pass(arc: "ab", from: .node("a"), to: .node("b"))]
-    XCTAssertNoThrow(try VNX.write(document(route: r)))
+    XCTAssertNoThrow(try VNX.write(document(plan: r)))
   }
 
   /// SPEC 3.3.3: a pinned pass is written with its `pin`, a position, and a

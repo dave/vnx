@@ -370,7 +370,7 @@ func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 	got := map[string]int{
 		"folders":   len(doc.Folders),
 		"networks":  len(doc.Networks),
-		"routes":    len(doc.Routes),
+		"plans":     len(doc.Plans),
 		"tracks":    len(doc.Tracks),
 		"waypoints": len(doc.Waypoints),
 		"areas":     len(doc.Areas),
@@ -458,9 +458,9 @@ func checkPositions(t *testing.T, doc *Document, e expectation) {
 // wire's own key names — the same vocabulary `positions` uses.
 //
 // ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
-// that dropped every route's arcs, or truncated an arc's pips to the first two,
+// that dropped every plan's arcs, or truncated an arc's pips to the first two,
 // or lost every highlight in a network, changed nothing a sidecar could see: the
-// document still carried one route, one network, one track. The transposition
+// document still carried one plan, one network, one track. The transposition
 // defence (`positions`) does not close it either — it pins the value at a few
 // named indices and says nothing about how many there are.
 //
@@ -498,13 +498,13 @@ func containerCountsByPointer(doc *Document) map[string]int {
 			out[fmt.Sprintf("/networks/%d/areas/%d/polygon", i, j)] = len(a.Polygon)
 		}
 	}
-	for i, r := range doc.Routes {
-		out[fmt.Sprintf("/routes/%d/nodes", i)] = len(r.Nodes)
-		out[fmt.Sprintf("/routes/%d/arcs", i)] = len(r.Arcs)
+	for i, r := range doc.Plans {
+		out[fmt.Sprintf("/plans/%d/nodes", i)] = len(r.Nodes)
+		out[fmt.Sprintf("/plans/%d/arcs", i)] = len(r.Arcs)
 		for key, a := range r.Arcs {
-			out[fmt.Sprintf("/routes/%d/arcs/%s/pips", i, key)] = len(a.Pips)
+			out[fmt.Sprintf("/plans/%d/arcs/%s/pips", i, key)] = len(a.Pips)
 		}
-		out[fmt.Sprintf("/routes/%d/walk", i)] = len(r.Walk)
+		out[fmt.Sprintf("/plans/%d/walk", i)] = len(r.Walk)
 	}
 	for i, tr := range doc.Tracks {
 		out[fmt.Sprintf("/tracks/%d/segments", i)] = len(tr.Segments)
@@ -578,12 +578,12 @@ func positionsByPointer(doc *Document) map[string]Position {
 			pips(fmt.Sprintf("/networks/%d/areas/%d/polygon", i, j), a.Polygon)
 		}
 	}
-	for i, r := range doc.Routes {
+	for i, r := range doc.Plans {
 		for key, node := range r.Nodes {
-			out[fmt.Sprintf("/routes/%d/nodes/%s", i, key)] = node.Position()
+			out[fmt.Sprintf("/plans/%d/nodes/%s", i, key)] = node.Position()
 		}
 		for key, a := range r.Arcs {
-			vertices(fmt.Sprintf("/routes/%d/arcs/%s/pips", i, key), a.Pips)
+			vertices(fmt.Sprintf("/plans/%d/arcs/%s/pips", i, key), a.Pips)
 		}
 	}
 	for i, tr := range doc.Tracks {

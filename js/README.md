@@ -72,7 +72,7 @@ A **container** is a reading plus `documentEntry`, the root document's archive
 entry name, and `attachments`, a **`Map`** from entry name to `Buffer`. Its size
 is `attachments.size`, not `.length`.
 
-A `Document` carries `folders`, `networks`, `routes`, `tracks`, `waypoints`,
+A `Document` carries `folders`, `networks`, `plans`, `tracks`, `waypoints`,
 `areas`, `appKeys` and `counts`. `appKeys` is a list of `AppKey` pairs, `key`
 and `value`, sorted by key: the application keys of
 [SPEC §3.9](../SPEC.md). A `null` value is a present key, and `encode` throws on
@@ -81,7 +81,7 @@ a key with no full stop or a key listed twice. `encode` also throws on
 the document, where `JSON.stringify` would drop the value or write `null`.
 
 A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `highlights`,
-`points` and `areas`. A `Route` carries its own `nodes`, `arcs` and one `walk`.
+`points` and `areas`. A `Plan` carries its own `nodes`, `arcs` and one `walk`.
 A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pin`) over the
 arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
 or a `Position`, and are present only where [SPEC §3.3.3](../SPEC.md)'s rule for
@@ -116,7 +116,7 @@ consequences for a caller:
   keep only `lon`, `lat` and `ele`, and a walk position only `lon` and `lat`:
   the reader drops any other channel with a diagnostic.
 - A walk is used whole or not at all. Any problem in a walk drops its highlight, or
-  its route, and the diagnostic names the pass and the rule. A dropped arc drops
+  its plan, and the diagnostic names the pass and the rule. A dropped arc drops
   every highlight that walks it, with a diagnostic of its own.
 - `Track#movingTimeMs()` returns `null` for unknown. Unknown is not zero.
 - Opaque values come back whole. Data record bodies, `style` objects and

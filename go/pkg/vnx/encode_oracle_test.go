@@ -376,7 +376,7 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 			}
 			checkName(tr.Name, nonASCII, rtl, &unicodeName, &rtlName)
 		}
-		for _, r := range d.Routes {
+		for _, r := range d.Plans {
 			if len(r.Walk) == 0 {
 				emptyArray = true
 			}
@@ -537,7 +537,7 @@ func generatedOracleCases() []oracleCase {
 			Waypoints: []Waypoint{},
 			Areas:     []Area{},
 			Tracks:    []Track{},
-			Routes:    []Route{},
+			Plans:     []Plan{},
 			Networks:  []Network{},
 			AppKeys:   []AppKey{},
 		}},
@@ -675,7 +675,7 @@ func oracleExtremeNumbers() *Document {
 	}
 	op := 1e-7
 	w := 1e21
-	d.Routes = []Route{{
+	d.Plans = []Plan{{
 		Name:  "extreme style",
 		Style: Style{"opacity": op, "width": w},
 		Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
@@ -745,7 +745,7 @@ func oracleDegenerateArrays() *Document {
 			{Name: "one empty segment", Segments: []Segment{{}}},
 			{Name: "one segment one pip", Segments: []Segment{{Pips: []Position{{Lon: 1, Lat: 2}}}}},
 		},
-		Routes: []Route{
+		Plans: []Plan{
 			{Name: "no arcs", Walk: []Pass{}},
 			{Name: "one arc one pip", Nodes: map[string]Vertex{"a": {Lon: 1, Lat: 2}, "b": {Lon: 5, Lat: 6}},
 				Arcs: map[string]Arc{"arc": {From: "a", To: "b", Pips: []Vertex{{Lon: 3, Lat: 4}}}},
@@ -822,10 +822,10 @@ func oracleData() *Document {
 			Data: []Record{rec("t/area", map[string]any{"value": true})}}},
 		Tracks: []Track{{Name: "t", Segments: []Segment{{Pips: pips}},
 			Data: []Record{rec("t/track", map[string]any{"value": nil})}}},
-		Routes: []Route{{Name: "r", Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
+		Plans: []Plan{{Name: "r", Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
 			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2", Data: []Record{rec("t/arc", map[string]any{"value": 2.0})}}},
 			Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
-			Data: []Record{rec("t/route", map[string]any{"value": []any{1.0, 2.0}})}}},
+			Data: []Record{rec("t/plan", map[string]any{"value": []any{1.0, 2.0}})}}},
 		Networks: []Network{{
 			Name:  "n",
 			Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
@@ -959,7 +959,7 @@ func oracleEverything() *Document {
 	d.Waypoints = oracleWaypointStyles().Waypoints
 	d.Areas = oracleAreas().Areas
 	d.Tracks = oracleTiming().Tracks
-	d.Routes = oracleExtremeNumbers().Routes
+	d.Plans = oracleExtremeNumbers().Plans
 	d.Networks = []Network{oracleNetwork()}
 	d.AppKeys = oracleAppKeys().AppKeys
 	return d
@@ -1007,7 +1007,7 @@ func eachPosition(d *Document, fn func(Position)) {
 			}
 		}
 	}
-	for _, r := range d.Routes {
+	for _, r := range d.Plans {
 		graph(r.Nodes, r.Arcs, r.Walk)
 	}
 	for _, n := range d.Networks {
@@ -1056,7 +1056,7 @@ func eachData(d *Document, fn func(Record)) {
 	for _, t := range d.Tracks {
 		emit(t.Data)
 	}
-	for _, r := range d.Routes {
+	for _, r := range d.Plans {
 		emit(r.Data)
 		for _, a := range r.Arcs {
 			emit(a.Data)

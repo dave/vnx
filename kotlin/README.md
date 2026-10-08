@@ -109,7 +109,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Attachment` | `path: String`, `bytes: ByteArray`; equality is by value |
 | `Diagnostic` | `path: String`, `message: String`, `cause: DiagnosticCause`, `code: String?` |
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
-| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
+| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
 | `AppKey` | `key: String`, `value: JsonValue`; a JSON `null` is `JsonNull`; `AppKey.isAppKey(key)` |
 | `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?` |
 | `Vertex` | `lon`, `lat`, `ele: Double?`: a node or an arc pip, which carries no time |
@@ -117,7 +117,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `highlights`, `points`, `areas`, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
 | `Highlight` | `walk: List<Pass>`, and the item fields |
-| `Route` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
+| `Plan` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |
 | `Track` | `segments: List<Segment>`, `movingTimeMs(): Long?` |
@@ -171,7 +171,7 @@ that is a thrown exception against the list returned beside the document.
   format forbids there cannot be built. The reader drops it with an
   `extra-channel` or `arc-pip-time` diagnostic.
 - **A walk is used whole or not at all.** Any problem in a walk drops the highlight,
-  or the route, that carries it, and only the first problem is reported (SPEC
+  or the plan, that carries it, and only the first problem is reported (SPEC
   §6.2). An arc that is dropped takes each highlight that walks it, and each drop
   has its own diagnostic.
 - **This reader bounds nothing.** SPEC §9 has a reader of untrusted documents

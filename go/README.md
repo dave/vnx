@@ -114,7 +114,7 @@ diagnostics that have no assigned code. There is no `severity` field, because
 
 `outline` exists because a day's recorded track holds tens of thousands of
 positions. It reports a library's shape at a size a caller can hold, so that
-renaming a route or counting the networks in a file does not mean reading the
+renaming a plan or counting the networks in a file does not mean reading the
 geometry.
 
 `convert` writes to stdout unless `--out` names a file, so

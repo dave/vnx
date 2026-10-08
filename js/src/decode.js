@@ -16,7 +16,7 @@ import {
   Highlight,
   Pass,
   Endpoint,
-  Route,
+  Plan,
   Track,
   Segment,
   Waypoint,
@@ -353,7 +353,7 @@ const vertex = (p) => new Position(p.channels.slice(0, 3));
 
 // --- structure --------------------------------------------------------------
 
-const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas'];
+const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'plans', 'tracks', 'waypoints', 'areas'];
 
 /**
  * SPEC.md 3.9: a TOP-LEVEL key containing a full stop is an application key.
@@ -373,7 +373,7 @@ function readDocument(raw, ctx) {
   doc.created = timestamp('created', '', kv, ctx);
   doc.folders = collection('folders', kv, ctx, readFolder);
   doc.networks = collection('networks', kv, ctx, readNetwork);
-  doc.routes = collection('routes', kv, ctx, readRoute);
+  doc.plans = collection('plans', kv, ctx, readPlan);
   doc.tracks = collection('tracks', kv, ctx, readTrack);
   doc.waypoints = collection('waypoints', kv, ctx, (r, p, c) => readPointLike(r, p, c, true));
   doc.areas = collection('areas', kv, ctx, (r, p, c) => readArea(r, p, c, true));
@@ -455,7 +455,7 @@ function readNetwork(raw, path, ctx) {
 }
 
 /**
- * The `nodes` of a network or a route. A node that will not parse is dropped,
+ * The `nodes` of a network or a plan. A node that will not parse is dropped,
  * and an arc naming it is then dropped under `arc-node-absent`. A time on a
  * node is dropped with `extra-channel`, and the node kept (SPEC.md 3.3.1).
  */
@@ -476,7 +476,7 @@ function readNodes(kv, path, ctx) {
 }
 
 /**
- * The `arcs` of a network or a route (SPEC.md 3.3.2).
+ * The `arcs` of a network or a plan (SPEC.md 3.3.2).
  *
  * ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
  * the highlight goes when its walk is read, under `pass-arc-absent`, with a
@@ -577,7 +577,7 @@ function readHighlight(raw, path, ctx, arcs) {
 }
 
 /**
- * A highlight's or a route's REQUIRED `walk`, checked pass by pass in the order
+ * A highlight's or a plan's REQUIRED `walk`, checked pass by pass in the order
  * SPEC.md 6.2 lists. Returns DROP when the owner is to be dropped: a missing or
  * wrong-typed `walk`, or the first pass that breaks a rule, which is reported
  * alone — nothing after it in the walk is examined.
@@ -586,11 +586,11 @@ function readHighlight(raw, path, ctx, arcs) {
  * different walk that reads as valid — two arcs joined that do not meet, a
  * direction reversed by a lost turn, a start moved to a node.
  */
-function readWalk(kv, owner, arcs, route, ctx) {
+function readWalk(kv, owner, arcs, plan, ctx) {
   const list = arr('walk', owner, kv, true, ctx);
   if (list === DROP) return DROP;
-  const what = route ? 'route' : 'highlight';
-  const cursor = new WalkCursor(list.length - 1, route);
+  const what = plan ? 'plan' : 'highlight';
+  const cursor = new WalkCursor(list.length - 1, plan);
   const walk = [];
   for (const [i, raw] of list.entries()) {
     const at = `${owner}/walk/${i}`;
@@ -629,7 +629,7 @@ function readWalk(kv, owner, arcs, route, ctx) {
       const lonLat = new Position(pos.channels.slice(0, 2));
       p[k] = k === 'turn' || k === 'pin' ? lonLat : new Endpoint('position', lonLat);
     }
-    // 4 to 7: a route's rule, pin and turn, spelling, connection.
+    // 4 to 7: a plan's rule, pin and turn, spelling, connection.
     const step = cursor.step(i, p, arc);
     if (step.fault) return drop(step.fault.key, step.fault.code, step.fault.message);
     walk.push(p);
@@ -638,12 +638,12 @@ function readWalk(kv, owner, arcs, route, ctx) {
 }
 
 /**
- * A route owns its graph (SPEC.md 3.4), and is its own highlight: wherever a highlight
- * would be dropped, the whole route is.
+ * A plan owns its graph (SPEC.md 3.4), and is its own highlight: wherever a highlight
+ * would be dropped, the whole plan is.
  */
-function readRoute(raw, path, ctx) {
+function readPlan(raw, path, ctx) {
   const kv = known(raw, path, ['walk'], ['name', 'notes', 'folder', 'hidden', 'style', 'nodes', 'arcs', 'data'], ctx);
-  const r = new Route();
+  const r = new Plan();
   r.name = str('name', path, kv, false, ctx);
   r.notes = str('notes', path, kv, false, ctx);
   r.folder = str('folder', path, kv, false, ctx);
@@ -793,7 +793,7 @@ function resolveReferences(doc, ctx) {
   const placed = [
     ...(doc.folders ?? []).map((f) => [f, 'parent']),
     ...(doc.networks ?? []).map((n) => [n, 'folder']),
-    ...(doc.routes ?? []).map((r) => [r, 'folder']),
+    ...(doc.plans ?? []).map((r) => [r, 'folder']),
     ...(doc.tracks ?? []).map((t) => [t, 'folder']),
     ...(doc.waypoints ?? []).map((w) => [w, 'folder']),
     ...(doc.areas ?? []).map((a) => [a, 'folder']),
@@ -854,7 +854,7 @@ export function indexPositions(doc) {
     for (const [key, p] of owner.nodes ?? []) put(`${base}/nodes/${esc(key)}`, p);
     for (const [key, arc] of owner.arcs ?? []) pips(`${base}/arcs/${esc(key)}`, arc.pips);
   };
-  (doc.routes ?? []).forEach((r, i) => graph(`/routes/${i}`, r));
+  (doc.plans ?? []).forEach((r, i) => graph(`/plans/${i}`, r));
   (doc.tracks ?? []).forEach((t, i) => {
     (t.segments ?? []).forEach((seg, j) => pips(`/tracks/${i}/segments/${j}`, seg.pips));
   });

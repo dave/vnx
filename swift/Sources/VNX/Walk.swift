@@ -23,42 +23,42 @@ struct WalkFault: Error, Equatable {
 struct WalkCursor {
   /// The index of the last pass.
   let last: Int
-  /// A route's walk runs node to node (SPEC 3.4).
-  let route: Bool
+  /// A plan's walk runs node to node (SPEC 3.4).
+  let plan: Bool
   /// The node the walk is at. Nil before the first pass.
   private(set) var at: String?
 
-  init(last: Int, route: Bool) {
+  init(last: Int, plan: Bool) {
     self.last = last
-    self.route = route
+    self.plan = plan
   }
 
   /// Checks pass `i` against the rules of SPEC 3.3.3 that span more than the
-  /// pass's own values — valid-walk rules 2 to 6, and a route's rule — in
+  /// pass's own values — valid-walk rules 2 to 6, and a plan's rule — in
   /// SPEC 6.2's order (steps 5 to 8), and moves the cursor to where the pass
   /// leaves. Returns the pass's entry and exit.
   mutating func step(_ i: Int, _ p: Pass, arc: Arc) throws -> (entry: Endpoint, exit: Endpoint) {
     func fault(_ key: String?, _ cause: Cause, _ message: String) -> WalkFault {
       WalkFault(pass: i, key: key, cause: cause, message: message)
     }
-    // 4. In a route: no position, no turn and no pin, in the key order
+    // 4. In a plan: no position, no turn and no pin, in the key order
     // `from`, `to`, `turn`, `pin`.
-    if route {
+    if plan {
       if case .position = p.from {
         throw fault(
-          "from", .routePinOrPosition,
-          "a route's walk runs node to node, and this `from` is a position")
+          "from", .planPinOrPosition,
+          "a plan's walk runs node to node, and this `from` is a position")
       }
       if case .position = p.to {
         throw fault(
-          "to", .routePinOrPosition, "a route's walk runs node to node, and this `to` is a position"
+          "to", .planPinOrPosition, "a plan's walk runs node to node, and this `to` is a position"
         )
       }
       if p.turn != nil {
-        throw fault("turn", .routePinOrPosition, "a route's walk carries no turn")
+        throw fault("turn", .planPinOrPosition, "a plan's walk carries no turn")
       }
       if p.pin != nil {
-        throw fault("pin", .routePinOrPosition, "a route's walk carries no pin")
+        throw fault("pin", .planPinOrPosition, "a plan's walk carries no pin")
       }
     }
     // 5. A turn already fixes a pass.

@@ -16,7 +16,7 @@ data class VnxDocument(
     val created: String? = null,
     val folders: List<Folder>? = null,
     val networks: List<Network>? = null,
-    val routes: List<Route>? = null,
+    val plans: List<Plan>? = null,
     val tracks: List<Track>? = null,
     val waypoints: List<Waypoint>? = null,
     val areas: List<Area>? = null,
@@ -138,7 +138,7 @@ data class Network(
 )
 
 /**
- * An arc of a network or of a route: a line between the two DIFFERENT nodes
+ * An arc of a network or of a plan: a line between the two DIFFERENT nodes
  * [from] and [to] name (SPEC.md section 3.3.2).
  *
  * [pips] holds the INTERIOR points only. The line runs from the position of the
@@ -198,13 +198,13 @@ sealed interface Endpoint {
 }
 
 /**
- * A top-level route (SPEC.md section 3.4). It OWNS its nodes and arcs, which
+ * A top-level plan (SPEC.md section 3.4). It OWNS its nodes and arcs, which
  * have a network's shape, and carries one walk over them. Nothing outside the
- * route can reference its nodes or arcs.
+ * plan can reference its nodes or arcs.
  *
  * The walk runs node to node: no position, no turn and no pin.
  */
-data class Route(
+data class Plan(
     val walk: List<Pass>,
     val nodes: Map<String, Vertex>? = null,
     val arcs: Map<String, Arc>? = null,

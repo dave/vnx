@@ -24,7 +24,7 @@ enum Keys {
     required: ["vnx"],
     optional: [
       "generator", "created", "folders", "networks",
-      "routes", "tracks", "waypoints", "areas",
+      "plans", "tracks", "waypoints", "areas",
     ])
 
   /// SPEC 3.9: whether a top-level key is an application key. No key the
@@ -55,7 +55,7 @@ enum Keys {
       "highlights", "points", "areas", "data",
     ])
 
-  /// An arc, in a network or in a route: one shape for both (SPEC 3.10).
+  /// An arc, in a network or in a plan: one shape for both (SPEC 3.10).
   static let arc = Shape(
     required: ["from", "to", "pips"],
     optional: ["data"])
@@ -68,7 +68,7 @@ enum Keys {
     required: ["arc"],
     optional: ["from", "to", "turn", "pin"])
 
-  static let route = Shape(
+  static let plan = Shape(
     required: ["walk"],
     optional: ["name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data"])
 

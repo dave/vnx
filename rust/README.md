@@ -29,8 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reading = vnx::decode(&bytes)?;
     let doc = &reading.document;
 
-    for route in doc.routes.as_deref().unwrap_or(&[]) {
-        println!("route {:?}: {} passes", route.name, route.walk.len());
+    for plan in doc.plans.as_deref().unwrap_or(&[]) {
+        println!("plan {:?}: {} passes", plan.name, plan.walk.len());
     }
     for network in doc.networks.as_deref().unwrap_or(&[]) {
         for highlight in network.highlights.as_deref().unwrap_or(&[]) {
@@ -72,9 +72,9 @@ root.
 | `Attachment` | `path: String`, `bytes: Vec<u8>` |
 | `Diagnostic` | `path: String`, `cause: Cause`, and `code()` / `message()` |
 | `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
+| `Document` | `networks`, `plans`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
 | `AppKey` | `key: String`, `value: Json`: one application key (SPEC §3.9), `Json::Null` for a `null`; `Document::app_keys` is sorted by key on decode |
-| `Network`, `Route` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `highlights`, a route its own `walk` |
+| `Network`, `Plan` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `highlights`, a plan its own `walk` |
 | `Arc` | `from`, `to`, `pips: Vec<Vertex>` (the interior points only), `data` |
 | `Highlight` | `walk: Vec<Pass>`, and `name`, `notes`, `hidden`, `style`, `data` |
 | `Pass` | `arc`, `from` and `to` (`Option<Endpoint>`), `turn: Option<LonLat>`, `pin: Option<LonLat>` |
@@ -100,7 +100,7 @@ is `Err` against the `diagnostics` list returned beside a document.
   compared (SPEC §6.3). `src/diag.rs` holds every code.
 - **An absent collection is `None`, not an empty `Vec`.** On `Document` each
   collection is `Option<Vec<_>>`, so `None` means the key was absent. Inside an
-  item — `Highlight::walk`, `Route::walk`, `Track::segments`, an arc's `pips` — the
+  item — `Highlight::walk`, `Plan::walk`, `Track::segments`, an arc's `pips` — the
   collection is a plain `Vec`.
 - **`Track::moving_time_ms()` returns `None` for unknown.** Unknown is not zero.
 - **A position keeps the arity the document spelled**, and `Position::ele()` and
@@ -119,7 +119,7 @@ is `Err` against the `diagnostics` list returned beside a document.
   area (SPEC §6.2). `position-unusable` names what was dropped, so a caller need
   not derive it from the pointer.
 - **A walk is used whole or not at all.** The first pass that breaks a rule
-  drops the highlight, or the route, and is the only fault reported for that walk.
+  drops the highlight, or the plan, and is the only fault reported for that walk.
   A dropped arc takes every highlight that walks it, each under its own
   `pass-arc-absent`.
 

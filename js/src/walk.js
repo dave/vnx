@@ -30,18 +30,18 @@ export class WalkFault {
 export class WalkCursor {
   /**
    * @param {number} last the index of the walk's last pass
-   * @param {boolean} route a route's walk runs node to node (SPEC.md 3.4)
+   * @param {boolean} plan a plan's walk runs node to node (SPEC.md 3.4)
    */
-  constructor(last, route) {
+  constructor(last, plan) {
     this.last = last;
-    this.route = route;
+    this.plan = plan;
     /** @type {string|undefined} the node the walk is at; undefined before the first pass */
     this.at = undefined;
   }
 
   /**
    * Check pass `i` against the rules of SPEC.md 3.3.3 that span more than the
-   * pass's own values — a route's rule, valid-walk rules 2 to 6 — in the order
+   * pass's own values — a plan's rule, valid-walk rules 2 to 6 — in the order
    * SPEC.md 6.2 lists them, and move the cursor to where the pass leaves.
    *
    * @param {number} i
@@ -52,17 +52,13 @@ export class WalkCursor {
   step(i, p, arc) {
     const fault = (key, code, message) => ({ fault: new WalkFault(i, key, code, message) });
     const isPosition = (e) => e !== undefined && e.kind === 'position';
-    if (this.route) {
+    if (this.plan) {
       if (isPosition(p.from))
-        return fault(
-          'from',
-          'route-pin-or-position',
-          "a route's walk runs node to node, and this `from` is a position",
-        );
+        return fault('from', 'plan-pin-or-position', "a plan's walk runs node to node, and this `from` is a position");
       if (isPosition(p.to))
-        return fault('to', 'route-pin-or-position', "a route's walk runs node to node, and this `to` is a position");
-      if (p.turn !== undefined) return fault('turn', 'route-pin-or-position', "a route's walk carries no turn");
-      if (p.pin !== undefined) return fault('pin', 'route-pin-or-position', "a route's walk carries no pin");
+        return fault('to', 'plan-pin-or-position', "a plan's walk runs node to node, and this `to` is a position");
+      if (p.turn !== undefined) return fault('turn', 'plan-pin-or-position', "a plan's walk carries no turn");
+      if (p.pin !== undefined) return fault('pin', 'plan-pin-or-position', "a plan's walk carries no pin");
     }
     if (p.turn !== undefined && p.pin !== undefined) {
       return fault('', 'pinned-turn', 'a pass with a turn carries no pin: the turn already fixes it');
@@ -139,11 +135,11 @@ export class WalkCursor {
  *
  * @param {import('./model.js').Pass[]} walk
  * @param {Map<string, import('./model.js').Arc>|undefined} arcs
- * @param {boolean} route
+ * @param {boolean} plan
  * @returns {WalkFault|null}
  */
-export function checkWalk(walk, arcs, route) {
-  const cursor = new WalkCursor(walk.length - 1, route);
+export function checkWalk(walk, arcs, plan) {
+  const cursor = new WalkCursor(walk.length - 1, plan);
   for (let i = 0; i < walk.length; i++) {
     const p = walk[i];
     const arc = arcs?.get(p.arc);

@@ -53,21 +53,21 @@ func TestMatrixNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 	}
 }
 
-// Row: Route — "one path, boundaries lost".
-func TestMatrixRouteLosesItsArcBoundaries(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "Ridge"},
+// Row: Plan — "one path, boundaries lost".
+func TestMatrixPlanLosesItsArcBoundaries(t *testing.T) {
+	out, report := writeDoc(t, &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge"},
 		lineArc{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
 		lineArc{Pips: []vnx.Position{pos(0, 1), pos(0, 2)}},
 		lineArc{Pips: []vnx.Position{pos(0, 2), pos(0, 3)}},
 	)}})
 	// CARRIED: every position, in order, joined at the shared endpoints.
 	if !strings.Contains(out, "<coordinates>0,0 0,1 0,2 0,3</coordinates>") {
-		t.Fatalf("the route's geometry did not survive as one path\n%s", out)
+		t.Fatalf("the plan's geometry did not survive as one path\n%s", out)
 	}
 	// LOST: that it was three arcs. One LineString, not three, and no marker of
 	// where one ended.
 	if n := countOf(out, "<LineString>"); n != 1 {
-		t.Errorf("<LineString> count = %d, want 1 — a route is one path in KML", n)
+		t.Errorf("<LineString> count = %d, want 1 — a plan is one path in KML", n)
 	}
 	if report.Emitted != 1 {
 		t.Errorf("Emitted = %d, want 1", report.Emitted)
@@ -108,7 +108,7 @@ func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
 			Name: "W", At: pos(1, 2),
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{
+		Plans: []vnx.Plan{plan(vnx.Plan{
 			Name:  "R",
 			Style: vnx.Style{"color": "#3A6FB0", "width": 4.0, "line-style": "dashed"}},
 			lineArc{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
@@ -154,7 +154,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 
 // Row: Routing config — "❌". Same mechanism as tags: it is a data record.
 func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "R"},
+	out, _ := writeDoc(t, &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{Name: "R"},
 		lineArc{
 			Pips: []vnx.Position{pos(0, 0), pos(0, 1)},
 			Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking"}}},

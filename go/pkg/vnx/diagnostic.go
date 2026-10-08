@@ -150,7 +150,7 @@ var (
 	// to place it — no pips at all, or a ring of fewer than four positions.
 	//
 	// ⚠ IT IS REACHABLE, and not only from a hand-written file. Decode drops
-	// an ARC with fewer than two pips but does NOT drop a route with no arcs,
+	// an ARC with fewer than two pips but does NOT drop a plan with no arcs,
 	// a track with no segments or a short area ring, so `vnx convert` on a
 	// third-party .vnx reaches a writer with one. Emitting the item anyway
 	// would produce a GeoJSON LineString with no positions, which RFC 7946
@@ -262,7 +262,7 @@ var (
 	CodeArcNodeAbsent = decodeCode("arc-node-absent")
 	// CodePassArcAbsent: a pass that is not an object or names no arc of its
 	// owner (§3.3.3), including an arc another rule dropped. The highlight — or
-	// the route, which is its own highlight — is dropped.
+	// the plan, which is its own highlight — is dropped.
 	CodePassArcAbsent = decodeCode("pass-arc-absent")
 	// CodeWalkSpelling: a walk that breaks §3.3.3's rule for where `from` and
 	// `to` appear. The highlight is dropped.
@@ -274,9 +274,9 @@ var (
 	// CodePinnedTurn: a pass carrying both `turn` and `pin` (§3.3.3). The
 	// highlight is dropped.
 	CodePinnedTurn = decodeCode("pinned-turn")
-	// CodeRoutePinOrPosition: a position, a `turn` or a `pin` in a route's
-	// walk (§3.4). The route is dropped.
-	CodeRoutePinOrPosition = decodeCode("route-pin-or-position")
+	// CodePlanPinOrPosition: a position, a `turn` or a `pin` in a plan's
+	// walk (§3.4). The plan is dropped.
+	CodePlanPinOrPosition = decodeCode("plan-pin-or-position")
 	// CodeRingClosed: a ring whose last position repeats its first (§3.7). The
 	// repeated position is dropped and the area kept: nothing is lost, and the
 	// diagnostic is how a writer that closes rings is seen.

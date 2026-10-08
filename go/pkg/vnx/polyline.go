@@ -6,7 +6,7 @@ import (
 )
 
 // Cutting an arc where a walk enters, turns and leaves it. ONE implementation,
-// [WalkLegs], and every writer draws a highlight or a route through it.
+// [WalkLegs], and every writer draws a highlight or a plan through it.
 //
 // ⚠ A WALK IS NOT A LIST OF WHOLE ARCS. Each of its passes covers one arc from
 // an entry to an exit, perhaps by way of a turn, and an entry or exit is either

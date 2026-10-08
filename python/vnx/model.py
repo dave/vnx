@@ -26,7 +26,7 @@ __all__ = [
     "Pass",
     "Highlight",
     "Network",
-    "Route",
+    "Plan",
     "Segment",
     "Track",
     "Waypoint",
@@ -95,7 +95,7 @@ class Folder:
 
 @dataclass(slots=True)
 class Arc:
-    """An arc of a network or a route (SPEC 3.3.2).
+    """An arc of a network or a plan (SPEC 3.3.2).
 
     Its line runs from the ``from_`` node's position, through ``pips``, to the
     ``to`` node's position.  ``pips`` holds the INTERIOR points only, and an
@@ -156,8 +156,8 @@ class Network:
 
 
 @dataclass(slots=True)
-class Route:
-    """A route owns its graph (SPEC 3.4): nodes and arcs of a network's shape,
+class Plan:
+    """A plan owns its graph (SPEC 3.4): nodes and arcs of a network's shape,
     and one walk over them that runs node to node."""
 
     folder: Union[str, None] = None
@@ -268,7 +268,7 @@ class Document:
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None
     networks: Union[list[Network], None] = None
-    routes: Union[list[Route], None] = None
+    plans: Union[list[Plan], None] = None
     tracks: Union[list[Track], None] = None
     waypoints: Union[list[Waypoint], None] = None
     areas: Union[list[Area], None] = None
@@ -283,7 +283,7 @@ class Document:
         return {
             "folders": len(self.folders or []),
             "networks": len(self.networks or []),
-            "routes": len(self.routes or []),
+            "plans": len(self.plans or []),
             "tracks": len(self.tracks or []),
             "waypoints": len(self.waypoints or []),
             "areas": len(self.areas or []),

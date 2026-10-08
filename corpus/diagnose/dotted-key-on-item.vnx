@@ -27,12 +27,12 @@
       ]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "name": "Road",
-      "x.route": 1,
+      "x.plan": 1,
       "nodes": {"n1": [3, 3], "n2": [3, 4]},
-      "arcs": {"a1": {"from": "n1", "to": "n2", "pips": [], "x.route-arc": 1}},
+      "arcs": {"a1": {"from": "n1", "to": "n2", "pips": [], "x.plan-arc": 1}},
       "walk": [{"arc": "a1", "from": "n1", "to": "n2"}]
     }
   ],

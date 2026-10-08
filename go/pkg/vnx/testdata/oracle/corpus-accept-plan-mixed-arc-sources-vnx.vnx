@@ -1,6 +1,6 @@
 {
   "vnx": "0.9.0",
-  "routes": [
+  "plans": [
     {
       "name": "Half drawn, half routed",
       "nodes": {

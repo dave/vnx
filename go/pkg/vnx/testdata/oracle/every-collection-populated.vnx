@@ -191,7 +191,7 @@
       ]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "name": "extreme style",
       "nodes": {

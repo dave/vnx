@@ -34,7 +34,7 @@ from .model import (
     Network,
     Pass,
     Position,
-    Route,
+    Plan,
     Segment,
     Style,
     Track,
@@ -381,7 +381,7 @@ class _Reader:
 
         document.folders = self._collection(obj, "folders", self._folder)
         document.networks = self._collection(obj, "networks", self._network)
-        document.routes = self._collection(obj, "routes", self._route)
+        document.plans = self._collection(obj, "plans", self._plan)
         document.tracks = self._collection(obj, "tracks", self._track)
         document.waypoints = self._collection(
             obj, "waypoints", lambda v, p: self._waypoint(v, p)
@@ -414,7 +414,7 @@ class _Reader:
         }
         hosts: list[tuple[str, list[Any]]] = [
             ("networks", list(document.networks or [])),
-            ("routes", list(document.routes or [])),
+            ("plans", list(document.plans or [])),
             ("tracks", list(document.tracks or [])),
             ("waypoints", list(document.waypoints or [])),
             ("areas", list(document.areas or [])),
@@ -629,27 +629,27 @@ class _Reader:
             data=self._data(obj, path),
         )
 
-    def _route(self, value: JSONValue, path: str) -> Union[Route, None]:
-        """SPEC 3.4.  A route is its own highlight: where a highlight would be dropped,
-        the whole route is."""
-        obj = self._object(value, path, K.ROUTE, "a route")
+    def _plan(self, value: JSONValue, path: str) -> Union[Plan, None]:
+        """SPEC 3.4.  A plan is its own highlight: where a highlight would be dropped,
+        the whole plan is."""
+        obj = self._object(value, path, K.PLAN, "a plan")
         if obj is None:
             return None
-        route = Route(
+        plan = Plan(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             style=self._style(obj, path),
         )
-        route.nodes = self._nodes(obj, path)
-        route.arcs = self._arcs(obj, path, route.nodes or {})
-        route.data = self._data(obj, path)
-        walk = self._walk(obj, path, route.arcs or {}, route=True)
+        plan.nodes = self._nodes(obj, path)
+        plan.arcs = self._arcs(obj, path, plan.nodes or {})
+        plan.data = self._data(obj, path)
+        walk = self._walk(obj, path, plan.arcs or {}, plan=True)
         if walk is None:
             return None
-        route.walk = walk
-        return route
+        plan.walk = walk
+        return plan
 
     # -- networks ------------------------------------------------------
 
@@ -691,7 +691,7 @@ class _Reader:
     def _nodes(
         self, obj: dict[str, JSONValue], path: str
     ) -> Union[dict[str, Position], None]:
-        """A network's or a route's `nodes` (SPEC 3.3.1).
+        """A network's or a plan's `nodes` (SPEC 3.3.1).
 
         A node that will not parse is dropped, and an arc naming it is then
         dropped under `arc-node-absent`, so the loss surfaces on everything
@@ -717,7 +717,7 @@ class _Reader:
     def _arcs(
         self, obj: dict[str, JSONValue], path: str, nodes: dict[str, Position]
     ) -> Union[dict[str, Arc], None]:
-        """A network's or a route's `arcs` (SPEC 3.3.2).
+        """A network's or a plan's `arcs` (SPEC 3.3.2).
 
         ⚠ A DROPPED ARC TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here: the
         highlight is dropped when its walk is read, under `pass-arc-absent`, with a
@@ -829,7 +829,7 @@ class _Reader:
             style=self._style(obj, path),
             data=self._data(obj, path),
         )
-        walk = self._walk(obj, path, arcs, route=False)
+        walk = self._walk(obj, path, arcs, plan=False)
         if walk is None:
             return None
         highlight.walk = walk
@@ -840,9 +840,9 @@ class _Reader:
         obj: dict[str, JSONValue],
         owner: str,
         arcs: dict[str, Arc],
-        route: bool,
+        plan: bool,
     ) -> Union[list[Pass], None]:
-        """A highlight's or a route's REQUIRED `walk`, checked in SPEC 6.2's order.
+        """A highlight's or a plan's REQUIRED `walk`, checked in SPEC 6.2's order.
 
         None means the owner is dropped: a missing or wrong-typed `walk`, or the
         first pass that breaks a rule, which is reported alone -- nothing after
@@ -860,7 +860,7 @@ class _Reader:
             self.note(path, f"`walk` {what}", "wrong-type-required")
             return None
         walk: list[Pass] = []
-        cursor = W.Cursor(last=len(items) - 1, route=route)
+        cursor = W.Cursor(last=len(items) - 1, plan=plan)
         for index, item in enumerate(items):
             at = join(path, index)
             # 1. The pass is an object naming an arc of its owner.
@@ -888,7 +888,7 @@ class _Reader:
                 else:
                     assert isinstance(endpoint, Position)
                     p.pin = endpoint
-            # 4 to 7: the route rule, pin and turn, spelling, connection.
+            # 4 to 7: the plan rule, pin and turn, spelling, connection.
             stepped = cursor.step(index, p, arcs[arc_key])
             if isinstance(stepped, W.WalkFault):
                 self.note(stepped.path(path), stepped.message, stepped.code)

@@ -663,12 +663,12 @@ class Walks(unittest.TestCase):
         )
 
 
-class Routes(unittest.TestCase):
-    """SPEC 3.4: a route owns a graph of a network's shape and is its own
-    highlight, so where a highlight would be dropped the route is."""
+class Plans(unittest.TestCase):
+    """SPEC 3.4: a plan owns a graph of a network's shape and is its own
+    highlight, so where a highlight would be dropped the plan is."""
 
-    ROUTE = """
-    {"vnx": "0.9.0", "routes": [{
+    PLAN = """
+    {"vnx": "0.9.0", "plans": [{
       "name": "R",
       "nodes": {"a": [-3.60, 57.10], "b": [-3.59, 57.10], "c": [-3.58, 57.10]},
       "arcs": {"ab": {"from": "a", "to": "b", "pips": []},
@@ -677,16 +677,16 @@ class Routes(unittest.TestCase):
     }]}
     """
 
-    def route(self, walk: str) -> vnx.ReadResult:
-        return read(self.ROUTE % walk)
+    def plan(self, walk: str) -> vnx.ReadResult:
+        return read(self.PLAN % walk)
 
-    def test_a_node_to_node_route_reads_clean(self) -> None:
-        result = self.route('[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]')
+    def test_a_node_to_node_plan_reads_clean(self) -> None:
+        result = self.plan('[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]')
         self.assertEqual(messages(result), [])
-        assert result.document.routes is not None
-        route = result.document.routes[0]
-        self.assertEqual(sorted(route.arcs or {}), ["ab", "bc"])
-        self.assertEqual(len(route.walk or []), 2)
+        assert result.document.plans is not None
+        plan = result.document.plans[0]
+        self.assertEqual(sorted(plan.arcs or {}), ["ab", "bc"])
+        self.assertEqual(len(plan.walk or []), 2)
 
     def test_each_forbidden_key_names_itself(self) -> None:
         for walk, key in (
@@ -699,34 +699,34 @@ class Routes(unittest.TestCase):
             ('[{"arc": "ab", "from": "a", "to": "b", "pin": [-3.595, 57.10]}]', "pin"),
         ):
             with self.subTest(key=key):
-                result = self.route(walk)
+                result = self.plan(walk)
                 self.assertEqual(
                     codes(result),
-                    [(f"/routes/0/walk/0/{key}", "route-pin-or-position")],
+                    [(f"/plans/0/walk/0/{key}", "plan-pin-or-position")],
                 )
-                self.assertEqual(result.document.routes, [])
+                self.assertEqual(result.document.plans, [])
 
-    def test_a_route_walking_a_dropped_arc_is_dropped(self) -> None:
-        """The cascade: the arc goes for its bad pip, then the route for the
+    def test_a_plan_walking_a_dropped_arc_is_dropped(self) -> None:
+        """The cascade: the arc goes for its bad pip, then the plan for the
         pass naming it, each with its own diagnostic."""
         result = read(
             (
-                self.ROUTE % '[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]'
+                self.PLAN % '[{"arc": "ab", "from": "a"}, {"arc": "bc", "to": "c"}]'
             ).replace("[[-3.585, 57.101]]", "[[-3.585]]")
         )
         self.assertEqual(
             codes(result),
             [
-                ("/routes/0/arcs/bc/pips/0", "position-unusable"),
-                ("/routes/0/walk/1", "pass-arc-absent"),
+                ("/plans/0/arcs/bc/pips/0", "position-unusable"),
+                ("/plans/0/walk/1", "pass-arc-absent"),
             ],
         )
-        self.assertEqual(result.document.routes, [])
+        self.assertEqual(result.document.plans, [])
 
-    def test_an_absent_walk_drops_the_route(self) -> None:
-        result = read('{"vnx": "0.9.0", "routes": [{"name": "No walk"}]}')
-        self.assertEqual(codes(result), [("/routes/0/walk", "wrong-type-required")])
-        self.assertEqual(result.document.routes, [])
+    def test_an_absent_walk_drops_the_plan(self) -> None:
+        result = read('{"vnx": "0.9.0", "plans": [{"name": "No walk"}]}')
+        self.assertEqual(codes(result), [("/plans/0/walk", "wrong-type-required")])
+        self.assertEqual(result.document.plans, [])
 
 
 class Graphs(unittest.TestCase):

@@ -147,7 +147,7 @@ pub struct Document {
     /// that spells either stays conforming.
     pub folders: Option<Vec<Folder>>,
     pub networks: Option<Vec<Network>>,
-    pub routes: Option<Vec<Route>>,
+    pub plans: Option<Vec<Plan>>,
     pub tracks: Option<Vec<Track>>,
     pub waypoints: Option<Vec<Waypoint>>,
     pub areas: Option<Vec<Area>>,
@@ -242,7 +242,7 @@ pub struct LonLat {
     pub lat: f64,
 }
 
-/// A line between two DIFFERENT nodes of its owner, a network or a route.
+/// A line between two DIFFERENT nodes of its owner, a network or a plan.
 ///
 /// `pips` holds the INTERIOR points only (SPEC 3.3.2): the line runs from the
 /// `from` node's position, through `pips`, to the `to` node's. An arc with no
@@ -306,14 +306,14 @@ pub enum Endpoint {
     At(LonLat),
 }
 
-/// A top-level route OWNS its graph (SPEC 3.4): nodes and arcs of a network's
+/// A top-level plan OWNS its graph (SPEC 3.4): nodes and arcs of a network's
 /// shape, and one walk over them.
 ///
-/// Nothing outside the route can reference its nodes or arcs. Its walk runs
+/// Nothing outside the plan can reference its nodes or arcs. Its walk runs
 /// node to node, with no position, turn or pin. Where a reader would drop a
-/// highlight, it drops the route: the route is its own highlight.
+/// highlight, it drops the plan: the plan is its own highlight.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Route {
+pub struct Plan {
     pub name: Option<String>,
     pub notes: Option<String>,
     pub folder: Option<String>,
@@ -325,7 +325,7 @@ pub struct Route {
     pub data: Option<Vec<Record>>,
 }
 
-impl Route {
+impl Plan {
     pub fn node(&self, key: &str) -> Option<&Vertex> {
         find(&self.nodes, key)
     }

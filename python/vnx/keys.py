@@ -20,7 +20,7 @@ __all__ = [
     "ARC",
     "HIGHLIGHT",
     "PASS",
-    "ROUTE",
+    "PLAN",
     "TRACK",
     "SEGMENT",
     "WAYPOINT",
@@ -45,7 +45,7 @@ DOCUMENT = frozenset(
         "created",
         "folders",
         "networks",
-        "routes",
+        "plans",
         "tracks",
         "waypoints",
         "areas",
@@ -73,7 +73,7 @@ NETWORK = frozenset(
     }
 )
 
-# SPEC 3.3.2.  One shape for an arc of a network and an arc of a route.  An
+# SPEC 3.3.2.  One shape for an arc of a network and an arc of a plan.  An
 # arc is not one of the items SPEC 3.8 lists as carrying `hidden`, and has no
 # name of its own.
 ARC = frozenset({"from", "to", "pips", "data"})
@@ -81,11 +81,11 @@ ARC = frozenset({"from", "to", "pips", "data"})
 # SPEC 3.3.3.
 HIGHLIGHT = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
 
-# SPEC 3.3.3.  A pass of a highlight's walk or of a route's.
+# SPEC 3.3.3.  A pass of a highlight's walk or of a plan's.
 PASS = frozenset({"arc", "from", "to", "turn", "pin"})
 
-# SPEC 3.4.  A route owns a graph of a network's shape, and one walk over it.
-ROUTE = frozenset(
+# SPEC 3.4.  A plan owns a graph of a network's shape, and one walk over it.
+PLAN = frozenset(
     {
         "folder",
         "name",
@@ -152,7 +152,7 @@ REQUIRED_FOLDER = frozenset({"id"})
 REQUIRED_ARC = frozenset({"from", "to", "pips"})
 REQUIRED_HIGHLIGHT = frozenset({"walk"})
 REQUIRED_PASS = frozenset({"arc"})
-REQUIRED_ROUTE = frozenset({"walk"})
+REQUIRED_PLAN = frozenset({"walk"})
 REQUIRED_TRACK = frozenset({"segments"})
 REQUIRED_SEGMENT = frozenset({"pips"})
 REQUIRED_WAYPOINT = frozenset({"at"})

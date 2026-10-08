@@ -27,7 +27,7 @@ internal class Decoder(
                 "created",
                 "folders",
                 "networks",
-                "routes",
+                "plans",
                 "tracks",
                 "waypoints",
                 "areas",
@@ -49,15 +49,15 @@ internal class Decoder(
                 "data",
             )
 
-        // An arc has one shape in a network and in a route (section 3.4).
+        // An arc has one shape in a network and in a plan (section 3.4).
         val ARC_REQUIRED = setOf("from", "to", "pips")
         val ARC_OPTIONAL = setOf("data")
         val HIGHLIGHT_REQUIRED = setOf("walk")
         val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
-        val ROUTE_REQUIRED = setOf("walk")
-        val ROUTE_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data")
+        val PLAN_REQUIRED = setOf("walk")
+        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
         val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
@@ -131,7 +131,7 @@ internal class Decoder(
                 created = optionalTimestamp(doc, "created", at),
                 folders = folders,
                 networks = optionalItems(doc, "networks", at) { o, p -> network(o, p) },
-                routes = optionalItems(doc, "routes", at) { o, p -> route(o, p) },
+                plans = optionalItems(doc, "plans", at) { o, p -> plan(o, p) },
                 tracks = optionalItems(doc, "tracks", at) { o, p -> track(o, p) },
                 waypoints = optionalItems(doc, "waypoints", at) { o, p -> waypoint(o, p, inNetwork = false) },
                 areas = optionalItems(doc, "areas", at) { o, p -> area(o, p, inNetwork = false) },
@@ -529,7 +529,7 @@ internal class Decoder(
         )
     }
 
-    // ---------------------------------------------------- networks and routes
+    // ---------------------------------------------------- networks and plans
 
     private fun network(
         obj: JsonObject,
@@ -555,18 +555,18 @@ internal class Decoder(
     }
 
     /**
-     * A route is its own highlight (section 3.4): it owns nodes and arcs of a
+     * A plan is its own highlight (section 3.4): it owns nodes and arcs of a
      * network's shape and one walk over them, and wherever a highlight would be
-     * dropped the whole route is.
+     * dropped the whole plan is.
      */
-    private fun route(
+    private fun plan(
         obj: JsonObject,
         at: Pointer,
-    ): Route? {
-        recogniseKeys(obj, at, Keys.ROUTE_REQUIRED, Keys.ROUTE_OPTIONAL)
+    ): Plan? {
+        recogniseKeys(obj, at, Keys.PLAN_REQUIRED, Keys.PLAN_OPTIONAL)
         val nodes = nodes(obj, at)
         val arcs = arcs(obj, at, nodes)
-        // Every field is read before the walk, so a route the walk drops still
+        // Every field is read before the walk, so a plan the walk drops still
         // reports what else was wrong with it.
         val name = optionalString(obj, "name", at)
         val notes = optionalString(obj, "notes", at)
@@ -574,12 +574,12 @@ internal class Decoder(
         val hidden = optionalBool(obj, "hidden", at)
         val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
-        val walk = walk(obj, at, arcs ?: emptyMap(), route = true) ?: return null
-        return Route(walk, nodes, arcs, name, notes, folder, hidden, style, data)
+        val walk = walk(obj, at, arcs ?: emptyMap(), plan = true) ?: return null
+        return Plan(walk, nodes, arcs, name, notes, folder, hidden, style, data)
     }
 
     /**
-     * A network's or a route's `nodes` (section 3.3.1). A node that will not
+     * A network's or a plan's `nodes` (section 3.3.1). A node that will not
      * parse is dropped; an arc naming it is then dropped under
      * `arc-node-absent`, so the loss surfaces on everything that depended on it.
      */
@@ -611,7 +611,7 @@ internal class Decoder(
     }
 
     /**
-     * A network's or a route's `arcs` (section 3.3.2).
+     * A network's or a plan's `arcs` (section 3.3.2).
      *
      * AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
      * the highlight is dropped when its walk is read, under `pass-arc-absent`, with a
@@ -688,7 +688,7 @@ internal class Decoder(
                 absent = true
                 report(
                     at.child(end),
-                    "`$end` names node \"$node\", which is not in this network or route; the arc is dropped",
+                    "`$end` names node \"$node\", which is not in this network or plan; the arc is dropped",
                     DiagnosticCause.ARC_NODE_ABSENT,
                 )
             }
@@ -712,12 +712,12 @@ internal class Decoder(
         val hidden = optionalBool(obj, "hidden", at)
         val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
-        val walk = walk(obj, at, arcs, route = false) ?: return null
+        val walk = walk(obj, at, arcs, plan = false) ?: return null
         return Highlight(walk, name, notes, hidden, style, data)
     }
 
     /**
-     * A highlight's or a route's REQUIRED `walk`, checked in the order section 6.2
+     * A highlight's or a plan's REQUIRED `walk`, checked in the order section 6.2
      * fixes. Returns null when the owner is to be dropped.
      *
      * A WALK IS USED WHOLE OR NOT AT ALL. Dropping a pass would hand the caller
@@ -731,26 +731,26 @@ internal class Decoder(
         obj: JsonObject,
         owner: Pointer,
         arcs: Map<String, Arc>,
-        route: Boolean,
+        plan: Boolean,
     ): List<Pass>? {
         val here = owner.child("walk")
         val raw = obj["walk"]
         if (raw !is JsonArray) {
             report(
                 here,
-                "`walk` must be an array of passes; the ${if (route) "route" else "highlight"} is dropped",
+                "`walk` must be an array of passes; the ${if (plan) "plan" else "highlight"} is dropped",
                 if (raw == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
             return null
         }
-        val dropped = if (route) "the route is dropped" else "the highlight is dropped"
+        val dropped = if (plan) "the plan is dropped" else "the highlight is dropped"
 
         fun drop(fault: WalkFault): List<Pass>? {
             val at = here.child(fault.pass).let { if (fault.key == null) it else it.child(fault.key) }
             report(at, "${fault.message}; $dropped", fault.cause)
             return null
         }
-        val cursor = WalkCursor(raw.elements.size, route)
+        val cursor = WalkCursor(raw.elements.size, plan)
         val out = ArrayList<Pass>(raw.elements.size)
         for ((i, element) in raw.elements.withIndex()) {
             val passAt = here.child(i)
@@ -769,7 +769,7 @@ internal class Decoder(
                             null,
                             DiagnosticCause.PASS_ARC_ABSENT,
                             if (arcKey != null) {
-                                "the pass names arc \"$arcKey\", which is not in this network or route"
+                                "the pass names arc \"$arcKey\", which is not in this network or plan"
                             } else {
                                 "the pass names no arc"
                             },
@@ -811,7 +811,7 @@ internal class Decoder(
                     turn = (ends["turn"] as Endpoint.At?)?.position,
                     pin = (ends["pin"] as Endpoint.At?)?.position,
                 )
-            // 4 to 7: a route's rule, pin and turn, spelling, connection.
+            // 4 to 7: a plan's rule, pin and turn, spelling, connection.
             cursor.step(i, pass, arc)?.let { return drop(it) }
             out.add(pass)
         }

@@ -45,14 +45,14 @@ func TestCoordinatesAndElevationAreRoundedAtTheWrite(t *testing.T) {
 	}
 }
 
-// A track point takes the same path as a waypoint, and a route's points take a
+// A track point takes the same path as a waypoint, and a plan's points take a
 // third. All three must round, or one format spells one library two ways.
-func TestTrackAndRoutePointsRoundToo(t *testing.T) {
+func TestTrackAndPlanPointsRoundToo(t *testing.T) {
 	p := vnx.Position{Lon: -3.6712345678901235, Lat: 57.11812345678901, Ele: eleOf(328.06075289469285)}
 	q := vnx.Position{Lon: -3.6702345678901235, Lat: 57.11912345678901}
 	d := &vnx.Document{
 		Tracks: []vnx.Track{{Name: "t", Segments: []vnx.Segment{{Pips: []vnx.Position{p, q}}}}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "r"}, lineArc{Pips: []vnx.Position{p, q}})},
+		Plans:  []vnx.Plan{plan(vnx.Plan{Name: "r"}, lineArc{Pips: []vnx.Position{p, q}})},
 	}
 	var b bytes.Buffer
 	if _, err := Write(&b, d); err != nil {
@@ -60,7 +60,7 @@ func TestTrackAndRoutePointsRoundToo(t *testing.T) {
 	}
 	out := b.String()
 	if n := strings.Count(out, `lat="57.118123"`); n != 2 {
-		t.Errorf("rounded latitude appears %d times, want 2 (one track point, one route point):\n%s", n, out)
+		t.Errorf("rounded latitude appears %d times, want 2 (one track point, one plan point):\n%s", n, out)
 	}
 	if strings.Contains(out, "57.11812345678901") {
 		t.Errorf("full precision reached the file:\n%s", out)
@@ -83,8 +83,8 @@ func TestRoundingNeverInventsAnElevation(t *testing.T) {
 	}
 }
 
-// ⚠ HAZARD 1. A route's shared arc endpoint is deduped BY FULL VALUE
-// (routePips), and that comparison must keep seeing full values: two readings
+// ⚠ HAZARD 1. A plan's shared arc endpoint is deduped BY FULL VALUE
+// (planPips), and that comparison must keep seeing full values: two readings
 // 5 cm apart are two readings, and rounding them first would silently merge
 // them into one. Here the two arcs meet at positions that are distinct at full
 // precision and identical once rounded — the file therefore carries the
@@ -102,7 +102,7 @@ func TestTheArcBoundaryDedupStillComparesFullValues(t *testing.T) {
 	b2 := vnx.Position{Lon: -3.67123412, Lat: 57.1181234} // same to six places, not equal
 	// The two arcs join at a, exactly, and b2 is the second arc's first
 	// interior point: the join drops a's repeat and must keep b2.
-	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "r"},
+	d := &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{Name: "r"},
 		lineArc{Pips: []vnx.Position{{Lon: -3.67, Lat: 57.11}, a}},
 		lineArc{Pips: []vnx.Position{a, b2, {Lon: -3.68, Lat: 57.12}}},
 	)}}

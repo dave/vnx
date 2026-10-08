@@ -1,0 +1,24 @@
+{
+  "kind": "diagnose",
+  "schema": "invalid",
+  "note": "A position in a plan's walk (SPEC 3.4). A plan owns its graph and its walk runs from node to node, so a plan ends at its own node and nothing else holds a handle part-way along one of its arcs. The same walk in a network's highlight is valid, which is why this rule is separate from every walk rule and needs its own case. A plan is its own highlight, so the plan is dropped where a highlight would be. The third plan runs node to node and carries a `pin`: a pin is a handle on a highlight drawn over a network, and a plan has none, so the same rule drops it and names the `pin` key. The first plan is the same plan ending at its node, and survives.",
+  "counts": {
+    "plans": 1,
+    "/plans/0/walk": 1,
+    "/plans/0/arcs/ab/pips": 1,
+    "/plans/0/arcs": 1,
+    "/plans/0/nodes": 2
+  },
+  "diagnostics": [
+    {
+      "path": "/plans/1/walk/0/to",
+      "code": "plan-pin-or-position",
+      "message_advisory": "a plan's walk runs node to node, and this `to` is a position — the plan is dropped"
+    },
+    {
+      "path": "/plans/2/walk/0/pin",
+      "code": "plan-pin-or-position",
+      "message_advisory": "a plan's walk carries no pin — the plan is dropped"
+    }
+  ]
+}

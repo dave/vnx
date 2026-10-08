@@ -26,7 +26,7 @@ from vnx.model import (
     Network,
     Pass,
     Position,
-    Route,
+    Plan,
     Waypoint,
 )
 from vnx.writer import encode_bytes, normalised_document
@@ -315,17 +315,17 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
                 )
                 self.assertIn(code, message)
 
-    def test_a_route_carrying_a_position_is_refused(self) -> None:
-        route = Route(
+    def test_a_plan_carrying_a_position_is_refused(self) -> None:
+        plan = Plan(
             name="R",
             nodes={"a": Position(-3.60, 57.10), "b": Position(-3.59, 57.10)},
             arcs={"ab": Arc(from_="a", to="b", pips=[])},
             walk=[Pass("ab", from_="a", to=Position(-3.595, 57.10))],
         )
-        self.assertIn("route-pin-or-position", self.refused(Document(routes=[route])))
-        route.walk = [Pass("ab", from_="a", to="b")]
+        self.assertIn("plan-pin-or-position", self.refused(Document(plans=[plan])))
+        plan.walk = [Pass("ab", from_="a", to="b")]
         self.assertEqual(
-            vnx.read_bytes(encode_bytes(Document(routes=[route]))).diagnostics, []
+            vnx.read_bytes(encode_bytes(Document(plans=[plan]))).diagnostics, []
         )
 
     def test_a_self_loop_is_refused(self) -> None:

@@ -120,7 +120,7 @@ export function emitDocument(doc) {
   put(o, 'created', doc.created);
   if (doc.folders !== undefined) o.folders = doc.folders.map((f) => emitFolder(f));
   if (doc.networks !== undefined) o.networks = doc.networks.map((n) => emitNetwork(n));
-  if (doc.routes !== undefined) o.routes = doc.routes.map((r) => emitRoute(r));
+  if (doc.plans !== undefined) o.plans = doc.plans.map((r) => emitPlan(r));
   if (doc.tracks !== undefined) o.tracks = doc.tracks.map((t) => emitTrack(t));
   if (doc.waypoints !== undefined) o.waypoints = doc.waypoints.map((w) => emitPointLike(w));
   if (doc.areas !== undefined) o.areas = doc.areas.map((a) => emitArea(a));
@@ -186,8 +186,8 @@ function emitArcs(o, nodes, arcs, owner) {
  * its own reader would drop. `from` and `to` are written only where the model
  * holds them, and `turn` and `pin` only where the pass has one.
  */
-function emitWalk(walk, arcs, route, owner) {
-  const fault = checkWalk(walk, arcs, route);
+function emitWalk(walk, arcs, plan, owner) {
+  const fault = checkWalk(walk, arcs, plan);
   if (fault !== null) throw new Error(`vnx: ${owner}: ${fault.toError().message.replace(/^vnx: /, '')}`);
   return walk.map((p, i) => {
     const po = { arc: p.arc };
@@ -230,7 +230,7 @@ function emitHighlight(c, arcs) {
   return o;
 }
 
-function emitRoute(r) {
+function emitPlan(r) {
   const o = {};
   put(o, 'name', r.name);
   put(o, 'notes', r.notes);
@@ -238,7 +238,7 @@ function emitRoute(r) {
   putHidden(o, r.hidden);
   put(o, 'style', r.style);
   put(o, 'data', r.data);
-  const owner = r.name === undefined ? 'a route' : `route ${JSON.stringify(r.name)}`;
+  const owner = r.name === undefined ? 'a plan' : `plan ${JSON.stringify(r.name)}`;
   emitNodes(o, r.nodes, owner);
   emitArcs(o, r.nodes, r.arcs, owner);
   o.walk = emitWalk(r.walk, r.arcs, true, owner);

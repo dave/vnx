@@ -163,14 +163,14 @@ class WriterRulesTest {
     }
 
     @Test
-    fun `a writer refuses a route whose walk is not node to node`() {
-        val route =
-            Route(
+    fun `a writer refuses a plan whose walk is not node to node`() {
+        val plan =
+            Plan(
                 walk = listOf(Pass("ab", from = Endpoint.Node("a"), to = Endpoint.At(LonLat(-2.5, 57.0)))),
                 nodes = nodes,
                 arcs = ab,
             )
-        assertTrue(refused(VnxDocument(vnx = "0.9.0", routes = listOf(route))).contains("route-pin-or-position"))
+        assertTrue(refused(VnxDocument(vnx = "0.9.0", plans = listOf(plan))).contains("plan-pin-or-position"))
     }
 
     @Test

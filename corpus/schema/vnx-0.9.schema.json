@@ -43,10 +43,10 @@
         "$ref": "#/$defs/track"
       }
     },
-    "routes": {
+    "plans": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/route"
+        "$ref": "#/$defs/plan"
       }
     },
     "networks": {
@@ -70,7 +70,7 @@
     "identifier": {
       "type": "string",
       "minLength": 1,
-      "description": "Container-scoped and document-local. A route's node-1 and a network's node-1 are DIFFERENT nodes; a reader that builds one global map merges them. That rule is about scope, not shape, so nothing here can enforce it."
+      "description": "Container-scoped and document-local. A plan's node-1 and a network's node-1 are DIFFERENT nodes; a reader that builds one global map merges them. That rule is about scope, not shape, so nothing here can enforce it."
     },
     "position": {
       "type": "array",
@@ -278,12 +278,12 @@
         }
       }
     },
-    "route": {
+    "plan": {
       "type": "object",
       "required": [
         "walk"
       ],
-      "description": "A top-level route owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pin`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
+      "description": "A top-level plan owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pin`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
       "properties": {
         "name": {
           "type": "string"
@@ -319,7 +319,7 @@
         "walk": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/routePass"
+            "$ref": "#/$defs/planPass"
           }
         },
         "style": {
@@ -337,7 +337,7 @@
         "to",
         "pips"
       ],
-      "description": "An arc inside a network or a route, referenced by key from a walk. Its `pips` are the INTERIOR points of its line only, and may be empty: the line runs from the `from` node's position through the pips to the `to` node's. That `from` and `to` differ (no self-loop) and that both name nodes of the same owner are relationships no schema can verify.",
+      "description": "An arc inside a network or a plan, referenced by key from a walk. Its `pips` are the INTERIOR points of its line only, and may be empty: the line runs from the `from` node's position through the pips to the `to` node's. That `from` and `to` differ (no self-loop) and that both name nodes of the same owner are relationships no schema can verify.",
       "properties": {
         "from": {
           "$ref": "#/$defs/identifier"
@@ -557,12 +557,12 @@
         "$ref": "#/$defs/pass"
       }
     },
-    "routePass": {
+    "planPass": {
       "type": "object",
       "required": [
         "arc"
       ],
-      "description": "A pass in a route's walk: `from` and `to` are node keys only, and there is no `turn` or `pin`. A reader that meets one drops the route (spec §6.2); the schema reports the shape as invalid.",
+      "description": "A pass in a plan's walk: `from` and `to` are node keys only, and there is no `turn` or `pin`. A reader that meets one drops the plan (spec §6.2); the schema reports the shape as invalid.",
       "properties": {
         "arc": {
           "$ref": "#/$defs/identifier"

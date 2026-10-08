@@ -527,37 +527,37 @@ class ReaderRulesTest {
     }
 
     @Test
-    fun `a route walks node to node, and anything else drops the route`() {
-        fun route(walk: String) =
+    fun `a plan walks node to node, and anything else drops the plan`() {
+        fun plan(walk: String) =
             read(
-                """{"vnx":"0.9.0","routes":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+                """{"vnx":"0.9.0","plans":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":$walk}]}""",
             )
-        assertEquals(emptyList(), route("""[{"arc":"ab","from":"b","to":"a"}]""").diagnostics)
+        assertEquals(emptyList(), plan("""[{"arc":"ab","from":"b","to":"a"}]""").diagnostics)
         for ((walk, key) in listOf(
             """[{"arc":"ab","from":[-2.5,57],"to":"b"}]""" to "from",
             """[{"arc":"ab","from":"a","to":[-2.5,57]}]""" to "to",
-            // The route's rule comes before pinned-turn, so the pair is reported
+            // The plan's rule comes before pinned-turn, so the pair is reported
             // at `turn` and not at the pass.
             """[{"arc":"ab","from":"a","turn":[-2.5,57],"pin":[-2.6,57],"to":"a"}]""" to "turn",
             """[{"arc":"ab","from":"a","pin":[-2.5,57],"to":"b"}]""" to "pin",
         )) {
-            val r = route(walk)
-            assertEquals(0, r.document.routes!!.size, walk)
-            assertEquals(listOf("/routes/0/walk/0/$key" to "route-pin-or-position"), r.pairs(), walk)
+            val r = plan(walk)
+            assertEquals(0, r.document.plans!!.size, walk)
+            assertEquals(listOf("/plans/0/walk/0/$key" to "plan-pin-or-position"), r.pairs(), walk)
         }
     }
 
     @Test
-    fun `a route is its own highlight, so a route walking a dropped arc is dropped`() {
+    fun `a plan is its own highlight, so a plan walking a dropped arc is dropped`() {
         val r =
             read(
-                """{"vnx":"0.9.0","routes":[{"nodes":{"a":[-3,57]},
+                """{"vnx":"0.9.0","plans":[{"nodes":{"a":[-3,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":"b"}]}]}""",
             )
-        assertEquals(0, r.document.routes!!.size)
+        assertEquals(0, r.document.plans!!.size)
         assertEquals(
-            setOf("/routes/0/arcs/ab/to" to "arc-node-absent", "/routes/0/walk/0" to "pass-arc-absent"),
+            setOf("/plans/0/arcs/ab/to" to "arc-node-absent", "/plans/0/walk/0" to "pass-arc-absent"),
             r.pairs().toSet(),
         )
     }

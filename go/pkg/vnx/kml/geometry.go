@@ -6,7 +6,7 @@ import (
 
 // The geometry a KML file needs that VNX does not store in KML's shape.
 //
-// ⚠ A HIGHLIGHT'S OR A ROUTE'S LINE IS vnx.WalkLine's, not this package's. A walk
+// ⚠ A HIGHLIGHT'S OR A PLAN'S LINE IS vnx.WalkLine's, not this package's. A walk
 // is cut where it enters, turns and leaves each arc, and every writer draws it
 // through the one implementation in pkg/vnx, so one library cannot export one
 // highlight as two different polylines.

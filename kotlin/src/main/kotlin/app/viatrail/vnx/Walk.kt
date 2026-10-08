@@ -24,7 +24,7 @@ internal data class WalkFault(
  */
 internal class WalkCursor(
     walkSize: Int,
-    private val route: Boolean,
+    private val plan: Boolean,
 ) {
     private val last = walkSize - 1
 
@@ -33,7 +33,7 @@ internal class WalkCursor(
 
     /**
      * Checks pass [i] against the rules of section 3.3.3 that span more than the
-     * pass's own values — valid-walk rules 2 to 6, and a route's rule — in the
+     * pass's own values — valid-walk rules 2 to 6, and a plan's rule — in the
      * order section 6.2 fixes, and moves the cursor to where the pass leaves.
      * Returns the first fault, or null.
      */
@@ -48,28 +48,28 @@ internal class WalkCursor(
             message: String,
         ) = WalkFault(i, key, cause, message)
 
-        // 4. A route's walk runs node to node (section 3.4).
-        if (route) {
+        // 4. A plan's walk runs node to node (section 3.4).
+        if (plan) {
             when {
                 pass.from is Endpoint.At -> return fault(
                     "from",
-                    DiagnosticCause.ROUTE_PIN_OR_POSITION,
-                    "a route's walk runs node to node, and this `from` is a position",
+                    DiagnosticCause.PLAN_PIN_OR_POSITION,
+                    "a plan's walk runs node to node, and this `from` is a position",
                 )
                 pass.to is Endpoint.At -> return fault(
                     "to",
-                    DiagnosticCause.ROUTE_PIN_OR_POSITION,
-                    "a route's walk runs node to node, and this `to` is a position",
+                    DiagnosticCause.PLAN_PIN_OR_POSITION,
+                    "a plan's walk runs node to node, and this `to` is a position",
                 )
                 pass.turn != null -> return fault(
                     "turn",
-                    DiagnosticCause.ROUTE_PIN_OR_POSITION,
-                    "a route's walk carries no turn",
+                    DiagnosticCause.PLAN_PIN_OR_POSITION,
+                    "a plan's walk carries no turn",
                 )
                 pass.pin != null -> return fault(
                     "pin",
-                    DiagnosticCause.ROUTE_PIN_OR_POSITION,
-                    "a route's walk carries no pin",
+                    DiagnosticCause.PLAN_PIN_OR_POSITION,
+                    "a plan's walk carries no pin",
                 )
             }
         }
@@ -157,9 +157,9 @@ internal class WalkCursor(
 internal fun checkWalk(
     walk: List<Pass>,
     arcs: Map<String, Arc>,
-    route: Boolean,
+    plan: Boolean,
 ): WalkFault? {
-    val cursor = WalkCursor(walk.size, route)
+    val cursor = WalkCursor(walk.size, plan)
     for ((i, pass) in walk.withIndex()) {
         val arc =
             arcs[pass.arc]

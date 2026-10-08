@@ -39,7 +39,7 @@ func TestMatrixStylesAreNotCarried(t *testing.T) {
 			Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2},
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"}},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge", Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"}},
 			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
 		)},
 		Tracks: []vnx.Track{{
@@ -90,7 +90,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 			Name: "Walk", Data: []vnx.Record{tag("solo")},
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Data: []vnx.Record{tag("planned")}},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge", Data: []vnx.Record{tag("planned")}},
 			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
 		)},
 	})
@@ -125,7 +125,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 // worth a <cmt>. It is not: nothing that reads GPX knows what to do with it.
 func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
-		Routes: []vnx.Route{route(vnx.Route{
+		Plans: []vnx.Plan{plan(vnx.Plan{
 			Name: "Ridge",
 			Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
 			lineArc{
@@ -134,14 +134,14 @@ func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 			},
 		)},
 	})
-	// CARRIED: the route, as a <rte> with its geometry (Dave, 2026-10-08).
+	// CARRIED: the plan, as a <rte> with its geometry (Dave, 2026-10-08).
 	if !strings.Contains(out, "<name>Ridge</name>") || !strings.Contains(out, "<rtept") {
-		t.Errorf("the route was not exported\n%s", out)
+		t.Errorf("the plan was not exported\n%s", out)
 	}
 	if rep.Emitted != 1 {
 		t.Errorf("emitted %d, want 1", rep.Emitted)
 	}
-	// LOST: the whole routing record, on the route AND on the arc.
+	// LOST: the whole routing record, on the plan AND on the arc.
 	for _, gone := range []string{
 		"app.viatrail.routing", "app.viatrail.compute-failed",
 		"walking", "roads", "no-route", "profile", "avoid", "reason", "extensions",
@@ -169,7 +169,7 @@ func TestMatrixHiddenStateIsLostAndTheItemIsStillExported(t *testing.T) {
 			Name: "Secret Walk", Hidden: true,
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "Secret Ridge", Hidden: true},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Secret Ridge", Hidden: true},
 			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
 		)},
 	})
@@ -328,7 +328,7 @@ func TestMatrixNotesAreCarriedAsDesc(t *testing.T) {
 			Name: "Walk", Notes: "stopped for lunch",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "Ridge", Notes: "north to south"},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge", Notes: "north to south"},
 			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
 		)},
 	})

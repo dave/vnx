@@ -85,7 +85,7 @@ It carries two kinds of key. A **bare name** is one of the six top-level
 collections. An application key (`SPEC §3.9`) is not a collection and has no
 entry in `counts`: the tree comparison of an accept case is what checks it. A name **starting with `/`** is a container nested inside one,
 addressed by the same JSON Pointer vocabulary `positions` uses —
-`/networks/0/nodes`, `/routes/0/arcs/arc-2/pips`, `/tracks/0/segments`,
+`/networks/0/nodes`, `/plans/0/arcs/arc-2/pips`, `/tracks/0/segments`,
 `/networks/0/highlights/2/walk`, `/areas/0/polygon`.
 
 ⚠ **THE NESTED KEYS ARE WHAT THE `diagnose/` TIER HAS INSTEAD OF A ROUND TRIP.**
@@ -128,7 +128,7 @@ of position the format carries:
 ```
 /waypoints/0/at                     /networks/0/nodes/node-1
 /areas/0/polygon/0                  /networks/0/arcs/arc-1/pips/0
-/routes/0/arcs/arc-1/pips/0         /networks/0/highlights/0/walk/0/from
+/plans/0/arcs/arc-1/pips/0         /networks/0/highlights/0/walk/0/from
 /tracks/0/segments/0/pips/0         /networks/0/points/0/at
                                     /networks/0/areas/0/polygon/0
 ```

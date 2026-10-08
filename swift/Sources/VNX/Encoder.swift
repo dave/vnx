@@ -19,7 +19,7 @@ enum DocumentEncoder {
     put(&o, "created", d.created)
     putArray(&o, "folders", d.folders) { folder($0) }
     try putArray(&o, "networks", d.networks) { try network($0) }
-    try putArray(&o, "routes", d.routes) { try route($0) }
+    try putArray(&o, "plans", d.plans) { try plan($0) }
     putArray(&o, "tracks", d.tracks) { track($0) }
     putArray(&o, "waypoints", d.waypoints) { waypoint($0, allowsFolder: true) }
     try putArray(&o, "areas", d.areas) { try area($0, allowsFolder: true) }
@@ -105,7 +105,7 @@ enum DocumentEncoder {
     try putArray(&o, "highlights", n.highlights) { c in
       // A writer never emits a walk its own reader would drop.
       try checkWalk(
-        c.walk, arcs: n.arcs ?? [:], route: false, owner: "highlight \(describe(c.name))")
+        c.walk, arcs: n.arcs ?? [:], plan: false, owner: "highlight \(describe(c.name))")
       return highlight(c)
     }
     putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
@@ -114,7 +114,7 @@ enum DocumentEncoder {
     return .object(o)
   }
 
-  /// A network's or a route's `nodes` and `arcs`, after checking every arc:
+  /// A network's or a plan's `nodes` and `arcs`, after checking every arc:
   /// two different nodes, both present (SPEC 3.3.2).
   private static func putGraph(
     _ o: inout [JSONKey: JSONValue], nodes: [JSONKey: Vertex]?, arcs: [JSONKey: Arc]?,
@@ -156,10 +156,10 @@ enum DocumentEncoder {
   /// The writer's check on a walk: every pass names an arc of its owner, and
   /// the walk follows SPEC 3.3.3's rules — the same `WalkCursor` the reader
   /// steps, so the two cannot disagree about what a valid walk is.
-  private static func checkWalk(_ walk: [Pass], arcs: [JSONKey: Arc], route: Bool, owner: String)
+  private static func checkWalk(_ walk: [Pass], arcs: [JSONKey: Arc], plan: Bool, owner: String)
     throws
   {
-    var cursor = WalkCursor(last: walk.count - 1, route: route)
+    var cursor = WalkCursor(last: walk.count - 1, plan: plan)
     for (i, p) in walk.enumerated() {
       guard let a = arcs[JSONKey(p.arc)] else {
         throw WriteError(
@@ -208,9 +208,9 @@ enum DocumentEncoder {
     }
   }
 
-  private static func route(_ r: Route) throws -> JSONValue {
-    let owner = "route \(describe(r.name))"
-    try checkWalk(r.walk, arcs: r.arcs ?? [:], route: true, owner: owner)
+  private static func plan(_ r: Plan) throws -> JSONValue {
+    let owner = "plan \(describe(r.name))"
+    try checkWalk(r.walk, arcs: r.arcs ?? [:], plan: true, owner: owner)
     var o: [JSONKey: JSONValue] = ["walk": walk(r.walk)]
     try putGraph(&o, nodes: r.nodes, arcs: r.arcs, owner: owner)
     put(&o, "name", r.name)

@@ -132,10 +132,10 @@ func (x *writer) bucket(l *layout, b *bucket, homeless bool) {
 		x.homeless(homeless, path, x.d.Tracks[i].Name)
 		x.track(x.d.Tracks[i], path)
 	}
-	for _, i := range b.routes {
-		path := fmt.Sprintf("/routes/%d", i)
-		x.homeless(homeless, path, x.d.Routes[i].Name)
-		x.route(x.d.Routes[i], path)
+	for _, i := range b.plans {
+		path := fmt.Sprintf("/plans/%d", i)
+		x.homeless(homeless, path, x.d.Plans[i].Name)
+		x.plan(x.d.Plans[i], path)
 	}
 	for _, i := range b.networks {
 		path := fmt.Sprintf("/networks/%d", i)
@@ -305,7 +305,7 @@ func (x *writer) areaStyle(s vnx.Style) {
 }
 
 // highlightStyle writes the <Style> for anything drawn as a line — a track, a
-// route, a highlight. Width without a usable colour still gets a LineStyle: a width
+// plan, a highlight. Width without a usable colour still gets a LineStyle: a width
 // is not a colour and carrying it invents nothing.
 func (x *writer) highlightStyle(s vnx.Style) {
 	colour, _ := s.String("color")
@@ -379,14 +379,14 @@ func (x *writer) track(t vnx.Track, path string) {
 	x.report.Emitted++
 }
 
-func (x *writer) route(r vnx.Route, path string) {
+func (x *writer) plan(r vnx.Plan, path string) {
 	line, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
 	if err != nil {
-		x.fail(fmt.Errorf("kml: route %q: %w", r.Name, err))
+		x.fail(fmt.Errorf("kml: plan %q: %w", r.Name, err))
 		return
 	}
 	if len(line) < 2 {
-		x.diag(vnx.CodeItemNoGeometry, path, r.Name, "route's walk covers fewer than two positions")
+		x.diag(vnx.CodeItemNoGeometry, path, r.Name, "plan's walk covers fewer than two positions")
 		return
 	}
 	x.open("Placemark", "")

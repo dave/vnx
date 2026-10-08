@@ -67,7 +67,7 @@ type writer struct {
 	waypointDiags []vnx.Diagnostic
 	areaDiags     []vnx.Diagnostic
 	trackDiags    []vnx.Diagnostic
-	routeDiags    []vnx.Diagnostic
+	planDiags     []vnx.Diagnostic
 	networkDiags  []vnx.Diagnostic
 	appKeyDiags   []vnx.Diagnostic
 }
@@ -77,7 +77,7 @@ type writer struct {
 // ⚠ THE EMISSION ORDER IS THE SCHEMA'S, NOT THE DOCUMENT'S. gpxType is a
 // SEQUENCE — metadata?, wpt*, rte*, trk*, extensions? — so every <wpt> must
 // precede every <rte>, and every <rte> every <trk>, or the file does not
-// validate, however the document happened to be laid out. That is why routes
+// validate, however the document happened to be laid out. That is why plans
 // are written BEFORE tracks although the document lists tracks first. Interleaving them produces a file that opens in
 // some readers and is rejected by any that validate, which is the worst of
 // both.
@@ -88,7 +88,7 @@ func (g *writer) run() {
 	g.collectFolderDiagnostics()
 	g.b.WriteString(header)
 	g.writeWaypoints()
-	g.writeRoutes()
+	g.writePlans()
 	g.writeTracks()
 	g.b.WriteString(footer)
 	g.collectAreaDiagnostics()
@@ -97,10 +97,10 @@ func (g *writer) run() {
 }
 
 // diagnostics concatenates in [vnx.Document] field order: folders, waypoints,
-// areas, tracks, routes, networks, application keys.
+// areas, tracks, plans, networks, application keys.
 func (g *writer) diagnostics() []vnx.Diagnostic {
 	n := len(g.folderDiags) + len(g.waypointDiags) + len(g.areaDiags) +
-		len(g.trackDiags) + len(g.routeDiags) + len(g.networkDiags) + len(g.appKeyDiags)
+		len(g.trackDiags) + len(g.planDiags) + len(g.networkDiags) + len(g.appKeyDiags)
 	if n == 0 {
 		return nil
 	}
@@ -109,7 +109,7 @@ func (g *writer) diagnostics() []vnx.Diagnostic {
 	out = append(out, g.waypointDiags...)
 	out = append(out, g.areaDiags...)
 	out = append(out, g.trackDiags...)
-	out = append(out, g.routeDiags...)
+	out = append(out, g.planDiags...)
 	out = append(out, g.networkDiags...)
 	out = append(out, g.appKeyDiags...)
 	return out
@@ -176,40 +176,40 @@ func (g *writer) writeTracks() {
 	}
 }
 
-func (g *writer) writeRoutes() {
-	for i := range g.doc.Routes {
+func (g *writer) writePlans() {
+	for i := range g.doc.Plans {
 		if g.err != nil {
 			return
 		}
-		r := &g.doc.Routes[i]
-		path := fmt.Sprintf("/routes/%d", i)
-		// The route's line is its walk's, cut and joined by vnx.WalkLine, so
-		// a route walking an arc backwards is drawn the way it is walked. Arc
+		r := &g.doc.Plans[i]
+		path := fmt.Sprintf("/plans/%d", i)
+		// The plan's line is its walk's, cut and joined by vnx.WalkLine, so
+		// a plan walking an arc backwards is drawn the way it is walked. Arc
 		// BOUNDARIES do not survive — GPX cannot express them — and that is a
 		// matrix fact, not a per-item casualty (writer.go convention 5).
 		pips, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
 		if err != nil {
-			g.fail(fmt.Errorf("gpx: route %q: %w", r.Name, err))
+			g.fail(fmt.Errorf("gpx: plan %q: %w", r.Name, err))
 			return
 		}
 		if len(pips) == 0 {
-			g.routeDiags = append(g.routeDiags, noGeometry(path, r.Name))
+			g.planDiags = append(g.planDiags, noGeometry(path, r.Name))
 			continue
 		}
-		name := g.flatName(path, r.Folder, r.Name, &g.routeDiags)
-		// ⚠ A ROUTE IS A <rte>, AND A TRACK IS A <trk> (Dave, 2026-10-08):
+		name := g.flatName(path, r.Folder, r.Name, &g.planDiags)
+		// ⚠ A PLAN IS A <rte>, AND A TRACK IS A <trk> (Dave, 2026-10-08):
 		// "Plans should definitely be exported as GPX routes." A Viatrail plan
-		// is a VNX top-level route, so it is written as <rte>/<rtept>.
+		// is a VNX top-level plan, so it is written as <rte>/<rtept>.
 		//
-		// This REPLACES the earlier ruling that wrote a route as a <trk>. That
+		// This REPLACES the earlier ruling that wrote a plan as a <trk>. That
 		// ruling's reason was put to Dave before he ruled, and he ruled <rte>
 		// with it in view: GPX means a <rte> as a list of sparse turn points
-		// that a device draws its own line through, and a Viatrail route is a
+		// that a device draws its own line through, and a Viatrail plan is a
 		// dense polyline that already follows the ground. The file is still
 		// valid GPX; a device that re-routes between <rtept>s receives many
 		// close points. Do not change this back to <trk> to be helpful.
 		//
-		// The walk stays ONE list: a route's arcs are not pauses, so it is
+		// The walk stays ONE list: a plan's arcs are not pauses, so it is
 		// one <rte>, never one per arc.
 		g.writeRte(name, r.Notes, pips)
 	}
@@ -363,8 +363,8 @@ func (g *writer) collectFolderDiagnostics() {
 	for i := range g.doc.Tracks {
 		mark(g.doc.Tracks[i].Folder)
 	}
-	for i := range g.doc.Routes {
-		mark(g.doc.Routes[i].Folder)
+	for i := range g.doc.Plans {
+		mark(g.doc.Plans[i].Folder)
 	}
 	for i := range g.doc.Networks {
 		mark(g.doc.Networks[i].Folder)

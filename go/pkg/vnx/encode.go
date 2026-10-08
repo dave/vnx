@@ -69,7 +69,7 @@ type wireTrack struct {
 	Data     []any         `json:"data,omitempty"`
 }
 
-// wireArc is an arc of a network or a route. `pips` is always written, empty
+// wireArc is an arc of a network or a plan. `pips` is always written, empty
 // for a straight arc: §3.10 makes the key required.
 type wireArc struct {
 	From string         `json:"from"`
@@ -78,7 +78,7 @@ type wireArc struct {
 	Data []any          `json:"data,omitempty"`
 }
 
-type wireRoute struct {
+type wirePlan struct {
 	Name   string                  `json:"name,omitempty"`
 	Notes  string                  `json:"notes,omitempty"`
 	Folder string                  `json:"folder,omitempty"`
@@ -220,20 +220,20 @@ func trackWire(t Track) (wireTrack, error) {
 	return out, nil
 }
 
-func routeWire(r Route) (wireRoute, error) {
-	out := wireRoute{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Style: r.Style}
+func planWire(r Plan) (wirePlan, error) {
+	out := wirePlan{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Style: r.Style}
 	if err := checkArcs(r.Nodes, r.Arcs); err != nil {
-		return wireRoute{}, fmt.Errorf("route %q: %w", r.Name, err)
+		return wirePlan{}, fmt.Errorf("plan %q: %w", r.Name, err)
 	}
 	if err := checkWalk(r.Walk, r.Arcs, true); err != nil {
-		return wireRoute{}, fmt.Errorf("route %q: %w", r.Name, err)
+		return wirePlan{}, fmt.Errorf("plan %q: %w", r.Name, err)
 	}
 	if len(r.Nodes) > 0 {
 		out.Nodes = make(map[string]wirePosition, len(r.Nodes))
 		for id, v := range r.Nodes {
 			p, err := vertexWire(v)
 			if err != nil {
-				return wireRoute{}, err
+				return wirePlan{}, err
 			}
 			out.Nodes[id] = p
 		}
@@ -243,19 +243,19 @@ func routeWire(r Route) (wireRoute, error) {
 		for id, a := range r.Arcs {
 			aw, err := arcWire(a)
 			if err != nil {
-				return wireRoute{}, err
+				return wirePlan{}, err
 			}
 			out.Arcs[id] = aw
 		}
 	}
 	walk, err := walkWire(r.Walk)
 	if err != nil {
-		return wireRoute{}, err
+		return wirePlan{}, err
 	}
 	out.Walk = walk
 	data, err := dataBodies(r.Data)
 	if err != nil {
-		return wireRoute{}, err
+		return wirePlan{}, err
 	}
 	out.Data = data
 	return out, nil
@@ -311,7 +311,7 @@ func walkWire(walk []Pass) ([]wirePass, error) {
 	return out, nil
 }
 
-// arcWire builds an arc of a network or a route. Its nodes were checked by
+// arcWire builds an arc of a network or a plan. Its nodes were checked by
 // checkArcs before any arc is written.
 func arcWire(a Arc) (wireArc, error) {
 	out := wireArc{From: a.From, To: a.To, Pips: make([]wirePosition, 0, len(a.Pips))}

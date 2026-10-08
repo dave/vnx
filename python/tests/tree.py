@@ -79,7 +79,7 @@ def _normalise_document(value: Any, options: Options) -> Any:
     _items(out, "waypoints", options, _waypoint)
     _items(out, "areas", options, _area)
     _items(out, "tracks", options, _track)
-    _items(out, "routes", options, _route)
+    _items(out, "plans", options, _plan)
     _items(out, "networks", options, _network)
     # Application keys are left alone: SPEC 3.9 exempts them from SPEC 8.1's
     # absent-equals-empty normalisation, so a key dropped for holding null or
@@ -113,7 +113,7 @@ def _track(obj: dict[str, Any], options: Options) -> None:
     _drop_empty(obj, "data")
 
 
-def _route(obj: dict[str, Any], options: Options) -> None:
+def _plan(obj: dict[str, Any], options: Options) -> None:
     _graph(obj, options)
     _walk(obj, options)
     _drop_empty(obj, "style")
@@ -126,7 +126,7 @@ def _arc(obj: dict[str, Any], options: Options) -> None:
 
 
 def _graph(obj: dict[str, Any], options: Options) -> None:
-    """The `nodes` and `arcs` a network and a route share (SPEC 3.4)."""
+    """The `nodes` and `arcs` a network and a plan share (SPEC 3.4)."""
     nodes = obj.get("nodes")
     if isinstance(nodes, dict):
         obj["nodes"] = {key: _position(value, options) for key, value in nodes.items()}

@@ -59,7 +59,7 @@ export class Folder {
 }
 
 /**
- * An arc of a network or a route (SPEC.md 3.3.2). `pips` holds the INTERIOR
+ * An arc of a network or a plan (SPEC.md 3.3.2). `pips` holds the INTERIOR
  * points of the line only: the line runs from the `from` node's position,
  * through `pips`, to the `to` node's. An arc may have no pips. A pip carries no
  * time, and `from` and `to` name two different nodes of the arc's owner.
@@ -166,11 +166,11 @@ export class Network {
 }
 
 /**
- * A top-level route (SPEC.md 3.4). It owns its graph: `nodes` and `arcs` of a
+ * A top-level plan (SPEC.md 3.4). It owns its graph: `nodes` and `arcs` of a
  * network's shape, and one walk over them. The walk runs node to node, with no
  * position, no `turn` and no `pin`.
  */
-export class Route {
+export class Plan {
   constructor() {
     /** @type {Pass[]} */ this.walk = undefined;
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
@@ -246,7 +246,7 @@ export class Document {
     /** @type {string|undefined} */ this.created = undefined;
     /** @type {Folder[]|undefined} */ this.folders = undefined;
     /** @type {Network[]|undefined} */ this.networks = undefined;
-    /** @type {Route[]|undefined} */ this.routes = undefined;
+    /** @type {Plan[]|undefined} */ this.plans = undefined;
     /** @type {Track[]|undefined} */ this.tracks = undefined;
     /** @type {Waypoint[]|undefined} */ this.waypoints = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;

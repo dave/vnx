@@ -47,7 +47,7 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
     let root = Path::root();
     o.list("folders", &document.folders, &root, folder)?;
     o.list("networks", &document.networks, &root, network)?;
-    o.list("routes", &document.routes, &root, route)?;
+    o.list("plans", &document.plans, &root, plan)?;
     o.list("tracks", &document.tracks, &root, track)?;
     o.list("waypoints", &document.waypoints, &root, waypoint)?;
     o.list("areas", &document.areas, &root, area)?;
@@ -111,7 +111,7 @@ fn network(n: &Network, path: &Path) -> Built {
     Ok(o.done())
 }
 
-/// A network's or a route's `nodes` and `arcs`, checked first: a writer never
+/// A network's or a plan's `nodes` and `arcs`, checked first: a writer never
 /// emits an arc its own reader would drop.
 fn graph(
     o: &mut Obj,
@@ -190,7 +190,7 @@ fn endpoint(e: &Endpoint) -> Json {
     }
 }
 
-fn route(r: &Route, path: &Path) -> Built {
+fn plan(r: &Plan, path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", r.name.as_deref());
     o.str("notes", r.notes.as_deref());
@@ -514,7 +514,7 @@ mod tests {
                  "nodes":{"a":[-3.60,57.10,410],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                  "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
-                 "routes":[{"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
+                 "plans":[{"nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
                  "walk":[{"arc":"ab","from":"b","to":"a"}]}],
                  "areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0]]}]}"#,
@@ -540,8 +540,8 @@ mod tests {
         fn network(d: &mut Document) -> &mut Network {
             &mut d.networks.as_mut().expect("networks")[0]
         }
-        fn route(d: &mut Document) -> &mut Route {
-            &mut d.routes.as_mut().expect("routes")[0]
+        fn plan(d: &mut Document) -> &mut Plan {
+            &mut d.plans.as_mut().expect("plans")[0]
         }
 
         let loop_arc =
@@ -552,9 +552,9 @@ mod tests {
         );
 
         let absent =
-            refused(&|d: &mut Document| route(d).arcs.as_mut().unwrap()[0].1.from = "x".into());
+            refused(&|d: &mut Document| plan(d).arcs.as_mut().unwrap()[0].1.from = "x".into());
         assert!(
-            matches!(&absent, EncodeError::Arc { path, .. } if path == "/routes/0/arcs/ab"),
+            matches!(&absent, EncodeError::Arc { path, .. } if path == "/plans/0/arcs/ab"),
             "{absent:?}"
         );
 
@@ -574,15 +574,15 @@ mod tests {
             "{ghost:?}"
         );
 
-        let pinned_route = refused(&|d: &mut Document| {
-            route(d).walk[0].pin = Some(LonLat {
+        let pinned_plan = refused(&|d: &mut Document| {
+            plan(d).walk[0].pin = Some(LonLat {
                 lon: -3.6,
                 lat: 57.1,
             })
         });
         assert!(
-            matches!(&pinned_route, EncodeError::Walk { path, cause } if path == "/routes/0/walk/0/pin" && cause.code() == "route-pin-or-position"),
-            "{pinned_route:?}"
+            matches!(&pinned_plan, EncodeError::Walk { path, cause } if path == "/plans/0/walk/0/pin" && cause.code() == "plan-pin-or-position"),
+            "{pinned_plan:?}"
         );
 
         let closed = refused(&|d: &mut Document| {

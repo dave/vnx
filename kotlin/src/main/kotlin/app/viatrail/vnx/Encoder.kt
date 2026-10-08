@@ -19,7 +19,7 @@ internal class Encoder {
             .putString("created", doc.created)
             .put("folders", doc.folders?.let { array(it, ::folder) })
             .put("networks", doc.networks?.let { array(it, ::network) })
-            .put("routes", doc.routes?.let { array(it, ::route) })
+            .put("plans", doc.plans?.let { array(it, ::plan) })
             .put("tracks", doc.tracks?.let { array(it, ::track) })
             .put("waypoints", doc.waypoints?.let { array(it) { w -> waypoint(w, inNetwork = false) } })
             .put("areas", doc.areas?.let { array(it) { a -> area(a, inNetwork = false) } })
@@ -109,7 +109,7 @@ internal class Encoder {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
-        n.highlights?.forEach { checkWalkOf("highlight \"${it.name}\"", it.walk, arcs, route = false) }
+        n.highlights?.forEach { checkWalkOf("highlight \"${it.name}\"", it.walk, arcs, plan = false) }
         return JsonObject
             .Builder()
             .putString("name", n.name)
@@ -125,11 +125,11 @@ internal class Encoder {
             .build()
     }
 
-    /** A route: a network's nodes and arcs, and one walk that runs node to node (section 3.4). */
-    private fun route(r: Route): JsonObject {
+    /** A plan: a network's nodes and arcs, and one walk that runs node to node (section 3.4). */
+    private fun plan(r: Plan): JsonObject {
         val arcs = r.arcs ?: emptyMap()
-        checkArcs("route \"${r.name}\"", r.nodes ?: emptyMap(), arcs)
-        checkWalkOf("route \"${r.name}\"", r.walk, arcs, route = true)
+        checkArcs("plan \"${r.name}\"", r.nodes ?: emptyMap(), arcs)
+        checkWalkOf("plan \"${r.name}\"", r.walk, arcs, plan = true)
         return JsonObject
             .Builder()
             .putString("name", r.name)
@@ -168,9 +168,9 @@ internal class Encoder {
         owner: String,
         walk: List<Pass>,
         arcs: Map<String, Arc>,
-        route: Boolean,
+        plan: Boolean,
     ) {
-        val fault = checkWalk(walk, arcs, route) ?: return
+        val fault = checkWalk(walk, arcs, plan) ?: return
         val at = "pass ${fault.pass}" + (fault.key?.let { " `$it`" } ?: "")
         throw IllegalArgumentException("$owner: $at: ${fault.message} (${fault.cause.corpusCode})")
     }

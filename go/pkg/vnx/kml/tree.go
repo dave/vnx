@@ -21,7 +21,7 @@ type bucket struct {
 	waypoints []int
 	areas     []int
 	tracks    []int
-	routes    []int
+	plans     []int
 	networks  []int
 }
 
@@ -130,9 +130,9 @@ func arrange(d *vnx.Document) *layout {
 		i := i
 		file(d.Tracks[i].Folder, func(b *bucket) { b.tracks = append(b.tracks, i) })
 	}
-	for i := range d.Routes {
+	for i := range d.Plans {
 		i := i
-		file(d.Routes[i].Folder, func(b *bucket) { b.routes = append(b.routes, i) })
+		file(d.Plans[i].Folder, func(b *bucket) { b.plans = append(b.plans, i) })
 	}
 	for i := range d.Networks {
 		i := i

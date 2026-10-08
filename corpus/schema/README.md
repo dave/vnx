@@ -16,14 +16,14 @@ schema can only check shape.
 - The document is an object with a `vnx` version string.
 - Every collection is an array of the right kind of object, and the required
   fields of each are present: a waypoint has an `at`, an area a `polygon`, a
-  track its `segments`, a highlight and a route their `walk`, an arc its `from`,
+  track its `segments`, a highlight and a plan their `walk`, an arc its `from`,
   `to` and `pips`, a pass its `arc`.
 - A position is an array of at least two numbers, longitude within ±180 and
   latitude within ±90, `null` permitted from index 2, extra trailing channels
   ignored.
 - A node and an arc pip carry no time, and a walk's `from`, `to`, `turn` and
   `pin` carry longitude and latitude only.
-- A route's walk carries no position, `turn` or `pin`.
+- A plan's walk carries no position, `turn` or `pin`.
 - A ring holds at least three positions, and holds positions, so a
   GeoJSON-shaped polygon with nested rings is caught here.
 - A record-level timestamp is UTC with a `Z` suffix, and nothing else.
@@ -50,7 +50,7 @@ red and this list gets corrected rather than quietly going stale.
 | A walk that does not join | Each pass must enter its arc at the node the previous one left by, which is a relationship between passes. |
 | A `from` on a pass after the first | Where `from` and `to` may appear depends on a pass's place in its walk. |
 | A self-loop arc | `from` and `to` must differ, which is a relationship between two values. |
-| Container-scoped ids | A route's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
+| Container-scoped ids | A plan's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
 | A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.1.9` and `9.9.9` satisfy the version pattern exactly as `0.9.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read an older-series document. `reject/version-too-old.vnx` is what catches it. |
 | A duplicate object key | Resolved last-wins by the parser before the schema runs (`SPEC.md` section 6.4). |
 | `NaN` and `Infinity` | Not JSON. No validator ever sees the document. |
@@ -78,7 +78,7 @@ rather than assumed. Two kinds exist and both are correct:
   are wrong in their SHAPE, which is the one thing a schema does reach: a
   nested ring, a timestamp offset, a position that will not parse, a value of
   the wrong type, a time on an arc pip, a channel a node or a walk position
-  does not carry, and a position in a route's walk. Each sidecar's `schema`
+  does not carry, and a position in a plan's walk. Each sidecar's `schema`
   field records which.
 
 ## Running it

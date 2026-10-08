@@ -36,19 +36,19 @@ impl WalkFault {
 pub(crate) struct Cursor {
     /// The index of the last pass.
     last: usize,
-    route: bool,
+    plan: bool,
     /// The node the walk is at. Empty before the first pass, which always has
     /// a `from` once the spelling check has passed.
     at: String,
 }
 
 impl Cursor {
-    /// A cursor for a walk of `len` passes. `route` applies SPEC 3.4's extra
-    /// rule: a route's walk runs node to node, with no turn and no pin.
-    pub fn new(len: usize, route: bool) -> Self {
+    /// A cursor for a walk of `len` passes. `plan` applies SPEC 3.4's extra
+    /// rule: a plan's walk runs node to node, with no turn and no pin.
+    pub fn new(len: usize, plan: bool) -> Self {
         Cursor {
             last: len.saturating_sub(1),
-            route,
+            plan,
             at: String::new(),
         }
     }
@@ -68,33 +68,33 @@ impl Cursor {
             cause,
         };
 
-        // 4. A route's walk carries no position, turn or pin.
-        if self.route {
-            let route_fault = |key: &'static str, detail: &str| {
+        // 4. A plan's walk carries no position, turn or pin.
+        if self.plan {
+            let plan_fault = |key: &'static str, detail: &str| {
                 fault(
                     Some(key),
-                    Cause::RoutePinOrPosition {
+                    Cause::PlanPinOrPosition {
                         detail: detail.to_string(),
                     },
                 )
             };
             if matches!(p.from, Some(Endpoint::At(_))) {
-                return Err(route_fault(
+                return Err(plan_fault(
                     "from",
-                    "a route's walk runs node to node, and this `from` is a position",
+                    "a plan's walk runs node to node, and this `from` is a position",
                 ));
             }
             if matches!(p.to, Some(Endpoint::At(_))) {
-                return Err(route_fault(
+                return Err(plan_fault(
                     "to",
-                    "a route's walk runs node to node, and this `to` is a position",
+                    "a plan's walk runs node to node, and this `to` is a position",
                 ));
             }
             if p.turn.is_some() {
-                return Err(route_fault("turn", "a route's walk carries no turn"));
+                return Err(plan_fault("turn", "a plan's walk carries no turn"));
             }
             if p.pin.is_some() {
-                return Err(route_fault("pin", "a route's walk carries no pin"));
+                return Err(plan_fault("pin", "a plan's walk carries no pin"));
             }
         }
 
@@ -196,15 +196,15 @@ impl Cursor {
 }
 
 /// The writer's check on a walk: every pass names an arc of its owner, and the
-/// walk follows SPEC 3.3.3 (and, for a route, SPEC 3.4). A writer never emits a
+/// walk follows SPEC 3.3.3 (and, for a plan, SPEC 3.4). A writer never emits a
 /// walk its own reader would drop.
 pub(crate) fn check_walk(
     walk: &[Pass],
     arcs: &Option<Vec<(String, Arc)>>,
-    route: bool,
+    plan: bool,
     walk_path: &Path,
 ) -> Result<(), EncodeError> {
-    let mut cursor = Cursor::new(walk.len(), route);
+    let mut cursor = Cursor::new(walk.len(), plan);
     for (i, pass) in walk.iter().enumerate() {
         let arc = arcs
             .iter()

@@ -782,8 +782,8 @@ final class LibraryTests: XCTestCase {
         ],
         points: nil, areas: nil, data: nil)
     ]
-    document.routes = [
-      Route(
+    document.plans = [
+      Plan(
         nodes: ["a": Vertex(lon: 2, lat: 2), "b": Vertex(lon: 3, lat: 3)],
         arcs: ["y": Arc(from: "a", to: "b")],
         walk: [Pass(arc: "y", from: .node("b"), to: .node("a"))],

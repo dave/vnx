@@ -32,7 +32,7 @@ __all__ = [
     "is_self_loop",
     "ring_is_closed",
     "distinct_lon_lat",
-    "route_rule",
+    "plan_rule",
     "pinned_turn",
     "spelling",
     "connection",
@@ -76,20 +76,20 @@ def _is_position(endpoint: Union[Endpoint, None]) -> bool:
     return isinstance(endpoint, Position)
 
 
-def route_rule(p: Pass) -> Union[Broken, None]:
-    """SPEC 3.4: a route's walk runs node to node, with no turn and no pin."""
+def plan_rule(p: Pass) -> Union[Broken, None]:
+    """SPEC 3.4: a plan's walk runs node to node, with no turn and no pin."""
     if _is_position(p.from_):
         return Broken(
-            "from", "a route's walk runs node to node, and this `from` is a position"
+            "from", "a plan's walk runs node to node, and this `from` is a position"
         )
     if _is_position(p.to):
         return Broken(
-            "to", "a route's walk runs node to node, and this `to` is a position"
+            "to", "a plan's walk runs node to node, and this `to` is a position"
         )
     if p.turn is not None:
-        return Broken("turn", "a route's walk carries no turn")
+        return Broken("turn", "a plan's walk carries no turn")
     if p.pin is not None:
-        return Broken("pin", "a route's walk carries no pin")
+        return Broken("pin", "a plan's walk carries no pin")
     return None
 
 
@@ -179,7 +179,7 @@ class Cursor:
     """The node a walk is at, carried from one pass to the next."""
 
     last: int
-    route: bool = False
+    plan: bool = False
     at: Union[str, None] = None
 
     def step(
@@ -187,11 +187,11 @@ class Cursor:
     ) -> Union[WalkFault, tuple[Endpoint, Endpoint]]:
         """Check pass *index* against the rules that span more than its own
         values -- SPEC 6.2's steps 4 to 7 -- and move to where it leaves."""
-        if self.route:
-            broken = route_rule(p)
+        if self.plan:
+            broken = plan_rule(p)
             if broken is not None:
                 return WalkFault(
-                    index, broken.key, "route-pin-or-position", broken.message
+                    index, broken.key, "plan-pin-or-position", broken.message
                 )
         broken = pinned_turn(p)
         if broken is not None:
@@ -208,12 +208,12 @@ class Cursor:
 
 
 def check_walk(
-    walk: list[Pass], arcs: dict[str, Arc], route: bool
+    walk: list[Pass], arcs: dict[str, Arc], plan: bool
 ) -> Union[WalkFault, None]:
     """The writer's check: every pass names an arc of its owner, and the walk
     follows SPEC 3.3.3.  A writer never emits a walk its own reader would drop.
     """
-    cursor = Cursor(last=len(walk) - 1, route=route)
+    cursor = Cursor(last=len(walk) - 1, plan=plan)
     for index, p in enumerate(walk):
         arc = arcs.get(p.arc)
         if arc is None:

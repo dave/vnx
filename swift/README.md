@@ -91,7 +91,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Attachment` | `path: String`, `bytes: Data` |
 | `Diagnostic` | `path: String`, `message: String`, `cause: Cause`, `code: String` |
 | `Refusal` | `message: String`, `cause: Cause`; conforms to `Error` |
-| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, `applicationKeys: [ApplicationKey]` |
+| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, `applicationKeys: [ApplicationKey]` |
 | `ApplicationKey` | `key: String`, `value: JSONValue`; one top-level key containing a full stop (SPEC §3.9), `.null` for a JSON `null` |
 | `ApplicationKeyError` | `key: String`, `message: String`; thrown by `VNX.write` for a key without a full stop or held twice; conforms to `Error` |
 | `WriteError` | `message: String`; thrown by `VNX.write` for a closed ring or one of fewer than three distinct positions, an arc that is a self-loop or names an absent node, or a walk that is not valid; conforms to `Error` |
@@ -99,7 +99,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Vertex` | `lon`, `lat`, `elevation: Double?`, `position`; a node or an arc pip, which carries no time |
 | `LonLat` | `lon`, `lat`, `position`; a walk's `from`, `to` or `turn` |
 | `Network` | `nodes: [JSONKey: Vertex]?`, `arcs: [JSONKey: Arc]?`, `highlights: [Highlight]?`, `points`, `areas`, and the item fields |
-| `Route` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
+| `Plan` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: [Vertex]` (interior points only), `data` |
 | `Highlight` | `walk: [Pass]`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
@@ -125,10 +125,10 @@ document.
   which points into the archive's entries.
 - **An absent collection is `nil`, not `[]`.** `Document` keeps the spelling the
   document used, though the two carry the same content (SPEC §3.1). Where the key
-  is required — `Highlight.walk`, `Route.walk`, `Track.segments`, an arc's `pips` —
+  is required — `Highlight.walk`, `Plan.walk`, `Track.segments`, an arc's `pips` —
   it is a plain array.
 - **A walk is used whole or not at all.** Any fault in a walk drops the highlight,
-  or the route, that carries it, and only the first fault is reported, in the
+  or the plan, that carries it, and only the first fault is reported, in the
   order of SPEC §6.2. A dropped node takes each arc naming it, and a dropped arc
   takes each highlight walking it, each with its own diagnostic.
 - **`Pass.from` and `Pass.to` are `nil` where SPEC §3.3.3's rule leaves them

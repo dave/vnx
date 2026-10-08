@@ -261,10 +261,10 @@ func TestHighlightGeometryFollowsItsWalk(t *testing.T) {
 	}
 }
 
-// A route is ONE LineString and the position two arcs share is written once.
+// A plan is ONE LineString and the position two arcs share is written once.
 // Arc boundaries are the matrix cell; a doubled vertex is not.
-func TestRouteArcsJoinWithoutDoublingTheSharedPosition(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{Name: "r"},
+func TestPlanArcsJoinWithoutDoublingTheSharedPosition(t *testing.T) {
+	out, _ := writeDoc(t, &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{Name: "r"},
 		lineArc{Pips: []vnx.Position{pos(0, 0, nil), pos(1, 1, nil)}},
 		lineArc{Pips: []vnx.Position{pos(1, 1, nil), pos(2, 2, nil)}},
 	)}})

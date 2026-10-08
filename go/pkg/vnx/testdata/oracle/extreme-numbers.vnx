@@ -43,7 +43,7 @@
       "at": [0.1, 0.2, 0.3333333333333333]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "name": "extreme style",
       "nodes": {

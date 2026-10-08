@@ -149,10 +149,10 @@ class WordingTest {
                    "highlights":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pin":[-3.596,57.1],"to":"a"}]}]}]}""",
                         DiagnosticCause.PINNED_TURN,
                     ),
-                DiagnosticCause.ROUTE_PIN_OR_POSITION to
+                DiagnosticCause.PLAN_PIN_OR_POSITION to
                     causeOf(
-                        """{"vnx":"0.9.0","routes":[{"nodes":{"a":[-3,57],"b":[-2,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":[-2.5,57]}]}]}""",
-                        DiagnosticCause.ROUTE_PIN_OR_POSITION,
+                        """{"vnx":"0.9.0","plans":[{"nodes":{"a":[-3,57],"b":[-2,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":[-2.5,57]}]}]}""",
+                        DiagnosticCause.PLAN_PIN_OR_POSITION,
                     ),
                 // The one cause that needs a CONTAINER rather than a document: an
                 // archive entry compressed by a method neither stored nor deflate.

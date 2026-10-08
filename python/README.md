@@ -29,8 +29,8 @@ import vnx
 reading = vnx.read_file("corpus/accept/example-network.vnx")
 doc = reading.document
 
-for route in doc.routes or []:
-    print("route", route.name, len(route.arcs or {}), "arcs", len(route.walk or []), "passes")
+for plan in doc.plans or []:
+    print("plan", plan.name, len(plan.arcs or {}), "arcs", len(plan.walk or []), "passes")
 for network in doc.networks or []:
     for highlight in network.highlights or []:
         print("highlight", highlight.name, len(highlight.walk or []), "passes")
@@ -43,7 +43,7 @@ vnx.encode_file("out.vnx", doc)
 ```
 
 ```
-route Braeriach direct 2 arcs 2 passes
+plan Braeriach direct 2 arcs 2 passes
 highlight Chalamain Gap 2 passes
 highlight Rock fall 1 passes
 track Lairig Ghru, 12 May moving 167000.0
@@ -99,13 +99,13 @@ This library has none. The reference command-line tool is Go's; see
 | `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
 | `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
-| `Document` | `networks`, `routes`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
+| `Document` | `networks`, `plans`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
 | `Highlight` | `walk: list[Pass]` |
 | `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
-| `Route` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
+| `Plan` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
 | `Position` | `lon`, `lat`, `ele`, `time_ms` |
 
@@ -157,7 +157,7 @@ is a raised exception against the `diagnostics` list returned beside a document.
 - **Damaged geometry costs its container.** A position inside `pips` that will
   not parse drops the arc or segment holding it (SPEC §6.2).
 - **A walk is used whole or not at all.** The first problem in a walk drops the
-  highlight, or the route, and is the only one reported for that walk (SPEC §6.2).
+  highlight, or the plan, and is the only one reported for that walk (SPEC §6.2).
   A dropped node or arc cascades: the arc naming the node goes under
   `arc-node-absent`, then each highlight walking the arc under `pass-arc-absent`,
   each with its own diagnostic.

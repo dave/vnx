@@ -209,7 +209,7 @@ final class CauseTableTests: XCTestCase {
         "polygonNestedRings", "ringClosed", "ringTooFewPoints",
         "extraChannel", "arcPipTime", "selfLoopArc", "arcNodeAbsent",
         "passArcAbsent", "walkSpelling", "walkNotConnected", "pinnedTurn",
-        "routePinOrPosition", "folderNotPresent", "attachmentUnreadable",
+        "planPinOrPosition", "folderNotPresent", "attachmentUnreadable",
       ])
   }
 }

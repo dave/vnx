@@ -38,7 +38,7 @@ internal object Tree {
         items(out, "waypoints", opt, ::waypoint)
         items(out, "areas", opt, ::area)
         items(out, "tracks", opt, ::track)
-        items(out, "routes", opt, ::route)
+        items(out, "plans", opt, ::plan)
         items(out, "networks", opt, ::network)
         // Application keys are not touched: section 3.9 exempts them from the
         // absent-equals-empty normalisation, so an empty or null value is
@@ -80,7 +80,7 @@ internal object Tree {
         dropEmptyContainer(o, "data")
     }
 
-    private fun route(
+    private fun plan(
         o: MutableMap<String, JsonValue>,
         opt: Options,
     ) {
@@ -90,7 +90,7 @@ internal object Tree {
         dropEmptyContainer(o, "data")
     }
 
-    /** A network's or a route's `nodes` and `arcs`, which have one shape (section 3.4). */
+    /** A network's or a plan's `nodes` and `arcs`, which have one shape (section 3.4). */
     private fun graph(
         o: MutableMap<String, JsonValue>,
         opt: Options,

@@ -19,7 +19,7 @@ import { compareDocuments } from './tree.js';
 // archive, which the accept and diagnose tiers already cover.
 import { readEntries, readEntryData } from '../src/zip.js';
 
-const COLLECTIONS = ['folders', 'networks', 'routes', 'tracks', 'waypoints', 'areas'];
+const COLLECTIONS = ['folders', 'networks', 'plans', 'tracks', 'waypoints', 'areas'];
 
 export class Case {
   constructor(name) {
@@ -229,9 +229,9 @@ function checkCounts(c, doc, counts) {
  * keyed by a JSON Pointer in the wire's own key names.
  *
  * ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE SIX TOP-LEVEL ARRAYS. A reader
- * that dropped every route's arcs, or truncated an arc's pips to the first two,
+ * that dropped every plan's arcs, or truncated an arc's pips to the first two,
  * or lost every highlight in a network, changed nothing a sidecar could see: the
- * document still carried one route, one network, one track. `positions` does
+ * document still carried one plan, one network, one track. `positions` does
  * not close it either — it pins the VALUE at a few named indices and says
  * nothing about how many there are. Measured on the pre-D2 tree: a reader that
  * dropped a dangling link AND THE REST OF ITS HIGHLIGHT passed the whole corpus
@@ -280,9 +280,9 @@ function containerCountsByPointer(doc) {
       out.set(`/networks/${i}/areas/${j}/polygon`, (a.polygon ?? []).length);
     });
   });
-  (doc.routes ?? []).forEach((r, i) => {
-    graph(`/routes/${i}`, r);
-    out.set(`/routes/${i}/walk`, (r.walk ?? []).length);
+  (doc.plans ?? []).forEach((r, i) => {
+    graph(`/plans/${i}`, r);
+    out.set(`/plans/${i}/walk`, (r.walk ?? []).length);
   });
   (doc.tracks ?? []).forEach((t, i) => {
     out.set(`/tracks/${i}/segments`, (t.segments ?? []).length);

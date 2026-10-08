@@ -68,9 +68,9 @@ func fixture() *vnx.Document {
 				}},
 			}},
 		},
-		Routes: []vnx.Route{
+		Plans: []vnx.Plan{
 			// Two arcs meeting at one position: the join must not double it.
-			route(vnx.Route{Name: "Planned line",
+			plan(vnx.Plan{Name: "Planned line",
 				Style: vnx.Style{"color": "#3A6FB0", "line-style": "dashed"},
 				Data: []vnx.Record{{Type: "app.viatrail.routing",
 					Body: map[string]any{"profile": "walking"}}}},

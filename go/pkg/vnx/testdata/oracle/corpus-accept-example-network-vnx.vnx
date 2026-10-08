@@ -89,7 +89,7 @@
       ]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "name": "Braeriach direct",
       "notes": "Drawn by hand; not snapped to any network.",

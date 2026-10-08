@@ -5,7 +5,7 @@ Version 0.9.1
 ## Abstract
 
 VNX (Viatrail Network eXchange) is a JSON interchange format for trail data. It
-carries folders, networks, routes, tracks, waypoints and areas. A network is a
+carries folders, networks, plans, tracks, waypoints and areas. A network is a
 graph of nodes and arcs together with highlights, each of which walks those arcs in
 order; two highlights that follow the same trail reference the same arc.
 
@@ -86,7 +86,7 @@ a term is listed after every term its definition uses.
   arcs; the order is the direction of travel (Section 3.3.3).
 - A **highlight** is an item carrying a walk over a network's arcs; a highlight does not
   own the arcs it walks (Section 3.3.3).
-- A **route** is a top-level item that owns its nodes and arcs and carries one
+- A **plan** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
 - A **segment** is an ordered `pips` array within a track; the interval between
   two segments is a pause (Section 3.5).
@@ -260,7 +260,7 @@ A VNX document is a JSON object.
 
   "folders":   [ ],
   "networks":  [ ],
-  "routes":    [ ],
+  "plans":     [ ],
   "tracks":    [ ],
   "waypoints": [ ],
   "areas":     [ ],
@@ -461,11 +461,11 @@ An empty walk is valid and covers nothing. A reader drops a highlight whose walk
 not valid and records a diagnostic that names the pass and the rule
 (Section 6.2).
 
-### 3.4 Routes
+### 3.4 Plans
 
-A top-level route owns its graph. It carries `nodes` and `arcs` of the same
+A top-level plan owns its graph. It carries `nodes` and `arcs` of the same
 shape as a network's (Sections 3.3.1 and 3.3.2), and one `walk` of the same
-shape as a highlight's (Section 3.3.3). Nothing outside the route can reference
+shape as a highlight's (Section 3.3.3). Nothing outside the plan can reference
 its nodes or arcs.
 
 ```json
@@ -480,19 +480,19 @@ its nodes or arcs.
 }
 ```
 
-A route's walk runs from node to node. Every `from` and `to` in it is a node
+A plan's walk runs from node to node. Every `from` and `to` in it is a node
 key, and no pass in it carries `turn` or `pin`.
 
 Every rule Section 3.3 states for a network's nodes and arcs and for a highlight's
-walk applies to a route's. Where that section has a reader drop a highlight, a
-reader drops the route.
+walk applies to a plan's. Where that section has a reader drop a highlight, a
+reader drops the plan.
 
-Arc boundaries are preserved by the arcs, so a route that is partly hand-drawn
+Arc boundaries are preserved by the arcs, so a plan that is partly hand-drawn
 and partly engine-routed retains that structure. A walk may cover an arc in
 either direction.
 
 Top-level areas are defined in Section 3.7 and appear in the top-level `areas`
-collection, not inside a route.
+collection, not inside a plan.
 
 ### 3.5 Tracks
 
@@ -599,7 +599,7 @@ merge the rings.
 
 ### 3.8 Hidden state
 
-`hidden` is a boolean carried on folders, networks, highlights, routes, points,
+`hidden` is a boolean carried on folders, networks, highlights, plans, points,
 areas and tracks. It is user-visible state rather than a rendering cache.
 
 Absence means visible. A writer MUST emit the key only when its value is `true`,
@@ -654,13 +654,13 @@ array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
-| document | `vnx` | `generator`, `created`, `folders`, `networks`, `routes`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
+| document | `vnx` | `generator`, `created`, `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
-| arc, in a network or a route | `from`, `to`, `pips` | `data` |
+| arc, in a network or a plan | `from`, `to`, `pips` | `data` |
 | highlight | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
-| route | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
+| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
 | segment | `pips` | — |
 | waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
@@ -797,7 +797,7 @@ Per-pip time is a count of epoch milliseconds (Section 4.1) and is not an ISO
 ### 4.4 Identifiers, keys and order
 
 - Identifiers are scoped to the object that contains them, not to the document.
-  A route's `node-1` and a network's `node-1` are different nodes. A reader MUST
+  A plan's `node-1` and a network's `node-1` are different nodes. A reader MUST
   NOT build one document-wide identifier map.
 - Identifiers appear only where something references them: on folders, and as
   the keys of a network's `nodes` and `arcs` objects.
@@ -967,18 +967,18 @@ The remedies for the constructs this document constrains:
 | a time on a node (3.3.1), or an elevation or a time on a position in a walk (3.3.3) | drop the channel | `extra-channel` |
 | a time on an arc pip (3.3.2) | drop the time channel, from every pip of the arc that carries one | `arc-pip-time` |
 | an arc whose `from` and `to` name the same node (3.3.2) | drop the arc | `self-loop-arc` |
-| an arc whose `from` or `to` names a node that is not in its network or route (3.3.2) | drop the arc | `arc-node-absent` |
-| a pass that is not an object, or that names no arc of its network or route (3.3.3) | drop the highlight | `pass-arc-absent` |
+| an arc whose `from` or `to` names a node that is not in its network or plan (3.3.2) | drop the arc | `arc-node-absent` |
+| a pass that is not an object, or that names no arc of its network or plan (3.3.3) | drop the highlight | `pass-arc-absent` |
 | a walk that breaks the rule for `from` and `to` (3.3.3) | drop the highlight | `walk-spelling` |
 | a walk that is not connected: valid-walk rules 3, 4 and 5 (3.3.3) | drop the highlight | `walk-not-connected` |
 | a pass carrying both `turn` and `pin` (3.3.3) | drop the highlight | `pinned-turn` |
-| a position, a `turn` or a `pin` in a route's walk (3.4) | drop the route | `route-pin-or-position` |
+| a position, a `turn` or a `pin` in a plan's walk (3.4) | drop the plan | `plan-pin-or-position` |
 | a `polygon` carrying a ring beyond the first (3.7) | drop the area | `polygon-nested-rings` |
 | a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
 | a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
 | an attachment that cannot be recovered (7) | drop the attachment | `attachment-unreadable` |
 
-In a route, "the highlight" in this table is the route itself (Section 3.4).
+In a plan, "the highlight" in this table is the plan itself (Section 3.4).
 
 A node dropped by a row above leaves every arc that names it naming an absent
 node, and that arc is then dropped under `arc-node-absent`. An arc dropped by
@@ -995,14 +995,14 @@ in order, and each pass in the order of the list below. At the first check that
 drops the highlight, it records that diagnostic and examines nothing further in the
 walk. Diagnostics that do not drop the highlight are recorded as they are met.
 
-1. The pass is an object and its `arc` names an arc of its network or route.
+1. The pass is an object and its `arc` names an arc of its network or plan.
    Otherwise `pass-arc-absent`, at the pass.
 2. Each unrecognised key on the pass: `unknown-key`, at the key.
 3. `from`, `to`, `turn` and `pin`, in that order, where present: each parses.
    Otherwise `position-unusable`, at that key. A position carrying an elevation
    or a time takes `extra-channel`, at that key.
-4. In a route: `from`, `to`, `turn` and `pin`, in that order, where present,
-   carry no position, turn or pin. Otherwise `route-pin-or-position`, at that
+4. In a plan: `from`, `to`, `turn` and `pin`, in that order, where present,
+   carry no position, turn or pin. Otherwise `plan-pin-or-position`, at that
    key.
 5. The pass does not carry both `turn` and `pin`. Otherwise `pinned-turn`, at
    the pass.

@@ -36,7 +36,7 @@ func (p LonLat) Position() Position {
 func (p LonLat) String() string { return p.Position().String() }
 
 // Arc is a line between two different nodes of its owner, a network or a
-// route. Pips are its INTERIOR points only: the line runs from the From node's
+// plan. Pips are its INTERIOR points only: the line runs from the From node's
 // position through Pips to the To node's (SPEC §3.3.2). An arc with no pips is
 // the straight line between its nodes.
 type Arc struct {
@@ -105,28 +105,28 @@ func (f *walkFault) error() error {
 // order, and the same stepping serves the reader's check, the encoder's check
 // and the writers' geometry — three callers, one answer.
 type walkCursor struct {
-	last  int
-	route bool
-	at    string // the node the walk is at; "" before the first pass
+	last int
+	plan bool
+	at   string // the node the walk is at; "" before the first pass
 }
 
 // step checks pass i against §3.3.3's rules that span more than the pass's own
-// values — valid-walk rules 2 to 6 plus a route's — in §6.2's order, and moves
+// values — valid-walk rules 2 to 6 plus a plan's — in §6.2's order, and moves
 // the cursor to where the pass leaves. It returns the pass's entry and exit.
 func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walkFault) {
 	fault := func(key, code, format string, args ...any) (Endpoint, Endpoint, *walkFault) {
 		return Endpoint{}, Endpoint{}, &walkFault{pass: i, key: key, code: code, msg: fmt.Sprintf(format, args...)}
 	}
-	if c.route {
+	if c.plan {
 		switch {
 		case p.From != nil && p.From.At != nil:
-			return fault("from", CodeRoutePinOrPosition, "a route's walk runs node to node, and this `from` is a position")
+			return fault("from", CodePlanPinOrPosition, "a plan's walk runs node to node, and this `from` is a position")
 		case p.To != nil && p.To.At != nil:
-			return fault("to", CodeRoutePinOrPosition, "a route's walk runs node to node, and this `to` is a position")
+			return fault("to", CodePlanPinOrPosition, "a plan's walk runs node to node, and this `to` is a position")
 		case p.Turn != nil:
-			return fault("turn", CodeRoutePinOrPosition, "a route's walk carries no turn")
+			return fault("turn", CodePlanPinOrPosition, "a plan's walk carries no turn")
 		case p.Pin != nil:
-			return fault("pin", CodeRoutePinOrPosition, "a route's walk carries no pin")
+			return fault("pin", CodePlanPinOrPosition, "a plan's walk carries no pin")
 		}
 	}
 	if p.Turn != nil && p.Pin != nil {
@@ -182,7 +182,7 @@ func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walk
 	return entry, exit, nil
 }
 
-// decodeWalk reads a highlight's or a route's REQUIRED `walk` and checks it in
+// decodeWalk reads a highlight's or a plan's REQUIRED `walk` and checks it in
 // §6.2's order. ok is false when the owner is to be dropped: a missing or
 // wrong-typed `walk`, or the first pass that breaks a rule, which is reported
 // alone — nothing after it in the walk is examined.
@@ -191,7 +191,7 @@ func (c *walkCursor) step(i int, p Pass, arc Arc) (entry, exit Endpoint, f *walk
 // the caller a different walk that reads as valid — two arcs joined that do not
 // meet, a direction reversed by a lost turn, a start moved to a node — so any
 // fault drops the highlight, and the diagnostic names the pass and the rule.
-func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route bool, diags []Diagnostic) ([]Pass, bool, []Diagnostic) {
+func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, plan bool, diags []Diagnostic) ([]Pass, bool, []Diagnostic) {
 	path := owner + "/walk"
 	arr, isArr := obj["walk"].([]any)
 	if !isArr {
@@ -203,7 +203,7 @@ func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route boo
 			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("`walk` %s — dropped", what)})
 	}
 	walk := make([]Pass, 0, len(arr))
-	cur := walkCursor{last: len(arr) - 1, route: route}
+	cur := walkCursor{last: len(arr) - 1, plan: plan}
 	drop := func(f walkFault) ([]Pass, bool, []Diagnostic) {
 		at := fmt.Sprintf("%s/%d", path, f.pass)
 		if f.key != "" {
@@ -270,7 +270,7 @@ func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, route boo
 				p.Pin = ep.At
 			}
 		}
-		// 4 to 7: the route rule, pin and turn, spelling, connection.
+		// 4 to 7: the plan rule, pin and turn, spelling, connection.
 		if _, _, f := cur.step(i, p, arc); f != nil {
 			return drop(*f)
 		}
@@ -294,8 +294,8 @@ func describeArc(v any) string {
 // checkWalk is the encoder's check: every pass names an arc of its owner, and
 // the walk follows §3.3.3's rules. A writer never emits a walk its own reader
 // would drop.
-func checkWalk(walk []Pass, arcs map[string]Arc, route bool) error {
-	cur := walkCursor{last: len(walk) - 1, route: route}
+func checkWalk(walk []Pass, arcs map[string]Arc, plan bool) error {
+	cur := walkCursor{last: len(walk) - 1, plan: plan}
 	for i, p := range walk {
 		arc, known := arcs[p.Arc]
 		if !known {

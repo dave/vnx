@@ -44,7 +44,7 @@ too: `6d58c62` removed the check it broke, so its pattern no longer exists.
     walk: a pass before the last leaves at a position   unit only
     walk: ignore a turn when finding the exit       accept (walk-forms), unit
     walk: `from` on a pass after the first          diagnose, unit
-    walk: skip pinned-turn / the route rule         diagnose, unit
+    walk: skip pinned-turn / the plan rule         diagnose, unit
     walk: drop the bad pass, keep the highlight         diagnose, unit
     skip extra-channel (walk, node) / arc-pip-time  diagnose, unit
     report arc-pip-time on every arc                accept, diagnose, write
@@ -368,10 +368,10 @@ MUTATIONS = [
         "        if false && p.turn.is_some() && p.pin.is_some() {",
     ),
     (
-        "skip the route rule",
+        "skip the plan rule",
         "src/walk.rs",
-        "        if self.route {",
-        "        if false && self.route {",
+        "        if self.plan {",
+        "        if false && self.plan {",
     ),
     # SPEC 6.2: a walk is used whole or not at all. Keeping the passes that
     # read and dropping the one that did not hands the caller a different walk.

@@ -84,7 +84,7 @@ func TestRefusalReturnsNoPartialDocument(t *testing.T) {
 // unknown — that would train a caller to ignore diagnostics, which is the one
 // habit this channel cannot survive.
 func TestKnownCollectionsAreNotReportedAsUnknown(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[],"networks":[],"routes":[],
+	_, diags, err := Decode([]byte(`{"vnx":"0.9.0","folders":[],"networks":[],"plans":[],
 	  "tracks":[],"waypoints":[],"areas":[],"app.viatrail.rulesets":[]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -197,12 +197,12 @@ func TestWriterCodeRegistryRegistersAndCopies(t *testing.T) {
 	}
 }
 
-// A segment and a route's arc have fixed key sets too (SPEC §3.10), and an
+// A segment and a plan's arc have fixed key sets too (SPEC §3.10), and an
 // unknown key on either is reported rather than dropped in silence.
-func TestUnknownKeysOnASegmentAndARouteArcAreReported(t *testing.T) {
+func TestUnknownKeysOnASegmentAndAPlanArcAreReported(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.9.0",
 	  "tracks":[{"segments":[{"pips":[[1,2],[1,3]],"zz":1}]}],
-	  "routes":[{"nodes":{"n1":[1,2],"n2":[1,3]},"arcs":{"a":{"pips":[],"from":"n1","to":"n2","zz":1}},
+	  "plans":[{"nodes":{"n1":[1,2],"n2":[1,3]},"arcs":{"a":{"pips":[],"from":"n1","to":"n2","zz":1}},
 	    "walk":[{"arc":"a","from":"n1","to":"n2"}]}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +213,7 @@ func TestUnknownKeysOnASegmentAndARouteArcAreReported(t *testing.T) {
 	}
 	want := map[string]string{
 		"/tracks/0/segments/0/zz": CodeUnknownKey,
-		"/routes/0/arcs/a/zz":     CodeUnknownKey,
+		"/plans/0/arcs/a/zz":      CodeUnknownKey,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("diagnostics %v, want %v", got, want)

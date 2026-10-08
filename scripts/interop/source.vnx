@@ -225,7 +225,7 @@
       ]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "folder": "cairngorms",
       "name": "Braeriach direct",

@@ -10,7 +10,7 @@ export {
   Highlight,
   Pass,
   Endpoint,
-  Route,
+  Plan,
   Track,
   Segment,
   Waypoint,

@@ -2,7 +2,7 @@
 //
 // VNX carries a Viatrail library — above all its networks: the graph of nodes
 // and arcs, and the highlights drawn over it as ordered traversals, where two
-// routes sharing a trail share the same arc. The specification lives at
+// plans sharing a trail share the same arc. The specification lives at
 // ~/src/knowledge/features/export/format-spec.md.
 //
 // ⚠ THIS PACKAGE IMPORTS THE STANDARD LIBRARY AND NOTHING ELSE, INCLUDING NO
@@ -77,7 +77,7 @@ type Document struct {
 	Waypoints []Waypoint
 	Areas     []Area
 	Tracks    []Track
-	Routes    []Route
+	Plans     []Plan
 	Networks  []Network
 
 	// AppKeys are the document's application keys (SPEC §3.9): every
@@ -241,7 +241,7 @@ func DocumentIsEmpty(d *Document) bool {
 		len(d.Waypoints) == 0 &&
 		len(d.Areas) == 0 &&
 		len(d.Tracks) == 0 &&
-		len(d.Routes) == 0 &&
+		len(d.Plans) == 0 &&
 		len(d.Networks) == 0 &&
 		len(d.AppKeys) == 0
 }
@@ -298,8 +298,8 @@ func Decode(data []byte) (*Document, []Diagnostic, error) {
 	if arr, ok := collection(obj, "networks", &diags); ok {
 		doc.Networks, diags = decodeNetworks(arr, "/networks", diags)
 	}
-	if arr, ok := collection(obj, "routes", &diags); ok {
-		doc.Routes, diags = decodeRoutes(arr, "/routes", diags)
+	if arr, ok := collection(obj, "plans", &diags); ok {
+		doc.Plans, diags = decodePlans(arr, "/plans", diags)
 	}
 	if arr, ok := collection(obj, "tracks", &diags); ok {
 		doc.Tracks, diags = decodeTracks(arr, "/tracks", diags)
@@ -345,7 +345,7 @@ func collection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, boo
 // documentFormatKeys is every key the format defines at the top level.
 var documentFormatKeys = map[string]bool{
 	"vnx": true, "generator": true, "created": true,
-	"folders": true, "networks": true, "routes": true,
+	"folders": true, "networks": true, "plans": true,
 	"tracks": true, "waypoints": true, "areas": true,
 }
 

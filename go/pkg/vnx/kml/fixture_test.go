@@ -12,7 +12,7 @@ import "github.com/dave/vnx/go/pkg/vnx"
 // ⚠ EVERY FIELD HERE IS LOAD-BEARING. The fixture deliberately carries the
 // things that are easy to drop silently: an empty folder, a name with an XML
 // metacharacter in it, a hidden item, a pip with no elevation beside pips that
-// have one, pip times (which KML cannot carry), a two-arc route, a two-segment
+// have one, pip times (which KML cannot carry), a two-arc plan, a two-segment
 // track, in-network points AND areas, two highlights SHARING an arc, and an
 // application key.
 // A fixture without them makes a golden that cannot see the losses this format
@@ -70,7 +70,7 @@ func fixture() *vnx.Document {
 				{Pips: []vnx.Position{pos(-3.68, 57.02), posEle(-3.67, 57.03, 640)}},
 			},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{
+		Plans: []vnx.Plan{plan(vnx.Plan{
 			Name: "Ridge Line", Style: vnx.Style{"color": "#3A6FB0", "opacity": 0.75}},
 			// Two arcs meeting at a shared node: the boundary between them is
 			// what KML loses.

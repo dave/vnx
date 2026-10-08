@@ -174,7 +174,7 @@ func cmdValidate(args []string) error {
 }
 
 // cmdOutline prints structure without geometry. A day's track is tens of
-// thousands of pips; an agent that must load them all to rename a route has
+// thousands of pips; an agent that must load them all to rename a plan has
 // spent its context on coordinates.
 func cmdOutline(args []string) error {
 	fs := flag.NewFlagSet("outline", flag.ExitOnError)
@@ -200,13 +200,13 @@ func cmdOutline(args []string) error {
 		Version   string       `json:"vnx"`
 		Folders   int          `json:"folders"`
 		Networks  []netOutline `json:"networks"`
-		Routes    int          `json:"routes"`
+		Plans     int          `json:"plans"`
 		Tracks    int          `json:"tracks"`
 		Waypoints int          `json:"waypoints"`
 		Areas     int          `json:"areas"`
 	}{
 		Version: doc.Version, Folders: len(doc.Folders),
-		Routes: len(doc.Routes), Tracks: len(doc.Tracks),
+		Plans: len(doc.Plans), Tracks: len(doc.Tracks),
 		Waypoints: len(doc.Waypoints), Areas: len(doc.Areas),
 	}
 	for _, n := range doc.Networks {
@@ -225,7 +225,7 @@ func cmdOutline(args []string) error {
 		fmt.Printf("  network   %q — %d nodes, %d arcs, %d highlights, %d points, %d areas\n",
 			n.Name, n.Nodes, n.Arcs, n.Highlights, n.Points, n.Areas)
 	}
-	fmt.Printf("  routes    %d\n  tracks    %d\n  waypoints %d\n  areas     %d\n",
-		out.Routes, out.Tracks, out.Waypoints, out.Areas)
+	fmt.Printf("  plans    %d\n  tracks    %d\n  waypoints %d\n  areas     %d\n",
+		out.Plans, out.Tracks, out.Waypoints, out.Areas)
 	return nil
 }

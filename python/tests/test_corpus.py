@@ -38,7 +38,7 @@ def _bits(value: float) -> str:
     return struct.pack(">d", value).hex()
 
 
-COLLECTIONS = ("folders", "networks", "routes", "tracks", "waypoints", "areas")
+COLLECTIONS = ("folders", "networks", "plans", "tracks", "waypoints", "areas")
 
 
 def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
@@ -49,7 +49,7 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
     ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS.  A
     reader that dropped a highlight's passes, or truncated an arc's pips, changed
     nothing a sidecar could see: the document still carried one network, one
-    route, one track.  The accept tier's decode->encode->tree comparison catches
+    plan, one track.  The accept tier's decode->encode->tree comparison catches
     most of that already, but the DIAGNOSE tier is exempt from the round trip
     (SPEC 8.1) -- and those are exactly the cases where a reader is supposed to
     drop something in a SCOPED way.  Measured on the pre-D2 corpus: a reader
@@ -98,12 +98,12 @@ def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
         out[f"/networks/{i}/areas"] = len(network.areas or [])
         for j, area in enumerate(network.areas or []):
             out[f"/networks/{i}/areas/{j}/polygon"] = len(area.polygon or [])
-    for i, route in enumerate(document.routes or []):
-        out[f"/routes/{i}/nodes"] = len(route.nodes or {})
-        out[f"/routes/{i}/arcs"] = len(route.arcs or {})
-        for key, arc in (route.arcs or {}).items():
-            out[f"/routes/{i}/arcs/{key}/pips"] = len(arc.pips or [])
-        out[f"/routes/{i}/walk"] = len(route.walk or [])
+    for i, plan in enumerate(document.plans or []):
+        out[f"/plans/{i}/nodes"] = len(plan.nodes or {})
+        out[f"/plans/{i}/arcs"] = len(plan.arcs or {})
+        for key, arc in (plan.arcs or {}).items():
+            out[f"/plans/{i}/arcs/{key}/pips"] = len(arc.pips or [])
+        out[f"/plans/{i}/walk"] = len(plan.walk or [])
     for i, track in enumerate(document.tracks or []):
         out[f"/tracks/{i}/segments"] = len(track.segments or [])
         for j, segment in enumerate(track.segments or []):

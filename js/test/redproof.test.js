@@ -859,9 +859,9 @@ test('a reader that accepts a pinned turn is caught', async () => {
   assert.deepEqual(await failingDelta(cases), ['diagnose/pinned-turn.vnx']);
 });
 
-test('a reader that lets a route carry a position is caught', async () => {
-  const cases = await runMutated([{ file: 'walk.js', from: '    if (this.route) {', to: '    if (false) {' }]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/route-pin-or-position.vnx']);
+test('a reader that lets a plan carry a position is caught', async () => {
+  const cases = await runMutated([{ file: 'walk.js', from: '    if (this.plan) {', to: '    if (false) {' }]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/plan-pin-or-position.vnx']);
 });
 
 test('a reader that keeps a self-loop arc is caught', async () => {

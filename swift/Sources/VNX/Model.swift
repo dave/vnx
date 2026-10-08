@@ -124,7 +124,7 @@ public struct LonLat: Equatable, Sendable {
   public var position: Position { Position(lon: lon, lat: lat) }
 }
 
-/// An arc of a network or of a route (SPEC 3.3.2). Its line runs from the
+/// An arc of a network or of a plan (SPEC 3.3.2). Its line runs from the
 /// position of its `from` node, through `pips`, to the position of its `to`
 /// node. `pips` holds the INTERIOR points only and may be empty, and `from` and
 /// `to` name two different nodes of the arc's owner.
@@ -200,10 +200,10 @@ public struct Network: Equatable, Sendable {
   public var data: [DataRecord]?
 }
 
-/// A top-level route (SPEC 3.4). It owns a graph of the network's shape and
+/// A top-level plan (SPEC 3.4). It owns a graph of the network's shape and
 /// carries one walk over it, which runs node to node: no position, no turn and
-/// no pin. Nothing outside the route can reference its nodes or arcs.
-public struct Route: Equatable, Sendable {
+/// no pin. Nothing outside the plan can reference its nodes or arcs.
+public struct Plan: Equatable, Sendable {
   public var nodes: [JSONKey: Vertex]?
   public var arcs: [JSONKey: Arc]?
   public var walk: [Pass]
@@ -223,7 +223,7 @@ extension Highlight {
   }
 }
 
-extension Route {
+extension Plan {
   public init(walk: [Pass]) {
     self.init(nodes: nil, arcs: nil, walk: walk)
   }
@@ -285,7 +285,7 @@ public struct Document: Equatable, Sendable {
   /// fixed point.
   public var folders: [Folder]?
   public var networks: [Network]?
-  public var routes: [Route]?
+  public var plans: [Plan]?
   public var tracks: [Track]?
   public var waypoints: [Waypoint]?
   public var areas: [Area]?

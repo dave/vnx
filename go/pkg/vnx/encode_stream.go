@@ -227,9 +227,9 @@ var documentCollections = []documentCollection{
 		func(b *StickyWriter, d *Document) error {
 			return streamArray(b, len(d.Tracks), func(i int) (any, error) { return trackWire(d.Tracks[i]) })
 		}},
-	{"Routes", "routes", func(d *Document) int { return len(d.Routes) },
+	{"Plans", "plans", func(d *Document) int { return len(d.Plans) },
 		func(b *StickyWriter, d *Document) error {
-			return streamArray(b, len(d.Routes), func(i int) (any, error) { return routeWire(d.Routes[i]) })
+			return streamArray(b, len(d.Plans), func(i int) (any, error) { return planWire(d.Plans[i]) })
 		}},
 	{"Networks", "networks", func(d *Document) int { return len(d.Networks) },
 		func(b *StickyWriter, d *Document) error {

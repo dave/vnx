@@ -86,8 +86,8 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 		"network.area.polygon",
 		"network.node",
 		"network.point.at",
-		"route.arc.pips",
-		"route.node",
+		"plan.arc.pips",
+		"plan.node",
 		"track.segment.pips",
 		"waypoint.at",
 	}
@@ -301,12 +301,12 @@ func vnxPositions(t *testing.T, out []byte) []foundPos {
 	for i, a := range asArray(doc["areas"]) {
 		addEach("area.polygon", fmt.Sprintf("/areas/%d/polygon", i), asObject(a)["polygon"])
 	}
-	for i, r := range asArray(doc["routes"]) {
+	for i, r := range asArray(doc["plans"]) {
 		for id, node := range asObject(asObject(r)["nodes"]) {
-			add("route.node", fmt.Sprintf("/routes/%d/nodes/%s", i, id), node)
+			add("plan.node", fmt.Sprintf("/plans/%d/nodes/%s", i, id), node)
 		}
 		for id, arc := range asObject(asObject(r)["arcs"]) {
-			addEach("route.arc.pips", fmt.Sprintf("/routes/%d/arcs/%s/pips", i, id), asObject(arc)["pips"])
+			addEach("plan.arc.pips", fmt.Sprintf("/plans/%d/arcs/%s/pips", i, id), asObject(arc)["pips"])
 		}
 	}
 	for i, tr := range asArray(doc["tracks"]) {
@@ -608,8 +608,8 @@ func noisyFixture() acceptFixture {
 			Name:     "Noisy track",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{noisy(0), noisy(1), noisy(2)}}},
 		}},
-		Routes: []vnx.Route{{
-			Name:  "Noisy route",
+		Plans: []vnx.Plan{{
+			Name:  "Noisy plan",
 			Nodes: map[string]vnx.Vertex{"n1": vx(0), "n2": vx(2)},
 			Arcs:  map[string]vnx.Arc{"a1": {From: "n1", To: "n2", Pips: []vnx.Vertex{vx(1)}}},
 			Walk:  []vnx.Pass{{Arc: "a1", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{Node: "n2"}}},

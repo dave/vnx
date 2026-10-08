@@ -213,7 +213,7 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 			Name: "Walk", Data: []vnx.Record{tag("solo")},
 			Segments: []vnx.Segment{{Pips: []vnx.Position{pos(1, 3, nil), pos(2, 3, nil)}}},
 		}},
-		Routes: []vnx.Route{route(vnx.Route{
+		Plans: []vnx.Plan{plan(vnx.Plan{
 			Name: "Ridge", Data: []vnx.Record{tag("planned"), routing}},
 			lineArc{Pips: []vnx.Position{pos(1, 2, nil), pos(3, 2, nil)}},
 		)},
@@ -245,7 +245,7 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 // its own temptation: a writer could plausibly decide the routing profile was
 // worth a property. Nothing that reads GeoJSON knows what to do with one.
 func TestCellRoutingConfigIsNotCarried(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{
+	out, report := writeDoc(t, &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{
 		Name: "Ridge",
 		Data: []vnx.Record{{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
 		lineArc{
@@ -253,11 +253,11 @@ func TestCellRoutingConfigIsNotCarried(t *testing.T) {
 			Data: []vnx.Record{{Type: "app.viatrail.compute-failed", Body: map[string]any{"reason": "no-route"}}},
 		},
 	)}})
-	// CARRIED: the route, as one LineString.
+	// CARRIED: the plan, as one LineString.
 	if !strings.Contains(out, `"name":"Ridge"`) || !strings.Contains(out, `"type":"LineString"`) {
-		t.Fatalf("the route was not exported:\n%s", out)
+		t.Fatalf("the plan was not exported:\n%s", out)
 	}
-	// LOST: the record on the route AND the one on the arc.
+	// LOST: the record on the plan AND the one on the arc.
 	for _, leaked := range []string{
 		"app.viatrail.routing", "app.viatrail.compute-failed",
 		"walking", "roads", "no-route", "profile", "avoid", "reason",
@@ -402,7 +402,7 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 			{Name: "closed ring", Polygon: []vnx.Position{pos(0, 0, nil), pos(1, 0, nil), pos(1, 1, nil), pos(0, 1, nil), pos(0, 0, nil)}},
 		},
 		Tracks: []vnx.Track{{Name: "no segments"}},
-		Routes: []vnx.Route{{Name: "no arcs"}},
+		Plans:  []vnx.Plan{{Name: "no arcs"}},
 	})
 	if len(report.Diagnostics) != 4 {
 		t.Fatalf("wanted one diagnostic per unplaceable item, got %v", report.Diagnostics)
@@ -410,7 +410,7 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 	wantDiag(t, report.Diagnostics, 0, vnx.CodeItemNoGeometry, "/areas/0/polygon", "short ring")
 	wantDiag(t, report.Diagnostics, 1, vnx.CodeItemNoGeometry, "/areas/1/polygon", "closed ring")
 	wantDiag(t, report.Diagnostics, 2, vnx.CodeItemNoGeometry, "/tracks/0", "no segments")
-	wantDiag(t, report.Diagnostics, 3, vnx.CodeItemNoGeometry, "/routes/0", "no arcs")
+	wantDiag(t, report.Diagnostics, 3, vnx.CodeItemNoGeometry, "/plans/0", "no arcs")
 	// The message must say WHICH rule failed: "no geometry" alone sends a
 	// reader looking for a missing polygon when the polygon is there and
 	// closed, which a VNX ring must not be (SPEC §3.7).
@@ -422,7 +422,7 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 // The fixture's own casualties, in document order (writer.go convention 6).
 func TestFixtureDiagnostics(t *testing.T) {
 	_, report := writeDoc(t, fixture())
-	// 3 waypoints, 1 area, 1 track, 1 route, then the network's arcs Feature,
+	// 3 waypoints, 1 area, 1 track, 1 plan, then the network's arcs Feature,
 	// its in-network point, its in-network area and its one highlight.
 	if report.Emitted != 10 {
 		t.Errorf("emitted %d features, wanted 10", report.Emitted)

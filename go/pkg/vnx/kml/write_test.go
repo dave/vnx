@@ -51,7 +51,7 @@ func countOf(s, sub string) int { return strings.Count(s, sub) }
 
 func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 	out, report := writeDoc(t, fixture())
-	// 2 waypoints, 1 area, 1 track, 1 route, 1 network arcs Placemark, 1
+	// 2 waypoints, 1 area, 1 track, 1 plan, 1 network arcs Placemark, 1
 	// in-network point, 1 in-network area, 2 highlights.
 	if report.Emitted != 10 {
 		t.Errorf("Emitted = %d, want 10", report.Emitted)
@@ -478,7 +478,7 @@ func TestItemsWithoutGeometryAreDroppedAndDiagnosed(t *testing.T) {
 	d := &vnx.Document{
 		Areas:  []vnx.Area{{Name: "short ring", Polygon: []vnx.Position{pos(0, 0), pos(1, 1)}}},
 		Tracks: []vnx.Track{{Name: "one fix", Segments: []vnx.Segment{{Pips: []vnx.Position{pos(0, 0)}}}}},
-		Routes: []vnx.Route{{Name: "no arcs"}},
+		Plans:  []vnx.Plan{{Name: "no arcs"}},
 	}
 	out, report := writeDoc(t, d)
 	if strings.Contains(out, "<Placemark>") {

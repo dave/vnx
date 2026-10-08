@@ -63,7 +63,7 @@ func TestRoundingNeverInventsAThirdOrdinate(t *testing.T) {
 // discovered when someone asks for sub-pixel widths.
 func TestAStyleWidthIsNotRounded(t *testing.T) {
 	w := 2.3456789012
-	d := &vnx.Document{Routes: []vnx.Route{route(vnx.Route{
+	d := &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{
 		Name:  "r",
 		Style: vnx.Style{"width": w}},
 		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}},

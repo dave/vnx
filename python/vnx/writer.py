@@ -69,7 +69,7 @@ def normalised_document(document: Document) -> Document:
         document,
         folders=_unhidden_all(document.folders),
         networks=_networks(document.networks),
-        routes=_unhidden_all(document.routes),
+        plans=_unhidden_all(document.plans),
         tracks=_unhidden_all(document.tracks),
         waypoints=_unhidden_all(document.waypoints),
         areas=_unhidden_all(document.areas),

@@ -243,7 +243,7 @@ fn no_truncation_or_corruption_of_a_document_panics() {
         "arcs":{"a":{"from":"n1","to":"n2","pips":[[-3.67,57.11,340]]}},
         "highlights":[{"walk":[{"arc":"a","from":"n1","turn":[-3.67,57.11]},{"arc":"a","pin":[-3.67,57.11]},
                            {"arc":"a","to":[-3.67,57.11]}]}]}],
-        "routes":[{"nodes":{"a":[-3.6,57.1]},"arcs":{},"walk":[]}],
+        "plans":[{"nodes":{"a":[-3.6,57.1]},"arcs":{},"walk":[]}],
         "tracks":[{"segments":[{"pips":[[-3.6,57.1,1,2]]}]}],
         "areas":[{"polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.0]]}],
         "waypoints":[{"at":[-3.6,57.1],"style":{"importance":3},"data":[{"@type":"x.y","v":[1,2,3]}]}]}"#;

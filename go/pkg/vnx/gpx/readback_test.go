@@ -8,7 +8,7 @@ import (
 )
 
 // The read side of Dave's ruling of 2026-10-08 ("Plans should definitely be
-// exported as GPX routes"): a file written from a route DECODES as a GPX
+// exported as GPX routes"): a file written from a plan DECODES as a GPX
 // route, and a file written from a track decodes as a GPX track.
 //
 // ⚠ VNX HAS NO GPX READER, so this decodes with encoding/xml into the GPX 1.1
@@ -46,13 +46,13 @@ type gpxPt struct {
 	Time string `xml:"time"`
 }
 
-func TestARouteReadsBackAsAGPXRoute(t *testing.T) {
+func TestAPlanReadsBackAsAGPXRoute(t *testing.T) {
 	d := &vnx.Document{
 		Tracks: []vnx.Track{{Name: "Walked", Segments: []vnx.Segment{
 			{Pips: []vnx.Position{{Lon: 5, Lat: 5}, {Lon: 6, Lat: 6}}},
 			{Pips: []vnx.Position{{Lon: 7, Lat: 7}}},
 		}}},
-		Routes: []vnx.Route{route(vnx.Route{Name: "Planned", Notes: "two days"},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Planned", Notes: "two days"},
 			lineArc{Pips: []vnx.Position{
 				{Lon: 1, Lat: 1, Ele: f(100)},
 				{Lon: 2, Lat: 2},
@@ -102,7 +102,7 @@ func TestARouteReadsBackAsAGPXRoute(t *testing.T) {
 	}
 	for _, tr := range g.Trks {
 		if tr.Name == "Planned" {
-			t.Errorf("the route ALSO decoded as a <trk>\n%s", out)
+			t.Errorf("the plan ALSO decoded as a <trk>\n%s", out)
 		}
 	}
 }

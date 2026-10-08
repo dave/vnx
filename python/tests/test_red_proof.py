@@ -322,10 +322,10 @@ class RedProof(unittest.TestCase):
         ):
             self.assertTrue(_run("DiagnoseTier.test_diagnose").wasSuccessful())
 
-    def test_a_dropped_route_arc_was_already_caught_without_counts(self) -> None:
+    def test_a_dropped_plan_arc_was_already_caught_without_counts(self) -> None:
         """The correction, frozen: `counts` is not what catches this one.
 
-        A reader that drops a route's arcs is caught in the accept tier by the
+        A reader that drops a plan's arcs is caught in the accept tier by the
         decode-encode-tree comparison, with `counts` removed from the run
         entirely.  Said here because the claim that it was NOT caught is what
         made the nested containers look like an accept-tier fix; they are a
@@ -344,10 +344,10 @@ class RedProof(unittest.TestCase):
 
         def truncating(self: Any, value: Any) -> Any:
             got = original(self, value)
-            for route in got.routes or []:
-                if route.arcs:
-                    first = sorted(route.arcs)[0]
-                    route.arcs = {first: route.arcs[first]}
+            for plan in got.plans or []:
+                if plan.arcs:
+                    first = sorted(plan.arcs)[0]
+                    plan.arcs = {first: plan.arcs[first]}
             return got
 
         def unchecked(self: Any, expect: Any, document: Any, name: str) -> None:
@@ -357,7 +357,7 @@ class RedProof(unittest.TestCase):
             self.assertGoesRed(
                 mock.patch.object(decode._Reader, "document", truncating),
                 "AcceptTier.test_accept_files_survive_a_read_and_a_write",
-                "reader that drops a route's arcs, with `counts` switched off",
+                "reader that drops a plan's arcs, with `counts` switched off",
             )
 
     def test_moving_time_reported_as_zero_is_caught(self) -> None:
@@ -747,22 +747,22 @@ class RedProof(unittest.TestCase):
             "pinned-turn check",
         )
 
-    def test_a_reader_that_lets_a_route_carry_a_position_is_caught(self) -> None:
-        defect = lambda: mock.patch.object(W, "route_rule", lambda p: None)  # noqa: E731
+    def test_a_reader_that_lets_a_plan_carry_a_position_is_caught(self) -> None:
+        defect = lambda: mock.patch.object(W, "plan_rule", lambda p: None)  # noqa: E731
         self.assertRedCases(
             defect(),
             "DiagnoseTier.test_diagnose",
-            {"route-pin-or-position.vnx"},
-            "route rule",
+            {"plan-pin-or-position.vnx"},
+            "plan rule",
         )
         self.assertGoesRed(
-            defect(), "reader:Routes.test_each_forbidden_key_names_itself", "route rule"
+            defect(), "reader:Plans.test_each_forbidden_key_names_itself", "plan rule"
         )
         self.assertGoesRed(
             defect(),
             "writer:TheWriterRefusesWhatItsReaderDrops."
-            "test_a_route_carrying_a_position_is_refused",
-            "writer's route rule",
+            "test_a_plan_carrying_a_position_is_refused",
+            "writer's plan rule",
         )
 
     def test_a_reader_that_trusts_every_arc_name_is_caught(self) -> None:

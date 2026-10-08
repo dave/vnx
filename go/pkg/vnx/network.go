@@ -8,7 +8,7 @@ import (
 // Network is the graph: nodes and arcs that highlights walk.
 //
 // ⚠ Nodes and arcs are MAPS because walks reference them by key, and those
-// keys are scoped TO THIS NETWORK — a route elsewhere in the document may use
+// keys are scoped TO THIS NETWORK — a plan elsewhere in the document may use
 // the same names for entirely different geometry. A reader that flattens every
 // id into one document-wide map silently merges unrelated things.
 type Network struct {
@@ -24,7 +24,7 @@ type Network struct {
 	Data       []Record
 }
 
-// Highlight is a walk over arcs the network owns. Unlike a Route, its geometry is
+// Highlight is a walk over arcs the network owns. Unlike a Plan, its geometry is
 // BY REFERENCE — two highlights crossing the same trail name the same arc, and
 // that sharing is the whole reason this format exists.
 type Highlight struct {
@@ -74,7 +74,7 @@ func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Di
 	return out, diags
 }
 
-// decodeNodes reads a network's or a route's `nodes`. A node that will not
+// decodeNodes reads a network's or a plan's `nodes`. A node that will not
 // parse is dropped (§6.2); an arc naming it is then dropped under
 // arc-node-absent, so the loss surfaces on everything that depended on it.
 func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Vertex, []Diagnostic) {
@@ -110,7 +110,7 @@ func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Vertex, []D
 	return nodes, diags
 }
 
-// decodeArcs reads a network's or a route's `arcs`.
+// decodeArcs reads a network's or a plan's `arcs`.
 //
 // ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
 // the highlight is dropped when its walk is read, under pass-arc-absent, with a

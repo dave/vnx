@@ -99,12 +99,12 @@ public enum Cause: String, Sendable, CaseIterable {
   case arcPipTime
   /// An arc whose `from` and `to` name one node (SPEC 3.3.2). The arc goes.
   case selfLoopArc
-  /// An arc naming a node its network or route does not have (SPEC 3.3.2).
+  /// An arc naming a node its network or plan does not have (SPEC 3.3.2).
   /// The arc goes.
   case arcNodeAbsent
   /// A pass that is not an object, or that names no arc of its network or
-  /// route — including an arc another rule dropped (SPEC 3.3.3). The highlight
-  /// goes; in a route, the route.
+  /// plan — including an arc another rule dropped (SPEC 3.3.3). The highlight
+  /// goes; in a plan, the plan.
   case passArcAbsent
   /// A walk that breaks SPEC 3.3.3's rule for where `from` and `to` appear.
   case walkSpelling
@@ -112,9 +112,9 @@ public enum Cause: String, Sendable, CaseIterable {
   case walkNotConnected
   /// A pass carrying both `turn` and `pin` (SPEC 3.3.3).
   case pinnedTurn
-  /// A position, a `turn` or a `pin` in a route's walk (SPEC 3.4). The route
+  /// A position, a `turn` or a `pin` in a plan's walk (SPEC 3.4). The plan
   /// goes.
-  case routePinOrPosition
+  case planPinOrPosition
   /// A `folder` or `parent` naming a folder that is not in the document.
   case folderNotPresent
   /// An attachment that cannot be recovered. The attachment goes and the
@@ -152,7 +152,7 @@ public enum Cause: String, Sendable, CaseIterable {
     .walkSpelling: "walk-spelling",
     .walkNotConnected: "walk-not-connected",
     .pinnedTurn: "pinned-turn",
-    .routePinOrPosition: "route-pin-or-position",
+    .planPinOrPosition: "plan-pin-or-position",
     .polygonNestedRings: "polygon-nested-rings",
     .ringClosed: "ring-closed",
     .ringTooFewPoints: "ring-too-few-points",

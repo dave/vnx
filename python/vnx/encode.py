@@ -26,7 +26,7 @@ from .model import (
     Network,
     Pass,
     Position,
-    Route,
+    Plan,
     Segment,
     Track,
     Waypoint,
@@ -138,12 +138,12 @@ def _pass(p: Pass) -> JSONValue:
 
 
 def _walk(
-    walk: Union[list[Pass], None], arcs: dict[str, Arc], route: bool, owner: str
+    walk: Union[list[Pass], None], arcs: dict[str, Arc], plan: bool, owner: str
 ) -> Union[list[JSONValue], None]:
     """A walk, checked first: a writer never emits one its own reader drops."""
     if walk is None:
         return None
-    fault = W.check_walk(walk, arcs, route)
+    fault = W.check_walk(walk, arcs, plan)
     if fault is not None:
         raise ValueError(f"{owner}: {fault.describe()} (SPEC 3.3.3)")
     return [_pass(p) for p in walk]
@@ -168,7 +168,7 @@ def _graph(
     arcs: Union[dict[str, Arc], None],
     owner: str,
 ) -> None:
-    """The `nodes` and `arcs` a network and a route share (SPEC 3.4)."""
+    """The `nodes` and `arcs` a network and a plan share (SPEC 3.4)."""
     problem = W.check_arcs(nodes or {}, arcs or {})
     if problem is not None:
         raise ValueError(f"{owner}: {problem} (SPEC 3.3.2)")
@@ -201,14 +201,14 @@ def _network(network: Network) -> JSONValue:
     return obj
 
 
-def _route(route: Route) -> JSONValue:
+def _plan(plan: Plan) -> JSONValue:
     obj: dict[str, JSONValue] = {}
-    owner = f"route {route.name!r}"
-    _common(obj, route)
-    _put(obj, "style", route.style)
-    _graph(obj, route.nodes, route.arcs, owner)
-    _put(obj, "walk", _walk(route.walk, route.arcs or {}, True, owner))
-    _put(obj, "data", _records(route.data))
+    owner = f"plan {plan.name!r}"
+    _common(obj, plan)
+    _put(obj, "style", plan.style)
+    _graph(obj, plan.nodes, plan.arcs, owner)
+    _put(obj, "walk", _walk(plan.walk, plan.arcs or {}, True, owner))
+    _put(obj, "data", _records(plan.data))
     return obj
 
 
@@ -238,8 +238,8 @@ def encode_document(document: Document) -> JSONValue:
         obj["folders"] = [_folder(item) for item in document.folders]
     if document.networks is not None:
         obj["networks"] = [_network(item) for item in document.networks]
-    if document.routes is not None:
-        obj["routes"] = [_route(item) for item in document.routes]
+    if document.plans is not None:
+        obj["plans"] = [_plan(item) for item in document.plans]
     if document.tracks is not None:
         obj["tracks"] = [_track(item) for item in document.tracks]
     if document.waypoints is not None:

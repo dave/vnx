@@ -126,7 +126,7 @@ class CorpusTest {
         val actual = LinkedHashMap<String, Int>()
         actual["folders"] = document.folders?.size ?: 0
         actual["networks"] = document.networks?.size ?: 0
-        actual["routes"] = document.routes?.size ?: 0
+        actual["plans"] = document.plans?.size ?: 0
         actual["tracks"] = document.tracks?.size ?: 0
         actual["waypoints"] = document.waypoints?.size ?: 0
         actual["areas"] = document.areas?.size ?: 0
@@ -161,9 +161,9 @@ class CorpusTest {
      * `positions` uses.
      *
      * IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL COLLECTIONS. A
-     * reader that dropped every route's arcs, or truncated an arc's pips, or
+     * reader that dropped every plan's arcs, or truncated an arc's pips, or
      * lost every highlight in a network, changed nothing a sidecar could see: the
-     * document still carried one route, one network, one track. The accept tier
+     * document still carried one plan, one network, one track. The accept tier
      * catches that through its decode-encode-compare, but section 8.1 exempts
      * the diagnose tier from the round trip — which is exactly the tier where a
      * reader is supposed to drop something in a SCOPED way, and where dropping
@@ -198,11 +198,11 @@ class CorpusTest {
             out["/networks/$i/areas"] = network.areas?.size ?: 0
             network.areas?.forEachIndexed { j, area -> out["/networks/$i/areas/$j/polygon"] = area.polygon.size }
         }
-        document.routes?.forEachIndexed { i, route ->
-            out["/routes/$i/nodes"] = route.nodes?.size ?: 0
-            out["/routes/$i/arcs"] = route.arcs?.size ?: 0
-            route.arcs?.forEach { (key, arc) -> out["/routes/$i/arcs/$key/pips"] = arc.pips.size }
-            out["/routes/$i/walk"] = route.walk.size
+        document.plans?.forEachIndexed { i, plan ->
+            out["/plans/$i/nodes"] = plan.nodes?.size ?: 0
+            out["/plans/$i/arcs"] = plan.arcs?.size ?: 0
+            plan.arcs?.forEach { (key, arc) -> out["/plans/$i/arcs/$key/pips"] = arc.pips.size }
+            out["/plans/$i/walk"] = plan.walk.size
         }
         document.tracks?.forEachIndexed { i, track ->
             out["/tracks/$i/segments"] = track.segments.size

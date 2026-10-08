@@ -61,7 +61,7 @@ final class DocumentDecoder {
 
     document.folders = optionalItems(top, "folders", at: "", decode: decodeFolder)
     document.networks = optionalItems(top, "networks", at: "", decode: decodeNetwork)
-    document.routes = optionalItems(top, "routes", at: "", decode: decodeRoute)
+    document.plans = optionalItems(top, "plans", at: "", decode: decodePlan)
     document.tracks = optionalItems(top, "tracks", at: "", decode: decodeTrack)
     document.waypoints = optionalItems(top, "waypoints", at: "") { v, p in
       self.decodeWaypoint(v, at: p, shape: Keys.waypoint, allowsFolder: true)
@@ -277,25 +277,25 @@ final class DocumentDecoder {
     return positions
   }
 
-  private func decodeRoute(_ value: JSONValue, at path: String) -> Route? {
-    guard let o = object(value, at: path, what: "a route") else { return nil }
-    report(unknownKeysIn: o, against: Keys.route, at: path)
-    var route = Route(walk: [])
-    route.nodes = decodeNodes(o, at: path)
-    route.arcs = decodeArcs(o, at: path, nodes: route.nodes ?? [:])
-    route.name = optionalString(o, "name", at: path)
-    route.notes = optionalString(o, "notes", at: path)
-    route.folder = optionalString(o, "folder", at: path)
-    route.hidden = optionalBool(o, "hidden", at: path)
-    route.style = style(o, at: path)
-    route.data = dataRecords(o, at: path)
-    // SPEC 3.4: where a highlight would be dropped, the route is. It IS the
+  private func decodePlan(_ value: JSONValue, at path: String) -> Plan? {
+    guard let o = object(value, at: path, what: "a plan") else { return nil }
+    report(unknownKeysIn: o, against: Keys.plan, at: path)
+    var plan = Plan(walk: [])
+    plan.nodes = decodeNodes(o, at: path)
+    plan.arcs = decodeArcs(o, at: path, nodes: plan.nodes ?? [:])
+    plan.name = optionalString(o, "name", at: path)
+    plan.notes = optionalString(o, "notes", at: path)
+    plan.folder = optionalString(o, "folder", at: path)
+    plan.hidden = optionalBool(o, "hidden", at: path)
+    plan.style = style(o, at: path)
+    plan.data = dataRecords(o, at: path)
+    // SPEC 3.4: where a highlight would be dropped, the plan is. It IS the
     // highlight.
-    guard let walk = decodeWalk(o, at: path, arcs: route.arcs ?? [:], route: true) else {
+    guard let walk = decodeWalk(o, at: path, arcs: plan.arcs ?? [:], plan: true) else {
       return nil
     }
-    route.walk = walk
-    return route
+    plan.walk = walk
+    return plan
   }
 
   private func decodeTrack(_ value: JSONValue, at path: String) -> Track? {
@@ -365,7 +365,7 @@ final class DocumentDecoder {
     return network
   }
 
-  /// A network's or a route's `nodes`. A node that will not parse is dropped
+  /// A network's or a plan's `nodes`. A node that will not parse is dropped
   /// (SPEC 6.2), and each arc naming it then goes under `arcNodeAbsent`.
   private func decodeNodes(_ o: [JSONKey: JSONValue], at path: String) -> [JSONKey: Vertex]? {
     guard let raw = o["nodes"] else { return nil }
@@ -391,7 +391,7 @@ final class DocumentDecoder {
     return nodes
   }
 
-  /// A network's or a route's `arcs`, checked against the nodes that
+  /// A network's or a plan's `arcs`, checked against the nodes that
   /// survived.
   private func decodeArcs(_ o: [JSONKey: JSONValue], at path: String, nodes: [JSONKey: Vertex])
     -> [JSONKey: Arc]?
@@ -460,12 +460,12 @@ final class DocumentDecoder {
     highlight.hidden = optionalBool(o, "hidden", at: path)
     highlight.style = style(o, at: path)
     highlight.data = dataRecords(o, at: path)
-    guard let walk = decodeWalk(o, at: path, arcs: arcs, route: false) else { return nil }
+    guard let walk = decodeWalk(o, at: path, arcs: arcs, plan: false) else { return nil }
     highlight.walk = walk
     return highlight
   }
 
-  /// Reads a highlight's or a route's REQUIRED `walk`, and checks it in SPEC
+  /// Reads a highlight's or a plan's REQUIRED `walk`, and checks it in SPEC
   /// 6.2's order. Nil means the owner is dropped: a missing or wrong-typed
   /// `walk`, or the first pass that breaks a rule, which is reported alone —
   /// nothing after it in the walk is examined.
@@ -476,10 +476,10 @@ final class DocumentDecoder {
   /// a node — so any fault drops the owner, and the diagnostic names the pass
   /// and the rule.
   private func decodeWalk(
-    _ o: [JSONKey: JSONValue], at owner: String, arcs: [JSONKey: Arc], route: Bool
+    _ o: [JSONKey: JSONValue], at owner: String, arcs: [JSONKey: Arc], plan: Bool
   ) -> [Pass]? {
     let walkPath = pointer(owner, "walk")
-    let ownerName = route ? "route" : "highlight"
+    let ownerName = plan ? "plan" : "highlight"
     guard let raw = o["walk"] else {
       diagnose(
         .wrongTypeRequired, at: walkPath,
@@ -498,7 +498,7 @@ final class DocumentDecoder {
       diagnose(f.cause, at: at, "\(f.message); the \(ownerName) was dropped")
       return nil
     }
-    var cursor = WalkCursor(last: items.count - 1, route: route)
+    var cursor = WalkCursor(last: items.count - 1, plan: plan)
     var walk: [Pass] = []
     for (i, item) in items.enumerated() {
       let passPath = "\(walkPath)/\(i)"
@@ -549,7 +549,7 @@ final class DocumentDecoder {
         default: pass.pin = at
         }
       }
-      // 4 to 7: a route's rule, pin and turn, spelling, connection.
+      // 4 to 7: a plan's rule, pin and turn, spelling, connection.
       do {
         _ = try cursor.step(i, pass, arc: arc)
       } catch let fault as WalkFault {
@@ -589,9 +589,9 @@ final class DocumentDecoder {
       document.networks![i].folder = check(
         document.networks![i].folder, at: "/networks/\(i)", key: "folder")
     }
-    for i in document.routes?.indices ?? [].indices {
-      document.routes![i].folder = check(
-        document.routes![i].folder, at: "/routes/\(i)", key: "folder")
+    for i in document.plans?.indices ?? [].indices {
+      document.plans![i].folder = check(
+        document.plans![i].folder, at: "/plans/\(i)", key: "folder")
     }
     for i in document.tracks?.indices ?? [].indices {
       document.tracks![i].folder = check(

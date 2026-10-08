@@ -56,7 +56,7 @@ object ModelPointer {
                 when (token) {
                     "folders" -> value.folders
                     "networks" -> value.networks
-                    "routes" -> value.routes
+                    "plans" -> value.plans
                     "tracks" -> value.tracks
                     "waypoints" -> value.waypoints
                     "areas" -> value.areas
@@ -83,7 +83,7 @@ object ModelPointer {
                     "pin" -> value.pin
                     else -> null
                 }
-            is Route ->
+            is Plan ->
                 when (token) {
                     "nodes" -> value.nodes
                     "arcs" -> value.arcs

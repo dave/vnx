@@ -10,7 +10,7 @@ import (
 )
 
 // The fixture holds one of nearly everything: an area, a network and an
-// application key (none of which GPX can carry), plus a waypoint, a route and a track (all of
+// application key (none of which GPX can carry), plus a waypoint, a plan and a track (all of
 // which it can). Converting it therefore exercises BOTH halves of §2.2 —
 // "write what fits" and "diagnose the rest" — in one run, which a fixture of
 // only-supported or only-unsupported items could not.

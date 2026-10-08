@@ -72,9 +72,9 @@ pub enum Cause {
     /// SPEC 3.3.3: a pass carrying both `turn` and `pin`. The highlight is
     /// dropped.
     PinnedTurn,
-    /// SPEC 3.4: a position, a `turn` or a `pin` in a route's walk. The route
+    /// SPEC 3.4: a position, a `turn` or a `pin` in a plan's walk. The plan
     /// is dropped.
-    RoutePinOrPosition { detail: String },
+    PlanPinOrPosition { detail: String },
     /// SPEC 3.7: a `polygon` holding rings rather than positions. The area is
     /// dropped.
     PolygonNestedRings,
@@ -149,7 +149,7 @@ impl Cause {
             Cause::WalkSpelling { .. } => "walk-spelling",
             Cause::WalkNotConnected { .. } => "walk-not-connected",
             Cause::PinnedTurn => "pinned-turn",
-            Cause::RoutePinOrPosition { .. } => "route-pin-or-position",
+            Cause::PlanPinOrPosition { .. } => "plan-pin-or-position",
             Cause::PolygonNestedRings => "polygon-nested-rings",
             Cause::RingClosed => "ring-closed",
             Cause::RingTooFewPoints { .. } => "ring-too-few-points",
@@ -199,7 +199,7 @@ impl std::fmt::Display for Cause {
             ),
             Cause::ArcNodeAbsent { node } => write!(
                 f,
-                "the node `{node}` is not in this network or route, so the arc is dropped"
+                "the node `{node}` is not in this network or plan, so the arc is dropped"
             ),
             Cause::PassArcAbsent { detail } => write!(f, "{detail}; the highlight is dropped"),
             Cause::WalkSpelling { detail } => write!(f, "{detail}; the highlight is dropped"),
@@ -209,8 +209,8 @@ impl std::fmt::Display for Cause {
                 "a pass with a turn carries no pin, because the turn already fixes it; \
                  the highlight is dropped"
             ),
-            Cause::RoutePinOrPosition { detail } => {
-                write!(f, "{detail}; the route is dropped")
+            Cause::PlanPinOrPosition { detail } => {
+                write!(f, "{detail}; the plan is dropped")
             }
             Cause::PolygonNestedRings => write!(
                 f,
@@ -385,7 +385,7 @@ mod tests {
             Cause::WalkSpelling { detail: text() },
             Cause::WalkNotConnected { detail: text() },
             Cause::PinnedTurn,
-            Cause::RoutePinOrPosition { detail: text() },
+            Cause::PlanPinOrPosition { detail: text() },
             Cause::PolygonNestedRings,
             Cause::RingClosed,
             Cause::RingTooFewPoints { distinct: 2 },
@@ -415,7 +415,7 @@ mod tests {
         "walk-spelling",
         "walk-not-connected",
         "pinned-turn",
-        "route-pin-or-position",
+        "plan-pin-or-position",
         "polygon-nested-rings",
         "ring-closed",
         "ring-too-few-points",

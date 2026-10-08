@@ -31,7 +31,7 @@ class AcceptTierTest {
                 d.copy(
                     waypoints = d.waypoints?.map { it.copy(data = null) },
                     tracks = d.tracks?.map { it.copy(data = null) },
-                    routes = d.routes?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
+                    plans = d.plans?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
                     networks =
                         d.networks?.map { n ->
                             n.copy(
@@ -50,7 +50,7 @@ class AcceptTierTest {
                     waypoints = d.waypoints?.map { it.copy(style = null) },
                     areas = d.areas?.map { it.copy(style = null) },
                     tracks = d.tracks?.map { it.copy(style = null) },
-                    routes = d.routes?.map { it.copy(style = null) },
+                    plans = d.plans?.map { it.copy(style = null) },
                     networks =
                         d.networks?.map { n ->
                             n.copy(
@@ -66,7 +66,7 @@ class AcceptTierTest {
                     waypoints = d.waypoints?.map { it.copy(notes = null) },
                     areas = d.areas?.map { it.copy(notes = null) },
                     tracks = d.tracks?.map { it.copy(notes = null) },
-                    routes = d.routes?.map { it.copy(notes = null) },
+                    plans = d.plans?.map { it.copy(notes = null) },
                     networks =
                         d.networks?.map { n ->
                             n.copy(notes = null, highlights = n.highlights?.map { it.copy(notes = null) })

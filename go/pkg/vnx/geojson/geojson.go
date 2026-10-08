@@ -50,7 +50,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 	f.waypoints(d)
 	f.areas(d)
 	f.tracks(d)
-	f.routes(d)
+	f.plans(d)
 	f.networks(d)
 	f.diags = append(f.diags, vnx.AppKeyDiagnostics(d, "GeoJSON")...)
 
@@ -152,8 +152,8 @@ func (f *features) folders(d *vnx.Document) {
 	for i := range d.Tracks {
 		mark(d.Tracks[i].Folder)
 	}
-	for i := range d.Routes {
-		mark(d.Routes[i].Folder)
+	for i := range d.Plans {
+		mark(d.Plans[i].Folder)
 	}
 	for i := range d.Networks {
 		mark(d.Networks[i].Folder)
@@ -240,18 +240,18 @@ func (f *features) tracks(d *vnx.Document) {
 	}
 }
 
-func (f *features) routes(d *vnx.Document) {
-	for i := range d.Routes {
-		r := &d.Routes[i]
-		at := fmt.Sprintf("/routes/%d", i)
+func (f *features) plans(d *vnx.Document) {
+	for i := range d.Plans {
+		r := &d.Plans[i]
+		at := fmt.Sprintf("/plans/%d", i)
 		line, err := vnx.WalkLine(r.Nodes, r.Arcs, r.Walk)
 		if err != nil {
-			f.fail(fmt.Errorf("geojson: route %q: %w", r.Name, err))
+			f.fail(fmt.Errorf("geojson: plan %q: %w", r.Name, err))
 			return
 		}
 		if len(line) < 2 {
 			f.warn(vnx.CodeItemNoGeometry, at, []string{r.Name},
-				fmt.Sprintf("route has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(r.Walk)))
+				fmt.Sprintf("plan has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(r.Walk)))
 			continue
 		}
 		f.begin(f.flatName(d, at, r.Folder, r.Name), r.Notes)

@@ -61,7 +61,7 @@ func normaliseDocument(v any, opt treeOptions) any {
 	normItems(out, "waypoints", opt, normWaypoint)
 	normItems(out, "areas", opt, normArea)
 	normItems(out, "tracks", opt, normTrack)
-	normItems(out, "routes", opt, normRoute)
+	normItems(out, "plans", opt, normPlan)
 	normItems(out, "networks", opt, normNetwork)
 	// Application keys are not touched: SPEC §3.9 exempts them from §8.1's
 	// absent-equals-empty normalisation, so an empty value is compared as
@@ -95,7 +95,7 @@ func normTrack(o map[string]any, opt treeOptions) {
 	dropEmptyContainer(o, "data")
 }
 
-func normRoute(o map[string]any, opt treeOptions) {
+func normPlan(o map[string]any, opt treeOptions) {
 	normGraph(o, opt)
 	normWalk(o, opt)
 	dropEmptyContainer(o, "style")
@@ -107,8 +107,8 @@ func normArc(o map[string]any, opt treeOptions) {
 	dropEmptyContainer(o, "data")
 }
 
-// normGraph normalises the `nodes` and `arcs` a network and a route share
-// (SPEC §3.4: a route owns a graph of the network's shape).
+// normGraph normalises the `nodes` and `arcs` a network and a plan share
+// (SPEC §3.4: a plan owns a graph of the network's shape).
 func normGraph(o map[string]any, opt treeOptions) {
 	if nodes, ok := o["nodes"].(map[string]any); ok {
 		out := copyObject(nodes)

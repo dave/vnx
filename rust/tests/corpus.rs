@@ -1084,10 +1084,7 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
         "networks".into(),
         document.networks.as_ref().map_or(0, Vec::len),
     );
-    got.insert(
-        "routes".into(),
-        document.routes.as_ref().map_or(0, Vec::len),
-    );
+    got.insert("plans".into(), document.plans.as_ref().map_or(0, Vec::len));
     got.insert(
         "tracks".into(),
         document.tracks.as_ref().map_or(0, Vec::len),
@@ -1142,7 +1139,7 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
 /// `positions` uses.
 ///
 /// ⚠ IT EXISTS BECAUSE `counts` COUNTED ONLY THE TOP-LEVEL ARRAYS. A reader
-/// that dropped every route's arcs, or truncated an arc's pips, or lost every
+/// that dropped every plan's arcs, or truncated an arc's pips, or lost every
 /// highlight in a network, changed nothing a sidecar could see in the diagnose
 /// tier, which SPEC 8.1 exempts from the round-trip comparison. Measured: a
 /// dangling link taking the rest of its highlight with it passed the whole corpus
@@ -1200,22 +1197,22 @@ fn container_counts_by_pointer(document: &Document) -> BTreeMap<String, usize> {
             );
         }
     }
-    for (i, route) in document.routes.iter().flatten().enumerate() {
+    for (i, plan) in document.plans.iter().flatten().enumerate() {
         out.insert(
-            format!("/routes/{i}/nodes"),
-            route.nodes.as_ref().map_or(0, Vec::len),
+            format!("/plans/{i}/nodes"),
+            plan.nodes.as_ref().map_or(0, Vec::len),
         );
         out.insert(
-            format!("/routes/{i}/arcs"),
-            route.arcs.as_ref().map_or(0, Vec::len),
+            format!("/plans/{i}/arcs"),
+            plan.arcs.as_ref().map_or(0, Vec::len),
         );
-        for (key, arc) in route.arcs.iter().flatten() {
+        for (key, arc) in plan.arcs.iter().flatten() {
             out.insert(
-                format!("/routes/{i}/arcs/{}/pips", escape(key)),
+                format!("/plans/{i}/arcs/{}/pips", escape(key)),
                 arc.pips.len(),
             );
         }
-        out.insert(format!("/routes/{i}/walk"), route.walk.len());
+        out.insert(format!("/plans/{i}/walk"), plan.walk.len());
     }
     for (i, track) in document.tracks.iter().flatten().enumerate() {
         out.insert(format!("/tracks/{i}/segments"), track.segments.len());
@@ -1397,9 +1394,9 @@ fn resolve_position(document: &Document, pointer: &str) -> Option<(f64, f64)> {
             index(3)?,
         ),
         "tracks" => track_pip(document.tracks.as_ref()?.get(index(1)?)?, &tokens),
-        "routes" => {
-            let route = document.routes.as_ref()?.get(index(1)?)?;
-            graph_position(&route.nodes, &route.arcs, &tokens)
+        "plans" => {
+            let plan = document.plans.as_ref()?.get(index(1)?)?;
+            graph_position(&plan.nodes, &plan.arcs, &tokens)
         }
         "networks" => network_position(document.networks.as_ref()?.get(index(1)?)?, &tokens),
         _ => None,
@@ -1434,7 +1431,7 @@ fn track_pip(track: &Track, tokens: &[String]) -> Option<(f64, f64)> {
         .map(lon_lat)
 }
 
-/// A node or an arc pip of a network or a route, keyed by its own key:
+/// A node or an arc pip of a network or a plan, keyed by its own key:
 /// `/…/nodes/KEY` or `/…/arcs/KEY/pips/P`.
 fn graph_position(
     nodes: &Option<Vec<(String, Vertex)>>,

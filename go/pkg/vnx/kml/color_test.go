@@ -64,7 +64,7 @@ func TestColorIsNotJustAlphaPrependedToTheHex(t *testing.T) {
 // An unusable colour must omit the whole <Style>, never substitute one. A
 // defaulted colour is a silent lie about what the user chose.
 func TestUnusableColourOmitsTheStyleRatherThanDefaultingIt(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Routes: []vnx.Route{route(vnx.Route{
+	out, _ := writeDoc(t, &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{
 		Name:  "Ridge",
 		Style: vnx.Style{"color": "not-a-colour"}},
 		lineArc{Pips: []vnx.Position{pos(-3, 57), pos(-3.1, 57.1)}},

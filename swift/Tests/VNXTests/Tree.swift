@@ -72,7 +72,7 @@ enum Tree {
     normItems(&obj, "waypoints", o, normWaypoint)
     normItems(&obj, "areas", o, normArea)
     normItems(&obj, "tracks", o, normTrack)
-    normItems(&obj, "routes", o, normRoute)
+    normItems(&obj, "plans", o, normPlan)
     normItems(&obj, "networks", o, normNetwork)
     // Application keys are not touched: SPEC 3.9 exempts them from SPEC
     // 8.1's absent-equals-empty normalisation, so an empty or `null` value
@@ -102,7 +102,7 @@ enum Tree {
     dropEmptyContainer(&o, "data")
   }
 
-  private static func normRoute(_ o: inout OpaqueObject, _ opt: Options) {
+  private static func normPlan(_ o: inout OpaqueObject, _ opt: Options) {
     normGraph(&o, opt)
     normWalk(&o, opt)
     dropEmptyContainer(&o, "style")
@@ -114,7 +114,7 @@ enum Tree {
     dropEmptyContainer(&o, "data")
   }
 
-  /// The `nodes` and `arcs` a network and a route share (SPEC 3.4: a route
+  /// The `nodes` and `arcs` a network and a plan share (SPEC 3.4: a plan
   /// owns a graph of the network's shape).
   private static func normGraph(_ o: inout OpaqueObject, _ opt: Options) {
     if let nodes = o["nodes"]?.objectValue {

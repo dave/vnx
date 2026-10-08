@@ -54,7 +54,7 @@ export function normaliseDocument(v, opt = {}) {
   normItems(out, 'waypoints', opt, normWaypoint);
   normItems(out, 'areas', opt, normArea);
   normItems(out, 'tracks', opt, normTrack);
-  normItems(out, 'routes', opt, normRoute);
+  normItems(out, 'plans', opt, normPlan);
   normItems(out, 'networks', opt, normNetwork);
   // Application keys are not touched: SPEC.md 3.9 exempts them from 8.1's
   // absent-equals-empty normalisation, so an empty or null value is compared
@@ -84,7 +84,7 @@ function normTrack(o, opt) {
   dropEmptyContainer(o, 'data');
 }
 
-function normRoute(o, opt) {
+function normPlan(o, opt) {
   normGraph(o, opt);
   normWalk(o, opt);
   dropEmptyContainer(o, 'style');
@@ -104,7 +104,7 @@ function normNetwork(o, opt) {
   dropEmptyContainer(o, 'data');
 }
 
-/** A network's or a route's `nodes` and `arcs`, which are objects keyed by id. */
+/** A network's or a plan's `nodes` and `arcs`, which are objects keyed by id. */
 function normGraph(o, opt) {
   if (isObject(o.nodes)) {
     const nodes = { ...o.nodes };

@@ -6,19 +6,19 @@ import (
 	"github.com/dave/vnx/go/pkg/vnx"
 )
 
-// lineArc is one arc of a test route written as its whole line, first point
-// to last, so a fixture reads the way the route is walked.
+// lineArc is one arc of a test plan written as its whole line, first point
+// to last, so a fixture reads the way the plan is walked.
 type lineArc struct {
 	Pips []vnx.Position
 	Data []vnx.Record
 }
 
-// route gives r the graph and walk its lines make (SPEC §3.4): a node at each
+// plan gives r the graph and walk its lines make (SPEC §3.4): a node at each
 // end of each line, the interior points as the arc's pips, and a walk from the
 // first line's start to the last line's end. A line that starts where the
 // previous one ended shares its node; one that does not starts a node of its
 // own, and the walk then does not join, which the writers must refuse.
-func route(r vnx.Route, arcs ...lineArc) vnx.Route {
+func plan(r vnx.Plan, arcs ...lineArc) vnx.Plan {
 	r.Nodes = map[string]vnx.Vertex{}
 	r.Arcs = map[string]vnx.Arc{}
 	r.Walk = []vnx.Pass{}
@@ -76,7 +76,7 @@ func brokenWalks() map[string]*vnx.Document {
 		"a highlight naming an absent arc":                  highlight(vnx.Pass{Arc: "ghost", From: at("a"), To: at("b")}),
 		"a highlight entering at a node that is not an end": highlight(vnx.Pass{Arc: "bc", From: at("a"), To: at("c")}),
 		"a highlight that does not join":                    highlight(vnx.Pass{Arc: "ab", From: at("b")}, vnx.Pass{Arc: "bc", To: at("c")}),
-		"a route that does not join": {Routes: []vnx.Route{{Name: "Broken", Nodes: nodes(), Arcs: arcs(),
+		"a plan that does not join": {Plans: []vnx.Plan{{Name: "Broken", Nodes: nodes(), Arcs: arcs(),
 			Walk: []vnx.Pass{{Arc: "ab", From: at("b")}, {Arc: "bc", To: at("c")}}}}},
 		"an arc naming an absent node": {Networks: []vnx.Network{{Name: "Net", Nodes: nodes(),
 			Arcs: map[string]vnx.Arc{"ax": {From: "a", To: "x"}}}}},

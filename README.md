@@ -36,11 +36,11 @@ catches.
 
 A network owns its graph: `nodes` and `arcs` keyed by identifier, with `highlights`
 walking those arcs by reference. That reference is the construct GPX, KML and
-GeoJSON cannot express. A top-level route owns a graph of the same shape and
+GeoJSON cannot express. A top-level plan owns a graph of the same shape and
 carries one walk over it.
 
 The full [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx)
-shows the rest: folders, routes, tracks, waypoints, areas and styling. To check a
+shows the rest: folders, plans, tracks, waypoints, areas and styling. To check a
 file of your own:
 
 ```sh

@@ -25,7 +25,7 @@
       ]
     }
   ],
-  "routes": [
+  "plans": [
     {
       "name": "no arcs",
       "walk": []

@@ -271,8 +271,8 @@ extension Document {
         next() == "polygon", let k = index(), list[i].polygon.indices.contains(k)
       else { return nil }
       return list[i].polygon[k]
-    case "routes":
-      guard let i = index(), let list = routes, list.indices.contains(i) else { return nil }
+    case "plans":
+      guard let i = index(), let list = plans, list.indices.contains(i) else { return nil }
       return graphPosition(nodes: list[i].nodes, arcs: list[i].arcs, next: next, index: index)
     case "tracks":
       guard let i = index(), let list = tracks, list.indices.contains(i), next() == "segments",
@@ -324,7 +324,7 @@ extension Document {
     }
   }
 
-  /// A node, or an arc pip, of a network or a route: `nodes/<key>` or
+  /// A node, or an arc pip, of a network or a plan: `nodes/<key>` or
   /// `arcs/<key>/pips/<index>`. Both owners hold a graph of one shape (SPEC
   /// 3.4), so one resolver serves both.
   private func graphPosition(
@@ -350,7 +350,7 @@ extension Document {
     [
       "folders": folders?.count ?? 0,
       "networks": networks?.count ?? 0,
-      "routes": routes?.count ?? 0,
+      "plans": plans?.count ?? 0,
       "tracks": tracks?.count ?? 0,
       "waypoints": waypoints?.count ?? 0,
       "areas": areas?.count ?? 0,
@@ -362,9 +362,9 @@ extension Document {
   /// `positions` uses.
   ///
   /// It exists because `counts` counted only the top-level collections.
-  /// A reader that dropped every route's arcs, truncated an arc's pips, or
+  /// A reader that dropped every plan's arcs, truncated an arc's pips, or
   /// lost a pass of a highlight's walk changed nothing a sidecar could see: the document
-  /// still carried one route, one network, one track. That matters most in
+  /// still carried one plan, one network, one track. That matters most in
   /// the DIAGNOSE tier, which SPEC 8.1 exempts from the round-trip — exactly
   /// the tier where a reader is meant to drop something in a SCOPED way, and
   /// where an unscoped drop was measured to pass the whole corpus green.
@@ -404,13 +404,13 @@ extension Document {
         out["/networks/\(i)/areas/\(j)/polygon"] = area.polygon.count
       }
     }
-    for (i, route) in (routes ?? []).enumerated() {
-      out["/routes/\(i)/nodes"] = route.nodes?.count ?? 0
-      out["/routes/\(i)/arcs"] = route.arcs?.count ?? 0
-      for (key, arc) in route.arcs ?? [:] {
-        out["/routes/\(i)/arcs/\(key)/pips"] = arc.pips.count
+    for (i, plan) in (plans ?? []).enumerated() {
+      out["/plans/\(i)/nodes"] = plan.nodes?.count ?? 0
+      out["/plans/\(i)/arcs"] = plan.arcs?.count ?? 0
+      for (key, arc) in plan.arcs ?? [:] {
+        out["/plans/\(i)/arcs/\(key)/pips"] = arc.pips.count
       }
-      out["/routes/\(i)/walk"] = route.walk.count
+      out["/plans/\(i)/walk"] = plan.walk.count
     }
     for (i, track) in (tracks ?? []).enumerated() {
       out["/tracks/\(i)/segments"] = track.segments.count

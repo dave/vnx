@@ -1,6 +1,6 @@
 # VNX Wire Format Specification
 
-Version 0.10.0
+Version 0.10.1
 
 ## Abstract
 
@@ -182,7 +182,7 @@ one highlight whose walk is a single pass over that arc from `node-1` to `node-2
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.10.0` |
+| Current version | `0.10.1` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document

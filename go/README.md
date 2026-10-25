@@ -133,6 +133,7 @@ Everything below is in `package vnx`.
 | Call | Arguments | Returns |
 |---|---|---|
 | `Decode` | `data []byte` | `*Document`, `[]Diagnostic`, `error` |
+| `DecodeReader` | `r io.Reader` | `*Document`, `[]Diagnostic`, `error` |
 | `Encode` | `doc *Document` | `[]byte`, `error` |
 | `EncodeTo` | `w io.Writer`, `doc *Document` | `error` |
 | `DecodeContainer` | `r io.ReaderAt`, `size int64` | `*Container`, `[]Diagnostic`, `error` |
@@ -153,7 +154,10 @@ slice or map as a value, before it writes anything. `Container` holds a
 `*Document` and the files stored beside it, each a `ContainerAttachment` with a
 `Path` and its `Bytes` — the same shape the JavaScript, Rust and Swift
 implementations return. `EncodeTo` streams, so a document is never held in
-memory twice.
+memory twice. `DecodeReader` streams too: it reads token by token and keeps
+only the `Document`, so a file is never held whole or as a JSON tree. `Decode`
+is `DecodeReader` over its bytes, and `DecodeContainer` streams the root
+document out of the archive.
 
 `ContainerAttachment` (read) and `Attachment` (write) are separate types on
 purpose. The reader has the whole file; the writer takes a `Name` and an
@@ -169,7 +173,8 @@ number of items the format kept.
 Refusal and diagnostics are separate channels ([`SPEC §6.2`](../SPEC.md#62-error-handling),
 [`§6.3`](../SPEC.md#63-diagnostics)). An error from `Decode` means the document
 was refused and none is returned; diagnostics mean it was read, with something
-reported along the way.
+reported along the way. An error from the reader given to `DecodeReader` is returned
+as it is, so a failed read or a cancelled context is not `ErrMalformed`.
 
 Refusals are Go errors, matched with `errors.Is` against four sentinels:
 `ErrMalformed` for bytes that are not JSON, `ErrNotVNX` for JSON carrying no

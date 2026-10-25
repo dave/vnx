@@ -1,9 +1,6 @@
 package vnx
 
-import (
-	"fmt"
-	"sort"
-)
+import "fmt"
 
 // Network is the graph: nodes and arcs that highlights walk.
 //
@@ -43,108 +40,58 @@ var (
 	arcKeys       = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
 )
 
-func decodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Diagnostic) {
-	out := make([]Network, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("network is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		var n Network
-		n.Folder, diags = stringField(obj, "folder", diags)
-		n.Name, diags = stringField(obj, "name", diags)
-		n.Notes, diags = stringField(obj, "notes", diags)
-		n.Hidden, diags = boolField(obj, "hidden", at, diags)
-		n.Nodes, diags = decodeNodes(obj["nodes"], at+"/nodes", diags)
-		n.Arcs, diags = decodeArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
-		n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
-		if sub, ok := obj["points"].([]any); ok {
-			n.Points, diags = decodeWaypoints(sub, at+"/points", diags)
-		}
-		if sub, ok := obj["areas"].([]any); ok {
-			n.Areas, diags = decodeAreas(sub, at+"/areas", diags)
-		}
-		n.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, networkKeys, diags)
-		out = append(out, n)
+// networkFromObject builds one network from its object, read with every key
+// but `nodes`, `arcs` and `areas`, which g and areas hold.
+func networkFromObject(obj map[string]any, at string, g *graphRead, areas *areasRead, diags []Diagnostic) (Network, []Diagnostic) {
+	var n Network
+	n.Folder, diags = stringField(obj, "folder", diags)
+	n.Name, diags = stringField(obj, "name", diags)
+	n.Notes, diags = stringField(obj, "notes", diags)
+	n.Hidden, diags = boolField(obj, "hidden", at, diags)
+	n.Nodes, n.Arcs, diags = g.finish(at, diags)
+	n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
+	if sub, ok := obj["points"].([]any); ok {
+		n.Points, diags = decodeWaypoints(sub, at+"/points", diags)
 	}
-	return out, diags
+	// A network's `areas` that is not an array is ignored without a word, as
+	// its `points` is.
+	if areas.isArray {
+		n.Areas, diags = areas.items, append(diags, areas.diags...)
+	}
+	n.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, networkKeys, diags)
+	return n, diags
 }
 
-// decodeNodes reads a network's or a plan's `nodes`. A node that will not
-// parse is dropped (§6.2); an arc naming it is then dropped under
+// nodeFromValue reads one node of a network's or a plan's `nodes`. A node that
+// will not parse is dropped (§6.2); an arc naming it is then dropped under
 // arc-node-absent, so the loss surfaces on everything that depended on it.
-func decodeNodes(v any, path string, diags []Diagnostic) (map[string]Vertex, []Diagnostic) {
-	if v == nil {
-		return nil, diags
+func nodeFromValue(v any, at string, diags []Diagnostic) (Vertex, bool, []Diagnostic) {
+	arr, isArr := v.([]any)
+	if !isArr {
+		return Vertex{}, false, append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
+			Message: fmt.Sprintf("node is %s, expected a position array — node dropped", jsonKind(v))})
 	}
-	obj, ok := v.(map[string]any)
-	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`nodes` is %s, expected an object — ignored", jsonKind(v))})
+	p, err := decodePosition(arr, at)
+	if err != nil {
+		return Vertex{}, false, append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
+			Message: err.Error() + " — node dropped"})
 	}
-	nodes := make(map[string]Vertex, len(obj))
-	for _, id := range sortedKeys(obj) {
-		at := path + "/" + escapePointerToken(id)
-		arr, isArr := obj[id].([]any)
-		if !isArr {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
-				Message: fmt.Sprintf("node is %s, expected a position array — node dropped", jsonKind(obj[id]))})
-			continue
-		}
-		p, err := decodePosition(arr, at)
-		if err != nil {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodePositionUnusable,
-				Message: err.Error() + " — node dropped"})
-			continue
-		}
-		if p.Time != nil {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeExtraChannel,
-				Message: "a node carries no time — the time channel is dropped and the node kept"})
-		}
-		nodes[id] = Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}
+	if p.Time != nil {
+		diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeExtraChannel,
+			Message: "a node carries no time — the time channel is dropped and the node kept"})
 	}
-	return nodes, diags
+	return Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}, true, diags
 }
 
-// decodeArcs reads a network's or a plan's `arcs`.
+// arcFromObject builds one arc from its object, read with every key but
+// `pips`, which pr holds.
 //
 // ⚠ AN ARC THAT IS DROPPED TAKES EVERY HIGHLIGHT WALKING IT WITH IT, but not here:
 // the highlight is dropped when its walk is read, under pass-arc-absent, with a
 // diagnostic of its own (§6.2). That is why nodes and arcs are read before any
 // walk — a walk can only be checked against the arcs that survived.
-func decodeArcs(v any, path string, nodes map[string]Vertex, diags []Diagnostic) (map[string]Arc, []Diagnostic) {
-	if v == nil {
-		return nil, diags
-	}
-	obj, ok := v.(map[string]any)
-	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`arcs` is %s, expected an object — ignored", jsonKind(v))})
-	}
-	arcs := make(map[string]Arc, len(obj))
-	for _, id := range sortedKeys(obj) {
-		at := path + "/" + escapePointerToken(id)
-		aObj, isObj := obj[id].(map[string]any)
-		if !isObj {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("arc is %s, expected an object — dropped", jsonKind(obj[id]))})
-			continue
-		}
-		diags = reportUnknownKeys(aObj, at, arcKeys, diags)
-		a, ok, diags2 := decodeArc(aObj, at, nodes, diags)
-		diags = diags2
-		if ok {
-			arcs[id] = a
-		}
-	}
-	return arcs, diags
-}
-
-func decodeArc(obj map[string]any, at string, nodes map[string]Vertex, diags []Diagnostic) (Arc, bool, []Diagnostic) {
+func arcFromObject(obj map[string]any, at string, nodes map[string]Vertex, pr *pipsRead, diags []Diagnostic) (Arc, bool, []Diagnostic) {
 	var a Arc
 	var ok bool
 	for _, end := range []struct {
@@ -161,28 +108,21 @@ func decodeArc(obj map[string]any, at string, nodes map[string]Vertex, diags []D
 				Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `%s` %s — arc dropped", end.key, what)})
 		}
 	}
-	pipsArr, isArr := obj["pips"].([]any)
-	if !isArr {
+	if !pr.isArray {
 		what := "is missing"
-		if _, present := obj["pips"]; present {
-			what = fmt.Sprintf("is %s, expected an array", jsonKind(obj["pips"]))
+		if pr.present {
+			what = fmt.Sprintf("is %s, expected an array", pr.kind)
 		}
 		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/pips",
 			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `pips` %s — arc dropped", what)})
 	}
-	pips, diags := decodePips(pipsArr, at+"/pips", diags)
-	if pips == nil {
-		// decodePips reported the unusable position and returned nil to say
-		// "drop the arc".
+	diags = append(diags, pr.diags...)
+	if pr.failed {
+		// The pips reader reported the unusable position; it drops the arc.
 		return Arc{}, false, diags
 	}
-	a.Pips = make([]Vertex, len(pips))
-	timed := false
-	for i, p := range pips {
-		timed = timed || p.Time != nil
-		a.Pips[i] = Vertex{Lon: p.Lon, Lat: p.Lat, Ele: p.Ele}
-	}
-	if timed {
+	a.Pips = pr.vertices
+	if pr.timed {
 		diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/pips", Code: CodeArcPipTime,
 			Message: "an arc pip carries no time — every time channel on this arc is dropped and its pips kept"})
 	}
@@ -238,15 +178,4 @@ func decodeHighlights(v any, path string, arcs map[string]Arc, diags []Diagnosti
 		out = append(out, c)
 	}
 	return out, diags
-}
-
-// sortedKeys keeps map iteration deterministic, so diagnostics come out in a
-// stable order rather than Go's randomised one.
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

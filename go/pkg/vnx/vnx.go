@@ -22,7 +22,7 @@
 package vnx
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -88,10 +88,8 @@ type Document struct {
 	// fields see it: TestEncodeToCoversEveryCollectionTheDocumentDeclares and
 	// its siblings enumerate slices, and a map field would walk past them.
 	//
-	// Decode leaves it SORTED BY KEY. Key order is not significant (SPEC §4.4)
-	// and Go's JSON decoder has already lost the document's order by the time
-	// this package sees the object, so sorted is the one order that is the
-	// same on every run. [EncodeTo] writes the list in the order it is given.
+	// Decode leaves it SORTED BY KEY. Key order is not significant (SPEC §4.4),
+	// so sorted is the one order that is the same on every run. [EncodeTo] writes the list in the order it is given.
 	AppKeys []AppKey
 }
 
@@ -255,61 +253,10 @@ func DocumentIsEmpty(d *Document) bool {
 // unusable element dropped. A caller that ignores diagnostics has thrown away
 // the only evidence anything was wrong.
 //
-// Decoding goes through a generic JSON tree rather than struct tags. That is
-// deliberate and load-bearing: per-key diagnostics carrying a document path are
-// impossible with encoding/json's struct decoding, whose DisallowUnknownFields
-// is fatal, reports one error, and carries no path.
+// Decode reads the document from memory; [DecodeReader] is the same reader
+// over a stream, and the one to use for a file.
 func Decode(data []byte) (*Document, []Diagnostic, error) {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, nil, fmt.Errorf("%w: %s", ErrMalformed, err)
-	}
-	obj, ok := raw.(map[string]any)
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: top level is %s, not an object", ErrNotVNX, jsonKind(raw))
-	}
-
-	declared, ok := obj["vnx"].(string)
-	if !ok {
-		if v, present := obj["vnx"]; present {
-			return nil, nil, fmt.Errorf("%w: `vnx` is %s, not a string", ErrNotVNX, jsonKind(v))
-		}
-		return nil, nil, fmt.Errorf("%w: no `vnx` key", ErrNotVNX)
-	}
-	if err := checkVersion(declared); err != nil {
-		return nil, nil, err
-	}
-
-	var diags []Diagnostic
-	doc := &Document{Version: declared}
-	doc.Generator, diags = stringField(obj, "generator", diags)
-	doc.Created, diags = timeField(obj, "created", "", diags)
-	if v, present := obj["folders"]; present {
-		if arr, ok := v.([]any); ok {
-			doc.Folders, diags = decodeFolders(arr, diags)
-		} else {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: "/folders",
-				Message: fmt.Sprintf("`folders` is %s, expected an array — ignored", jsonKind(v))})
-		}
-	}
-	if arr, ok := collection(obj, "waypoints", &diags); ok {
-		doc.Waypoints, diags = decodeWaypoints(arr, "/waypoints", diags)
-	}
-	if arr, ok := collection(obj, "networks", &diags); ok {
-		doc.Networks, diags = decodeNetworks(arr, "/networks", diags)
-	}
-	if arr, ok := collection(obj, "plans", &diags); ok {
-		doc.Plans, diags = decodePlans(arr, "/plans", diags)
-	}
-	if arr, ok := collection(obj, "tracks", &diags); ok {
-		doc.Tracks, diags = decodeTracks(arr, "/tracks", diags)
-	}
-	if arr, ok := collection(obj, "areas", &diags); ok {
-		doc.Areas, diags = decodeAreas(arr, "/areas", diags)
-	}
-	doc.AppKeys = decodeAppKeys(obj)
-	diags = reportUnknownKeysBy(obj, "", isDocumentKey, diags)
-	return doc, diags, nil
+	return DecodeReader(bytes.NewReader(data))
 }
 
 // decodeAppKeys collects every application key, sorted by key. Every value is
@@ -324,22 +271,6 @@ func decodeAppKeys(obj map[string]any) []AppKey {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
-}
-
-// collection reads one of the six top-level arrays. Absence is normal; a key
-// present but holding something other than an array is a diagnostic.
-func collection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, bool) {
-	v, present := obj[key]
-	if !present {
-		return nil, false
-	}
-	arr, ok := v.([]any)
-	if !ok {
-		*diags = append(*diags, Diagnostic{Severity: Warning, Path: "/" + key,
-			Message: fmt.Sprintf("`%s` is %s, expected an array — ignored", key, jsonKind(v))})
-		return nil, false
-	}
-	return arr, true
 }
 
 // documentFormatKeys is every key the format defines at the top level.

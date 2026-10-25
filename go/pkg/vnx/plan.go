@@ -1,7 +1,5 @@
 package vnx
 
-import "fmt"
-
 // Plan is a top-level item that OWNS its graph (SPEC §3.4): nodes and arcs of
 // a network's shape, and one walk over them.
 //
@@ -30,33 +28,20 @@ type Plan struct {
 var planKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "style": true,
 	"nodes": true, "arcs": true, "walk": true, "data": true}
 
-func decodePlans(arr []any, path string, diags []Diagnostic) ([]Plan, []Diagnostic) {
-	out := make([]Plan, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("plan is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		var r Plan
-		r.Folder, diags = stringField(obj, "folder", diags)
-		r.Name, diags = stringField(obj, "name", diags)
-		r.Notes, diags = stringField(obj, "notes", diags)
-		r.Hidden, diags = boolField(obj, "hidden", at, diags)
-		r.Style, diags = decodeStyle(obj, at, diags)
-		r.Nodes, diags = decodeNodes(obj["nodes"], at+"/nodes", diags)
-		r.Arcs, diags = decodeArcs(obj["arcs"], at+"/arcs", r.Nodes, diags)
-		r.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, planKeys, diags)
-		// Where a highlight would be dropped, the plan is: it IS the highlight.
-		var walkOK bool
-		r.Walk, walkOK, diags = decodeWalk(obj, at, r.Arcs, true, diags)
-		if !walkOK {
-			continue
-		}
-		out = append(out, r)
-	}
-	return out, diags
+// planFromObject builds one plan from its object, read with every key but
+// `nodes` and `arcs`, which g holds. ok is false when the plan is dropped.
+func planFromObject(obj map[string]any, at string, g *graphRead, diags []Diagnostic) (Plan, bool, []Diagnostic) {
+	var r Plan
+	r.Folder, diags = stringField(obj, "folder", diags)
+	r.Name, diags = stringField(obj, "name", diags)
+	r.Notes, diags = stringField(obj, "notes", diags)
+	r.Hidden, diags = boolField(obj, "hidden", at, diags)
+	r.Style, diags = decodeStyle(obj, at, diags)
+	r.Nodes, r.Arcs, diags = g.finish(at, diags)
+	r.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, planKeys, diags)
+	// Where a highlight would be dropped, the plan is: it IS the highlight.
+	var walkOK bool
+	r.Walk, walkOK, diags = decodeWalk(obj, at, r.Arcs, true, diags)
+	return r, walkOK, diags
 }

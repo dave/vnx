@@ -144,12 +144,7 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 	// to return, so the archive is refused. That refusal comes from
 	// [readZipEntry], which names the entry and the method. A guard here as well
 	// would only restate it, and red-proofed it changed nothing but the wording.
-	data, err := readZipEntry(r, *root)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	doc, diags, err := Decode(data)
+	doc, diags, err := decodeRootEntry(r, *root)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,6 +218,30 @@ func DecodeContainer(r io.ReaderAt, size int64) (*Container, []Diagnostic, error
 		attachments = append(attachments, ContainerAttachment{Path: e.name, src: r, entry: e})
 	}
 	return &Container{Document: doc, Attachments: attachments}, diags, nil
+}
+
+// decodeRootEntry streams the root document out of the archive into
+// [DecodeReader], so neither the entry nor a tree of it is ever resident.
+//
+// ⚠ THE ENTRY IS READ TO ITS END WHATEVER THE DOCUMENT SAYS. Its length and
+// CRC are checked only at EOF, and a damaged archive is refused as a container
+// whatever its JSON is, as it was when the entry was read whole first. A
+// document refused or malformed part way through would otherwise hide the
+// damage behind a different error.
+func decodeRootEntry(r io.ReaderAt, root zipEntryHeader) (*Document, []Diagnostic, error) {
+	rc, err := openZipEntry(r, root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rc.Close()
+	doc, diags, err := DecodeReader(rc)
+	if err != nil {
+		if _, drainErr := io.Copy(io.Discard, rc); drainErr != nil {
+			return nil, nil, drainErr
+		}
+		return nil, nil, err
+	}
+	return doc, diags, nil
 }
 
 // escapePointerToken escapes one JSON Pointer reference token ([RFC 6901]): `~`

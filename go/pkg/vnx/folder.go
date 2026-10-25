@@ -18,46 +18,38 @@ var folderKeys = map[string]bool{
 	"id": true, "name": true, "notes": true, "parent": true, "hidden": true, "data": true,
 }
 
-func decodeFolders(arr []any, diags []Diagnostic) ([]Folder, []Diagnostic) {
-	out := make([]Folder, 0, len(arr))
-	seen := make(map[string]bool, len(arr))
-
-	for i, item := range arr {
-		at := fmt.Sprintf("/folders/%d", i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("folder is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		id, _ := obj["id"].(string)
-		if id == "" {
-			// Without an id nothing can reference it, so the folder cannot hold
-			// anything. Unlike a dangling parent, dropping it loses nothing that
-			// was reachable.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: "folder has no `id` — dropped, nothing could reference it"})
-			continue
-		}
-		if seen[id] {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("duplicate folder id %q — dropped, the first one wins", id)})
-			continue
-		}
-		seen[id] = true
-
-		var f Folder
-		f.ID = id
-		f.Name, diags = stringField(obj, "name", diags)
-		f.Notes, diags = stringField(obj, "notes", diags)
-		f.Parent, diags = stringField(obj, "parent", diags)
-		f.Hidden, diags = boolField(obj, "hidden", at, diags)
-		f.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, folderKeys, diags)
-		out = append(out, f)
+// folderFromValue reads one element of `folders`. seen holds the ids of the
+// folders already kept, because the first one with an id wins. ok is false
+// when the folder is dropped.
+func folderFromValue(item any, at string, seen map[string]bool, diags []Diagnostic) (Folder, bool, []Diagnostic) {
+	obj, ok := item.(map[string]any)
+	if !ok {
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+			Message: fmt.Sprintf("folder is %s, expected an object — dropped", jsonKind(item))})
 	}
+	id, _ := obj["id"].(string)
+	if id == "" {
+		// Without an id nothing can reference it, so the folder cannot hold
+		// anything. Unlike a dangling parent, dropping it loses nothing that
+		// was reachable.
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+			Message: "folder has no `id` — dropped, nothing could reference it"})
+	}
+	if seen[id] {
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+			Message: fmt.Sprintf("duplicate folder id %q — dropped, the first one wins", id)})
+	}
+	seen[id] = true
 
-	return resolveParents(out, diags)
+	var f Folder
+	f.ID = id
+	f.Name, diags = stringField(obj, "name", diags)
+	f.Notes, diags = stringField(obj, "notes", diags)
+	f.Parent, diags = stringField(obj, "parent", diags)
+	f.Hidden, diags = boolField(obj, "hidden", at, diags)
+	f.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, folderKeys, diags)
+	return f, true, diags
 }
 
 // resolveParents clears any parent that cannot be walked, and says so.

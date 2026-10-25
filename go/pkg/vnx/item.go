@@ -33,135 +33,76 @@ var (
 	areaKeys     = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "polygon": true, "style": true, "data": true}
 )
 
+// decodeWaypoints reads a network's `points`, which arrive as a generic tree.
 func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []Diagnostic) {
 	out := make([]Waypoint, 0, len(arr))
 	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("item is %s, expected an object — dropped", jsonKind(item))})
-			continue
+		w, ok, d := waypointFromValue(item, fmt.Sprintf("%s/%d", path, i), diags)
+		diags = d
+		if ok {
+			out = append(out, w)
 		}
-		posArr, ok := obj["at"].([]any)
-		if !ok {
-			// ⚠ `at` MISSING AND `at` WRONG-TYPED TAKE ONE REMEDY AND ARE NOT ONE
-			// FACT. §3.10 makes `at` required, so both drop the item, but a
-			// reader told "missing or malformed" learns neither. Distinguished
-			// here; the code is the same because the outcome is.
-			what := "is missing"
-			if _, present := obj["at"]; present {
-				what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
-			}
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
-				Code:    CodeWrongTypeRequired,
-				Message: fmt.Sprintf("`at` %s — item dropped", what)})
-			continue
-		}
-		pos, err := decodePosition(posArr, at+"/at")
-		if err != nil {
-			// A point IS its position; without one there is nothing to keep.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at", Code: CodePositionUnusable,
-				Message: err.Error() + " — item dropped"})
-			continue
-		}
-		var w Waypoint
-		w.At = pos
-		w.Folder, diags = stringField(obj, "folder", diags)
-		w.Name, diags = stringField(obj, "name", diags)
-		w.Notes, diags = stringField(obj, "notes", diags)
-		w.Hidden, diags = boolField(obj, "hidden", at, diags)
-		w.Style, diags = decodeStyle(obj, at, diags)
-		w.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, waypointKeys, diags)
-		out = append(out, w)
 	}
 	return out, diags
 }
 
-func decodeAreas(arr []any, path string, diags []Diagnostic) ([]Area, []Diagnostic) {
-	out := make([]Area, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("item is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		ring, ok, diags2 := decodeRing(obj["polygon"], at+"/polygon", diags)
-		diags = diags2
-		if !ok {
-			continue
-		}
-		var a Area
-		a.Polygon = ring
-		a.Folder, diags = stringField(obj, "folder", diags)
-		a.Name, diags = stringField(obj, "name", diags)
-		a.Notes, diags = stringField(obj, "notes", diags)
-		a.Hidden, diags = boolField(obj, "hidden", at, diags)
-		a.Style, diags = decodeStyle(obj, at, diags)
-		a.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, areaKeys, diags)
-		out = append(out, a)
-	}
-	return out, diags
-}
-
-// decodeRing reads the single OPEN ring an Area's polygon is (SPEC §3.7).
-// Nested rings — the GeoJSON shape an earlier draft of the example promised —
-// are reported and the area dropped, never silently flattened to the outer
-// ring and never silently merged. A reader that quietly kept ring 1 would draw
-// an area whose holes had vanished, with nothing to say so.
-//
-// ⚠ A CLOSED RING IS REPAIRED, NOT DROPPED. Its last position repeating its
-// first is one fact written twice, so dropping the repeat loses nothing; the
-// diagnostic is kept so that a writer that closes rings can be seen. The count
-// of distinct positions is taken after that, so [A, B, A] is two points and
-// its area goes.
-func decodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Diagnostic) {
-	arr, ok := v.([]any)
+// waypointFromValue reads one waypoint or network point. ok is false when it
+// is dropped.
+func waypointFromValue(item any, at string, diags []Diagnostic) (Waypoint, bool, []Diagnostic) {
+	obj, ok := item.(map[string]any)
 	if !ok {
+		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+			Message: fmt.Sprintf("item is %s, expected an object — dropped", jsonKind(item))})
+	}
+	posArr, ok := obj["at"].([]any)
+	if !ok {
+		// ⚠ `at` MISSING AND `at` WRONG-TYPED TAKE ONE REMEDY AND ARE NOT ONE
+		// FACT. §3.10 makes `at` required, so both drop the item, but a
+		// reader told "missing or malformed" learns neither. Distinguished
+		// here; the code is the same because the outcome is.
 		what := "is missing"
-		if v != nil {
-			what = fmt.Sprintf("is %s, expected an array of positions", jsonKind(v))
+		if _, present := obj["at"]; present {
+			what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
 		}
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
-			Message: fmt.Sprintf("polygon %s — area dropped", what)})
+		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
+			Code:    CodeWrongTypeRequired,
+			Message: fmt.Sprintf("`at` %s — item dropped", what)})
 	}
-	if len(arr) > 0 {
-		if first, isArr := arr[0].([]any); isArr && len(first) > 0 {
-			if _, nested := first[0].([]any); nested {
-				return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
-					Code: CodePolygonNestedRings, Message: "polygon holds nested rings; this format carries ONE ring and cannot express holes — area dropped"})
-			}
-		}
+	pos, err := decodePosition(posArr, at+"/at")
+	if err != nil {
+		// A point IS its position; without one there is nothing to keep.
+		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at", Code: CodePositionUnusable,
+			Message: err.Error() + " — item dropped"})
 	}
-	ring := make([]Position, 0, len(arr))
-	for i, item := range arr {
-		posArr, isArr := item.([]any)
-		if !isArr {
-			return nil, false, append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
-				Code:    CodePositionUnusable,
-				Message: fmt.Sprintf("ring position is %s — area dropped", jsonKind(item))})
-		}
-		p, err := decodePosition(posArr, fmt.Sprintf("%s/%d", path, i))
-		if err != nil {
-			return nil, false, append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, i),
-				Code: CodePositionUnusable, Message: err.Error() + " — area dropped"})
-		}
-		ring = append(ring, p)
+	var w Waypoint
+	w.At = pos
+	w.Folder, diags = stringField(obj, "folder", diags)
+	w.Name, diags = stringField(obj, "name", diags)
+	w.Notes, diags = stringField(obj, "notes", diags)
+	w.Hidden, diags = boolField(obj, "hidden", at, diags)
+	w.Style, diags = decodeStyle(obj, at, diags)
+	w.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, waypointKeys, diags)
+	return w, true, diags
+}
+
+// areaFromObject builds one area from its object, read with every key but
+// `polygon`, which rr holds. ok is false when the area is dropped.
+func areaFromObject(obj map[string]any, at string, rr *ringRead, diags []Diagnostic) (Area, bool, []Diagnostic) {
+	diags = append(diags, rr.diags...)
+	if !rr.ok {
+		return Area{}, false, diags
 	}
-	if n := len(ring); n >= 2 && ring[0].Lon == ring[n-1].Lon && ring[0].Lat == ring[n-1].Lat {
-		diags = append(diags, Diagnostic{Severity: Warning, Path: fmt.Sprintf("%s/%d", path, n-1), Code: CodeRingClosed,
-			Message: "a ring is stored open, and this last position repeats the first — the repeat is dropped"})
-		ring = ring[:n-1]
-	}
-	if d := distinctLonLat(ring); d < 3 {
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeRingTooFewPoints,
-			Message: fmt.Sprintf("ring has %d distinct position(s), needs at least 3 — area dropped", d)})
-	}
-	return ring, true, diags
+	var a Area
+	a.Polygon = rr.ring
+	a.Folder, diags = stringField(obj, "folder", diags)
+	a.Name, diags = stringField(obj, "name", diags)
+	a.Notes, diags = stringField(obj, "notes", diags)
+	a.Hidden, diags = boolField(obj, "hidden", at, diags)
+	a.Style, diags = decodeStyle(obj, at, diags)
+	a.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, areaKeys, diags)
+	return a, true, diags
 }
 
 // distinctLonLat counts the positions of ps that differ in longitude or

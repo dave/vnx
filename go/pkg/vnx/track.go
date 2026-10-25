@@ -119,114 +119,26 @@ var trackKeys = map[string]bool{
 	"started": true, "ended": true, "style": true, "segments": true, "data": true,
 }
 
-func decodeTracks(arr []any, path string, diags []Diagnostic) ([]Track, []Diagnostic) {
-	out := make([]Track, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("track is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		var tr Track
-		tr.Folder, diags = stringField(obj, "folder", diags)
-		tr.Name, diags = stringField(obj, "name", diags)
-		tr.Notes, diags = stringField(obj, "notes", diags)
-		tr.Hidden, diags = boolField(obj, "hidden", at, diags)
-		tr.Started, diags = timeField(obj, "started", at, diags)
-		tr.Ended, diags = timeField(obj, "ended", at, diags)
-		tr.Style, diags = decodeStyle(obj, at, diags)
-		tr.Segments, diags = decodeSegments(obj["segments"], at+"/segments", diags)
-		tr.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, trackKeys, diags)
-		out = append(out, tr)
-	}
-	return out, diags
+// trackFromObject builds one track from its object, read with every key but
+// `segments`, which the streaming reader has read already: segs and segDiags
+// are its result, and segDiags take `segments`' place in the order.
+func trackFromObject(obj map[string]any, at string, segs []Segment, segDiags, diags []Diagnostic) (Track, []Diagnostic) {
+	var tr Track
+	tr.Folder, diags = stringField(obj, "folder", diags)
+	tr.Name, diags = stringField(obj, "name", diags)
+	tr.Notes, diags = stringField(obj, "notes", diags)
+	tr.Hidden, diags = boolField(obj, "hidden", at, diags)
+	tr.Started, diags = timeField(obj, "started", at, diags)
+	tr.Ended, diags = timeField(obj, "ended", at, diags)
+	tr.Style, diags = decodeStyle(obj, at, diags)
+	tr.Segments, diags = segs, append(diags, segDiags...)
+	tr.Data, diags = dataField(obj, at, diags)
+	diags = reportUnknownKeys(obj, at, trackKeys, diags)
+	return tr, diags
 }
 
 // segmentKeys is the one key a segment carries (SPEC §3.10).
 var segmentKeys = map[string]bool{"pips": true}
-
-func decodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagnostic) {
-	if v == nil {
-		return nil, diags
-	}
-	arr, ok := v.([]any)
-	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`segments` is %s, expected an array — ignored", jsonKind(v))})
-	}
-	out := make([]Segment, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		obj, isObj := item.(map[string]any)
-		if !isObj {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("segment is %s, expected an object — dropped", jsonKind(item))})
-			continue
-		}
-		diags = reportUnknownKeys(obj, at, segmentKeys, diags)
-		pips, diags2 := decodePips(obj["pips"], at+"/pips", diags)
-		diags = diags2
-		if pips == nil && obj["pips"] != nil {
-			// decodePips reported an unusable position and returned nil to say
-			// "drop the owner". For a track that owner is the SEGMENT: spec
-			// §3.5 already makes the interval between two segments a pause
-			// rather than geometry, so a missing segment leaves a gap a
-			// consumer can see, where a missing pip inside one leaves a
-			// shorter, plausible, wrong line.
-			continue
-		}
-		out = append(out, Segment{Pips: pips})
-	}
-	return out, diags
-}
-
-// decodePips reads a position list. An unusable position drops THAT POSITION,
-// not the whole run — one bad fix in a day's recording should cost one fix,
-// which is the same trade importer/gpx.go makes with InvalidPointCount.
-// decodePips returns nil for a list holding an unusable position, and the
-// CALLER drops the object that owns it.
-//
-// ⚠ IT DOES NOT DROP THE PIP. Spec §6.2: geometry is continuous and structure is
-// not, so a missing vertex changes the shape of a line and leaves nothing to
-// indicate it — a shorter, plausible, wrong line. This dropped the pip and
-// carried on, which produced exactly that.
-//
-// What the caller drops differs by what owns the list, and §6.2's table says
-// which: an arc's pips drop the ARC, a track segment's pips drop the SEGMENT,
-// and a polygon ring drops the ITEM. A segment is the right unit for a track
-// because segments are ALREADY discontinuous from each other — §3.5 makes the
-// interval between two of them a pause rather than geometry — so a dropped
-// segment leaves a gap a consumer can see, exactly as a dropped link does.
-func decodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagnostic) {
-	if v == nil {
-		return nil, diags
-	}
-	arr, ok := v.([]any)
-	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`pips` is %s, expected an array — ignored", jsonKind(v))})
-	}
-	out := make([]Position, 0, len(arr))
-	for i, item := range arr {
-		at := fmt.Sprintf("%s/%d", path, i)
-		posArr, isArr := item.([]any)
-		if !isArr {
-			return nil, append(diags, Diagnostic{Severity: Warning, Path: at,
-				Code:    CodePositionUnusable,
-				Message: fmt.Sprintf("pip is %s, expected an array", jsonKind(item))})
-		}
-		p, err := decodePosition(posArr, at)
-		if err != nil {
-			return nil, append(diags, Diagnostic{Severity: Warning, Path: at,
-				Code: CodePositionUnusable, Message: err.Error()})
-		}
-		out = append(out, p)
-	}
-	return out, diags
-}
 
 // timeField reads an optional record-level timestamp. An unusable one drops the
 // TIMESTAMP and keeps the item: a track whose `started` is malformed still has

@@ -133,3 +133,68 @@ test('repackaging keeps the document entry name it was read under', () => {
   const container = decodeContainer(packed);
   assert.equal(decodeContainer(writeContainer(container)).documentEntry, 'some-export.vnx');
 });
+
+test('every item but a folder keeps its pinned through a write and a read', () => {
+  // SPEC.md 3.8 and 4.3: a record-level timestamp, kept verbatim, a value that
+  // names no calendar instant included.
+  const nodes = { n1: [1, 1], n2: [1, 2] };
+  const arcs = { a1: { from: 'n1', to: 'n2', pips: [] } };
+  const walk = [{ arc: 'a1', from: 'n1', to: 'n2' }];
+  const ring = [
+    [1, 1],
+    [2, 1],
+    [2, 2],
+  ];
+  const source = doc({
+    networks: [
+      {
+        name: 'network',
+        pinned: '2026-10-20T08:15:00Z',
+        nodes,
+        arcs,
+        highlights: [{ name: 'highlight', pinned: '2026-10-21T09:00:00.250Z', walk }],
+        points: [{ name: 'point', pinned: '2026-10-22T10:30:45.5Z', at: [1, 1.5] }],
+        areas: [{ name: 'network area', pinned: '2026-10-23T11:00:00Z', polygon: ring }],
+      },
+    ],
+    plans: [{ name: 'plan', pinned: '2026-10-24T12:00:00Z', nodes, arcs, walk }],
+    tracks: [{ name: 'track', pinned: '2026-10-25T13:00:00.001Z', segments: [{ pips: [[1, 1]] }] }],
+    waypoints: [
+      { name: 'waypoint', pinned: '2026-10-26T14:00:00Z', at: [3, 3] },
+      { name: 'unpinned', at: [4, 4] },
+    ],
+    areas: [{ name: 'area', pinned: '2026-13-45T99:99:99Z', polygon: ring }],
+  });
+  const pinned = (d) => {
+    const out = {};
+    for (const n of d.networks) {
+      out[n.name] = n.pinned;
+      for (const i of [...n.highlights, ...n.points, ...n.areas]) out[i.name] = i.pinned;
+    }
+    for (const i of [...d.plans, ...d.tracks, ...d.waypoints, ...d.areas]) out[i.name] = i.pinned;
+    return out;
+  };
+  const first = decodeText(source);
+  assert.deepEqual(first.diagnostics, []);
+  const second = decodeText(encode(first.document));
+  assert.deepEqual(second.diagnostics, []);
+  const want = {
+    network: '2026-10-20T08:15:00Z',
+    highlight: '2026-10-21T09:00:00.250Z',
+    point: '2026-10-22T10:30:45.5Z',
+    'network area': '2026-10-23T11:00:00Z',
+    plan: '2026-10-24T12:00:00Z',
+    track: '2026-10-25T13:00:00.001Z',
+    waypoint: '2026-10-26T14:00:00Z',
+    unpinned: undefined,
+    area: '2026-13-45T99:99:99Z',
+  };
+  assert.deepEqual(pinned(first.document), want);
+  assert.deepEqual(pinned(second.document), want);
+});
+
+test('a writer emits pinned only when the item is pinned', () => {
+  // SPEC.md 3.8: absence means not pinned.
+  const { document } = decodeText(doc({ waypoints: [{ name: 'a', at: [1, 1] }] }));
+  assert.equal('pinned' in JSON.parse(encode(document)).waypoints[0], false);
+});

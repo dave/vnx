@@ -435,7 +435,7 @@ function readNetwork(raw, path, ctx) {
     raw,
     path,
     [],
-    ['name', 'notes', 'folder', 'hidden', 'nodes', 'arcs', 'highlights', 'points', 'areas', 'data'],
+    ['name', 'notes', 'folder', 'hidden', 'pinned', 'nodes', 'arcs', 'highlights', 'points', 'areas', 'data'],
     ctx,
   );
   const n = new Network();
@@ -443,6 +443,7 @@ function readNetwork(raw, path, ctx) {
   n.notes = str('notes', path, kv, false, ctx);
   n.folder = str('folder', path, kv, false, ctx);
   n.hidden = bool('hidden', path, kv, false, ctx);
+  n.pinned = timestamp('pinned', path, kv, ctx);
   n.data = data(path, kv, ctx);
   // Nodes, then arcs, then walks: a walk is checked against the arcs that
   // survived, and an arc against the nodes that survived (SPEC.md 6.2).
@@ -565,11 +566,12 @@ function subCollection(kv, path, key, ctx, read) {
 }
 
 function readHighlight(raw, path, ctx, arcs) {
-  const kv = known(raw, path, ['walk'], ['name', 'notes', 'hidden', 'style', 'data'], ctx);
+  const kv = known(raw, path, ['walk'], ['name', 'notes', 'hidden', 'pinned', 'style', 'data'], ctx);
   const c = new Highlight();
   c.name = str('name', path, kv, false, ctx);
   c.notes = str('notes', path, kv, false, ctx);
   c.hidden = bool('hidden', path, kv, false, ctx);
+  c.pinned = timestamp('pinned', path, kv, ctx);
   c.style = style(path, kv, ctx);
   c.data = data(path, kv, ctx);
   c.walk = readWalk(kv, path, arcs, false, ctx);
@@ -642,12 +644,19 @@ function readWalk(kv, owner, arcs, plan, ctx) {
  * would be dropped, the whole plan is.
  */
 function readPlan(raw, path, ctx) {
-  const kv = known(raw, path, ['walk'], ['name', 'notes', 'folder', 'hidden', 'style', 'nodes', 'arcs', 'data'], ctx);
+  const kv = known(
+    raw,
+    path,
+    ['walk'],
+    ['name', 'notes', 'folder', 'hidden', 'pinned', 'style', 'nodes', 'arcs', 'data'],
+    ctx,
+  );
   const r = new Plan();
   r.name = str('name', path, kv, false, ctx);
   r.notes = str('notes', path, kv, false, ctx);
   r.folder = str('folder', path, kv, false, ctx);
   r.hidden = bool('hidden', path, kv, false, ctx);
+  r.pinned = timestamp('pinned', path, kv, ctx);
   r.style = style(path, kv, ctx);
   r.data = data(path, kv, ctx);
   r.nodes = readNodes(kv, path, ctx);
@@ -661,7 +670,7 @@ function readTrack(raw, path, ctx) {
     raw,
     path,
     ['segments'],
-    ['name', 'notes', 'folder', 'hidden', 'style', 'started', 'ended', 'data'],
+    ['name', 'notes', 'folder', 'hidden', 'pinned', 'style', 'started', 'ended', 'data'],
     ctx,
   );
   const t = new Track();
@@ -685,6 +694,7 @@ function readTrack(raw, path, ctx) {
   t.notes = str('notes', path, kv, false, ctx);
   t.folder = str('folder', path, kv, false, ctx);
   t.hidden = bool('hidden', path, kv, false, ctx);
+  t.pinned = timestamp('pinned', path, kv, ctx);
   t.style = style(path, kv, ctx);
   t.started = timestamp('started', path, kv, ctx);
   t.ended = timestamp('ended', path, kv, ctx);
@@ -694,7 +704,7 @@ function readTrack(raw, path, ctx) {
 
 /** A top-level waypoint and a network's point are one shape (SPEC.md 3.6). */
 function readPointLike(raw, path, ctx, topLevel) {
-  const optional = ['name', 'notes', 'hidden', 'style', 'data'];
+  const optional = ['name', 'notes', 'hidden', 'pinned', 'style', 'data'];
   if (topLevel) optional.push('folder');
   const kv = known(raw, path, ['at'], optional, ctx);
   const w = new Waypoint();
@@ -709,6 +719,7 @@ function readPointLike(raw, path, ctx, topLevel) {
   w.notes = str('notes', path, kv, false, ctx);
   if (topLevel) w.folder = str('folder', path, kv, false, ctx);
   w.hidden = bool('hidden', path, kv, false, ctx);
+  w.pinned = timestamp('pinned', path, kv, ctx);
   w.style = style(path, kv, ctx);
   w.data = data(path, kv, ctx);
   return w;
@@ -727,7 +738,7 @@ function readPointLike(raw, path, ctx, topLevel) {
  * two positions and the area goes.
  */
 function readArea(raw, path, ctx, topLevel) {
-  const optional = ['name', 'notes', 'hidden', 'style', 'data'];
+  const optional = ['name', 'notes', 'hidden', 'pinned', 'style', 'data'];
   if (topLevel) optional.push('folder');
   const kv = known(raw, path, ['polygon'], optional, ctx);
   const ring = arr('polygon', path, kv, true, ctx);
@@ -767,6 +778,7 @@ function readArea(raw, path, ctx, topLevel) {
   a.notes = str('notes', path, kv, false, ctx);
   if (topLevel) a.folder = str('folder', path, kv, false, ctx);
   a.hidden = bool('hidden', path, kv, false, ctx);
+  a.pinned = timestamp('pinned', path, kv, ctx);
   a.style = style(path, kv, ctx);
   a.data = data(path, kv, ctx);
   return a;

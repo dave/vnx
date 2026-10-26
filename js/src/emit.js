@@ -208,6 +208,7 @@ function emitNetwork(n) {
   put(o, 'notes', n.notes);
   put(o, 'folder', n.folder);
   putHidden(o, n.hidden);
+  put(o, 'pinned', n.pinned);
   const owner = n.name === undefined ? 'a network' : `network ${JSON.stringify(n.name)}`;
   emitNodes(o, n.nodes, owner);
   emitArcs(o, n.nodes, n.arcs, owner);
@@ -224,6 +225,7 @@ function emitHighlight(c, arcs) {
   put(o, 'name', c.name);
   put(o, 'notes', c.notes);
   putHidden(o, c.hidden);
+  put(o, 'pinned', c.pinned);
   put(o, 'style', c.style);
   put(o, 'data', c.data);
   o.walk = emitWalk(c.walk, arcs, false, owner);
@@ -236,6 +238,7 @@ function emitPlan(r) {
   put(o, 'notes', r.notes);
   put(o, 'folder', r.folder);
   putHidden(o, r.hidden);
+  put(o, 'pinned', r.pinned);
   put(o, 'style', r.style);
   put(o, 'data', r.data);
   const owner = r.name === undefined ? 'a plan' : `plan ${JSON.stringify(r.name)}`;
@@ -253,6 +256,7 @@ function emitTrack(t) {
   put(o, 'started', t.started);
   put(o, 'ended', t.ended);
   putHidden(o, t.hidden);
+  put(o, 'pinned', t.pinned);
   put(o, 'style', t.style);
   put(o, 'data', t.data);
   o.segments = t.segments.map((s) => ({ pips: emitPips(s.pips) }));
@@ -265,6 +269,7 @@ function emitPointLike(w) {
   put(o, 'notes', w.notes);
   put(o, 'folder', w.folder);
   putHidden(o, w.hidden);
+  put(o, 'pinned', w.pinned);
   o.at = emitPosition(w.at);
   put(o, 'style', w.style);
   put(o, 'data', w.data);
@@ -277,6 +282,7 @@ function emitArea(a) {
   put(o, 'notes', a.notes);
   put(o, 'folder', a.folder);
   putHidden(o, a.hidden);
+  put(o, 'pinned', a.pinned);
   checkRing(a);
   o.polygon = a.polygon.map((p) => emitPosition(p));
   put(o, 'style', a.style);

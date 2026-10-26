@@ -449,6 +449,7 @@ test('refusing a timestamp with an offset, rather than diagnosing it, is caught'
   ]);
   assert.deepEqual(await failingDelta(cases), [
     'diagnose/created-with-offset.vnx',
+    'diagnose/pinned-where-not-carried.vnx',
     'diagnose/timestamp-with-offset.vnx',
   ]);
 });
@@ -463,6 +464,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
   ]);
   assert.deepEqual(await failingDelta(cases), [
     'diagnose/dotted-key-on-item.vnx',
+    'diagnose/pinned-where-not-carried.vnx',
     'diagnose/unknown-key.vnx',
     'diagnose/walk-pin-unusable.vnx',
   ]);
@@ -962,6 +964,7 @@ test('a writer that closes its rings is caught by the accept tier', async () => 
   ]);
   assert.deepEqual(await failingDelta(cases), [
     'accept/example-network.vnx',
+    'accept/pinned-items.vnx',
     'accept/unknown-data-on-unexpected-hosts.vnx',
     'accept/viatrail-export-gpt-rapids.vnx',
   ]);

@@ -121,6 +121,7 @@ export class Highlight {
     /** @type {string|undefined} */ this.name = undefined;
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
@@ -133,6 +134,7 @@ export class Waypoint {
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
@@ -145,6 +147,7 @@ export class Area {
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
@@ -156,6 +159,7 @@ export class Network {
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
     /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
     /** @type {Highlight[]|undefined} */ this.highlights = undefined;
@@ -179,6 +183,7 @@ export class Plan {
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
@@ -197,6 +202,7 @@ export class Track {
     /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
+    /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object|undefined} */ this.style = undefined;
     /** @type {string|undefined} */ this.started = undefined;
     /** @type {string|undefined} */ this.ended = undefined;

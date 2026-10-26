@@ -41,6 +41,7 @@ internal class Decoder(
                 "notes",
                 "folder",
                 "hidden",
+                "pinned",
                 "nodes",
                 "arcs",
                 "highlights",
@@ -53,24 +54,24 @@ internal class Decoder(
         val ARC_REQUIRED = setOf("from", "to", "pips")
         val ARC_OPTIONAL = setOf("data")
         val HIGHLIGHT_REQUIRED = setOf("walk")
-        val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
+        val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
         val PLAN_REQUIRED = setOf("walk")
-        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data")
+        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
-        val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "started", "ended", "data")
+        val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
         val SEGMENT_OPTIONAL = emptySet<String>()
         val WAYPOINT_REQUIRED = setOf("at")
-        val WAYPOINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "data")
+        val WAYPOINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
 
         // A network's point is a waypoint without `folder`: its network already
         // contains it (section 3.10).
-        val POINT_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
+        val POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
         val AREA_REQUIRED = setOf("polygon")
-        val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "style", "data")
-        val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "style", "data")
+        val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
+        val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
     }
 
     // ------------------------------------------------------------ entry point
@@ -545,6 +546,7 @@ internal class Decoder(
             notes = optionalString(obj, "notes", at),
             folder = optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
+            pinned = optionalTimestamp(obj, "pinned", at),
             nodes = nodes,
             arcs = arcs,
             highlights = optionalItems(obj, "highlights", at) { o, p -> highlight(o, p, arcs ?: emptyMap()) },
@@ -572,10 +574,11 @@ internal class Decoder(
         val notes = optionalString(obj, "notes", at)
         val folder = optionalFolderRef(obj, at)
         val hidden = optionalBool(obj, "hidden", at)
+        val pinned = optionalTimestamp(obj, "pinned", at)
         val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs ?: emptyMap(), plan = true) ?: return null
-        return Plan(walk, nodes, arcs, name, notes, folder, hidden, style, data)
+        return Plan(walk, nodes, arcs, name, notes, folder, hidden, pinned, style, data)
     }
 
     /**
@@ -710,10 +713,11 @@ internal class Decoder(
         val name = optionalString(obj, "name", at)
         val notes = optionalString(obj, "notes", at)
         val hidden = optionalBool(obj, "hidden", at)
+        val pinned = optionalTimestamp(obj, "pinned", at)
         val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs, plan = false) ?: return null
-        return Highlight(walk, name, notes, hidden, style, data)
+        return Highlight(walk, name, notes, hidden, pinned, style, data)
     }
 
     /**
@@ -855,6 +859,7 @@ internal class Decoder(
             notes = optionalString(obj, "notes", at),
             folder = optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
+            pinned = optionalTimestamp(obj, "pinned", at),
             style = optionalStyle(obj, at),
             started = optionalTimestamp(obj, "started", at),
             ended = optionalTimestamp(obj, "ended", at),
@@ -887,6 +892,7 @@ internal class Decoder(
             notes = optionalString(obj, "notes", at),
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
+            pinned = optionalTimestamp(obj, "pinned", at),
             style = optionalStyle(obj, at),
             data = optionalData(obj, at),
         )
@@ -912,6 +918,7 @@ internal class Decoder(
             notes = optionalString(obj, "notes", at),
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
+            pinned = optionalTimestamp(obj, "pinned", at),
             style = optionalStyle(obj, at),
             data = optionalData(obj, at),
         )

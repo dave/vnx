@@ -128,6 +128,8 @@ data class Network(
     val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     /** Keyed by node identifier, scoped to this network (SPEC.md section 4.4). */
     val nodes: Map<String, Vertex>? = null,
     val arcs: Map<String, Arc>? = null,
@@ -159,6 +161,8 @@ data class Highlight(
     val name: String? = null,
     val notes: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     val style: JsonObject? = null,
     val data: List<DataRecord>? = null,
 )
@@ -212,6 +216,8 @@ data class Plan(
     val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     val style: JsonObject? = null,
     val data: List<DataRecord>? = null,
 )
@@ -222,6 +228,8 @@ data class Track(
     val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     val style: JsonObject? = null,
     val started: String? = null,
     val ended: String? = null,
@@ -278,6 +286,8 @@ data class Waypoint(
     val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     val style: JsonObject? = null,
     val data: List<DataRecord>? = null,
 )
@@ -294,6 +304,8 @@ data class Area(
     val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
+    /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
+    val pinned: String? = null,
     val style: JsonObject? = null,
     val data: List<DataRecord>? = null,
 )

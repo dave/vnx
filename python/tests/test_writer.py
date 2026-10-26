@@ -27,6 +27,8 @@ from vnx.model import (
     Pass,
     Position,
     Plan,
+    Segment,
+    Track,
     Waypoint,
 )
 from vnx.writer import encode_bytes, normalised_document
@@ -359,3 +361,95 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
+    """SPEC 3.8. `pinned` is a record-level timestamp, kept verbatim, and
+    written only when the item is pinned."""
+
+    def pinned(self, document: Document) -> dict[str, str | None]:
+        out: dict[str, str | None] = {}
+        for network in document.networks or []:
+            out[network.name] = network.pinned
+            for item in [
+                *(network.highlights or []),
+                *(network.points or []),
+                *(network.areas or []),
+            ]:
+                out[item.name] = item.pinned
+        for item in [
+            *(document.plans or []),
+            *(document.tracks or []),
+            *(document.waypoints or []),
+            *(document.areas or []),
+        ]:
+            out[item.name] = item.pinned
+        return out
+
+    def test_every_kind_keeps_its_value_through_a_round_trip(self) -> None:
+        network = Network(
+            name="network",
+            pinned="2026-10-20T08:15:00Z",
+            nodes={"n1": Position(1, 1), "n2": Position(1, 2)},
+            arcs={"a1": Arc(from_="n1", to="n2", pips=[])},
+            highlights=[
+                Highlight(
+                    name="highlight",
+                    pinned="2026-10-21T09:00:00.250Z",
+                    walk=[Pass("a1", from_="n1", to="n2")],
+                )
+            ],
+            points=[
+                Waypoint(
+                    name="point", pinned="2026-10-22T10:30:45.5Z", at=Position(1, 1.5)
+                )
+            ],
+            areas=[
+                Area(
+                    name="network area",
+                    pinned="2026-10-23T11:00:00Z",
+                    polygon=[Position(1, 1), Position(2, 1), Position(2, 2)],
+                )
+            ],
+        )
+        document = Document(
+            vnx="0.10.0",
+            networks=[network],
+            plans=[
+                Plan(
+                    name="plan",
+                    pinned="2026-10-24T12:00:00Z",
+                    nodes={"n1": Position(1, 1), "n2": Position(1, 2)},
+                    arcs={"a1": Arc(from_="n1", to="n2", pips=[])},
+                    walk=[Pass("a1", from_="n1", to="n2")],
+                )
+            ],
+            tracks=[
+                Track(
+                    name="track",
+                    pinned="2026-10-25T13:00:00.001Z",
+                    segments=[Segment(pips=[Position(1, 1)])],
+                )
+            ],
+            waypoints=[
+                Waypoint(
+                    name="waypoint", pinned="2026-10-26T14:00:00Z", at=Position(3, 3)
+                ),
+                Waypoint(name="unpinned", at=Position(4, 4)),
+            ],
+            areas=[
+                Area(
+                    name="area",
+                    pinned="2026-13-45T99:99:99Z",
+                    polygon=[Position(1, 1), Position(2, 1), Position(2, 2)],
+                )
+            ],
+        )
+        result = vnx.read_bytes(encode_bytes(document))
+        self.assertEqual(result.diagnostics, [])
+        self.assertEqual(self.pinned(result.document), self.pinned(document))
+        self.assertEqual(len(self.pinned(document)), 9)
+
+    def test_an_unpinned_item_is_written_without_the_key(self) -> None:
+        document = Document(vnx="0.10.0", areas=[Area(name="a")])
+        self.assertNotIn(b"pinned", encode_bytes(document))

@@ -136,6 +136,7 @@ class Highlight:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     style: Union[Style, None] = None
     walk: Union[list[Pass], None] = None
     data: Union[list[DataRecord], None] = None
@@ -147,6 +148,7 @@ class Network:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     nodes: Union[dict[str, Position], None] = None
     arcs: Union[dict[str, Arc], None] = None
     highlights: Union[list[Highlight], None] = None
@@ -164,6 +166,7 @@ class Plan:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     style: Union[Style, None] = None
     nodes: Union[dict[str, Position], None] = None
     arcs: Union[dict[str, Arc], None] = None
@@ -184,6 +187,7 @@ class Track:
     started: Union[str, None] = None
     ended: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     style: Union[Style, None] = None
     segments: Union[list[Segment], None] = None
     data: Union[list[DataRecord], None] = None
@@ -228,6 +232,7 @@ class Waypoint:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     at: Union[Position, None] = None
     style: Union[Style, None] = None
     data: Union[list[DataRecord], None] = None
@@ -239,6 +244,7 @@ class Area:
     name: Union[str, None] = None
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
+    pinned: Union[str, None] = None
     polygon: Union[list[Position], None] = None
     style: Union[Style, None] = None
     data: Union[list[DataRecord], None] = None

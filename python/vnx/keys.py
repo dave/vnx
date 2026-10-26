@@ -57,13 +57,14 @@ DOCUMENT = frozenset(
 # A folder places itself with `parent`, never with `folder`.
 FOLDER = frozenset({"id", "parent", "name", "notes", "hidden", "data"})
 
-# SPEC 3.3, plus `folder` (SPEC 3.2) and `hidden` (SPEC 3.8).
+# SPEC 3.3, plus `folder` (SPEC 3.2), and `hidden` and `pinned` (SPEC 3.8).
 NETWORK = frozenset(
     {
         "folder",
         "name",
         "notes",
         "hidden",
+        "pinned",
         "nodes",
         "arcs",
         "highlights",
@@ -79,7 +80,7 @@ NETWORK = frozenset(
 ARC = frozenset({"from", "to", "pips", "data"})
 
 # SPEC 3.3.3.
-HIGHLIGHT = frozenset({"name", "notes", "hidden", "style", "walk", "data"})
+HIGHLIGHT = frozenset({"name", "notes", "hidden", "pinned", "style", "walk", "data"})
 
 # SPEC 3.3.3.  A pass of a highlight's walk or of a plan's.
 PASS = frozenset({"arc", "from", "to", "turn", "pin"})
@@ -91,6 +92,7 @@ PLAN = frozenset(
         "name",
         "notes",
         "hidden",
+        "pinned",
         "style",
         "nodes",
         "arcs",
@@ -107,6 +109,7 @@ TRACK = frozenset(
         "name",
         "notes",
         "hidden",
+        "pinned",
         "started",
         "ended",
         "style",
@@ -121,10 +124,14 @@ SEGMENT = frozenset({"pips"})
 # 3.8 lists "points" among the hosts of `hidden` and does not say whether that
 # reaches a top-level waypoint; Dave ruled on 2026-09-09 that it does, because
 # "share one shape" governs.
-WAYPOINT = frozenset({"folder", "name", "notes", "hidden", "at", "style", "data"})
+WAYPOINT = frozenset(
+    {"folder", "name", "notes", "hidden", "pinned", "at", "style", "data"}
+)
 
 # SPEC 3.7.
-AREA = frozenset({"folder", "name", "notes", "hidden", "polygon", "style", "data"})
+AREA = frozenset(
+    {"folder", "name", "notes", "hidden", "pinned", "polygon", "style", "data"}
+)
 
 # SPEC 3.2 gives `folder` to "any item", which this implementation read as
 # reaching a network's own points and areas too.  Ruled the other way on

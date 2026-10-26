@@ -84,6 +84,7 @@ def _common(obj: dict[str, JSONValue], item: Any) -> None:
     _put(obj, "name", item.name)
     _put(obj, "notes", getattr(item, "notes", None))
     _put(obj, "hidden", item.hidden)
+    _put(obj, "pinned", item.pinned)
 
 
 def _folder(folder: Folder) -> JSONValue:
@@ -154,6 +155,7 @@ def _highlight(highlight: Highlight, arcs: dict[str, Arc]) -> JSONValue:
     _put(obj, "name", highlight.name)
     _put(obj, "notes", highlight.notes)
     _put(obj, "hidden", highlight.hidden)
+    _put(obj, "pinned", highlight.pinned)
     _put(obj, "style", highlight.style)
     _put(
         obj, "walk", _walk(highlight.walk, arcs, False, f"highlight {highlight.name!r}")

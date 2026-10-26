@@ -511,6 +511,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path, K.REQUIRED_WAYPOINT),
+            pinned=self._timestamp(obj, "pinned", path),
             at=at,
             style=style,
             data=self._data(obj, path),
@@ -540,6 +541,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
+            pinned=self._timestamp(obj, "pinned", path),
             polygon=polygon,
             style=self._style(obj, path),
             data=self._data(obj, path),
@@ -624,6 +626,7 @@ class _Reader:
             started=self._timestamp(obj, "started", path),
             ended=self._timestamp(obj, "ended", path),
             hidden=self._bool(obj, "hidden", path),
+            pinned=self._timestamp(obj, "pinned", path),
             style=self._style(obj, path),
             segments=segments,
             data=self._data(obj, path),
@@ -640,6 +643,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
+            pinned=self._timestamp(obj, "pinned", path),
             style=self._style(obj, path),
         )
         plan.nodes = self._nodes(obj, path)
@@ -662,6 +666,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
+            pinned=self._timestamp(obj, "pinned", path),
         )
         network.nodes = self._nodes(obj, path)
         network.arcs = self._arcs(obj, path, network.nodes or {})
@@ -826,6 +831,7 @@ class _Reader:
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
+            pinned=self._timestamp(obj, "pinned", path),
             style=self._style(obj, path),
             data=self._data(obj, path),
         )

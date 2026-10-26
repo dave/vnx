@@ -185,6 +185,10 @@
         "hidden": {
           "type": "boolean"
         },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
+        },
         "at": {
           "$ref": "#/$defs/position"
         },
@@ -213,6 +217,10 @@
         },
         "hidden": {
           "type": "boolean"
+        },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
         },
         "polygon": {
           "$ref": "#/$defs/ring"
@@ -258,6 +266,10 @@
         "hidden": {
           "type": "boolean"
         },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
+        },
         "started": {
           "$ref": "#/$defs/timestamp"
         },
@@ -296,6 +308,10 @@
         },
         "hidden": {
           "type": "boolean"
+        },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
         },
         "nodes": {
           "type": "object",
@@ -382,6 +398,10 @@
         "hidden": {
           "type": "boolean"
         },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
+        },
         "walk": {
           "$ref": "#/$defs/walk"
         },
@@ -408,6 +428,10 @@
         "hidden": {
           "type": "boolean"
         },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
+        },
         "at": {
           "$ref": "#/$defs/position"
         },
@@ -433,6 +457,10 @@
         },
         "hidden": {
           "type": "boolean"
+        },
+        "pinned": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SPEC 3.8: the time the user pinned the item. Absent means not pinned. A folder carries no `pinned`."
         },
         "nodes": {
           "type": "object",

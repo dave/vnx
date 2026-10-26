@@ -272,9 +272,10 @@ A VNX document is a JSON object.
 Every key is OPTIONAL except the ones its object requires, which Section 3.10
 lists. A reader MUST accept the absence of every other key.
 
-Absence means "not known". It MUST NOT be read as a default value, with two
+Absence means "not known". It MUST NOT be read as a default value, with three
 exceptions stated where they arise: `label-visible`, where absence means Auto
-(Section 3.6), and `hidden`, where absence means visible (Section 3.8).
+(Section 3.6), `hidden`, where absence means visible, and `pinned`, where
+absence means not pinned (Section 3.8).
 
 All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
@@ -597,13 +598,25 @@ A reader that encounters a nested or additional ring MUST report a diagnostic
 and MUST drop the area. It MUST NOT silently keep the outer ring, and MUST NOT
 merge the rings.
 
-### 3.8 Hidden state
+### 3.8 Hidden and pinned state
 
 `hidden` is a boolean carried on folders, networks, highlights, plans, points,
 areas and tracks. It is user-visible state rather than a rendering cache.
 
 Absence means visible. A writer MUST emit the key only when its value is `true`,
 and a document SHOULD NOT contain `"hidden": false`.
+
+`pinned` is a record-level timestamp (Section 4.3) carried on networks,
+highlights, plans, tracks, waypoints, points and areas: every item except a
+folder. Its value is the time the user pinned the item. Like `hidden`, it is
+user-visible state.
+
+Absence means not pinned. A writer MUST emit the key only when the item is
+pinned.
+
+An item's `pinned` is unrelated to a pass's `pin` (Section 3.3.3). A pass
+carries no `pinned`. The boolean `pinned` on a pass is a key of version 0.9.0,
+and a reader of this version treats it as an unrecognised key (Section 6.2).
 
 ### 3.9 Application keys
 
@@ -656,17 +669,17 @@ array is distinct from an absent one.
 |---|---|---|
 | document | `vnx` | `generator`, `created`, `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
-| network | — | `name`, `notes`, `folder`, `hidden`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
+| network | — | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
-| highlight | `walk` | `name`, `notes`, `hidden`, `style`, `data` |
+| highlight | `walk` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
-| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `style`, `nodes`, `arcs`, `data` |
-| track | `segments` | `name`, `notes`, `folder`, `hidden`, `style`, `started`, `ended`, `data` |
+| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `nodes`, `arcs`, `data` |
+| track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `started`, `ended`, `data` |
 | segment | `pips` | — |
-| waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
-| point, in a network | `at` | `name`, `notes`, `hidden`, `style`, `data` |
-| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `style`, `data` |
-| area, in a network | `polygon` | `name`, `notes`, `hidden`, `style`, `data` |
+| waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
+| point, in a network | `at` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
+| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
+| area, in a network | `polygon` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
 | data record | `@type` | opaque; see below |
 
 A node is a position (Section 4.1), not an object, and has no keys.
@@ -681,6 +694,7 @@ Notes on the table:
   the table gives none of them is not an item. `hidden` therefore appears on a
   top-level waypoint: Section 3.8 names the shape rather than the collection,
   and a waypoint and a network's point are one shape (Section 3.6).
+- `pinned` appears on every item except a folder (Section 3.8).
 - An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
   a segment carries `hidden`. A per-arc style is a plausible future addition and
   is not part of version 0.10.
@@ -784,9 +798,9 @@ states.
 
 ### 4.3 Timestamps
 
-Record-level timestamps, `created`, `started` and `ended`, are ISO 8601 in UTC,
-with a literal `Z` suffix and OPTIONAL fractional seconds. An offset other than
-`Z` is not permitted.
+Record-level timestamps, `created`, `started`, `ended` and `pinned`, are ISO
+8601 in UTC, with a literal `Z` suffix and OPTIONAL fractional seconds. An
+offset other than `Z` is not permitted.
 
 A record-level timestamp is checked for shape only. A reader MUST NOT refuse or
 diagnose one on calendar grounds, even though ISO 8601 would:

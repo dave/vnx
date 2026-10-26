@@ -51,7 +51,7 @@ enum Keys {
   static let network = Shape(
     required: [],
     optional: [
-      "name", "notes", "folder", "hidden", "nodes", "arcs",
+      "name", "notes", "folder", "hidden", "pinned", "nodes", "arcs",
       "highlights", "points", "areas", "data",
     ])
 
@@ -62,7 +62,7 @@ enum Keys {
 
   static let highlight = Shape(
     required: ["walk"],
-    optional: ["name", "notes", "hidden", "style", "data"])
+    optional: ["name", "notes", "hidden", "pinned", "style", "data"])
 
   static let pass = Shape(
     required: ["arc"],
@@ -70,12 +70,12 @@ enum Keys {
 
   static let plan = Shape(
     required: ["walk"],
-    optional: ["name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data"])
+    optional: ["name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data"])
 
   static let track = Shape(
     required: ["segments"],
     optional: [
-      "name", "notes", "folder", "hidden", "style", "started",
+      "name", "notes", "folder", "hidden", "pinned", "style", "started",
       "ended", "data",
     ])
 
@@ -86,18 +86,18 @@ enum Keys {
   /// A top-level waypoint. It places itself with `folder`.
   static let waypoint = Shape(
     required: ["at"],
-    optional: ["name", "notes", "folder", "hidden", "style", "data"])
+    optional: ["name", "notes", "folder", "hidden", "pinned", "style", "data"])
 
   /// A network's point. No `folder`: its network already contains it.
   static let networkPoint = Shape(
     required: ["at"],
-    optional: ["name", "notes", "hidden", "style", "data"])
+    optional: ["name", "notes", "hidden", "pinned", "style", "data"])
 
   static let topLevelArea = Shape(
     required: ["polygon"],
-    optional: ["name", "notes", "folder", "hidden", "style", "data"])
+    optional: ["name", "notes", "folder", "hidden", "pinned", "style", "data"])
 
   static let networkArea = Shape(
     required: ["polygon"],
-    optional: ["name", "notes", "hidden", "style", "data"])
+    optional: ["name", "notes", "hidden", "pinned", "style", "data"])
 }

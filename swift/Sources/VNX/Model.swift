@@ -68,6 +68,9 @@ public struct Waypoint: Equatable, Sendable {
   public var notes: String?
   public var folder: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
@@ -81,6 +84,9 @@ public struct Area: Equatable, Sendable {
   public var notes: String?
   public var folder: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
@@ -183,6 +189,9 @@ public struct Highlight: Equatable, Sendable {
   public var name: String?
   public var notes: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
@@ -192,6 +201,9 @@ public struct Network: Equatable, Sendable {
   public var notes: String?
   public var folder: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var nodes: [JSONKey: Vertex]?
   public var arcs: [JSONKey: Arc]?
   public var highlights: [Highlight]?
@@ -211,6 +223,9 @@ public struct Plan: Equatable, Sendable {
   public var notes: String?
   public var folder: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
@@ -239,6 +254,9 @@ public struct Track: Equatable, Sendable {
   public var notes: String?
   public var folder: String?
   public var hidden: Bool?
+  /// The time the user pinned the item (SPEC 3.8), held as written for the
+  /// reason `Track.started` is. `nil` is not pinned.
+  public var pinned: String?
   public var style: OpaqueObject?
   /// Held as written. SPEC 4.3 pins the spelling — ISO 8601 in UTC with a
   /// literal `Z` and optional fractional seconds — and a writer must not

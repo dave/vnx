@@ -192,6 +192,7 @@ final class DocumentDecoder {
     w.notes = optionalString(o, "notes", at: path)
     if allowsFolder { w.folder = optionalString(o, "folder", at: path) }
     w.hidden = optionalBool(o, "hidden", at: path)
+    w.pinned = optionalTimestamp(o, "pinned", at: path)
     w.style = style(o, at: path)
     w.data = dataRecords(o, at: path)
     return w
@@ -208,6 +209,7 @@ final class DocumentDecoder {
     a.notes = optionalString(o, "notes", at: path)
     if allowsFolder { a.folder = optionalString(o, "folder", at: path) }
     a.hidden = optionalBool(o, "hidden", at: path)
+    a.pinned = optionalTimestamp(o, "pinned", at: path)
     a.style = style(o, at: path)
     a.data = dataRecords(o, at: path)
     return a
@@ -287,6 +289,7 @@ final class DocumentDecoder {
     plan.notes = optionalString(o, "notes", at: path)
     plan.folder = optionalString(o, "folder", at: path)
     plan.hidden = optionalBool(o, "hidden", at: path)
+    plan.pinned = optionalTimestamp(o, "pinned", at: path)
     plan.style = style(o, at: path)
     plan.data = dataRecords(o, at: path)
     // SPEC 3.4: where a highlight would be dropped, the plan is. It IS the
@@ -326,6 +329,7 @@ final class DocumentDecoder {
     track.notes = optionalString(o, "notes", at: path)
     track.folder = optionalString(o, "folder", at: path)
     track.hidden = optionalBool(o, "hidden", at: path)
+    track.pinned = optionalTimestamp(o, "pinned", at: path)
     track.style = style(o, at: path)
     track.started = optionalTimestamp(o, "started", at: path)
     track.ended = optionalTimestamp(o, "ended", at: path)
@@ -344,6 +348,7 @@ final class DocumentDecoder {
     network.notes = optionalString(o, "notes", at: path)
     network.folder = optionalString(o, "folder", at: path)
     network.hidden = optionalBool(o, "hidden", at: path)
+    network.pinned = optionalTimestamp(o, "pinned", at: path)
     network.data = dataRecords(o, at: path)
 
     // Nodes, then arcs, then highlights: an arc is checked against the nodes
@@ -458,6 +463,7 @@ final class DocumentDecoder {
     highlight.name = optionalString(o, "name", at: path)
     highlight.notes = optionalString(o, "notes", at: path)
     highlight.hidden = optionalBool(o, "hidden", at: path)
+    highlight.pinned = optionalTimestamp(o, "pinned", at: path)
     highlight.style = style(o, at: path)
     highlight.data = dataRecords(o, at: path)
     guard let walk = decodeWalk(o, at: path, arcs: arcs, plan: false) else { return nil }
@@ -709,7 +715,7 @@ final class DocumentDecoder {
     return out
   }
 
-  /// SPEC 4.3: `created`, `started` and `ended` are ISO 8601 in UTC with a
+  /// SPEC 4.3: `created`, `started`, `ended` and `pinned` are ISO 8601 in UTC with a
   /// literal `Z` and OPTIONAL fractional seconds. An offset other than `Z` is
   /// an unusable value in an optional key, so the field goes and the item —
   /// every pip of a track, in the corpus case — stays.

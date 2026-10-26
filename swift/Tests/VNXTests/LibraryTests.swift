@@ -375,6 +375,59 @@ final class LibraryTests: XCTestCase {
       String(decoding: try VNX.write(document), as: UTF8.self).contains("\"hidden\":false"))
   }
 
+  // MARK: - Pinned (SPEC 3.8)
+
+  func testPinnedRoundTripsOnEveryItemKindAndIsNotInvented() throws {
+    let source = minimal(
+      """
+      "networks":[{"name":"network","pinned":"2026-10-20T08:15:00Z",
+        "nodes":{"n1":[1,1],"n2":[1,2]},"arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
+        "highlights":[{"name":"highlight","pinned":"2026-10-21T09:00:00.250Z",
+          "walk":[{"arc":"a1","from":"n1","to":"n2"}]}],
+        "points":[{"name":"point","pinned":"2026-10-22T10:30:45.5Z","at":[1,1.5]}],
+        "areas":[{"name":"network area","pinned":"2026-10-23T11:00:00Z",
+          "polygon":[[1,1],[2,1],[2,2]]}]}],
+      "plans":[{"name":"plan","pinned":"2026-10-24T12:00:00Z",
+        "nodes":{"n1":[1,1],"n2":[1,2]},"arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
+        "walk":[{"arc":"a1","from":"n1","to":"n2"}]}],
+      "tracks":[{"name":"track","pinned":"2026-10-25T13:00:00.001Z","segments":[]}],
+      "waypoints":[{"name":"waypoint","pinned":"2026-10-26T14:00:00Z","at":[3,3]},
+        {"name":"unpinned","at":[4,4]}],
+      "areas":[{"name":"area","pinned":"2026-13-45T99:99:99Z","polygon":[[1,1],[2,1],[2,2]]}]
+      """)
+    let first = try read(source)
+    XCTAssertEqual(first.diagnostics, [])
+    let written = try VNX.write(first.document)
+    let second = try VNX.read(written)
+    XCTAssertEqual(second.diagnostics, [])
+    for document in [first.document, second.document] {
+      let network = try XCTUnwrap(document.networks?.first)
+      XCTAssertEqual(network.pinned, "2026-10-20T08:15:00Z")
+      XCTAssertEqual(network.highlights?.first?.pinned, "2026-10-21T09:00:00.250Z")
+      XCTAssertEqual(network.points?.first?.pinned, "2026-10-22T10:30:45.5Z")
+      XCTAssertEqual(network.areas?.first?.pinned, "2026-10-23T11:00:00Z")
+      XCTAssertEqual(document.plans?.first?.pinned, "2026-10-24T12:00:00Z")
+      XCTAssertEqual(document.tracks?.first?.pinned, "2026-10-25T13:00:00.001Z")
+      XCTAssertEqual(document.waypoints?[0].pinned, "2026-10-26T14:00:00Z")
+      XCTAssertNil(document.waypoints?[1].pinned, "absence means not pinned")
+      XCTAssertEqual(
+        document.areas?.first?.pinned, "2026-13-45T99:99:99Z",
+        "SPEC 4.3 checks shape only, so a value no calendar has is kept")
+    }
+    let tree = try XCTUnwrap(
+      try JSONSerialization.jsonObject(with: written) as? [String: Any])
+    let waypoints = try XCTUnwrap(tree["waypoints"] as? [[String: Any]])
+    XCTAssertNil(waypoints[1]["pinned"], "a writer emits `pinned` only when the item is pinned")
+  }
+
+  func testPinnedOnAFolderIsAnUnknownKey() throws {
+    let result = try read(
+      minimal("\"folders\":[{\"id\":\"f\",\"pinned\":\"2026-10-20T08:15:00Z\"}]"))
+    XCTAssertEqual(result.diagnostics.map(\.cause), [.unknownKey])
+    XCTAssertEqual(result.diagnostics.map(\.path), ["/folders/0/pinned"])
+    XCTAssertEqual(result.document.folders?.count, 1)
+  }
+
   // MARK: - Folders (SPEC 6.2)
 
   func testFolderReferenceThatDoesNotResolveKeepsTheItemAtTheTopLevel() throws {

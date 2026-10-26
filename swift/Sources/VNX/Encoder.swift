@@ -59,6 +59,7 @@ enum DocumentEncoder {
     put(&o, "notes", w.notes)
     if allowsFolder { put(&o, "folder", w.folder) }
     putHidden(&o, w.hidden)
+    put(&o, "pinned", w.pinned)
     putStyle(&o, w.style)
     putData(&o, w.data)
     return .object(o)
@@ -71,6 +72,7 @@ enum DocumentEncoder {
     put(&o, "notes", a.notes)
     if allowsFolder { put(&o, "folder", a.folder) }
     putHidden(&o, a.hidden)
+    put(&o, "pinned", a.pinned)
     putStyle(&o, a.style)
     putData(&o, a.data)
     return .object(o)
@@ -101,6 +103,7 @@ enum DocumentEncoder {
     put(&o, "notes", n.notes)
     put(&o, "folder", n.folder)
     putHidden(&o, n.hidden)
+    put(&o, "pinned", n.pinned)
     try putGraph(&o, nodes: n.nodes, arcs: n.arcs, owner: "network \(describe(n.name))")
     try putArray(&o, "highlights", n.highlights) { c in
       // A writer never emits a walk its own reader would drop.
@@ -181,6 +184,7 @@ enum DocumentEncoder {
     put(&o, "name", c.name)
     put(&o, "notes", c.notes)
     putHidden(&o, c.hidden)
+    put(&o, "pinned", c.pinned)
     putStyle(&o, c.style)
     putData(&o, c.data)
     return .object(o)
@@ -217,6 +221,7 @@ enum DocumentEncoder {
     put(&o, "notes", r.notes)
     put(&o, "folder", r.folder)
     putHidden(&o, r.hidden)
+    put(&o, "pinned", r.pinned)
     putStyle(&o, r.style)
     putData(&o, r.data)
     return .object(o)
@@ -234,6 +239,7 @@ enum DocumentEncoder {
     put(&o, "notes", t.notes)
     put(&o, "folder", t.folder)
     putHidden(&o, t.hidden)
+    put(&o, "pinned", t.pinned)
     putStyle(&o, t.style)
     put(&o, "started", t.started)
     put(&o, "ended", t.ended)

@@ -15,7 +15,7 @@ repositories {
 
 // Resolved from the included build at ../../../kotlin, not from a repository.
 dependencies {
-    implementation("app.viatrail:vnx:0.10.1")
+    implementation("app.viatrail:vnx:0.10.2")
 }
 
 kotlin {

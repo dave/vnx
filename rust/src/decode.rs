@@ -81,6 +81,7 @@ const NETWORK_KEYS: &[&str] = &[
     "notes",
     "folder",
     "hidden",
+    "pinned",
     "nodes",
     "arcs",
     "highlights",
@@ -90,23 +91,27 @@ const NETWORK_KEYS: &[&str] = &[
 ];
 /// An arc, in a network or a plan.
 const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
-const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "style", "data"];
+const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "notes", "hidden", "pinned", "style", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
 const PLAN_KEYS: &[&str] = &[
-    "walk", "name", "notes", "folder", "hidden", "style", "nodes", "arcs", "data",
+    "walk", "name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data",
 ];
 const TRACK_KEYS: &[&str] = &[
-    "segments", "name", "notes", "folder", "hidden", "style", "started", "ended", "data",
+    "segments", "name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data",
 ];
 const SEGMENT_KEYS: &[&str] = &["pips"];
-const WAYPOINT_KEYS: &[&str] = &["at", "name", "notes", "folder", "hidden", "style", "data"];
+const WAYPOINT_KEYS: &[&str] = &[
+    "at", "name", "notes", "folder", "hidden", "pinned", "style", "data",
+];
 /// A network's point is placed by the network that contains it, so it carries
 /// no `folder` (SPEC 3.10).
-const POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "style", "data"];
+const POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "style", "data"];
 const AREA_KEYS: &[&str] = &[
-    "polygon", "name", "notes", "folder", "hidden", "style", "data",
+    "polygon", "name", "notes", "folder", "hidden", "pinned", "style", "data",
 ];
-const NETWORK_AREA_KEYS: &[&str] = &["polygon", "name", "notes", "hidden", "style", "data"];
+const NETWORK_AREA_KEYS: &[&str] = &[
+    "polygon", "name", "notes", "hidden", "pinned", "style", "data",
+];
 
 impl Decoder {
     fn report(&mut self, path: &Path, cause: Cause) {
@@ -559,6 +564,7 @@ impl Decoder {
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             data: self.records(entries, path),
             ..Network::default()
         };
@@ -713,6 +719,7 @@ impl Decoder {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             style: self.style(entries, path),
             data: self.records(entries, path),
             walk: Vec::new(),
@@ -881,6 +888,7 @@ impl Decoder {
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             style: self.style(entries, path),
             data: self.records(entries, path),
             walk: Vec::new(),
@@ -908,6 +916,7 @@ impl Decoder {
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             style: self.style(entries, path),
             started: self.timestamp(entries, "started", path),
             ended: self.timestamp(entries, "ended", path),
@@ -945,6 +954,7 @@ impl Decoder {
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             style: self.style(entries, path),
             at,
             data: self.records(entries, path),
@@ -961,6 +971,7 @@ impl Decoder {
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
+            pinned: self.timestamp(entries, "pinned", path),
             style: self.style(entries, path),
             polygon,
             data: self.records(entries, path),

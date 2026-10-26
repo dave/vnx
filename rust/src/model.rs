@@ -191,6 +191,9 @@ pub struct Network {
     pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     /// Keyed by identifier, scoped to this network (SPEC 4.4). A `Vec` rather
     /// than a map: entries are few, the key order is not significant, and the
     /// crate takes no dependency on a hasher.
@@ -262,6 +265,9 @@ pub struct Highlight {
     pub name: Option<String>,
     pub notes: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     pub style: Option<Json>,
     pub walk: Vec<Pass>,
     pub data: Option<Vec<Record>>,
@@ -318,6 +324,9 @@ pub struct Plan {
     pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     pub style: Option<Json>,
     pub nodes: Option<Vec<(String, Vertex)>>,
     pub arcs: Option<Vec<(String, Arc)>>,
@@ -341,6 +350,9 @@ pub struct Track {
     pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     pub style: Option<Json>,
     pub started: Option<String>,
     pub ended: Option<String>,
@@ -400,6 +412,9 @@ pub struct Waypoint {
     pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     pub style: Option<Json>,
     pub at: Position,
     pub data: Option<Vec<Record>>,
@@ -413,6 +428,9 @@ pub struct Area {
     pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
+    /// SPEC 3.8: the time the item was pinned, a record-level timestamp
+    /// (SPEC 4.3) kept verbatim. `None` is not pinned.
+    pub pinned: Option<String>,
     pub style: Option<Json>,
     /// One OPEN ring of at least three distinct positions (SPEC 3.7): the last
     /// position does not repeat the first, and the boundary runs from the last

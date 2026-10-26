@@ -96,6 +96,7 @@ fn network(n: &Network, path: &Path) -> Built {
     o.str("notes", n.notes.as_deref());
     o.str("folder", n.folder.as_deref());
     o.hidden(n.hidden);
+    o.str("pinned", n.pinned.as_deref());
     graph(&mut o, &n.nodes, &n.arcs, path)?;
     let highlights_path = path.key("highlights");
     if let Some(highlights) = &n.highlights {
@@ -152,6 +153,7 @@ fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> B
     o.str("name", c.name.as_deref());
     o.str("notes", c.notes.as_deref());
     o.hidden(c.hidden);
+    o.str("pinned", c.pinned.as_deref());
     o.opaque("style", c.style.as_ref());
     o.raw("walk", walk(&c.walk));
     o.records(&c.data);
@@ -196,6 +198,7 @@ fn plan(r: &Plan, path: &Path) -> Built {
     o.str("notes", r.notes.as_deref());
     o.str("folder", r.folder.as_deref());
     o.hidden(r.hidden);
+    o.str("pinned", r.pinned.as_deref());
     o.opaque("style", r.style.as_ref());
     graph(&mut o, &r.nodes, &r.arcs, path)?;
     check_walk(&r.walk, &r.arcs, true, &path.key("walk"))?;
@@ -210,6 +213,7 @@ fn track(t: &Track, _path: &Path) -> Built {
     o.str("notes", t.notes.as_deref());
     o.str("folder", t.folder.as_deref());
     o.hidden(t.hidden);
+    o.str("pinned", t.pinned.as_deref());
     o.str("started", t.started.as_deref());
     o.str("ended", t.ended.as_deref());
     o.opaque("style", t.style.as_ref());
@@ -236,6 +240,7 @@ fn waypoint(w: &Waypoint, _path: &Path) -> Built {
     o.str("notes", w.notes.as_deref());
     o.str("folder", w.folder.as_deref());
     o.hidden(w.hidden);
+    o.str("pinned", w.pinned.as_deref());
     o.opaque("style", w.style.as_ref());
     o.raw("at", position(&w.at));
     o.records(&w.data);
@@ -249,6 +254,7 @@ fn area(a: &Area, path: &Path) -> Built {
     o.str("notes", a.notes.as_deref());
     o.str("folder", a.folder.as_deref());
     o.hidden(a.hidden);
+    o.str("pinned", a.pinned.as_deref());
     o.opaque("style", a.style.as_ref());
     o.raw("polygon", pips(&a.polygon));
     o.records(&a.data);
@@ -492,6 +498,62 @@ mod tests {
         assert!(!out.contains("hidden"), "{out}");
         let shown = encode_text(r#"{"vnx":"0.10.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
         assert!(shown.contains(r#""hidden":true"#), "{shown}");
+    }
+
+    /// SPEC 3.8: `pinned` is carried on every item but a folder, kept
+    /// verbatim through a read and a write, a calendar-invalid value included
+    /// (SPEC 4.3), and written only when the item is pinned.
+    #[test]
+    fn pinned_round_trips_on_every_item_kind() {
+        let text = r#"{"vnx":"0.10.0",
+            "networks":[{"pinned":"2026-10-20T08:15:00Z",
+              "nodes":{"a":[1,1],"b":[1,2]},
+              "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
+              "highlights":[{"pinned":"2026-10-21T09:00:00.250Z","walk":[{"arc":"ab","from":"a","to":"b"}]}],
+              "points":[{"pinned":"2026-10-22T10:30:45.5Z","at":[1,1.5]}],
+              "areas":[{"pinned":"2026-10-23T11:00:00Z","polygon":[[1,1],[2,1],[2,2]]}]}],
+            "plans":[{"pinned":"2026-10-24T12:00:00Z",
+              "nodes":{"a":[1,1],"b":[1,2]},
+              "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
+              "walk":[{"arc":"ab","from":"a","to":"b"}]}],
+            "tracks":[{"pinned":"2026-10-25T13:00:00.001Z","segments":[]}],
+            "waypoints":[{"pinned":"2026-10-26T14:00:00Z","at":[3,3]},{"name":"unpinned","at":[4,4]}],
+            "areas":[{"pinned":"2026-13-45T99:99:99Z","polygon":[[1,1],[2,1],[2,2]]}]}"#;
+        let decoded = decode(text.as_bytes()).expect("accepted");
+        assert!(decoded.diagnostics.is_empty(), "{:?}", decoded.diagnostics);
+        let d = &decoded.document;
+        let network = &d.networks.as_ref().unwrap()[0];
+        let got = [
+            network.pinned.as_deref(),
+            network.highlights.as_ref().unwrap()[0].pinned.as_deref(),
+            network.points.as_ref().unwrap()[0].pinned.as_deref(),
+            network.areas.as_ref().unwrap()[0].pinned.as_deref(),
+            d.plans.as_ref().unwrap()[0].pinned.as_deref(),
+            d.tracks.as_ref().unwrap()[0].pinned.as_deref(),
+            d.waypoints.as_ref().unwrap()[0].pinned.as_deref(),
+            d.areas.as_ref().unwrap()[0].pinned.as_deref(),
+        ];
+        let want = [
+            "2026-10-20T08:15:00Z",
+            "2026-10-21T09:00:00.250Z",
+            "2026-10-22T10:30:45.5Z",
+            "2026-10-23T11:00:00Z",
+            "2026-10-24T12:00:00Z",
+            "2026-10-25T13:00:00.001Z",
+            "2026-10-26T14:00:00Z",
+            "2026-13-45T99:99:99Z",
+        ];
+        assert_eq!(got, want.map(Some));
+        assert_eq!(d.waypoints.as_ref().unwrap()[1].pinned, None);
+
+        let out = encode_text(text);
+        for value in want {
+            assert!(
+                out.contains(&format!(r#""pinned":"{value}""#)),
+                "{value} missing from {out}"
+            );
+        }
+        assert_eq!(out.matches(r#""pinned""#).count(), want.len(), "{out}");
     }
 
     #[test]

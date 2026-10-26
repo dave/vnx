@@ -1,0 +1,30 @@
+{
+  "vnx": "0.10.0",
+  "folders": [
+    {"id": "f1", "name": "Hills", "pinned": "2026-10-20T08:15:00Z"}
+  ],
+  "networks": [
+    {
+      "name": "Paths",
+      "nodes": {"n1": [1, 1], "n2": [1, 2]},
+      "arcs": {
+        "a1": {"from": "n1", "to": "n2", "pips": [[1, 1.5]], "pinned": "2026-10-20T08:15:00Z"}
+      },
+      "highlights": [
+        {
+          "name": "Walk",
+          "walk": [{"arc": "a1", "from": "n1", "to": "n2", "pinned": "2026-10-20T08:15:00Z"}]
+        }
+      ]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Day out",
+      "segments": [{"pips": [[4, 4], [4, 5]], "pinned": "2026-10-20T08:15:00Z"}]
+    }
+  ],
+  "waypoints": [
+    {"name": "Car park", "pinned": "2026-10-20T09:15:00+01:00", "at": [-3.675, 57.1201]}
+  ]
+}

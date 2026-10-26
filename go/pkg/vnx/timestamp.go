@@ -9,7 +9,8 @@ import (
 )
 
 // Timestamp is a record-level timestamp (§4.3): `started` and `ended` on a
-// track. The empty value is absent.
+// track, and `pinned` on every item but a folder (§3.8). The empty value is
+// absent.
 //
 // ⚠ IT IS A STRING, AND IT IS KEPT VERBATIM. §4.3 checks a record-level
 // timestamp for SHAPE ONLY and forbids a reader to refuse or diagnose one on

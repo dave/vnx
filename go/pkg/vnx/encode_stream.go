@@ -288,6 +288,15 @@ func streamNetwork(b *StickyWriter, n Network) error {
 			return err
 		}
 	}
+	pinned, err := pinnedWire("network", n.Name, n.Pinned)
+	if err != nil {
+		return err
+	}
+	if pinned != "" {
+		if err := o.value("pinned", pinned); err != nil {
+			return err
+		}
+	}
 	if len(n.Nodes) > 0 {
 		if err := o.key("nodes"); err != nil {
 			return err

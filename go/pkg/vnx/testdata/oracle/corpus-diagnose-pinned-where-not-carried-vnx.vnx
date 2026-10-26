@@ -1,0 +1,58 @@
+{
+  "vnx": "0.10.0",
+  "folders": [
+    {
+      "id": "f1",
+      "name": "Hills"
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "Car park",
+      "at": [-3.675, 57.1201]
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Day out",
+      "segments": [
+        {
+          "pips": [
+            [4, 4],
+            [4, 5]
+          ]
+        }
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "name": "Paths",
+      "nodes": {
+        "n1": [1, 1],
+        "n2": [1, 2]
+      },
+      "arcs": {
+        "a1": {
+          "from": "n1",
+          "to": "n2",
+          "pips": [
+            [1, 1.5]
+          ]
+        }
+      },
+      "highlights": [
+        {
+          "name": "Walk",
+          "walk": [
+            {
+              "arc": "a1",
+              "from": "n1",
+              "to": "n2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

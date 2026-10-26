@@ -9,6 +9,7 @@ type Waypoint struct {
 	Name   string
 	Notes  string
 	Hidden bool
+	Pinned Timestamp // "" is not pinned (§3.8)
 	At     Position
 	Style  Style
 	Data   []Record
@@ -23,14 +24,15 @@ type Area struct {
 	Name    string
 	Notes   string
 	Hidden  bool
+	Pinned  Timestamp // "" is not pinned (§3.8)
 	Polygon []Position
 	Style   Style
 	Data    []Record
 }
 
 var (
-	waypointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "at": true, "style": true, "data": true}
-	areaKeys     = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "polygon": true, "style": true, "data": true}
+	waypointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "style": true, "data": true}
+	areaKeys     = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "style": true, "data": true}
 )
 
 // decodeWaypoints reads a network's `points`, which arrive as a generic tree.
@@ -80,6 +82,7 @@ func waypointFromValue(item any, at string, diags []Diagnostic) (Waypoint, bool,
 	w.Name, diags = stringField(obj, "name", diags)
 	w.Notes, diags = stringField(obj, "notes", diags)
 	w.Hidden, diags = boolField(obj, "hidden", at, diags)
+	w.Pinned, diags = timeField(obj, "pinned", at, diags)
 	w.Style, diags = decodeStyle(obj, at, diags)
 	w.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, waypointKeys, diags)
@@ -99,6 +102,7 @@ func areaFromObject(obj map[string]any, at string, rr *ringRead, diags []Diagnos
 	a.Name, diags = stringField(obj, "name", diags)
 	a.Notes, diags = stringField(obj, "notes", diags)
 	a.Hidden, diags = boolField(obj, "hidden", at, diags)
+	a.Pinned, diags = timeField(obj, "pinned", at, diags)
 	a.Style, diags = decodeStyle(obj, at, diags)
 	a.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, areaKeys, diags)

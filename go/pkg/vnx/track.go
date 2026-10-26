@@ -40,6 +40,7 @@ type Track struct {
 	Name     string
 	Notes    string
 	Hidden   bool
+	Pinned   Timestamp // "" is not pinned (§3.8)
 	Started  Timestamp // "" is absent
 	Ended    Timestamp // "" is absent
 	Style    Style
@@ -115,7 +116,7 @@ func (s Segment) timedSpan() (time.Duration, bool) {
 }
 
 var trackKeys = map[string]bool{
-	"folder": true, "name": true, "notes": true, "hidden": true,
+	"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
 	"started": true, "ended": true, "style": true, "segments": true, "data": true,
 }
 
@@ -128,6 +129,7 @@ func trackFromObject(obj map[string]any, at string, segs []Segment, segDiags, di
 	tr.Name, diags = stringField(obj, "name", diags)
 	tr.Notes, diags = stringField(obj, "notes", diags)
 	tr.Hidden, diags = boolField(obj, "hidden", at, diags)
+	tr.Pinned, diags = timeField(obj, "pinned", at, diags)
 	tr.Started, diags = timeField(obj, "started", at, diags)
 	tr.Ended, diags = timeField(obj, "ended", at, diags)
 	tr.Style, diags = decodeStyle(obj, at, diags)

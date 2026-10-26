@@ -13,6 +13,7 @@ type Network struct {
 	Name       string
 	Notes      string
 	Hidden     bool
+	Pinned     Timestamp // "" is not pinned (§3.8)
 	Nodes      map[string]Vertex
 	Arcs       map[string]Arc
 	Highlights []Highlight
@@ -28,15 +29,16 @@ type Highlight struct {
 	Name   string
 	Notes  string
 	Hidden bool
+	Pinned Timestamp // "" is not pinned (§3.8)
 	Style  Style
 	Walk   []Pass
 	Data   []Record
 }
 
 var (
-	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true,
+	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
 		"nodes": true, "arcs": true, "highlights": true, "points": true, "areas": true, "data": true}
-	highlightKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "style": true, "walk": true, "data": true}
+	highlightKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "pinned": true, "style": true, "walk": true, "data": true}
 	arcKeys       = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
 )
 
@@ -48,6 +50,7 @@ func networkFromObject(obj map[string]any, at string, g *graphRead, areas *areas
 	n.Name, diags = stringField(obj, "name", diags)
 	n.Notes, diags = stringField(obj, "notes", diags)
 	n.Hidden, diags = boolField(obj, "hidden", at, diags)
+	n.Pinned, diags = timeField(obj, "pinned", at, diags)
 	n.Nodes, n.Arcs, diags = g.finish(at, diags)
 	n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
 	if sub, ok := obj["points"].([]any); ok {
@@ -167,6 +170,7 @@ func decodeHighlights(v any, path string, arcs map[string]Arc, diags []Diagnosti
 		c.Name, diags = stringField(obj, "name", diags)
 		c.Notes, diags = stringField(obj, "notes", diags)
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
+		c.Pinned, diags = timeField(obj, "pinned", at, diags)
 		c.Style, diags = decodeStyle(obj, at, diags)
 		c.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, highlightKeys, diags)

@@ -33,7 +33,7 @@ import (
 
 // Version is the specification version this package implements. It is
 // MAJOR.MINOR.PATCH; see checkVersion for what each component decides.
-const Version = "0.10.2"
+const Version = "0.10.3"
 
 // Sentinel errors. A caller distinguishes a refusal (these) from a document
 // that read with diagnostics — see Decode.

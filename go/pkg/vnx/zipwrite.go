@@ -15,6 +15,7 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"time"
 	"unicode/utf8"
 )
 
@@ -36,16 +37,20 @@ type archiveEntry struct {
 
 // writeZipArchive writes entries as a deflated ZIP archive meeting §7.1.
 //
+// Every entry carries `modified`. Its zero value writes no date at all, which
+// keeps the header constant.
+//
 // A producer error comes back AS IT IS, unwrapped: an encoder that refused a
 // document has not failed to make an archive, and renaming its refusal would
 // send the caller looking at the zip layer for a defect that is not there.
-func writeZipArchive(w io.Writer, entries []archiveEntry) error {
+func writeZipArchive(w io.Writer, modified time.Time, entries []archiveEntry) error {
 	zw := zip.NewWriter(w)
 	for _, e := range entries {
 		ew, err := zw.CreateHeader(&zip.FileHeader{
-			Name:   e.name,
-			Method: zip.Deflate,
-			Flags:  utf8NameFlag,
+			Name:     e.name,
+			Method:   zip.Deflate,
+			Flags:    utf8NameFlag,
+			Modified: modified,
 		})
 		if err != nil {
 			return fmt.Errorf("%w: entry %q: %s", ErrContainer, e.name, err)

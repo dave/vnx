@@ -20,6 +20,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Attachment is one file stored beside the document in a `.vnz`.
@@ -58,7 +59,27 @@ func WriteContainer(w io.Writer, name string, produce func(io.Writer) error) err
 // fallback and the preferred-name rule land on the same entry. The attachments
 // follow in name order, so that two exports of one library agree with each
 // other whatever order the caller supplied.
+//
+// Every entry's modification time stays at its zero value, so two archives of
+// one document are one file. [WriteContainerAt] stamps a time instead.
 func WriteContainerWithAttachments(w io.Writer, name string, produce func(io.Writer) error, attachments []Attachment) error {
+	return writeContainer(w, time.Time{}, name, produce, attachments)
+}
+
+// WriteContainerAt is [WriteContainerWithAttachments] with every entry dated
+// `modified`, for a caller whose archive is a file for a person: with no date,
+// an unzip tool shows 30 November 1979, what the empty DOS date fields decode to.
+//
+// The DOS date fields hold the wall clock of modified's location. A zero time
+// is refused: it is the same 1979 date, reached by a caller that meant a date.
+func WriteContainerAt(w io.Writer, modified time.Time, name string, produce func(io.Writer) error, attachments []Attachment) error {
+	if modified.IsZero() {
+		return fmt.Errorf("%w: entry %q has a zero modification time", ErrContainer, name)
+	}
+	return writeContainer(w, modified, name, produce, attachments)
+}
+
+func writeContainer(w io.Writer, modified time.Time, name string, produce func(io.Writer) error, attachments []Attachment) error {
 	if err := checkAttachmentName(name); err != nil {
 		return err
 	}
@@ -90,7 +111,7 @@ func WriteContainerWithAttachments(w io.Writer, name string, produce func(io.Wri
 			return err
 		}})
 	}
-	return writeZipArchive(w, entries)
+	return writeZipArchive(w, modified, entries)
 }
 
 // EncodeContainerTo writes a Document to w as a `.vnz` archive.

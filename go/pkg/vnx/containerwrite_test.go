@@ -16,6 +16,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dave/vnx/go/pkg/vnx"
 )
@@ -124,7 +125,8 @@ func TestTheContainerEntryHoldsExactlyThePlainEncoding(t *testing.T) {
 //
 // The zip entry carries a modification time, and stamping "now" into it is the
 // obvious way to lose this — which is why WriteContainer leaves Modified at its
-// zero value rather than taking Create's word for it.
+// zero value rather than taking Create's word for it. WriteContainerAt is the
+// one path that stamps a time, and only because its caller gave one.
 func TestTheArchiveIsDeterministic(t *testing.T) {
 	doc := containerFixture()
 	var a, b bytes.Buffer
@@ -136,6 +138,49 @@ func TestTheArchiveIsDeterministic(t *testing.T) {
 	}
 	if !bytes.Equal(a.Bytes(), b.Bytes()) {
 		t.Error("two archives of one document differ; something in the zip header is not a constant")
+	}
+}
+
+// TestWriteContainerAtDatesEveryEntry reads the time back with archive/zip, and
+// the DOS fields as well as Modified: a tool that ignores the extended timestamp
+// shows the DOS fields, so they must hold the caller's wall clock.
+func TestWriteContainerAtDatesEveryEntry(t *testing.T) {
+	when := time.Date(2026, 11, 3, 14, 30, 16, 0, time.FixedZone("test", 2*60*60))
+	var buf bytes.Buffer
+	err := vnx.WriteContainerAt(&buf, when, vnx.RootDocumentName, func(w io.Writer) error {
+		return vnx.EncodeTo(w, containerFixture())
+	}, []vnx.Attachment{{Name: "photos/a.jpg", Body: strings.NewReader("a")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zr.File) != 2 {
+		t.Fatalf("got %d entries, want 2", len(zr.File))
+	}
+	wantDate := uint16((2026-1980)<<9 | 11<<5 | 3)
+	wantTime := uint16(14<<11 | 30<<5 | 16/2)
+	for _, f := range zr.File {
+		if !f.Modified.Equal(when) {
+			t.Errorf("%s: Modified = %v, want %v", f.Name, f.Modified, when)
+		}
+		if f.ModifiedDate != wantDate || f.ModifiedTime != wantTime {
+			t.Errorf("%s: DOS date/time = %#x/%#x, want %#x/%#x", f.Name, f.ModifiedDate, f.ModifiedTime, wantDate, wantTime)
+		}
+	}
+	if _, _, err := vnx.DecodeContainer(bytes.NewReader(buf.Bytes()), int64(buf.Len())); err != nil {
+		t.Errorf("the dated archive does not read back: %v", err)
+	}
+}
+
+// TestWriteContainerAtRefusesAZeroTime: a zero time is the 1979 date again.
+func TestWriteContainerAtRefusesAZeroTime(t *testing.T) {
+	var buf bytes.Buffer
+	err := vnx.WriteContainerAt(&buf, time.Time{}, vnx.RootDocumentName, func(w io.Writer) error { return nil }, nil)
+	if !errors.Is(err, vnx.ErrContainer) {
+		t.Fatalf("got %v, want ErrContainer", err)
 	}
 }
 

@@ -181,6 +181,15 @@ class WriterRulesTest {
     }
 
     @Test
+    fun `a plan refusal names the plan as a JSON string, an unnamed plan as empty`() {
+        val loop = Plan(walk = emptyList(), nodes = nodes, arcs = mapOf("aa" to Arc("a", "a", emptyList())))
+        val unnamed = refused(VnxDocument(vnx = "0.10.0", plans = listOf(loop)))
+        assertTrue(unnamed.startsWith("plan \"\": "), unnamed)
+        val quoted = refused(VnxDocument(vnx = "0.10.0", plans = listOf(loop.copy(name = "Say \"hi\""))))
+        assertTrue(quoted.startsWith("plan \"Say \\\"hi\\\"\": "), quoted)
+    }
+
+    @Test
     fun `a writer refuses a plan whose walk is not node to node`() {
         val plan =
             Plan(

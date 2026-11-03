@@ -130,8 +130,9 @@ internal class Encoder {
     /** A plan: a network's nodes and arcs, and one walk that runs node to node (section 3.4). */
     private fun plan(r: Plan): JsonObject {
         val arcs = r.arcs ?: emptyMap()
-        checkArcs("plan \"${r.name}\"", r.nodes ?: emptyMap(), arcs)
-        checkWalkOf("plan \"${r.name}\"", r.walk, arcs, plan = true)
+        val owner = "plan ${jsonQuoted(r.name.orEmpty())}"
+        checkArcs(owner, r.nodes ?: emptyMap(), arcs)
+        checkWalkOf(owner, r.walk, arcs, plan = true)
         return JsonObject
             .Builder()
             .putString("name", r.name)

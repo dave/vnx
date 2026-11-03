@@ -213,7 +213,9 @@ function emitNetwork(n) {
   emitNodes(o, n.nodes, owner);
   emitArcs(o, n.nodes, n.arcs, owner);
   if (n.highlights !== undefined)
-    o.highlights = n.highlights.map((c, i) => emitHighlight(c, n.arcs, `${owner} highlight ${i}`));
+    o.highlights = n.highlights.map((c, i) =>
+      emitHighlight(c, n.arcs, `network ${JSON.stringify(n.name ?? '')} highlight ${i}`),
+    );
   if (n.points !== undefined) o.points = n.points.map((p) => emitPointLike(p));
   if (n.areas !== undefined) o.areas = n.areas.map((a) => emitArea(a));
   put(o, 'data', n.data);

@@ -163,11 +163,13 @@ class WriterRulesTest {
     }
 
     @Test
-    fun `a walk refusal names the network and the highlight's index, and an unnamed network as empty`() {
+    fun `a walk refusal names the network and the highlight's index, an unnamed network as empty, and the name as a JSON string`() {
         val bad = listOf(Pass("ghost", from = Endpoint.Node("a"), to = Endpoint.Node("b")))
         assertTrue(refused(network(bad)).startsWith("network \"\" highlight 0: "), refused(network(bad)))
         val named = network(bad).let { d -> d.copy(networks = d.networks!!.map { it.copy(name = "Fells") }) }
         assertTrue(refused(named).startsWith("network \"Fells\" highlight 0: "), refused(named))
+        val quoted = network(bad).let { d -> d.copy(networks = d.networks!!.map { it.copy(name = "Say \"hi\" \\ bye") }) }
+        assertTrue(refused(quoted).startsWith("network \"Say \\\"hi\\\" \\\\ bye\" highlight 0: "), refused(quoted))
     }
 
     @Test

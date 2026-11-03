@@ -109,7 +109,8 @@ internal class Encoder {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
-        n.highlights?.forEachIndexed { i, h -> checkWalkOf("network \"${n.name.orEmpty()}\" highlight $i", h.walk, arcs, plan = false) }
+        val owner = "network ${jsonQuoted(n.name.orEmpty())}"
+        n.highlights?.forEachIndexed { i, h -> checkWalkOf("$owner highlight $i", h.walk, arcs, plan = false) }
         return JsonObject
             .Builder()
             .putString("name", n.name)
@@ -165,6 +166,12 @@ internal class Encoder {
             }
         }
     }
+
+    /** [s] as a JSON string literal, so a name holding a quote or backslash reads unambiguously (as every library writes it). */
+    private fun jsonQuoted(s: String): String =
+        kotlinx.serialization.json
+            .JsonPrimitive(s)
+            .toString()
 
     private fun checkWalkOf(
         owner: String,

@@ -203,6 +203,7 @@ pub(crate) fn check_walk(
     arcs: &Option<Vec<(String, Arc)>>,
     plan: bool,
     walk_path: &Path,
+    owner: &str,
 ) -> Result<(), EncodeError> {
     let mut cursor = Cursor::new(walk.len(), plan);
     for (i, pass) in walk.iter().enumerate() {
@@ -225,6 +226,7 @@ pub(crate) fn check_walk(
             },
         };
         return Err(EncodeError::Walk {
+            owner: owner.to_string(),
             path: fault.path(walk_path).as_str().to_string(),
             cause: fault.cause,
         });

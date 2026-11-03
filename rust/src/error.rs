@@ -139,9 +139,12 @@ pub enum EncodeError {
     /// SPEC 3.3.2: an arc that is a self-loop, or that names a node its owner
     /// does not have. `path` is the arc's JSON Pointer.
     Arc { path: String, detail: String },
-    /// SPEC 3.3.3, 3.4: a walk a reader would drop. `path` and `cause` are the
-    /// ones the reader's diagnostic would carry.
+    /// SPEC 3.3.3, 3.4: a walk a reader would drop. `owner` names what walks
+    /// it: `network "<name>" highlight <i>`, as a highlight has no name of its
+    /// own, or `plan "<name>"`. `path` and `cause` are the ones the reader's
+    /// diagnostic would carry.
     Walk {
+        owner: String,
         path: String,
         cause: crate::diag::Cause,
     },
@@ -169,9 +172,9 @@ impl std::fmt::Display for EncodeError {
                 )
             }
             EncodeError::Arc { path, detail } => write!(f, "{path}: {detail} (SPEC 3.3.2)"),
-            EncodeError::Walk { path, cause } => write!(
+            EncodeError::Walk { owner, path, cause } => write!(
                 f,
-                "{path}: a reader would drop this walk under `{}` (SPEC 3.3.3): {cause}",
+                "{owner}: {path}: a reader would drop this walk under `{}` (SPEC 3.3.3): {cause}",
                 cause.code()
             ),
             EncodeError::Ring { path, detail } => write!(f, "{path}: {detail} (SPEC 3.7)"),

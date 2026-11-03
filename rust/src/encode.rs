@@ -102,7 +102,11 @@ fn network(n: &Network, path: &Path) -> Built {
     if let Some(highlights) = &n.highlights {
         let mut out = Vec::with_capacity(highlights.len());
         for (i, c) in highlights.iter().enumerate() {
-            out.push(highlight(c, &n.arcs, &highlights_path.index(i))?);
+            let owner = format!(
+                "network {:?} highlight {i}",
+                n.name.as_deref().unwrap_or("")
+            );
+            out.push(highlight(c, &n.arcs, &highlights_path.index(i), &owner)?);
         }
         o.raw("highlights", Json::Array(out));
     }
@@ -147,8 +151,8 @@ fn arc(a: &Arc) -> Json {
 
 /// A highlight of a network whose arcs are `arcs`. The walk is checked against
 /// them first: a writer never emits a walk its own reader would drop.
-fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> Built {
-    check_walk(&c.walk, arcs, false, &path.key("walk"))?;
+fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path, owner: &str) -> Built {
+    check_walk(&c.walk, arcs, false, &path.key("walk"), owner)?;
     let mut o = Obj::new();
     o.hidden(c.hidden);
     o.str("pinned", c.pinned.as_deref());
@@ -198,7 +202,8 @@ fn plan(r: &Plan, path: &Path) -> Built {
     o.str("pinned", r.pinned.as_deref());
     o.opaque("style", r.style.as_ref());
     graph(&mut o, &r.nodes, &r.arcs, path)?;
-    check_walk(&r.walk, &r.arcs, true, &path.key("walk"))?;
+    let owner = format!("plan {:?}", r.name.as_deref().unwrap_or(""));
+    check_walk(&r.walk, &r.arcs, true, &path.key("walk"), &owner)?;
     o.raw("walk", walk(&r.walk));
     o.records(&r.data);
     Ok(o.done())
@@ -621,16 +626,25 @@ mod tests {
             network(d).highlights.as_mut().unwrap()[0].walk[0].to = None
         });
         assert!(
-            matches!(&spelling, EncodeError::Walk { path, cause } if path == "/networks/0/highlights/0/walk/0" && cause.code() == "walk-spelling"),
+            matches!(&spelling, EncodeError::Walk { path, cause, .. } if path == "/networks/0/highlights/0/walk/0" && cause.code() == "walk-spelling"),
             "{spelling:?}"
         );
 
         let ghost = refused(&|d: &mut Document| {
+            network(d).name = Some("Ridges".into());
             network(d).highlights.as_mut().unwrap()[0].walk[0].arc = "ghost".into()
         });
         assert!(
             matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"),
             "{ghost:?}"
+        );
+        // A highlight has no name (SPEC 3.3.3), so the error names its network
+        // and its index.
+        assert!(
+            ghost
+                .to_string()
+                .starts_with("network \"Ridges\" highlight 0: "),
+            "{ghost}"
         );
 
         let pinned_plan = refused(&|d: &mut Document| {
@@ -640,7 +654,7 @@ mod tests {
             })
         });
         assert!(
-            matches!(&pinned_plan, EncodeError::Walk { path, cause } if path == "/plans/0/walk/0/pin" && cause.code() == "plan-pin-or-position"),
+            matches!(&pinned_plan, EncodeError::Walk { path, cause, .. } if path == "/plans/0/walk/0/pin" && cause.code() == "plan-pin-or-position"),
             "{pinned_plan:?}"
         );
 

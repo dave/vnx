@@ -340,6 +340,16 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
             self.refused(document).startswith('network "Ridges" highlight 0: ')
         )
 
+    def test_a_refused_arc_names_its_network_as_json(self) -> None:
+        # The owner is the network's name as a JSON string literal, as in the
+        # other five libraries; Python's repr would give 'R"i' here.
+        arcs = {"loop": Arc(from_="a", to="a", pips=[])}
+        self.assertTrue(
+            self.refused(_network([], arcs=arcs, name='R"i')).startswith(
+                'network "R\\"i": '
+            )
+        )
+
     def test_an_arc_naming_an_absent_node_is_refused(self) -> None:
         arcs = {"ax": Arc(from_="a", to="x", pips=[])}
         self.assertIn("'x'", self.refused(_network([], arcs=arcs)))

@@ -185,13 +185,14 @@ def _graph(
 def _network(network: Network) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, network)
-    _graph(obj, network.nodes, network.arcs, f"network {network.name!r}")
+    owner = f"network {json.dumps(network.name or '', ensure_ascii=False)}"
+    _graph(obj, network.nodes, network.arcs, owner)
     if network.highlights is not None:
         obj["highlights"] = [
             _highlight(
                 highlight,
                 network.arcs or {},
-                f"network {json.dumps(network.name or '', ensure_ascii=False)} highlight {i}",
+                f"{owner} highlight {i}",
             )
             for i, highlight in enumerate(network.highlights)
         ]

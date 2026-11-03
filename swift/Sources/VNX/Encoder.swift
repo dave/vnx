@@ -112,7 +112,7 @@ enum DocumentEncoder {
         try highlights.enumerated().map { i, c in
           try checkWalk(
             c.walk, arcs: n.arcs ?? [:], plan: false,
-            owner: "network \"\(n.name ?? "")\" highlight \(i)")
+            owner: "network \(JSONWriter.stringLiteral(n.name ?? "")) highlight \(i)")
           return highlight(c)
         })
     }

@@ -149,6 +149,15 @@ enum JSONWriter {
     }
   }
 
+  /// `s` as a JSON string literal, quotes included (`writeString`'s
+  /// escaping). The walk-error owner writes a network's name this way, as
+  /// every library does.
+  static func stringLiteral(_ s: String) -> String {
+    var out = [UInt8]()
+    writeString(s, into: &out)
+    return String(decoding: out, as: UTF8.self)
+  }
+
   /// RFC 8259 section 7: `"` and `\` and the controls below U+0020 are
   /// escaped, and everything else is written as its own UTF-8.
   private static func writeString(_ s: String, into out: inout [UInt8]) {

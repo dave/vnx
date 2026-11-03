@@ -559,6 +559,9 @@ final class WalkTests: XCTestCase {
     // libraries do.
     n.name = nil
     assertRefused(document(network: n), "network \"\" highlight 1: ")
+    // The name is a JSON string literal: a quote or backslash is escaped.
+    n.name = #"The "West" \ Ridges"#
+    assertRefused(document(network: n), #"network "The \"West\" \\ Ridges" highlight 1: "#)
   }
 
   func testTheWriterRefusesAPlanWalkWithAPositionTurnOrPin() {

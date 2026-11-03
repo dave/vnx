@@ -564,6 +564,21 @@ final class WalkTests: XCTestCase {
     assertRefused(document(network: n), #"network "The \"West\" \\ Ridges" highlight 1: "#)
   }
 
+  /// An arc or plan refusal names its owner as every vnx library does: the
+  /// name as a JSON string literal, and `""` for no name.
+  func testARefusedNetworkOrPlanIsNamedAsAJSONString() {
+    var n = Network()
+    n.nodes = nodes
+    n.arcs = ["loop": Arc(from: "a", to: "a")]
+    assertRefused(document(network: n), "network \"\": ")
+    var r = Plan(walk: [Pass(arc: "ab", from: .node("a"), to: .node("b"))])
+    r.nodes = nodes
+    r.arcs = arcs.merging(["loop": Arc(from: "a", to: "a")]) { a, _ in a }
+    assertRefused(document(plan: r), "plan \"\": ")
+    r.name = #"Say "hi""#
+    assertRefused(document(plan: r), #"plan "Say \"hi\"": "#)
+  }
+
   func testTheWriterRefusesAPlanWalkWithAPositionTurnOrPin() {
     var r = Plan(walk: [Pass(arc: "ab", from: .node("a"), to: .position(LonLat(lon: 0.5, lat: 0)))]
     )

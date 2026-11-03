@@ -336,7 +336,9 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         # A highlight has no name (SPEC 3.3.3), so the refusal names its network
         # and its index.
         document = _network([Pass("ab", from_="a")], name="Ridges")
-        self.assertIn("network 'Ridges' highlight 0:", self.refused(document))
+        self.assertTrue(
+            self.refused(document).startswith('network "Ridges" highlight 0: ')
+        )
 
     def test_an_arc_naming_an_absent_node_is_refused(self) -> None:
         arcs = {"ax": Arc(from_="a", to="x", pips=[])}

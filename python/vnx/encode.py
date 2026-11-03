@@ -11,6 +11,7 @@ empty ``data`` array only when the document had one.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Union
 
 from . import walk as W
@@ -188,7 +189,9 @@ def _network(network: Network) -> JSONValue:
     if network.highlights is not None:
         obj["highlights"] = [
             _highlight(
-                highlight, network.arcs or {}, f"network {network.name!r} highlight {i}"
+                highlight,
+                network.arcs or {},
+                f"network {json.dumps(network.name or '', ensure_ascii=False)} highlight {i}",
             )
             for i, highlight in enumerate(network.highlights)
         ]

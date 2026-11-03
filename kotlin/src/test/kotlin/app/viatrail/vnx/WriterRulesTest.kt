@@ -163,6 +163,14 @@ class WriterRulesTest {
     }
 
     @Test
+    fun `a walk refusal names the network and the highlight's index, and an unnamed network as empty`() {
+        val bad = listOf(Pass("ghost", from = Endpoint.Node("a"), to = Endpoint.Node("b")))
+        assertTrue(refused(network(bad)).startsWith("network \"\" highlight 0: "), refused(network(bad)))
+        val named = network(bad).let { d -> d.copy(networks = d.networks!!.map { it.copy(name = "Fells") }) }
+        assertTrue(refused(named).startsWith("network \"Fells\" highlight 0: "), refused(named))
+    }
+
+    @Test
     fun `a writer refuses a plan whose walk is not node to node`() {
         val plan =
             Plan(

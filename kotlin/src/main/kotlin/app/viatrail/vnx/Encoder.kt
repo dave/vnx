@@ -109,7 +109,7 @@ internal class Encoder {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
-        n.highlights?.forEachIndexed { i, h -> checkWalkOf("network \"${n.name}\" highlight $i", h.walk, arcs, plan = false) }
+        n.highlights?.forEachIndexed { i, h -> checkWalkOf("network \"${n.name.orEmpty()}\" highlight $i", h.walk, arcs, plan = false) }
         return JsonObject
             .Builder()
             .putString("name", n.name)

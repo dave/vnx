@@ -307,7 +307,7 @@ func planWire(r Plan) (wirePlan, error) {
 // first: a writer never emits a walk its own reader would drop. A highlight has
 // no name, so an error names it by its network and its index.
 func highlightWire(n Network, i int, c Highlight) (wireHighlight, error) {
-	owner := fmt.Sprintf("network %s highlight %d", jsonQuoted(n.Name), i)
+	owner := fmt.Sprintf("network %s highlight %d", QuoteName(n.Name), i)
 	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
 		return wireHighlight{}, fmt.Errorf("%s: %w", owner, err)
 	}
@@ -500,10 +500,12 @@ func marshalCompact(v any) ([]byte, error) {
 	return out[:len(out)-1], nil
 }
 
-// jsonQuoted is s as a JSON string literal, without HTML escaping: the
+// QuoteName is s as a JSON string literal, without HTML escaping: the
 // spelling every vnx library gives a name in an error, so the six read the
-// same (Go's %q differs for control and non-ASCII characters).
-func jsonQuoted(s string) string {
+// same (Go's %q differs for control and non-ASCII characters). U+2028 and
+// U+2029 are written raw, as the other five libraries write them:
+// encoding/json escapes them even with SetEscapeHTML(false).
+func QuoteName(s string) string {
 	var b strings.Builder
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)
@@ -511,5 +513,33 @@ func jsonQuoted(s string) string {
 		// A string always encodes.
 		panic(err)
 	}
-	return strings.TrimSuffix(b.String(), "\n")
+	return rawLineSeparators(strings.TrimSuffix(b.String(), "\n"))
+}
+
+// rawLineSeparators turns the escapes \u2028 and \u2029 in the JSON string
+// literal q back into the raw characters. It reads q escape by escape, so the
+// text \\u2028 (an escaped backslash, then "u2028") stays as it is.
+func rawLineSeparators(q string) string {
+	if !strings.Contains(q, `\u202`) {
+		return q
+	}
+	var b strings.Builder
+	for i := 0; i < len(q); i++ {
+		if q[i] != '\\' || i+1 >= len(q) {
+			b.WriteByte(q[i])
+			continue
+		}
+		if esc := q[i:min(i+6, len(q))]; esc == `\u2028` || esc == `\u2029` {
+			if esc == `\u2028` {
+				b.WriteString("\u2028")
+			} else {
+				b.WriteString("\u2029")
+			}
+			i += 5
+			continue
+		}
+		b.WriteString(q[i : i+2])
+		i++
+	}
+	return b.String()
 }

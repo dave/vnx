@@ -374,3 +374,20 @@ func TestAWalkErrorNamesTheNetworkAsJSONAndTheHighlightByIndex(t *testing.T) {
 		t.Errorf("error %q, want it to start %q", err, want)
 	}
 }
+
+// QuoteName writes U+2028 and U+2029 raw, as the other five libraries do;
+// encoding/json escapes them even with SetEscapeHTML(false). A backslash
+// before the text "u2028" stays an escaped backslash.
+func TestQuoteNameWritesLineSeparatorsRaw(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"a\u2028b\u2029c", "\"a\u2028b\u2029c\""},
+		{`\u2028`, `"\\u2028"`},
+		{"\\\u2028", "\"\\\\\u2028\""},
+		{"<&>\"\u0001é", `"<&>\"\u0001é"`},
+		{"", `""`},
+	} {
+		if got := QuoteName(tc.in); got != tc.want {
+			t.Errorf("QuoteName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

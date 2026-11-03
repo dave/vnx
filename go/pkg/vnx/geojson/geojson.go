@@ -346,7 +346,7 @@ func (f *features) networks(d *vnx.Document) {
 			// arc makes a LineString.
 			line, err := vnx.ArcLine(n.Nodes, n.Arcs[id])
 			if err != nil {
-				f.fail(fmt.Errorf("geojson: network %q arc %q: %w", n.Name, id, err))
+				f.fail(fmt.Errorf("geojson: network %s arc %s: %w", vnx.QuoteName(n.Name), vnx.QuoteName(id), err))
 				return
 			}
 			lines = append(lines, line)
@@ -444,7 +444,7 @@ func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string, labels
 		// arc forwards, would put a line on the map nobody walked.
 		line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 		if err != nil {
-			f.fail(fmt.Errorf("geojson: network %q highlight %d: %w", n.Name, j, err))
+			f.fail(fmt.Errorf("geojson: network %s highlight %d: %w", vnx.QuoteName(n.Name), j, err))
 			return
 		}
 		if len(line) < 2 {

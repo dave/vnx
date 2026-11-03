@@ -459,7 +459,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 		// Node to node: an arc's line is at least its two ends.
 		line, err := vnx.ArcLine(n.Nodes, n.Arcs[id])
 		if err != nil {
-			x.fail(fmt.Errorf("kml: network %q arc %q: %w", n.Name, id, err))
+			x.fail(fmt.Errorf("kml: network %s arc %s: %w", vnx.QuoteName(n.Name), vnx.QuoteName(id), err))
 			return
 		}
 		lines = append(lines, line)
@@ -488,7 +488,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 		// with empty walks, each of which is wholly lost and writes nothing;
 		// without this loop those whole-item casualties would go unreported.
 		for i, c := range n.Highlights {
-			x.highlight(c, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
+			x.highlight(c, i, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
 		}
 		return
 	}
@@ -524,7 +524,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 		x.areaPlacemark(a, drawableAreas[i])
 	}
 	for i, c := range n.Highlights {
-		x.highlight(c, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
+		x.highlight(c, i, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
 	}
 	x.close("Folder")
 }
@@ -544,13 +544,13 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 // visibility inherits down a folder, so a hidden network already hides it.
 // ORing the network's state in here would hide a visible highlight the moment its
 // network was hidden AND make it impossible to unhide in Google Earth.
-func (x *writer) highlight(c vnx.Highlight, label, path string, n vnx.Network) {
+func (x *writer) highlight(c vnx.Highlight, j int, label, path string, n vnx.Network) {
 	// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. The reader drops such a
 	// highlight, so only a hand-built Document reaches here with one, and drawing
 	// part of it would put a line on the map nobody walked.
 	line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 	if err != nil {
-		x.fail(fmt.Errorf("kml: network %q %s: %w", n.Name, path, err))
+		x.fail(fmt.Errorf("kml: network %s highlight %d: %w", vnx.QuoteName(n.Name), j, err))
 		return
 	}
 	if len(line) < 2 {

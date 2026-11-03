@@ -771,3 +771,40 @@ func TestInNetworkPlacemarksAreNamedByLabelOrInteger(t *testing.T) {
 		t.Errorf("a Placemark inside the network's Folder repeats its name:\n%s", out)
 	}
 }
+
+// A write error names its owner as the walk errors of every vnx library do
+// (#321): the network's name as a JSON string literal, then the highlight's
+// 0-based index or the arc's id, also as a JSON string literal. Go's %q is
+// not JSON for a control character or for U+2028.
+func TestAWriteErrorNamesItsOwnerAsJSON(t *testing.T) {
+	const name = "R\"i\\d\u0001\u2028ge"
+	const quoted = `"R\"i\\d\u0001` + "\u2028" + `ge"`
+	nodes := map[string]vnx.Vertex{"a": {Lon: 0, Lat: 0}, "b": {Lon: 1, Lat: 0}}
+	at := func(n string) *vnx.Endpoint { return &vnx.Endpoint{Node: n} }
+	for _, tc := range []struct {
+		label string
+		d     *vnx.Document
+		want  string
+	}{
+		{"highlight", &vnx.Document{Networks: []vnx.Network{{Name: name, Nodes: nodes,
+			Arcs: map[string]vnx.Arc{"ab": {From: "a", To: "b"}},
+			Highlights: []vnx.Highlight{
+				{Walk: []vnx.Pass{{Arc: "ab", From: at("a"), To: at("b")}}},
+				{Walk: []vnx.Pass{{Arc: "ghost", From: at("a"), To: at("b")}}},
+			}}}}, "kml: network " + quoted + " highlight 1: "},
+		{"arc", &vnx.Document{Networks: []vnx.Network{{Name: name, Nodes: nodes,
+			Arcs: map[string]vnx.Arc{"a\"x": {From: "a", To: "x"}}}}},
+			"kml: network " + quoted + ` arc "a\"x": `},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			var buf bytes.Buffer
+			_, err := Write(&buf, tc.d)
+			if err == nil {
+				t.Fatal("the write succeeded")
+			}
+			if !strings.HasPrefix(err.Error(), tc.want) {
+				t.Errorf("error %q, want it to start %q", err, tc.want)
+			}
+		})
+	}
+}

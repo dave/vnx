@@ -555,6 +555,10 @@ final class WalkTests: XCTestCase {
       Highlight(walk: [Pass(arc: "gone", from: .node("a"), to: .node("b"))]),
     ]
     assertRefused(document(network: n), "network \"Ridges\" highlight 1: ")
+    // An unnamed network reads `network ""`, as Go's %q and the other
+    // libraries do.
+    n.name = nil
+    assertRefused(document(network: n), "network \"\" highlight 1: ")
   }
 
   func testTheWriterRefusesAPlanWalkWithAPositionTurnOrPin() {

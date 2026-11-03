@@ -46,11 +46,6 @@ final class AcceptTierProofTests: XCTestCase {
       (
         "drops every style",
         { d in
-          for i in d.networks?.indices ?? (0..<0) {
-            for j in d.networks?[i].highlights?.indices ?? (0..<0) {
-              d.networks?[i].highlights?[j].style = nil
-            }
-          }
           for i in d.waypoints?.indices ?? (0..<0) { d.waypoints?[i].style = nil }
         }
       ),
@@ -59,9 +54,6 @@ final class AcceptTierProofTests: XCTestCase {
         { d in
           for i in d.networks?.indices ?? (0..<0) {
             d.networks?[i].notes = nil
-            for j in d.networks?[i].highlights?.indices ?? (0..<0) {
-              d.networks?[i].highlights?[j].notes = nil
-            }
           }
         }
       ),

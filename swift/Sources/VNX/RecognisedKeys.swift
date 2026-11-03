@@ -60,9 +60,11 @@ enum Keys {
     required: ["from", "to", "pips"],
     optional: ["data"])
 
+  /// A highlight has no `name`, `notes` or `style`: an old file's key is an
+  /// unknown key.
   static let highlight = Shape(
     required: ["walk"],
-    optional: ["name", "notes", "hidden", "pinned", "style", "data"])
+    optional: ["hidden", "pinned", "data"])
 
   static let pass = Shape(
     required: ["arc"],

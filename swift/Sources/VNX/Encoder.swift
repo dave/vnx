@@ -105,11 +105,16 @@ enum DocumentEncoder {
     putHidden(&o, n.hidden)
     put(&o, "pinned", n.pinned)
     try putGraph(&o, nodes: n.nodes, arcs: n.arcs, owner: "network \(describe(n.name))")
-    try putArray(&o, "highlights", n.highlights) { c in
-      // A writer never emits a walk its own reader would drop.
-      try checkWalk(
-        c.walk, arcs: n.arcs ?? [:], plan: false, owner: "highlight \(describe(c.name))")
-      return highlight(c)
+    if let highlights = n.highlights {
+      // A writer never emits a walk its own reader would drop. A highlight
+      // has no name: it is named by its index in its network.
+      o["highlights"] = .array(
+        try highlights.enumerated().map { i, c in
+          try checkWalk(
+            c.walk, arcs: n.arcs ?? [:], plan: false,
+            owner: "network \(describe(n.name)) highlight \(i)")
+          return highlight(c)
+        })
     }
     putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
     try putArray(&o, "areas", n.areas) { try area($0, allowsFolder: false) }
@@ -181,11 +186,8 @@ enum DocumentEncoder {
 
   private static func highlight(_ c: Highlight) -> JSONValue {
     var o: [JSONKey: JSONValue] = ["walk": walk(c.walk)]
-    put(&o, "name", c.name)
-    put(&o, "notes", c.notes)
     putHidden(&o, c.hidden)
     put(&o, "pinned", c.pinned)
-    putStyle(&o, c.style)
     putData(&o, c.data)
     return .object(o)
   }

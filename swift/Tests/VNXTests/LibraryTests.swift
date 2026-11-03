@@ -382,7 +382,7 @@ final class LibraryTests: XCTestCase {
       """
       "networks":[{"name":"network","pinned":"2026-10-20T08:15:00Z",
         "nodes":{"n1":[1,1],"n2":[1,2]},"arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
-        "highlights":[{"name":"highlight","pinned":"2026-10-21T09:00:00.250Z",
+        "highlights":[{"pinned":"2026-10-21T09:00:00.250Z",
           "walk":[{"arc":"a1","from":"n1","to":"n2"}]}],
         "points":[{"name":"point","pinned":"2026-10-22T10:30:45.5Z","at":[1,1.5]}],
         "areas":[{"name":"network area","pinned":"2026-10-23T11:00:00Z",

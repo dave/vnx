@@ -390,7 +390,7 @@ final class WalkTests: XCTestCase {
   func testAMissingOrWrongTypedWalkDropsItsOwner() throws {
     let result = try read(
       """
-      "networks":[{"highlights":[{"name":"none"},{"walk":{}}]}],
+      "networks":[{"highlights":[{"hidden":false},{"walk":{}}]}],
       "plans":[{"name":"none"},{"walk":"ab"}]
       """)
     XCTAssertEqual(
@@ -541,6 +541,20 @@ final class WalkTests: XCTestCase {
       Highlight(walk: [Pass(arc: "ab", from: .node("a")), Pass(arc: "bc", to: .node("c"))])
     ]
     XCTAssertNoThrow(try VNX.write(document(network: n)))
+  }
+
+  /// A highlight has no name, so a refused walk names its owner by network
+  /// and 0-based index: `network "<name>" highlight <i>: `.
+  func testARefusedHighlightWalkNamesItsNetworkAndIndex() {
+    var n = Network()
+    n.name = "Ridges"
+    n.nodes = nodes
+    n.arcs = arcs
+    n.highlights = [
+      Highlight(walk: [Pass(arc: "ab", from: .node("a"), to: .node("b"))]),
+      Highlight(walk: [Pass(arc: "gone", from: .node("a"), to: .node("b"))]),
+    ]
+    assertRefused(document(network: n), "network \"Ridges\" highlight 1: ")
   }
 
   func testTheWriterRefusesAPlanWalkWithAPositionTurnOrPin() {

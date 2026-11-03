@@ -105,7 +105,6 @@ enum Tree {
   private static func normPlan(_ o: inout OpaqueObject, _ opt: Options) {
     normGraph(&o, opt)
     normWalk(&o, opt)
-    dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
   }
 

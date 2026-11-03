@@ -182,17 +182,16 @@ public struct Pass: Equatable, Sendable {
   }
 }
 
-/// A walk over arcs its network owns (SPEC 3.3.3). The highlight does not own the
-/// arcs: two highlights over one trail name the same arc.
+/// A highlight: a lightweight container for data objects along a walk over arcs
+/// its network owns (SPEC 3.3.3). It has no name, notes or style: what it is
+/// called comes from its data. The highlight does not own the arcs: two
+/// highlights over one trail name the same arc.
 public struct Highlight: Equatable, Sendable {
   public var walk: [Pass]
-  public var name: String?
-  public var notes: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
   /// reason `Track.started` is. `nil` is not pinned.
   public var pinned: String?
-  public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
 
@@ -234,7 +233,7 @@ public struct Plan: Equatable, Sendable {
 // module's tests.
 extension Highlight {
   public init(walk: [Pass]) {
-    self.init(walk: walk, name: nil)
+    self.init(walk: walk, hidden: nil)
   }
 }
 

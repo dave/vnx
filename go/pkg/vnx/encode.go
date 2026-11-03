@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // The wire shapes, and the builders that fill them from the model.
@@ -306,7 +307,7 @@ func planWire(r Plan) (wirePlan, error) {
 // first: a writer never emits a walk its own reader would drop. A highlight has
 // no name, so an error names it by its network and its index.
 func highlightWire(n Network, i int, c Highlight) (wireHighlight, error) {
-	owner := fmt.Sprintf("network %q highlight %d", n.Name, i)
+	owner := fmt.Sprintf("network %s highlight %d", jsonQuoted(n.Name), i)
 	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
 		return wireHighlight{}, fmt.Errorf("%s: %w", owner, err)
 	}
@@ -497,4 +498,18 @@ func marshalCompact(v any) ([]byte, error) {
 	}
 	out := b.Bytes()
 	return out[:len(out)-1], nil
+}
+
+// jsonQuoted is s as a JSON string literal, without HTML escaping: the
+// spelling every vnx library gives a name in an error, so the six read the
+// same (Go's %q differs for control and non-ASCII characters).
+func jsonQuoted(s string) string {
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(s); err != nil {
+		// A string always encodes.
+		panic(err)
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }

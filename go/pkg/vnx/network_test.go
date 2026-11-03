@@ -354,3 +354,23 @@ func TestEncoderRefusesWhatTheReaderWouldDrop(t *testing.T) {
 		})
 	}
 }
+
+// A highlight has no name (§3.3.3), so the encoder names a refused walk by
+// its network and its 0-based index, the network's name as a JSON string
+// literal: every vnx library spells the owner this way (lead's ruling,
+// #321), and Go's %q is not JSON for a control character.
+func TestAWalkErrorNamesTheNetworkAsJSONAndTheHighlightByIndex(t *testing.T) {
+	n := Network{Name: "R\"i\\d\u0001ge",
+		Nodes:      map[string]Vertex{"a": {Lon: -3.60, Lat: 57.10}, "b": {Lon: -3.59, Lat: 57.10}},
+		Arcs:       map[string]Arc{"ab": {From: "a", To: "b"}},
+		Highlights: []Highlight{{Walk: []Pass{{Arc: "ghost", From: &Endpoint{Node: "a"}, To: &Endpoint{Node: "b"}}}}},
+	}
+	_, err := Encode(&Document{Networks: []Network{n}})
+	if err == nil {
+		t.Fatal("a walk over an absent arc was encoded")
+	}
+	const want = `network "R\"i\\d\u0001ge" highlight 0: `
+	if !strings.HasPrefix(err.Error(), want) {
+		t.Errorf("error %q, want it to start %q", err, want)
+	}
+}

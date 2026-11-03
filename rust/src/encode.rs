@@ -102,10 +102,7 @@ fn network(n: &Network, path: &Path) -> Built {
     if let Some(highlights) = &n.highlights {
         let mut out = Vec::with_capacity(highlights.len());
         for (i, c) in highlights.iter().enumerate() {
-            let owner = format!(
-                "network {:?} highlight {i}",
-                n.name.as_deref().unwrap_or("")
-            );
+            let owner = format!("network {} highlight {i}", json_quoted(n.name.as_deref()));
             out.push(highlight(c, &n.arcs, &highlights_path.index(i), &owner)?);
         }
         o.raw("highlights", Json::Array(out));
@@ -147,6 +144,12 @@ fn arc(a: &Arc) -> Json {
     o.raw("pips", Json::Array(a.pips.iter().map(vertex).collect()));
     o.records(&a.data);
     o.done()
+}
+
+/// A name as a JSON string literal, for a walk error's owner: `""` when there
+/// is none. Rust's `{:?}` is not JSON: it writes U+0001 as `\u{1}`.
+fn json_quoted(name: Option<&str>) -> String {
+    serde_json::to_string(name.unwrap_or("")).expect("a string serialises")
 }
 
 /// A highlight of a network whose arcs are `arcs`. The walk is checked against
@@ -202,7 +205,7 @@ fn plan(r: &Plan, path: &Path) -> Built {
     o.str("pinned", r.pinned.as_deref());
     o.opaque("style", r.style.as_ref());
     graph(&mut o, &r.nodes, &r.arcs, path)?;
-    let owner = format!("plan {:?}", r.name.as_deref().unwrap_or(""));
+    let owner = format!("plan {}", json_quoted(r.name.as_deref()));
     check_walk(&r.walk, &r.arcs, true, &path.key("walk"), &owner)?;
     o.raw("walk", walk(&r.walk));
     o.records(&r.data);
@@ -645,6 +648,18 @@ mod tests {
                 .to_string()
                 .starts_with("network \"Ridges\" highlight 0: "),
             "{ghost}"
+        );
+
+        // The network name is a JSON string literal, escaped as JSON escapes it.
+        let quoted = refused(&|d: &mut Document| {
+            network(d).name = Some("R\"i\\d\u{1}ge".into());
+            network(d).highlights.as_mut().unwrap()[0].walk[0].arc = "ghost".into()
+        });
+        assert!(
+            quoted
+                .to_string()
+                .starts_with(r#"network "R\"i\\d\u0001ge" highlight 0: "#),
+            "{quoted}"
         );
 
         let pinned_plan = refused(&|d: &mut Document| {

@@ -16,7 +16,7 @@
         "loop": {"from": "b", "to": "b", "pips": [[-3.585, 57.11], [-3.585, 57.105]]}
       },
       "highlights": [
-        {"name": "Round the loop", "walk": [{"arc": "ab", "from": "a"}, {"arc": "loop", "to": "b"}]}
+        {"walk": [{"arc": "ab", "from": "a"}, {"arc": "loop", "to": "b"}]}
       ]
     }
   ]

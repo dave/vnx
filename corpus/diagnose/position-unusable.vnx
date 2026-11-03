@@ -37,7 +37,6 @@
       },
       "highlights": [
         {
-          "name": "Traverses both, and can only traverse one",
           "walk": [
             {
               "arc": "broken",

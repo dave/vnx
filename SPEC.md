@@ -61,9 +61,10 @@ a term is listed after every term its definition uses.
 
 - A **document** is a JSON object carrying a `vnx` version key, up to six
   collections and any number of application keys (Section 3.1).
-- An **item** is an object that can carry `name`, `notes`, `hidden` and `data`
-  (Section 3.10). An item is top-level when it is a member of one of the
-  document's collections; every other item sits inside a top-level one.
+- An **item** is an object that can carry `hidden` and `data`, and, every kind
+  of item but a highlight, `name` and `notes` (Section 3.10). An item is
+  top-level when it is a member of one of the document's collections; every
+  other item sits inside a top-level one.
 - A **position** is a JSON array of channels: longitude, latitude, and
   optionally elevation and time (Section 4.1).
 - A **pip** is one position in the `pips` array of an arc or of a track segment.
@@ -84,8 +85,9 @@ a term is listed after every term its definition uses.
   enters, turns and leaves (Section 3.3.3).
 - A **walk** is an ordered array of passes forming one connected journey along
   arcs; the order is the direction of travel (Section 3.3.3).
-- A **highlight** is an item carrying a walk over a network's arcs; a highlight does not
-  own the arcs it walks (Section 3.3.3).
+- A **highlight** is a lightweight container for data objects along a walk of
+  its network's arcs: an item carrying a walk, with no name, notes or style of
+  its own. A highlight does not own the arcs it walks (Section 3.3.3).
 - A **plan** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
 - A **segment** is an ordered `pips` array within a track; the interval between
@@ -142,10 +144,11 @@ rule. The document below is complete and is read with no diagnostics.
       },
       "highlights": [
         {
-          "name": "Chalamain Gap",
-          "style": { "color": "#c1440e", "width": 4 },
           "walk": [
             { "arc": "arc-1", "from": "node-1", "to": "node-2" }
+          ],
+          "data": [
+            { "@type": "app.viatrail.tag", "value": "scramble" }
           ]
         }
       ]
@@ -168,8 +171,8 @@ rule. The document below is complete and is read with no diagnostics.
 informational (Section 3.1). The one folder, `cairngorms`, is named by the
 `folder` key of the network and of the waypoint (Section 3.2). The network
 holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
-one highlight whose walk is a single pass over that arc from `node-1` to `node-2`
-(Section 3.3). The waypoint carries its position in
+one highlight whose walk is a single pass over that arc from `node-1` to `node-2`,
+carrying one data record along that walk (Section 3.3). The waypoint carries its position in
 `at` and one data record of type `app.viatrail.tag` (Sections 3.6 and 5).
 
 ## 2. Document identification
@@ -368,12 +371,14 @@ pass naming an absent arc (Section 6.2).
 
 #### 3.3.3 Highlights
 
-A highlight carries a walk over arcs that it does not own.
+A highlight is a lightweight container for data objects along a walk of its
+network's arcs. It carries a walk over arcs that it does not own, and its `data`
+records apply along that walk. A highlight has no name, notes or style of its
+own: what it is, is what its data records say. A `name`, `notes` or `style` on
+a highlight is an unrecognised key (Sections 3.10 and 6.2).
 
 ```json
 {
-  "name": "Chalamain Gap",
-  "style": { "color": "#c1440e", "width": 4, "opacity": 0.9, "line-style": "solid" },
   "walk": [
     { "arc": "arc-7", "from": [-3.6521, 57.1000], "to": "node-5" },
     { "arc": "arc-1" },
@@ -671,7 +676,7 @@ array is distinct from an absent one.
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
-| highlight | `walk` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
+| highlight | `walk` | `hidden`, `pinned`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
 | plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `started`, `ended`, `data` |
@@ -689,9 +694,11 @@ Notes on the table:
 - `folder` names the folder an item sits in. It does not appear on a folder,
   which places itself with `parent`, and it does not appear on a network's
   `points` or `areas`, which their network already contains.
-- `name`, `notes`, `hidden` and `data` appear together on every item and, apart
-  from `data` on an arc, on no other object in the table. An object to which
-  the table gives none of them is not an item. `hidden` therefore appears on a
+- `hidden` and `data` appear on every item, and `name` and `notes` on every item
+  but a highlight, which is a lightweight container for data along its walk
+  and has no name, notes or style of its own (Section 3.3.3). Apart from `data`
+  on an arc, none of the four appears on any other object in the table. An
+  object to which the table gives none of them is not an item. `hidden` therefore appears on a
   top-level waypoint: Section 3.8 names the shape rather than the collection,
   and a waypoint and a network's point are one shape (Section 3.6).
 - `pinned` appears on every item except a folder (Section 3.8).
@@ -888,8 +895,6 @@ omission:
 - Durable identity, multi-day planning data, offline map tiles and download
   state, and creation and modification timestamps of items.
 - A network's or highlight's default routing configuration.
-- A network's default style for unstyled highlights. This is deferred rather than
-  refused, and is expected in a later version.
 
 How a consumer derives elevation gain and loss is its own business.
 

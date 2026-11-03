@@ -15,7 +15,7 @@
         "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
       },
       "highlights": [
-        {"name": "Out along cd and back", "walk": [{"arc": "cd", "from": "c", "turn": [-3.574, 57.102, 512], "to": "c"}]}
+        {"walk": [{"arc": "cd", "from": "c", "turn": [-3.574, 57.102, 512], "to": "c"}]}
       ]
     }
   ]

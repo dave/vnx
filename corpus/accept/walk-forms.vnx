@@ -16,7 +16,6 @@
       },
       "highlights": [
         {
-          "name": "Mid-arc start, pin, turn, revisit, mid-arc end",
           "walk": [
             {"arc": "ab", "from": [-3.597, 57.1005], "to": "b"},
             {"arc": "cb", "pin": [-3.5853, 57.1001]},
@@ -26,26 +25,21 @@
           ]
         },
         {
-          "name": "Inside one arc",
           "walk": [{"arc": "cd", "from": [-3.576, 57.1015], "to": [-3.573, 57.1012]}]
         },
         {
-          "name": "Starts mid-arc, turns back past its start, ends at a node",
           "walk": [{"arc": "cd", "from": [-3.575, 57.102], "turn": [-3.579, 57.1003], "to": "d"}]
         },
         {
-          "name": "Turns, then stops part-way back",
           "walk": [
             {"arc": "cb", "from": "b"},
             {"arc": "cd", "turn": [-3.571, 57.1005], "to": [-3.574, 57.1018]}
           ]
         },
         {
-          "name": "Enters and leaves at one point",
           "walk": [{"arc": "ab", "from": [-3.595, 57.101], "to": [-3.595, 57.101]}]
         },
         {
-          "name": "Nothing yet",
           "walk": []
         }
       ]

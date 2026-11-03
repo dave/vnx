@@ -16,17 +16,16 @@
       },
       "highlights": [
         {
-          "name": "Keep: a pin with an elevation",
           "walk": [
             {"arc": "ab", "from": "a"},
             {"arc": "cb", "pin": [-3.5853, 57.1001, 425]},
             {"arc": "cd", "to": "d"}
           ]
         },
-        {"name": "Keep: the key of the old spelling", "walk": [{"arc": "cb", "from": "c", "to": "b", "pinned": true}]},
-        {"name": "Pinned at a name", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": "b"}]},
-        {"name": "Pinned with a boolean", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": true}]},
-        {"name": "Pinned off the globe", "walk": [{"arc": "cb", "from": "c", "to": "b", "pin": [-3.585, 97.1]}]}
+        {"walk": [{"arc": "cb", "from": "c", "to": "b", "pinned": true}]},
+        {"walk": [{"arc": "cb", "from": "c", "to": "b", "pin": "b"}]},
+        {"walk": [{"arc": "cb", "from": "c", "to": "b", "pin": true}]},
+        {"walk": [{"arc": "cb", "from": "c", "to": "b", "pin": [-3.585, 97.1]}]}
       ]
     }
   ]

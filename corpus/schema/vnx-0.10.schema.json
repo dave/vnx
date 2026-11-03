@@ -385,16 +385,11 @@
     },
     "highlight": {
       "type": "object",
+      "description": "SPEC 3.3.3: a lightweight container for data objects along a walk of its network's arcs. It has no name, notes or style of its own.",
       "required": [
         "walk"
       ],
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "notes": {
-          "type": "string"
-        },
         "hidden": {
           "type": "boolean"
         },
@@ -404,9 +399,6 @@
         },
         "walk": {
           "$ref": "#/$defs/walk"
-        },
-        "style": {
-          "$ref": "#/$defs/style"
         },
         "data": {
           "$ref": "#/$defs/data"

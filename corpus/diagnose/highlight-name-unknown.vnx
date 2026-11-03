@@ -1,0 +1,19 @@
+{
+  "vnx": "0.10.0",
+  "networks": [
+    {
+      "name": "Paths",
+      "nodes": {"n1": [1, 1], "n2": [1, 2]},
+      "arcs": {
+        "a1": {"from": "n1", "to": "n2", "pips": [[1, 1.5]]}
+      },
+      "highlights": [
+        {
+          "name": "Ridge walk",
+          "walk": [{"arc": "a1", "from": "n1", "to": "n2"}],
+          "data": [{"@type": "app.viatrail.tag", "value": "ridge"}]
+        }
+      ]
+    }
+  ]
+}

@@ -19,7 +19,7 @@
         }
       },
       "highlights": [
-        {"name": "Along it", "walk": [{"arc": "ab", "from": "a", "to": "b"}]}
+        {"walk": [{"arc": "ab", "from": "a", "to": "b"}]}
       ]
     }
   ]

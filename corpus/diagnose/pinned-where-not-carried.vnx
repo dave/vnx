@@ -12,7 +12,6 @@
       },
       "highlights": [
         {
-          "name": "Walk",
           "walk": [{"arc": "a1", "from": "n1", "to": "n2", "pinned": "2026-10-20T08:15:00Z"}]
         }
       ]

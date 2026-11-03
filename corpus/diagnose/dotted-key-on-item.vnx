@@ -14,7 +14,6 @@
       },
       "highlights": [
         {
-          "name": "Walk",
           "x.highlight": 1,
           "walk": [{"arc": "a1", "from": "n1", "to": "n2", "x.pass": 1}]
         }

@@ -15,8 +15,8 @@
         "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
       },
       "highlights": [
-        {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
-        {"name": "Dropped", "walk": [{"arc": "ab", "from": "a", "to": "b"}, {"arc": "cb", "to": "c"}]}
+        {"walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
+        {"walk": [{"arc": "ab", "from": "a", "to": "b"}, {"arc": "cb", "to": "c"}]}
       ]
     }
   ]

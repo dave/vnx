@@ -16,8 +16,8 @@
         "bx": {"from": "b", "to": "x", "pips": [[-3.585, 57.09]]}
       },
       "highlights": [
-        {"name": "Keep", "walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
-        {"name": "Off the map", "walk": [{"arc": "ab", "from": "a"}, {"arc": "bx", "to": "x"}]}
+        {"walk": [{"arc": "ab", "from": "a", "to": [-3.597, 57.1005]}]},
+        {"walk": [{"arc": "ab", "from": "a"}, {"arc": "bx", "to": "x"}]}
       ]
     }
   ]

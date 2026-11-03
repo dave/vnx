@@ -8,7 +8,6 @@
       "arcs": {"a1": {"from": "n1", "to": "n2", "pips": [[-3.655, 57.095]]}},
       "highlights": [
         {
-          "name": "Chalamain Gap",
           "pinned": "2026-10-21T09:00:00.250Z",
           "walk": [{"arc": "a1", "from": "n1", "to": "n2"}]
         }

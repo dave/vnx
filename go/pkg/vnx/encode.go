@@ -265,10 +265,10 @@ func planWire(r Plan) (wirePlan, error) {
 	}
 	out := wirePlan{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Pinned: pinned, Style: r.Style}
 	if err := checkArcs(r.Nodes, r.Arcs); err != nil {
-		return wirePlan{}, fmt.Errorf("plan %q: %w", r.Name, err)
+		return wirePlan{}, fmt.Errorf("plan %s: %w", QuoteName(r.Name), err)
 	}
 	if err := checkWalk(r.Walk, r.Arcs, true); err != nil {
-		return wirePlan{}, fmt.Errorf("plan %q: %w", r.Name, err)
+		return wirePlan{}, fmt.Errorf("plan %s: %w", QuoteName(r.Name), err)
 	}
 	if len(r.Nodes) > 0 {
 		out.Nodes = make(map[string]wirePosition, len(r.Nodes))

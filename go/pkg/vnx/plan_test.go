@@ -2,6 +2,7 @@ package vnx
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -130,5 +131,24 @@ func TestEmptyPlanIsNotDiagnosed(t *testing.T) {
 	}
 	if len(diags) != 0 {
 		t.Fatalf("got %v", diags)
+	}
+}
+
+// A refused plan is named as every vnx library names it (#321): its name as
+// a JSON string literal, so an unnamed plan reads plan "".
+func TestAPlanErrorNamesThePlanAsJSON(t *testing.T) {
+	for _, tc := range []struct{ name, want string }{
+		{"", `plan "": `},
+		{"Say \"hi\"", `plan "Say \"hi\"": `},
+		{"R\u0001é", `plan "R\u0001é": `},
+	} {
+		r := Plan{Name: tc.name,
+			Nodes: map[string]Vertex{"a": {Lon: -3.60, Lat: 57.10}},
+			Arcs:  map[string]Arc{"aa": {From: "a", To: "a"}},
+		}
+		_, err := Encode(&Document{Plans: []Plan{r}})
+		if err == nil || !strings.HasPrefix(err.Error(), tc.want) {
+			t.Errorf("error %v, want it to start %q", err, tc.want)
+		}
 	}
 }

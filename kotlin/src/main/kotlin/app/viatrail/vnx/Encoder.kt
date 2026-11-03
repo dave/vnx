@@ -108,8 +108,8 @@ internal class Encoder {
     private fun network(n: Network): JsonObject {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
-        checkArcs("network \"${n.name}\"", nodes, arcs)
         val owner = "network ${jsonQuoted(n.name.orEmpty())}"
+        checkArcs(owner, nodes, arcs)
         n.highlights?.forEachIndexed { i, h -> checkWalkOf("$owner highlight $i", h.walk, arcs, plan = false) }
         return JsonObject
             .Builder()

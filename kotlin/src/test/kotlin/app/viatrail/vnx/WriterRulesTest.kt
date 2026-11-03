@@ -145,6 +145,14 @@ class WriterRulesTest {
     }
 
     @Test
+    fun `an arc refusal names the network as a JSON string, an unnamed network as empty`() {
+        val loop = network(emptyList(), mapOf("aa" to Arc("a", "a", emptyList())))
+        assertTrue(refused(loop).startsWith("network \"\": "), refused(loop))
+        val quoted = loop.copy(networks = loop.networks!!.map { it.copy(name = "Say \"hi\"") })
+        assertTrue(refused(quoted).startsWith("network \"Say \\\"hi\\\"\": "), refused(quoted))
+    }
+
+    @Test
     fun `a writer refuses a walk its own reader would drop, naming the pass and the code`() {
         val cases =
             listOf(

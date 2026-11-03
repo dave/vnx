@@ -249,9 +249,7 @@ def _network(walk: list[Pass], **overrides: object) -> Document:
         "ab": Arc(from_="a", to="b", pips=[Position(-3.595, 57.101)]),
         "cb": Arc(from_="c", to="b", pips=[]),
     }
-    network = Network(
-        nodes=nodes, arcs=arcs, highlights=[Highlight(name="C", walk=walk)]
-    )
+    network = Network(nodes=nodes, arcs=arcs, highlights=[Highlight(walk=walk)])
     for key, value in overrides.items():
         setattr(network, key, value)
     return Document(networks=[network])
@@ -334,6 +332,12 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         arcs = {"loop": Arc(from_="a", to="a", pips=[])}
         self.assertIn("self-loop", self.refused(_network([], arcs=arcs)))
 
+    def test_a_refused_walk_names_its_highlight_by_index(self) -> None:
+        # A highlight has no name (SPEC 3.3.3), so the refusal names its network
+        # and its index.
+        document = _network([Pass("ab", from_="a")], name="Ridges")
+        self.assertIn("network 'Ridges' highlight 0:", self.refused(document))
+
     def test_an_arc_naming_an_absent_node_is_refused(self) -> None:
         arcs = {"ax": Arc(from_="a", to="x", pips=[])}
         self.assertIn("'x'", self.refused(_network([], arcs=arcs)))
@@ -371,8 +375,9 @@ class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
         out: dict[str, str | None] = {}
         for network in document.networks or []:
             out[network.name] = network.pinned
+            for i, highlight in enumerate(network.highlights or []):
+                out[f"highlight {i}"] = highlight.pinned
             for item in [
-                *(network.highlights or []),
                 *(network.points or []),
                 *(network.areas or []),
             ]:
@@ -394,7 +399,6 @@ class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
             arcs={"a1": Arc(from_="n1", to="n2", pips=[])},
             highlights=[
                 Highlight(
-                    name="highlight",
                     pinned="2026-10-21T09:00:00.250Z",
                     walk=[Pass("a1", from_="n1", to="n2")],
                 )

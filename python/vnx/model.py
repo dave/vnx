@@ -133,11 +133,11 @@ class Pass:
 
 @dataclass(slots=True)
 class Highlight:
-    name: Union[str, None] = None
-    notes: Union[str, None] = None
+    """SPEC 3.3.3.  A lightweight container for data objects along a walk of its
+    network's arcs.  It has no name or style of its own."""
+
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
-    style: Union[Style, None] = None
     walk: Union[list[Pass], None] = None
     data: Union[list[DataRecord], None] = None
 

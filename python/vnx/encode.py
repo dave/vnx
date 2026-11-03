@@ -150,16 +150,11 @@ def _walk(
     return [_pass(p) for p in walk]
 
 
-def _highlight(highlight: Highlight, arcs: dict[str, Arc]) -> JSONValue:
+def _highlight(highlight: Highlight, arcs: dict[str, Arc], owner: str) -> JSONValue:
     obj: dict[str, JSONValue] = {}
-    _put(obj, "name", highlight.name)
-    _put(obj, "notes", highlight.notes)
     _put(obj, "hidden", highlight.hidden)
     _put(obj, "pinned", highlight.pinned)
-    _put(obj, "style", highlight.style)
-    _put(
-        obj, "walk", _walk(highlight.walk, arcs, False, f"highlight {highlight.name!r}")
-    )
+    _put(obj, "walk", _walk(highlight.walk, arcs, False, owner))
     _put(obj, "data", _records(highlight.data))
     return obj
 
@@ -192,8 +187,10 @@ def _network(network: Network) -> JSONValue:
     _graph(obj, network.nodes, network.arcs, f"network {network.name!r}")
     if network.highlights is not None:
         obj["highlights"] = [
-            _highlight(highlight, network.arcs or {})
-            for highlight in network.highlights
+            _highlight(
+                highlight, network.arcs or {}, f"network {network.name!r} highlight {i}"
+            )
+            for i, highlight in enumerate(network.highlights)
         ]
     if network.points is not None:
         obj["points"] = [_waypoint(point) for point in network.points]

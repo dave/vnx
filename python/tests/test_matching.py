@@ -2,8 +2,9 @@
 
 SPEC 6.3 makes emission order insignificant, so diagnostics are compared as a
 set -- and a set matcher is exactly the shape that decays into "anything
-passes" with nothing going red.  Every case in `corpus/diagnose/` expects at
-most one diagnostic, so a matcher that checked nothing would keep the whole tier
+passes" with nothing going red.  Most cases in `corpus/diagnose/` expect one
+diagnostic, whose path alone identifies it, so a matcher that compared only
+paths, or let one report stand for two expectations, would keep the whole tier
 green.  One test per way a reader can be wrong.
 """
 

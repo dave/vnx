@@ -828,11 +828,8 @@ class _Reader:
         if obj is None:
             return None
         highlight = Highlight(
-            name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
-            style=self._style(obj, path),
             data=self._data(obj, path),
         )
         walk = self._walk(obj, path, arcs, plan=False)

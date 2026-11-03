@@ -2,8 +2,9 @@
 
 Emission order is not significant, so the comparison is a set comparison.  A set
 comparison is exactly the shape that decays into "anything passes" with nothing
-going red -- every case in ``corpus/diagnose/`` expects at most one diagnostic,
-so a matcher that checked nothing would keep the whole tier green.  Two
+going red -- most cases in ``corpus/diagnose/`` expect one diagnostic, whose
+path alone identifies it, so a matcher that compared only paths, or let one
+report stand for two expectations, would keep the whole tier green.  Two
 properties therefore have to hold and are tested directly in
 ``test_matching.py``:
 

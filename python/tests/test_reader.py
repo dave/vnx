@@ -387,7 +387,10 @@ WALK_NETWORK = """
     "cb": {"from": "c", "to": "b", "pips": []},
     "cd": {"from": "c", "to": "d", "pips": [[-3.575, 57.102], [-3.572, 57.101]]}
   },
-  "highlights": [{"name": "under test", "walk": %s}, {"name": "sibling", "walk": []}]
+  "highlights": [
+    {"data": [{"@type": "test.tag", "tag": "under test"}], "walk": %s},
+    {"data": [{"@type": "test.tag", "tag": "sibling"}], "walk": []}
+  ]
 }]}
 """
 
@@ -412,7 +415,9 @@ class Walks(unittest.TestCase):
     def highlights(self, result: vnx.ReadResult) -> list[str]:
         networks = result.document.networks
         assert networks is not None
-        return [highlight.name or "" for highlight in networks[0].highlights or []]
+        # A highlight has no name (SPEC 3.3.3), so each one is told apart by the
+        # tag in its data.
+        return [h.data[0].body["tag"] for h in networks[0].highlights or [] if h.data]
 
     def assertDropped(self, passes: str, path: str, code: str) -> None:
         result = self.walk(passes)
@@ -490,7 +495,7 @@ class Walks(unittest.TestCase):
     # -- the required walk -----------------------------------------------
 
     def test_an_absent_walk_drops_the_highlight(self) -> None:
-        result = read(WALK_NETWORK.replace('"walk": %s', '"notes": "no walk"'))
+        result = read(WALK_NETWORK.replace('"walk": %s', '"hidden": true'))
         self.assertEqual(codes(result), [(self.WALK, "wrong-type-required")])
         self.assertEqual(self.highlights(result), ["sibling"])
 

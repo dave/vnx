@@ -32,8 +32,8 @@ doc = reading.document
 for plan in doc.plans or []:
     print("plan", plan.name, len(plan.arcs or {}), "arcs", len(plan.walk or []), "passes")
 for network in doc.networks or []:
-    for highlight in network.highlights or []:
-        print("highlight", highlight.name, len(highlight.walk or []), "passes")
+    for i, highlight in enumerate(network.highlights or []):
+        print("highlight", i, len(highlight.walk or []), "passes")
 for track in doc.tracks or []:
     print("track", track.name, "moving", track.moving_time_ms())
 for d in reading.diagnostics:
@@ -44,8 +44,8 @@ vnx.encode_file("out.vnx", doc)
 
 ```
 plan Braeriach direct 2 arcs 2 passes
-highlight Chalamain Gap 2 passes
-highlight Rock fall 1 passes
+highlight 0 2 passes
+highlight 1 1 passes
 track Lairig Ghru, 12 May moving 167000.0
 ```
 
@@ -103,7 +103,7 @@ This library has none. The reference command-line tool is Go's; see
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
-| `Highlight` | `walk: list[Pass]` |
+| `Highlight` | `walk: list[Pass]`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with no name or style of its own |
 | `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
 | `Plan` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |

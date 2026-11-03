@@ -667,6 +667,21 @@ test('a refused walk names its highlight by network and index, as it has no name
   assert.throws(() => encode(d), /^Error: vnx: network "Ridges" highlight 0: /);
 });
 
+test('a refused network or plan is named as a JSON string, an unnamed one as empty', () => {
+  // Every vnx library names the owner this way; "a network" or "a plan" read
+  // differently from the other five.
+  const net = GRAPH();
+  delete net.networks[0].name;
+  net.networks[0].arcs.get('ab').to = 'a';
+  assert.throws(() => encode(net), /^Error: vnx: network "": /);
+  const plan = GRAPH();
+  delete plan.plans[0].name;
+  plan.plans[0].arcs.get('ab').to = 'a';
+  assert.throws(() => encode(plan), /^Error: vnx: plan "": /);
+  plan.plans[0].name = 'Say "hi"';
+  assert.throws(() => encode(plan), /^Error: vnx: plan "Say \\"hi\\"": /);
+});
+
 // --- the line a walk draws --------------------------------------------------
 
 const lonLat = (line) => line.map((p) => [p.lon, p.lat]);

@@ -209,12 +209,12 @@ function emitNetwork(n) {
   put(o, 'folder', n.folder);
   putHidden(o, n.hidden);
   put(o, 'pinned', n.pinned);
-  const owner = n.name === undefined ? 'a network' : `network ${JSON.stringify(n.name)}`;
+  const owner = `network ${JSON.stringify(n.name ?? '')}`;
   emitNodes(o, n.nodes, owner);
   emitArcs(o, n.nodes, n.arcs, owner);
   if (n.highlights !== undefined)
     o.highlights = n.highlights.map((c, i) =>
-      emitHighlight(c, n.arcs, `network ${JSON.stringify(n.name ?? '')} highlight ${i}`),
+      emitHighlight(c, n.arcs, `${owner} highlight ${i}`),
     );
   if (n.points !== undefined) o.points = n.points.map((p) => emitPointLike(p));
   if (n.areas !== undefined) o.areas = n.areas.map((a) => emitArea(a));
@@ -240,7 +240,7 @@ function emitPlan(r) {
   put(o, 'pinned', r.pinned);
   put(o, 'style', r.style);
   put(o, 'data', r.data);
-  const owner = r.name === undefined ? 'a plan' : `plan ${JSON.stringify(r.name)}`;
+  const owner = `plan ${JSON.stringify(r.name ?? '')}`;
   emitNodes(o, r.nodes, owner);
   emitArcs(o, r.nodes, r.arcs, owner);
   o.walk = emitWalk(r.walk, r.arcs, true, owner);

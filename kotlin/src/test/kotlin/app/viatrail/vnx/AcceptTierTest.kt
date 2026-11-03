@@ -54,7 +54,6 @@ class AcceptTierTest {
                     networks =
                         d.networks?.map { n ->
                             n.copy(
-                                highlights = n.highlights?.map { it.copy(style = null) },
                                 points = n.points?.map { it.copy(style = null) },
                                 areas = n.areas?.map { it.copy(style = null) },
                             )
@@ -69,7 +68,7 @@ class AcceptTierTest {
                     plans = d.plans?.map { it.copy(notes = null) },
                     networks =
                         d.networks?.map { n ->
-                            n.copy(notes = null, highlights = n.highlights?.map { it.copy(notes = null) })
+                            n.copy(notes = null)
                         },
                 )
             },

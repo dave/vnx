@@ -116,7 +116,7 @@ This library has none. The reference command-line tool is Go's; see
 | `LonLat` | `lon`, `lat`: a position in a walk |
 | `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `highlights`, `points`, `areas`, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
-| `Highlight` | `walk: List<Pass>`, and the item fields |
+| `Highlight` | `walk: List<Pass>`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk, with no name, notes or style |
 | `Plan` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |

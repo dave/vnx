@@ -26,7 +26,7 @@ class PinnedTest {
                         pinned = "2026-10-20T08:15:00Z",
                         nodes = nodes,
                         arcs = arcs,
-                        highlights = listOf(Highlight(walk, name = "highlight", pinned = "2026-10-21T09:00:00.250Z")),
+                        highlights = listOf(Highlight(walk, pinned = "2026-10-21T09:00:00.250Z")),
                         points = listOf(Waypoint(Position(1.0, 1.5), name = "point", pinned = "2026-10-22T10:30:45.5Z")),
                         areas = listOf(Area(ring, name = "network area", pinned = "2026-10-23T11:00:00Z")),
                     ),
@@ -45,7 +45,7 @@ class PinnedTest {
         val out = mutableMapOf<String?, String?>()
         d.networks?.forEach { n ->
             out[n.name] = n.pinned
-            n.highlights?.forEach { out[it.name] = it.pinned }
+            n.highlights?.forEachIndexed { i, h -> out["${n.name} highlight $i"] = h.pinned }
             n.points?.forEach { out[it.name] = it.pinned }
             n.areas?.forEach { out[it.name] = it.pinned }
         }

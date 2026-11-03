@@ -343,14 +343,14 @@ class ReaderRulesTest {
             read(
                 """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]},"bb":{"from":"b","to":"b","pips":[]}},
-               "highlights":[{"name":"Keep","walk":[{"arc":"ab","from":"a","to":"b"}]},
-                         {"name":"Loses its arc","walk":[{"arc":"ab","from":"a"},{"arc":"bb","to":"b"}]}]}]}""",
+               "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},
+                         {"walk":[{"arc":"ab","from":"a"},{"arc":"bb","to":"b"}]}]}]}""",
             )
         assertEquals(
-            listOf("Keep"),
+            listOf(listOf("ab")),
             r.document.networks!![0]
                 .highlights!!
-                .map { it.name },
+                .map { h -> h.walk.map { it.arc } },
         )
         assertEquals(
             setOf("/networks/0/arcs/bb" to "self-loop-arc", "/networks/0/highlights/1/walk/1" to "pass-arc-absent"),
@@ -516,7 +516,7 @@ class ReaderRulesTest {
                 .highlights!!
                 .size,
         )
-        val r = read(network("""[{"name":"no walk"}]"""))
+        val r = read(network("""[{"hidden":false}]"""))
         assertEquals(listOf("/networks/0/highlights/0/walk" to "wrong-type-required"), r.pairs())
         assertEquals(
             0,

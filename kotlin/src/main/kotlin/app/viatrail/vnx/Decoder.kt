@@ -54,7 +54,7 @@ internal class Decoder(
         val ARC_REQUIRED = setOf("from", "to", "pips")
         val ARC_OPTIONAL = setOf("data")
         val HIGHLIGHT_REQUIRED = setOf("walk")
-        val HIGHLIGHT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
+        val HIGHLIGHT_OPTIONAL = setOf("hidden", "pinned", "data")
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
         val PLAN_REQUIRED = setOf("walk")
@@ -710,14 +710,11 @@ internal class Decoder(
         recogniseKeys(obj, at, Keys.HIGHLIGHT_REQUIRED, Keys.HIGHLIGHT_OPTIONAL)
         // Every field is read before the walk, so a highlight the walk drops still
         // reports what else was wrong with it.
-        val name = optionalString(obj, "name", at)
-        val notes = optionalString(obj, "notes", at)
         val hidden = optionalBool(obj, "hidden", at)
         val pinned = optionalTimestamp(obj, "pinned", at)
-        val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs, plan = false) ?: return null
-        return Highlight(walk, name, notes, hidden, pinned, style, data)
+        return Highlight(walk, hidden, pinned, data)
     }
 
     /**

@@ -109,7 +109,7 @@ internal class Encoder {
         val nodes = n.nodes ?: emptyMap()
         val arcs = n.arcs ?: emptyMap()
         checkArcs("network \"${n.name}\"", nodes, arcs)
-        n.highlights?.forEach { checkWalkOf("highlight \"${it.name}\"", it.walk, arcs, plan = false) }
+        n.highlights?.forEachIndexed { i, h -> checkWalkOf("network \"${n.name}\" highlight $i", h.walk, arcs, plan = false) }
         return JsonObject
             .Builder()
             .putString("name", n.name)
@@ -194,11 +194,8 @@ internal class Encoder {
     private fun highlight(c: Highlight) =
         JsonObject
             .Builder()
-            .putString("name", c.name)
-            .putString("notes", c.notes)
             .putBool("hidden", hidden(c.hidden))
             .putString("pinned", c.pinned)
-            .put("style", c.style)
             .put("walk", walk(c.walk))
             .put("data", data(c.data))
             .build()

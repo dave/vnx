@@ -26,8 +26,9 @@ import (
 func TestMatrixNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	// CARRIED: every arc, once, in one Placemark; every in-network item and
-	// every highlight, named, with its own style and visibility. Asserted in
-	// write_test.go's network tests.
+	// every highlight, named by its label, with its own visibility (a
+	// highlight has no style of its own). Asserted in write_test.go's network
+	// tests.
 	//
 	// ⚠ TWICE, NOT ONCE, AND ON PURPOSE (ruled 2026-09-03). The Folder carries
 	// the network's name and the arcs Placemark repeats it: it mirrors GeoJSON,

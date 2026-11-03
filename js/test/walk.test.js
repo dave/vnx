@@ -230,7 +230,7 @@ test('a highlight dropped for its walk still reports the diagnostics of its othe
 });
 
 test('a highlight with no `walk`, or a `walk` that is not an array, is dropped', () => {
-  for (const highlight of [{ name: 'x' }, { walk: {} }]) {
+  for (const highlight of [{ hidden: true }, { walk: {} }]) {
     const { document, diagnostics } = decodeText(
       doc({ networks: [{ nodes: NODES, arcs: ARCS, highlights: [highlight] }] }),
     );
@@ -555,7 +555,7 @@ function readBack(extra) {
 
 const GRAPH = () =>
   readBack({
-    networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ name: 'c', walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }],
+    networks: [{ nodes: NODES, arcs: ARCS, highlights: [{ walk: [{ arc: 'ab', from: 'a', to: 'b' }] }] }],
     plans: [{ name: 'r', nodes: NODES, arcs: ARCS, walk: [{ arc: 'ab', from: 'a', to: 'b' }] }],
     areas: [
       {
@@ -659,6 +659,13 @@ for (const [what, spoil] of Object.entries(refusals)) {
     assert.throws(() => encode(d), /^Error: vnx: /);
   });
 }
+
+test('a refused walk names its highlight by network and index, as it has no name', () => {
+  const d = GRAPH();
+  d.networks[0].name = 'Ridges';
+  d.networks[0].highlights[0].walk[0].arc = 'ghost';
+  assert.throws(() => encode(d), /^Error: vnx: network "Ridges" highlight 0: /);
+});
 
 // --- the line a walk draws --------------------------------------------------
 

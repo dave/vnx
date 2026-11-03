@@ -36,7 +36,7 @@ try {
 
 const { document, diagnostics } = reading;
 for (const network of document.networks ?? []) {
-  for (const highlight of network.highlights ?? []) console.log('highlight', highlight.name);
+  for (const highlight of network.highlights ?? []) console.log('highlight', highlight.walk.length, 'passes');
 }
 for (const d of diagnostics) console.log(d.code, d.path, d.message);
 
@@ -81,7 +81,10 @@ a key with no full stop or a key listed twice. `encode` also throws on
 the document, where `JSON.stringify` would drop the value or write `null`.
 
 A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `highlights`,
-`points` and `areas`. A `Plan` carries its own `nodes`, `arcs` and one `walk`.
+`points` and `areas`. A `Highlight` is a lightweight container for data objects
+along a walk of its network's arcs: it carries `walk`, `hidden`, `pinned` and
+`data`, and has no name or style of its own. A `Plan` carries its own `nodes`,
+`arcs` and one `walk`.
 A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pin`) over the
 arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
 or a `Position`, and are present only where [SPEC §3.3.3](../SPEC.md)'s rule for

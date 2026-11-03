@@ -152,7 +152,7 @@ test('every item but a folder keeps its pinned through a write and a read', () =
         pinned: '2026-10-20T08:15:00Z',
         nodes,
         arcs,
-        highlights: [{ name: 'highlight', pinned: '2026-10-21T09:00:00.250Z', walk }],
+        highlights: [{ pinned: '2026-10-21T09:00:00.250Z', walk }],
         points: [{ name: 'point', pinned: '2026-10-22T10:30:45.5Z', at: [1, 1.5] }],
         areas: [{ name: 'network area', pinned: '2026-10-23T11:00:00Z', polygon: ring }],
       },
@@ -169,7 +169,8 @@ test('every item but a folder keeps its pinned through a write and a read', () =
     const out = {};
     for (const n of d.networks) {
       out[n.name] = n.pinned;
-      for (const i of [...n.highlights, ...n.points, ...n.areas]) out[i.name] = i.pinned;
+      n.highlights.forEach((h, i) => (out[`highlight ${i}`] = h.pinned));
+      for (const i of [...n.points, ...n.areas]) out[i.name] = i.pinned;
     }
     for (const i of [...d.plans, ...d.tracks, ...d.waypoints, ...d.areas]) out[i.name] = i.pinned;
     return out;
@@ -180,7 +181,7 @@ test('every item but a folder keeps its pinned through a write and a read', () =
   assert.deepEqual(second.diagnostics, []);
   const want = {
     network: '2026-10-20T08:15:00Z',
-    highlight: '2026-10-21T09:00:00.250Z',
+    'highlight 0': '2026-10-21T09:00:00.250Z',
     point: '2026-10-22T10:30:45.5Z',
     'network area': '2026-10-23T11:00:00Z',
     plan: '2026-10-24T12:00:00Z',

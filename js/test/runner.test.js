@@ -1,9 +1,10 @@
 // The runner's own instruments.
 //
 // A set matcher is exactly the shape that decays into "anything passes" with
-// nothing going red: every diagnose case in the corpus expects at most one
-// diagnostic, so a matcher that checked nothing would keep the whole tier
-// green. These cases freeze one instance per way the matcher can be wrong.
+// nothing going red: most diagnose cases in the corpus expect one diagnostic,
+// whose path alone identifies it, so a matcher that compared only paths, or
+// let one report stand for two expectations, would keep the whole tier green.
+// These cases freeze one instance per way the matcher can be wrong.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

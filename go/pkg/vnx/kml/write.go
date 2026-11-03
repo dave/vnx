@@ -317,10 +317,10 @@ func (x *writer) areaStyle(s vnx.Style) {
 	x.close("Style")
 }
 
-// highlightStyle writes the <Style> for anything drawn as a line — a track, a
-// plan, a highlight. Width without a usable colour still gets a LineStyle: a width
+// lineStyle writes the <Style> for a track or a plan, drawn as a line. A
+// highlight has no style of its own (§3.3.3), so it takes none. Width without a usable colour still gets a LineStyle: a width
 // is not a colour and carrying it invents nothing.
-func (x *writer) highlightStyle(s vnx.Style) {
+func (x *writer) lineStyle(s vnx.Style) {
 	colour, _ := s.String("color")
 	opacity, hasOpacity := s.Float("opacity")
 	var op *float64
@@ -382,7 +382,7 @@ func (x *writer) track(t vnx.Track, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(t.Name, t.Notes, t.Hidden)
-	x.highlightStyle(t.Style)
+	x.lineStyle(t.Style)
 	x.open("MultiGeometry", "")
 	for _, line := range lines {
 		x.lineString(line)
@@ -404,7 +404,7 @@ func (x *writer) plan(r vnx.Plan, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(r.Name, r.Notes, r.Hidden)
-	x.highlightStyle(r.Style)
+	x.lineStyle(r.Style)
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++

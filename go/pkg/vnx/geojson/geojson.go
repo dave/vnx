@@ -275,7 +275,10 @@ func (f *features) plans(d *vnx.Document) {
 
 // networks emits §2.6's shape as redesigned 2026-09-03: ONE MultiLineString
 // Feature holding the network's arcs and carrying the network's own name and
-// notes, then ONE NAMED FEATURE PER in-network point, area and highlight.
+// notes, then ONE NAMED FEATURE PER in-network point, area and highlight, each
+// named "{network} / {label}" (vnx.WriteOptions NetworkLabels). A highlight is
+// a lightweight container for data along its walk, with no name, notes or
+// style of its own (§3.3.3): its label is the caller's, or its integer.
 //
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
 // in-network points and areas had somewhere to go, and the price was their Name,
@@ -424,8 +427,8 @@ func inNetworkName(base, name string) string {
 }
 
 func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string, labels []string) {
-	// The network's own flattened name prefixes every highlight: "Folder /
-	// Cairngorms / Lairig Ghru" (§2.7). The separator is the same one, because
+	// The network's own flattened name prefixes every highlight's label:
+	// "Folder / Cairngorms / Lairig Ghru / {label}" (§2.7). The separator is the same one, because
 	// a second spelling of the same join is the drift the shared constant
 	// exists to prevent.
 	base, ok := vnx.FlatName(d, n.Folder, n.Name)

@@ -8,8 +8,8 @@ The format is at major version 0 and is unstable. Through 0.x the minor version
 is a breaking axis, and constructs may be added, changed or removed without a
 compatibility guarantee.
 
-A small document: two nodes, an arc joining them, and a highlight that names a walk
-along that arc.
+A small document: two nodes, an arc joining them, and a highlight: a lightweight
+container for data objects along a walk of that arc.
 
 ```json
 {
@@ -23,7 +23,10 @@ along that arc.
     "arcs": {
       "arc-1": { "from": "node-1", "to": "node-2", "pips": [[-3.6644, 57.1085, 451.9]] }
     },
-    "highlights": [{ "name": "Chalamain Gap", "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }] }]
+    "highlights": [{
+      "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }],
+      "data": [{ "@type": "app.viatrail.tag", "value": "scramble" }]
+    }]
   }]
 }
 ```
@@ -35,7 +38,8 @@ file that parses perfectly and draws in the wrong hemisphere, which
 catches.
 
 A network owns its graph: `nodes` and `arcs` keyed by identifier, with `highlights`
-walking those arcs by reference. That reference is the construct GPX, KML and
+walking those arcs by reference. A highlight has no name, notes or style of its own:
+it is a lightweight container for the data records that apply along its walk. That reference is the construct GPX, KML and
 GeoJSON cannot express. A top-level plan owns a graph of the same shape and
 carries one walk over it.
 
@@ -67,8 +71,9 @@ language's install line, usage and API.
 
 ## Why it exists
 
-Viatrail's central structure is a network: a graph of nodes and arcs, with named
-highlights drawn over it as ordered traversals. Two highlights that follow the same
+Viatrail's central structure is a network: a graph of nodes and arcs, with
+highlights drawn over it as ordered traversals, each a lightweight container for
+the data that applies along it. Two highlights that follow the same
 trail reference the same arc, so editing that trail once changes every highlight
 over it. The shared geometry is the meaning, not a storage optimisation.
 

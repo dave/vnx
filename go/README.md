@@ -164,9 +164,19 @@ purpose. The reader has the whole file; the writer takes a `Name` and an
 `io.Reader` and never holds one whole.
 
 Each conversion writer — `pkg/vnx/gpx`, `pkg/vnx/kml`, `pkg/vnx/geojson` —
-exports one `Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error)`.
-`WriteReport` carries the diagnostics raised while writing and `Emitted`, the
-number of items the format kept.
+exports `Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error)` and
+`WriteWith(w, d, opts vnx.WriteOptions)`. `WriteReport` carries the diagnostics
+raised while writing and `Emitted`, the number of items the format kept.
+
+A highlight is a lightweight container for data objects along a walk of its
+network's arcs, with no name of its own, and a GeoJSON or KML feature needs a
+name. So `WriteOptions.HighlightLabels[i][j]` gives the label of
+`d.Networks[i].Highlights[j]` (`""` for none); options that do not match the
+document's shape are an error. Every item inside a network is named by its own
+name or its label, and one with neither by an integer unique within its
+network: GeoJSON writes `"{network} / {label}"`, KML the bare label inside the
+network's Folder. `Write` passes no labels, as the `vnx` command-line tool does,
+so its highlights are named by their integers.
 
 ## Errors and diagnostics
 

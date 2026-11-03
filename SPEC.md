@@ -1,6 +1,6 @@
 # VNX Wire Format Specification
 
-Version 0.10.4
+Version 0.10.5
 
 ## Abstract
 
@@ -185,7 +185,7 @@ carrying one data record along that walk (Section 3.3). The waypoint carries its
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.10.4` |
+| Current version | `0.10.5` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document

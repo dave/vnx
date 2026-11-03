@@ -92,7 +92,7 @@ __all__ = [
     "is_app_key",
 ]
 
-__version__ = "0.10.3"
+__version__ = "0.10.4"
 
 
 def read_file(path: Union[str, os.PathLike[str]]) -> ReadResult:

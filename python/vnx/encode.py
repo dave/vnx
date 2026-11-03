@@ -206,7 +206,7 @@ def _network(network: Network) -> JSONValue:
 
 def _plan(plan: Plan) -> JSONValue:
     obj: dict[str, JSONValue] = {}
-    owner = f"plan {plan.name!r}"
+    owner = f"plan {json.dumps(plan.name or '', ensure_ascii=False)}"
     _common(obj, plan)
     _put(obj, "style", plan.style)
     _graph(obj, plan.nodes, plan.arcs, owner)

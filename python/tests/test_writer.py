@@ -315,6 +315,21 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
                 )
                 self.assertIn(code, message)
 
+    def test_a_refused_plan_is_named_as_json(self) -> None:
+        # The owner is the plan's name as a JSON string literal, as in the
+        # other five libraries: an unnamed plan reads plan "".
+        for name, want in ((None, 'plan "": '), ('R"i', 'plan "R\\"i": ')):
+            with self.subTest(name=name):
+                plan = Plan(
+                    name=name,
+                    nodes={"a": Position(-3.60, 57.10)},
+                    arcs={"aa": Arc(from_="a", to="a", pips=[])},
+                    walk=[],
+                )
+                self.assertTrue(
+                    self.refused(Document(plans=[plan])).startswith(want)
+                )
+
     def test_a_plan_carrying_a_position_is_refused(self) -> None:
         plan = Plan(
             name="R",

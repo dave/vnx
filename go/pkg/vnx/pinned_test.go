@@ -3,6 +3,7 @@ package vnx
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -19,7 +20,7 @@ func pinnedDocument() *Document {
 		Version: "0.10.0",
 		Networks: []Network{{
 			Name: "network", Pinned: "2026-10-20T08:15:00Z", Nodes: nodes, Arcs: arcs,
-			Highlights: []Highlight{{Name: "highlight", Pinned: "2026-10-21T09:00:00.250Z", Walk: walk}},
+			Highlights: []Highlight{{Pinned: "2026-10-21T09:00:00.250Z", Walk: walk}},
 			Points:     []Waypoint{{Name: "point", Pinned: "2026-10-22T10:30:45.5Z", At: Position{Lon: 1, Lat: 1.5}}},
 			Areas:      []Area{{Name: "network area", Pinned: "2026-10-23T11:00:00Z", Polygon: ring}},
 		}},
@@ -38,8 +39,9 @@ func pinnedValues(d *Document) map[string]Timestamp {
 	out := map[string]Timestamp{}
 	for _, n := range d.Networks {
 		out[n.Name] = n.Pinned
-		for _, h := range n.Highlights {
-			out[h.Name] = h.Pinned
+		// A highlight has no name (§3.3.3): it is listed by its index.
+		for j, h := range n.Highlights {
+			out[fmt.Sprintf("highlight %d", j)] = h.Pinned
 		}
 		for _, p := range n.Points {
 			out[p.Name] = p.Pinned

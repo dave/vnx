@@ -124,13 +124,6 @@
       </Placemark>
       <Placemark>
         <name>Full Traverse</name>
-        <description>north to south</description>
-        <Style>
-          <LineStyle>
-            <color>ffa84f7b</color>
-            <width>4</width>
-          </LineStyle>
-        </Style>
         <LineString>
           <coordinates>-3.7,57 -3.69,57.02 -3.68,57.04 -3.67,57.06 -3.66,57.08</coordinates>
         </LineString>

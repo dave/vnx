@@ -1,6 +1,10 @@
 package vnx
 
-import "strings"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // The substrate the lossy writers share (spec 5b §2.2, §2.7, §4.1b).
 //
@@ -22,7 +26,9 @@ import "strings"
 //     agent reading `vnx convert`'s stderr go straight to the offending
 //     element instead of hunting by name.
 //  3. **Args[0] is the item's own Name, verbatim and unprefixed**, wherever
-//     the item has one. NOT the flattened folder path: KML keeps real folders
+//     the item has one. An item inside a network passes its label
+//     ([WriteOptions.NetworkLabels]): a highlight has no name of its own
+//     (§3.3.3), so its label is the caller's, or its integer. NOT the flattened folder path: KML keeps real folders
 //     and would never build one, so a path here would make the same
 //     diagnostic read differently per format for no gain. An unnamed item
 //     passes its empty name rather than a substitute — inventing "(untitled)"
@@ -188,4 +194,92 @@ func AppKeyDiagnostics(d *Document, format string) []Diagnostic {
 		})
 	}
 	return out
+}
+
+// WriteOptions are what a lossy writer takes beside the document. The zero
+// value names no highlight: that is what the `vnx` CLI passes, having no
+// labels to give.
+type WriteOptions struct {
+	// HighlightLabels[i][j] is the label of d.Networks[i].Highlights[j]: the
+	// name a lossy format gives it, which the document does not carry (a
+	// highlight is a lightweight container with no name of its own, §3.3.3).
+	// "" is no label. Nil gives no highlight a label. Any other value must
+	// match the document's shape, one entry per network and per highlight:
+	// a count that does not match is an error, never read as "no label".
+	HighlightLabels [][]string
+}
+
+// Check reports whether o fits d: nil labels, or exactly one label per
+// highlight of every network.
+func (o WriteOptions) Check(d *Document) error {
+	if o.HighlightLabels == nil {
+		return nil
+	}
+	if len(o.HighlightLabels) != len(d.Networks) {
+		return fmt.Errorf("write options: %d networks of highlight labels for %d networks", len(o.HighlightLabels), len(d.Networks))
+	}
+	for i := range d.Networks {
+		if got, want := len(o.HighlightLabels[i]), len(d.Networks[i].Highlights); got != want {
+			return fmt.Errorf("write options: network %d has %d highlights and %d labels", i, want, got)
+		}
+	}
+	return nil
+}
+
+// NetworkLabels are the names a lossy writer gives the items inside one
+// network: Points[j], Areas[j] and Highlights[j] name the network's points,
+// areas and highlights.
+type NetworkLabels struct {
+	Points, Areas, Highlights []string
+}
+
+// NetworkLabels is the label of every item inside network i of d (Dave,
+// 2026-11-03): a point or an area is labelled by its own name, a highlight
+// by o's label for it. An item with no label is labelled by an integer
+// unique within the network, "1", "2" and so on, counted in the order points,
+// areas, highlights and skipping any integer another item of the network is
+// already labelled by. Every in-network item therefore has a non-empty label.
+// o must fit d (Check).
+func (o WriteOptions) NetworkLabels(d *Document, i int) (NetworkLabels, error) {
+	if err := o.Check(d); err != nil {
+		return NetworkLabels{}, err
+	}
+	n := &d.Networks[i]
+	out := NetworkLabels{
+		Points:     make([]string, len(n.Points)),
+		Areas:      make([]string, len(n.Areas)),
+		Highlights: make([]string, len(n.Highlights)),
+	}
+	for j := range n.Points {
+		out.Points[j] = n.Points[j].Name
+	}
+	for j := range n.Areas {
+		out.Areas[j] = n.Areas[j].Name
+	}
+	if o.HighlightLabels != nil {
+		copy(out.Highlights, o.HighlightLabels[i])
+	}
+	taken := map[string]bool{}
+	for _, list := range [][]string{out.Points, out.Areas, out.Highlights} {
+		for _, l := range list {
+			if l != "" {
+				taken[l] = true
+			}
+		}
+	}
+	next := 1
+	for _, list := range [][]string{out.Points, out.Areas, out.Highlights} {
+		for j := range list {
+			if list[j] != "" {
+				continue
+			}
+			for taken[strconv.Itoa(next)] {
+				next++
+			}
+			list[j] = strconv.Itoa(next)
+			taken[list[j]] = true
+			next++
+		}
+	}
+	return out, nil
 }

@@ -757,7 +757,7 @@ func oracleDegenerateArrays() *Document {
 		Networks: []Network{{
 			Name:       "highlights without passes",
 			Nodes:      map[string]Vertex{"node-1": {Lon: 1, Lat: 2}},
-			Highlights: []Highlight{{Name: "empty highlight", Walk: []Pass{}}},
+			Highlights: []Highlight{{Walk: []Pass{}}}, // an empty highlight
 		}},
 	}
 }
@@ -831,7 +831,7 @@ func oracleData() *Document {
 			Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
 			Arcs: map[string]Arc{"arc-1": {From: "node-1", To: "node-2",
 				Data: []Record{rec("t/network-arc", map[string]any{"value": "arc"})}}},
-			Highlights: []Highlight{{Name: "c", Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
+			Highlights: []Highlight{{Walk: []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
 				Data: []Record{rec("t/highlight", map[string]any{"value": "highlight"})}}},
 			Data: []Record{rec("t/network", map[string]any{"value": "net"})},
 		}},
@@ -869,8 +869,7 @@ func oracleNetwork() Network {
 	mid := LonLat{Lon: -3.55, Lat: 57.55}
 	n.Highlights = []Highlight{
 		{
-			Name:  "node to node",
-			Style: Style{"color": "#00aa00", "line-style": "dashed", "opacity": float64(0.5), "width": float64(3)},
+			// Node to node.
 			Walk: []Pass{
 				{Arc: "arc-1", From: &Endpoint{Node: "node-1"}},
 				{Arc: "arc-2", Pin: &LonLat{Lon: -3.52, Lat: 57.52}, To: &Endpoint{Node: "node-3"}},
@@ -879,7 +878,6 @@ func oracleNetwork() Network {
 		{
 			// A turn is a position on the arc where the walk goes back the
 			// way it came: out from node-5 and back to it.
-			Name:   "turnaround on arc-5",
 			Hidden: true,
 			Walk: []Pass{
 				{Arc: "arc-5", From: &Endpoint{Node: "node-5"}, Turn: &mid, To: &Endpoint{Node: "node-5"}},
@@ -887,7 +885,6 @@ func oracleNetwork() Network {
 		},
 		{
 			// A walk starting and ending part-way along arcs.
-			Name: "mid-arc start and end",
 			Walk: []Pass{
 				{Arc: "arc-7", From: &Endpoint{At: &LonLat{Lon: -3.575, Lat: 57.575}}, To: &Endpoint{Node: "node-8"}},
 				{Arc: "arc-8", To: &Endpoint{At: &LonLat{Lon: -3.585, Lat: 57.585}}},

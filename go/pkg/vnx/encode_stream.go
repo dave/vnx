@@ -327,7 +327,7 @@ func streamNetwork(b *StickyWriter, n Network) error {
 		if err := o.key("highlights"); err != nil {
 			return err
 		}
-		err := streamArray(b, len(n.Highlights), func(i int) (any, error) { return highlightWire(n, n.Highlights[i]) })
+		err := streamArray(b, len(n.Highlights), func(i int) (any, error) { return highlightWire(n, i, n.Highlights[i]) })
 		if err != nil {
 			return err
 		}

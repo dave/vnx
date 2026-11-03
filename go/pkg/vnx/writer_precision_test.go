@@ -623,7 +623,6 @@ func noisyFixture() acceptFixture {
 			Points: []vnx.Waypoint{{Name: "Noisy point", At: noisy(1)}},
 			Areas:  []vnx.Area{{Name: "Noisy network area", Polygon: ring}},
 			Highlights: []vnx.Highlight{{
-				Name: "Noisy highlight",
 				// One node end and one POSITION end, which is the only end
 				// form that carries coordinates of its own.
 				Walk: []vnx.Pass{{

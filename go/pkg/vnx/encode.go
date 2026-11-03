@@ -107,12 +107,9 @@ type wirePass struct {
 }
 
 type wireHighlight struct {
-	Name   string     `json:"name,omitempty"`
-	Notes  string     `json:"notes,omitempty"`
 	Hidden bool       `json:"hidden,omitempty"`
 	Pinned string     `json:"pinned,omitempty"`
 	Walk   []wirePass `json:"walk"`
-	Style  Style      `json:"style,omitempty"`
 	Data   []any      `json:"data,omitempty"`
 }
 
@@ -208,11 +205,16 @@ func checkRing(ring []Position) error {
 // is an error rather than a document the format forbids, as for a track's
 // `started`.
 func pinnedWire(kind, name string, t Timestamp) (string, error) {
+	return pinnedWireOf(fmt.Sprintf("%s %q", kind, name), t)
+}
+
+// pinnedWireOf is pinnedWire for an item named by owner.
+func pinnedWireOf(owner string, t Timestamp) (string, error) {
 	if t == "" {
 		return "", nil
 	}
 	if err := t.Valid(); err != nil {
-		return "", fmt.Errorf("%s %q pinned: %w", kind, name, err)
+		return "", fmt.Errorf("%s pinned: %w", owner, err)
 	}
 	return string(t), nil
 }
@@ -300,17 +302,19 @@ func planWire(r Plan) (wirePlan, error) {
 	return out, nil
 }
 
-// highlightWire builds a highlight of n. The walk is checked against n's arcs first:
-// a writer never emits a walk its own reader would drop.
-func highlightWire(n Network, c Highlight) (wireHighlight, error) {
+// highlightWire builds highlight i of n. The walk is checked against n's arcs
+// first: a writer never emits a walk its own reader would drop. A highlight has
+// no name, so an error names it by its network and its index.
+func highlightWire(n Network, i int, c Highlight) (wireHighlight, error) {
+	owner := fmt.Sprintf("network %q highlight %d", n.Name, i)
 	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
-		return wireHighlight{}, fmt.Errorf("highlight %q: %w", c.Name, err)
+		return wireHighlight{}, fmt.Errorf("%s: %w", owner, err)
 	}
-	pinned, err := pinnedWire("highlight", c.Name, c.Pinned)
+	pinned, err := pinnedWireOf(owner, c.Pinned)
 	if err != nil {
 		return wireHighlight{}, err
 	}
-	out := wireHighlight{Name: c.Name, Notes: c.Notes, Hidden: c.Hidden, Pinned: pinned, Style: c.Style}
+	out := wireHighlight{Hidden: c.Hidden, Pinned: pinned}
 	walk, err := walkWire(c.Walk)
 	if err != nil {
 		return wireHighlight{}, err

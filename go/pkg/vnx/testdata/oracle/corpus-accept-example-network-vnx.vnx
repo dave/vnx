@@ -210,7 +210,6 @@
       },
       "highlights": [
         {
-          "name": "Chalamain Gap",
           "walk": [
             {
               "arc": "arc-1",
@@ -221,12 +220,6 @@
               "to": [-3.6521, 57.1]
             }
           ],
-          "style": {
-            "color": "#c1440e",
-            "line-style": "solid",
-            "opacity": 0.9,
-            "width": 4
-          },
           "data": [
             {
               "@type": "app.viatrail.tag",
@@ -235,8 +228,6 @@
           ]
         },
         {
-          "name": "Rock fall",
-          "notes": "Path completely blocked by rock fall, 2026-06-20",
           "walk": [
             {
               "arc": "arc-2",

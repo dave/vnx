@@ -19,8 +19,14 @@ import (
 
 func writeDoc(t *testing.T, d *vnx.Document) (string, vnx.WriteReport) {
 	t.Helper()
+	return writeDocWith(t, d, vnx.WriteOptions{})
+}
+
+// writeDocWith is writeDoc with write options: the labels a caller gives.
+func writeDocWith(t *testing.T, d *vnx.Document, o vnx.WriteOptions) (string, vnx.WriteReport) {
+	t.Helper()
 	var buf bytes.Buffer
-	report, err := Write(&buf, d)
+	report, err := WriteWith(&buf, d, o)
 	if err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -310,7 +316,7 @@ func TestCellMovingTimeIsNotCarriedAndIsNotDerivable(t *testing.T) {
 // was never asserted is the loss itself, which is the half the matrix cell
 // exists to state. KML's equivalent is kml/matrix_test.go's network test.
 func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
+	out, report := writeDocWith(t, &vnx.Document{Networks: []vnx.Network{{
 		Name:  "Lairig Ghru",
 		Nodes: map[string]vnx.Vertex{"node-north": vx(pos(0, 0, nil)), "node-mid": vx(pos(0, 1, nil)), "node-south": vx(pos(0, 2, nil))},
 		Arcs: map[string]vnx.Arc{
@@ -318,17 +324,17 @@ func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 			"arc-south": {From: "node-mid", To: "node-south"},
 		},
 		Highlights: []vnx.Highlight{
-			{Name: "Full Traverse", Walk: []vnx.Pass{
+			{Walk: []vnx.Pass{
 				{Arc: "arc-north", From: node("node-north")},
 				{Arc: "arc-south", To: node("node-south")},
 			}},
 			// SHARES arc-north with the highlight above. That sharing is the whole
 			// of what this cell loses.
-			{Name: "Half Way", Walk: []vnx.Pass{
+			{Walk: []vnx.Pass{
 				{Arc: "arc-north", From: node("node-north"), To: node("node-mid")},
 			}},
 		},
-	}}})
+	}}}, vnx.WriteOptions{HighlightLabels: [][]string{{"Full Traverse", "Half Way"}}})
 	// CARRIED: one Feature for the network, holding every arc once, and one
 	// NAMED Feature per highlight.
 	if n := strings.Count(out, `"name":"Lairig Ghru"`); n != 1 {

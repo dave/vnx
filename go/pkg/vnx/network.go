@@ -22,15 +22,14 @@ type Network struct {
 	Data       []Record
 }
 
-// Highlight is a walk over arcs the network owns. Unlike a Plan, its geometry is
-// BY REFERENCE — two highlights crossing the same trail name the same arc, and
-// that sharing is the whole reason this format exists.
+// Highlight is a lightweight container for data objects along a walk of its
+// network's arcs (§3.3.3). It has no name, notes or style of its own: what it
+// is, is what its Data says. Unlike a Plan, its geometry is BY REFERENCE — two
+// highlights crossing the same trail name the same arc, and that sharing is
+// the whole reason this format exists.
 type Highlight struct {
-	Name   string
-	Notes  string
 	Hidden bool
 	Pinned Timestamp // "" is not pinned (§3.8)
-	Style  Style
 	Walk   []Pass
 	Data   []Record
 }
@@ -38,7 +37,7 @@ type Highlight struct {
 var (
 	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
 		"nodes": true, "arcs": true, "highlights": true, "points": true, "areas": true, "data": true}
-	highlightKeys = map[string]bool{"name": true, "notes": true, "hidden": true, "pinned": true, "style": true, "walk": true, "data": true}
+	highlightKeys = map[string]bool{"hidden": true, "pinned": true, "walk": true, "data": true}
 	arcKeys       = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
 )
 
@@ -167,11 +166,8 @@ func decodeHighlights(v any, path string, arcs map[string]Arc, diags []Diagnosti
 			continue
 		}
 		var c Highlight
-		c.Name, diags = stringField(obj, "name", diags)
-		c.Notes, diags = stringField(obj, "notes", diags)
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
 		c.Pinned, diags = timeField(obj, "pinned", at, diags)
-		c.Style, diags = decodeStyle(obj, at, diags)
 		c.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, highlightKeys, diags)
 		var walkOK bool

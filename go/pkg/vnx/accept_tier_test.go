@@ -37,19 +37,24 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 			}
 		}},
 		{"drops every application key", func(d *Document) { d.AppKeys = nil }},
+		// A highlight has no style or notes of its own (§3.3.3): the items that
+		// do are the ones a reader could drop them from.
 		{"drops every style", func(d *Document) {
+			for j := range d.Areas {
+				d.Areas[j].Style = Style{}
+			}
 			for i := range d.Networks {
-				for j := range d.Networks[i].Highlights {
-					d.Networks[i].Highlights[j].Style = Style{}
+				for j := range d.Networks[i].Points {
+					d.Networks[i].Points[j].Style = Style{}
 				}
 			}
 		}},
 		{"drops every notes", func(d *Document) {
+			for j := range d.Areas {
+				d.Areas[j].Notes = ""
+			}
 			for i := range d.Networks {
 				d.Networks[i].Notes = ""
-				for j := range d.Networks[i].Highlights {
-					d.Networks[i].Highlights[j].Notes = ""
-				}
 			}
 		}},
 	} {

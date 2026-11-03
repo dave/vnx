@@ -309,7 +309,6 @@
       },
       "highlights": [
         {
-          "name": "node to node",
           "walk": [
             {
               "arc": "arc-1",
@@ -320,16 +319,9 @@
               "to": "node-3",
               "pin": [-3.52, 57.52]
             }
-          ],
-          "style": {
-            "color": "#00aa00",
-            "line-style": "dashed",
-            "opacity": 0.5,
-            "width": 3
-          }
+          ]
         },
         {
-          "name": "turnaround on arc-5",
           "hidden": true,
           "walk": [
             {
@@ -341,7 +333,6 @@
           ]
         },
         {
-          "name": "mid-arc start and end",
           "walk": [
             {
               "arc": "arc-7",

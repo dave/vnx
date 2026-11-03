@@ -33,7 +33,6 @@
       },
       "highlights": [
         {
-          "name": "Mid-arc start, pin, turn, revisit, mid-arc end",
           "walk": [
             {
               "arc": "ab",
@@ -58,7 +57,6 @@
           ]
         },
         {
-          "name": "Inside one arc",
           "walk": [
             {
               "arc": "cd",
@@ -68,7 +66,6 @@
           ]
         },
         {
-          "name": "Starts mid-arc, turns back past its start, ends at a node",
           "walk": [
             {
               "arc": "cd",
@@ -79,7 +76,6 @@
           ]
         },
         {
-          "name": "Turns, then stops part-way back",
           "walk": [
             {
               "arc": "cb",
@@ -93,7 +89,6 @@
           ]
         },
         {
-          "name": "Enters and leaves at one point",
           "walk": [
             {
               "arc": "ab",
@@ -103,7 +98,6 @@
           ]
         },
         {
-          "name": "Nothing yet",
           "walk": []
         }
       ]

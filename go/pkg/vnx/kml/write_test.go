@@ -72,14 +72,18 @@ func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 
 // ⚠ THE SUBTLE RULING OF §2.6, ASSERTED DIRECTLY. Highlights are separate named
 // Placemarks; folding them into the network's MultiGeometry would discard their
-// name, notes, style and visibility, which is exactly what this checks did not
-// happen.
+// labels and visibility, which is exactly what this checks did not happen. A
+// highlight has no style of its own (§3.3.3), so its Placemark carries none.
 //
 // ⚠ THE NAMES ARE BARE SINCE THE 2026-09-03 REDESIGN. The network is a <Folder>
 // now, so the nesting says which network a highlight belongs to and the old
 // "Lairig Ghru / Full Traverse" prefix would be the folder's name written twice.
 func TestNetworkHighlightsAreTheirOwnNamedPlacemarks(t *testing.T) {
-	out, _ := writeDoc(t, fixture())
+	var buf bytes.Buffer
+	if _, err := WriteWith(&buf, fixture(), fixtureOptions()); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
 	for _, want := range []string{
 		"<name>Full Traverse</name>",
 		"<name>Half Way</name>",
@@ -91,10 +95,11 @@ func TestNetworkHighlightsAreTheirOwnNamedPlacemarks(t *testing.T) {
 	if strings.Contains(out, "Lairig Ghru / Full Traverse") {
 		t.Errorf("a highlight still carries its network's name as a prefix; the Folder already says it\n%s", out)
 	}
-	// The highlight's own style survived, which it could not have inside a shared
-	// Placemark: a Placemark has one style.
-	if !strings.Contains(out, "<color>ffa84f7b</color>") {
-		t.Errorf("the highlight's own style is missing\n%s", out)
+	// A highlight has no style of its own: its Placemark carries no <Style>.
+	full := out[strings.Index(out, "<name>Full Traverse</name>"):]
+	full = full[:strings.Index(full, "</Placemark>")]
+	if strings.Contains(full, "<Style>") {
+		t.Errorf("a highlight's Placemark carries a style\n%s", full)
 	}
 	// And its own visibility: "Half Way" is hidden, the network is not.
 	half := out[strings.Index(out, "<name>Half Way</name>"):]
@@ -289,12 +294,13 @@ func TestHighlightCutsItsArcAtAPosition(t *testing.T) {
 		Arcs: map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(
 			pos(0, 0.1), pos(0, 0.2), pos(0, 0.3),
 		)}},
-		Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
 			{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{At: &vnx.LonLat{Lon: 0, Lat: 0.2}}},
 		}}},
 	}}}
 	out, _ := writeDoc(t, d)
-	highlight := out[strings.Index(out, "<name>C</name>"):]
+	// With no label, the highlight is named by its integer within the network.
+	highlight := out[strings.Index(out, "<name>1</name>"):]
 	line := highlight[strings.Index(highlight, "<coordinates>")+len("<coordinates>"):]
 	line = line[:strings.Index(line, "</coordinates>")]
 	if line != "0,0 0,0.1 0,0.2" {
@@ -309,7 +315,7 @@ func TestHighlightWalkingAnArcBackwardsIsDrawnBackwards(t *testing.T) {
 		Name:  "N",
 		Nodes: map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 0.2))},
 		Arcs:  map[string]vnx.Arc{"arc": {From: "a", To: "b", Pips: vs(pos(0, 0.1))}},
-		Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
 			{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}},
 		}}},
 	}}}
@@ -573,7 +579,7 @@ func TestAWhollyLostItemGetsOnlyTheWholeItemCode(t *testing.T) {
 				"good": {From: "a", To: "b"},
 			},
 			// This highlight's walk is empty, so the highlight is WHOLLY lost.
-			Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{}}},
+			Highlights: []vnx.Highlight{{Walk: []vnx.Pass{}}},
 		}},
 	})
 	for _, d := range report.Diagnostics {
@@ -697,10 +703,10 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 			name: "a highlight with nothing to draw is WHOLE",
 			doc: &vnx.Document{Networks: []vnx.Network{{
 				Name: "N", Nodes: nodes, Arcs: goodArc,
-				Highlights: []vnx.Highlight{{Name: "C", Walk: []vnx.Pass{}}},
+				Highlights: []vnx.Highlight{{Walk: []vnx.Pass{}}},
 			}}},
 			code: vnx.CodeItemNoGeometry, namedThingPlaced: false,
-			args0: "C", path: "/networks/0/highlights/0", marker: "<name>C</name>",
+			args0: "1", path: "/networks/0/highlights/0", marker: "<name>1</name>",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -734,5 +740,34 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 					tc.args0, verb, tc.marker, placed, out)
 			}
 		})
+	}
+}
+
+// Inside a network's Folder every Placemark is named by its bare label (Dave,
+// 2026-11-03): a highlight by the caller's label, and an item with no name or
+// label by its integer within the network.
+func TestInNetworkPlacemarksAreNamedByLabelOrInteger(t *testing.T) {
+	d := &vnx.Document{Networks: []vnx.Network{{
+		Name:   "Ridges",
+		Nodes:  map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 1))},
+		Arcs:   map[string]vnx.Arc{"arc": {From: "a", To: "b"}},
+		Points: []vnx.Waypoint{{At: pos(0, 0.5)}},
+		Highlights: []vnx.Highlight{
+			{Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{Node: "b"}}}},
+			{Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}}}},
+		},
+	}}}
+	var buf bytes.Buffer
+	if _, err := WriteWith(&buf, d, vnx.WriteOptions{HighlightLabels: [][]string{{"West ridge", ""}}}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for _, want := range []string{"<name>1</name>", "<name>West ridge</name>", "<name>2</name>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "<name>Ridges / ") {
+		t.Errorf("a Placemark inside the network's Folder repeats its name:\n%s", out)
 	}
 }

@@ -39,7 +39,19 @@ import (
 // On error it returns a ZERO report. A caller must not be able to read
 // Emitted off a run that did not finish and conclude something was written.
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	f := &features{sw: vnx.Stick(w)}
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is Write with the labels the document does not carry: every
+// in-network feature is named "{network} / {label}" (vnx.WriteOptions
+// NetworkLabels: an item's name or its highlight label, or an integer unique
+// within the network when it has none). Options that do not fit d are an
+// error, and nothing is written.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	if err := o.Check(d); err != nil {
+		return vnx.WriteReport{}, fmt.Errorf("geojson: %w", err)
+	}
+	f := &features{sw: vnx.Stick(w), opts: o}
 	f.sw.WriteString(`{"type":"FeatureCollection","features":[`)
 
 	// ⚠ THE WALK IS IN [vnx.Document] FIELD ORDER, and that is what makes the
@@ -68,6 +80,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 // the casualties.
 type features struct {
 	sw      *vnx.StickyWriter
+	opts    vnx.WriteOptions
 	emitted int
 	diags   []vnx.Diagnostic
 	// err is a failure the SINK did not cause — today only a coordinate that
@@ -309,6 +322,11 @@ func (f *features) networks(d *vnx.Document) {
 	for i := range d.Networks {
 		n := &d.Networks[i]
 		at := fmt.Sprintf("/networks/%d", i)
+		labels, err := f.opts.NetworkLabels(d, i)
+		if err != nil {
+			f.fail(fmt.Errorf("geojson: %w", err))
+			return
+		}
 
 		// ⚠ SORTED. Network.Arcs is a map, and ranging over it emits in
 		// random order — the byte-compared golden of §6.1 would go flaky in a
@@ -347,7 +365,7 @@ func (f *features) networks(d *vnx.Document) {
 				// could. The test is what the Args name, not what the walk was
 				// in the middle of.
 				f.warn(vnx.CodeItemNoGeometry, fmt.Sprintf("%s/areas/%d/polygon", at, j),
-					[]string{n.Areas[j].Name}, ringProblem(n.Areas[j].Polygon))
+					[]string{labels.Areas[j]}, ringProblem(n.Areas[j].Polygon))
 				continue
 			}
 			rings = append(rings, ringed{j, ring})
@@ -375,28 +393,29 @@ func (f *features) networks(d *vnx.Document) {
 			// disruptive.
 			for j := range n.Points {
 				p := &n.Points[j]
-				f.begin(inNetworkName(base, p.Name), p.Notes)
+				f.begin(inNetworkName(base, labels.Points[j]), p.Notes)
 				f.point(p.At)
 				f.end()
 			}
 			for _, r := range rings {
 				a := &n.Areas[r.index]
-				f.begin(inNetworkName(base, a.Name), a.Notes)
+				f.begin(inNetworkName(base, labels.Areas[r.index]), a.Notes)
 				f.polygon(r.ring)
 				f.end()
 			}
 		}
 
-		f.highlights(d, n, at)
+		f.highlights(d, n, at, labels.Highlights)
 	}
 }
 
 // inNetworkName is §2.7's join applied inside a network: the network's own
-// flattened name, then the item's. It is the ONE spelling of that join, so the
-// points, areas and highlights of a network cannot drift apart on it.
+// flattened name, then the item's label (vnx.WriteOptions NetworkLabels, never
+// empty). It is the ONE spelling of that join, so the points, areas and
+// highlights of a network cannot drift apart on it.
 //
 // An empty base — a network with no name at the root — leaves the item's bare
-// name rather than a leading separator.
+// label rather than a leading separator.
 func inNetworkName(base, name string) string {
 	if base == "" {
 		return name
@@ -404,7 +423,7 @@ func inNetworkName(base, name string) string {
 	return base + vnx.PathSeparator + name
 }
 
-func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string) {
+func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string, labels []string) {
 	// The network's own flattened name prefixes every highlight: "Folder /
 	// Cairngorms / Lairig Ghru" (§2.7). The separator is the same one, because
 	// a second spelling of the same join is the drift the shared constant
@@ -422,15 +441,16 @@ func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string) {
 		// arc forwards, would put a line on the map nobody walked.
 		line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 		if err != nil {
-			f.fail(fmt.Errorf("geojson: network %q highlight %q: %w", n.Name, c.Name, err))
+			f.fail(fmt.Errorf("geojson: network %q highlight %d: %w", n.Name, j, err))
 			return
 		}
 		if len(line) < 2 {
-			f.warn(vnx.CodeItemNoGeometry, cat, []string{c.Name},
+			f.warn(vnx.CodeItemNoGeometry, cat, []string{labels[j]},
 				fmt.Sprintf("highlight has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(c.Walk)))
 			continue
 		}
-		f.begin(inNetworkName(base, c.Name), c.Notes)
+		// A highlight has no notes of its own (§3.3.3).
+		f.begin(inNetworkName(base, labels[j]), "")
 		f.lineString(line)
 		f.end()
 	}

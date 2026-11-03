@@ -84,7 +84,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 // shape kept their coordinates and destroyed their Name and Notes, because a
 // GeometryCollection member has no properties of its own.
 func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
+	out, report := writeDocWith(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Net", Notes: "graph",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs: map[string]vnx.Arc{
@@ -92,10 +92,10 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 		},
 		Points: []vnx.Waypoint{{Name: "hut", At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "bog", Polygon: square()}},
-		Highlights: []vnx.Highlight{{Name: "Traverse", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1"), To: node("n2")},
 		}}},
-	}}})
+	}}}, vnx.WriteOptions{HighlightLabels: [][]string{{"Traverse"}}})
 
 	if report.Emitted != 4 {
 		t.Errorf("emitted %d, wanted the arcs Feature and one each for the point, the area and the highlight", report.Emitted)
@@ -232,7 +232,7 @@ func TestAnArcNoHighlightTraversesStillReachesTheFile(t *testing.T) {
 			"walked": {From: "n1", To: "n2"},
 			"lonely": {From: "n1", To: "n2", Pips: vs(pos(5, 5, nil), pos(6, 6, nil))},
 		},
-		Highlights: []vnx.Highlight{{Name: "c", Walk: []vnx.Pass{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
+		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{{Arc: "walked", From: node("n1"), To: node("n2")}}}},
 	}}})
 	if !strings.Contains(out, `[[0,0],[5,5],[6,6],[1,1]]`) {
 		t.Errorf("the untraversed arc is not in the file:\n%s", out)
@@ -250,7 +250,7 @@ func TestHighlightGeometryFollowsItsWalk(t *testing.T) {
 			// Stored n3 -> n2; the highlight walks it the other way.
 			"b": {From: "n3", To: "n2", Pips: vs(pos(1.5, 1.5, nil))},
 		},
-		Highlights: []vnx.Highlight{{Name: "c", Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1")},
 			{Arc: "b", To: node("n3")},
 		}}},
@@ -364,5 +364,54 @@ func TestAWalkThatDoesNotResolveFailsTheWrite(t *testing.T) {
 				t.Fatalf("the write succeeded:\n%s", buf.String())
 			}
 		})
+	}
+}
+
+// Every in-network feature is named "{network} / {label}" (Dave, 2026-11-03):
+// a highlight by the caller's label, and a highlight, point or area with no
+// name or label by its integer within the network. No feature is named
+// "{network} / " with nothing after the separator.
+func TestInNetworkFeaturesAreNamedByLabelOrInteger(t *testing.T) {
+	d := &vnx.Document{Networks: []vnx.Network{{
+		Name:   "Ridges",
+		Nodes:  map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
+		Arcs:   map[string]vnx.Arc{"a": {From: "n1", To: "n2"}},
+		Points: []vnx.Waypoint{{At: pos(0.5, 0.5, nil)}},
+		Areas:  []vnx.Area{{Name: "Bog", Polygon: square()}},
+		Highlights: []vnx.Highlight{
+			{Walk: []vnx.Pass{{Arc: "a", From: node("n1"), To: node("n2")}}},
+			{Walk: []vnx.Pass{{Arc: "a", From: node("n2"), To: node("n1")}}},
+		},
+	}}}
+	out, _ := writeDocWith(t, d, vnx.WriteOptions{HighlightLabels: [][]string{{"West ridge", ""}}})
+	for _, want := range []string{
+		`"name":"Ridges / 1"`,          // the unnamed point
+		`"name":"Ridges / Bog"`,        // the area's own name
+		`"name":"Ridges / West ridge"`, // the labelled highlight
+		`"name":"Ridges / 2"`,          // the unlabelled highlight
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, `"name":"Ridges / "`) {
+		t.Errorf("a feature is named by its network alone:\n%s", out)
+	}
+	// With no options every highlight takes its integer.
+	plain, _ := writeDoc(t, d)
+	if !strings.Contains(plain, `"name":"Ridges / 2"`) || !strings.Contains(plain, `"name":"Ridges / 3"`) {
+		t.Errorf("no labels: want the highlights named Ridges / 2 and Ridges / 3:\n%s", plain)
+	}
+}
+
+// Labels that do not fit the document are an error, and nothing is written.
+func TestWriteWithLabelsThatDoNotFitIsAnError(t *testing.T) {
+	var buf bytes.Buffer
+	d := &vnx.Document{Networks: []vnx.Network{{Name: "N", Highlights: []vnx.Highlight{{}}}}}
+	if _, err := WriteWith(&buf, d, vnx.WriteOptions{HighlightLabels: [][]string{{}}}); err == nil {
+		t.Fatal("labels for no highlight were taken for a network with one")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("wrote %d bytes before refusing", buf.Len())
 	}
 }

@@ -69,7 +69,7 @@ func brokenWalks() map[string]*vnx.Document {
 	}
 	highlight := func(walk ...vnx.Pass) *vnx.Document {
 		return &vnx.Document{Networks: []vnx.Network{{Name: "Net", Nodes: nodes(), Arcs: arcs(),
-			Highlights: []vnx.Highlight{{Name: "Broken", Walk: walk}}}}}
+			Highlights: []vnx.Highlight{{Walk: walk}}}}}
 	}
 	at := func(n string) *vnx.Endpoint { return &vnx.Endpoint{Node: n} }
 	return map[string]*vnx.Document{

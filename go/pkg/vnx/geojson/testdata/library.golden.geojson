@@ -8,5 +8,5 @@
 {"type":"Feature","properties":{"name":"Highlands / Cairngorms / Cairngorm paths","description":"The graph"},"geometry":{"type":"MultiLineString","coordinates":[[[-3.5,57],[-3.505,57.01],[-3.51,57.02]],[[-3.51,57.02],[-3.515,57.03],[-3.52,57.04]]]}},
 {"type":"Feature","properties":{"name":"Highlands / Cairngorms / Cairngorm paths / Junction hut"},"geometry":{"type":"Point","coordinates":[-3.51,57.02,500]}},
 {"type":"Feature","properties":{"name":"Highlands / Cairngorms / Cairngorm paths / Boggy bit"},"geometry":{"type":"Polygon","coordinates":[[[-3.53,57],[-3.52,57],[-3.52,57.01],[-3.53,57]]]}},
-{"type":"Feature","properties":{"name":"Highlands / Cairngorms / Cairngorm paths / North traverse","description":"n1 to n3"},"geometry":{"type":"LineString","coordinates":[[-3.5,57],[-3.505,57.01],[-3.51,57.02],[-3.515,57.03],[-3.52,57.04]]}}
+{"type":"Feature","properties":{"name":"Highlands / Cairngorms / Cairngorm paths / North traverse"},"geometry":{"type":"LineString","coordinates":[[-3.5,57],[-3.505,57.01],[-3.51,57.02],[-3.515,57.03],[-3.52,57.04]]}}
 ]}

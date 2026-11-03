@@ -2,6 +2,7 @@ package vnx
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -254,3 +255,63 @@ func TestStickyWriterIsTheOneTheEncoderUses(t *testing.T) {
 // an inline time.After so the intent reads at the call site: this is not a
 // performance assertion, it is "the bound is gone".
 func timeoutAfterASecond() <-chan time.Time { return time.After(time.Second) }
+
+// A highlight has no name (§3.3.3), so a lossy writer names it by the label
+// its caller gives, and every in-network item with no name or label by an
+// integer unique within its network (Dave, 2026-11-03): counted in the order
+// points, areas, highlights, skipping an integer another item already is.
+func TestNetworkLabelsNameEveryInNetworkItem(t *testing.T) {
+	d := &Document{Networks: []Network{
+		{
+			Name:       "A",
+			Points:     []Waypoint{{Name: "Hut"}, {}},
+			Areas:      []Area{{Name: "2"}, {}},
+			Highlights: []Highlight{{}, {}, {}},
+		},
+		{Name: "B", Highlights: []Highlight{{}}},
+	}}
+	o := WriteOptions{HighlightLabels: [][]string{{"Ridge", "", ""}, {""}}}
+	a, err := o.NetworkLabels(d, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmt.Sprint(a.Points, a.Areas, a.Highlights)
+	// "2" is taken by an area's own name, so the integers skip it.
+	if want := "[Hut 1] [2 3] [Ridge 4 5]"; got != want {
+		t.Errorf("network A labels %s, want %s", got, want)
+	}
+	b, err := o.NetworkLabels(d, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(b.Highlights) != "[1]" {
+		t.Errorf("network B labels %v, want [1]: the integers are per network", b.Highlights)
+	}
+	// No options: every highlight takes its integer.
+	z, err := WriteOptions{}.NetworkLabels(d, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(z.Highlights) != "[4 5 6]" {
+		t.Errorf("no labels: highlights %v, want [4 5 6]", z.Highlights)
+	}
+}
+
+// Labels that do not match the document's shape are an error, never read as
+// "no label".
+func TestWriteOptionsThatDoNotFitAreAnError(t *testing.T) {
+	d := &Document{Networks: []Network{{Highlights: []Highlight{{}, {}}}}}
+	for _, o := range []WriteOptions{
+		{HighlightLabels: [][]string{}},
+		{HighlightLabels: [][]string{{"one"}}},
+		{HighlightLabels: [][]string{{"a", "b", "c"}}},
+		{HighlightLabels: [][]string{{"a", "b"}, {}}},
+	} {
+		if err := o.Check(d); err == nil {
+			t.Errorf("%v fits a document of one network with two highlights", o.HighlightLabels)
+		}
+	}
+	if err := (WriteOptions{HighlightLabels: [][]string{{"a", ""}}}).Check(d); err != nil {
+		t.Errorf("a fitting label list: %v", err)
+	}
+}

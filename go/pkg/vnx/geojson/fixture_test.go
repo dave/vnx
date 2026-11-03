@@ -96,8 +96,9 @@ func fixture() *vnx.Document {
 				pos(-3.53, 57.00, nil), pos(-3.52, 57.00, nil),
 				pos(-3.52, 57.01, nil),
 			}}},
+			// A highlight has no name or notes of its own: its feature is
+			// named by the caller's label (fixtureOptions).
 			Highlights: []vnx.Highlight{{
-				Name: "North traverse", Notes: "n1 to n3",
 				Walk: []vnx.Pass{
 					{Arc: "arc-a", From: node("n1")},
 					{Arc: "arc-b", To: node("n3")},
@@ -118,4 +119,10 @@ func node(id string) *vnx.Endpoint { return &vnx.Endpoint{Node: id} }
 
 func tagRecord(v string) vnx.Record {
 	return vnx.Record{Type: "app.viatrail.tag", Body: map[string]any{"value": v}}
+}
+
+// fixtureOptions labels the fixture's highlight as a caller would (its data
+// label): it is written "{network} / North traverse".
+func fixtureOptions() vnx.WriteOptions {
+	return vnx.WriteOptions{HighlightLabels: [][]string{{"North traverse"}}}
 }

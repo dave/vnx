@@ -56,7 +56,19 @@ const RootDocumentName = "doc.kml"
 // mid-walk. On error the report is ZERO, so a caller cannot act on counts taken
 // from a walk that did not finish.
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	x := &writer{w: vnx.Stick(w), d: d}
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is Write with the labels the document does not carry: a network
+// is a KML Folder named for it, so every item inside it is a Placemark named
+// by its bare label (vnx.WriteOptions NetworkLabels: an item's name or its
+// highlight label, or an integer unique within the network when it has none).
+// Options that do not fit d are an error, and nothing is written.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	if err := o.Check(d); err != nil {
+		return vnx.WriteReport{}, fmt.Errorf("kml: %w", err)
+	}
+	x := &writer{w: vnx.Stick(w), d: d, opts: o}
 	x.document()
 	if err := x.w.Err(); err != nil {
 		return vnx.WriteReport{}, err
@@ -70,6 +82,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 type writer struct {
 	w      *vnx.StickyWriter
 	d      *vnx.Document
+	opts   vnx.WriteOptions
 	depth  int
 	report vnx.WriteReport
 	// err is the first geometry that could not be resolved: a walk or an arc
@@ -140,7 +153,7 @@ func (x *writer) bucket(l *layout, b *bucket, homeless bool) {
 	for _, i := range b.networks {
 		path := fmt.Sprintf("/networks/%d", i)
 		x.homeless(homeless, path, x.d.Networks[i].Name)
-		x.network(x.d.Networks[i], path)
+		x.network(x.d.Networks[i], i, path)
 	}
 }
 
@@ -426,7 +439,12 @@ func (x *writer) plan(r vnx.Plan, path string) {
 // survives, the graph does not. That is a class-level fact for the matrix and the
 // export screen, NOT a per-item diagnostic — one per highlight would bury the real
 // casualties.
-func (x *writer) network(n vnx.Network, path string) {
+func (x *writer) network(n vnx.Network, index int, path string) {
+	labels, err := x.opts.NetworkLabels(x.d, index)
+	if err != nil {
+		x.fail(fmt.Errorf("kml: %w", err))
+		return
+	}
 	arcIDs := make([]string, 0, len(n.Arcs))
 	for id := range n.Arcs {
 		arcIDs = append(arcIDs, id)
@@ -454,7 +472,7 @@ func (x *writer) network(n vnx.Network, path string) {
 	for i, a := range n.Areas {
 		ring, ok := closedRing(a.Polygon)
 		if !ok {
-			x.diag(vnx.CodeItemNoGeometry, fmt.Sprintf("%s/areas/%d", path, i), a.Name,
+			x.diag(vnx.CodeItemNoGeometry, fmt.Sprintf("%s/areas/%d", path, i), labels.Areas[i],
 				"in-network "+ringProblem(a.Polygon))
 			continue
 		}
@@ -470,7 +488,7 @@ func (x *writer) network(n vnx.Network, path string) {
 		// with empty walks, each of which is wholly lost and writes nothing;
 		// without this loop those whole-item casualties would go unreported.
 		for i, c := range n.Highlights {
-			x.highlight(c, fmt.Sprintf("%s/highlights/%d", path, i), n)
+			x.highlight(c, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
 		}
 		return
 	}
@@ -495,21 +513,28 @@ func (x *writer) network(n vnx.Network, path string) {
 		x.close("Placemark")
 		x.report.Emitted++
 	}
-	for _, p := range n.Points {
+	// Each item is named by its label (an integer when it has no name).
+	for j, p := range n.Points {
+		p.Name = labels.Points[j]
 		x.waypoint(p)
 	}
 	for _, i := range areaOrder {
-		x.areaPlacemark(n.Areas[i], drawableAreas[i])
+		a := n.Areas[i]
+		a.Name = labels.Areas[i]
+		x.areaPlacemark(a, drawableAreas[i])
 	}
 	for i, c := range n.Highlights {
-		x.highlight(c, fmt.Sprintf("%s/highlights/%d", path, i), n)
+		x.highlight(c, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
 	}
 	x.close("Folder")
 }
 
-// highlight writes one named Placemark for a highlight.
+// highlight writes one Placemark for a highlight, named by label: the label the
+// caller gave it, or its integer within the network (vnx.WriteOptions
+// NetworkLabels). A highlight has no name, notes or style of its own (§3.3.3),
+// so the Placemark carries none of them.
 //
-// ⚠ THE NAME IS THE HIGHLIGHT'S OWN, BARE. Before the 2026-09-03 redesign it was
+// ⚠ THE LABEL IS BARE. Before the 2026-09-03 redesign it was
 // "Network / Highlight", because the network was a Placemark and nesting could not
 // say which network a highlight belonged to. The network is a <Folder> now and the
 // nesting says it, so the prefix would be the folder's name written twice.
@@ -519,22 +544,21 @@ func (x *writer) network(n vnx.Network, path string) {
 // visibility inherits down a folder, so a hidden network already hides it.
 // ORing the network's state in here would hide a visible highlight the moment its
 // network was hidden AND make it impossible to unhide in Google Earth.
-func (x *writer) highlight(c vnx.Highlight, path string, n vnx.Network) {
+func (x *writer) highlight(c vnx.Highlight, label, path string, n vnx.Network) {
 	// ⚠ A WALK THAT DOES NOT RESOLVE FAILS THE WRITE. The reader drops such a
 	// highlight, so only a hand-built Document reaches here with one, and drawing
 	// part of it would put a line on the map nobody walked.
 	line, err := vnx.WalkLine(n.Nodes, n.Arcs, c.Walk)
 	if err != nil {
-		x.fail(fmt.Errorf("kml: network %q highlight %q: %w", n.Name, c.Name, err))
+		x.fail(fmt.Errorf("kml: network %q %s: %w", n.Name, path, err))
 		return
 	}
 	if len(line) < 2 {
-		x.diag(vnx.CodeItemNoGeometry, path, c.Name, "highlight's walk covers fewer than two positions")
+		x.diag(vnx.CodeItemNoGeometry, path, label, "highlight's walk covers fewer than two positions")
 		return
 	}
 	x.open("Placemark", "")
-	x.feature(c.Name, c.Notes, c.Hidden)
-	x.highlightStyle(c.Style)
+	x.feature(label, "", c.Hidden)
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++

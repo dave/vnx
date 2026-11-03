@@ -33,6 +33,16 @@ import (
 // An error means the bytes written so far are not a document. Every caller
 // discards them: writeAtomically removes its temporary and never renames.
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is Write taking the options every lossy writer takes. GPX writes
+// no network (its highlights go with it), so it reads no label; options that
+// do not fit d are still an error, as for the other writers.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	if err := o.Check(d); err != nil {
+		return vnx.WriteReport{}, fmt.Errorf("gpx: %w", err)
+	}
 	g := &writer{doc: d, b: vnx.Stick(w)}
 	g.run()
 	if g.err != nil {

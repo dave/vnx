@@ -233,7 +233,7 @@ func TestNetworkRaisesExactlyTheNetworkDiagnostic(t *testing.T) {
 		Name:       "Paths",
 		Nodes:      map[string]vnx.Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
 		Arcs:       map[string]vnx.Arc{"a1": arc},
-		Highlights: []vnx.Highlight{{Name: "Through Route"}},
+		Highlights: []vnx.Highlight{{}},
 		Points:     []vnx.Waypoint{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
 	}}}
 	out, rep := write(t, d)

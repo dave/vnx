@@ -113,8 +113,8 @@ func TestEveryWalkFormReadsClean(t *testing.T) {
 
 // TestEachWalkRemedy is one case per SPEC §6.2 row that concerns a network:
 // the code, the path, and what survives. The network always carries a second,
-// valid highlight named "keep", so a remedy that dropped more than its highlight goes
-// red here, not only one that dropped less.
+// valid highlight (keep, told by its walk), so a remedy that dropped more than
+// its highlight goes red here, not only one that dropped less.
 func TestEachWalkRemedy(t *testing.T) {
 	// A highlight has no name (§3.3.3): the one to keep is told by its walk.
 	const keep = `{"walk":[{"arc":"de","from":"d","to":"e"}]}`

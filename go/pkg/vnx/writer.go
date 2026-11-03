@@ -26,15 +26,17 @@ import (
 //     agent reading `vnx convert`'s stderr go straight to the offending
 //     element instead of hunting by name.
 //  3. **Args[0] is the item's own Name, verbatim and unprefixed**, wherever
-//     the item has one. An item inside a network passes its label
-//     ([WriteOptions.NetworkLabels]): a highlight has no name of its own
-//     (§3.3.3), so its label is the caller's, or its integer. NOT the flattened folder path: KML keeps real folders
-//     and would never build one, so a path here would make the same
+//     the item has one. An item inside a network passes its label from
+//     [WriteOptions.NetworkLabels] instead, and that label is never empty: a
+//     point or an area's own name, the caller's label for a highlight (a
+//     highlight has no name of its own, §3.3.3), or else an integer unique
+//     within the network. NOT the flattened folder path: KML keeps real
+//     folders and would never build one, so a path here would make the same
 //     diagnostic read differently per format for no gain. An unnamed item
-//     passes its empty name rather than a substitute — inventing "(untitled)"
-//     in this package would be untranslatable English on a French screen.
-//     An application key's name is its key, so [AppKeyDiagnostics] passes the
-//     key.
+//     outside a network passes its empty name rather than a substitute —
+//     inventing "(untitled)" in this package would be untranslatable English
+//     on a French screen. An application key's name is its key, so
+//     [AppKeyDiagnostics] passes the key.
 //  4. **Severity is Warning at every writer site.** Every one of them reports
 //     something DROPPED, which is exactly what Warning is documented to mean.
 //  5. **One diagnostic per dropped ITEM, never per dropped attribute.** A

@@ -104,7 +104,8 @@ enum DocumentEncoder {
     put(&o, "folder", n.folder)
     putHidden(&o, n.hidden)
     put(&o, "pinned", n.pinned)
-    try putGraph(&o, nodes: n.nodes, arcs: n.arcs, owner: "network \(JSONWriter.stringLiteral(n.name ?? ""))")
+    try putGraph(
+      &o, nodes: n.nodes, arcs: n.arcs, owner: "network \(JSONWriter.stringLiteral(n.name ?? ""))")
     if let highlights = n.highlights {
       // A writer never emits a walk its own reader would drop. A highlight
       // has no name: it is named by its index in its network.

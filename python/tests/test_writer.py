@@ -326,9 +326,7 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
                     arcs={"aa": Arc(from_="a", to="a", pips=[])},
                     walk=[],
                 )
-                self.assertTrue(
-                    self.refused(Document(plans=[plan])).startswith(want)
-                )
+                self.assertTrue(self.refused(Document(plans=[plan])).startswith(want))
 
     def test_a_plan_carrying_a_position_is_refused(self) -> None:
         plan = Plan(

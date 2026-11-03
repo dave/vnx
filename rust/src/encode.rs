@@ -150,11 +150,8 @@ fn arc(a: &Arc) -> Json {
 fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path) -> Built {
     check_walk(&c.walk, arcs, false, &path.key("walk"))?;
     let mut o = Obj::new();
-    o.str("name", c.name.as_deref());
-    o.str("notes", c.notes.as_deref());
     o.hidden(c.hidden);
     o.str("pinned", c.pinned.as_deref());
-    o.opaque("style", c.style.as_ref());
     o.raw("walk", walk(&c.walk));
     o.records(&c.data);
     Ok(o.done())

@@ -318,9 +318,10 @@ fn pair_diagnostics(expected: &[Expected], reported: &[vnx::Diagnostic]) -> Resu
 /// A self-test of the matcher, because the CORPUS CANNOT TEST IT.
 ///
 /// Measured 2026-09-09 with `tools/redproof.py`: weakening `pair_diagnostics`
-/// to compare `path` alone leaves the whole diagnose tier GREEN. Every diagnose
-/// fixture carries at most one diagnostic and its path identifies it, so no
-/// case can separate a matcher that compares the code from one that ignores it.
+/// to compare `path` alone leaves the whole diagnose tier GREEN. In every
+/// diagnose fixture each expected diagnostic has a path no other one shares, so
+/// no case can separate a matcher that compares the code from one that ignores
+/// it.
 /// These assertions are the only thing that does.
 #[test]
 fn the_diagnostic_matcher_has_been_seen_to_fail() {
@@ -799,16 +800,16 @@ fn a_reader_that_discards_what_it_read_is_caught() {
         ("drops every application key", |d| d.app_keys.clear()),
         ("drops every style", |d| {
             for n in d.networks.iter_mut().flatten() {
-                for c in n.highlights.iter_mut().flatten() {
-                    c.style = None;
+                for p in n.points.iter_mut().flatten() {
+                    p.style = None;
                 }
             }
         }),
         ("drops every notes", |d| {
             for n in d.networks.iter_mut().flatten() {
                 n.notes = None;
-                for c in n.highlights.iter_mut().flatten() {
-                    c.notes = None;
+                for p in n.points.iter_mut().flatten() {
+                    p.notes = None;
                 }
             }
         }),

@@ -258,17 +258,15 @@ pub struct Arc {
     pub data: Option<Vec<Record>>,
 }
 
-/// A highlight walks arcs its network owns. Its geometry is by reference: two
-/// highlights on one trail name the same arc.
+/// A highlight is a lightweight container for data objects along a walk of
+/// arcs its network owns (SPEC 3.3.3). It has no name or style of its own. Its
+/// geometry is by reference: two highlights on one trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Highlight {
-    pub name: Option<String>,
-    pub notes: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.
     pub pinned: Option<String>,
-    pub style: Option<Json>,
     pub walk: Vec<Pass>,
     pub data: Option<Vec<Record>>,
 }

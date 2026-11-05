@@ -1,6 +1,6 @@
 [package]
 name = "vnx"
-version = "0.10.5"
+version = "0.10.6"
 edition = "2021"
 # Pinned, not measured against a feature this crate needs today: it was raised
 # to 1.77 for `f64::round_ties_even` at the writer boundary, and the writer no

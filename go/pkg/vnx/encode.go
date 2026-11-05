@@ -108,6 +108,7 @@ type wirePass struct {
 }
 
 type wireHighlight struct {
+	Name   string     `json:"name,omitempty"`
 	Hidden bool       `json:"hidden,omitempty"`
 	Pinned string     `json:"pinned,omitempty"`
 	Walk   []wirePass `json:"walk"`
@@ -304,8 +305,8 @@ func planWire(r Plan) (wirePlan, error) {
 }
 
 // highlightWire builds highlight i of n. The walk is checked against n's arcs
-// first: a writer never emits a walk its own reader would drop. A highlight has
-// no name, so an error names it by its network and its index.
+// first: a writer never emits a walk its own reader would drop. A highlight's
+// name is optional, so an error names it by its network and its index.
 func highlightWire(n Network, i int, c Highlight) (wireHighlight, error) {
 	owner := fmt.Sprintf("network %s highlight %d", QuoteName(n.Name), i)
 	if err := checkWalk(c.Walk, n.Arcs, false); err != nil {
@@ -315,7 +316,7 @@ func highlightWire(n Network, i int, c Highlight) (wireHighlight, error) {
 	if err != nil {
 		return wireHighlight{}, err
 	}
-	out := wireHighlight{Hidden: c.Hidden, Pinned: pinned}
+	out := wireHighlight{Name: c.Name, Hidden: c.Hidden, Pinned: pinned}
 	walk, err := walkWire(c.Walk)
 	if err != nil {
 		return wireHighlight{}, err

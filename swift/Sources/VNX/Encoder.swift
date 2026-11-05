@@ -107,8 +107,8 @@ enum DocumentEncoder {
     try putGraph(
       &o, nodes: n.nodes, arcs: n.arcs, owner: "network \(JSONWriter.stringLiteral(n.name ?? ""))")
     if let highlights = n.highlights {
-      // A writer never emits a walk its own reader would drop. A highlight
-      // has no name: it is named by its index in its network.
+      // A writer never emits a walk its own reader would drop. A highlight's
+      // name is optional: it is named by its index in its network.
       o["highlights"] = .array(
         try highlights.enumerated().map { i, c in
           try checkWalk(
@@ -187,6 +187,7 @@ enum DocumentEncoder {
 
   private static func highlight(_ c: Highlight) -> JSONValue {
     var o: [JSONKey: JSONValue] = ["walk": walk(c.walk)]
+    put(&o, "name", c.name)
     putHidden(&o, c.hidden)
     put(&o, "pinned", c.pinned)
     putData(&o, c.data)

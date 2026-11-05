@@ -80,8 +80,8 @@ NETWORK = frozenset(
 ARC = frozenset({"from", "to", "pips", "data"})
 
 # SPEC 3.3.3.  A highlight is a lightweight container for data objects along a
-# walk, with no name, notes or style of its own.
-HIGHLIGHT = frozenset({"hidden", "pinned", "walk", "data"})
+# walk, with an optional name and no notes or style of its own.
+HIGHLIGHT = frozenset({"name", "hidden", "pinned", "walk", "data"})
 
 # SPEC 3.3.3.  A pass of a highlight's walk or of a plan's.
 PASS = frozenset({"arc", "from", "to", "turn", "pin"})

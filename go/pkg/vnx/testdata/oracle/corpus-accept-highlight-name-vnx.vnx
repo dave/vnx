@@ -1,0 +1,48 @@
+{
+  "vnx": "0.10.0",
+  "networks": [
+    {
+      "name": "Paths",
+      "nodes": {
+        "n1": [-3.6, 57.1],
+        "n2": [-3.59, 57.11]
+      },
+      "arcs": {
+        "a1": {
+          "from": "n1",
+          "to": "n2",
+          "pips": [
+            [-3.595, 57.105]
+          ]
+        }
+      },
+      "highlights": [
+        {
+          "name": "Ridge walk",
+          "walk": [
+            {
+              "arc": "a1",
+              "from": "n1",
+              "to": "n2"
+            }
+          ],
+          "data": [
+            {
+              "@type": "app.viatrail.tag",
+              "value": "ridge"
+            }
+          ]
+        },
+        {
+          "walk": [
+            {
+              "arc": "a1",
+              "from": "n2",
+              "to": "n1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

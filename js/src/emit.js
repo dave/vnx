@@ -222,6 +222,7 @@ function emitNetwork(n) {
 
 function emitHighlight(c, arcs, owner) {
   const o = {};
+  put(o, 'name', c.name);
   putHidden(o, c.hidden);
   put(o, 'pinned', c.pinned);
   put(o, 'data', c.data);

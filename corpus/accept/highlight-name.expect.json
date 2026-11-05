@@ -1,0 +1,14 @@
+{
+  "kind": "accept",
+  "schema": "valid",
+  "note": "A highlight carries an optional `name` (SPEC 3.3.3, 3.10). The first highlight is named and the second is not. Both are read clean, and the accept tier's tree comparison checks that a writer emits the first one's name and emits no `name` for the second. A reader that treats a highlight's `name` as an unrecognised key reports a diagnostic here; a reader that drops it, or a writer that leaves it out, fails the tree comparison; a writer that emits an empty `name` for an unnamed highlight fails it too.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/nodes": 2,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/a1/pips": 1,
+    "/networks/0/highlights": 2,
+    "/networks/0/highlights/0/walk": 1,
+    "/networks/0/highlights/1/walk": 1
+  }
+}

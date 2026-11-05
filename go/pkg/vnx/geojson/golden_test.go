@@ -22,7 +22,7 @@ const (
 // file and then fails, so the diff has to be looked at by someone.
 func TestFixtureMatchesGolden(t *testing.T) {
 	var buf bytes.Buffer
-	report, err := WriteWith(&buf, fixture(), fixtureOptions())
+	report, err := Write(&buf, fixture())
 	if err != nil {
 		t.Fatalf("write: %v", err)
 	}

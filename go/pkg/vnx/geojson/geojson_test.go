@@ -84,7 +84,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 // shape kept their coordinates and destroyed their Name and Notes, because a
 // GeometryCollection member has no properties of its own.
 func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
-	out, report := writeDocWith(t, &vnx.Document{Networks: []vnx.Network{{
+	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Net", Notes: "graph",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs: map[string]vnx.Arc{
@@ -92,10 +92,10 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 		},
 		Points: []vnx.Waypoint{{Name: "hut", At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "bog", Polygon: square()}},
-		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "Traverse", Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1"), To: node("n2")},
 		}}},
-	}}}, vnx.WriteOptions{HighlightLabels: [][]string{{"Traverse"}}})
+	}}})
 
 	if report.Emitted != 4 {
 		t.Errorf("emitted %d, wanted the arcs Feature and one each for the point, the area and the highlight", report.Emitted)
@@ -368,10 +368,10 @@ func TestAWalkThatDoesNotResolveFailsTheWrite(t *testing.T) {
 }
 
 // Every in-network feature is named "{network} / {label}" (Dave, 2026-11-03):
-// a highlight by the caller's label, and a highlight, point or area with no
-// name or label by its integer within the network. No feature is named
-// "{network} / " with nothing after the separator.
-func TestInNetworkFeaturesAreNamedByLabelOrInteger(t *testing.T) {
+// a highlight, point or area by its own name, and one with no name by its
+// integer within the network. No feature is named "{network} / " with nothing
+// after the separator.
+func TestInNetworkFeaturesAreNamedByNameOrInteger(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:   "Ridges",
 		Nodes:  map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
@@ -379,16 +379,16 @@ func TestInNetworkFeaturesAreNamedByLabelOrInteger(t *testing.T) {
 		Points: []vnx.Waypoint{{At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "Bog", Polygon: square()}},
 		Highlights: []vnx.Highlight{
-			{Walk: []vnx.Pass{{Arc: "a", From: node("n1"), To: node("n2")}}},
+			{Name: "West ridge", Walk: []vnx.Pass{{Arc: "a", From: node("n1"), To: node("n2")}}},
 			{Walk: []vnx.Pass{{Arc: "a", From: node("n2"), To: node("n1")}}},
 		},
 	}}}
-	out, _ := writeDocWith(t, d, vnx.WriteOptions{HighlightLabels: [][]string{{"West ridge", ""}}})
+	out, _ := writeDoc(t, d)
 	for _, want := range []string{
 		`"name":"Ridges / 1"`,          // the unnamed point
 		`"name":"Ridges / Bog"`,        // the area's own name
-		`"name":"Ridges / West ridge"`, // the labelled highlight
-		`"name":"Ridges / 2"`,          // the unlabelled highlight
+		`"name":"Ridges / West ridge"`, // the named highlight
+		`"name":"Ridges / 2"`,          // the unnamed highlight
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s:\n%s", want, out)
@@ -396,23 +396,6 @@ func TestInNetworkFeaturesAreNamedByLabelOrInteger(t *testing.T) {
 	}
 	if strings.Contains(out, `"name":"Ridges / "`) {
 		t.Errorf("a feature is named by its network alone:\n%s", out)
-	}
-	// With no options every highlight takes its integer.
-	plain, _ := writeDoc(t, d)
-	if !strings.Contains(plain, `"name":"Ridges / 2"`) || !strings.Contains(plain, `"name":"Ridges / 3"`) {
-		t.Errorf("no labels: want the highlights named Ridges / 2 and Ridges / 3:\n%s", plain)
-	}
-}
-
-// Labels that do not fit the document are an error, and nothing is written.
-func TestWriteWithLabelsThatDoNotFitIsAnError(t *testing.T) {
-	var buf bytes.Buffer
-	d := &vnx.Document{Networks: []vnx.Network{{Name: "N", Highlights: []vnx.Highlight{{}}}}}
-	if _, err := WriteWith(&buf, d, vnx.WriteOptions{HighlightLabels: [][]string{{}}}); err == nil {
-		t.Fatal("labels for no highlight were taken for a network with one")
-	}
-	if buf.Len() != 0 {
-		t.Errorf("wrote %d bytes before refusing", buf.Len())
 	}
 }
 

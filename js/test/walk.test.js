@@ -660,7 +660,7 @@ for (const [what, spoil] of Object.entries(refusals)) {
   });
 }
 
-test('a refused walk names its highlight by network and index, as it has no name', () => {
+test('a refused walk names its highlight by network and index, as its name is optional', () => {
   const d = GRAPH();
   d.networks[0].name = 'Ridges';
   d.networks[0].highlights[0].walk[0].arc = 'ghost';

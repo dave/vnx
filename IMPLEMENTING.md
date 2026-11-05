@@ -205,12 +205,13 @@ style body is opaque by ruling, and `SPEC §3.6` puts a normative range on its
 `importance`. A normative range is a rule about a value, not about a key set.
 
 A highlight is a lightweight container for data objects along a walk of its
-network's arcs (`SPEC §3.3.3`). It carries `walk`, `hidden`, `pinned` and
-`data`, and no name, notes or style of its own. A decoder that shares one key
-set across every item, or a model that gives a highlight a `name` field
-because every other item has one, accepts a `name` on a highlight without a
-word. `corpus/diagnose/highlight-name-unknown.vnx` expects the unrecognised-key
-diagnostic.
+network's arcs (`SPEC §3.3.3`). It carries `walk`, an optional `name`,
+`hidden`, `pinned` and `data`, and no notes or style of its own. A decoder that
+shares one key set across every item, or a model that gives a highlight a
+`notes` field because every other item has one, accepts a `notes` on a
+highlight without a word. `corpus/diagnose/highlight-notes-unknown.vnx` expects
+the unrecognised-key diagnostic, and `corpus/accept/highlight-name.vnx` reads a
+named and an unnamed highlight with none.
 
 ### 4.3 A position's arity is a spelling, not a fact
 

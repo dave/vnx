@@ -39,7 +39,7 @@ func pinnedValues(d *Document) map[string]Timestamp {
 	out := map[string]Timestamp{}
 	for _, n := range d.Networks {
 		out[n.Name] = n.Pinned
-		// A highlight has no name (§3.3.3): it is listed by its index.
+		// A highlight's name is optional (§3.3.3): it is listed by its index.
 		for j, h := range n.Highlights {
 			out[fmt.Sprintf("highlight %d", j)] = h.Pinned
 		}

@@ -140,8 +140,8 @@ pub enum EncodeError {
     /// does not have. `path` is the arc's JSON Pointer.
     Arc { path: String, detail: String },
     /// SPEC 3.3.3, 3.4: a walk a reader would drop. `owner` names what walks
-    /// it: `network "<name>" highlight <i>`, as a highlight has no name of its
-    /// own, or `plan "<name>"`. `path` and `cause` are the ones the reader's
+    /// it: `network "<name>" highlight <i>`, as a highlight's name is
+    /// optional, or `plan "<name>"`. `path` and `cause` are the ones the reader's
     /// diagnostic would carry.
     Walk {
         owner: String,

@@ -47,7 +47,7 @@ func interpolatedEndpointDoc() *vnx.Document {
 			"n2": {Lon: -3.5, Lat: 57.004, Ele: ele(340)},
 		},
 		Arcs: map[string]vnx.Arc{"a": {From: "n1", To: "n2", Pips: []vnx.Vertex{{Lon: -3.5, Lat: 57.002, Ele: ele(320)}}}},
-		Highlights: []vnx.Highlight{{Walk: []vnx.Pass{
+		Highlights: []vnx.Highlight{{Name: "Highlight", Walk: []vnx.Pass{
 			{Arc: "a", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{At: &handle}},
 		}}},
 	}}}
@@ -64,10 +64,6 @@ var wantInterpolatedHighlight = []string{"-3.5,57,300", "-3.5,57.002,320", "-3.5
 // nearest recorded pip, 0.0005° — about 55 m — further north than the walker
 // went, carrying an elevation that belongs to a place the highlight never reached.
 const snappedHighlightLastPoint = "-3.5,57.004,340"
-
-// endpointLabels labels the highlight of interpolatedEndpointDoc "Highlight":
-// a highlight has no name of its own (§3.3.3), so the caller gives it one.
-var endpointLabels = vnx.WriteOptions{HighlightLabels: [][]string{{"Highlight"}}}
 
 func TestKMLAndGeoJSONCutAHighlightAtTheSamePlace(t *testing.T) {
 	doc := interpolatedEndpointDoc()
@@ -98,7 +94,7 @@ func TestKMLAndGeoJSONCutAHighlightAtTheSamePlace(t *testing.T) {
 func geojsonHighlightCoords(t *testing.T, doc *vnx.Document) []string {
 	t.Helper()
 	var b bytes.Buffer
-	if _, err := geojson.WriteWith(&b, doc, endpointLabels); err != nil {
+	if _, err := geojson.Write(&b, doc); err != nil {
 		t.Fatalf("geojson: %v", err)
 	}
 	var fc struct {
@@ -153,7 +149,7 @@ func geojsonHighlightCoords(t *testing.T, doc *vnx.Document) []string {
 func kmlHighlightCoords(t *testing.T, doc *vnx.Document) []string {
 	t.Helper()
 	var b bytes.Buffer
-	if _, err := kml.WriteWith(&b, doc, endpointLabels); err != nil {
+	if _, err := kml.Write(&b, doc); err != nil {
 		t.Fatalf("kml: %v", err)
 	}
 	out := b.String()

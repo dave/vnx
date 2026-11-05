@@ -415,7 +415,7 @@ class Walks(unittest.TestCase):
     def highlights(self, result: vnx.ReadResult) -> list[str]:
         networks = result.document.networks
         assert networks is not None
-        # A highlight has no name (SPEC 3.3.3), so each one is told apart by the
+        # A highlight's name is optional (SPEC 3.3.3), so each one is told apart by the
         # tag in its data.
         return [h.data[0].body["tag"] for h in networks[0].highlights or [] if h.data]
 

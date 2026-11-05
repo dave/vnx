@@ -55,20 +55,12 @@ const RootDocumentName = "doc.kml"
 // and no-ops afterwards, so the single check below cannot be forgotten
 // mid-walk. On error the report is ZERO, so a caller cannot act on counts taken
 // from a walk that did not finish.
+//
+// A network is a KML Folder named for it, so every item inside it is a
+// Placemark named by its bare label ([vnx.LabelNetwork]: the item's own name,
+// or an integer unique within the network when it has none).
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	return WriteWith(w, d, vnx.WriteOptions{})
-}
-
-// WriteWith is Write with the labels the document does not carry: a network
-// is a KML Folder named for it, so every item inside it is a Placemark named
-// by its bare label (vnx.WriteOptions NetworkLabels: an item's name or its
-// highlight label, or an integer unique within the network when it has none).
-// Options that do not fit d are an error, and nothing is written.
-func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
-	if err := o.Check(d); err != nil {
-		return vnx.WriteReport{}, fmt.Errorf("kml: %w", err)
-	}
-	x := &writer{w: vnx.Stick(w), d: d, opts: o}
+	x := &writer{w: vnx.Stick(w), d: d}
 	x.document()
 	if err := x.w.Err(); err != nil {
 		return vnx.WriteReport{}, err
@@ -82,7 +74,6 @@ func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteRepor
 type writer struct {
 	w      *vnx.StickyWriter
 	d      *vnx.Document
-	opts   vnx.WriteOptions
 	depth  int
 	report vnx.WriteReport
 	// err is the first geometry that could not be resolved: a walk or an arc
@@ -440,11 +431,7 @@ func (x *writer) plan(r vnx.Plan, path string) {
 // export screen, NOT a per-item diagnostic — one per highlight would bury the real
 // casualties.
 func (x *writer) network(n vnx.Network, index int, path string) {
-	labels, err := x.opts.NetworkLabels(x.d, index)
-	if err != nil {
-		x.fail(fmt.Errorf("kml: %w", err))
-		return
-	}
+	labels := vnx.LabelNetwork(x.d, index)
 	arcIDs := make([]string, 0, len(n.Arcs))
 	for id := range n.Arcs {
 		arcIDs = append(arcIDs, id)
@@ -529,10 +516,9 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 	x.close("Folder")
 }
 
-// highlight writes one Placemark for a highlight, named by label: the label the
-// caller gave it, or its integer within the network (vnx.WriteOptions
-// NetworkLabels). A highlight has no name, notes or style of its own (§3.3.3),
-// so the Placemark carries none of them.
+// highlight writes one Placemark for a highlight, named by label: its name, or
+// its integer within the network ([vnx.LabelNetwork]). A highlight has no notes
+// or style of its own (§3.3.3), so the Placemark carries neither.
 //
 // ⚠ THE LABEL IS BARE. Before the 2026-09-03 redesign it was
 // "Network / Highlight", because the network was a Placemark and nesting could not

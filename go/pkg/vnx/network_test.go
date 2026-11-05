@@ -116,7 +116,7 @@ func TestEveryWalkFormReadsClean(t *testing.T) {
 // valid highlight (keep, told by its walk), so a remedy that dropped more than
 // its highlight goes red here, not only one that dropped less.
 func TestEachWalkRemedy(t *testing.T) {
-	// A highlight has no name (§3.3.3): the one to keep is told by its walk.
+	// A highlight's name is optional (§3.3.3): the one to keep is told by its walk.
 	const keep = `{"walk":[{"arc":"de","from":"d","to":"e"}]}`
 	type diag struct{ path, code string }
 	for _, tc := range []struct {
@@ -355,7 +355,7 @@ func TestEncoderRefusesWhatTheReaderWouldDrop(t *testing.T) {
 	}
 }
 
-// A highlight has no name (§3.3.3), so the encoder names a refused walk by
+// A highlight's name is optional (§3.3.3), so the encoder names a refused walk by
 // its network and its 0-based index, the network's name as a JSON string
 // literal: every vnx library spells the owner this way (lead's ruling,
 // #321), and Go's %q is not JSON for a control character.

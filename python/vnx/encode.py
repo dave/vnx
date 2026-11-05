@@ -153,6 +153,7 @@ def _walk(
 
 def _highlight(highlight: Highlight, arcs: dict[str, Arc], owner: str) -> JSONValue:
     obj: dict[str, JSONValue] = {}
+    _put(obj, "name", highlight.name)
     _put(obj, "hidden", highlight.hidden)
     _put(obj, "pinned", highlight.pinned)
     _put(obj, "walk", _walk(highlight.walk, arcs, False, owner))

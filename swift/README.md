@@ -101,7 +101,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Network` | `nodes: [JSONKey: Vertex]?`, `arcs: [JSONKey: Arc]?`, `highlights: [Highlight]?`, `points`, `areas`, and the item fields |
 | `Plan` | `nodes`, `arcs` and `walk: [Pass]`, of a network's shape, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: [Vertex]` (interior points only), `data` |
-| `Highlight` | `walk: [Pass]`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk, with no name, notes or style (an old file's `name`, `notes` or `style` is an unknown key) |
+| `Highlight` | `walk: [Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk, with an optional name and no notes or style (a `notes` or `style` on one is an unknown key) |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `.node(String)` or `.position(LonLat)` |
 | `Area` | `polygon: [Position]`, one open ring, and the item fields |

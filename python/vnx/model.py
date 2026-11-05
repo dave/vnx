@@ -134,8 +134,9 @@ class Pass:
 @dataclass(slots=True)
 class Highlight:
     """SPEC 3.3.3.  A lightweight container for data objects along a walk of its
-    network's arcs.  It has no name or style of its own."""
+    network's arcs.  It has an optional name, and no notes or style of its own."""
 
+    name: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     walk: Union[list[Pass], None] = None
@@ -269,7 +270,7 @@ def is_app_key(key: str) -> bool:
 
 @dataclass(slots=True)
 class Document:
-    vnx: str = "0.10.5"
+    vnx: str = "0.10.6"
     generator: Union[str, None] = None
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None

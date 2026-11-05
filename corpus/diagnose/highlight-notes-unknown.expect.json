@@ -1,0 +1,20 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A highlight is a lightweight container for data objects along its walk, with an optional name and no notes or style of its own (SPEC 3.3.3, 3.10). A `notes` on one is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the highlight with its name, its walk and its data, which `counts` pins. The `name` beside it is recognised and raises nothing, so a reader that refuses a highlight's name reports two diagnostics here, and a reader that lists `notes` among a highlight's keys, or that shares one key set across every item, reports none. `style` takes the same rule as `notes`; one key is enough to separate a reader that knows the rule from one that does not. The schema leaves a highlight open, so the file is valid there.",
+  "counts": {
+    "networks": 1,
+    "/networks/0/nodes": 2,
+    "/networks/0/arcs": 1,
+    "/networks/0/arcs/a1/pips": 1,
+    "/networks/0/highlights": 1,
+    "/networks/0/highlights/0/walk": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/networks/0/highlights/0/notes",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    }
+  ]
+}

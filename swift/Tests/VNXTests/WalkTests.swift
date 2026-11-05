@@ -543,7 +543,7 @@ final class WalkTests: XCTestCase {
     XCTAssertNoThrow(try VNX.write(document(network: n)))
   }
 
-  /// A highlight has no name, so a refused walk names its owner by network
+  /// A highlight's name is optional, so a refused walk names its owner by network
   /// and 0-based index: `network "<name>" highlight <i>: `.
   func testARefusedHighlightWalkNamesItsNetworkAndIndex() {
     var n = Network()

@@ -157,12 +157,13 @@ data class Arc(
 
 /**
  * A highlight: a lightweight container for data objects along a walk over
- * arcs its network owns (SPEC.md section 3.3.3). It has no name, notes or
- * style of its own; a file that still carries one of those keys gets the
- * unknown-key diagnostic.
+ * arcs its network owns (SPEC.md section 3.3.3). It has an optional name,
+ * and no notes or style of its own; a file that carries either of those keys
+ * gets the unknown-key diagnostic.
  */
 data class Highlight(
     val walk: List<Pass>,
+    val name: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
     val pinned: String? = null,

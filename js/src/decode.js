@@ -566,8 +566,9 @@ function subCollection(kv, path, key, ctx, read) {
 }
 
 function readHighlight(raw, path, ctx, arcs) {
-  const kv = known(raw, path, ['walk'], ['hidden', 'pinned', 'data'], ctx);
+  const kv = known(raw, path, ['walk'], ['name', 'hidden', 'pinned', 'data'], ctx);
   const c = new Highlight();
+  c.name = str('name', path, kv, false, ctx);
   c.hidden = bool('hidden', path, kv, false, ctx);
   c.pinned = timestamp('pinned', path, kv, ctx);
   c.data = data(path, kv, ctx);

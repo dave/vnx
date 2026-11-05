@@ -1,6 +1,6 @@
 {
   "name": "@viatrail/vnx",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "description": "Reference JavaScript codec for the VNX trail interchange format",
   "license": "SEE LICENCE IN ../LICENCE",
   "type": "module",

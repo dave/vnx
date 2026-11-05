@@ -346,7 +346,7 @@ class TheWriterRefusesWhatItsReaderDrops(unittest.TestCase):
         self.assertIn("self-loop", self.refused(_network([], arcs=arcs)))
 
     def test_a_refused_walk_names_its_highlight_by_index(self) -> None:
-        # A highlight has no name (SPEC 3.3.3), so the refusal names its network
+        # A highlight's name is optional (SPEC 3.3.3), so the refusal names its network
         # and its index.
         document = _network([Pass("ab", from_="a")], name="Ridges")
         self.assertTrue(

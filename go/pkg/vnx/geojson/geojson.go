@@ -38,20 +38,12 @@ import (
 //
 // On error it returns a ZERO report. A caller must not be able to read
 // Emitted off a run that did not finish and conclude something was written.
+//
+// Every in-network feature is named "{network} / {label}" ([vnx.LabelNetwork]:
+// the item's own name, or an integer unique within the network when it has
+// none).
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	return WriteWith(w, d, vnx.WriteOptions{})
-}
-
-// WriteWith is Write with the labels the document does not carry: every
-// in-network feature is named "{network} / {label}" (vnx.WriteOptions
-// NetworkLabels: an item's name or its highlight label, or an integer unique
-// within the network when it has none). Options that do not fit d are an
-// error, and nothing is written.
-func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
-	if err := o.Check(d); err != nil {
-		return vnx.WriteReport{}, fmt.Errorf("geojson: %w", err)
-	}
-	f := &features{sw: vnx.Stick(w), opts: o}
+	f := &features{sw: vnx.Stick(w)}
 	f.sw.WriteString(`{"type":"FeatureCollection","features":[`)
 
 	// ⚠ THE WALK IS IN [vnx.Document] FIELD ORDER, and that is what makes the
@@ -80,7 +72,6 @@ func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteRepor
 // the casualties.
 type features struct {
 	sw      *vnx.StickyWriter
-	opts    vnx.WriteOptions
 	emitted int
 	diags   []vnx.Diagnostic
 	// err is a failure the SINK did not cause — today only a coordinate that
@@ -276,9 +267,9 @@ func (f *features) plans(d *vnx.Document) {
 // networks emits §2.6's shape as redesigned 2026-09-03: ONE MultiLineString
 // Feature holding the network's arcs and carrying the network's own name and
 // notes, then ONE NAMED FEATURE PER in-network point, area and highlight, each
-// named "{network} / {label}" (vnx.WriteOptions NetworkLabels). A highlight is
-// a lightweight container for data along its walk, with no name, notes or
-// style of its own (§3.3.3): its label is the caller's, or its integer.
+// named "{network} / {label}" ([vnx.LabelNetwork]). A highlight is a
+// lightweight container for data along its walk, with an optional name and no
+// notes or style of its own (§3.3.3): its label is its name, or its integer.
 //
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
 // in-network points and areas had somewhere to go, and the price was their Name,
@@ -325,11 +316,7 @@ func (f *features) networks(d *vnx.Document) {
 	for i := range d.Networks {
 		n := &d.Networks[i]
 		at := fmt.Sprintf("/networks/%d", i)
-		labels, err := f.opts.NetworkLabels(d, i)
-		if err != nil {
-			f.fail(fmt.Errorf("geojson: %w", err))
-			return
-		}
+		labels := vnx.LabelNetwork(d, i)
 
 		// ⚠ SORTED. Network.Arcs is a map, and ranging over it emits in
 		// random order — the byte-compared golden of §6.1 would go flaky in a
@@ -413,7 +400,7 @@ func (f *features) networks(d *vnx.Document) {
 }
 
 // inNetworkName is §2.7's join applied inside a network: the network's own
-// flattened name, then the item's label (vnx.WriteOptions NetworkLabels, never
+// flattened name, then the item's label ([vnx.LabelNetwork], never
 // empty). It is the ONE spelling of that join, so the points, areas and
 // highlights of a network cannot drift apart on it.
 //

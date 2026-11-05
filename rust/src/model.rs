@@ -259,10 +259,12 @@ pub struct Arc {
 }
 
 /// A highlight is a lightweight container for data objects along a walk of
-/// arcs its network owns (SPEC 3.3.3). It has no name or style of its own. Its
-/// geometry is by reference: two highlights on one trail name the same arc.
+/// arcs its network owns (SPEC 3.3.3). It has an optional name, and no notes
+/// or style of its own. Its geometry is by reference: two highlights on one
+/// trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Highlight {
+    pub name: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.

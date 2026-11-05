@@ -72,18 +72,14 @@ func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 
 // ⚠ THE SUBTLE RULING OF §2.6, ASSERTED DIRECTLY. Highlights are separate named
 // Placemarks; folding them into the network's MultiGeometry would discard their
-// labels and visibility, which is exactly what this checks did not happen. A
+// names and visibility, which is exactly what this checks did not happen. A
 // highlight has no style of its own (§3.3.3), so its Placemark carries none.
 //
 // ⚠ THE NAMES ARE BARE SINCE THE 2026-09-03 REDESIGN. The network is a <Folder>
 // now, so the nesting says which network a highlight belongs to and the old
 // "Lairig Ghru / Full Traverse" prefix would be the folder's name written twice.
 func TestNetworkHighlightsAreTheirOwnNamedPlacemarks(t *testing.T) {
-	var buf bytes.Buffer
-	if _, err := WriteWith(&buf, fixture(), fixtureOptions()); err != nil {
-		t.Fatal(err)
-	}
-	out := buf.String()
+	out, _ := writeDoc(t, fixture())
 	for _, want := range []string{
 		"<name>Full Traverse</name>",
 		"<name>Half Way</name>",
@@ -744,24 +740,20 @@ func TestPartialLossAndWholeLossUseDifferentCodes(t *testing.T) {
 }
 
 // Inside a network's Folder every Placemark is named by its bare label (Dave,
-// 2026-11-03): a highlight by the caller's label, and an item with no name or
-// label by its integer within the network.
-func TestInNetworkPlacemarksAreNamedByLabelOrInteger(t *testing.T) {
+// 2026-11-03): an item by its own name, a highlight's included, and an item
+// with no name by its integer within the network.
+func TestInNetworkPlacemarksAreNamedByNameOrInteger(t *testing.T) {
 	d := &vnx.Document{Networks: []vnx.Network{{
 		Name:   "Ridges",
 		Nodes:  map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 1))},
 		Arcs:   map[string]vnx.Arc{"arc": {From: "a", To: "b"}},
 		Points: []vnx.Waypoint{{At: pos(0, 0.5)}},
 		Highlights: []vnx.Highlight{
-			{Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{Node: "b"}}}},
+			{Name: "West ridge", Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{Node: "b"}}}},
 			{Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}}}},
 		},
 	}}}
-	var buf bytes.Buffer
-	if _, err := WriteWith(&buf, d, vnx.WriteOptions{HighlightLabels: [][]string{{"West ridge", ""}}}); err != nil {
-		t.Fatal(err)
-	}
-	out := buf.String()
+	out, _ := writeDoc(t, d)
 	for _, want := range []string{"<name>1</name>", "<name>West ridge</name>", "<name>2</name>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s:\n%s", want, out)

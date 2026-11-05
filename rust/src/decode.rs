@@ -91,7 +91,7 @@ const NETWORK_KEYS: &[&str] = &[
 ];
 /// An arc, in a network or a plan.
 const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
-const HIGHLIGHT_KEYS: &[&str] = &["walk", "hidden", "pinned", "data"];
+const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "hidden", "pinned", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
 const PLAN_KEYS: &[&str] = &[
     "walk", "name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data",
@@ -716,6 +716,7 @@ impl Decoder {
         let entries = self.object(value, path)?;
         self.check_keys(entries, HIGHLIGHT_KEYS, path);
         let highlight = Highlight {
+            name: self.opt_string(entries, "name", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
             data: self.records(entries, path),

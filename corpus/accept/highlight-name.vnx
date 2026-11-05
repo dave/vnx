@@ -3,15 +3,18 @@
   "networks": [
     {
       "name": "Paths",
-      "nodes": {"n1": [1, 1], "n2": [1, 2]},
+      "nodes": {"n1": [-3.60, 57.10], "n2": [-3.59, 57.11]},
       "arcs": {
-        "a1": {"from": "n1", "to": "n2", "pips": [[1, 1.5]]}
+        "a1": {"from": "n1", "to": "n2", "pips": [[-3.595, 57.105]]}
       },
       "highlights": [
         {
           "name": "Ridge walk",
           "walk": [{"arc": "a1", "from": "n1", "to": "n2"}],
           "data": [{"@type": "app.viatrail.tag", "value": "ridge"}]
+        },
+        {
+          "walk": [{"arc": "a1", "from": "n2", "to": "n1"}]
         }
       ]
     }

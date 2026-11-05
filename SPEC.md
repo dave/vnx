@@ -1,6 +1,6 @@
 # VNX Wire Format Specification
 
-Version 0.10.5
+Version 0.10.6
 
 ## Abstract
 
@@ -61,8 +61,8 @@ a term is listed after every term its definition uses.
 
 - A **document** is a JSON object carrying a `vnx` version key, up to six
   collections and any number of application keys (Section 3.1).
-- An **item** is an object that can carry `hidden` and `data`, and, every kind
-  of item but a highlight, `name` and `notes` (Section 3.10). An item is
+- An **item** is an object that can carry `name`, `hidden` and `data`, and,
+  every kind of item but a highlight, `notes` (Section 3.10). An item is
   top-level when it is a member of one of the document's collections; every
   other item sits inside a top-level one.
 - A **position** is a JSON array of channels: longitude, latitude, and
@@ -86,8 +86,9 @@ a term is listed after every term its definition uses.
 - A **walk** is an ordered array of passes forming one connected journey along
   arcs; the order is the direction of travel (Section 3.3.3).
 - A **highlight** is a lightweight container for data objects along a walk of
-  its network's arcs: an item carrying a walk, with no name, notes or style of
-  its own. A highlight does not own the arcs it walks (Section 3.3.3).
+  its network's arcs: an item carrying a walk and an optional name, with no
+  notes or style of its own. A highlight does not own the arcs it walks
+  (Section 3.3.3).
 - A **plan** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
 - A **segment** is an ordered `pips` array within a track; the interval between
@@ -185,7 +186,7 @@ carrying one data record along that walk (Section 3.3). The waypoint carries its
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.10.5` |
+| Current version | `0.10.6` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document
@@ -373,12 +374,14 @@ pass naming an absent arc (Section 6.2).
 
 A highlight is a lightweight container for data objects along a walk of its
 network's arcs. It carries a walk over arcs that it does not own, and its `data`
-records apply along that walk. A highlight has no name, notes or style of its
-own: what it is, is what its data records say. A `name`, `notes` or `style` on
-a highlight is an unrecognised key (Sections 3.10 and 6.2).
+records apply along that walk. A highlight can carry a `name`. It has no notes
+or style of its own: what it is, beyond its name, is what its data records say.
+A `notes` or `style` on a highlight is an unrecognised key (Sections 3.10 and
+6.2).
 
 ```json
 {
+  "name": "Chalamain Gap",
   "walk": [
     { "arc": "arc-7", "from": [-3.6521, 57.1000], "to": "node-5" },
     { "arc": "arc-1" },
@@ -676,7 +679,7 @@ array is distinct from an absent one.
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
-| highlight | `walk` | `hidden`, `pinned`, `data` |
+| highlight | `walk` | `name`, `hidden`, `pinned`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
 | plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `started`, `ended`, `data` |
@@ -694,10 +697,10 @@ Notes on the table:
 - `folder` names the folder an item sits in. It does not appear on a folder,
   which places itself with `parent`, and it does not appear on a network's
   `points` or `areas`, which their network already contains.
-- `hidden` and `data` appear on every item, and `name` and `notes` on every item
+- `name`, `hidden` and `data` appear on every item, and `notes` on every item
   but a highlight, which is a lightweight container for data along its walk
-  and has no name, notes or style of its own (Section 3.3.3). Apart from `data`
-  on an arc, none of the four appears on any other object in the table. An
+  and has no notes or style of its own (Section 3.3.3). Apart from `data` on an
+  arc, none of the four appears on any other object in the table. An
   object to which the table gives none of them is not an item. `hidden` therefore appears on a
   top-level waypoint: Section 3.8 names the shape rather than the collection,
   and a waypoint and a network's point are one shape (Section 3.6).

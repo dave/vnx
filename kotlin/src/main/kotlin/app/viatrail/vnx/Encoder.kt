@@ -202,6 +202,7 @@ internal class Encoder {
     private fun highlight(c: Highlight) =
         JsonObject
             .Builder()
+            .putString("name", c.name)
             .putBool("hidden", hidden(c.hidden))
             .putString("pinned", c.pinned)
             .put("walk", walk(c.walk))

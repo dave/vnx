@@ -157,6 +157,7 @@ fn json_quoted(name: Option<&str>) -> String {
 fn highlight(c: &Highlight, arcs: &Option<Vec<(String, Arc)>>, path: &Path, owner: &str) -> Built {
     check_walk(&c.walk, arcs, false, &path.key("walk"), owner)?;
     let mut o = Obj::new();
+    o.str("name", c.name.as_deref());
     o.hidden(c.hidden);
     o.str("pinned", c.pinned.as_deref());
     o.raw("walk", walk(&c.walk));
@@ -641,7 +642,7 @@ mod tests {
             matches!(&ghost, EncodeError::Walk { cause, .. } if cause.code() == "pass-arc-absent"),
             "{ghost:?}"
         );
-        // A highlight has no name (SPEC 3.3.3), so the error names its network
+        // A highlight's name is optional (SPEC 3.3.3), so the error names its network
         // and its index.
         assert!(
             ghost

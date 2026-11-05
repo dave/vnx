@@ -103,7 +103,7 @@ This library has none. The reference command-line tool is Go's; see
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
-| `Highlight` | `walk: list[Pass]`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with no name or style of its own |
+| `Highlight` | `walk: list[Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes or style of its own |
 | `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
 | `Plan` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |

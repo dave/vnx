@@ -113,12 +113,13 @@ export class Pass {
 
 /**
  * A lightweight container for data objects along a walk of its network's arcs
- * (SPEC.md 3.3.3). It has no name or style of its own. Its geometry is by
+ * (SPEC.md 3.3.3). It has an optional name, and no notes or style of its own. Its geometry is by
  * reference: two highlights that cross one trail name the same arc.
  */
 export class Highlight {
   constructor() {
     /** @type {Pass[]} */ this.walk = undefined;
+    /** @type {string|undefined} */ this.name = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;

@@ -460,6 +460,7 @@ final class DocumentDecoder {
     guard let o = object(value, at: path, what: "a highlight") else { return nil }
     report(unknownKeysIn: o, against: Keys.highlight, at: path)
     var highlight = Highlight(walk: [])
+    highlight.name = optionalString(o, "name", at: path)
     highlight.hidden = optionalBool(o, "hidden", at: path)
     highlight.pinned = optionalTimestamp(o, "pinned", at: path)
     highlight.data = dataRecords(o, at: path)

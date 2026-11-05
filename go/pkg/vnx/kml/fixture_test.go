@@ -92,9 +92,9 @@ func fixture() *vnx.Document {
 			},
 			Highlights: []vnx.Highlight{
 				{
-					// A highlight has no name, notes or style of its own: its
-					// Placemark is named by the caller's label
-					// (fixtureOptions).
+					// A highlight has a name and no notes or style of its own:
+					// its Placemark is named by its name.
+					Name: "Full Traverse",
 					Walk: []vnx.Pass{
 						{Arc: "a-north", From: &vnx.Endpoint{Node: "n1"}},
 						{Arc: "a-south", To: &vnx.Endpoint{Node: "n3"}},
@@ -105,7 +105,7 @@ func fixture() *vnx.Document {
 					// along it at a position. Both facts matter: the sharing is
 					// what KML cannot express, and the position is what proves
 					// the arc is cut rather than emitted whole.
-					Hidden: true,
+					Name: "Half Way", Hidden: true,
 					Walk: []vnx.Pass{
 						{Arc: "a-north", From: &vnx.Endpoint{Node: "n1"}, To: &vnx.Endpoint{At: &vnx.LonLat{Lon: -3.69, Lat: 57.02}}},
 					},
@@ -126,10 +126,4 @@ func fixture() *vnx.Document {
 		AppKeys: []vnx.AppKey{{Key: "app.viatrail.rulesets",
 			Value: []any{map[string]any{"id": "r1", "name": "Munros"}}}},
 	}
-}
-
-// fixtureOptions labels the fixture's highlights as a caller would (their data
-// labels): the network is a KML Folder, so each Placemark takes its bare label.
-func fixtureOptions() vnx.WriteOptions {
-	return vnx.WriteOptions{HighlightLabels: [][]string{{"Full Traverse", "Half Way"}}}
 }

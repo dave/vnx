@@ -464,7 +464,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
   ]);
   assert.deepEqual(await failingDelta(cases), [
     'diagnose/dotted-key-on-item.vnx',
-    'diagnose/highlight-name-unknown.vnx',
+    'diagnose/highlight-notes-unknown.vnx',
     'diagnose/pinned-where-not-carried.vnx',
     'diagnose/unknown-key.vnx',
     'diagnose/walk-pin-unusable.vnx',

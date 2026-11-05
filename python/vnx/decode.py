@@ -828,6 +828,7 @@ class _Reader:
         if obj is None:
             return None
         highlight = Highlight(
+            name=self._string(obj, "name", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
             data=self._data(obj, path),

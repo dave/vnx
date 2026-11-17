@@ -2,41 +2,86 @@
   "vnx": "0.11.0",
   "folders": [
     {
-      "id": "greater",
+      "id": "gpt",
       "name": "Greater Patagonia Trail"
     }
   ],
   "networks": [
     {
       "name": "Río Cisnes packraft network",
-      "folder": "greater",
+      "folder": "gpt",
       "nodes": {
-        "node-1": [-72.2, -44.7],
-        "node-2": [-72.1, -44.72]
+        "put-in": [
+          -72.2,
+          -44.7
+        ],
+        "take-out": [
+          -72.1,
+          -44.72
+        ]
       },
       "arcs": {
-        "arc-1": {
-          "from": "node-1",
-          "to": "node-2",
+        "cisnes": {
+          "from": "put-in",
+          "to": "take-out",
           "pips": [
-            [-72.15, -44.71]
-          ],
-          "data": [
-            {
-              "@type": "app.viatrail.routing-internal",
-              "source": "gpx-import"
-            }
+            [
+              -72.15,
+              -44.71
+            ]
           ]
         }
       },
       "areas": [
         {
+          "name": "Cisnes gorge",
+          "polygon": [
+            [
+              -72.16,
+              -44.705
+            ],
+            [
+              -72.14,
+              -44.705
+            ],
+            [
+              -72.14,
+              -44.715
+            ],
+            [
+              -72.16,
+              -44.715
+            ]
+          ],
+          "data": [
+            {
+              "@type": "org.gpt.rapid",
+              "class": 4,
+              "portage": "hard",
+              "flow": 38.5,
+              "inspected": "2026-01-14T00:00:00Z"
+            }
+          ]
+        },
+        {
           "name": "Cisnes flats",
           "polygon": [
-            [-72.13, -44.715],
-            [-72.11, -44.715],
-            [-72.11, -44.72],
-            [-72.13, -44.72]
+            [
+              -72.13,
+              -44.715
+            ],
+            [
+              -72.11,
+              -44.715
+            ],
+            [
+              -72.11,
+              -44.72
+            ],
+            [
+              -72.13,
+              -44.72
+            ]
           ],
           "data": [
             {
@@ -45,71 +90,61 @@
               "portage": "none"
             }
           ]
-        },
-        {
-          "name": "Cisnes gorge",
-          "polygon": [
-            [-72.16, -44.705],
-            [-72.14, -44.705],
-            [-72.14, -44.715],
-            [-72.16, -44.715]
-          ],
-          "data": [
-            {
-              "@type": "org.gpt.rapid",
-              "class": 4,
-              "flow": 38.5,
-              "inspected": "2026-01-14T00:00:00Z",
-              "portage": "hard"
-            }
-          ]
         }
       ]
     }
   ],
   "app.viatrail.datatypes": [
     {
-      "folder": "greater",
       "name": "GPT packrafting",
+      "folder": "gpt",
       "types": [
         {
           "datatype": "org.gpt.rapid",
+          "label": {
+            "en": "Rapid",
+            "fr": "Rapide"
+          },
+          "hosts": [
+            "area"
+          ],
           "fields": [
             {
+              "name": "class",
               "kind": "integer",
               "label": {
                 "en": "Class",
                 "fr": "Classe"
               },
-              "name": "class",
               "note": {
                 "en": "International scale, 1 to 6",
                 "fr": "Échelle internationale, de 1 à 6"
               }
             },
             {
+              "name": "portage",
               "kind": "enum",
               "label": {
                 "en": "Portage",
                 "fr": "Portage"
               },
-              "name": "portage",
               "options": [
                 {
+                  "value": "none",
                   "label": {
                     "en": "None",
                     "fr": "Aucun"
-                  },
-                  "value": "none"
+                  }
                 },
                 {
+                  "value": "easy",
                   "label": {
                     "en": "Easy",
                     "fr": "Facile"
-                  },
-                  "value": "easy"
+                  }
                 },
                 {
+                  "value": "hard",
                   "label": {
                     "en": "Hard",
                     "fr": "Difficile"
@@ -117,63 +152,78 @@
                   "note": {
                     "en": "Allow an hour",
                     "fr": "Prévoir une heure"
-                  },
-                  "value": "hard"
+                  }
                 }
               ]
             },
             {
+              "name": "flow",
               "kind": "number",
               "label": {
                 "en": "Flow (m³/s)",
                 "fr": "Débit (m³/s)"
-              },
-              "name": "flow"
+              }
             },
             {
+              "name": "inspected",
               "kind": "date",
               "label": {
                 "en": "Inspected",
                 "fr": "Inspecté"
-              },
-              "name": "inspected"
+              }
             }
-          ],
-          "hosts": ["area"],
+          ]
+        },
+        {
+          "datatype": "org.gpt.portage-point",
           "label": {
-            "en": "Rapid",
-            "fr": "Rapide"
-          }
+            "en": "Portage point",
+            "fr": "Point de portage"
+          },
+          "hosts": [
+            "waypoint"
+          ],
+          "fields": [
+            {
+              "name": "side",
+              "kind": "text",
+              "label": {
+                "fr": "Rive"
+              }
+            }
+          ]
         }
       ]
     }
   ],
   "app.viatrail.rulesets": [
     {
-      "enabled": true,
-      "folder": "greater",
       "name": "GPT rapids",
+      "folder": "gpt",
+      "enabled": true,
       "rules": [
         {
-          "applies-to": ["areas"],
+          "name": "Rapid · Class ≥ 3",
+          "item-types": [
+            "area"
+          ],
           "conditions": [
             {
-              "data-field": "class",
               "field": "data",
-              "operand": 3,
               "operator": "ge",
               "type": "org.gpt.rapid",
-              "value": ""
+              "data-field": "class",
+              "operand": 3
             }
           ],
-          "name": "Rapid · Class ≥ 3",
-          "priority": 1,
-          "style": {
-            "area": {
-              "fill-color": "#D0021B",
-              "fill-opacity": 0.5
+          "style": [
+            {
+              "@type": "app.viatrail.style.fill",
+              "hue": 353,
+              "intensity": "intense",
+              "strength": "medium"
             }
-          }
+          ]
         }
       ]
     }

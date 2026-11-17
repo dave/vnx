@@ -15,8 +15,8 @@ appear to disagree, `SPEC.md` is right.
 3.  Watch a green run before writing anything:
 
     ```sh
-    cd js  && node corpus/run.js     # prints "n/m cases passed" and exits 0
-    cd go  && go test -count=1 ./...
+    (cd js && node corpus/run.js)    # prints "n/m cases passed" and exits 0
+    (cd go && go test -count=1 ./...)
     ```
 
 4.  Write the runner before the library. Point it at `corpus/`, walk every
@@ -133,10 +133,10 @@ Two settings are easy to miss:
 
 These are decisions made in the first hour and discovered in the last.
 
-### 4.1 Absence, and the two places it means something different
+### 4.1 Absence, and the places it means something different
 
-`SPEC §3.1`: absence means "not known" and is not a default value, with two
-stated exceptions.
+`SPEC §3.1`: absence means "not known" and is not a default value, with three
+stated exceptions: `label-visible`, `hidden` and `pinned`.
 
 For an OPTIONAL collection, absent and empty carry the same content and
 `SPEC §3.1` requires a reader to treat them alike. `SPEC §8.1` normalises the
@@ -162,8 +162,8 @@ change is safe: `SPEC §3.1` puts the two shapes on the same footing. It is not
 safe for a required key. A model that cannot tell an absent `walk` from an
 empty one cannot report the object as malformed.
 
-Those two absences, Auto and visible, are the only ones `SPEC §3.1` gives a
-meaning. Every other absence is "not known" and stays that way through a
+Those three absences, Auto, visible and not pinned, are the only ones
+`SPEC §3.1` gives a meaning. Every other absence is "not known" and stays that way through a
 read-modify-write.
 
 ### 4.2 Opaque bodies survive at value level
@@ -394,7 +394,7 @@ returning zero where the answer is unknown is the worked example. Unknown is not
 zero, and `corpus/accept/track-without-times.vnx` and
 `corpus/accept/track-partly-timed.vnx` are where it shows.
 
-The two absences that legitimately carry a meaning are in section 4.1, and they
+The three absences that legitimately carry a meaning are in section 4.1, and they
 are absences in a conforming document, not malformed values.
 
 ### 8.3 A position drops its owner, and a walk drops its highlight
@@ -628,8 +628,8 @@ artefact. Beside it, a test asserting that the wrong cosine reference changes
 neither verdict passed green while asserting something false of the corpus it
 named. A test that restates a number cannot notice when the artefact moves.
 
-**A diagnose tier that cannot see a code.** Every `diagnose/` fixture carries at
-most one diagnostic and its path identifies it, so no case can separate a matcher
+**A diagnose tier that cannot see a code.** In every `diagnose/` fixture each
+expected diagnostic has a path of its own, so no case can separate a matcher
 that compares the reason code from one that ignores it. Measured: weakening the
 matcher to compare the path alone leaves the whole tier green. The tier cannot
 fix this for you, so the runner has to self-test its own matcher. Right path with

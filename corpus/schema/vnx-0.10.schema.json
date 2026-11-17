@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://viatrail.app/schema/vnx-0.10.schema.json",
-  "title": "VNX 0.10 — Viatrail Network eXchange",
-  "description": "Structural schema for a VNX 0.10 document. READ schema/README.md before trusting a green result: a JSON Schema can check shape, and several of this format's load-bearing rules are not about shape. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
+  "$id": "https://vnx.tools/schema/vnx-0.10.schema.json",
+  "title": "VNX 0.10",
+  "description": "Structural schema for a VNX 0.10 document. A JSON Schema can check shape only, and several of this format's rules are not about shape (walk connectivity, for example), so validate with a VNX reader as well. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
   "type": "object",
   "required": [
     "vnx"
@@ -11,7 +11,7 @@
     "vnx": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "description": "The specification version, MAJOR.MINOR.PATCH. All three components are required: the two-component spelling is refused, not coerced. Whether a reader can READ this version is reader-relative and outside a schema's reach. THIS FILE IS NAMED FOR THE MINOR SERIES and covers every patch of it, because a patch bump is additive by definition (spec §2.1); a new minor gets a new schema file."
+      "description": "The specification version, MAJOR.MINOR.PATCH. All three components are required: the two-component spelling is refused, not coerced. Whether a reader can READ this version is reader-relative and outside a schema's reach. THIS FILE IS NAMED FOR THE MINOR SERIES and covers every patch of it, because a patch bump is additive by definition (spec §2.2); a new minor gets a new schema file."
     },
     "generator": {
       "type": "string"
@@ -65,7 +65,7 @@
     "timestamp": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
-      "description": "ISO 8601, UTC, Z suffix, optional fractional seconds — and nothing else (spec §4.3). Pinning one grammar is cheaper than five implementations each discovering their platform's date parser the hard way."
+      "description": "ISO 8601, UTC, Z suffix, optional fractional seconds — and nothing else (spec §4.3)."
     },
     "identifier": {
       "type": "string",
@@ -75,7 +75,7 @@
     "position": {
       "type": "array",
       "minItems": 2,
-      "description": "Fixed positional channels: [lon, lat, ele, time_ms]. From index 2, null means ABSENT — a first-class state, not a zero. Channels beyond index 3 are ignored rather than refused, so a future fifth channel is additive rather than a flag day. ⚠ Nothing here can catch a lon/lat transposition: both orderings are numbers, both are in range, and the point lands 8000 km away with this schema still green. See testdata/corpus/accept/lonlat-transposition.vnx.",
+      "description": "Fixed positional channels: [lon, lat, ele, time_ms]. From index 2, null means ABSENT — a first-class state, not a zero. Channels beyond index 3 are ignored rather than refused, so a fifth channel can be added later without breaking readers. ⚠ Nothing here can catch a lon/lat transposition: both orderings are numbers, both are in range, and the point lands 8000 km away with this schema still green. Check one point on a map.",
       "prefixItems": [
         {
           "type": "number",
@@ -157,7 +157,7 @@
     },
     "style": {
       "type": "object",
-      "description": "A style object is OPAQUE (SPEC 3.10): a reader carries every key through a read-modify-write and reports none of them as unrecognised, so this definition constrains almost nothing. `importance` is the one exception, because it is the one style value SPEC 3.6 gives a normative range. Nothing else here is typed ON PURPOSE, not by omission: SPEC 3.6 states that `icon-size` has no stated range and that `\"icon-size\": \"large\"` therefore passes unremarked, so a schema typing it as an integer would refuse a document every conforming reader accepts. One definition rather than three because the reference implementation's style is a plain map — a point, an area and a highlight do not carry different shapes.",
+      "description": "A style object is OPAQUE (SPEC 3.10): a reader carries every key through a read-modify-write and reports none of them as unrecognised, so this definition constrains almost nothing. `importance` is the one exception, because it is the one style value SPEC 3.6 gives a normative range. Nothing else here is typed ON PURPOSE, not by omission: SPEC 3.6 states that `icon-size` has no stated range and that `\"icon-size\": \"large\"` therefore passes unremarked, so a schema typing it as an integer would refuse a document every conforming reader accepts.",
       "properties": {
         "importance": {
           "type": "integer",
@@ -321,7 +321,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/nodePosition"
           },
-          "description": "⚠ Two entries with the SAME key resolve last-wins in every mainstream parser, before this schema ever runs, so a node vanishes and nothing anywhere can say so (spec §6.4). A documented cannot-detect."
+          "description": "⚠ Two entries with the SAME key resolve last-wins in every mainstream parser, before this schema ever runs, so a node vanishes and nothing anywhere can say so (spec §6.4). No validator can detect this."
         },
         "arcs": {
           "type": "object",
@@ -465,7 +465,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/nodePosition"
           },
-          "description": "⚠ Two entries with the SAME key resolve last-wins in every mainstream parser, before this schema ever runs, so a node vanishes and nothing anywhere can say so (spec §6.4). A documented cannot-detect."
+          "description": "⚠ Two entries with the SAME key resolve last-wins in every mainstream parser, before this schema ever runs, so a node vanishes and nothing anywhere can say so (spec §6.4). No validator can detect this."
         },
         "arcs": {
           "type": "object",

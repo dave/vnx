@@ -279,7 +279,7 @@ A reader is tolerant of damage, and reports all of it (§6.2):
   series is not supported; or a number is not finite.
 
 Through version 0.x, each minor version is its own series. A 0.10 reader
-accepts any 0.10.x file and refuses 0.9 and 0.11 (§2.2).
+accepts any 0.10.x file and refuses every other minor series, such as 0.11 (§2.2).
 
 ## VNZ archives and attachments
 

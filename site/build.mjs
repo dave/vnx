@@ -5,9 +5,8 @@
 //                               (dist-preview/), for a preview host whose
 //                               security policy blocks a linked stylesheet
 //
-// The spec and implementing pages are made from ../SPEC.md and
-// ../IMPLEMENTING.md at build time, so the site and the repository cannot
-// disagree. The other pages are in content/. Every page is also written as
+// The spec page is made from ../SPEC.md at build time, so the site and the
+// repository cannot disagree. IMPLEMENTING.md is linked on GitHub, not built. The other pages are in content/. Every page is also written as
 // plain Markdown, and llms.txt / llms-full.txt are made from the same sources.
 
 import { marked } from 'marked';
@@ -69,17 +68,6 @@ const pages = [
     source: 'SPEC.md',
     toc: 3,
   },
-  {
-    slug: 'implementing',
-    meta: {
-      title: 'Implementing VNX',
-      nav: 'Implementing',
-      description: 'A guide for writing a new VNX library: the traps in the specification, and how to test a library.',
-    },
-    body: read(path.join(repo, 'IMPLEMENTING.md')),
-    source: 'IMPLEMENTING.md',
-    toc: 2,
-  },
 ];
 for (const p of pages) p.toc ??= 2;
 
@@ -95,7 +83,7 @@ function rewriteHref(href, sourceDir) {
   const rel = path.posix.normalize(path.posix.join(sourceDir, p));
   const frag = hash ? '#' + hash : '';
   if (rel === 'SPEC.md') return 'spec.html' + specAnchor(hash);
-  if (rel === 'IMPLEMENTING.md') return 'implementing.html' + frag;
+  if (rel === 'IMPLEMENTING.md') return `${GITHUB}/blob/main/IMPLEMENTING.md${frag}`;
   if (rel === 'README.md') return './';
   if (rel.startsWith('schema/') || rel.endsWith('.html') || rel.endsWith('.txt')) return href;
   const isDir = p.endsWith('/') || !path.posix.extname(rel);
@@ -342,7 +330,7 @@ ${line('spec')}
 
 ## Optional
 
-${line('implementing')}
+- [Implementing VNX](${GITHUB}/blob/main/IMPLEMENTING.md): for writing a new VNX library in another language.
 - [llms-full.txt](${SITE}/llms-full.txt): the overview, concepts, writing guide, extensions page and full specification in one file.
 `,
 );

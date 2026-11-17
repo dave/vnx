@@ -83,7 +83,7 @@ A library conforms when it passes the **conformance corpus** in
 [`corpus/`](https://github.com/dave/vnx/tree/main/corpus): files that a reader
 must accept, refuse, or read with exact diagnostics, and files that a writer
 must produce. To write a library in another language, read
-[Implementing VNX](implementing.html).
+[IMPLEMENTING.md](https://github.com/dave/vnx/blob/main/IMPLEMENTING.md) in the repository.
 
 ## Why VNX exists
 

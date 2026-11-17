@@ -202,11 +202,11 @@ The value is `MAJOR.MINOR.PATCH`: three components, each one or more decimal
 digits, separated by U+002E, full stop. All three components are REQUIRED.
 
 Each component is one or more decimal digits, with no bound on length and no
-rule against a leading zero: `00.01.0000` is a legal spelling of 0.1.0, and a
+rule against a leading zero: `00.010.0000` is a legal spelling of 0.10.0, and a
 reader compares the numeric values rather than the text.
 
 A version string that is not three digit-runs separated by full stops MUST be
-refused, and MUST NOT be coerced. `"0.1"`, `"0.1.0.0"`, `"0.1.x"` and `"0.1.+1"`
+refused, and MUST NOT be coerced. `"0.10"`, `"0.10.0.0"`, `"0.10.x"` and `"0.10.+1"`
 are all refused. A two-component version is not a spelling of a three-component
 one. The refusal MUST name the expected shape.
 
@@ -233,7 +233,7 @@ Through 0.x:
   version.
 - A reader MUST accept a document in a series it supports, whatever the PATCH
   component. A 0.10.0 reader accepts 0.10.3. It refuses 0.11.0, and it refuses
-  0.1.9 unless it declares support for the 0.1 series. A lower minor is refused
+  0.8.4 unless it declares support for the 0.8 series. A lower minor is refused
   for the same reason as a higher one.
 
 A reader of this version supports the 0.10 series only.
@@ -254,7 +254,7 @@ Section 1.3 says of every example.
 
 ### 3.1 Envelope
 
-A VNX document is a JSON object.
+A VNX document is a JSON object [RFC 8259].
 
 ```json
 {
@@ -294,10 +294,7 @@ absent.
 `generator` names the software that wrote the document.
 
 - An application writes its own name and version, for example
-  `"Example Trails 2.4.1"`. The version is supplied by the caller requesting the
-  export. An export request that carries no version is refused rather than
-  written with a placeholder version. That is a requirement on an application's
-  export path, not on a library: a library has no export request.
+  `"Example Trails 2.4.1"`.
 - A development or command-line tool names itself, and MUST NOT name itself as
   the application.
 
@@ -500,9 +497,6 @@ Arc boundaries are preserved by the arcs, so a plan that is partly hand-drawn
 and partly engine-routed retains that structure. A walk may cover an arc in
 either direction.
 
-Top-level areas are defined in Section 3.7 and appear in the top-level `areas`
-collection, not inside a plan.
-
 ### 3.5 Tracks
 
 ```json
@@ -512,7 +506,7 @@ collection, not inside a plan.
   "started": "2026-05-12T07:03:11Z",
   "ended":   "2026-05-12T16:41:02Z",
   "style":   { "color": "#6a4c93", "width": 3 },
-  "segments": [ { "pips": [ [-3.6521, 57.1, 940, 1778914991000] ] } ],
+  "segments": [ { "pips": [ [-3.6521, 57.1, 940, 1778569391000] ] } ],
   "data": [ ]
 }
 ```
@@ -559,9 +553,6 @@ share one shape.
 `icon-size` is an integer in points. No range is stated for it, so a reader
 does not check it and `"icon-size": "large"` passes unremarked. Section 6.2
 checks a value only where this document states a range or an enumeration.
-
-Note: the values 16, 21, 27, 35 and 46 are the ones an application emits in
-practice; that does not constrain a document.
 
 `importance` is an integer from 1 to 5, and that is normative: a value outside
 the range is handled under Section 6.2. Neither is spelled as a word.
@@ -624,8 +615,7 @@ Absence means not pinned. A writer MUST emit the key only when the item is
 pinned.
 
 An item's `pinned` is unrelated to a pass's `pin` (Section 3.3.3). A pass
-carries no `pinned`. The boolean `pinned` on a pass is a key of version 0.9.0,
-and a reader of this version treats it as an unrecognised key (Section 6.2).
+carries no `pinned`: a `pinned` on a pass is an unrecognised key (Section 6.2).
 
 ### 3.9 Application keys
 
@@ -707,8 +697,7 @@ Notes on the table:
   and a top-level point and a network's point are one shape (Section 3.6).
 - `pinned` appears on every item except a folder (Section 3.8).
 - An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
-  a segment carries `hidden`. A per-arc style is a plausible future addition and
-  is not part of version 0.10.
+  a segment carries `hidden`.
 
 #### Objects this section does not reach
 
@@ -804,7 +793,7 @@ states.
   its value.
 - `time_ms` is a count of Unix milliseconds. It is guaranteed to be below 2^53
   and therefore exact in an IEEE 754 binary64 and in JavaScript.
-- An internal sentinel standing for "no time" MUST NOT reach the wire. Absent
+- A writer MUST NOT encode an absent time as a number, such as 0 or -1. Absent
   time is `null` (Section 4.1).
 
 ### 4.3 Timestamps
@@ -889,16 +878,13 @@ misreading a VNX document.
 
 ### 6.1 Content not carried
 
-The following are not carried by this format, by ruling rather than by
-omission:
+The following are not carried by this format:
 
 - Cached distance, elevation gain, elevation loss, and bounds. All are derivable
   from geometry the reader has just been handed.
-- Items the source library holds as soft-deleted, or trashed. An export carries
-  what a user would see in the application.
-- Durable identity, multi-day planning data, offline map tiles and download
-  state, and creation and modification timestamps of items.
-- A network's or highlight's default routing configuration.
+- Deleted items. A document carries what a user would see.
+- Durable identity, map tiles, and the creation and modification timestamps
+  of items.
 
 How a consumer derives elevation gain and loss is its own business.
 
@@ -1171,8 +1157,8 @@ implementation.
   and the remedy depends on which entry it is: if it is the root document, the
   reader MUST refuse the archive, because there is no document to return; if it
   is an attachment, the reader MUST drop that attachment, MUST record a
-  diagnostic, and MUST return the document. Refusing a whole library because one
-  photograph used an unusual method would be disproportionate.
+  diagnostic, and MUST return the document. Refusing a whole archive because one
+  attachment used an unusual method would be disproportionate.
 - An attachment whose compression method is one of the two above but whose bytes
   cannot be recovered — a stream that will not decompress, or one whose CRC
   disagrees with the bytes present — takes the same remedy: the reader MUST drop

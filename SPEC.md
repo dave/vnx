@@ -713,10 +713,12 @@ one.
 
 Opaque means unrecognised keys are not reported. It does not exempt a value from
 a range this document states normatively: `importance` is an integer from 1 to 5
-(Section 3.6), and a reader MUST apply that range to an `importance` in any
-style object, including one this format does not otherwise document. A
-non-integer `importance` is out of range. Every other style value is carried
-untouched, because no other style key has a stated range.
+(Section 3.6), and a reader MUST apply that range to the `importance` key of
+any style object, including one this format does not otherwise document. A
+non-integer `importance` is out of range. The rule reaches the style object's
+own keys only: a key named `importance` inside a nested object in a style is
+carried untouched, like every other style value, because no other style key has
+a stated range.
 
 A field named `importance` inside a data record body is not checked. Section
 6.2's prohibition on inspecting a record body is the mechanism by which a record

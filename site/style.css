@@ -144,6 +144,7 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
 .d-hl-b path { stroke: var(--hl-b); }
 .d-node circle { fill: var(--paper); stroke: var(--ink); stroke-width: 3; }
 .d-label text, .d-key text { fill: var(--ink); font: 13px var(--f-mono); }
+@media (max-width: 40rem) { .d-label text, .d-key text { font-size: 20px; } .diagram { padding: 0.6rem; } }
 .d-key text { font-family: var(--f-ui); }
 .d-key-a { fill: var(--hl-a); }
 .d-key-b { fill: var(--hl-b); }

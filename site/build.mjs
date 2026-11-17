@@ -418,7 +418,9 @@ if (preview) {
   const nav =
     pages.map((p) => `<a href="#${p.slug}">${p.meta.nav}</a>`).join('') +
     `<a href="${GITHUB}" rel="noopener">GitHub</a>`;
-  const single = `<meta name="claude:viewport-fit-sides" content="cover">
+  const single = `<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
 <title>vnx.tools Preview</title>
 <style>
 ${css}

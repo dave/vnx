@@ -13,7 +13,7 @@ import (
 // dropped". A reader that returns a document and nothing else has discarded the
 // only evidence anything was wrong.
 func TestCleanDocumentHasNoDiagnostics(t *testing.T) {
-	_, diags, err := Decode([]byte(`{"vnx":"0.11.0","created":"2026-08-31T06:45:12Z"}`))
+	_, diags, err := Decode([]byte(`{"vnx":"0.11.0","points":[{"name":"Car park","pinned":"2026-08-31T06:45:12Z","at":[1,2]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

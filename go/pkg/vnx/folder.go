@@ -8,14 +8,12 @@ import "fmt"
 type Folder struct {
 	ID     string
 	Name   string
-	Notes  string
 	Parent string // "" at the root
 	Hidden bool
-	Data   []Record
 }
 
 var folderKeys = map[string]bool{
-	"id": true, "name": true, "notes": true, "parent": true, "hidden": true, "data": true,
+	"id": true, "name": true, "parent": true, "hidden": true,
 }
 
 // folderFromValue reads one element of `folders`. seen holds the ids of the
@@ -60,10 +58,8 @@ func folderFromValue(item any, at string, seen map[string]bool, diags []Diagnost
 	var f Folder
 	f.ID = id
 	f.Name, diags = stringField(obj, "name", at, diags)
-	f.Notes, diags = stringField(obj, "notes", at, diags)
 	f.Parent, diags = stringField(obj, "parent", at, diags)
 	f.Hidden, diags = boolField(obj, "hidden", at, diags)
-	f.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, folderKeys, diags)
 	return f, true, diags
 }

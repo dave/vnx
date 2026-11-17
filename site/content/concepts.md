@@ -19,8 +19,6 @@ version, and up to six collections:
 ```json
 {
   "vnx": "0.11.0",
-  "generator": "Example Trails 2.4.1",
-  "created": "2026-08-31T06:45:12Z",
   "folders":   [],
   "networks":  [],
   "plans":     [],
@@ -31,8 +29,7 @@ version, and up to six collections:
 ```
 
 Every collection is optional, and an empty collection means the same as no
-collection. `generator` names the software that wrote the file. `created` is a
-UTC timestamp. Both are for information only (§3.1).
+collection. A document does not say which software wrote it or when (§3.1).
 
 A top-level key that contains a full stop, such as `com.example.routes`, is an
 **application key**. It adds a kind of content that VNX does not define. See
@@ -140,7 +137,7 @@ arc, so a highlight can cover part of a trail.
 ### Highlights
 
 A **highlight** is a light container for data along a walk. It has a `walk`, an
-optional `name`, and `data`. It has no notes of its own. What a
+optional `name`, and `data`. What a
 highlight is, other than its name, is what its data records say: a rating, a
 warning, a surface type, a tag (§3.3.3).
 
@@ -191,7 +188,7 @@ A **track** is a recording: what a GPS device logged (§3.5).
 
 ## Points
 
-A **point** is one position, `at`, with a name, notes and data
+A **point** is one position, `at`, with a name and data
 (§3.6). It is the same shape at the top level and in a network. A GPX
 `<wpt>` is a point.
 
@@ -199,7 +196,7 @@ A **point** is one position, `at`, with a name, notes and data
 {
   "name": "Spring",
   "at": [-3.6521, 57.1, 940],
-  "notes": "Reliable after rain. **Treat before drinking.**"
+  "data": [{ "@type": "com.example.description", "value": "Reliable after rain." }]
 }
 ```
 
@@ -244,10 +241,10 @@ VNX defines no record types. Applications define them, each under its own
 reverse-DNS name. A reader keeps a record of a type it does not know, and does
 not report an error for it. See [Extensions](extensions.html).
 
-## Notes, look, hidden and pinned
+## Descriptions, look, hidden and pinned
 
-- `notes` is Markdown, as CommonMark defines it. Do not put HTML in it
-  (§3.10).
+- VNX has no notes or description key. Text about an item is application
+  data: write it in a data record of your own type (§3.10, §5).
 - VNX defines no style: no colours, icons or line widths. An application that
   wants to carry how its items look writes data records of its own types
   (§3.6). A `style` key is an unknown key.
@@ -264,7 +261,7 @@ not report an error for it. See [Extensions](extensions.html).
   Use `null` in the middle only: `[lon, lat, null, 1778569391000]`.
 - Nodes and arc pips have no time. Positions in a walk and in an area ring have
   only longitude and latitude.
-- Timestamps such as `created` and `pinned` are ISO 8601 in UTC, ending in `Z`
+- Timestamps such as `started` and `pinned` are ISO 8601 in UTC, ending in `Z`
   (§4.3).
 - IDs are scoped to the object that holds them. A plan's `node-1` and a
   network's `node-1` are different nodes (§4.4).

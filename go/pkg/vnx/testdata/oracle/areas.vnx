@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "areas",
   "areas": [
     {
       "name": "plain ring",
@@ -12,7 +11,6 @@
     },
     {
       "name": "timed ring",
-      "notes": "ملاحظات",
       "folder": "f",
       "hidden": true,
       "polygon": [

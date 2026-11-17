@@ -13,12 +13,6 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
       "description": "The specification version, MAJOR.MINOR.PATCH. All three components are required: the two-component spelling is refused, not coerced. Whether a reader can READ this version is reader-relative and outside a schema's reach. THIS FILE IS NAMED FOR THE MINOR SERIES and covers every patch of it, because a patch bump is additive by definition (spec §2.2); a new minor gets a new schema file."
     },
-    "generator": {
-      "type": "string"
-    },
-    "created": {
-      "$ref": "#/$defs/timestamp"
-    },
     "folders": {
       "type": "array",
       "items": {
@@ -133,17 +127,11 @@
         "name": {
           "type": "string"
         },
-        "notes": {
-          "type": "string"
-        },
         "parent": {
           "$ref": "#/$defs/identifier"
         },
         "hidden": {
           "type": "boolean"
-        },
-        "data": {
-          "$ref": "#/$defs/data"
         }
       }
     },
@@ -162,9 +150,6 @@
       ],
       "properties": {
         "name": {
-          "type": "string"
-        },
-        "notes": {
           "type": "string"
         },
         "folder": {
@@ -192,9 +177,6 @@
       ],
       "properties": {
         "name": {
-          "type": "string"
-        },
-        "notes": {
           "type": "string"
         },
         "folder": {
@@ -239,9 +221,6 @@
         "name": {
           "type": "string"
         },
-        "notes": {
-          "type": "string"
-        },
         "folder": {
           "$ref": "#/$defs/identifier"
         },
@@ -277,9 +256,6 @@
       "description": "A top-level plan owns its graph (spec §3.4): `nodes` and `arcs` shaped as a network's, and one `walk` shaped as a highlight's. Its walk runs node to node: no position, no `turn`, no `pin`. The schema states that last rule for the walk's own keys; which nodes and arcs it names is beyond it.",
       "properties": {
         "name": {
-          "type": "string"
-        },
-        "notes": {
           "type": "string"
         },
         "folder": {
@@ -393,9 +369,6 @@
         "name": {
           "type": "string"
         },
-        "notes": {
-          "type": "string"
-        },
         "hidden": {
           "type": "boolean"
         },
@@ -415,9 +388,6 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
-        },
-        "notes": {
           "type": "string"
         },
         "folder": {

@@ -194,7 +194,7 @@ test('dropping a TRAILING null in the model is permitted; dropping an INTERIOR o
 
 // ⚠ THE THREE SPOILED READERS. Each of the next three cases is a reader that
 // silently drops one thing it read: every data record, every application key,
-// every `notes`. That is the entire extensibility mechanism and all user
+// every `name`. That is the entire extensibility mechanism and all user
 // prose. Every one of them produces a MODEL EQUAL TO ITSELF and
 // passes a model-versus-model accept tier green — measured in Python, re-proved
 // in Go. Comparing against the tree parsed from the ORIGINAL FILE is what
@@ -254,12 +254,12 @@ test('a reader that recognises dotted keys below the top level is caught', async
   assert.ok(red.includes('diagnose/dotted-key-on-item.vnx'), red.join(', '));
 });
 
-test('a reader that discards every notes is caught by the accept tier', async () => {
+test('a reader that discards every name is caught by the accept tier', async () => {
   const cases = await runMutated([
     {
       file: 'decode.js',
       from: "const str = (k, path, kv, req, ctx) => field(k, path, kv, 'a string', isString, req, ctx);",
-      to: "const str = (k, path, kv, req, ctx) => (k === 'notes' ? undefined : field(k, path, kv, 'a string', isString, req, ctx));",
+      to: "const str = (k, path, kv, req, ctx) => (k === 'name' ? undefined : field(k, path, kv, 'a string', isString, req, ctx));",
     },
   ]);
   const red = await failingDelta(cases);
@@ -436,7 +436,6 @@ test('refusing a timestamp with an offset, rather than diagnosing it, is caught'
     },
   ]);
   assert.deepEqual(await failingDelta(cases), [
-    'diagnose/created-with-offset.vnx',
     'diagnose/pinned-where-not-carried.vnx',
     'diagnose/timestamp-with-offset.vnx',
   ]);
@@ -454,6 +453,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     'diagnose/dotted-key-on-item.vnx',
     'diagnose/highlight-notes-unknown.vnx',
     'diagnose/pinned-where-not-carried.vnx',
+    'diagnose/removed-keys-are-unknown.vnx',
     'diagnose/style-is-unknown.vnx',
     'diagnose/unknown-key.vnx',
     'diagnose/walk-pin-unusable.vnx',

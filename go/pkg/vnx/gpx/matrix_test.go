@@ -38,7 +38,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 		return vnx.Record{Type: "app.viatrail.tag", Body: map[string]any{"value": v}}
 	}
 	out, rep := write(t, &vnx.Document{
-		Folders: []vnx.Folder{{ID: "f", Name: "Munros", Data: []vnx.Record{tag("scotland")}}},
+		Folders: []vnx.Folder{{ID: "f", Name: "Munros"}},
 		Points: []vnx.Point{{
 			Folder: "f", Name: "Cairn", At: vnx.Position{Lon: 1, Lat: 2},
 			Data: []vnx.Record{tag("bagged"), tag("winter")},
@@ -63,7 +63,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 	// LOST: every tag value, on every kind of item, and the record machinery
 	// with them.
 	for _, gone := range []string{
-		"scotland", "bagged", "winter", "solo", "planned",
+		"bagged", "winter", "solo", "planned",
 		"app.viatrail.tag", "@type", "extensions", "ExtendedData", "value",
 	} {
 		if strings.Contains(out, gone) {
@@ -271,48 +271,24 @@ func TestMatrixTrackStartedAndEndedReachNoGPX(t *testing.T) {
 	})
 }
 
-// -- Notes: ✅ <desc> ---------------------------------------------------------
+// -- Creator -----------------------------------------------------------------
 
-// ⚠ A ✅ THAT NOBODY CHECKED IS THE SAME GUESS AS A ⚠ THAT NOBODY CHECKED
-// (kml/matrix_test.go says so, and has this test). The T11 census listed six
-// GPX gaps and this was a seventh: no test in this package asserted <desc> at
-// all, so the whole Notes cell rested on the golden — and a golden is a
-// regression check, not a claim about which element the notes went into.
-func TestMatrixNotesAreCarriedAsDesc(t *testing.T) {
-	out, rep := write(t, &vnx.Document{
-		Points: []vnx.Point{{Name: "Hut", Notes: "locked in winter", At: vnx.Position{Lon: 1, Lat: 2}}},
-		Tracks: []vnx.Track{{
-			Name: "Walk", Notes: "stopped for lunch",
-			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
-		}},
-		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge", Notes: "north to south"},
-			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
-		)},
+// GPX 1.1 requires a `creator` attribute on <gpx>, naming the software that
+// made the GPX file. That is this converter. A VNX document does not say which
+// application wrote it (SPEC §3.1), so an application name here would be a
+// guess, and a named application would claim a file it did not write.
+func TestTheCreatorIsThisLibrary(t *testing.T) {
+	out, _ := write(t, &vnx.Document{
+		Points: []vnx.Point{{Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2}}},
 	})
-	// CARRIED: whole, in <desc>, on all three kinds.
-	for _, want := range []string{
-		"<desc>locked in winter</desc>", "<desc>stopped for lunch</desc>", "<desc>north to south</desc>",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — the cell says notes survive as <desc>\n%s", want, out)
-		}
+	if !strings.Contains(out, `<gpx version="1.1" creator="vnx" `) {
+		t.Errorf("the <gpx> element does not name vnx as its creator\n%s", out)
 	}
-	// NOT in <cmt>: <cmt> and <desc> are different elements with different
-	// meanings, and a reader showing one does not show the other.
-	if strings.Contains(out, "<cmt>") {
-		t.Errorf("notes were written as <cmt>; the cell says <desc>\n%s", out)
+	if strings.Contains(out, "Viatrail") {
+		t.Errorf("the file names an application; the creator is the converter\n%s", out)
 	}
-	if rep.Emitted != 3 || len(rep.Diagnostics) != 0 {
-		t.Errorf("emitted %d with diagnostics %v, want 3 and none", rep.Emitted, codesOf(rep))
-	}
-	// An ABSENT note omits the element rather than writing an empty one: an
-	// empty <desc/> says "described as nothing", which is not what absence
-	// means.
-	bare, _ := write(t, &vnx.Document{
-		Points: []vnx.Point{{Name: "Unnoted", At: vnx.Position{Lon: 1, Lat: 2}}},
-	})
-	if strings.Contains(bare, "<desc") {
-		t.Errorf("an item with no notes wrote a <desc>\n%s", bare)
+	if strings.Contains(out, "<desc") || strings.Contains(out, "<cmt") {
+		t.Errorf("a description element was written; VNX has no description to carry\n%s", out)
 	}
 }
 

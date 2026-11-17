@@ -78,20 +78,12 @@ enum Slot {
 // ---------------------------------------------------------------------------
 
 const DOCUMENT_KEYS: &[&str] = &[
-    "vnx",
-    "generator",
-    "created",
-    "folders",
-    "networks",
-    "plans",
-    "tracks",
-    "points",
-    "areas",
+    "vnx", "folders", "networks", "plans", "tracks", "points", "areas",
 ];
-const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "notes", "hidden", "data"];
+/// A folder carries no `data` (SPEC 3.10).
+const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "hidden"];
 const NETWORK_KEYS: &[&str] = &[
     "name",
-    "notes",
     "folder",
     "hidden",
     "pinned",
@@ -107,21 +99,18 @@ const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
 const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "hidden", "pinned", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
 const PLAN_KEYS: &[&str] = &[
-    "walk", "name", "notes", "folder", "hidden", "pinned", "nodes", "arcs", "data",
+    "walk", "name", "folder", "hidden", "pinned", "nodes", "arcs", "data",
 ];
 const TRACK_KEYS: &[&str] = &[
-    "segments", "name", "notes", "folder", "hidden", "pinned", "started", "ended", "data",
+    "segments", "name", "folder", "hidden", "pinned", "started", "ended", "data",
 ];
 const SEGMENT_KEYS: &[&str] = &["pips"];
-const TOP_LEVEL_POINT_KEYS: &[&str] =
-    &["at", "name", "notes", "folder", "hidden", "pinned", "data"];
+const TOP_LEVEL_POINT_KEYS: &[&str] = &["at", "name", "folder", "hidden", "pinned", "data"];
 /// A network's point is placed by the network that contains it, so it carries
 /// no `folder` (SPEC 3.10).
-const NETWORK_POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "data"];
-const AREA_KEYS: &[&str] = &[
-    "polygon", "name", "notes", "folder", "hidden", "pinned", "data",
-];
-const NETWORK_AREA_KEYS: &[&str] = &["polygon", "name", "notes", "hidden", "pinned", "data"];
+const NETWORK_POINT_KEYS: &[&str] = &["at", "name", "hidden", "pinned", "data"];
+const AREA_KEYS: &[&str] = &["polygon", "name", "folder", "hidden", "pinned", "data"];
+const NETWORK_AREA_KEYS: &[&str] = &["polygon", "name", "hidden", "pinned", "data"];
 
 impl Decoder {
     fn report(&mut self, path: &Path, cause: Cause) {
@@ -440,8 +429,6 @@ impl Decoder {
         let mut wire = WireIndices::default();
         let mut document = Document {
             vnx: Some(version),
-            generator: self.opt_string(entries, "generator", &root),
-            created: self.timestamp(entries, "created", &root),
             ..Document::default()
         };
 
@@ -540,9 +527,7 @@ impl Decoder {
             id,
             parent: self.opt_string(entries, "parent", path),
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             hidden: self.opt_bool(entries, "hidden", path),
-            data: self.records(entries, path),
         })
     }
 
@@ -552,7 +537,6 @@ impl Decoder {
 
         let mut network = Network {
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
@@ -876,7 +860,6 @@ impl Decoder {
         let arcs = self.arcs(entries, path, &nodes);
         let plan = Plan {
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
@@ -903,7 +886,6 @@ impl Decoder {
             .collect();
         Some(Track {
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
@@ -940,7 +922,6 @@ impl Decoder {
         };
         Some(Point {
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
@@ -956,7 +937,6 @@ impl Decoder {
         let polygon = self.ring(&items, &path.key("polygon"))?;
         Some(Area {
             name: self.opt_string(entries, "name", path),
-            notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
@@ -1357,7 +1337,7 @@ mod tests {
     #[test]
     fn a_document_that_is_not_one() {
         assert!(matches!(
-            refuse(r#"{"generator": "x"}"#),
+            refuse(r#"{"points": []}"#),
             Refusal::NotAVnxDocument { .. }
         ));
         assert!(matches!(refuse("[]"), Refusal::NotAVnxDocument { .. }));
@@ -1490,6 +1470,60 @@ mod tests {
         assert_eq!(document.plans.as_ref().expect("kept").len(), 1);
         let written = crate::encode::encode(&document).expect("encodes");
         assert!(!written.contains("style"), "{written}");
+    }
+
+    /// SPEC 3.10: `notes` on any object, `data` on a folder, and the
+    /// document's `created` and `generator` are not keys of this format. Each
+    /// is an unrecognised key: reported, skipped, and its object kept.
+    #[test]
+    fn notes_folder_data_created_and_generator_are_unrecognised_keys() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","created":"2026-08-31T06:45:12Z","generator":"x 1.0",
+                "folders":[{"id":"f","name":"F","notes":"n","data":[{"@type":"x.y"}]}],
+                "networks":[{"name":"N","notes":"n",
+                    "points":[{"at":[0,0],"name":"NP","notes":"n"}],
+                    "areas":[{"polygon":[[0,0],[1,0],[1,1]],"name":"NA","notes":"n"}]}],
+                "plans":[{"name":"P","notes":"n","walk":[]}],
+                "tracks":[{"name":"T","notes":"n","segments":[]}],
+                "points":[{"at":[0,0],"name":"Pt","notes":"n"}],
+                "areas":[{"polygon":[[0,0],[1,0],[1,1]],"name":"A","notes":"n"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/areas/0/notes".into(), "unknown-key"),
+                ("/created".into(), "unknown-key"),
+                ("/folders/0/data".into(), "unknown-key"),
+                ("/folders/0/notes".into(), "unknown-key"),
+                ("/generator".into(), "unknown-key"),
+                ("/networks/0/areas/0/notes".into(), "unknown-key"),
+                ("/networks/0/notes".into(), "unknown-key"),
+                ("/networks/0/points/0/notes".into(), "unknown-key"),
+                ("/plans/0/notes".into(), "unknown-key"),
+                ("/points/0/notes".into(), "unknown-key"),
+                ("/tracks/0/notes".into(), "unknown-key"),
+            ]
+        );
+        let d = &reading.document;
+        let network = &d.networks.as_ref().expect("kept")[0];
+        let name = |n: &Option<String>| n.clone().expect("named");
+        assert_eq!(
+            vec![
+                name(&d.folders.as_ref().expect("kept")[0].name),
+                name(&network.name),
+                name(&network.points.as_ref().expect("kept")[0].name),
+                name(&network.areas.as_ref().expect("kept")[0].name),
+                name(&d.plans.as_ref().expect("kept")[0].name),
+                name(&d.tracks.as_ref().expect("kept")[0].name),
+                name(&d.points.as_ref().expect("kept")[0].name),
+                name(&d.areas.as_ref().expect("kept")[0].name),
+            ],
+            vec!["F", "N", "NP", "NA", "P", "T", "Pt", "A"]
+        );
+        let written = crate::encode::encode(&reading.document).expect("encodes");
+        for key in ["notes", "created", "generator", "\"data\""] {
+            assert!(!written.contains(key), "{key}: {written}");
+        }
     }
 
     /// SPEC 5.1 rules 2 and 3: a record body is opaque and an unrecognised

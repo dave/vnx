@@ -12,8 +12,6 @@ package app.viatrail.vnx
  */
 data class VnxDocument(
     val vnx: String,
-    val generator: String? = null,
-    val created: String? = null,
     val folders: List<Folder>? = null,
     val networks: List<Network>? = null,
     val plans: List<Plan>? = null,
@@ -118,14 +116,11 @@ data class Folder(
     val id: String,
     val parent: String? = null,
     val name: String? = null,
-    val notes: String? = null,
     val hidden: Boolean? = null,
-    val data: List<DataRecord>? = null,
 )
 
 data class Network(
     val name: String? = null,
-    val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
@@ -157,9 +152,7 @@ data class Arc(
 
 /**
  * A highlight: a lightweight container for data objects along a walk over
- * arcs its network owns (SPEC.md section 3.3.3). It has an optional name,
- * and no notes of its own; a file that carries a `notes` key
- * gets the unknown-key diagnostic.
+ * arcs its network owns (SPEC.md section 3.3.3). It has an optional name.
  */
 data class Highlight(
     val walk: List<Pass>,
@@ -216,7 +209,6 @@ data class Plan(
     val nodes: Map<String, Vertex>? = null,
     val arcs: Map<String, Arc>? = null,
     val name: String? = null,
-    val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
@@ -227,7 +219,6 @@ data class Plan(
 data class Track(
     val segments: List<Segment>,
     val name: String? = null,
-    val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
@@ -284,7 +275,6 @@ data class Segment(
 data class Point(
     val at: Position,
     val name: String? = null,
-    val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */
@@ -301,7 +291,6 @@ data class Point(
 data class Area(
     val polygon: List<Position>,
     val name: String? = null,
-    val notes: String? = null,
     val folder: String? = null,
     val hidden: Boolean? = null,
     /** When the user pinned the item, verbatim (SPEC.md sections 3.8, 4.3); null is not pinned. */

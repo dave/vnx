@@ -43,7 +43,15 @@ import (
 // the item's own name, or an integer unique within the network when it has
 // none).
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	f := &features{sw: vnx.Stick(w)}
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is [Write] with options. o.Describe gives each written Feature
+// its `properties.description`; with no Describe, no Feature has one. A
+// network's description goes on its arcs Feature, so a network with no arc
+// has nowhere to put it.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	f := &features{sw: vnx.Stick(w), opts: o}
 	f.sw.WriteString(`{"type":"FeatureCollection","features":[`)
 
 	// ⚠ THE WALK IS IN [vnx.Document] FIELD ORDER, and that is what makes the
@@ -72,6 +80,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 // the casualties.
 type features struct {
 	sw      *vnx.StickyWriter
+	opts    vnx.WriteOptions
 	emitted int
 	diags   []vnx.Diagnostic
 	// err is a failure the SINK did not cause — today only a coordinate that
@@ -79,6 +88,16 @@ type features struct {
 	// place, so there is exactly one way for this writer to fail and exactly
 	// one place that decides whether the file is written.
 	err error
+}
+
+// describe is the item's description from the caller's Describe, "" when
+// there is none. A failure is latched and fails the write.
+func (f *features) describe(kind vnx.ItemKind, path, name string, data []vnx.Record) string {
+	desc, err := f.opts.Description(vnx.DescribedItem{Kind: kind, Path: path, Name: name, Data: data})
+	if err != nil {
+		f.fail(fmt.Errorf("geojson: %w", err))
+	}
+	return desc
 }
 
 // fail latches the first non-sink failure.
@@ -176,7 +195,7 @@ func (f *features) topPoints(d *vnx.Document) {
 	for i := range d.Points {
 		w := &d.Points[i]
 		at := fmt.Sprintf("/points/%d", i)
-		f.begin(f.flatName(d, at, w.Folder, w.Name), w.Notes)
+		f.begin(f.flatName(d, at, w.Folder, w.Name), f.describe(vnx.ItemPoint, at, w.Name, w.Data))
 		f.point(w.At)
 		f.end()
 	}
@@ -191,7 +210,7 @@ func (f *features) areas(d *vnx.Document) {
 			f.warn(vnx.CodeItemNoGeometry, at+"/polygon", []string{a.Name}, ringProblem(a.Polygon))
 			continue
 		}
-		f.begin(f.flatName(d, at, a.Folder, a.Name), a.Notes)
+		f.begin(f.flatName(d, at, a.Folder, a.Name), f.describe(vnx.ItemArea, at, a.Name, a.Data))
 		f.polygon(ring)
 		f.end()
 	}
@@ -238,7 +257,7 @@ func (f *features) tracks(d *vnx.Document) {
 			f.warn(vnx.CodePartialGeometry, fmt.Sprintf("%s/segments/%d", at, j), []string{t.Name},
 				fmt.Sprintf("segment has %d position(s), a GeoJSON LineString needs two", len(t.Segments[j].Pips)))
 		}
-		f.begin(f.flatName(d, at, t.Folder, t.Name), t.Notes)
+		f.begin(f.flatName(d, at, t.Folder, t.Name), f.describe(vnx.ItemTrack, at, t.Name, t.Data))
 		f.multiLineString(lines)
 		f.end()
 	}
@@ -258,24 +277,24 @@ func (f *features) plans(d *vnx.Document) {
 				fmt.Sprintf("plan has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(r.Walk)))
 			continue
 		}
-		f.begin(f.flatName(d, at, r.Folder, r.Name), r.Notes)
+		f.begin(f.flatName(d, at, r.Folder, r.Name), f.describe(vnx.ItemPlan, at, r.Name, r.Data))
 		f.lineString(line)
 		f.end()
 	}
 }
 
 // networks emits §2.6's shape as redesigned 2026-09-03: ONE MultiLineString
-// Feature holding the network's arcs and carrying the network's own name and
-// notes, then ONE NAMED FEATURE PER in-network point, area and highlight, each
-// named "{network} / {label}" ([vnx.LabelNetwork]). A highlight is a
-// lightweight container for data along its walk, with an optional name and no
-// notes of its own (§3.3.3): its label is its name, or its integer.
+// Feature holding the network's arcs and carrying the network's own name, then
+// ONE NAMED FEATURE PER in-network point, area and highlight, each named
+// "{network} / {label}" ([vnx.LabelNetwork]). A highlight is a lightweight
+// container for data along its walk, with an optional name (§3.3.3): its label
+// is its name, or its integer.
 //
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
-// in-network points and areas had somewhere to go, and the price was their Name,
-// Notes and Hidden — vnx.Arc carries none of those, but Network.Points are full
-// vnx.Points and Network.Areas full vnx.Areas, and all three fields were
-// destroyed on every one of them. Dave's rule replaces it:
+// in-network points and areas had somewhere to go, and the price was their
+// Name — vnx.Arc carries none, but Network.Points are full vnx.Points and
+// Network.Areas full vnx.Areas, and the name was destroyed on every one of
+// them. Dave's rule replaces it:
 // unnamed things merge into one geometry, named things get their own named
 // object. A flat FeatureCollection of simple geometries is also what QGIS,
 // Mapbox GL and Leaflet handle reliably; a nested GeometryCollection is not.
@@ -289,7 +308,8 @@ func (f *features) plans(d *vnx.Document) {
 //
 // The name is not wholly gone even so: the network's in-network points and areas
 // carry it in their own names through [inNetworkName]. What IS lost is the
-// network's NOTES, which nothing else carries — so the loss is disclosed with
+// network as a Feature of its own, and with it any description a caller's
+// [vnx.WriteOptions.Describe] would give it, so the loss is disclosed with
 // [vnx.CodePartialGeometry], part of the network having reached the file and
 // part of it not. Dave ruled the loss acceptable; he did not rule it silent, and
 // a silent drop is the fallback the house rule forbids.
@@ -299,7 +319,8 @@ func (f *features) plans(d *vnx.Document) {
 //
 // ⚠ A NETWORK HOLDING NOTHING AT ALL IS DROPPED with [vnx.CodeItemNoGeometry]
 // instead. The two are different claims and must not be merged: one says the
-// network is in the file without its notes, the other says it is not in the file.
+// network is in the file without a Feature of its own, the other says it is not
+// in the file.
 //
 // ⚠ NETWORK AND FOLDER PATHS COLLIDE AND THAT IS ACCEPTED (Dave, 2026-09-03). An
 // in-network point "Bothy" in network "Cairngorms" in folder "Highlands" flattens
@@ -367,12 +388,12 @@ func (f *features) networks(d *vnx.Document) {
 		} else {
 			base := f.flatName(d, at, n.Folder, n.Name)
 			if len(lines) > 0 {
-				f.begin(base, n.Notes)
+				f.begin(base, f.describe(vnx.ItemNetwork, at, n.Name, n.Data))
 				f.multiLineString(lines)
 				f.end()
 			} else {
 				f.warn(vnx.CodePartialGeometry, at, []string{n.Name},
-					"network has no arc, so it has no Feature of its own and its notes are not written; "+
+					"network has no arc, so it has no Feature of its own; "+
 						"its name survives in the names of the points and areas it holds")
 			}
 			// ⚠ THE WALK IS POINTS, AREAS, HIGHLIGHTS — the order the old shared
@@ -383,13 +404,13 @@ func (f *features) networks(d *vnx.Document) {
 			// disruptive.
 			for j := range n.Points {
 				p := &n.Points[j]
-				f.begin(inNetworkName(base, labels.Points[j]), p.Notes)
+				f.begin(inNetworkName(base, labels.Points[j]), f.describe(vnx.ItemPoint, fmt.Sprintf("%s/points/%d", at, j), p.Name, p.Data))
 				f.point(p.At)
 				f.end()
 			}
 			for _, r := range rings {
 				a := &n.Areas[r.index]
-				f.begin(inNetworkName(base, labels.Areas[r.index]), a.Notes)
+				f.begin(inNetworkName(base, labels.Areas[r.index]), f.describe(vnx.ItemArea, fmt.Sprintf("%s/areas/%d", at, r.index), a.Name, a.Data))
 				f.polygon(r.ring)
 				f.end()
 			}
@@ -439,8 +460,7 @@ func (f *features) highlights(d *vnx.Document, n *vnx.Network, at string, labels
 				fmt.Sprintf("highlight has %d position(s) across %d pass(es), a GeoJSON LineString needs two", len(line), len(c.Walk)))
 			continue
 		}
-		// A highlight has no notes of its own (§3.3.3).
-		f.begin(inNetworkName(base, labels[j]), "")
+		f.begin(inNetworkName(base, labels[j]), f.describe(vnx.ItemHighlight, cat, c.Name, c.Data))
 		f.lineString(line)
 		f.end()
 	}

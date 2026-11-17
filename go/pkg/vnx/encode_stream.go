@@ -140,25 +140,6 @@ func streamDocument(b *StickyWriter, doc *Document) error {
 	if err := o.value("vnx", version); err != nil {
 		return err
 	}
-	// An empty header field is OMITTED. Writing "" would turn "not known" into
-	// a value. `created` is written verbatim, and a caller-built value outside
-	// §4.3's grammar is an error rather than a document the format forbids.
-	if doc.Created != "" {
-		if err := doc.Created.Valid(); err != nil {
-			return fmt.Errorf("created: %w", err)
-		}
-	}
-	for _, h := range []struct{ key, value string }{
-		{"generator", doc.Generator},
-		{"created", string(doc.Created)},
-	} {
-		if h.value == "" {
-			continue
-		}
-		if err := o.value(h.key, h.value); err != nil {
-			return err
-		}
-	}
 	for _, c := range documentCollections {
 		if c.count(doc) == 0 {
 			continue
@@ -240,11 +221,7 @@ var documentCollections = []documentCollection{
 // folderWire is the per-item builder for a folder. It lives here rather than in
 // encode.go because nothing else needs it.
 func folderWire(f Folder) (wireFolder, error) {
-	data, err := dataBodies(f.Data)
-	if err != nil {
-		return wireFolder{}, err
-	}
-	return wireFolder{ID: f.ID, Name: f.Name, Notes: f.Notes, Parent: f.Parent, Hidden: f.Hidden, Data: data}, nil
+	return wireFolder{ID: f.ID, Name: f.Name, Parent: f.Parent, Hidden: f.Hidden}, nil
 }
 
 func streamNetworks(b *StickyWriter, ns []Network) error {
@@ -273,7 +250,6 @@ func streamNetwork(b *StickyWriter, n Network) error {
 	o := openObject(b)
 	for _, s := range []struct{ key, value string }{
 		{"name", n.Name},
-		{"notes", n.Notes},
 		{"folder", n.Folder},
 	} {
 		if s.value == "" {

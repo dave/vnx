@@ -357,9 +357,6 @@ class _Reader:
         assert obj is not None
 
         document = Document(vnx=version)
-        document.generator = self._string(obj, "generator", "")
-        document.created = self._timestamp(obj, "created", "")
-
         document.folders = self._collection(obj, "folders", self._folder)
         document.networks = self._collection(obj, "networks", self._network)
         document.plans = self._collection(obj, "plans", self._plan)
@@ -523,10 +520,8 @@ class _Reader:
         folder = Folder(
             id=self._string(obj, "id", path, K.REQUIRED_FOLDER),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             parent=self._string(obj, "parent", path),
             hidden=self._bool(obj, "hidden", path),
-            data=self._data(obj, path),
         )
         if folder.id == "":
             # SPEC 3.2: an `id` is a non-empty string, so "" is a wrong-typed
@@ -561,7 +556,6 @@ class _Reader:
         return Point(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path, K.REQUIRED_POINT),
             pinned=self._timestamp(obj, "pinned", path),
             at=at,
@@ -590,7 +584,6 @@ class _Reader:
         return Area(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
             polygon=polygon,
@@ -672,7 +665,6 @@ class _Reader:
         return Track(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             started=self._timestamp(obj, "started", path),
             ended=self._timestamp(obj, "ended", path),
             hidden=self._bool(obj, "hidden", path),
@@ -690,7 +682,6 @@ class _Reader:
         plan = Plan(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
         )
@@ -712,7 +703,6 @@ class _Reader:
         network = Network(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
-            notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
         )

@@ -37,8 +37,6 @@ func decodeTree(data []byte) (*Document, []Diagnostic, error) {
 
 	var diags []Diagnostic
 	doc := &Document{Version: declared}
-	doc.Generator, diags = stringField(obj, "generator", "", diags)
-	doc.Created, diags = timeField(obj, "created", "", diags)
 	if v, present := obj["folders"]; present {
 		if arr, ok := v.([]any); ok {
 			doc.Folders, diags = treeDecodeFolders(arr, diags)
@@ -171,7 +169,6 @@ func treeDecodePoints(arr []any, path string, kept *[]string, diags []Diagnostic
 			w.Folder, diags = stringField(obj, "folder", at, diags)
 		}
 		w.Name, diags = stringField(obj, "name", at, diags)
-		w.Notes, diags = stringField(obj, "notes", at, diags)
 		w.Hidden, diags = boolField(obj, "hidden", at, diags)
 		w.Pinned, diags = timeField(obj, "pinned", at, diags)
 		w.Data, diags = dataField(obj, at, diags)
@@ -212,7 +209,6 @@ func treeDecodeAreas(arr []any, path string, kept *[]string, diags []Diagnostic)
 			a.Folder, diags = stringField(obj, "folder", at, diags)
 		}
 		a.Name, diags = stringField(obj, "name", at, diags)
-		a.Notes, diags = stringField(obj, "notes", at, diags)
 		a.Hidden, diags = boolField(obj, "hidden", at, diags)
 		a.Pinned, diags = timeField(obj, "pinned", at, diags)
 		a.Data, diags = dataField(obj, at, diags)
@@ -280,7 +276,6 @@ func treeDecodeTracks(arr []any, path string, kept *[]string, diags []Diagnostic
 		var tr Track
 		tr.Folder, diags = stringField(obj, "folder", at, diags)
 		tr.Name, diags = stringField(obj, "name", at, diags)
-		tr.Notes, diags = stringField(obj, "notes", at, diags)
 		tr.Hidden, diags = boolField(obj, "hidden", at, diags)
 		tr.Pinned, diags = timeField(obj, "pinned", at, diags)
 		tr.Started, diags = timeField(obj, "started", at, diags)
@@ -390,7 +385,6 @@ func treeDecodePlans(arr []any, path string, kept *[]string, diags []Diagnostic)
 		var r Plan
 		r.Folder, diags = stringField(obj, "folder", at, diags)
 		r.Name, diags = stringField(obj, "name", at, diags)
-		r.Notes, diags = stringField(obj, "notes", at, diags)
 		r.Hidden, diags = boolField(obj, "hidden", at, diags)
 		r.Pinned, diags = timeField(obj, "pinned", at, diags)
 		r.Nodes, diags = treeDecodeNodes(obj["nodes"], at+"/nodes", diags)
@@ -424,7 +418,6 @@ func treeDecodeNetworks(arr []any, path string, kept *[]string, diags []Diagnost
 		var n Network
 		n.Folder, diags = stringField(obj, "folder", at, diags)
 		n.Name, diags = stringField(obj, "name", at, diags)
-		n.Notes, diags = stringField(obj, "notes", at, diags)
 		n.Hidden, diags = boolField(obj, "hidden", at, diags)
 		n.Pinned, diags = timeField(obj, "pinned", at, diags)
 		n.Nodes, diags = treeDecodeNodes(obj["nodes"], at+"/nodes", diags)

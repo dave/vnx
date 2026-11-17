@@ -303,6 +303,65 @@ test('a style key is an unrecognised key on every host, and the item is kept', (
   assert.equal(encode(document).includes('style'), false);
 });
 
+// SPEC.md 3.10: `notes` on any object, `data` on a folder, and the document's
+// `created` and `generator` are not keys of this format. Each is an ordinary
+// unrecognised key: diagnosed, skipped, and the object that carries it kept.
+test('notes, folder data, created and generator are unknown keys, and their objects are kept', () => {
+  const ring = [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+  ];
+  const { document, diagnostics } = decodeText(
+    doc({
+      created: '2026-08-31T06:45:12Z',
+      generator: 'x 1.0',
+      folders: [{ id: 'f', name: 'F', notes: 'n', data: [{ '@type': 'x.y' }] }],
+      networks: [
+        {
+          name: 'N',
+          notes: 'n',
+          points: [{ at: [0, 0], name: 'NP', notes: 'n' }],
+          areas: [{ polygon: ring, name: 'NA', notes: 'n' }],
+        },
+      ],
+      plans: [{ name: 'P', notes: 'n', walk: [] }],
+      tracks: [{ name: 'T', notes: 'n', segments: [] }],
+      points: [{ at: [0, 0], name: 'Pt', notes: 'n' }],
+      areas: [{ polygon: ring, name: 'A', notes: 'n' }],
+    }),
+  );
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/areas/0/notes', 'unknown-key'],
+    ['/created', 'unknown-key'],
+    ['/folders/0/data', 'unknown-key'],
+    ['/folders/0/notes', 'unknown-key'],
+    ['/generator', 'unknown-key'],
+    ['/networks/0/areas/0/notes', 'unknown-key'],
+    ['/networks/0/notes', 'unknown-key'],
+    ['/networks/0/points/0/notes', 'unknown-key'],
+    ['/plans/0/notes', 'unknown-key'],
+    ['/points/0/notes', 'unknown-key'],
+    ['/tracks/0/notes', 'unknown-key'],
+  ]);
+  const n = document.networks[0];
+  assert.deepEqual(
+    [
+      document.folders[0].name,
+      n.name,
+      n.points[0].name,
+      n.areas[0].name,
+      document.plans[0].name,
+      document.tracks[0].name,
+      document.points[0].name,
+      document.areas[0].name,
+    ],
+    ['F', 'N', 'NP', 'NA', 'P', 'T', 'Pt', 'A'],
+  );
+  const out = encode(document);
+  for (const k of ['notes', 'created', 'generator', '"data"']) assert.equal(out.includes(k), false, k);
+});
+
 test('a folder naming an absent folder puts the item at the top level', () => {
   const { document, diagnostics } = decodeText(doc({ points: [{ at: [1, 2], folder: 'ghost' }] }));
   assert.equal(document.points.length, 1);

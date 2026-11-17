@@ -22,8 +22,7 @@ enum Keys {
   static let document = Shape(
     required: ["vnx"],
     optional: [
-      "generator", "created", "folders", "networks",
-      "plans", "tracks", "points", "areas",
+      "folders", "networks", "plans", "tracks", "points", "areas",
     ])
 
   /// SPEC 3.9: whether a top-level key is an application key. No key the
@@ -45,12 +44,12 @@ enum Keys {
 
   static let folder = Shape(
     required: ["id"],
-    optional: ["parent", "name", "notes", "hidden", "data"])
+    optional: ["parent", "name", "hidden"])
 
   static let network = Shape(
     required: [],
     optional: [
-      "name", "notes", "folder", "hidden", "pinned", "nodes", "arcs",
+      "name", "folder", "hidden", "pinned", "nodes", "arcs",
       "highlights", "points", "areas", "data",
     ])
 
@@ -59,8 +58,7 @@ enum Keys {
     required: ["from", "to", "pips"],
     optional: ["data"])
 
-  /// A highlight has an optional `name`, and no `notes`: a file's `notes` on
-  /// one is an unknown key.
+  /// A highlight has an optional `name`.
   static let highlight = Shape(
     required: ["walk"],
     optional: ["name", "hidden", "pinned", "data"])
@@ -71,12 +69,12 @@ enum Keys {
 
   static let plan = Shape(
     required: ["walk"],
-    optional: ["name", "notes", "folder", "hidden", "pinned", "nodes", "arcs", "data"])
+    optional: ["name", "folder", "hidden", "pinned", "nodes", "arcs", "data"])
 
   static let track = Shape(
     required: ["segments"],
     optional: [
-      "name", "notes", "folder", "hidden", "pinned", "started",
+      "name", "folder", "hidden", "pinned", "started",
       "ended", "data",
     ])
 
@@ -87,18 +85,18 @@ enum Keys {
   /// A top-level point. It places itself with `folder`.
   static let topLevelPoint = Shape(
     required: ["at"],
-    optional: ["name", "notes", "folder", "hidden", "pinned", "data"])
+    optional: ["name", "folder", "hidden", "pinned", "data"])
 
   /// A network's point. No `folder`: its network already contains it.
   static let networkPoint = Shape(
     required: ["at"],
-    optional: ["name", "notes", "hidden", "pinned", "data"])
+    optional: ["name", "hidden", "pinned", "data"])
 
   static let topLevelArea = Shape(
     required: ["polygon"],
-    optional: ["name", "notes", "folder", "hidden", "pinned", "data"])
+    optional: ["name", "folder", "hidden", "pinned", "data"])
 
   static let networkArea = Shape(
     required: ["polygon"],
-    optional: ["name", "notes", "hidden", "pinned", "data"])
+    optional: ["name", "hidden", "pinned", "data"])
 }

@@ -138,8 +138,6 @@ impl Record {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Document {
     pub vnx: Option<Version>,
-    pub generator: Option<String>,
-    pub created: Option<String>,
     /// An absent collection and an empty one carry the same content and a
     /// reader treats them alike (SPEC 3.1). `Option` keeps the distinction the
     /// document made anyway, because it costs nothing to and because a writer
@@ -174,20 +172,18 @@ pub fn is_app_key(key: &str) -> bool {
     key.contains('.')
 }
 
+/// A folder (SPEC 3.2). It carries only its id, parent, name and hidden.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Folder {
     pub id: String,
     pub parent: Option<String>,
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub hidden: Option<bool>,
-    pub data: Option<Vec<Record>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Network {
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
@@ -258,8 +254,8 @@ pub struct Arc {
 }
 
 /// A highlight is a lightweight container for data objects along a walk of
-/// arcs its network owns (SPEC 3.3.3). It has an optional name, and no notes
-/// of its own. Its geometry is by reference: two highlights on one
+/// arcs its network owns (SPEC 3.3.3). It has an optional name. Its
+/// geometry is by reference: two highlights on one
 /// trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Highlight {
@@ -320,7 +316,6 @@ pub enum Endpoint {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Plan {
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
@@ -345,7 +340,6 @@ impl Plan {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Track {
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
@@ -406,7 +400,6 @@ pub struct Segment {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Point {
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
@@ -421,7 +414,6 @@ pub struct Point {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Area {
     pub name: Option<String>,
-    pub notes: Option<String>,
     pub folder: Option<String>,
     pub hidden: Option<bool>,
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp

@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "timing",
   "tracks": [
     {
       "name": "mixed timing",

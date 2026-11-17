@@ -1,0 +1,22 @@
+{
+  "vnx": "0.11.0",
+  "folders": [
+    {
+      "id": "cairngorms",
+      "name": "Cairngorms"
+    }
+  ],
+  "points": [
+    {
+      "folder": "cairngorms",
+      "name": "Car park",
+      "at": [-3.675, 57.1201],
+      "data": [
+        {
+          "@type": "app.viatrail.tag",
+          "value": "parking"
+        }
+      ]
+    }
+  ]
+}

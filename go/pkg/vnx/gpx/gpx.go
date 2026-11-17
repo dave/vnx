@@ -33,7 +33,14 @@ import (
 // An error means the bytes written so far are not a document. Every caller
 // discards them: writeAtomically removes its temporary and never renames.
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	g := &writer{doc: d, b: vnx.Stick(w)}
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is [Write] with options. o.Describe gives a point its <desc>,
+// and a plan's <rte> and a track's <trk> theirs; with no Describe, nothing
+// has a <desc>.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	g := &writer{doc: d, b: vnx.Stick(w), opts: o}
 	g.run()
 	if g.err != nil {
 		return vnx.WriteReport{}, g.err
@@ -47,15 +54,20 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 	return vnx.WriteReport{Emitted: g.emitted, Diagnostics: g.diagnostics()}, nil
 }
 
+// header names this library as the GPX creator. GPX 1.1 requires the
+// `creator` attribute on <gpx>, and it names the software that made the GPX
+// file, which is this converter. A VNX document does not say which
+// application wrote it (SPEC §3.1), so there is no other name to carry.
 const (
 	header = `<?xml version="1.0" encoding="UTF-8"?>` + "\n" +
-		`<gpx version="1.1" creator="Viatrail" xmlns="http://www.topografix.com/GPX/1/1">` + "\n"
+		`<gpx version="1.1" creator="vnx" xmlns="http://www.topografix.com/GPX/1/1">` + "\n"
 	footer = "</gpx>\n"
 )
 
 type writer struct {
 	doc     *vnx.Document
 	b       *vnx.StickyWriter
+	opts    vnx.WriteOptions
 	err     error
 	emitted int
 
@@ -127,10 +139,14 @@ func (g *writer) writePoints() {
 		// A point IS its position; vnx.Point.At is a value and cannot be
 		// absent, so CodeItemNoGeometry is unreachable here.
 		name := g.flatName(path, w.Folder, w.Name, &g.pointDiags)
+		desc, ok := g.describe(vnx.ItemPoint, path, w.Name, w.Data)
+		if !ok {
+			return
+		}
 		// Rounded at the write, never in the model (vnx/round.go).
 		g.b.WriteString(`  <wpt lat="` + g.number(vnx.RoundCoordinate(w.At.Lat), "latitude") +
 			`" lon="` + g.number(vnx.RoundCoordinate(w.At.Lon), "longitude") + `"`)
-		if w.At.Ele == nil && w.At.Time == nil && name == "" && w.Notes == "" {
+		if w.At.Ele == nil && w.At.Time == nil && name == "" && desc == "" {
 			g.b.WriteString("/>\n")
 			g.emitted++
 			continue
@@ -140,7 +156,7 @@ func (g *writer) writePoints() {
 		g.writeEle("    ", w.At)
 		g.writeTime("    ", w.At)
 		g.writeText("    ", "name", name)
-		g.writeText("    ", "desc", w.Notes)
+		g.writeText("    ", "desc", desc)
 		g.b.WriteString("  </wpt>\n")
 		g.emitted++
 	}
@@ -172,7 +188,11 @@ func (g *writer) writeTracks() {
 			continue
 		}
 		name := g.flatName(path, t.Folder, t.Name, &g.trackDiags)
-		g.writeTrk(name, t.Notes, segs)
+		desc, ok := g.describe(vnx.ItemTrack, path, t.Name, t.Data)
+		if !ok {
+			return
+		}
+		g.writeTrk(name, desc, segs)
 	}
 }
 
@@ -197,6 +217,10 @@ func (g *writer) writePlans() {
 			continue
 		}
 		name := g.flatName(path, r.Folder, r.Name, &g.planDiags)
+		desc, ok := g.describe(vnx.ItemPlan, path, r.Name, r.Data)
+		if !ok {
+			return
+		}
 		// ⚠ A PLAN IS A <rte>, AND A TRACK IS A <trk> (Dave, 2026-10-08):
 		// "Plans should definitely be exported as GPX routes." A Viatrail plan
 		// is a VNX top-level plan, so it is written as <rte>/<rtept>.
@@ -211,16 +235,27 @@ func (g *writer) writePlans() {
 		//
 		// The walk stays ONE list: a plan's arcs are not pauses, so it is
 		// one <rte>, never one per arc.
-		g.writeRte(name, r.Notes, pips)
+		g.writeRte(name, desc, pips)
 	}
 }
 
-func (g *writer) writeRte(name, notes string, pips []vnx.Position) {
+// describe is the item's description from the caller's Describe, "" when
+// there is none. ok is false when Describe failed; the failure is latched.
+func (g *writer) describe(kind vnx.ItemKind, path, name string, data []vnx.Record) (string, bool) {
+	desc, err := g.opts.Description(vnx.DescribedItem{Kind: kind, Path: path, Name: name, Data: data})
+	if err != nil {
+		g.fail(fmt.Errorf("gpx: %w", err))
+		return "", false
+	}
+	return desc, true
+}
+
+func (g *writer) writeRte(name, desc string, pips []vnx.Position) {
 	g.b.WriteString("  <rte>\n")
 	// rteType sequence: name, cmt, desc, src, link, number, type, extensions,
 	// rtept*. Each <rtept> is a wptType: ele, time, … in that order.
 	g.writeText("    ", "name", name)
-	g.writeText("    ", "desc", notes)
+	g.writeText("    ", "desc", desc)
 	for i := range pips {
 		if g.err != nil {
 			return
@@ -241,11 +276,11 @@ func (g *writer) writeRte(name, notes string, pips []vnx.Position) {
 	g.emitted++
 }
 
-func (g *writer) writeTrk(name, notes string, segs [][]vnx.Position) {
+func (g *writer) writeTrk(name, desc string, segs [][]vnx.Position) {
 	g.b.WriteString("  <trk>\n")
 	// trkType sequence: name, cmt, desc, src, link, number, type, …, trkseg*.
 	g.writeText("    ", "name", name)
-	g.writeText("    ", "desc", notes)
+	g.writeText("    ", "desc", desc)
 	for _, pips := range segs {
 		g.b.WriteString("    <trkseg>\n")
 		for i := range pips {

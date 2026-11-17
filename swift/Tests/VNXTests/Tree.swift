@@ -6,10 +6,10 @@ import Foundation
 /// of a document are not constrained (SPEC 8.1).
 ///
 /// ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier
-/// rests on. A reader that discarded every data record, every application key
-/// and every `notes` produces a model that compares equal to itself and
-/// passes an accept tier built that way green — that is the whole extensibility
-/// mechanism and all user prose. Comparing the tree parsed from the
+/// rests on. A reader that discarded every data record and every application
+/// key produces a model that compares equal to itself and passes an accept
+/// tier built that way green — that is the whole extensibility mechanism.
+/// Comparing the tree parsed from the
 /// ORIGINAL FILE against the tree parsed from `write(read(file))` is what proves
 /// a reader kept what it read. `AcceptTierProofTests` freezes the proof.
 enum Tree {
@@ -68,7 +68,6 @@ enum Tree {
   /// hold empty containers that a third party means to keep.
   static func normaliseDocument(_ v: JSONValue, _ o: Options) -> JSONValue {
     guard var obj = v.objectValue else { return v }
-    normItems(&obj, "folders", o, normFolder)
     normItems(&obj, "points", o, normPoint)
     normItems(&obj, "areas", o, normArea)
     normItems(&obj, "tracks", o, normTrack)
@@ -78,10 +77,6 @@ enum Tree {
     // 8.1's absent-equals-empty normalisation, so an empty or `null` value
     // is compared as written and a key dropped for holding one differs.
     return .object(obj)
-  }
-
-  private static func normFolder(_ o: inout OpaqueObject, _ opt: Options) {
-    dropEmptyContainer(&o, "data")
   }
 
   private static func normPoint(_ o: inout OpaqueObject, _ opt: Options) {

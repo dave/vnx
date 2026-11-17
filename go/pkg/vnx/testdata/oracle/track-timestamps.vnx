@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "track-timestamps",
   "tracks": [
     {
       "name": "whole seconds",

@@ -439,7 +439,7 @@ func memoryDocument(pips int) *Document {
 // memoryDocumentShape builds `tracks` tracks of `per` pips each, so a caller
 // can hold either axis still.
 func memoryDocumentShape(tracks, per int) *Document {
-	d := &Document{Generator: "memory-harness", Created: "2026-09-02T00:00:00Z"}
+	d := &Document{}
 	d.Tracks = make([]Track, 0, tracks)
 	base := int64(1778569391000)
 	for k := 0; k < tracks; k++ {

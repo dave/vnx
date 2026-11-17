@@ -42,8 +42,6 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
         // SPEC 2.2: write the version the DOCUMENT declared, not the reader's.
         o.str("vnx", Some(&version.text));
     }
-    o.str("generator", document.generator.as_deref());
-    o.str("created", document.created.as_deref());
     let root = Path::root();
     o.list("folders", &document.folders, &root, folder)?;
     o.list("networks", &document.networks, &root, network)?;
@@ -84,16 +82,13 @@ fn folder(f: &Folder, _path: &Path) -> Built {
     o.str("id", Some(&f.id));
     o.str("parent", f.parent.as_deref());
     o.str("name", f.name.as_deref());
-    o.str("notes", f.notes.as_deref());
     o.hidden(f.hidden);
-    o.records(&f.data);
     Ok(o.done())
 }
 
 fn network(n: &Network, path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", n.name.as_deref());
-    o.str("notes", n.notes.as_deref());
     o.str("folder", n.folder.as_deref());
     o.hidden(n.hidden);
     o.str("pinned", n.pinned.as_deref());
@@ -200,7 +195,6 @@ fn endpoint(e: &Endpoint) -> Json {
 fn plan(r: &Plan, path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", r.name.as_deref());
-    o.str("notes", r.notes.as_deref());
     o.str("folder", r.folder.as_deref());
     o.hidden(r.hidden);
     o.str("pinned", r.pinned.as_deref());
@@ -215,7 +209,6 @@ fn plan(r: &Plan, path: &Path) -> Built {
 fn track(t: &Track, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", t.name.as_deref());
-    o.str("notes", t.notes.as_deref());
     o.str("folder", t.folder.as_deref());
     o.hidden(t.hidden);
     o.str("pinned", t.pinned.as_deref());
@@ -241,7 +234,6 @@ fn track(t: &Track, _path: &Path) -> Built {
 fn point(w: &Point, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", w.name.as_deref());
-    o.str("notes", w.notes.as_deref());
     o.str("folder", w.folder.as_deref());
     o.hidden(w.hidden);
     o.str("pinned", w.pinned.as_deref());
@@ -254,7 +246,6 @@ fn area(a: &Area, path: &Path) -> Built {
     check_ring(&a.polygon, &path.key("polygon"))?;
     let mut o = Obj::new();
     o.str("name", a.name.as_deref());
-    o.str("notes", a.notes.as_deref());
     o.str("folder", a.folder.as_deref());
     o.hidden(a.hidden);
     o.str("pinned", a.pinned.as_deref());

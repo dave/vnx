@@ -99,11 +99,11 @@ This library has none. The reference command-line tool is Go's; see
 | `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
 | `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
-| `Document` | `networks`, `plans`, `tracks`, `points`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
+| `Document` | `networks`, `plans`, `tracks`, `points`, `areas`, `folders`, `app_keys`, `vnx`, and `counts()` |
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
-| `Highlight` | `walk: list[Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes of its own |
+| `Highlight` | `walk: list[Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name |
 | `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
 | `Plan` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
@@ -121,8 +121,8 @@ guess about what the caller meant. `encode_file` encodes in full before it write
 replaces the file only once the bytes are on disk, so a refused encode leaves an
 existing file unchanged.
 
-Items also carry `name`, `notes`, `folder`, `hidden` and `data` where
-SPEC §3 gives them. `from_` takes the underscore because `from` is a keyword.
+Items also carry `name`, `folder`, `hidden` and `data` where SPEC §3.10
+gives them; a folder carries no `data`. `from_` takes the underscore because `from` is a keyword.
 
 Encoding what you decoded is legitimately not the bytes you read, because a
 writer applies the emit-boundary rules of SPEC §4.1.

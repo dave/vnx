@@ -61,8 +61,8 @@ a term is listed after every term its definition uses.
 
 - A **document** is a JSON object carrying a `vnx` version key, up to six
   collections and any number of application keys (Section 3.1).
-- An **item** is an object that can carry `name`, `hidden` and `data`, and,
-  every kind of item but a highlight, `notes` (Section 3.10). An item is
+- An **item** is an object that can carry `name` and `hidden`, and, every kind
+  of item but a folder, `data` (Section 3.10). An item is
   top-level when it is a member of one of the document's collections; every
   other item sits inside a top-level one.
 - A **position** is a JSON array of channels: longitude, latitude, and
@@ -86,9 +86,8 @@ a term is listed after every term its definition uses.
 - A **walk** is an ordered array of passes forming one connected journey along
   arcs; the order is the direction of travel (Section 3.3.3).
 - A **highlight** is a lightweight container for data objects along a walk of
-  its network's arcs: an item carrying a walk and an optional name, with no
-  notes of its own. A highlight does not own the arcs it walks
-  (Section 3.3.3).
+  its network's arcs: an item carrying a walk and an optional name. A
+  highlight does not own the arcs it walks (Section 3.3.3).
 - A **plan** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
 - A **segment** is an ordered `pips` array within a track; the interval between
@@ -121,8 +120,6 @@ rule. The document below is complete and is read with no diagnostics.
 ```json
 {
   "vnx": "0.11.0",
-  "generator": "example 1.0",
-  "created": "2026-08-31T06:45:12Z",
   "folders": [
     { "id": "cairngorms", "name": "Cairngorms" }
   ],
@@ -168,8 +165,7 @@ rule. The document below is complete and is read with no diagnostics.
 }
 ```
 
-`vnx` is the format version (Section 2.2); `generator` and `created` are
-informational (Section 3.1). The one folder, `cairngorms`, is named by the
+`vnx` is the format version (Section 2.2). The one folder, `cairngorms`, is named by the
 `folder` key of the network and of the point (Section 3.2). The network
 holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
 one highlight whose walk is a single pass over that arc from `node-1` to `node-2`,
@@ -220,11 +216,21 @@ applies each document's own regime. A reader that does not support a document's
 MAJOR series MUST refuse it, naming the version, rather than read it under the
 rules of a series it does support.
 
+The three components follow [SemVer]:
+
+- MAJOR changes when a document of the new version can mean something different
+  to a reader of the old one.
+- MINOR changes when a construct is added, changed or removed. Through 0.x a
+  MINOR change may break readers (below); from 1.0 it only adds.
+- PATCH changes when this specification changes without changing what a
+  document can contain or what a reader must do with it: a clarification, a
+  corrected example, a new corpus case for an existing rule. Two documents that
+  differ only in PATCH are read the same way.
+
 A reader MUST compare the MAJOR and MINOR components of the document against
-its own supported version. The PATCH component MUST NOT be used to refuse a
-document at any version, because a patch increment is additive by definition;
-constructs introduced by a patch reach a reader through the unknown-key
-diagnostics of Section 6.2.
+its own supported version. It MUST check that PATCH is present and well formed,
+and MUST NOT otherwise act on it: by the definition above, no PATCH changes how
+a document is read.
 
 Through 0.x:
 
@@ -259,8 +265,6 @@ A VNX document is a JSON object [RFC 8259].
 ```json
 {
   "vnx": "0.11.0",
-  "generator": "Example Trails 2.4.1",
-  "created": "2026-08-31T06:45:12Z",
 
   "folders":   [ ],
   "networks":  [ ],
@@ -287,18 +291,8 @@ anything inside its value (Section 3.9): an empty `data` bag, an empty `highligh
 array and an empty `nodes` object each carry the same content as the key being
 absent.
 
-`created` and `generator` are informational. `created` is a timestamp
-(Section 4.3).
-
-`generator` names the software that wrote the document.
-
-- An application writes its own name and version, for example
-  `"Example Trails 2.4.1"`.
-- A development or command-line tool names itself, and MUST NOT name itself as
-  the application.
-
-`generator` carries the application version. The format version is the value of
-`vnx` (Section 2.2). The two are unrelated.
+A document does not say which software wrote it or when. Information about the
+file itself belongs to the file system or the archive, not to the document.
 
 ### 3.2 Folders
 
@@ -329,7 +323,6 @@ because walks reference their entries by key.
 {
   "folder": "approaches",
   "name": "Lairig Ghru approaches",
-  "notes": "...",
   "nodes": { "node-1": [-3.6521, 57.1000, 940], "node-2": [-3.6402, 57.0931, 811] },
   "arcs":  { "arc-1": { "from": "node-1", "to": "node-2", "pips": [ ], "data": [ ] } },
   "highlights": [ ],
@@ -378,10 +371,8 @@ pass naming an absent arc (Section 6.2).
 
 A highlight is a lightweight container for data objects along a walk of its
 network's arcs. It carries a walk over arcs that it does not own, and its `data`
-records apply along that walk. A highlight can carry a `name`. It has no notes
-of its own: what it is, beyond its name, is what its data records say.
-A `notes` on a highlight is an unrecognised key (Sections 3.10 and
-6.2).
+records apply along that walk. A highlight can carry a `name`. What it is,
+beyond its name, is what its data records say.
 
 ```json
 {
@@ -543,7 +534,6 @@ share one shape.
 {
   "name": "Spring",
   "at": [-3.6521, 57.1, 940],
-  "notes": "...",
   "data": [ ]
 }
 ```
@@ -650,19 +640,19 @@ array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
-| document | `vnx` | `generator`, `created`, `folders`, `networks`, `plans`, `tracks`, `points`, `areas`, and every application key (Section 3.9) |
-| folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
-| network | — | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
+| document | `vnx` | `folders`, `networks`, `plans`, `tracks`, `points`, `areas`, and every application key (Section 3.9) |
+| folder | `id` | `parent`, `name`, `hidden` |
+| network | — | `name`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
 | highlight | `walk` | `name`, `hidden`, `pinned`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
-| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `data` |
-| track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `started`, `ended`, `data` |
+| plan | `walk` | `name`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `data` |
+| track | `segments` | `name`, `folder`, `hidden`, `pinned`, `started`, `ended`, `data` |
 | segment | `pips` | — |
-| point, at the top level | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `data` |
-| point, in a network | `at` | `name`, `notes`, `hidden`, `pinned`, `data` |
-| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `pinned`, `data` |
-| area, in a network | `polygon` | `name`, `notes`, `hidden`, `pinned`, `data` |
+| point, at the top level | `at` | `name`, `folder`, `hidden`, `pinned`, `data` |
+| point, in a network | `at` | `name`, `hidden`, `pinned`, `data` |
+| area, at the top level | `polygon` | `name`, `folder`, `hidden`, `pinned`, `data` |
+| area, in a network | `polygon` | `name`, `hidden`, `pinned`, `data` |
 | data record | `@type` | opaque; see below |
 
 A node is a position (Section 4.1), not an object, and has no keys.
@@ -672,18 +662,16 @@ Notes on the table:
 - `folder` names the folder an item sits in. It does not appear on a folder,
   which places itself with `parent`, and it does not appear on a network's
   `points` or `areas`, which their network already contains.
-- `name`, `hidden` and `data` appear on every item, and `notes` on every item
-  but a highlight, which is a lightweight container for data along its walk
-  and has no notes of its own (Section 3.3.3). Apart from `data` on an
-  arc, none of the four appears on any other object in the table. An
+- `name` and `hidden` appear on every item, and `data` on every item but a
+  folder. Apart from `data` on an arc, none of the three appears on any other
+  object in the table. An
   object to which the table gives none of them is not an item. `hidden` therefore appears on a
   top-level point: Section 3.8 names the shape rather than the collection,
   and a top-level point and a network's point are one shape (Section 3.6).
 - `pinned` appears on every item except a folder (Section 3.8).
-- `notes` is a string of Markdown, as [CommonMark] defines it. A reader that
-  does not render Markdown MAY show the text as written. A writer MUST NOT
-  put HTML in `notes`, because readers render it differently.
-- An arc carries no `name`, `notes` or `hidden`, and neither a pass nor
+- This format has no notes or description key. Text about an item, such as a
+  description, is application data and goes in a data record (Section 5).
+- An arc carries no `name` or `hidden`, and neither a pass nor
   a segment carries `hidden`.
 
 #### Objects this section does not reach
@@ -773,7 +761,7 @@ states.
 
 ### 4.3 Timestamps
 
-Record-level timestamps, `created`, `started`, `ended` and `pinned`, are ISO
+Record-level timestamps, `started`, `ended` and `pinned`, are ISO
 8601 in UTC, with a literal `Z` suffix and OPTIONAL fractional seconds. An
 offset other than `Z` is not permitted.
 
@@ -1280,9 +1268,8 @@ message, which is the one place this corpus compares English.
 For every file in `accept/`, a runner MUST decode it, encode the decoded
 document, and compare the tree parsed from the original file against the tree
 parsed from the encoded output. It MUST NOT be reduced to a comparison of one
-decoded model against another: a reader that discarded every data record, every
-application key and every `notes` field produces a model equal to
-itself. Two normalisations are permitted and no others — trailing `null` channels
+decoded model against another: a reader that discarded every data record and every
+application key produces a model equal to itself. Two normalisations are permitted and no others — trailing `null` channels
 dropped from a position, and an absent container equal to an empty one. The
 second does not apply to an application key or inside its value, which the
 comparison matches exactly (Section 3.9). Files in
@@ -1314,8 +1301,8 @@ the size of an opaque data record.
 
 - [APPNOTE] PKWARE, Inc., ".ZIP File Format Specification", APPNOTE.TXT,
   version 6.3.10, November 2022.
-- [CommonMark] MacFarlane, J., "CommonMark Spec", version 0.31.2, January 2024,
-  <https://spec.commonmark.org/0.31.2/>.
+- [SemVer] Preston-Werner, T., "Semantic Versioning 2.0.0",
+  <https://semver.org/spec/v2.0.0.html>.
 - [RFC 2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement
   Levels", BCP 14, RFC 2119, March 1997.
 - [RFC 6839] Hansen, T. and A. Melnikov, "Additional Media Type Structured

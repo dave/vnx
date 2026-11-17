@@ -64,8 +64,8 @@ Two properties of that order:
 
 `accept/` is the hardest tier and the one to build first. Its comparison is
 against the tree parsed from the original file, never against a second model. A
-reader that discarded every data record, every application key and
-every `notes` produces a model equal to itself and passes a model-versus-model tier
+reader that discarded every data record and every application key produces
+a model equal to itself and passes a model-versus-model tier
 green: the whole extensibility mechanism, all styling and all user prose,
 dropped by an implementation that reports itself conforming. *(Frozen as a
 proof by the Rust, Swift, Python and JavaScript implementations independently.)*
@@ -197,10 +197,7 @@ holding an untyped value is the correct model.
 
 A highlight is a lightweight container for data objects along a walk of its
 network's arcs (`SPEC §3.3.3`). It carries `walk`, an optional `name`,
-`hidden`, `pinned` and `data`, and no notes of its own. A decoder that
-shares one key set across every item, or a model that gives a highlight a
-`notes` field because every other item has one, accepts a `notes` on a
-highlight without a word. `corpus/diagnose/highlight-notes-unknown.vnx` expects
+`hidden`, `pinned` and `data`. A `notes` key is unknown on every object. `corpus/diagnose/highlight-notes-unknown.vnx` expects
 the unrecognised-key diagnostic, and `corpus/accept/highlight-name.vnx` reads a
 named and an unnamed highlight with none.
 

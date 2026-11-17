@@ -58,7 +58,7 @@ spelling from JSON-LD, but a VNX document is not JSON-LD and has no `@context`.
 
 - On a **highlight**, a record applies along the highlight's walk: "this
   stretch is a scramble". This is the main use of highlights. A highlight has
-  no notes, so its records are what it is.
+  no other content, so its records are what it is.
 - On an **arc**, a record applies to that piece of trail itself, whatever walks
   use it: "this arc was routed by an engine".
 - On a **point or area**, a record describes that place.

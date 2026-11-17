@@ -3,7 +3,6 @@
   "points": [
     {
       "name": "Cairn Gorm summit",
-      "notes": "Transpose these and the point lands in the Indian Ocean off Somalia, 8000 km away. Both orderings are valid coordinates, so nothing refuses the swap - only this expectation catches it.",
       "at": [-3.6423, 57.1169, 1245]
     }
   ]

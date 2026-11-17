@@ -20,7 +20,7 @@ too: `6d58c62` removed the check it broke, so its pattern no longer exists.
 
     transpose lon and lat                accept, diagnose, write, unit
     normalise [lon, lat, null]           GREEN, expected (SPEC 8.1 permits it)
-    discard data / app keys / style / notes   accept
+    discard data / app keys / style / name    accept
     answer 0 for an unknown moving time  accept, unit
     skip the unrecognised-key rule       diagnose, unit
     refuse on a newer PATCH too          accept, write, unit
@@ -120,13 +120,13 @@ MUTATIONS = [
         '        let members = self.opt_object(entries, "style", path)?;',
         '        let members = self.opt_object(entries, "style", path)?; if true { return None; }',
     ),
-    # Applied to EVERY host, not just the first: only some hosts carry `notes`
+    # Applied to EVERY host, not just the first: only some hosts carry `name`
     # in the fixtures, and a mutation that misses them all proves nothing.
     (
-        "discard every notes field",
+        "discard every name field",
         "src/decode.rs",
-        '            notes: self.opt_string(entries, "notes", path),',
-        "            notes: None,",
+        '            name: self.opt_string(entries, "name", path),',
+        "            name: None,",
         "all",
     ),
     (
@@ -257,7 +257,7 @@ MUTATIONS = [
     ),
     # SPEC 8.1: the accept tier compares against the ORIGINAL FILE. A
     # comparison that sees nothing passes every reader, including one that threw
-    # away every data record, ruleset, style and `notes`.
+    # away every data record, ruleset, style and `name`.
     (
         "make the tree comparison blind",
         "tests/support/tree.rs",

@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "extreme-numbers",
   "points": [
     {
       "name": "value 0",

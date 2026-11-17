@@ -415,7 +415,7 @@ class AcceptTier(_CorpusCase):
 
         ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER.  A reader that
         discarded every data record, every application key and every
-        `notes` produces a model that compares equal to itself and passes such a
+        `name` produces a model that compares equal to itself and passes such a
         tier green -- that is the whole extensibility mechanism and
         all user prose.  Comparing against the tree parsed from the ORIGINAL
         FILE is what proves a reader kept what it read, and

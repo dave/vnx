@@ -78,27 +78,23 @@ func TestMatrixPlanLosesItsArcBoundaries(t *testing.T) {
 // Row: Folders — "Folder, nesting only".
 //
 // ⚠ THIS CELL IS NOW UNDERSTATED AND T11 SHOULD RATIFY IT WIDER. <Folder> is a
-// KML Feature, so it carries <name>, <description> and <visibility> at no cost,
-// and this writer emits all three. What is genuinely lost is the folder's ID
-// and its data records — nothing a reader of a KML file could use.
-func TestMatrixFolderKeepsTreeNameNotesAndVisibilityAndLosesIdAndData(t *testing.T) {
+// KML Feature, so it carries <name> and <visibility> at no cost, and this
+// writer emits both. What is genuinely lost is the folder's ID — nothing a
+// reader of a KML file could use.
+func TestMatrixFolderKeepsTreeNameAndVisibilityAndLosesId(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
 		Folders: []vnx.Folder{{
-			ID: "f-secret-id", Name: "Cairngorms", Notes: "the big ones", Hidden: true,
-			Data: []vnx.Record{{Type: "app.viatrail.tag", Body: map[string]any{"value": "scotland"}}},
+			ID: "f-secret-id", Name: "Cairngorms", Hidden: true,
 		}},
 		Points: []vnx.Point{{Folder: "f-secret-id", Name: "W", At: pos(1, 2)}},
 	})
-	for _, want := range []string{"<name>Cairngorms</name>", "<description>the big ones</description>", "<visibility>0</visibility>"} {
+	for _, want := range []string{"<name>Cairngorms</name>", "<visibility>0</visibility>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %s\n%s", want, out)
 		}
 	}
 	if strings.Contains(out, "f-secret-id") {
 		t.Errorf("the folder's id reached the file — KML has nowhere to put one\n%s", out)
-	}
-	if strings.Contains(out, "scotland") {
-		t.Errorf("a data record reached the file — that would be an <ExtendedData> extension (§2.3)\n%s", out)
 	}
 }
 
@@ -247,7 +243,7 @@ func TestMatrixTrackPausesPointsAndAreasAreCarriedWhole(t *testing.T) {
 	if !strings.Contains(out, "<Polygon>") || !strings.Contains(out, "<outerBoundaryIs>") {
 		t.Errorf("the area is not a Polygon\n%s", out)
 	}
-	if !strings.Contains(out, "<description>swim here</description>") {
-		t.Errorf("notes did not survive as <description>\n%s", out)
+	if strings.Contains(out, "<description>") {
+		t.Errorf("a <description> was written; VNX has no description to carry\n%s", out)
 	}
 }

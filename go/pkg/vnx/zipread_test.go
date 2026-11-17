@@ -521,7 +521,7 @@ func TestADuplicateNameIsSeenTwice(t *testing.T) {
 func TestADeflatedEntryIsRead(t *testing.T) {
 	// Compressible, and still a document: a deflated entry the decoder rejects
 	// would pass this test for the wrong reason.
-	body := "{\n  \"vnx\": \"0.11.0\",\n  \"generator\": \"" + strings.Repeat("compressible ", 40) + "\"\n}\n"
+	body := "{\n  \"vnx\": \"0.11.0\",\n  \"org.example.pad\": \"" + strings.Repeat("compressible ", 40) + "\"\n}\n"
 	deflated := deflateBytes(t, body)
 	e := entrySpec{name: "doc.vnx", payload: deflated, method: 8}
 	inflated := uint32(len(body))

@@ -207,8 +207,8 @@ writer's own business, and two implementations using their own standard JSON
 libraries differ in all three while carrying the same document.
 
 Compare against the tree parsed from the **file**, never one decoded model
-against another. A reader that discarded every data record, every application key,
-and every `notes` field produces a model that compares equal to itself and
+against another. A reader that discarded every data record and every application key
+produces a model that compares equal to itself and
 passes this tier on the sidecar assertions alone. The tree comparison is what
 proves a reader kept what it read, including data records of types no
 implementation recognises.

@@ -1,18 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "data-records",
-  "folders": [
-    {
-      "id": "f",
-      "name": "carrier",
-      "data": [
-        {
-          "@type": "t/folder",
-          "value": 1
-        }
-      ]
-    }
-  ],
   "points": [
     {
       "name": "w",

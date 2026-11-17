@@ -213,14 +213,14 @@ func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 	}
 }
 
-// The scalar half. An empty header field is absent, not "", and the four are
-// written in the order [Document] declares them.
-func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
+// The scalar half. A document with no content is its version and nothing
+// else: the format has no other document-level field (§3.1).
+func TestEncodeToWritesOnlyTheVersionForAnEmptyDocument(t *testing.T) {
 	var b bytes.Buffer
-	if err := EncodeTo(&b, &Document{Version: "0.11.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
+	if err := EncodeTo(&b, &Document{Version: "0.11.0"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\"vnx\":\"0.11.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
+	want := "{\"vnx\":\"0.11.0\"}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}

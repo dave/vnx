@@ -268,9 +268,6 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 		}
 		depth := map[string]int{}
 		for _, fo := range d.Folders {
-			if len(fo.Data) > 0 {
-				dataRecord = true
-			}
 			if fo.Parent == "" {
 				depth[fo.ID] = 1
 			} else {
@@ -502,20 +499,15 @@ func corpusOracleCases(t *testing.T) []oracleCase {
 func generatedOracleCases() []oracleCase {
 	return []oracleCase{
 		{"empty-document", &Document{}},
-		{"scalars-only", &Document{
-			Version:   "0.11.0",
-			Generator: "viatrail/oracle",
-			Created:   "2026-09-02T10:00:00Z",
-		}},
+		{"scalars-only", &Document{Version: "0.11.0"}},
 		{"every-collection-empty-slice", &Document{
-			Generator: "empty-slices",
-			Folders:   []Folder{},
-			Points:    []Point{},
-			Areas:     []Area{},
-			Tracks:    []Track{},
-			Plans:     []Plan{},
-			Networks:  []Network{},
-			AppKeys:   []AppKey{},
+			Folders:  []Folder{},
+			Points:   []Point{},
+			Areas:    []Area{},
+			Tracks:   []Track{},
+			Plans:    []Plan{},
+			Networks: []Network{},
+			AppKeys:  []AppKey{},
 		}},
 		{"folders-deeply-nested", oracleFolders()},
 		{"points", oraclePoints()},
@@ -527,8 +519,8 @@ func generatedOracleCases() []oracleCase {
 		{"single-element-and-empty-arrays", oracleDegenerateArrays()},
 		{"application-keys", oracleAppKeys()},
 		{"data-records-everywhere", oracleData()},
-		{"network-full", &Document{Generator: "network-full", Networks: []Network{oracleNetwork()}}},
-		{"network-minimal", &Document{Generator: "network-minimal", Networks: []Network{{Name: "bare"}}}},
+		{"network-full", &Document{Networks: []Network{oracleNetwork()}}},
+		{"network-minimal", &Document{Networks: []Network{{Name: "bare"}}}},
 		{"areas", oracleAreas()},
 		{"track-timestamps", oracleTrackTimestamps()},
 		{"every-collection-populated", oracleEverything()},
@@ -536,7 +528,7 @@ func generatedOracleCases() []oracleCase {
 }
 
 func oracleFolders() *Document {
-	d := &Document{Generator: "folders"}
+	d := &Document{}
 	// Six levels: the deepest indentation any folder chain produces, and the
 	// case a flat two-level fixture cannot reach.
 	parent := ""
@@ -551,10 +543,8 @@ func oracleFolders() *Document {
 	}
 	d.Folders = append(d.Folders,
 		Folder{ID: "hidden", Name: "hidden one", Parent: "f6", Hidden: true},
-		Folder{ID: "noted", Name: "Grüße 🏔️", Notes: "notes on a folder", Parent: "f1"},
-		Folder{ID: "carrier", Name: "مسار الجبل", Parent: "", Data: []Record{
-			{Type: "app.viatrail.test/colour", Body: map[string]any{"value": "#ff8800"}},
-		}},
+		Folder{ID: "noted", Name: "Grüße 🏔️", Parent: "f1"},
+		Folder{ID: "carrier", Name: "مسار الجبل", Parent: ""},
 		// Nothing but an id: every optional key omitted.
 		Folder{ID: "bare"},
 	)
@@ -564,10 +554,9 @@ func oracleFolders() *Document {
 func oraclePoints() *Document {
 	at := Position{Lon: -3.6712, Lat: 57.1180}
 	return &Document{
-		Generator: "points",
 		Points: []Point{
 			{Name: "plain point", At: at},
-			{Name: "hidden point", At: at, Hidden: true, Folder: "somewhere", Notes: "note"},
+			{Name: "hidden point", At: at, Hidden: true, Folder: "somewhere"},
 		},
 	}
 }
@@ -575,11 +564,11 @@ func oraclePoints() *Document {
 func oracleUnicode() *Document {
 	at := Position{Lon: 1.5, Lat: 2.5}
 	return &Document{
-		Generator: "unicode",
 		Points: []Point{
 			{Name: "Grüße aus München 🏔️", At: at},
 			{Name: "日本語のトレイル", At: at},
-			{Name: "مسار الجبل الأحمر", Notes: "עברית", At: at},
+			{Name: "مسار الجبل الأحمر", At: at},
+			{Name: "עברית", At: at},
 			// json.Marshal HTML-escapes these; freezing that is the point.
 			{Name: `<script>alert("x") & 'y'</script>`, At: at},
 			{Name: "quote \" backslash \\ slash / tab \t newline \n", At: at},
@@ -593,7 +582,6 @@ func oracleUnicode() *Document {
 func oracleNegativeZero() *Document {
 	nz := negZero()
 	return &Document{
-		Generator: "negative-zero",
 		Points: []Point{
 			// Null Island, spelled with the sign bit set on both channels.
 			{Name: "signed zero position", At: Position{Lon: nz, Lat: nz}},
@@ -630,7 +618,7 @@ func oracleExtremeNumbers() *Document {
 		0.1,
 		1.0 / 3.0,
 	}
-	d := &Document{Generator: "extreme-numbers"}
+	d := &Document{}
 	for n, v := range vals {
 		ele := v
 		d.Points = append(d.Points, Point{
@@ -653,7 +641,6 @@ func oracleExtremeNumbers() *Document {
 // internal MinInt64 sentinel must never reach the wire for exactly this reason.
 func oracleBigInt64() *Document {
 	return &Document{
-		Generator: "big-int64",
 		Tracks: []Track{{
 			Name: "times around 2^53",
 			Segments: []Segment{{Pips: []Position{
@@ -670,7 +657,6 @@ func oracleBigInt64() *Document {
 func oracleTiming() *Document {
 	e := 340.5
 	return &Document{
-		Generator: "timing",
 		Tracks: []Track{{
 			Name:    "mixed timing",
 			Started: TimestampOf(utc("2026-05-11T09:00:00Z")),
@@ -701,7 +687,6 @@ func oracleTiming() *Document {
 
 func oracleDegenerateArrays() *Document {
 	return &Document{
-		Generator: "degenerate-arrays",
 		Tracks: []Track{
 			{Name: "no segments", Segments: []Segment{}},
 			{Name: "one empty segment", Segments: []Segment{{}}},
@@ -733,7 +718,6 @@ func oracleAppKeys() *Document {
 	// application key from absent-equals-empty, so a writer that skipped a key
 	// holding null, [] or {} would drop content; each must come back.
 	return &Document{
-		Generator: "application-keys",
 		AppKeys: []AppKey{{Key: "app.viatrail.rulesets", Value: []any{
 			map[string]any{
 				"id":   "r1",
@@ -772,8 +756,6 @@ func oracleData() *Document {
 		"@extra": "a sigil that is not @type",
 	})
 	return &Document{
-		Generator: "data-records",
-		Folders:   []Folder{{ID: "f", Name: "carrier", Data: []Record{rec("t/folder", map[string]any{"value": 1.0})}}},
 		Points: []Point{{Name: "w", At: Position{Lon: 1, Lat: 2}, Data: []Record{
 			rec("t/point", map[string]any{"value": "x"}),
 			// A record with NO body beyond its @type.
@@ -806,7 +788,6 @@ func oracleData() *Document {
 func oracleNetwork() Network {
 	n := Network{
 		Name:   "eight by eight",
-		Notes:  "enough map entries that iteration order can differ",
 		Folder: "nets",
 		Nodes:  map[string]Vertex{},
 		Arcs:   map[string]Arc{},
@@ -872,12 +853,11 @@ func oracleAreas() *Document {
 		{Lon: 0.3, Lat: 0.4, Ele: &ele, Time: i(1778569393000)},
 	}
 	return &Document{
-		Generator: "areas",
 		Areas: []Area{
 			{Name: "plain ring", Polygon: ring},
 			// An area ring whose positions carry elevation and time: the
 			// position writer does not care which collection it is in.
-			{Name: "timed ring", Notes: "ملاحظات", Hidden: true, Folder: "f", Polygon: timed},
+			{Name: "timed ring", Hidden: true, Folder: "f", Polygon: timed},
 		},
 	}
 }
@@ -885,7 +865,6 @@ func oracleAreas() *Document {
 func oracleTrackTimestamps() *Document {
 	pips := []Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}
 	return &Document{
-		Generator: "track-timestamps",
 		Tracks: []Track{
 			// Whole seconds: no fractional part emitted (encode.go:203-211).
 			{Name: "whole seconds", Started: TimestampOf(utc("2026-01-02T03:04:05Z")), Ended: TimestampOf(utc("2026-01-02T04:05:06Z")),
@@ -905,11 +884,7 @@ func oracleTrackTimestamps() *Document {
 
 // The one case where every top-level collection is non-empty at once.
 func oracleEverything() *Document {
-	d := &Document{
-		Version:   "0.11.0",
-		Generator: "viatrail/oracle everything",
-		Created:   "2026-09-02T12:00:00Z",
-	}
+	d := &Document{Version: "0.11.0"}
 	d.Folders = oracleFolders().Folders
 	d.Points = oraclePoints().Points
 	d.Areas = oracleAreas().Areas
@@ -987,9 +962,6 @@ func eachData(d *Document, fn func(Record)) {
 		for _, r := range rs {
 			fn(r)
 		}
-	}
-	for _, f := range d.Folders {
-		emit(f.Data)
 	}
 	for _, w := range d.Points {
 		emit(w.Data)

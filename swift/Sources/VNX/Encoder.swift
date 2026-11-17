@@ -3,11 +3,10 @@ import Foundation
 /// Turns a `Document` into the JSON tree a writer emits.
 ///
 /// This is a reconstruction from the model, not a reformat of the bytes the
-/// reader was handed. SPEC 8.1 rules the second one out and says why: it "never
-/// builds a model, so it cannot observe anything about what a model kept — a
-/// reader that discarded every data record, every application key and every
-/// `notes` passes such a check". Everything below therefore has to come
-/// out of the model or it is gone.
+/// reader was handed. SPEC 8.1 rules the second one out: it never builds a
+/// model, so it cannot observe what a model kept, and a reader that discarded
+/// every data record and every application key would pass it. Everything
+/// below therefore has to come out of the model or it is gone.
 ///
 /// There is ONE emit path. The format defines no byte layout, so nothing here
 /// wants an unrounded, unshortened emit: every caller turns a model into a
@@ -15,8 +14,6 @@ import Foundation
 enum DocumentEncoder {
   static func encode(_ d: Document) throws -> JSONValue {
     var o: [JSONKey: JSONValue] = ["vnx": .string(d.vnx)]
-    put(&o, "generator", d.generator)
-    put(&o, "created", d.created)
     putArray(&o, "folders", d.folders) { folder($0) }
     try putArray(&o, "networks", d.networks) { try network($0) }
     try putArray(&o, "plans", d.plans) { try plan($0) }
@@ -47,16 +44,13 @@ enum DocumentEncoder {
     var o: [JSONKey: JSONValue] = ["id": .string(f.id)]
     put(&o, "parent", f.parent)
     put(&o, "name", f.name)
-    put(&o, "notes", f.notes)
     putHidden(&o, f.hidden)
-    putData(&o, f.data)
     return .object(o)
   }
 
   private static func point(_ w: Point, allowsFolder: Bool) -> JSONValue {
     var o: [JSONKey: JSONValue] = ["at": position(w.at)]
     put(&o, "name", w.name)
-    put(&o, "notes", w.notes)
     if allowsFolder { put(&o, "folder", w.folder) }
     putHidden(&o, w.hidden)
     put(&o, "pinned", w.pinned)
@@ -68,7 +62,6 @@ enum DocumentEncoder {
     try checkRing(a.polygon, name: a.name)
     var o: [JSONKey: JSONValue] = ["polygon": .array(a.polygon.map { position($0) })]
     put(&o, "name", a.name)
-    put(&o, "notes", a.notes)
     if allowsFolder { put(&o, "folder", a.folder) }
     putHidden(&o, a.hidden)
     put(&o, "pinned", a.pinned)
@@ -98,7 +91,6 @@ enum DocumentEncoder {
   private static func network(_ n: Network) throws -> JSONValue {
     var o: [JSONKey: JSONValue] = [:]
     put(&o, "name", n.name)
-    put(&o, "notes", n.notes)
     put(&o, "folder", n.folder)
     putHidden(&o, n.hidden)
     put(&o, "pinned", n.pinned)
@@ -220,7 +212,6 @@ enum DocumentEncoder {
     var o: [JSONKey: JSONValue] = ["walk": walk(r.walk)]
     try putGraph(&o, nodes: r.nodes, arcs: r.arcs, owner: owner)
     put(&o, "name", r.name)
-    put(&o, "notes", r.notes)
     put(&o, "folder", r.folder)
     putHidden(&o, r.hidden)
     put(&o, "pinned", r.pinned)
@@ -237,7 +228,6 @@ enum DocumentEncoder {
       "segments": .array(t.segments.map { .object(["pips": .array($0.pips.map { position($0) })]) })
     ]
     put(&o, "name", t.name)
-    put(&o, "notes", t.notes)
     put(&o, "folder", t.folder)
     putHidden(&o, t.hidden)
     put(&o, "pinned", t.pinned)

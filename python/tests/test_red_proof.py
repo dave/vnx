@@ -476,7 +476,7 @@ class RedProof(unittest.TestCase):
         """⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE.
 
         A reader that discarded every data record, every application key or
-        every `notes` produces a model that compares equal to itself.  That is
+        every `name` produces a model that compares equal to itself.  That is
         the whole extensibility mechanism and all user prose,
         silently droppable by a "conforming" implementation.
 
@@ -1160,12 +1160,12 @@ def _drops_app_keys() -> Any:
     return mock.patch.object(decode._Reader, "document", forgetful)
 
 
-def _drops_notes() -> Any:
-    """A reader that discards every `notes` field (SPEC 3.2)."""
+def _drops_names() -> Any:
+    """A reader that discards every `name` field (SPEC 3.10)."""
     original = decode._Reader._string
 
     def forgetful(self: Any, obj: Any, key: str, path: str, *args: Any) -> Any:
-        if key == "notes":
+        if key == "name":
             return None
         return original(self, obj, key, path, *args)
 
@@ -1175,7 +1175,7 @@ def _drops_notes() -> Any:
 _SPOILED_READERS = (
     ("discards every data record", _drops_data),
     ("discards every application key", _drops_app_keys),
-    ("discards every `notes`", _drops_notes),
+    ("discards every `name`", _drops_names),
 )
 
 

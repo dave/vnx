@@ -825,20 +825,102 @@ class Graphs(unittest.TestCase):
 class Timestamps(unittest.TestCase):
     """SPEC 4.3.  The corpus carries one offset timestamp on a track."""
 
+    @staticmethod
+    def track(started: str) -> str:
+        return (
+            '{"vnx": "0.11.0", "tracks": [{"started": "%s", "segments": '
+            '[{"pips": [[0, 0], [1, 1]]}]}]}' % started
+        )
+
     def test_fractional_seconds_are_accepted(self) -> None:
-        result = read('{"vnx": "0.11.0", "created": "2026-08-31T06:45:12.5Z"}')
+        result = read(self.track("2026-08-31T06:45:12.5Z"))
         self.assertEqual(messages(result), [])
 
     def test_a_bare_date_is_dropped(self) -> None:
-        result = read('{"vnx": "0.11.0", "created": "2026-08-31"}')
+        result = read(self.track("2026-08-31"))
         self.assertEqual(
-            messages(result), [("/created", "must be UTC with a Z suffix")]
+            messages(result), [("/tracks/0/started", "must be UTC with a Z suffix")]
         )
-        self.assertIsNone(result.document.created)
+        assert result.document.tracks is not None
+        self.assertIsNone(result.document.tracks[0].started)
 
     def test_a_lower_case_z_is_dropped(self) -> None:
-        result = read('{"vnx": "0.11.0", "created": "2026-08-31T06:45:12z"}')
+        result = read(self.track("2026-08-31T06:45:12z"))
         self.assertEqual(len(result.diagnostics), 1)
+
+
+class RemovedKeys(unittest.TestCase):
+    """SPEC 3.10: `notes` on any object, `data` on a folder, and the document's
+    `created` and `generator` are not keys of this format.  Each is an
+    unrecognised key: reported as `unknown-key`, skipped, and the object that
+    carries it is kept."""
+
+    def test_document_created_and_generator_are_unknown(self) -> None:
+        result = read(
+            '{"vnx": "0.11.0", "created": "2026-08-31T06:45:12Z", "generator": "x 1.0"}'
+        )
+        self.assertEqual(
+            codes(result), [("/created", "unknown-key"), ("/generator", "unknown-key")]
+        )
+        self.assertFalse(hasattr(result.document, "created"))
+        self.assertFalse(hasattr(result.document, "generator"))
+
+    def test_folder_data_and_notes_are_unknown_and_the_folder_is_kept(self) -> None:
+        result = read(
+            '{"vnx": "0.11.0", "folders": [{"id": "f", "name": "F", '
+            '"notes": "n", "data": [{"@type": "x.y"}]}]}'
+        )
+        self.assertEqual(
+            codes(result),
+            [("/folders/0/data", "unknown-key"), ("/folders/0/notes", "unknown-key")],
+        )
+        assert result.document.folders is not None
+        self.assertEqual(len(result.document.folders), 1)
+        self.assertEqual(result.document.folders[0].name, "F")
+        self.assertFalse(hasattr(result.document.folders[0], "data"))
+
+    def test_notes_is_unknown_on_every_item_and_the_item_is_kept(self) -> None:
+        ring = "[[0, 0], [1, 0], [1, 1]]"
+        result = read(
+            '{"vnx": "0.11.0", '
+            '"networks": [{"name": "N", "notes": "n", '
+            '"points": [{"at": [0, 0], "name": "NP", "notes": "n"}], '
+            '"areas": [{"polygon": ' + ring + ', "name": "NA", "notes": "n"}]}], '
+            '"plans": [{"name": "P", "notes": "n", "walk": []}], '
+            '"tracks": [{"name": "T", "notes": "n", "segments": []}], '
+            '"points": [{"at": [0, 0], "name": "Pt", "notes": "n"}], '
+            '"areas": [{"polygon": ' + ring + ', "name": "A", "notes": "n"}]}'
+        )
+        self.assertEqual(
+            codes(result),
+            sorted(
+                (path, "unknown-key")
+                for path in (
+                    "/networks/0/notes",
+                    "/networks/0/points/0/notes",
+                    "/networks/0/areas/0/notes",
+                    "/plans/0/notes",
+                    "/tracks/0/notes",
+                    "/points/0/notes",
+                    "/areas/0/notes",
+                )
+            ),
+        )
+        d = result.document
+        assert d.networks and d.plans and d.tracks and d.points and d.areas
+        assert d.networks[0].points and d.networks[0].areas
+        names = [
+            d.networks[0].name,
+            d.networks[0].points[0].name,
+            d.networks[0].areas[0].name,
+            d.plans[0].name,
+            d.tracks[0].name,
+            d.points[0].name,
+            d.areas[0].name,
+        ]
+        self.assertEqual(names, ["N", "NP", "NA", "P", "T", "Pt", "A"])
+        for item in (d.networks[0], d.plans[0], d.tracks[0], d.points[0], d.areas[0]):
+            self.assertFalse(hasattr(item, "notes"))
 
 
 class MovingTime(unittest.TestCase):

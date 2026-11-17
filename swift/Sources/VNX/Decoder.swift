@@ -56,8 +56,6 @@ final class DocumentDecoder {
     report(unknownKeysIn: top, recognised: Keys.isDocumentKey, at: "")
 
     var document = Document(vnx: versionText)
-    document.generator = optionalString(top, "generator", at: "")
-    document.created = optionalTimestamp(top, "created", at: "")
 
     var wire = WirePaths()
     var folderIDs = Set<String>()
@@ -182,9 +180,7 @@ final class DocumentDecoder {
     var folder = Folder(id: id)
     folder.parent = optionalString(o, "parent", at: path)
     folder.name = optionalString(o, "name", at: path)
-    folder.notes = optionalString(o, "notes", at: path)
     folder.hidden = optionalBool(o, "hidden", at: path)
-    folder.data = dataRecords(o, at: path)
     return folder
   }
 
@@ -204,7 +200,6 @@ final class DocumentDecoder {
     }
     var w = Point(at: at)
     w.name = optionalString(o, "name", at: path)
-    w.notes = optionalString(o, "notes", at: path)
     if allowsFolder { w.folder = optionalString(o, "folder", at: path) }
     w.hidden = optionalBool(o, "hidden", at: path)
     w.pinned = optionalTimestamp(o, "pinned", at: path)
@@ -220,7 +215,6 @@ final class DocumentDecoder {
     guard let polygon = ring(o, at: path) else { return nil }
     var a = Area(polygon: polygon)
     a.name = optionalString(o, "name", at: path)
-    a.notes = optionalString(o, "notes", at: path)
     if allowsFolder { a.folder = optionalString(o, "folder", at: path) }
     a.hidden = optionalBool(o, "hidden", at: path)
     a.pinned = optionalTimestamp(o, "pinned", at: path)
@@ -299,7 +293,6 @@ final class DocumentDecoder {
     plan.nodes = decodeNodes(o, at: path)
     plan.arcs = decodeArcs(o, at: path, nodes: plan.nodes ?? [:])
     plan.name = optionalString(o, "name", at: path)
-    plan.notes = optionalString(o, "notes", at: path)
     plan.folder = optionalString(o, "folder", at: path)
     plan.hidden = optionalBool(o, "hidden", at: path)
     plan.pinned = optionalTimestamp(o, "pinned", at: path)
@@ -338,7 +331,6 @@ final class DocumentDecoder {
     }
     var track = Track(segments: segments)
     track.name = optionalString(o, "name", at: path)
-    track.notes = optionalString(o, "notes", at: path)
     track.folder = optionalString(o, "folder", at: path)
     track.hidden = optionalBool(o, "hidden", at: path)
     track.pinned = optionalTimestamp(o, "pinned", at: path)
@@ -356,7 +348,6 @@ final class DocumentDecoder {
 
     var network = Network()
     network.name = optionalString(o, "name", at: path)
-    network.notes = optionalString(o, "notes", at: path)
     network.folder = optionalString(o, "folder", at: path)
     network.hidden = optionalBool(o, "hidden", at: path)
     network.pinned = optionalTimestamp(o, "pinned", at: path)
@@ -805,7 +796,7 @@ final class DocumentDecoder {
     return out
   }
 
-  /// SPEC 4.3: `created`, `started`, `ended` and `pinned` are ISO 8601 in UTC with a
+  /// SPEC 4.3: `started`, `ended` and `pinned` are ISO 8601 in UTC with a
   /// literal `Z` and OPTIONAL fractional seconds. An offset other than `Z` is
   /// an unusable value in an optional key, so the field goes and the item —
   /// every pip of a track, in the corpus case — stays.

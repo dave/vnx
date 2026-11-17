@@ -116,8 +116,6 @@ export function emitDocument(doc) {
   // SPEC.md 2.2: a reader that re-encodes a document writes the version the
   // DOCUMENT declared, not the reader's own.
   o.vnx = doc.vnx;
-  put(o, 'generator', doc.generator);
-  put(o, 'created', doc.created);
   if (doc.folders !== undefined) o.folders = doc.folders.map((f) => emitFolder(f));
   if (doc.networks !== undefined) o.networks = doc.networks.map((n) => emitNetwork(n));
   if (doc.plans !== undefined) o.plans = doc.plans.map((r) => emitPlan(r));
@@ -154,9 +152,7 @@ function emitFolder(f) {
   const o = { id: f.id };
   put(o, 'parent', f.parent);
   put(o, 'name', f.name);
-  put(o, 'notes', f.notes);
   putHidden(o, f.hidden);
-  put(o, 'data', f.data);
   return o;
 }
 
@@ -205,7 +201,6 @@ function emitWalk(walk, arcs, plan, owner) {
 function emitNetwork(n) {
   const o = {};
   put(o, 'name', n.name);
-  put(o, 'notes', n.notes);
   put(o, 'folder', n.folder);
   putHidden(o, n.hidden);
   put(o, 'pinned', n.pinned);
@@ -233,7 +228,6 @@ function emitHighlight(c, arcs, owner) {
 function emitPlan(r) {
   const o = {};
   put(o, 'name', r.name);
-  put(o, 'notes', r.notes);
   put(o, 'folder', r.folder);
   putHidden(o, r.hidden);
   put(o, 'pinned', r.pinned);
@@ -248,7 +242,6 @@ function emitPlan(r) {
 function emitTrack(t) {
   const o = {};
   put(o, 'name', t.name);
-  put(o, 'notes', t.notes);
   put(o, 'folder', t.folder);
   put(o, 'started', t.started);
   put(o, 'ended', t.ended);
@@ -262,7 +255,6 @@ function emitTrack(t) {
 function emitPointLike(w) {
   const o = {};
   put(o, 'name', w.name);
-  put(o, 'notes', w.notes);
   put(o, 'folder', w.folder);
   putHidden(o, w.hidden);
   put(o, 'pinned', w.pinned);
@@ -274,7 +266,6 @@ function emitPointLike(w) {
 function emitArea(a) {
   const o = {};
   put(o, 'name', a.name);
-  put(o, 'notes', a.notes);
   put(o, 'folder', a.folder);
   putHidden(o, a.hidden);
   put(o, 'pinned', a.pinned);

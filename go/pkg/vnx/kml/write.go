@@ -59,7 +59,15 @@ const RootDocumentName = "doc.kml"
 // Placemark named by its bare label ([vnx.LabelNetwork]: the item's own name,
 // or an integer unique within the network when it has none).
 func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
-	x := &writer{w: vnx.Stick(w), d: d}
+	return WriteWith(w, d, vnx.WriteOptions{})
+}
+
+// WriteWith is [Write] with options. o.Describe gives each written folder,
+// network <Folder> and Placemark its <description>; with no Describe,
+// nothing has one. A network's arcs Placemark never has one: the network's
+// <Folder> carries it.
+func WriteWith(w io.Writer, d *vnx.Document, o vnx.WriteOptions) (vnx.WriteReport, error) {
+	x := &writer{w: vnx.Stick(w), d: d, opts: o}
 	x.document()
 	if err := x.w.Err(); err != nil {
 		return vnx.WriteReport{}, err
@@ -73,6 +81,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 type writer struct {
 	w      *vnx.StickyWriter
 	d      *vnx.Document
+	opts   vnx.WriteOptions
 	depth  int
 	report vnx.WriteReport
 	// err is the first geometry that could not be resolved: a walk or an arc
@@ -123,7 +132,7 @@ func (x *writer) bucket(l *layout, b *bucket, homeless bool) {
 	for _, i := range b.points {
 		path := fmt.Sprintf("/points/%d", i)
 		x.homeless(homeless, path, x.d.Points[i].Name)
-		x.point(x.d.Points[i])
+		x.point(x.d.Points[i], x.d.Points[i].Name, path)
 	}
 	for _, i := range b.areas {
 		path := fmt.Sprintf("/areas/%d", i)
@@ -177,7 +186,7 @@ func (x *writer) homeless(on bool, path, name string) {
 func (x *writer) folder(l *layout, i int) {
 	f := x.d.Folders[i]
 	x.open("Folder", "")
-	x.feature(f.Name, f.Notes, f.Hidden)
+	x.feature(f.Name, f.Hidden, x.describe(vnx.ItemFolder, fmt.Sprintf("/folders/%d", i), f.Name, nil))
 	if b := l.byIndex[i]; b != nil {
 		x.bucket(l, b, false)
 	}
@@ -193,21 +202,33 @@ func (x *writer) folder(l *layout, i int) {
 // Absent values are omitted rather than written empty. <visibility> appears
 // only to say 0: 1 is KML's default and writing it everywhere would treble the
 // noise in a file people read.
-func (x *writer) feature(name, notes string, hidden bool) {
+func (x *writer) feature(name string, hidden bool, description string) {
 	if name != "" {
 		x.leaf("name", name)
 	}
 	if hidden {
 		x.leaf("visibility", "0")
 	}
-	if notes != "" {
-		x.leaf("description", notes)
+	if description != "" {
+		x.leaf("description", description)
 	}
 }
 
-func (x *writer) point(p vnx.Point) {
+// describe is the item's description from the caller's Describe, "" when
+// there is none. A failure is latched and fails the write.
+func (x *writer) describe(kind vnx.ItemKind, path, name string, data []vnx.Record) string {
+	desc, err := x.opts.Description(vnx.DescribedItem{Kind: kind, Path: path, Name: name, Data: data})
+	if err != nil {
+		x.fail(fmt.Errorf("kml: %w", err))
+	}
+	return desc
+}
+
+// point writes p as a Placemark named label: its own name at the top level,
+// its network label inside a network.
+func (x *writer) point(p vnx.Point, label, path string) {
 	x.open("Placemark", "")
-	x.feature(p.Name, p.Notes, p.Hidden)
+	x.feature(label, p.Hidden, x.describe(vnx.ItemPoint, path, p.Name, p.Data))
 	x.open("Point", "")
 	x.coordinates([]vnx.Position{p.At})
 	x.close("Point")
@@ -224,7 +245,7 @@ func (x *writer) area(a vnx.Area, path string) {
 		x.diag(vnx.CodeItemNoGeometry, path, a.Name, ringProblem(a.Polygon))
 		return
 	}
-	x.areaPlacemark(a, ring)
+	x.areaPlacemark(a, a.Name, path, ring)
 }
 
 // ringProblem says which of closedRing's two rules a ring broke.
@@ -239,9 +260,9 @@ func ringProblem(ring []vnx.Position) string {
 // shared by the top-level areas and the in-network ones, so the two cannot
 // drift apart on visibility — the in-network ones only started carrying it
 // when §2.6's redesign gave them a Placemark of their own.
-func (x *writer) areaPlacemark(a vnx.Area, ring []vnx.Position) {
+func (x *writer) areaPlacemark(a vnx.Area, label, path string, ring []vnx.Position) {
 	x.open("Placemark", "")
-	x.feature(a.Name, a.Notes, a.Hidden)
+	x.feature(label, a.Hidden, x.describe(vnx.ItemArea, path, a.Name, a.Data))
 	x.polygon(ring)
 	x.close("Placemark")
 	x.report.Emitted++
@@ -294,7 +315,7 @@ func (x *writer) track(t vnx.Track, path string) {
 			"segment has fewer than two pips and cannot be a LineString")
 	}
 	x.open("Placemark", "")
-	x.feature(t.Name, t.Notes, t.Hidden)
+	x.feature(t.Name, t.Hidden, x.describe(vnx.ItemTrack, path, t.Name, t.Data))
 	x.open("MultiGeometry", "")
 	for _, line := range lines {
 		x.lineString(line)
@@ -315,7 +336,7 @@ func (x *writer) plan(r vnx.Plan, path string) {
 		return
 	}
 	x.open("Placemark", "")
-	x.feature(r.Name, r.Notes, r.Hidden)
+	x.feature(r.Name, r.Hidden, x.describe(vnx.ItemPlan, path, r.Name, r.Data))
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++
@@ -334,7 +355,7 @@ func (x *writer) plan(r vnx.Plan, path string) {
 // ⚠ POINTS, AREAS AND HIGHLIGHTS ARE PLACEMARKS OF THEIR OWN BECAUSE A PLACEMARK HAS
 // ONE NAME AND ONE VISIBILITY. vnx.Arc carries neither — it is pure geometry —
 // while Network.Points are full vnx.Points and Network.Areas full vnx.Areas,
-// each with Name, Notes AND Hidden. Until this redesign all three fields were
+// each with Name AND Hidden. Until this redesign both fields were
 // destroyed on every one of them: they rode as
 // bare geometry inside the network's shared MultiGeometry. Folding any of them
 // back in would destroy them again, silently.
@@ -401,17 +422,17 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 	}
 
 	x.open("Folder", "")
-	// The Folder is where the network's own name, notes and visibility live.
+	// The Folder is where the network's own name and visibility live.
 	// KML visibility inherits down the tree, so hiding the network here hides
 	// everything inside it and no child has to repeat the state.
-	x.feature(n.Name, n.Notes, n.Hidden)
+	x.feature(n.Name, n.Hidden, x.describe(vnx.ItemNetwork, path, n.Name, n.Data))
 	if len(lines) > 0 {
-		// ⚠ NO <description> AND NO <visibility> HERE. Both belong to the Folder
-		// above; repeating the notes would show them twice in Google Earth's
-		// sidebar, and repeating the visibility would say nothing the folder has
-		// not already said.
+		// ⚠ NO <visibility> AND NO <description> HERE. Both belong to the
+		// Folder above; repeating the description would show it twice in
+		// Google Earth's sidebar, and repeating the visibility would say
+		// nothing the folder has not already said.
 		x.open("Placemark", "")
-		x.feature(n.Name, "", false)
+		x.feature(n.Name, false, "")
 		x.open("MultiGeometry", "")
 		for _, line := range lines {
 			x.lineString(line)
@@ -422,13 +443,10 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 	}
 	// Each item is named by its label (an integer when it has no name).
 	for j, p := range n.Points {
-		p.Name = labels.Points[j]
-		x.point(p)
+		x.point(p, labels.Points[j], fmt.Sprintf("%s/points/%d", path, j))
 	}
 	for _, i := range areaOrder {
-		a := n.Areas[i]
-		a.Name = labels.Areas[i]
-		x.areaPlacemark(a, drawableAreas[i])
+		x.areaPlacemark(n.Areas[i], labels.Areas[i], fmt.Sprintf("%s/areas/%d", path, i), drawableAreas[i])
 	}
 	for i, c := range n.Highlights {
 		x.highlight(c, i, labels.Highlights[i], fmt.Sprintf("%s/highlights/%d", path, i), n)
@@ -437,8 +455,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 }
 
 // highlight writes one Placemark for a highlight, named by label: its name, or
-// its integer within the network ([vnx.LabelNetwork]). A highlight has no notes
-// of its own (§3.3.3), so the Placemark carries none.
+// its integer within the network ([vnx.LabelNetwork]).
 //
 // ⚠ THE LABEL IS BARE. Before the 2026-09-03 redesign it was
 // "Network / Highlight", because the network was a Placemark and nesting could not
@@ -464,7 +481,7 @@ func (x *writer) highlight(c vnx.Highlight, j int, label, path string, n vnx.Net
 		return
 	}
 	x.open("Placemark", "")
-	x.feature(label, "", c.Hidden)
+	x.feature(label, c.Hidden, x.describe(vnx.ItemHighlight, path, c.Name, c.Data))
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++

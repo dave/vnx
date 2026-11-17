@@ -1,0 +1,39 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "The format has no `created` or `generator` on the document, no `notes` on any object, and no `data` on a folder (SPEC 3.1, 3.10). Each is an unrecognised key (SPEC 6.2): diagnose it at its path, skip the key, keep the object. A reader that recognises any of them reports fewer than four diagnostics here. `created` holds a well-formed UTC timestamp, so a reader that checks it as a timestamp and not as an unknown key reports nothing at `/created`. The point's own `data` record is recognised and raises nothing, so a reader that drops `data` from every item, not only from a folder, loses the record and fails the tree of a write; `counts` pins the folder and the point that survive, and the point's position shows the point was read. The schema leaves the document, a folder and a point open to other keys, so the file is valid there.",
+  "counts": {
+    "folders": 1,
+    "points": 1
+  },
+  "positions": [
+    {"at": "/points/0/at", "lon": -3.675, "lat": 57.1201}
+  ],
+  "diagnostics": [
+    {
+      "path": "/created",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    },
+    {
+      "path": "/generator",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    },
+    {
+      "path": "/folders/0/notes",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    },
+    {
+      "path": "/folders/0/data",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    },
+    {
+      "path": "/points/0/notes",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    }
+  ]
+}

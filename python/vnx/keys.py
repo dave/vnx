@@ -41,8 +41,6 @@ __all__ = [
 DOCUMENT = frozenset(
     {
         "vnx",
-        "generator",
-        "created",
         "folders",
         "networks",
         "plans",
@@ -52,17 +50,15 @@ DOCUMENT = frozenset(
     }
 )
 
-# SPEC 3.10.  `notes` and `data` were missing from this implementation's reading
-# -- neither appears in SPEC 3.2's example -- and the published table has both.
+# SPEC 3.10.  A folder carries only its id, parent, name and hidden: no `data`.
 # A folder places itself with `parent`, never with `folder`.
-FOLDER = frozenset({"id", "parent", "name", "notes", "hidden", "data"})
+FOLDER = frozenset({"id", "parent", "name", "hidden"})
 
 # SPEC 3.3, plus `folder` (SPEC 3.2), and `hidden` and `pinned` (SPEC 3.8).
 NETWORK = frozenset(
     {
         "folder",
         "name",
-        "notes",
         "hidden",
         "pinned",
         "nodes",
@@ -80,7 +76,7 @@ NETWORK = frozenset(
 ARC = frozenset({"from", "to", "pips", "data"})
 
 # SPEC 3.3.3.  A highlight is a lightweight container for data objects along a
-# walk, with an optional name and no notes of its own.
+# walk, with an optional name.
 HIGHLIGHT = frozenset({"name", "hidden", "pinned", "walk", "data"})
 
 # SPEC 3.3.3.  A pass of a highlight's walk or of a plan's.
@@ -91,7 +87,6 @@ PLAN = frozenset(
     {
         "folder",
         "name",
-        "notes",
         "hidden",
         "pinned",
         "nodes",
@@ -101,13 +96,11 @@ PLAN = frozenset(
     }
 )
 
-# SPEC 3.5.  `notes` is not in the section's example.  Dave ruled it legal on
-# 2026-09-09, after this implementation had assumed it on no evidence at all.
+# SPEC 3.5.
 TRACK = frozenset(
     {
         "folder",
         "name",
-        "notes",
         "hidden",
         "pinned",
         "started",
@@ -123,10 +116,10 @@ SEGMENT = frozenset({"pips"})
 # 3.8 lists "points" among the hosts of `hidden` and does not say whether that
 # reaches a top-level point; Dave ruled on 2026-09-09 that it does, because
 # "share one shape" governs.
-POINT = frozenset({"folder", "name", "notes", "hidden", "pinned", "at", "data"})
+POINT = frozenset({"folder", "name", "hidden", "pinned", "at", "data"})
 
 # SPEC 3.7.
-AREA = frozenset({"folder", "name", "notes", "hidden", "pinned", "polygon", "data"})
+AREA = frozenset({"folder", "name", "hidden", "pinned", "polygon", "data"})
 
 # SPEC 3.2 gives `folder` to "any item", which this implementation read as
 # reaching a network's own points and areas too.  Ruled the other way on

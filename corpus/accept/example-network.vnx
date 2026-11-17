@@ -1,12 +1,9 @@
 {
-  "created": "2026-08-31T06:45:12Z",
-  "generator": "Viatrail 0.1.93",
   "vnx": "0.11.0",
   "areas": [
     {
       "folder": "cairngorms",
       "name": "Deer stalking estate",
-      "notes": "Access restricted 1 Jul - 20 Oct.",
       "polygon": [
         [-3.74, 57.09],
         [-3.72, 57.09],
@@ -30,7 +27,6 @@
     {
       "folder": "approaches",
       "name": "Lairig Ghru approaches",
-      "notes": "Two ways in from the north.",
       "arcs": {
         "arc-1": {
           "from": "node-1",
@@ -161,7 +157,6 @@
         },
         {
           "name": "Clearing",
-          "notes": "Nice clearing for a camp, very flat but 10min walk to water.",
           "at": [-3.645, 57.129, 420],
           "data": [
             {
@@ -179,7 +174,6 @@
     {
       "folder": "cairngorms",
       "name": "Braeriach direct",
-      "notes": "Drawn by hand; not snapped to any network.",
       "data": [
         {
           "@type": "app.viatrail.tag",
@@ -290,7 +284,6 @@
     {
       "folder": "cairngorms",
       "name": "Car park",
-      "notes": "Pay and display, closes 22:00.",
       "at": [-3.675, 57.1201, 320],
       "data": [
         {

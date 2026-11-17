@@ -24,8 +24,7 @@ import (
 func containerFixture() *vnx.Document {
 	at := func(lon, lat float64) vnx.Position { return vnx.Position{Lon: lon, Lat: lat} }
 	return &vnx.Document{
-		Generator: "containerwrite_test",
-		Points:    []vnx.Point{{Name: "Ben Macdui", At: at(-3.6689, 57.0704)}},
+		Points: []vnx.Point{{Name: "Ben Macdui", At: at(-3.6689, 57.0704)}},
 		Tracks: []vnx.Track{{
 			Name:     "Cairn Gorm Day",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{at(-3.67, 57.11), at(-3.668, 57.112)}}},

@@ -81,11 +81,11 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 // back.
 //
 // ⚠ AND THEY ARE NOT BARE GEOMETRIES IN A GeometryCollection ANY MORE. That
-// shape kept their coordinates and destroyed their Name and Notes, because a
+// shape kept their coordinates and destroyed their Name, because a
 // GeometryCollection member has no properties of its own.
 func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name: "Net", Notes: "graph",
+		Name:  "Net",
 		Nodes: map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs: map[string]vnx.Arc{
 			"a": {From: "n1", To: "n2"},
@@ -101,10 +101,10 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 		t.Errorf("emitted %d, wanted the arcs Feature and one each for the point, the area and the highlight", report.Emitted)
 	}
 	if strings.Contains(out, `"GeometryCollection"`) {
-		t.Errorf("the GeometryCollection is back, and with it the loss of every in-network name and note:\n%s", out)
+		t.Errorf("the GeometryCollection is back, and with it the loss of every in-network name:\n%s", out)
 	}
 	for _, want := range []string{
-		`{"type":"Feature","properties":{"name":"Net","description":"graph"},"geometry":{"type":"MultiLineString"`,
+		`{"type":"Feature","properties":{"name":"Net"},"geometry":{"type":"MultiLineString"`,
 		`{"type":"Feature","properties":{"name":"Net / hut"},"geometry":{"type":"Point"`,
 		`{"type":"Feature","properties":{"name":"Net / bog"},"geometry":{"type":"Polygon"`,
 		`{"type":"Feature","properties":{"name":"Net / Traverse"},"geometry":{"type":"LineString"`,
@@ -118,33 +118,33 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 	}
 }
 
-// ⚠ THE FIELDS THE GeometryCollection DESTROYED, and the two GeoJSON can keep.
+// ⚠ THE FIELD THE GeometryCollection DESTROYED, and the one GeoJSON can keep.
 // Network.Points are full vnx.Points and Network.Areas full vnx.Areas, each
-// with Name, Notes and Hidden. As bare geometries inside a shared collection
-// all three were lost; as Features of their own the name and the notes survive.
+// with Name and Hidden. As bare geometries inside a shared collection both
+// were lost; as Features of their own the name survives.
 //
 // ⚠ HIDDEN STILL DOES NOT, AND MUST NOT START TO. §2.3's properties lock
-// is name and description ONLY — splitting the items out does not open the door.
-func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
+// is the name ONLY — splitting the items out does not open the door.
+func TestInNetworkPointAndAreaKeepTheirName(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
 		Folders: []vnx.Folder{{ID: "f", Name: "Highlands"}},
 		Networks: []vnx.Network{{
 			Name: "Cairngorms", Folder: "f",
-			Points: []vnx.Point{{Name: "Summit cairn", Notes: "big pile", Hidden: true, At: pos(1, 2, nil)}},
-			Areas:  []vnx.Area{{Name: "Deer reserve", Notes: "no dogs", Hidden: true, Polygon: square()}},
+			Points: []vnx.Point{{Name: "Summit cairn", Hidden: true, At: pos(1, 2, nil)}},
+			Areas:  []vnx.Area{{Name: "Deer reserve", Hidden: true, Polygon: square()}},
 		}},
 	})
 	for _, want := range []string{
-		`"name":"Highlands / Cairngorms / Summit cairn","description":"big pile"`,
-		`"name":"Highlands / Cairngorms / Deer reserve","description":"no dogs"`,
+		`"properties":{"name":"Highlands / Cairngorms / Summit cairn"}`,
+		`"properties":{"name":"Highlands / Cairngorms / Deer reserve"}`,
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — an in-network item lost its name or its notes:\n%s", want, out)
+			t.Errorf("missing %s — an in-network item lost its name:\n%s", want, out)
 		}
 	}
 	for _, locked := range []string{"hidden", "Hidden"} {
 		if strings.Contains(out, locked) {
-			t.Errorf("%q reached properties; §2.3 allows name and description only:\n%s", locked, out)
+			t.Errorf("%q reached properties; §2.3 allows the name only:\n%s", locked, out)
 		}
 	}
 }
@@ -153,19 +153,19 @@ func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 //
 // ⚠ THIS REVERSES AN EARLIER RULING AND THE REVERSAL IS THE POINT. The first
 // draft wrote {"type":"MultiLineString","coordinates":[]} so the network's name
-// and notes survived. Dave withdrew it 2026-09-03: "a network is designed to
+// survived. Dave withdrew it 2026-09-03: "a network is designed to
 // have arcs, and if it doesn't have arcs, then it's fine to have the network
 // name and description lost." Do not put the empty Feature back without a new
 // ruling — and note that restoring it also means re-relaxing the RFC 7946
 // validator, which went back to strict when this landed.
 //
 // ⚠ THE NAME IS NOT WHOLLY LOST, WHICH IS WHY THE CODE IS THE PARTIAL ONE. The
-// points and areas carry it in their own names. Only the NOTES have nowhere to
-// go, so part of the network reached the file and part did not — writer.go
-// convention 5's reading of CodePartialGeometry exactly.
+// points and areas carry it in their own names. The network as a Feature of its
+// own has nowhere to go, so part of the network reached the file and part did
+// not — writer.go convention 5's reading of CodePartialGeometry exactly.
 func TestNetworkWithNoArcsWritesNoFeatureOfItsOwnAndSaysSo(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name: "Empty graph", Notes: "no arcs yet",
+		Name:   "Empty graph",
 		Points: []vnx.Point{{Name: "Lone cairn", At: pos(1, 2, nil)}},
 	}}})
 	// No Feature of its own, in either of the two shapes that were considered.
@@ -174,9 +174,6 @@ func TestNetworkWithNoArcsWritesNoFeatureOfItsOwnAndSaysSo(t *testing.T) {
 	}
 	if strings.Contains(out, `"geometry":null`) {
 		t.Errorf("a null geometry was written; that shape was never ruled in:\n%s", out)
-	}
-	if strings.Contains(out, `"description":"no arcs yet"`) {
-		t.Errorf("the notes were written somewhere; nothing carries them when there are no arcs:\n%s", out)
 	}
 	// The point IS written, and the network's name is inside its name.
 	const want = `{"type":"Feature","properties":{"name":"Empty graph / Lone cairn"},"geometry":{"type":"Point","coordinates":[1,2]}}`
@@ -188,7 +185,7 @@ func TestNetworkWithNoArcsWritesNoFeatureOfItsOwnAndSaysSo(t *testing.T) {
 	}
 	// ⚠ AND IT IS SAID. Dave ruled the loss acceptable, not silent.
 	if len(report.Diagnostics) != 1 {
-		t.Fatalf("diagnostics %v, want exactly one for the notes that were dropped", report.Diagnostics)
+		t.Fatalf("diagnostics %v, want exactly one for the network's own Feature, which was not written", report.Diagnostics)
 	}
 	d := report.Diagnostics[0]
 	if d.Code != vnx.CodePartialGeometry || d.Path != "/networks/0" || len(d.Args) != 1 || d.Args[0] != "Empty graph" {
@@ -201,7 +198,7 @@ func TestNetworkWithNoArcsWritesNoFeatureOfItsOwnAndSaysSo(t *testing.T) {
 // name, so the empty-coordinates case above is narrower than it reads.
 func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name: "Ghost", Notes: "nothing here",
+		Name: "Ghost",
 	}}})
 	if strings.Contains(out, "Ghost") {
 		t.Errorf("an empty network was written anyway:\n%s", out)

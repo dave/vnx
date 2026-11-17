@@ -19,9 +19,7 @@ import "github.com/dave/vnx/go/pkg/vnx"
 // changed the golden by zero bytes.
 func fixture() *vnx.Document {
 	return &vnx.Document{
-		Version:   vnx.Version,
-		Generator: "viatrail-test",
-		Created:   "2026-09-02T00:00:00Z",
+		Version: vnx.Version,
 		Folders: []vnx.Folder{
 			{ID: "f-hi", Name: "Highlands"},
 			{ID: "f-cg", Name: "Cairngorms", Parent: "f-hi"},
@@ -30,7 +28,7 @@ func fixture() *vnx.Document {
 			{ID: "f-empty", Name: "Nothing Here", Parent: "f-hi"},
 		},
 		Points: []vnx.Point{
-			{Name: "Corrour Bothy", Notes: "Shelter", Folder: "f-cg",
+			{Name: "Corrour Bothy", Folder: "f-cg",
 				Data: []vnx.Record{tagRecord("bothy"), tagRecord("shelter")},
 				At:   pos(-3.7003, 56.9932, ptr(733.0))},
 			// No elevation: the position must be TWO elements.
@@ -43,7 +41,7 @@ func fixture() *vnx.Document {
 			// ⚠ WOUND CLOCKWISE ON PURPOSE. RFC 7946 wants counterclockwise,
 			// so the golden pins the REVERSED order and a writer that stopped
 			// normalising would show up here as well as in TestWinding.
-			{Name: "Deer Reserve", Notes: "No dogs", Folder: "f-hi", Hidden: true,
+			{Name: "Deer Reserve", Folder: "f-hi", Hidden: true,
 				Data: []vnx.Record{tagRecord("wildlife")},
 				Polygon: []vnx.Position{
 					pos(-3.80, 57.00, nil), pos(-3.80, 57.10, nil),
@@ -76,7 +74,7 @@ func fixture() *vnx.Document {
 			),
 		},
 		Networks: []vnx.Network{{
-			Name: "Cairngorm paths", Notes: "The graph", Folder: "f-cg",
+			Name: "Cairngorm paths", Folder: "f-cg",
 			Nodes: map[string]vnx.Vertex{
 				"n1": vx(pos(-3.50, 57.00, nil)),
 				"n2": vx(pos(-3.51, 57.02, nil)),
@@ -93,7 +91,7 @@ func fixture() *vnx.Document {
 				pos(-3.53, 57.00, nil), pos(-3.52, 57.00, nil),
 				pos(-3.52, 57.01, nil),
 			}}},
-			// A highlight has a name and no notes of its own: its feature is
+			// A highlight has a name: its feature is
 			// named "{network} / North traverse".
 			Highlights: []vnx.Highlight{{
 				Name: "North traverse",
@@ -117,4 +115,22 @@ func node(id string) *vnx.Endpoint { return &vnx.Endpoint{Node: id} }
 
 func tagRecord(v string) vnx.Record {
 	return vnx.Record{Type: "app.viatrail.tag", Body: map[string]any{"value": v}}
+}
+
+// fixtureOptions describes the fixture's items the way a caller with its own
+// note records would: by kind and own name. The golden is written with it, so
+// the golden carries every element a description can reach.
+func fixtureOptions() vnx.WriteOptions {
+	type key struct {
+		kind vnx.ItemKind
+		name string
+	}
+	descriptions := map[key]string{
+		{vnx.ItemPoint, "Corrour Bothy"}:     "Shelter",
+		{vnx.ItemArea, "Deer Reserve"}:       "No dogs",
+		{vnx.ItemNetwork, "Cairngorm paths"}: "The graph",
+	}
+	return vnx.WriteOptions{Describe: func(it vnx.DescribedItem) (string, error) {
+		return descriptions[key{it.Kind, it.Name}], nil
+	}}
 }

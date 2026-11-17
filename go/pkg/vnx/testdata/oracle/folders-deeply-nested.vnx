@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "folders",
   "folders": [
     {
       "id": "f1",
@@ -40,18 +39,11 @@
     {
       "id": "noted",
       "name": "Grüße 🏔️",
-      "notes": "notes on a folder",
       "parent": "f1"
     },
     {
       "id": "carrier",
-      "name": "مسار الجبل",
-      "data": [
-        {
-          "@type": "app.viatrail.test/colour",
-          "value": "#ff8800"
-        }
-      ]
+      "name": "مسار الجبل"
     },
     {
       "id": "bare"

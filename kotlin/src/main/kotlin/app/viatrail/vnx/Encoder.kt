@@ -15,8 +15,6 @@ internal class Encoder {
         return JsonObject
             .Builder()
             .putString("vnx", doc.vnx)
-            .putString("generator", doc.generator)
-            .putString("created", doc.created)
             .put("folders", doc.folders?.let { array(it, ::folder) })
             .put("networks", doc.networks?.let { array(it, ::network) })
             .put("plans", doc.plans?.let { array(it, ::plan) })
@@ -95,9 +93,7 @@ internal class Encoder {
             .putString("id", f.id)
             .putString("parent", f.parent)
             .putString("name", f.name)
-            .putString("notes", f.notes)
             .putBool("hidden", hidden(f.hidden))
-            .put("data", data(f.data))
             .build()
 
     /**
@@ -114,7 +110,6 @@ internal class Encoder {
         return JsonObject
             .Builder()
             .putString("name", n.name)
-            .putString("notes", n.notes)
             .putString("folder", n.folder)
             .putBool("hidden", hidden(n.hidden))
             .putString("pinned", n.pinned)
@@ -136,7 +131,6 @@ internal class Encoder {
         return JsonObject
             .Builder()
             .putString("name", r.name)
-            .putString("notes", r.notes)
             .putString("folder", r.folder)
             .putBool("hidden", hidden(r.hidden))
             .putString("pinned", r.pinned)
@@ -236,7 +230,6 @@ internal class Encoder {
         JsonObject
             .Builder()
             .putString("name", t.name)
-            .putString("notes", t.notes)
             .putString("folder", t.folder)
             .putBool("hidden", hidden(t.hidden))
             .putString("pinned", t.pinned)
@@ -252,7 +245,6 @@ internal class Encoder {
     ) = JsonObject
         .Builder()
         .putString("name", w.name)
-        .putString("notes", w.notes)
         .putString("folder", if (inNetwork) null else w.folder)
         .putBool("hidden", hidden(w.hidden))
         .putString("pinned", w.pinned)
@@ -283,7 +275,6 @@ internal class Encoder {
         return JsonObject
             .Builder()
             .putString("name", a.name)
-            .putString("notes", a.notes)
             .putString("folder", if (inNetwork) null else a.folder)
             .putBool("hidden", hidden(a.hidden))
             .putString("pinned", a.pinned)

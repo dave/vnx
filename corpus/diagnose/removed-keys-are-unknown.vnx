@@ -1,0 +1,22 @@
+{
+  "vnx": "0.11.0",
+  "created": "2026-08-31T06:45:12Z",
+  "generator": "Example Trails 2.4.1",
+  "folders": [
+    {
+      "id": "cairngorms",
+      "name": "Cairngorms",
+      "notes": "Winter routes.",
+      "data": [{"@type": "app.viatrail.tag", "value": "winter"}]
+    }
+  ],
+  "points": [
+    {
+      "folder": "cairngorms",
+      "name": "Car park",
+      "notes": "Pay and display, closes 22:00.",
+      "at": [-3.675, 57.1201],
+      "data": [{"@type": "app.viatrail.tag", "value": "parking"}]
+    }
+  ]
+}

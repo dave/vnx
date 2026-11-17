@@ -81,14 +81,13 @@ Endpoint = Union[str, Position]
 
 @dataclass(slots=True)
 class Folder:
-    """SPEC 3.2 and 3.10.  `id` is REQUIRED; a folder without one is dropped."""
+    """SPEC 3.2 and 3.10.  `id` is REQUIRED; a folder without one is dropped.
+    A folder carries no `data`."""
 
     id: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     parent: Union[str, None] = None
     hidden: Union[bool, None] = None
-    data: Union[list[DataRecord], None] = None
 
 
 @dataclass(slots=True)
@@ -132,7 +131,7 @@ class Pass:
 @dataclass(slots=True)
 class Highlight:
     """SPEC 3.3.3.  A lightweight container for data objects along a walk of its
-    network's arcs.  It has an optional name, and no notes of its own."""
+    network's arcs.  It has an optional name."""
 
     name: Union[str, None] = None
     hidden: Union[bool, None] = None
@@ -145,7 +144,6 @@ class Highlight:
 class Network:
     folder: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     nodes: Union[dict[str, Position], None] = None
@@ -163,7 +161,6 @@ class Plan:
 
     folder: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     nodes: Union[dict[str, Position], None] = None
@@ -181,7 +178,6 @@ class Segment:
 class Track:
     folder: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     started: Union[str, None] = None
     ended: Union[str, None] = None
     hidden: Union[bool, None] = None
@@ -227,7 +223,6 @@ class Point:
 
     folder: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     at: Union[Position, None] = None
@@ -238,7 +233,6 @@ class Point:
 class Area:
     folder: Union[str, None] = None
     name: Union[str, None] = None
-    notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     polygon: Union[list[Position], None] = None
@@ -265,8 +259,6 @@ def is_app_key(key: str) -> bool:
 @dataclass(slots=True)
 class Document:
     vnx: str = "0.11.0"
-    generator: Union[str, None] = None
-    created: Union[str, None] = None
     folders: Union[list[Folder], None] = None
     networks: Union[list[Network], None] = None
     plans: Union[list[Plan], None] = None

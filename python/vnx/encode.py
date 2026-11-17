@@ -83,7 +83,6 @@ def _common(obj: dict[str, JSONValue], item: Any) -> None:
     """The keys SPEC 3.2 and 3.8 give to items generally."""
     _put(obj, "folder", getattr(item, "folder", None))
     _put(obj, "name", item.name)
-    _put(obj, "notes", getattr(item, "notes", None))
     _put(obj, "hidden", item.hidden)
     _put(obj, "pinned", item.pinned)
 
@@ -92,10 +91,8 @@ def _folder(folder: Folder) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _put(obj, "id", folder.id)
     _put(obj, "name", folder.name)
-    _put(obj, "notes", folder.notes)
     _put(obj, "parent", folder.parent)
     _put(obj, "hidden", folder.hidden)
-    _put(obj, "data", _records(folder.data))
     return obj
 
 
@@ -232,8 +229,6 @@ def _track(track: Track) -> JSONValue:
 
 def encode_document(document: Document) -> JSONValue:
     obj: dict[str, JSONValue] = {"vnx": document.vnx}
-    _put(obj, "generator", document.generator)
-    _put(obj, "created", document.created)
     if document.folders is not None:
         obj["folders"] = [_folder(item) for item in document.folders]
     if document.networks is not None:

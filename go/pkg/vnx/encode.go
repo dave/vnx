@@ -28,15 +28,12 @@ type wirePosition []any
 type wireFolder struct {
 	ID     string `json:"id"`
 	Name   string `json:"name,omitempty"`
-	Notes  string `json:"notes,omitempty"`
 	Parent string `json:"parent,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
-	Data   []any  `json:"data,omitempty"`
 }
 
 type wirePoint struct {
 	Name   string       `json:"name,omitempty"`
-	Notes  string       `json:"notes,omitempty"`
 	Folder string       `json:"folder,omitempty"`
 	Hidden bool         `json:"hidden,omitempty"`
 	Pinned string       `json:"pinned,omitempty"`
@@ -46,7 +43,6 @@ type wirePoint struct {
 
 type wireArea struct {
 	Name    string         `json:"name,omitempty"`
-	Notes   string         `json:"notes,omitempty"`
 	Folder  string         `json:"folder,omitempty"`
 	Hidden  bool           `json:"hidden,omitempty"`
 	Pinned  string         `json:"pinned,omitempty"`
@@ -60,7 +56,6 @@ type wireSegment struct {
 
 type wireTrack struct {
 	Name     string        `json:"name,omitempty"`
-	Notes    string        `json:"notes,omitempty"`
 	Folder   string        `json:"folder,omitempty"`
 	Hidden   bool          `json:"hidden,omitempty"`
 	Pinned   string        `json:"pinned,omitempty"`
@@ -81,7 +76,6 @@ type wireArc struct {
 
 type wirePlan struct {
 	Name   string                  `json:"name,omitempty"`
-	Notes  string                  `json:"notes,omitempty"`
 	Folder string                  `json:"folder,omitempty"`
 	Hidden bool                    `json:"hidden,omitempty"`
 	Pinned string                  `json:"pinned,omitempty"`
@@ -147,7 +141,7 @@ func pointWire(w Point, inNetwork bool) (wirePoint, error) {
 	if err != nil {
 		return wirePoint{}, err
 	}
-	out := wirePoint{Name: w.Name, Notes: w.Notes, Hidden: w.Hidden, Pinned: pinned, At: at, Data: data}
+	out := wirePoint{Name: w.Name, Hidden: w.Hidden, Pinned: pinned, At: at, Data: data}
 	if !inNetwork {
 		out.Folder = w.Folder
 	}
@@ -173,7 +167,7 @@ func areaWire(a Area, inNetwork bool) (wireArea, error) {
 	if err != nil {
 		return wireArea{}, err
 	}
-	out := wireArea{Name: a.Name, Notes: a.Notes, Hidden: a.Hidden, Pinned: pinned, Polygon: ring, Data: data}
+	out := wireArea{Name: a.Name, Hidden: a.Hidden, Pinned: pinned, Polygon: ring, Data: data}
 	if !inNetwork {
 		out.Folder = a.Folder
 	}
@@ -218,7 +212,7 @@ func trackWire(t Track) (wireTrack, error) {
 	if err != nil {
 		return wireTrack{}, err
 	}
-	out := wireTrack{Name: t.Name, Notes: t.Notes, Folder: t.Folder, Hidden: t.Hidden, Pinned: pinned}
+	out := wireTrack{Name: t.Name, Folder: t.Folder, Hidden: t.Hidden, Pinned: pinned}
 	// Written verbatim, so what was read is what is written. A caller-built
 	// value outside §4.3's grammar is an error rather than a document the
 	// format forbids.
@@ -256,7 +250,7 @@ func planWire(r Plan) (wirePlan, error) {
 	if err != nil {
 		return wirePlan{}, err
 	}
-	out := wirePlan{Name: r.Name, Notes: r.Notes, Folder: r.Folder, Hidden: r.Hidden, Pinned: pinned}
+	out := wirePlan{Name: r.Name, Folder: r.Folder, Hidden: r.Hidden, Pinned: pinned}
 	if err := checkArcs(r.Nodes, r.Arcs); err != nil {
 		return wirePlan{}, fmt.Errorf("plan %s: %w", QuoteName(r.Name), err)
 	}

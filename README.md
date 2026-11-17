@@ -38,8 +38,8 @@ file that parses perfectly and draws in the wrong hemisphere, which
 catches.
 
 A network owns its graph: `nodes` and `arcs` keyed by identifier, with `highlights`
-walking those arcs by reference. A highlight has an optional name and no notes
-of its own: it is a lightweight container for the data records that apply
+walking those arcs by reference. A highlight has an optional name and nothing else of
+its own: it is a lightweight container for the data records that apply
 along its walk. That reference is the construct GPX, KML and
 GeoJSON cannot express. A top-level plan owns a graph of the same shape and
 carries one walk over it.

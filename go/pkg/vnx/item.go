@@ -7,7 +7,6 @@ import "fmt"
 type Point struct {
 	Folder string
 	Name   string
-	Notes  string
 	Hidden bool
 	Pinned Timestamp // "" is not pinned (§3.8)
 	At     Position
@@ -21,7 +20,6 @@ type Point struct {
 type Area struct {
 	Folder  string
 	Name    string
-	Notes   string
 	Hidden  bool
 	Pinned  Timestamp // "" is not pinned (§3.8)
 	Polygon []Position
@@ -29,8 +27,8 @@ type Area struct {
 }
 
 var (
-	pointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "data": true}
-	areaKeys  = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "data": true}
+	pointKeys = map[string]bool{"folder": true, "name": true, "hidden": true, "pinned": true, "at": true, "data": true}
+	areaKeys  = map[string]bool{"folder": true, "name": true, "hidden": true, "pinned": true, "polygon": true, "data": true}
 	// A network's points and areas sit in their network's folder and carry no
 	// `folder` of their own (§3.10), so on them `folder` is an unrecognised
 	// key.
@@ -101,7 +99,6 @@ func pointFromValue(item any, at string, inNetwork bool, diags []Diagnostic) (Po
 		w.Folder, diags = stringField(obj, "folder", at, diags)
 	}
 	w.Name, diags = stringField(obj, "name", at, diags)
-	w.Notes, diags = stringField(obj, "notes", at, diags)
 	w.Hidden, diags = boolField(obj, "hidden", at, diags)
 	w.Pinned, diags = timeField(obj, "pinned", at, diags)
 	w.Data, diags = dataField(obj, at, diags)
@@ -126,7 +123,6 @@ func areaFromObject(obj map[string]any, at string, rr *ringRead, inNetwork bool,
 		a.Folder, diags = stringField(obj, "folder", at, diags)
 	}
 	a.Name, diags = stringField(obj, "name", at, diags)
-	a.Notes, diags = stringField(obj, "notes", at, diags)
 	a.Hidden, diags = boolField(obj, "hidden", at, diags)
 	a.Pinned, diags = timeField(obj, "pinned", at, diags)
 	a.Data, diags = dataField(obj, at, diags)

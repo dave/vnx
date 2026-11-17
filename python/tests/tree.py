@@ -6,7 +6,7 @@ trees they parse to.
 
 ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier rests
 on.  A reader that discarded every data record, every application key and
-every ``notes`` produces a model that compares equal to itself, and passes an
+every ``name`` produces a model that compares equal to itself, and passes an
 accept tier built that way green -- that is the whole extensibility mechanism,
 and all user prose.  Comparing the tree parsed from the ORIGINAL
 FILE against the tree parsed from encode(decode(file)) is what proves a reader

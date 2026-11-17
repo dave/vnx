@@ -156,11 +156,11 @@ func TestCyclicFolderParentsDoNotHang(t *testing.T) {
 }
 
 // CELL: attribute losses are matrix facts, NOT per-item diagnostics
-// (writer.go convention 5). properties carries name and description only.
+// (writer.go convention 5). properties carries the name only.
 func TestCellHiddenIsDroppedWithoutDiagnostics(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
 		Points: []vnx.Point{{
-			Name: "Pinned", Notes: "note", Hidden: true, At: pos(1, 2, nil),
+			Name: "Pinned", Hidden: true, At: pos(1, 2, nil),
 		}},
 		Areas: []vnx.Area{{Name: "Painted", Hidden: true, Polygon: square()}},
 	})
@@ -177,7 +177,7 @@ func TestCellHiddenIsDroppedWithoutDiagnostics(t *testing.T) {
 	}
 	for _, leaked := range []string{"hidden", "visibility"} {
 		if strings.Contains(out, leaked) {
-			t.Errorf("%q reached the file; properties carries name and description ONLY (§2.3):\n%s", leaked, out)
+			t.Errorf("%q reached the file; properties carries the name ONLY (§2.3):\n%s", leaked, out)
 		}
 	}
 	if len(report.Diagnostics) != 0 {
@@ -200,7 +200,7 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 	}
 	routing := vnx.Record{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking"}}
 	out, report := writeDoc(t, &vnx.Document{
-		Folders: []vnx.Folder{{ID: "f", Name: "Munros", Data: []vnx.Record{tag("scotland")}}},
+		Folders: []vnx.Folder{{ID: "f", Name: "Munros"}},
 		Points: []vnx.Point{{
 			Name: "Cairn", Folder: "f", At: pos(1, 2, nil),
 			Data: []vnx.Record{tag("bagged"), tag("winter")},
@@ -226,11 +226,11 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 	}
 	// LOST: every record value, every record type, and the machinery.
 	for _, leaked := range []string{
-		"scotland", "bagged", "winter", "deer", "solo", "planned",
+		"bagged", "winter", "deer", "solo", "planned",
 		"app.viatrail.tag", "app.viatrail.routing", "@type", "data", "value", "tags",
 	} {
 		if strings.Contains(out, leaked) {
-			t.Errorf("%q reached the file; `properties` carries name and description ONLY, and a data record in there is an <extensions> block wearing a different hat (§2.3):\n%s", leaked, out)
+			t.Errorf("%q reached the file; `properties` carries the name ONLY, and a data record in there is an <extensions> block wearing a different hat (§2.3):\n%s", leaked, out)
 		}
 	}
 	if len(report.Diagnostics) != 0 {

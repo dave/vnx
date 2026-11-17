@@ -52,9 +52,7 @@ export class Folder {
     /** @type {string} */ this.id = undefined;
     /** @type {string|undefined} */ this.parent = undefined;
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
-    /** @type {object[]|undefined} */ this.data = undefined;
   }
 }
 
@@ -113,7 +111,7 @@ export class Pass {
 
 /**
  * A lightweight container for data objects along a walk of its network's arcs
- * (SPEC.md 3.3.3). It has an optional name, and no notes of its own. Its geometry is by
+ * (SPEC.md 3.3.3). It has an optional name. Its geometry is by
  * reference: two highlights that cross one trail name the same arc.
  */
 export class Highlight {
@@ -130,7 +128,6 @@ export class Point {
   constructor() {
     /** @type {Position} */ this.at = undefined;
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
@@ -142,7 +139,6 @@ export class Area {
   constructor() {
     /** @type {Position[]} */ this.polygon = undefined;
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
@@ -153,7 +149,6 @@ export class Area {
 export class Network {
   constructor() {
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
@@ -177,7 +172,6 @@ export class Plan {
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
     /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
@@ -195,7 +189,6 @@ export class Track {
   constructor() {
     /** @type {Segment[]} */ this.segments = undefined;
     /** @type {string|undefined} */ this.name = undefined;
-    /** @type {string|undefined} */ this.notes = undefined;
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
@@ -243,8 +236,6 @@ export class Document {
   constructor() {
     /** @type {string} the version the document declared (SPEC.md 2.2) */
     this.vnx = undefined;
-    /** @type {string|undefined} */ this.generator = undefined;
-    /** @type {string|undefined} */ this.created = undefined;
     /** @type {Folder[]|undefined} */ this.folders = undefined;
     /** @type {Network[]|undefined} */ this.networks = undefined;
     /** @type {Plan[]|undefined} */ this.plans = undefined;

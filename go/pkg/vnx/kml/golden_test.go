@@ -19,7 +19,7 @@ const (
 
 func TestFixtureMatchesGolden(t *testing.T) {
 	var buf bytes.Buffer
-	report, err := Write(&buf, fixture())
+	report, err := WriteWith(&buf, fixture(), fixtureOptions())
 	if err != nil {
 		t.Fatalf("write: %v", err)
 	}

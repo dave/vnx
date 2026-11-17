@@ -119,7 +119,7 @@ func TestEncodeRefusesAnAppKeyItCannotWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// A populated collection, so a refusal after the first member
 			// would leave bytes behind.
-			doc := &Document{Generator: "g", Points: []Point{{Name: "w", At: Position{Lon: 1, Lat: 2}}},
+			doc := &Document{Points: []Point{{Name: "w", At: Position{Lon: 1, Lat: 2}}},
 				AppKeys: tc.keys}
 			var b bytes.Buffer
 			err := EncodeTo(&b, doc)

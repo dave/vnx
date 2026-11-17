@@ -16,7 +16,6 @@ package vnx
 type Plan struct {
 	Folder string
 	Name   string
-	Notes  string
 	Hidden bool
 	Pinned Timestamp // "" is not pinned (§3.8)
 	Nodes  map[string]Vertex
@@ -25,7 +24,7 @@ type Plan struct {
 	Data   []Record
 }
 
-var planKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
+var planKeys = map[string]bool{"folder": true, "name": true, "hidden": true, "pinned": true,
 	"nodes": true, "arcs": true, "walk": true, "data": true}
 
 // planFromObject builds one plan from its object, read with every key but
@@ -34,7 +33,6 @@ func planFromObject(obj map[string]any, at string, g *graphRead, diags []Diagnos
 	var r Plan
 	r.Folder, diags = stringField(obj, "folder", at, diags)
 	r.Name, diags = stringField(obj, "name", at, diags)
-	r.Notes, diags = stringField(obj, "notes", at, diags)
 	r.Hidden, diags = boolField(obj, "hidden", at, diags)
 	r.Pinned, diags = timeField(obj, "pinned", at, diags)
 	r.Nodes, r.Arcs, diags = g.finish(at, diags)

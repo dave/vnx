@@ -1,6 +1,5 @@
 {
   "vnx": "0.11.0",
-  "generator": "big-int64",
   "tracks": [
     {
       "name": "times around 2^53",

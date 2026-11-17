@@ -32,18 +32,17 @@ func posTime(lon, lat float64, ms int64) vnx.Position {
 
 func fixture() *vnx.Document {
 	return &vnx.Document{
-		Version:   vnx.Version,
-		Generator: "viatrail-test",
+		Version: vnx.Version,
 		Folders: []vnx.Folder{
 			{ID: "f-cairn", Name: "Cairngorms"},
-			{ID: "f-day1", Name: "Day 1", Parent: "f-cairn", Notes: "the walk in"},
+			{ID: "f-day1", Name: "Day 1", Parent: "f-cairn"},
 			// An EMPTY folder, and a HIDDEN one. KML keeps both, which is the
 			// decision this fixture exists to pin.
 			{ID: "f-empty", Name: "Nothing Here", Hidden: true},
 		},
 		Points: []vnx.Point{
 			{
-				Folder: "f-day1", Name: "Corrour Bothy", Notes: "locked in winter",
+				Folder: "f-day1", Name: "Corrour Bothy",
 				At: posEle(-3.6512, 57.0421, 720),
 			},
 			{
@@ -53,13 +52,13 @@ func fixture() *vnx.Document {
 			},
 		},
 		Areas: []vnx.Area{{
-			Folder: "f-cairn", Name: "Loch Avon", Notes: "swim here",
+			Folder: "f-cairn", Name: "Loch Avon",
 			Polygon: []vnx.Position{
 				pos(-3.66, 57.07), pos(-3.64, 57.07), pos(-3.64, 57.08),
 			},
 		}},
 		Tracks: []vnx.Track{{
-			Folder: "f-day1", Name: "Walk In", Notes: "stopped for lunch",
+			Folder: "f-day1", Name: "Walk In",
 			Segments: []vnx.Segment{
 				// Pip times are carried in the Document and are a ❌ cell in KML:
 				// they must not appear anywhere in the output.
@@ -75,7 +74,7 @@ func fixture() *vnx.Document {
 			lineArc{Pips: []vnx.Position{pos(-3.59, 57.11), pos(-3.58, 57.12)}},
 		)},
 		Networks: []vnx.Network{{
-			Name: "Lairig Ghru", Notes: "the through route",
+			Name: "Lairig Ghru",
 			Nodes: map[string]vnx.Vertex{
 				"n1": vx(pos(-3.70, 57.00)),
 				"n2": vx(pos(-3.68, 57.04)),
@@ -89,7 +88,7 @@ func fixture() *vnx.Document {
 			},
 			Highlights: []vnx.Highlight{
 				{
-					// A highlight has a name and no notes or style of its own:
+					// A highlight has a name and no style of its own:
 					// its Placemark is named by its name.
 					Name: "Full Traverse",
 					Walk: []vnx.Pass{
@@ -109,7 +108,7 @@ func fixture() *vnx.Document {
 				},
 			},
 			Points: []vnx.Point{{
-				Name: "Pools of Dee", Notes: "in-network", At: posEle(-3.675, 57.05, 830),
+				Name: "Pools of Dee", At: posEle(-3.675, 57.05, 830),
 			}},
 			Areas: []vnx.Area{{
 				Name: "Boulder Field", Hidden: true,
@@ -121,4 +120,25 @@ func fixture() *vnx.Document {
 		AppKeys: []vnx.AppKey{{Key: "app.viatrail.rulesets",
 			Value: []any{map[string]any{"id": "r1", "name": "Munros"}}}},
 	}
+}
+
+// fixtureOptions describes the fixture's items the way a caller with its own
+// note records would: by kind and own name. The golden is written with it, so
+// the golden carries every element a description can reach.
+func fixtureOptions() vnx.WriteOptions {
+	type key struct {
+		kind vnx.ItemKind
+		name string
+	}
+	descriptions := map[key]string{
+		{vnx.ItemFolder, "Day 1"}:        "the walk in",
+		{vnx.ItemPoint, "Corrour Bothy"}: "locked in winter",
+		{vnx.ItemArea, "Loch Avon"}:      "swim here",
+		{vnx.ItemTrack, "Walk In"}:       "stopped for lunch",
+		{vnx.ItemNetwork, "Lairig Ghru"}: "the through route",
+		{vnx.ItemPoint, "Pools of Dee"}:  "in-network",
+	}
+	return vnx.WriteOptions{Describe: func(it vnx.DescribedItem) (string, error) {
+		return descriptions[key{it.Kind, it.Name}], nil
+	}}
 }

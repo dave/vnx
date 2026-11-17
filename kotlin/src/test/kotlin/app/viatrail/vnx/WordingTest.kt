@@ -202,7 +202,7 @@ class WordingTest {
         val provoked =
             listOf(
                 RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.11.0","points":[{"at":[NaN,57]}]}"""),
-                RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"generator":"x"}"""),
+                RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"name":"x"}"""),
                 RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.11"}"""),
                 RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"9.9.9"}"""),
                 RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"0.1.9"}"""),

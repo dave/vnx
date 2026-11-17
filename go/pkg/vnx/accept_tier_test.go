@@ -6,10 +6,10 @@ import "testing"
 // accept tier's check is worth what §8.1 claims for it.
 //
 // ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
-// ANOTHER MODEL. A reader that discarded every data record, every application
-// key or every `notes` produces a model that compares equal to itself and passes
-// a model-versus-model tier GREEN. That is the entire extensibility mechanism
-// and all user prose, silently droppable by a
+// ANOTHER MODEL. A reader that discarded every data record or every application
+// key produces a model that compares equal to itself and passes a
+// model-versus-model tier GREEN. That is the entire extensibility mechanism,
+// silently droppable by a
 // "conforming" implementation. Measured, by disabling one thing at a time in a
 // decoder.
 //
@@ -37,16 +37,6 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 			}
 		}},
 		{"drops every application key", func(d *Document) { d.AppKeys = nil }},
-		// A highlight has no notes of its own (§3.3.3): the items that do are
-		// the ones a reader could drop them from.
-		{"drops every notes", func(d *Document) {
-			for j := range d.Areas {
-				d.Areas[j].Notes = ""
-			}
-			for i := range d.Networks {
-				d.Networks[i].Notes = ""
-			}
-		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cases := loadCorpus(t)

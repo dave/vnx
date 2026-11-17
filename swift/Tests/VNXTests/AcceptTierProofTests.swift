@@ -7,11 +7,10 @@ import XCTest
 /// for it.
 ///
 /// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
-/// ANOTHER MODEL. A reader that discarded every data record, every application
-/// key or every `notes` produces a model that compares equal to itself
-/// and passes a model-versus-model tier GREEN. That is the entire extensibility
-/// mechanism and all user prose, silently droppable by a
-/// "conforming" implementation. Measured in Python, re-proved in Go, and each
+/// ANOTHER MODEL. A reader that discarded every data record or every
+/// application key produces a model that compares equal to itself and passes a
+/// model-versus-model tier GREEN. That is the entire extensibility mechanism,
+/// silently droppable by a "conforming" implementation. Measured in Python, re-proved in Go, and each
 /// case below is one of those readers.
 ///
 /// If any of them stops being caught, the tier has gone back to proving nothing
@@ -43,14 +42,6 @@ final class AcceptTierProofTests: XCTestCase {
         }
       ),
       ("drops every application key", { d in d.applicationKeys = [] }),
-      (
-        "drops every notes",
-        { d in
-          for i in d.networks?.indices ?? (0..<0) {
-            d.networks?[i].notes = nil
-          }
-        }
-      ),
     ]
 
     let file = try exampleNetwork()

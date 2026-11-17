@@ -52,7 +52,7 @@ func TestAPlanReadsBackAsAGPXRoute(t *testing.T) {
 			{Pips: []vnx.Position{{Lon: 5, Lat: 5}, {Lon: 6, Lat: 6}}},
 			{Pips: []vnx.Position{{Lon: 7, Lat: 7}}},
 		}}},
-		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Planned", Notes: "two days"},
+		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Planned"},
 			lineArc{Pips: []vnx.Position{
 				{Lon: 1, Lat: 1, Ele: f(100)},
 				{Lon: 2, Lat: 2},
@@ -73,8 +73,8 @@ func TestAPlanReadsBackAsAGPXRoute(t *testing.T) {
 		t.Fatalf("%d <rte>s decoded, want 1\n%s", len(g.Rtes), out)
 	}
 	r := g.Rtes[0]
-	if r.Name != "Planned" || r.Desc != "two days" {
-		t.Errorf("<rte> name %q desc %q, want %q and %q", r.Name, r.Desc, "Planned", "two days")
+	if r.Name != "Planned" || r.Desc != "" {
+		t.Errorf("<rte> name %q desc %q, want %q and no desc", r.Name, r.Desc, "Planned")
 	}
 	if len(r.Stray) != 0 {
 		t.Errorf("a <trkseg> was written inside the <rte>\n%s", out)

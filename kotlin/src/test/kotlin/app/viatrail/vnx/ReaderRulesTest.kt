@@ -30,6 +30,56 @@ class ReaderRulesTest {
     }
 
     @Test
+    fun `the removed keys notes, folder data, created and generator are unknown keys`() {
+        // Removed from the format before release: each is now an ordinary
+        // unrecognised key, so it is reported, skipped, and its object kept.
+        val r =
+            read(
+                """{"vnx":"0.11.0","generator":"g","created":"2026-01-01T00:00:00Z",
+                "folders":[{"id":"f","name":"F","notes":"n","data":[{"@type":"x.y"}]}],
+                "networks":[{"name":"N","notes":"n",
+                  "points":[{"at":[0,0],"notes":"n"}],
+                  "areas":[{"polygon":[[0,0],[1,0],[1,1]],"notes":"n"}]}],
+                "plans":[{"name":"P","notes":"n","nodes":{"a":[0,0],"b":[1,1]},
+                  "arcs":{"x":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"x","from":"a","to":"b"}]}],
+                "tracks":[{"name":"T","notes":"n","segments":[]}],
+                "points":[{"name":"W","notes":"n","at":[0,0]}],
+                "areas":[{"name":"A","notes":"n","polygon":[[0,0],[1,0],[1,1]]}]}""",
+            )
+        assertEquals(
+            listOf(
+                "/generator",
+                "/created",
+                "/folders/0/notes",
+                "/folders/0/data",
+                "/networks/0/notes",
+                "/networks/0/points/0/notes",
+                "/networks/0/areas/0/notes",
+                "/plans/0/notes",
+                "/tracks/0/notes",
+                "/points/0/notes",
+                "/areas/0/notes",
+            ).sorted(),
+            r.diagnostics.map { it.path }.sorted(),
+        )
+        assertTrue(r.diagnostics.all { it.cause == DiagnosticCause.UNKNOWN_KEY })
+        val d = r.document
+        assertEquals("F", d.folders!!.single().name)
+        assertEquals("N", d.networks!!.single().name)
+        assertEquals(1, d.networks!![0].points!!.size)
+        assertEquals(1, d.networks!![0].areas!!.size)
+        assertEquals("P", d.plans!!.single().name)
+        assertEquals("T", d.tracks!!.single().name)
+        assertEquals("W", d.points!!.single().name)
+        assertEquals("A", d.areas!!.single().name)
+        // A written document carries none of them.
+        val written = Vnx.write(d)
+        for (key in listOf("\"notes\"", "\"generator\"", "\"created\"", "\"data\"")) {
+            assertFalse(key in written, "$key was written back: $written")
+        }
+    }
+
+    @Test
     fun `a wrong type in an OPTIONAL key drops the field and keeps the item`() {
         val r = read("""{"vnx":"0.11.0","points":[{"name":7,"at":[-3.675,57.1201]}]}""")
         assertEquals(1, r.document.points!!.size)

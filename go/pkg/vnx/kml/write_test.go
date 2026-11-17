@@ -134,7 +134,7 @@ func arcsMultiGeometry(t *testing.T, out string) string {
 //
 // ⚠ SINCE THE 2026-09-03 REDESIGN ONLY THE ARCS ARE BARE GEOMETRY. The point,
 // the area and the highlights are Placemarks of their own inside the network's
-// Folder, which is what lets them keep the name, notes, visibility and style a
+// Folder, which is what lets them keep the name, visibility and style a
 // shared MultiGeometry destroyed.
 func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 	out, report := writeDoc(t, fixture())
@@ -166,17 +166,16 @@ func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 }
 
 // ⚠ THE FIELDS THE OLD SHAPE DESTROYED. An in-network point and an in-network
-// area are full vnx.Point / vnx.Area values with Name, Notes and Hidden, and
+// area are full vnx.Point / vnx.Area values with Name and Hidden, and
 // until 2026-09-03 every one of those was thrown away: they rode as bare
 // <Point> and <Polygon> geometry inside the network's shared Placemark, which
 // has one name and one visibility. This asserts each field arrives.
-func TestInNetworkPointAndAreaKeepTheirOwnNameNotesAndVisibility(t *testing.T) {
+func TestInNetworkPointAndAreaKeepTheirOwnNameAndVisibility(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	folder := networkFolder(t, out)
 
 	for _, want := range []string{
 		"<name>Pools of Dee</name>",
-		"<description>in-network</description>",
 	} {
 		if !strings.Contains(folder, want) {
 			t.Errorf("the in-network point lost %s\n%s", want, folder)
@@ -198,7 +197,7 @@ func TestInNetworkPointAndAreaKeepTheirOwnNameNotesAndVisibility(t *testing.T) {
 	}
 }
 
-// A network whose name and notes belong to a <Folder> must still write them
+// A network whose name belongs to a <Folder> must still write it
 // when it holds no arc at all — the items inside are what keep it alive, and
 // the Folder is what keeps its name.
 //
@@ -207,12 +206,11 @@ func TestInNetworkPointAndAreaKeepTheirOwnNameNotesAndVisibility(t *testing.T) {
 // because a Feature is the only place a name can live.
 func TestNetworkWithNoArcsStillWritesItsFolderAndItsItems(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name: "Empty graph", Notes: "no arcs yet",
+		Name:   "Empty graph",
 		Points: []vnx.Point{{Name: "Lone cairn", At: pos(1, 2)}},
 	}}})
 	for _, want := range []string{
 		"<name>Empty graph</name>",
-		"<description>no arcs yet</description>",
 		"<name>Lone cairn</name>",
 	} {
 		if !strings.Contains(out, want) {
@@ -235,7 +233,7 @@ func TestNetworkWithNoArcsStillWritesItsFolderAndItsItems(t *testing.T) {
 // something for it to name.
 func TestNetworkHoldingNothingIsDroppedWithItsDiagnostic(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
-		Name: "Ghost", Notes: "nothing here",
+		Name: "Ghost",
 	}}})
 	if strings.Contains(out, "Ghost") || strings.Contains(out, "<Folder>") {
 		t.Errorf("an empty network left a Folder behind\n%s", out)
@@ -331,7 +329,7 @@ func TestOutputIsStableAcrossRuns(t *testing.T) {
 	}
 }
 
-func TestFolderTreeIsNestedAndKeepsItsNotesAndVisibility(t *testing.T) {
+func TestFolderTreeIsNested(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	cairn := out[strings.Index(out, "<name>Cairngorms</name>"):]
 	if !strings.Contains(cairn[:strings.Index(cairn, "</Folder>")], "<name>Day 1</name>") {
@@ -464,9 +462,9 @@ func TestCoordinatesAreLonLatNotLatLon(t *testing.T) {
 	}
 }
 
-func TestNamesAndNotesAreEscaped(t *testing.T) {
+func TestNamesAreEscaped(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{Points: []vnx.Point{
-		{Name: `Ben & <Nevis>`, Notes: `he said "go"`, At: pos(1, 2)},
+		{Name: `Ben & <Nevis>`, At: pos(1, 2)},
 	}})
 	if !strings.Contains(out, "Ben &amp; &lt;Nevis&gt;") {
 		t.Fatalf("the name was not escaped\n%s", out)

@@ -23,8 +23,6 @@ internal class Decoder(
         val DOCUMENT_REQUIRED = setOf("vnx")
         val DOCUMENT_OPTIONAL =
             setOf(
-                "generator",
-                "created",
                 "folders",
                 "networks",
                 "plans",
@@ -33,12 +31,11 @@ internal class Decoder(
                 "areas",
             )
         val FOLDER_REQUIRED = setOf("id")
-        val FOLDER_OPTIONAL = setOf("parent", "name", "notes", "hidden", "data")
+        val FOLDER_OPTIONAL = setOf("parent", "name", "hidden")
         val NETWORK_REQUIRED = emptySet<String>()
         val NETWORK_OPTIONAL =
             setOf(
                 "name",
-                "notes",
                 "folder",
                 "hidden",
                 "pinned",
@@ -58,20 +55,20 @@ internal class Decoder(
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
         val PLAN_REQUIRED = setOf("walk")
-        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "nodes", "arcs", "data")
+        val PLAN_OPTIONAL = setOf("name", "folder", "hidden", "pinned", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
-        val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "started", "ended", "data")
+        val TRACK_OPTIONAL = setOf("name", "folder", "hidden", "pinned", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
         val SEGMENT_OPTIONAL = emptySet<String>()
         val POINT_REQUIRED = setOf("at")
-        val POINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "data")
+        val POINT_OPTIONAL = setOf("name", "folder", "hidden", "pinned", "data")
 
         // A network's point is a top-level point without `folder`: its network already
         // contains it (section 3.10).
-        val NETWORK_POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "data")
+        val NETWORK_POINT_OPTIONAL = setOf("name", "hidden", "pinned", "data")
         val AREA_REQUIRED = setOf("polygon")
-        val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "data")
-        val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "data")
+        val AREA_OPTIONAL = setOf("name", "folder", "hidden", "pinned", "data")
+        val NETWORK_AREA_OPTIONAL = setOf("name", "hidden", "pinned", "data")
     }
 
     // ------------------------------------------------------------ entry point
@@ -140,8 +137,6 @@ internal class Decoder(
         val document =
             VnxDocument(
                 vnx = versionText,
-                generator = optionalString(doc, "generator", at),
-                created = optionalTimestamp(doc, "created", at),
                 folders = folders,
                 networks = optionalItems(doc, "networks", at) { o, p -> network(o, p) },
                 plans = optionalItems(doc, "plans", at) { o, p -> plan(o, p) },
@@ -592,9 +587,7 @@ internal class Decoder(
             id = id.value,
             parent = optionalString(obj, "parent", at),
             name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
             hidden = optionalBool(obj, "hidden", at),
-            data = optionalData(obj, at),
         )
     }
 
@@ -611,7 +604,6 @@ internal class Decoder(
         val arcs = arcs(obj, at, nodes)
         return Network(
             name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
             folder = optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
@@ -639,13 +631,12 @@ internal class Decoder(
         // Every field is read before the walk, so a plan the walk drops still
         // reports what else was wrong with it.
         val name = optionalString(obj, "name", at)
-        val notes = optionalString(obj, "notes", at)
         val folder = optionalFolderRef(obj, at)
         val hidden = optionalBool(obj, "hidden", at)
         val pinned = optionalTimestamp(obj, "pinned", at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs ?: emptyMap(), plan = true) ?: return null
-        return Plan(walk, nodes, arcs, name, notes, folder, hidden, pinned, data)
+        return Plan(walk, nodes, arcs, name, folder, hidden, pinned, data)
     }
 
     /**
@@ -921,7 +912,6 @@ internal class Decoder(
         return Track(
             segments = segments,
             name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
             folder = optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
@@ -953,7 +943,6 @@ internal class Decoder(
         return Point(
             at = position,
             name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
@@ -978,7 +967,6 @@ internal class Decoder(
         return Area(
             polygon = polygon,
             name = optionalString(obj, "name", at),
-            notes = optionalString(obj, "notes", at),
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),

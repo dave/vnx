@@ -11,7 +11,6 @@ import "fmt"
 type Network struct {
 	Folder     string
 	Name       string
-	Notes      string
 	Hidden     bool
 	Pinned     Timestamp // "" is not pinned (§3.8)
 	Nodes      map[string]Vertex
@@ -23,8 +22,8 @@ type Network struct {
 }
 
 // Highlight is a lightweight container for data objects along a walk of its
-// network's arcs (§3.3.3). It has an optional Name, "" for none, and no notes
-// of its own: what it is, beyond its name, is what its Data says.
+// network's arcs (§3.3.3). It has an optional Name, "" for none: what it is,
+// beyond its name, is what its Data says.
 // Unlike a Plan, its geometry is BY REFERENCE — two highlights crossing the
 // same trail name the same arc, and that sharing is the whole reason this
 // format exists.
@@ -37,7 +36,7 @@ type Highlight struct {
 }
 
 var (
-	networkKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
+	networkKeys = map[string]bool{"folder": true, "name": true, "hidden": true, "pinned": true,
 		"nodes": true, "arcs": true, "highlights": true, "points": true, "areas": true, "data": true}
 	highlightKeys = map[string]bool{"name": true, "hidden": true, "pinned": true, "walk": true, "data": true}
 	arcKeys       = map[string]bool{"from": true, "to": true, "pips": true, "data": true}
@@ -49,7 +48,6 @@ func networkFromObject(obj map[string]any, at string, g *graphRead, areas *areas
 	var n Network
 	n.Folder, diags = stringField(obj, "folder", at, diags)
 	n.Name, diags = stringField(obj, "name", at, diags)
-	n.Notes, diags = stringField(obj, "notes", at, diags)
 	n.Hidden, diags = boolField(obj, "hidden", at, diags)
 	n.Pinned, diags = timeField(obj, "pinned", at, diags)
 	n.Nodes, n.Arcs, diags = g.finish(at, diags)

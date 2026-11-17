@@ -55,9 +55,7 @@ public struct Folder: Equatable, Sendable {
   public var id: String
   public var parent: String?
   public var name: String?
-  public var notes: String?
   public var hidden: Bool?
-  public var data: [DataRecord]?
 }
 
 /// A top-level point, or a network's point. SPEC 3.6 makes them one shape; `folder`
@@ -65,7 +63,6 @@ public struct Folder: Equatable, Sendable {
 public struct Point: Equatable, Sendable {
   public var at: Position
   public var name: String?
-  public var notes: String?
   public var folder: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
@@ -80,7 +77,6 @@ public struct Area: Equatable, Sendable {
   /// back to the first. Holes and multiple rings are not expressible.
   public var polygon: [Position]
   public var name: String?
-  public var notes: String?
   public var folder: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
@@ -181,7 +177,7 @@ public struct Pass: Equatable, Sendable {
 }
 
 /// A highlight: a lightweight container for data objects along a walk over arcs
-/// its network owns (SPEC 3.3.3). It has an optional name, and no notes.
+/// its network owns (SPEC 3.3.3). It has an optional name.
 /// The highlight does not own the arcs: two highlights over one trail
 /// name the same arc.
 public struct Highlight: Equatable, Sendable {
@@ -196,7 +192,6 @@ public struct Highlight: Equatable, Sendable {
 
 public struct Network: Equatable, Sendable {
   public var name: String?
-  public var notes: String?
   public var folder: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
@@ -218,7 +213,6 @@ public struct Plan: Equatable, Sendable {
   public var arcs: [JSONKey: Arc]?
   public var walk: [Pass]
   public var name: String?
-  public var notes: String?
   public var folder: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
@@ -248,7 +242,6 @@ public struct TrackSegment: Equatable, Sendable {
 public struct Track: Equatable, Sendable {
   public var segments: [TrackSegment]
   public var name: String?
-  public var notes: String?
   public var folder: String?
   public var hidden: Bool?
   /// The time the user pinned the item (SPEC 3.8), held as written for the
@@ -289,8 +282,6 @@ public struct Document: Equatable, Sendable {
   /// The version the document declared. A reader that re-encodes writes this
   /// back, not its own (SPEC 2.2).
   public var vnx: String
-  public var generator: String?
-  public var created: String?
 
   /// All six collections are OPTIONAL, and `nil` and `[]` are both held.
   /// SPEC 3.1 has a READER treat an absent collection and an empty one alike,

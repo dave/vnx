@@ -66,12 +66,10 @@ var (
 	ErrInvalidVersion = fmt.Errorf("%w: not a version", ErrUnsupportedVersion)
 )
 
-// Document is a decoded VNX document: the header fields, the six collections,
-// and the application keys.
+// Document is a decoded VNX document: the version, the six collections, and
+// the application keys.
 type Document struct {
-	Version   string
-	Generator string
-	Created   Timestamp // "" is absent
+	Version string
 
 	Folders  []Folder
 	Points   []Point
@@ -209,9 +207,8 @@ func IsAppKey(key string) bool {
 
 // DocumentIsEmpty reports whether a document holds no library content at all.
 //
-// The header fields — Version, Generator, Created — are present in
-// every document including this one, so they say nothing about whether it
-// carries anything. Only the collections and the application keys do.
+// The version is present in every document including this one, so it says
+// nothing about whether it carries anything. Only the collections and the application keys do.
 //
 // ⚠ AN APPLICATION KEY COUNTS WHEN IT IS PRESENT, whatever its value. A key
 // holding `null` or `[]` is still content the caller asked to write: SPEC §3.9
@@ -275,7 +272,7 @@ func decodeAppKeys(obj map[string]any) []AppKey {
 
 // documentFormatKeys is every key the format defines at the top level.
 var documentFormatKeys = map[string]bool{
-	"vnx": true, "generator": true, "created": true,
+	"vnx":     true,
 	"folders": true, "networks": true, "plans": true,
 	"tracks": true, "points": true, "areas": true,
 }

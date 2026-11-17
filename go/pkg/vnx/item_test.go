@@ -6,7 +6,7 @@ import "testing"
 // any other: reported, skipped, and the point kept with everything else.
 func TestAStyleKeyIsAnUnrecognisedKey(t *testing.T) {
 	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[{"id":"cairngorms"}],"points":[{
-	  "folder":"cairngorms","name":"Car park","notes":"Pay and display.",
+	  "folder":"cairngorms","name":"Car park",
 	  "at":[-3.6750,57.1201,320],
 	  "style":{"color":"#444444","importance":2}
 	}]}`))
@@ -17,7 +17,7 @@ func TestAStyleKeyIsAnUnrecognisedKey(t *testing.T) {
 		t.Fatalf("diagnostics = %v, want one unknown-key at /points/0/style", diags)
 	}
 	w := doc.Points[0]
-	if w.Name != "Car park" || w.Folder != "cairngorms" || w.Notes != "Pay and display." || w.At.Lon != -3.6750 {
+	if w.Name != "Car park" || w.Folder != "cairngorms" || w.At.Lon != -3.6750 {
 		t.Fatalf("got %+v", w)
 	}
 }
@@ -27,15 +27,15 @@ func TestAStyleKeyIsAnUnrecognisedKey(t *testing.T) {
 // caller could not tell which item lost the field.
 func TestAWrongTypedOptionalStringIsReportedAtItsFullPath(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.11.0",
-	  "folders":[{"id":"f","name":1,"notes":true,"parent":[]}],
-	  "points":[{"name":2,"notes":{},"folder":3,"at":[1,2]}],
+	  "folders":[{"id":"f","name":1,"parent":[]}],
+	  "points":[{"name":2,"folder":3,"at":[1,2]}],
 	  "networks":[{"name":4,"nodes":{},"arcs":{},"highlights":[{"name":5,"walk":[]}]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
-		"/folders/0/name": true, "/folders/0/notes": true, "/folders/0/parent": true,
-		"/points/0/name": true, "/points/0/notes": true, "/points/0/folder": true,
+		"/folders/0/name": true, "/folders/0/parent": true,
+		"/points/0/name": true, "/points/0/folder": true,
 		"/networks/0/name": true,
 	}
 	for _, d := range diags {

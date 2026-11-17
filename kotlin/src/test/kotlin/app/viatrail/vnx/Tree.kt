@@ -5,10 +5,9 @@ package app.viatrail.vnx
  * a document are not constrained (SPEC.md section 8.1).
  *
  * IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier rests
- * on. A reader that discarded every data record, every application key and every
- * `notes` produces a model that compares equal to itself, and passes an
- * accept tier built that way green — that is the whole extensibility mechanism
- * and all user prose. Comparing the tree parsed from the ORIGINAL
+ * on. A reader that discarded every data record and every application key
+ * produces a model that compares equal to itself, and passes an accept tier
+ * built that way green — that is the whole extensibility mechanism. Comparing the tree parsed from the ORIGINAL
  * FILE against the tree parsed from `write(read(file))` is what proves a reader
  * kept what it read. AcceptTierTest freezes the proof.
  */
@@ -34,7 +33,6 @@ internal object Tree {
     ): JsonValue {
         val doc = value as? JsonObject ?: return value
         val out = mutable(doc)
-        items(out, "folders", opt, ::folder)
         items(out, "points", opt, ::point)
         items(out, "areas", opt, ::area)
         items(out, "tracks", opt, ::track)
@@ -44,13 +42,6 @@ internal object Tree {
         // absent-equals-empty normalisation, so an empty or null value is
         // compared as written and a key dropped for holding one is a difference.
         return JsonObject(out.entries.map { it.key to it.value })
-    }
-
-    private fun folder(
-        o: MutableMap<String, JsonValue>,
-        opt: Options,
-    ) {
-        dropEmptyContainer(o, "data")
     }
 
     private fun point(

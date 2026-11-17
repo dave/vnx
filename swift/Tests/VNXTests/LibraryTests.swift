@@ -281,7 +281,7 @@ final class LibraryTests: XCTestCase {
     var document = Document()
     document.points = [
       Point(
-        at: Position(lon: 1, lat: 2), name: "x", notes: nil,
+        at: Position(lon: 1, lat: 2), name: "x",
         folder: nil, hidden: nil, data: nil)
     ]
     let written = String(decoding: try VNX.write(document), as: UTF8.self)
@@ -358,6 +358,52 @@ final class LibraryTests: XCTestCase {
     XCTAssertEqual(
       Set(result.diagnostics.map { "\($0.path) \($0.code)" }),
       ["/points/0/style unknown-key", "/points/1/style unknown-key"])
+  }
+
+  // MARK: - Notes, folder data, created and generator (removed in 0.11)
+
+  /// SPEC 6.2: `notes` on any object, `data` on a folder, and the document's
+  /// `created` and `generator` are no longer defined. Each is an unrecognised
+  /// key: reported, skipped, and the object kept. A writer emits none of them.
+  func testRemovedKeysAreUnknownKeysAndTheObjectIsKept() throws {
+    let result = try read(
+      minimal(
+        """
+        "generator":"g","created":"2026-01-01T00:00:00Z",
+        "folders":[{"id":"f","name":"F","notes":"n","data":[{"@type":"x.y"}]}],
+        "networks":[{"name":"N","notes":"n",
+          "points":[{"at":[0,0],"notes":"n"}],
+          "areas":[{"polygon":[[0,0],[1,0],[1,1]],"notes":"n"}]}],
+        "plans":[{"name":"P","notes":"n","nodes":{"a":[0,0],"b":[1,1]},
+          "arcs":{"x":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"x","from":"a","to":"b"}]}],
+        "tracks":[{"name":"T","notes":"n","segments":[]}],
+        "points":[{"name":"W","notes":"n","at":[0,0]}],
+        "areas":[{"name":"A","notes":"n","polygon":[[0,0],[1,0],[1,1]]}]
+        """))
+    XCTAssertEqual(
+      Set(result.diagnostics.map { "\($0.path) \($0.code)" }),
+      [
+        "/generator unknown-key", "/created unknown-key",
+        "/folders/0/notes unknown-key", "/folders/0/data unknown-key",
+        "/networks/0/notes unknown-key", "/networks/0/points/0/notes unknown-key",
+        "/networks/0/areas/0/notes unknown-key", "/plans/0/notes unknown-key",
+        "/tracks/0/notes unknown-key", "/points/0/notes unknown-key",
+        "/areas/0/notes unknown-key",
+      ])
+    XCTAssertEqual(result.diagnostics.count, 11)
+    let d = result.document
+    XCTAssertEqual(d.folders?.map(\.name), ["F"])
+    XCTAssertEqual(d.networks?.map(\.name), ["N"])
+    XCTAssertEqual(d.networks?.first?.points?.count, 1)
+    XCTAssertEqual(d.networks?.first?.areas?.count, 1)
+    XCTAssertEqual(d.plans?.map(\.name), ["P"])
+    XCTAssertEqual(d.tracks?.map(\.name), ["T"])
+    XCTAssertEqual(d.points?.map(\.name), ["W"])
+    XCTAssertEqual(d.areas?.map(\.name), ["A"])
+    let written = String(decoding: try VNX.write(d), as: UTF8.self)
+    for key in ["\"notes\"", "\"generator\"", "\"created\"", "\"data\""] {
+      XCTAssertFalse(written.contains(key), "\(key) was written back: \(written)")
+    }
   }
 
   // MARK: - Pinned (SPEC 3.8)
@@ -572,25 +618,30 @@ final class LibraryTests: XCTestCase {
   /// directly does not, so silence here would make the two disagree.
   func testTimestampsAreCheckedForShapeOnlyAndNeverForCalendar() throws {
     for impossible in ["2026-13-45T99:99:99Z", "0000-00-00T00:00:00Z", "9999-99-99T99:99:99.000Z"] {
-      let result = try read(minimal("\"created\":\"" + impossible + "\""))
+      let result = try read(pinnedPoint(impossible))
       XCTAssertEqual(result.diagnostics, [], impossible)
-      XCTAssertEqual(result.document.created, impossible, impossible)
+      XCTAssertEqual(result.document.points?.first?.pinned, impossible, impossible)
     }
+  }
+
+  /// A document whose one point carries `pinned`, a record-level timestamp.
+  private func pinnedPoint(_ timestamp: String) -> String {
+    minimal("\"points\":[{\"at\":[0,0],\"pinned\":\"\(timestamp)\"}]")
   }
 
   func testTimestampShapes() throws {
     for good in [
       "2026-05-12T07:03:11Z", "2026-05-12T07:03:11.5Z", "2026-05-12T07:03:11.123456789Z",
     ] {
-      XCTAssertEqual(try read(minimal("\"created\":\"\(good)\"")).diagnostics, [], good)
+      XCTAssertEqual(try read(pinnedPoint(good)).diagnostics, [], good)
     }
     for bad in [
       "2026-05-12T07:03:11+01:00", "2026-05-12T07:03:11", "2026-05-12", "2026-05-12T07:03:11.Z",
       "now",
     ] {
-      let result = try read(minimal("\"created\":\"\(bad)\""))
+      let result = try read(pinnedPoint(bad))
       XCTAssertEqual(result.diagnostics.map(\.cause), [.timestampNotUTC], bad)
-      XCTAssertNil(result.document.created, bad)
+      XCTAssertNil(result.document.points?.first?.pinned, bad)
     }
   }
 
@@ -661,8 +712,9 @@ final class LibraryTests: XCTestCase {
 
   func testTheParserAcceptsWhatJSONAllows() throws {
     let result = try read(
-      "{\"vnx\":\"0.11.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
-    XCTAssertEqual(result.document.generator, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")
+      "{\"vnx\":\"0.11.0\",\"points\":[{\"at\":[0,0],\"name\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}]}"
+    )
+    XCTAssertEqual(result.document.points?.first?.name, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")
   }
 
   // MARK: - Containers (SPEC 7)
@@ -885,20 +937,18 @@ final class LibraryTests: XCTestCase {
   /// half the corpus cannot test at all: every corpus case starts from bytes.
   func testWriteThenReadIsAFixedPointOverAModel() throws {
     var document = Document()
-    document.generator = "VNX Swift tests"
-    document.created = "2026-09-09T12:00:00Z"
     document.folders = [
-      Folder(id: "f", parent: nil, name: "F", notes: nil, hidden: true, data: nil)
+      Folder(id: "f", parent: nil, name: "F", hidden: true)
     ]
     document.points = [
       Point(
         at: Position(lon: -3.675, lat: 57.1201, elevation: 320),
-        name: "Car park", notes: "note", folder: "f", hidden: nil,
+        name: "Car park", folder: "f", hidden: nil,
         data: [DataRecord(type: "com.example.x", body: ["value": .bool(true)])])
     ]
     document.networks = [
       Network(
-        name: "N", notes: nil, folder: "f", hidden: nil,
+        name: "N", folder: "f", hidden: nil,
         nodes: ["a": Vertex(lon: 0, lat: 0, elevation: 10), "b": Vertex(lon: 1, lat: 1)],
         arcs: ["x": Arc(from: "a", to: "b", pips: [Vertex(lon: 0.5, lat: 0.5, elevation: 12)])],
         highlights: [
@@ -928,7 +978,7 @@ final class LibraryTests: XCTestCase {
             Position(lon: 1, lat: 1, elevation: 2, timeMilliseconds: 4000),
           ])
         ],
-        name: "T", notes: nil, folder: nil, hidden: nil,
+        name: "T", folder: nil, hidden: nil,
         started: "2026-09-09T12:00:00Z", ended: "2026-09-09T12:00:04Z", data: nil)
     ]
     document.applicationKeys = [

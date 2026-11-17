@@ -42,17 +42,15 @@ func tagRecord(v string) vnx.Record {
 // four diagnosed ones. Do not thin it back out.
 func fixture() *vnx.Document {
 	d := &vnx.Document{
-		Version:   vnx.Version,
-		Generator: "viatrail-test",
+		Version: vnx.Version,
 		Folders: []vnx.Folder{
 			{ID: "f-scot", Name: "Scotland"},
-			{ID: "f-cairn", Name: "Cairngorms", Parent: "f-scot",
-				Data: []vnx.Record{tagRecord("scotland")}},
+			{ID: "f-cairn", Name: "Cairngorms", Parent: "f-scot"},
 			{ID: "f-void", Name: "Nothing In Here"},
 		},
 		Points: []vnx.Point{
 			// At the root: bare name, no path prefix (§2.7).
-			{Name: "Car Park & Gate <north>", Notes: "Pay and display",
+			{Name: "Car Park & Gate <north>",
 				At: vnx.Position{Lon: -3.669, Lat: 57.1174, Ele: f(320.5)}},
 			// Two levels deep, and with no elevation: the <ele> must be absent,
 			// never 0. It is also HIDDEN, STYLED and TAGGED: all three are ❌
@@ -61,7 +59,7 @@ func fixture() *vnx.Document {
 				Data: []vnx.Record{tagRecord("munro"), tagRecord("bagged")},
 				At:   vnx.Position{Lon: -3.6689, Lat: 57.0704}},
 			// A timed point with sub-second precision.
-			{Folder: "f-scot", Name: "Bothy", Notes: "",
+			{Folder: "f-scot", Name: "Bothy",
 				At: vnx.Position{Lon: -3.7, Lat: 57.05, Ele: f(0), Time: ms(1725200000123)}},
 		},
 		Areas: []vnx.Area{
@@ -71,7 +69,7 @@ func fixture() *vnx.Document {
 			}},
 		},
 		Tracks: []vnx.Track{{
-			Folder: "f-cairn", Name: "Lairig Ghru", Notes: "Two days, one pause",
+			Folder: "f-cairn", Name: "Lairig Ghru",
 			// Started/Ended reach no lossy writer at all, and they are the ONLY
 			// times a track imported from a GPX has. Deliberately not the first
 			// and last pip times: they are a different channel (track.go).
@@ -140,7 +138,11 @@ const goldenRegenerateEnv = "VNX_GPX_GOLDEN_REGENERATE"
 // the new bytes to be read by a person before they are committed.
 func TestGolden(t *testing.T) {
 	path := filepath.Join("testdata", "library.golden.gpx")
-	got, _ := write(t, fixture())
+	var buf bytes.Buffer
+	if _, err := WriteWith(&buf, fixture(), fixtureOptions()); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
 	if os.Getenv(goldenRegenerateEnv) != "" {
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 			t.Fatal(err)
@@ -589,7 +591,7 @@ func TestPointsPrecedeRoutesPrecedeTracks(t *testing.T) {
 
 func TestTextIsEscaped(t *testing.T) {
 	d := &vnx.Document{Points: []vnx.Point{
-		{Name: `Gate <north> & "east"`, Notes: "a & b", At: vnx.Position{Lon: 1, Lat: 1}}}}
+		{Name: `Gate <north> & "east"`, At: vnx.Position{Lon: 1, Lat: 1}}}}
 	out, _ := write(t, d)
 	if strings.Contains(out, "<north>") {
 		t.Errorf("raw markup reached the file:\n%s", out)
@@ -770,4 +772,21 @@ func TestAPlanWhoseWalkDoesNotResolveFailsTheWrite(t *testing.T) {
 	if _, err := Write(&buf, d); err == nil {
 		t.Fatalf("the write succeeded:\n%s", buf.String())
 	}
+}
+
+// fixtureOptions describes the fixture's items the way a caller with its own
+// note records would: by kind and own name. The golden is written with it, so
+// the golden carries every element a description can reach.
+func fixtureOptions() vnx.WriteOptions {
+	type key struct {
+		kind vnx.ItemKind
+		name string
+	}
+	descriptions := map[key]string{
+		{vnx.ItemPoint, "Car Park & Gate <north>"}: "Pay and display",
+		{vnx.ItemTrack, "Lairig Ghru"}:             "Two days, one pause",
+	}
+	return vnx.WriteOptions{Describe: func(it vnx.DescribedItem) (string, error) {
+		return descriptions[key{it.Kind, it.Name}], nil
+	}}
 }

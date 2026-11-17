@@ -1,6 +1,7 @@
 package vnx
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -38,7 +39,7 @@ import (
 //  4. **Severity is Warning at every writer site.** Every one of them reports
 //     something DROPPED, which is exactly what Warning is documented to mean.
 //  5. **One diagnostic per dropped ITEM, never per dropped attribute.** A
-//     GeoJSON export carries name and description only (§2.3), so data
+//     GeoJSON export carries the name only (§2.3), so data
 //     records and hidden state are lost on every item in the library — one
 //     diagnostic each would bury the real casualties under hundreds of rows
 //     nobody can act on. Attribute-level losses are matrix facts, proven by
@@ -249,4 +250,66 @@ func LabelNetwork(d *Document, i int) NetworkLabels {
 		}
 	}
 	return out
+}
+
+// WriteOptions are the options of the three lossy writers, passed to each
+// package's WriteWith. The zero value is what each package's Write uses: no
+// descriptions.
+type WriteOptions struct {
+	// Describe returns the description of one item, or "" for none. Nil
+	// writes no descriptions.
+	//
+	// The format has no description key: text about an item is application
+	// data in a data record (SPEC §3.10), and only the caller knows which of
+	// its records hold that text. GPX, KML and GeoJSON each have one
+	// description per item, so the caller turns the item into that text.
+	// GPX writes it as <desc>, KML as <description> and GeoJSON as
+	// `properties.description`.
+	//
+	// It is called once for each item the writer writes, in the order the
+	// writer writes them, and never for an item the format drops. An error
+	// stops the write, and the writer returns it.
+	Describe func(DescribedItem) (string, error)
+}
+
+// ItemKind names the kind of a [DescribedItem].
+type ItemKind string
+
+// The kinds of item a writer can ask [WriteOptions.Describe] about. An
+// in-network point or area has the kind of a top-level one; its Path says
+// which network holds it.
+const (
+	ItemFolder    ItemKind = "folder"
+	ItemPoint     ItemKind = "point"
+	ItemArea      ItemKind = "area"
+	ItemTrack     ItemKind = "track"
+	ItemPlan      ItemKind = "plan"
+	ItemNetwork   ItemKind = "network"
+	ItemHighlight ItemKind = "highlight"
+)
+
+// DescribedItem is the item a writer asks [WriteOptions.Describe] about.
+type DescribedItem struct {
+	Kind ItemKind
+	// Path is the item's JSON Pointer in the Document, for example
+	// "/points/0" or "/networks/1/areas/2".
+	Path string
+	// Name is the item's own name, "" for none: never a flattened path or a
+	// network label.
+	Name string
+	// Data is the item's data records. A folder has none.
+	Data []Record
+}
+
+// Description is the description of it, or "" when Describe is nil. An
+// error from Describe comes back naming the item's path.
+func (o WriteOptions) Description(it DescribedItem) (string, error) {
+	if o.Describe == nil {
+		return "", nil
+	}
+	s, err := o.Describe(it)
+	if err != nil {
+		return "", fmt.Errorf("describe %s: %w", it.Path, err)
+	}
+	return s, nil
 }

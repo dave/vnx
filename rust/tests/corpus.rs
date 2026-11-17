@@ -12,7 +12,7 @@
 //!   file against the tree parsed from `encode(decode(file))` (SPEC 8.1). It
 //!   does not compare bytes, because nothing constrains them, and it does not
 //!   compare one model against another, because a reader that discarded every
-//!   data record, application key and `notes` produces a model equal to itself
+//!   data record, application key and `name` produces a model equal to itself
 //!   and would pass green. See `tests/support/tree.rs`.
 //! * `positions` is resolved against the DECODED MODEL, never against the raw
 //!   JSON. Resolving it against the file compares the file to itself and
@@ -763,7 +763,7 @@ fn write_tier() {
 ///
 /// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
 /// ANOTHER MODEL. A reader that discarded every data record, every application
-/// key or every `notes` produces a model that compares equal to itself and
+/// key or every `name` produces a model that compares equal to itself and
 /// passes a model-versus-model tier GREEN. That is the entire extensibility
 /// mechanism and all user prose, silently droppable by a
 /// "conforming" implementation.
@@ -798,12 +798,15 @@ fn a_reader_that_discards_what_it_read_is_caught() {
             }
         }),
         ("drops every application key", |d| d.app_keys.clear()),
-        ("drops every notes", |d| {
+        ("drops every name", |d| {
             for n in d.networks.iter_mut().flatten() {
-                n.notes = None;
+                n.name = None;
                 for p in n.points.iter_mut().flatten() {
-                    p.notes = None;
+                    p.name = None;
                 }
+            }
+            for f in d.folders.iter_mut().flatten() {
+                f.name = None;
             }
         }),
     ];

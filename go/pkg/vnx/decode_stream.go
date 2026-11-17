@@ -191,8 +191,6 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 	areas.diags = clearAbsentFolders(areas.items, areas.paths, "area", held, func(a *Area) *string { return &a.Folder }, areas.diags)
 
 	doc = &Document{Version: declared}
-	doc.Generator, diags = stringField(top, "generator", "", diags)
-	doc.Created, diags = timeField(top, "created", "", diags)
 	doc.Folders, diags = folders.items, append(diags, folders.diags...)
 	doc.Points, diags = points.items, append(diags, points.diags...)
 	doc.Networks, diags = networks.items, append(diags, networks.diags...)

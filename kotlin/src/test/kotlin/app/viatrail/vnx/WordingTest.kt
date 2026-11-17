@@ -48,12 +48,12 @@ class WordingTest {
             mapOf(
                 DiagnosticCause.WRONG_TYPE_OPTIONAL to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"hidden":"yes"}]}""",
+                        """{"vnx":"0.10.0","points":[{"at":[-3,57],"hidden":"yes"}]}""",
                         DiagnosticCause.WRONG_TYPE_OPTIONAL,
                     ),
                 DiagnosticCause.WRONG_TYPE_REQUIRED to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"at":"beside the burn"}]}""",
+                        """{"vnx":"0.10.0","points":[{"at":"beside the burn"}]}""",
                         DiagnosticCause.WRONG_TYPE_REQUIRED,
                     ),
                 DiagnosticCause.POSITION_UNUSABLE to
@@ -63,7 +63,7 @@ class WordingTest {
                     ),
                 DiagnosticCause.UNKNOWN_KEY to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"nmae":"typo","at":[-3,57]}]}""",
+                        """{"vnx":"0.10.0","points":[{"nmae":"typo","at":[-3,57]}]}""",
                         DiagnosticCause.UNKNOWN_KEY,
                     ),
                 DiagnosticCause.TIMESTAMP_NOT_UTC to
@@ -78,17 +78,17 @@ class WordingTest {
                     ),
                 DiagnosticCause.MISSING_REQUIRED_KEY to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"name":"nowhere"}]}""",
+                        """{"vnx":"0.10.0","points":[{"name":"nowhere"}]}""",
                         DiagnosticCause.MISSING_REQUIRED_KEY,
                     ),
                 DiagnosticCause.DATA_RECORD_TYPE_MISSING to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"data":[{"value":1}]}]}""",
+                        """{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"value":1}]}]}""",
                         DiagnosticCause.DATA_RECORD_TYPE_MISSING,
                     ),
                 DiagnosticCause.OUT_OF_RANGE to
                     causeOf(
-                        """{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"style":{"importance":9}}]}""",
+                        """{"vnx":"0.10.0","points":[{"at":[-3,57],"style":{"importance":9}}]}""",
                         DiagnosticCause.OUT_OF_RANGE,
                     ),
                 DiagnosticCause.RING_CLOSED to
@@ -191,7 +191,7 @@ class WordingTest {
         // one of its two claimed substrings unprovoked and fail below.
         val provoked =
             listOf(
-                RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.10.0","waypoints":[{"at":[NaN,57]}]}"""),
+                RefusalCause.MALFORMED_JSON to refusalOf("""{"vnx":"0.10.0","points":[{"at":[NaN,57]}]}"""),
                 RefusalCause.NOT_A_VNX_DOCUMENT to refusalOf("""{"generator":"x"}"""),
                 RefusalCause.VERSION_MALFORMED to refusalOf("""{"vnx":"0.10"}"""),
                 RefusalCause.VERSION_SERIES_UNSUPPORTED to refusalOf("""{"vnx":"9.9.9"}"""),

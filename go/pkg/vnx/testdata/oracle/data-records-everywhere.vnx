@@ -13,13 +13,13 @@
       ]
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "w",
       "at": [1, 2],
       "data": [
         {
-          "@type": "t/waypoint",
+          "@type": "t/point",
           "value": "x"
         },
         {

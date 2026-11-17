@@ -17,7 +17,7 @@ import { decodeContainer, encodeContainer, writeContainer } from '../src/vnz.js'
 import { readEntries, readEntryData, writeArchive, crc32, METHOD_STORE, METHOD_DEFLATE } from '../src/zip.js';
 import { VnxRefusal } from '../src/errors.js';
 
-const DOC = '{\n  "vnx": "0.10.0",\n  "waypoints": [\n    {\n      "at": [-3.6712, 57.118]\n    }\n  ]\n}\n';
+const DOC = '{\n  "vnx": "0.10.0",\n  "points": [\n    {\n      "at": [-3.6712, 57.118]\n    }\n  ]\n}\n';
 
 function refusal(fn) {
   try {
@@ -35,7 +35,7 @@ test('a container round-trips through this library', () => {
   assert.equal(c.documentEntry, 'doc.vnx');
   assert.deepEqual([...c.attachments.keys()], ['attachments/photo.txt']);
   assert.equal(c.attachments.get('attachments/photo.txt').toString(), 'hello');
-  assert.equal(c.document.waypoints.length, 1);
+  assert.equal(c.document.points.length, 1);
   assert.deepEqual(c.diagnostics, []);
 });
 
@@ -49,16 +49,16 @@ test('the root document is matched on the FULL entry name, not the base name', (
   // the defect SPEC.md 7 warns about and the corpus does not cover.
   const buf = writeArchive([
     { name: 'export.vnx', data: Buffer.from(DOC) },
-    { name: 'nested/doc.vnx', data: Buffer.from('{"vnx": "0.10.0", "waypoints": []}') },
+    { name: 'nested/doc.vnx', data: Buffer.from('{"vnx": "0.10.0", "points": []}') },
   ]);
   const c = decodeContainer(buf);
   assert.equal(c.documentEntry, 'export.vnx');
-  assert.equal(c.document.waypoints.length, 1);
+  assert.equal(c.document.points.length, 1);
 });
 
 test('the root document match is case-insensitive', () => {
   const buf = writeArchive([
-    { name: 'aaa.vnx', data: Buffer.from('{"vnx": "0.10.0", "waypoints": []}') },
+    { name: 'aaa.vnx', data: Buffer.from('{"vnx": "0.10.0", "points": []}') },
     { name: 'DOC.VNX', data: Buffer.from(DOC) },
   ]);
   assert.equal(decodeContainer(buf).documentEntry, 'DOC.VNX');
@@ -67,7 +67,7 @@ test('the root document match is case-insensitive', () => {
 test('the fallback takes the FIRST .vnx entry in archive order', () => {
   const buf = writeArchive([
     { name: 'a.vnx', data: Buffer.from(DOC) },
-    { name: 'b.vnx', data: Buffer.from('{"vnx": "0.10.0", "waypoints": []}') },
+    { name: 'b.vnx', data: Buffer.from('{"vnx": "0.10.0", "points": []}') },
   ]);
   assert.equal(decodeContainer(buf).documentEntry, 'a.vnx');
 });
@@ -122,7 +122,7 @@ test('an unreadable ATTACHMENT is dropped with a diagnostic; the document surviv
     12,
   );
   const c = decodeContainer(buf);
-  assert.equal(c.document.waypoints.length, 1);
+  assert.equal(c.document.points.length, 1);
   assert.deepEqual([...c.attachments.keys()], []);
   assert.equal(c.diagnostics[0].code, 'attachment-unreadable');
   // SPEC.md 6.3's separate pointer space: an archive entry is not in the document.

@@ -5,7 +5,7 @@ Version 0.10.6
 ## Abstract
 
 VNX (Viatrail Network eXchange) is a JSON interchange format for trail data. It
-carries folders, networks, plans, tracks, waypoints and areas. A network is a
+carries folders, networks, plans, tracks, points and areas. A network is a
 graph of nodes and arcs together with highlights, each of which walks those arcs in
 order; two highlights that follow the same trail reference the same arc.
 
@@ -95,8 +95,8 @@ a term is listed after every term its definition uses.
   two segments is a pause (Section 3.5).
 - A **track** is a top-level item carrying an ordered array of segments
   (Section 3.5).
-- A **waypoint** is a top-level item carrying one position, `at`; a network's
-  points have the same shape (Section 3.6).
+- A **point** is an item carrying one position, `at`, either at the top level or
+  within a network (Section 3.6).
 - An **area** is an item carrying one ring of positions, `polygon`, either at
   the top level or within a network (Section 3.7).
 - An **application key** is a top-level key of a document that contains a full
@@ -155,7 +155,7 @@ rule. The document below is complete and is read with no diagnostics.
       ]
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "folder": "cairngorms",
       "name": "Car park",
@@ -170,10 +170,10 @@ rule. The document below is complete and is read with no diagnostics.
 
 `vnx` is the format version (Section 2.2); `generator` and `created` are
 informational (Section 3.1). The one folder, `cairngorms`, is named by the
-`folder` key of the network and of the waypoint (Section 3.2). The network
+`folder` key of the network and of the point (Section 3.2). The network
 holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
 one highlight whose walk is a single pass over that arc from `node-1` to `node-2`,
-carrying one data record along that walk (Section 3.3). The waypoint carries its position in
+carrying one data record along that walk (Section 3.3). The point carries its position in
 `at` and one data record of type `com.example.tag` (Sections 3.6 and 5).
 
 ## 2. Document identification
@@ -266,7 +266,7 @@ A VNX document is a JSON object.
   "networks":  [ ],
   "plans":     [ ],
   "tracks":    [ ],
-  "waypoints": [ ],
+  "points":    [ ],
   "areas":     [ ],
 
   "com.example.routes": [ ]
@@ -535,9 +535,10 @@ track with no segments at all is unknown for the same reason.
 An empty segment does not make a track unknown. It has no span to measure, so it
 contributes zero.
 
-### 3.6 Waypoints and points
+### 3.6 Points
 
-Top-level `waypoints` and a network's `points` share one shape.
+A point carries one position. Top-level `points` and a network's `points`
+share one shape.
 
 ```json
 {
@@ -615,7 +616,7 @@ Absence means visible. A writer MUST emit the key only when its value is `true`,
 and a document SHOULD NOT contain `"hidden": false`.
 
 `pinned` is a record-level timestamp (Section 4.3) carried on networks,
-highlights, plans, tracks, waypoints, points and areas: every item except a
+highlights, plans, tracks, points and areas: every item except a
 folder. Its value is the time the user pinned the item. Like `hidden`, it is
 user-visible state.
 
@@ -638,7 +639,7 @@ never collide with one.
 A name SHOULD be in reverse-DNS form, chosen by the owner of the domain:
 `com.example.routes` belongs to whoever owns `example.com`. That is
 guidance for whoever names a key. A reader MUST NOT validate it, so `.` and
-`waypoints.` are application keys.
+`points.` are application keys.
 
 The value of an application key is any JSON value, and it is opaque. A reader:
 
@@ -648,7 +649,7 @@ The value of an application key is any JSON value, and it is opaque. A reader:
   does not apply to an application key or to anything inside its value.
 - MUST NOT record a diagnostic for an application key, whatever its value.
 - MUST NOT apply any rule of this format inside the value. A value under
-  `waypoints.` that would be unusable as a waypoint is carried as written, and
+  `points.` that would be unusable as a point is carried as written, and
   so is an `importance` outside 1 to 5.
 
 The rule applies only at the top level of a document. On any other object this
@@ -675,7 +676,7 @@ array is distinct from an absent one.
 
 | Object | Required | Optional |
 |---|---|---|
-| document | `vnx` | `generator`, `created`, `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, and every application key (Section 3.9) |
+| document | `vnx` | `generator`, `created`, `folders`, `networks`, `plans`, `tracks`, `points`, `areas`, and every application key (Section 3.9) |
 | folder | `id` | `parent`, `name`, `notes`, `hidden`, `data` |
 | network | — | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `highlights`, `points`, `areas`, `data` |
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
@@ -684,7 +685,7 @@ array is distinct from an absent one.
 | plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `nodes`, `arcs`, `data` |
 | track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `started`, `ended`, `data` |
 | segment | `pips` | — |
-| waypoint | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
+| point, at the top level | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
 | point, in a network | `at` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
 | area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
 | area, in a network | `polygon` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
@@ -702,8 +703,8 @@ Notes on the table:
   and has no notes or style of its own (Section 3.3.3). Apart from `data` on an
   arc, none of the four appears on any other object in the table. An
   object to which the table gives none of them is not an item. `hidden` therefore appears on a
-  top-level waypoint: Section 3.8 names the shape rather than the collection,
-  and a waypoint and a network's point are one shape (Section 3.6).
+  top-level point: Section 3.8 names the shape rather than the collection,
+  and a top-level point and a network's point are one shape (Section 3.6).
 - `pinned` appears on every item except a folder (Section 3.8).
 - An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
   a segment carries `hidden`. A per-arc style is a plausible future addition and
@@ -981,7 +982,7 @@ The remedies for the constructs this document constrains:
 | a data record with no `@type`, or one that is not a string (5) | drop the record | `wrong-type-required` |
 | a record-level timestamp with an offset other than `Z` (4.3) | drop the field | `timestamp-not-utc` |
 | a position that will not parse, as a node (3.3.1) | drop the node | `position-unusable` |
-| a position that will not parse, as a waypoint's or a point's `at` (3.6) | drop the waypoint or point | `position-unusable` |
+| a position that will not parse, as a point's `at` (3.6) | drop the point | `position-unusable` |
 | a position that will not parse, inside an arc's `pips` (3.3.2) | drop the arc | `position-unusable` |
 | a position that will not parse, inside a track segment's `pips` (3.5) | drop the segment | `position-unusable` |
 | a position that will not parse, inside a `polygon` ring (3.7) | drop the area | `position-unusable` |

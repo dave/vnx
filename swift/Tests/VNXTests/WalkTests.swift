@@ -444,7 +444,7 @@ final class WalkTests: XCTestCase {
   func testAnAbsentRequiredKeyIsNamedAtTheKey() throws {
     let result = try read(
       """
-      "waypoints":[{"name":"w"}],
+      "points":[{"name":"w"}],
       "networks":[{"nodes":{"a":[0,0],"b":[1,1]},"arcs":{"x":{"to":"b","pips":[]},"y":{"from":"a","to":"b"}}}]
       """)
     XCTAssertEqual(
@@ -452,7 +452,7 @@ final class WalkTests: XCTestCase {
       [
         "wrong-type-required /networks/0/arcs/x/from",
         "wrong-type-required /networks/0/arcs/y/pips",
-        "wrong-type-required /waypoints/0/at",
+        "wrong-type-required /points/0/at",
       ])
   }
 

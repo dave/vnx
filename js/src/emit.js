@@ -122,7 +122,7 @@ export function emitDocument(doc) {
   if (doc.networks !== undefined) o.networks = doc.networks.map((n) => emitNetwork(n));
   if (doc.plans !== undefined) o.plans = doc.plans.map((r) => emitPlan(r));
   if (doc.tracks !== undefined) o.tracks = doc.tracks.map((t) => emitTrack(t));
-  if (doc.waypoints !== undefined) o.waypoints = doc.waypoints.map((w) => emitPointLike(w));
+  if (doc.points !== undefined) o.points = doc.points.map((w) => emitPointLike(w));
   if (doc.areas !== undefined) o.areas = doc.areas.map((a) => emitArea(a));
   emitAppKeys(o, doc.appKeys);
   return o;

@@ -1,9 +1,9 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "A longitude or latitude outside its range, in every place a position appears (SPEC 4.1, 6.2). Longitude runs from -180 to 180 and latitude from -90 to 90, both bounds included, and a position outside either will not parse. Each takes the remedy SPEC 6.2 gives a position that will not parse in that place: a waypoint and a network point are dropped, a ring vertex drops its area, a segment pip drops its segment, an arc pip drops its arc, a node is dropped and the arc naming it goes with it, and a `turn` drops its highlight. Every value is just past its bound, and the second waypoint sits exactly on the pole and survives, so a reader with an exclusive bound, or with the latitude range applied to longitude, fails. `counts` pins what survives of each container, and `positions` pins that the survivors are the valid ones.",
+  "note": "A longitude or latitude outside its range, in every place a position appears (SPEC 4.1, 6.2). Longitude runs from -180 to 180 and latitude from -90 to 90, both bounds included, and a position outside either will not parse. Each takes the remedy SPEC 6.2 gives a position that will not parse in that place: a top-level point and a network point are dropped, a ring vertex drops its area, a segment pip drops its segment, an arc pip drops its arc, a node is dropped and the arc naming it goes with it, and a `turn` drops its highlight. Every value is just past its bound, and the second top-level point sits exactly on the pole and survives, so a reader with an exclusive bound, or with the latitude range applied to longitude, fails. `counts` pins what survives of each container, and `positions` pins that the survivors are the valid ones.",
   "counts": {
-    "waypoints": 1,
+    "points": 1,
     "areas": 1,
     "tracks": 1,
     "networks": 1,
@@ -19,7 +19,7 @@
   },
   "positions": [
     {
-      "at": "/waypoints/0/at",
+      "at": "/points/0/at",
       "lon": -3.6,
       "lat": 90
     },
@@ -41,9 +41,9 @@
   ],
   "diagnostics": [
     {
-      "path": "/waypoints/0/at",
+      "path": "/points/0/at",
       "code": "position-unusable",
-      "message_advisory": "latitude 90.5 is off the globe — the waypoint is dropped"
+      "message_advisory": "latitude 90.5 is off the globe — the top-level point is dropped"
     },
     {
       "path": "/areas/0/polygon/1",

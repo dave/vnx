@@ -47,7 +47,7 @@ type expectedDiagnostic struct {
 }
 
 // expectedPosition pins one position in the document, addressed by a JSON
-// Pointer in the wire's own key names — "/waypoints/0/at",
+// Pointer in the wire's own key names — "/points/0/at",
 // "/networks/0/arcs/arc-1/pips/3", "/tracks/0/segments/1/pips/0". The pointer
 // is resolved against the DECODED model, never against the raw JSON: resolving
 // it against the file would compare the file to itself and could not see a
@@ -80,8 +80,8 @@ type expectation struct {
 	// only defence, and the values are JSON numbers in the sidecar so the
 	// comparison is between doubles rather than between formatted text.
 	//
-	// ⚠ IT ADDRESSES EVERY POSITION, NOT JUST WAYPOINTS. It named waypoints
-	// only until 2026-09-09, which meant a reader that transposed lon/lat on
+	// ⚠ IT ADDRESSES EVERY POSITION, NOT JUST TOP-LEVEL POINTS. It named
+	// top-level points only until 2026-09-09, which meant a reader that transposed lon/lat on
 	// every arc pip, node, area vertex and track pip passed the entire corpus —
 	// including accept/lonlat-transposition.vnx, the file that exists for this
 	// bug. A fixture containing a construct is not a test of it; only a named
@@ -368,12 +368,12 @@ func runDiagnose(t *testing.T, c corpusCase) {
 func checkCounts(t *testing.T, doc *Document, want map[string]int) {
 	t.Helper()
 	got := map[string]int{
-		"folders":   len(doc.Folders),
-		"networks":  len(doc.Networks),
-		"plans":     len(doc.Plans),
-		"tracks":    len(doc.Tracks),
-		"waypoints": len(doc.Waypoints),
-		"areas":     len(doc.Areas),
+		"folders":  len(doc.Folders),
+		"networks": len(doc.Networks),
+		"plans":    len(doc.Plans),
+		"tracks":   len(doc.Tracks),
+		"points":   len(doc.Points),
+		"areas":    len(doc.Areas),
 	}
 	// The nested containers, addressed by the same JSON Pointer vocabulary
 	// `positions` uses. A bare name is a top-level collection; a name starting
@@ -555,8 +555,8 @@ func positionsByPointer(doc *Document) map[string]Position {
 			}
 		}
 	}
-	for i, w := range doc.Waypoints {
-		out[fmt.Sprintf("/waypoints/%d/at", i)] = w.At
+	for i, w := range doc.Points {
+		out[fmt.Sprintf("/points/%d/at", i)] = w.At
 	}
 	for i, a := range doc.Areas {
 		pips(fmt.Sprintf("/areas/%d/polygon", i), a.Polygon)
@@ -787,37 +787,37 @@ func TestMatchDiagnostics(t *testing.T) {
 	}{
 		{
 			name: "order does not matter",
-			got:  []Diagnostic{d("/areas/0/polygon", "polygon-nested-rings"), d("/waypoints/0/nmae", "unknown-key")},
-			want: []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key"), w("/areas/0/polygon", "polygon-nested-rings")},
+			got:  []Diagnostic{d("/areas/0/polygon", "polygon-nested-rings"), d("/points/0/nmae", "unknown-key")},
+			want: []expectedDiagnostic{w("/points/0/nmae", "unknown-key"), w("/areas/0/polygon", "polygon-nested-rings")},
 		},
 		{
 			// Two diagnostics with the same code and wildly different English
 			// still pair: the English is advisory.
 			name: "the English is not compared",
-			got:  []Diagnostic{{Severity: Warning, Path: "/waypoints/0/nmae", Code: "unknown-key", Message: "totally different prose"}},
-			want: []expectedDiagnostic{{Path: "/waypoints/0/nmae", Code: "unknown-key", MessageAdvisory: "unknown-key"}},
+			got:  []Diagnostic{{Severity: Warning, Path: "/points/0/nmae", Code: "unknown-key", Message: "totally different prose"}},
+			want: []expectedDiagnostic{{Path: "/points/0/nmae", Code: "unknown-key", MessageAdvisory: "unknown-key"}},
 		},
 		{
 			name:      "a diagnostic the reader never reported",
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
+			want:      []expectedDiagnostic{w("/points/0/nmae", "unknown-key")},
 			unmatched: 1,
 		},
 		{
 			name:  "a diagnostic the reader invented",
-			got:   []Diagnostic{d("/waypoints/0/nmae", "unknown-key")},
+			got:   []Diagnostic{d("/points/0/nmae", "unknown-key")},
 			extra: 1,
 		},
 		{
 			name:      "the right message at the wrong path",
-			got:       []Diagnostic{d("/waypoints/1/nmae", "unknown-key")},
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
+			got:       []Diagnostic{d("/points/1/nmae", "unknown-key")},
+			want:      []expectedDiagnostic{w("/points/0/nmae", "unknown-key")},
 			unmatched: 1,
 			extra:     1,
 		},
 		{
 			name:      "the right path with the wrong message",
-			got:       []Diagnostic{d("/waypoints/0/nmae", "timestamp-not-utc")},
-			want:      []expectedDiagnostic{w("/waypoints/0/nmae", "unknown-key")},
+			got:       []Diagnostic{d("/points/0/nmae", "timestamp-not-utc")},
+			want:      []expectedDiagnostic{w("/points/0/nmae", "unknown-key")},
 			unmatched: 1,
 			extra:     1,
 		},

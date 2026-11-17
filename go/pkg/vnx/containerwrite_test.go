@@ -25,7 +25,7 @@ func containerFixture() *vnx.Document {
 	at := func(lon, lat float64) vnx.Position { return vnx.Position{Lon: lon, Lat: lat} }
 	return &vnx.Document{
 		Generator: "containerwrite_test",
-		Waypoints: []vnx.Waypoint{{Name: "Ben Macdui", At: at(-3.6689, 57.0704)}},
+		Points:    []vnx.Point{{Name: "Ben Macdui", At: at(-3.6689, 57.0704)}},
 		Tracks: []vnx.Track{{
 			Name:     "Cairn Gorm Day",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{at(-3.67, 57.11), at(-3.668, 57.112)}}},
@@ -53,8 +53,8 @@ func TestEncodeContainerToIsReadBackByDecodeContainer(t *testing.T) {
 		t.Errorf("the archive carried %d attachment(s); it holds one document and nothing else: %v",
 			len(c.Attachments), c.Attachments)
 	}
-	if len(c.Document.Waypoints) != 1 || c.Document.Waypoints[0].Name != "Ben Macdui" {
-		t.Fatalf("the waypoint did not survive the container: %+v", c.Document.Waypoints)
+	if len(c.Document.Points) != 1 || c.Document.Points[0].Name != "Ben Macdui" {
+		t.Fatalf("the point did not survive the container: %+v", c.Document.Points)
 	}
 	// The geometry, not only the count — a container that carried an empty
 	// document back would pass a count check on a one-item fixture only if the

@@ -49,7 +49,7 @@ func TestAppKeysArePreservedOpaquelyAndSorted(t *testing.T) {
 // is still unknown too.
 func TestADottedKeyBelowTheTopLevelIsReported(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.10.0","rulesets":[],
-	  "waypoints":[{"at":[1,2],"app.viatrail.x":1}]}`))
+	  "points":[{"at":[1,2],"app.viatrail.x":1}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestADottedKeyBelowTheTopLevelIsReported(t *testing.T) {
 	for _, d := range diags {
 		got[d.Path] = d.Code
 	}
-	want := map[string]string{"/rulesets": CodeUnknownKey, "/waypoints/0/app.viatrail.x": CodeUnknownKey}
+	want := map[string]string{"/rulesets": CodeUnknownKey, "/points/0/app.viatrail.x": CodeUnknownKey}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("diagnostics %v, want %v", got, want)
 	}
@@ -119,7 +119,7 @@ func TestEncodeRefusesAnAppKeyItCannotWrite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// A populated collection, so a refusal after the first member
 			// would leave bytes behind.
-			doc := &Document{Generator: "g", Waypoints: []Waypoint{{Name: "w", At: Position{Lon: 1, Lat: 2}}},
+			doc := &Document{Generator: "g", Points: []Point{{Name: "w", At: Position{Lon: 1, Lat: 2}}},
 				AppKeys: tc.keys}
 			var b bytes.Buffer
 			err := EncodeTo(&b, doc)
@@ -149,7 +149,7 @@ func TestANilAppKeyValueIsWrittenAsNull(t *testing.T) {
 // key are escaped (RFC 6901). Unescaped, "a/b" would point at "b" inside "a".
 func TestAnUnknownKeyPathIsEscaped(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.10.0","a/b":1,"x~y.z":1,
-	  "waypoints":[{"at":[1,2],"a/b":1,"x~y.z":1}]}`))
+	  "points":[{"at":[1,2],"a/b":1,"x~y.z":1}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestAnUnknownKeyPathIsEscaped(t *testing.T) {
 		got[d.Path] = true
 	}
 	// "x~y.z" at the top level is an application key, so it is not reported.
-	want := map[string]bool{"/a~1b": true, "/waypoints/0/a~1b": true, "/waypoints/0/x~0y.z": true}
+	want := map[string]bool{"/a~1b": true, "/points/0/a~1b": true, "/points/0/x~0y.z": true}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("diagnostic paths %v, want %v", got, want)
 	}

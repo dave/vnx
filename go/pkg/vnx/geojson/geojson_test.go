@@ -72,7 +72,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 }
 
 // A network emits ALL FOUR KINDS: the arcs as one MultiLineString Feature, a
-// Point Feature per in-network waypoint, a Polygon Feature per in-network area,
+// Point Feature per in-network point, a Polygon Feature per in-network area,
 // and a LineString Feature per highlight — each named (§2.6, redesigned 2026-09-03).
 //
 // ⚠ Network.Points AND Network.Areas EXIST AND ARE POPULATED, and an earlier
@@ -90,7 +90,7 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 		Arcs: map[string]vnx.Arc{
 			"a": {From: "n1", To: "n2"},
 		},
-		Points: []vnx.Waypoint{{Name: "hut", At: pos(0.5, 0.5, nil)}},
+		Points: []vnx.Point{{Name: "hut", At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "bog", Polygon: square()}},
 		Highlights: []vnx.Highlight{{Name: "Traverse", Walk: []vnx.Pass{
 			{Arc: "a", From: node("n1"), To: node("n2")},
@@ -119,7 +119,7 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 }
 
 // ⚠ THE FOUR FIELDS THE GeometryCollection DESTROYED, and the two GeoJSON can
-// keep. Network.Points are full vnx.Waypoints and Network.Areas full vnx.Areas,
+// keep. Network.Points are full vnx.Points and Network.Areas full vnx.Areas,
 // each with Name, Notes, Hidden and Style (item.go:34-55). As bare geometries
 // inside a shared collection all four were lost; as Features of their own the
 // name and the notes survive.
@@ -131,7 +131,7 @@ func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 		Folders: []vnx.Folder{{ID: "f", Name: "Highlands"}},
 		Networks: []vnx.Network{{
 			Name: "Cairngorms", Folder: "f",
-			Points: []vnx.Waypoint{{Name: "Summit cairn", Notes: "big pile", Hidden: true,
+			Points: []vnx.Point{{Name: "Summit cairn", Notes: "big pile", Hidden: true,
 				Style: vnx.Style{"color": "#E04535"}, At: pos(1, 2, nil)}},
 			Areas: []vnx.Area{{Name: "Deer reserve", Notes: "no dogs", Hidden: true,
 				Style: vnx.Style{"fill-color": "#1E9C45"}, Polygon: square()}},
@@ -169,7 +169,7 @@ func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 func TestNetworkWithNoArcsWritesNoFeatureOfItsOwnAndSaysSo(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Empty graph", Notes: "no arcs yet",
-		Points: []vnx.Waypoint{{Name: "Lone cairn", At: pos(1, 2, nil)}},
+		Points: []vnx.Point{{Name: "Lone cairn", At: pos(1, 2, nil)}},
 	}}})
 	// No Feature of its own, in either of the two shapes that were considered.
 	if strings.Contains(out, `"coordinates":[]`) {
@@ -328,7 +328,7 @@ func TestTheCollectionIsFlat(t *testing.T) {
 // An item with no name emits no `name` property rather than an empty one: the
 // item has no name, and asserting it has a blank one is a different claim.
 func TestAnUnnamedItemHasNoNameProperty(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Waypoints: []vnx.Waypoint{{At: pos(1, 2, nil)}}})
+	out, _ := writeDoc(t, &vnx.Document{Points: []vnx.Point{{At: pos(1, 2, nil)}}})
 	if strings.Contains(out, `"name"`) {
 		t.Errorf("an empty name was written: %s", out)
 	}
@@ -343,8 +343,8 @@ func TestAnUnnamedItemHasNoNameProperty(t *testing.T) {
 // cannot make anyway.
 func TestASeparatorInANameIsNotEscaped(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
-		Folders:   []vnx.Folder{{ID: "f", Name: "A / B"}},
-		Waypoints: []vnx.Waypoint{{Name: "C", Folder: "f", At: pos(1, 2, nil)}},
+		Folders: []vnx.Folder{{ID: "f", Name: "A / B"}},
+		Points:  []vnx.Point{{Name: "C", Folder: "f", At: pos(1, 2, nil)}},
 	})
 	if !strings.Contains(out, `"name":"A / B / C"`) {
 		t.Errorf("wanted the ambiguous path verbatim, got %s", out)
@@ -376,7 +376,7 @@ func TestInNetworkFeaturesAreNamedByNameOrInteger(t *testing.T) {
 		Name:   "Ridges",
 		Nodes:  map[string]vnx.Vertex{"n1": vx(pos(0, 0, nil)), "n2": vx(pos(1, 1, nil))},
 		Arcs:   map[string]vnx.Arc{"a": {From: "n1", To: "n2"}},
-		Points: []vnx.Waypoint{{At: pos(0.5, 0.5, nil)}},
+		Points: []vnx.Point{{At: pos(0.5, 0.5, nil)}},
 		Areas:  []vnx.Area{{Name: "Bog", Polygon: square()}},
 		Highlights: []vnx.Highlight{
 			{Name: "West ridge", Walk: []vnx.Pass{{Arc: "a", From: node("n1"), To: node("n2")}}},

@@ -317,7 +317,7 @@
       }
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "folder": "cairngorms",
       "name": "Car park",

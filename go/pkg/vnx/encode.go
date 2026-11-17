@@ -34,7 +34,7 @@ type wireFolder struct {
 	Data   []any  `json:"data,omitempty"`
 }
 
-type wireWaypoint struct {
+type wirePoint struct {
 	Name   string       `json:"name,omitempty"`
 	Notes  string       `json:"notes,omitempty"`
 	Folder string       `json:"folder,omitempty"`
@@ -132,30 +132,26 @@ func Encode(doc *Document) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// waypointWire builds a top-level waypoint or a network's point. They are one
+// pointWire builds a top-level point or a network's point. They are one
 // shape (spec §3.6) apart from `folder`, which §3.10 does not allow on an
 // in-network point: a network already contains its points, so a folder there
 // would place an item that is not placed. `inNetwork` is what keeps that from
 // depending on the caller's discipline — the two uses share this function, so
 // nothing else could.
-func waypointWire(w Waypoint, inNetwork bool) (wireWaypoint, error) {
+func pointWire(w Point, inNetwork bool) (wirePoint, error) {
 	at, err := positionWire(w.At)
 	if err != nil {
-		return wireWaypoint{}, err
+		return wirePoint{}, err
 	}
 	data, err := dataBodies(w.Data)
 	if err != nil {
-		return wireWaypoint{}, err
+		return wirePoint{}, err
 	}
-	kind := "waypoint"
-	if inNetwork {
-		kind = "point"
-	}
-	pinned, err := pinnedWire(kind, w.Name, w.Pinned)
+	pinned, err := pinnedWire("point", w.Name, w.Pinned)
 	if err != nil {
-		return wireWaypoint{}, err
+		return wirePoint{}, err
 	}
-	out := wireWaypoint{Name: w.Name, Notes: w.Notes, Hidden: w.Hidden, Pinned: pinned, At: at, Style: w.Style, Data: data}
+	out := wirePoint{Name: w.Name, Notes: w.Notes, Hidden: w.Hidden, Pinned: pinned, At: at, Style: w.Style, Data: data}
 	if !inNetwork {
 		out.Folder = w.Folder
 	}
@@ -164,7 +160,7 @@ func waypointWire(w Waypoint, inNetwork bool) (wireWaypoint, error) {
 
 // areaWire builds a top-level area or a network's area. `folder` is not allowed
 // on an in-network area for the same reason as an in-network point; see
-// waypointWire.
+// pointWire.
 func areaWire(a Area, inNetwork bool) (wireArea, error) {
 	if err := checkRing(a.Polygon); err != nil {
 		return wireArea{}, fmt.Errorf("area %q: %w", a.Name, err)

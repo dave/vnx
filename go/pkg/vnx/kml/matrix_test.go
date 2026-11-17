@@ -87,7 +87,7 @@ func TestMatrixFolderKeepsTreeNameNotesAndVisibilityAndLosesIdAndData(t *testing
 			ID: "f-secret-id", Name: "Cairngorms", Notes: "the big ones", Hidden: true,
 			Data: []vnx.Record{{Type: "app.viatrail.tag", Body: map[string]any{"value": "scotland"}}},
 		}},
-		Waypoints: []vnx.Waypoint{{Folder: "f-secret-id", Name: "W", At: pos(1, 2)}},
+		Points: []vnx.Point{{Folder: "f-secret-id", Name: "W", At: pos(1, 2)}},
 	})
 	for _, want := range []string{"<name>Cairngorms</name>", "<description>the big ones</description>", "<visibility>0</visibility>"} {
 		if !strings.Contains(out, want) {
@@ -105,7 +105,7 @@ func TestMatrixFolderKeepsTreeNameNotesAndVisibilityAndLosesIdAndData(t *testing
 // Row: Styles — "per-item Style, partial".
 func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Name: "W", At: pos(1, 2),
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
@@ -133,7 +133,7 @@ func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
 
 // Row: Tags — "❌".
 func TestMatrixTagsAreNotCarried(t *testing.T) {
-	out, report := writeDoc(t, &vnx.Document{Waypoints: []vnx.Waypoint{{
+	out, report := writeDoc(t, &vnx.Document{Points: []vnx.Point{{
 		Name: "W", At: pos(1, 2),
 		Data: []vnx.Record{
 			{Type: "app.viatrail.tag", Body: map[string]any{"value": "munro"}},
@@ -177,9 +177,9 @@ func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 func TestMatrixHiddenIsCarriedOnEveryNamedThingIncludingInNetworkItems(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	// CARRIED: on every Placemark and Folder that has one of its own — an empty
-	// folder, a waypoint, a highlight, and the in-network area that used to lose it.
+	// folder, a point, a highlight, and the in-network area that used to lose it.
 	if n := countOf(out, "<visibility>0</visibility>"); n != 4 {
-		t.Errorf("<visibility>0</visibility> count = %d, want 4 (a folder, a waypoint, a highlight, an in-network area)\n%s", n, out)
+		t.Errorf("<visibility>0</visibility> count = %d, want 4 (a folder, a point, a highlight, an in-network area)\n%s", n, out)
 	}
 	// The arcs are the ONE thing left that cannot carry visibility, and they
 	// carry none of their own to lose: vnx.Arc has no Hidden field.
@@ -243,8 +243,8 @@ func TestMatrixAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 		{Key: "com.example.r2", Value: nil},
 	}
 	out, report := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "W", At: pos(1, 2)}},
-		AppKeys:   keys,
+		Points:  []vnx.Point{{Name: "W", At: pos(1, 2)}},
+		AppKeys: keys,
 	})
 	if strings.Contains(out, "r1") || strings.Contains(out, "r2") {
 		t.Errorf("an application key reached the file\n%s", out)
@@ -264,9 +264,9 @@ func TestMatrixAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 	}
 }
 
-// Rows: Track, Waypoint, Area — the ✅ cells. They are asserted too, because a
+// Rows: Track, Point, Area — the ✅ cells. They are asserted too, because a
 // ✅ that nobody checked is the same guess as a ⚠ that nobody checked.
-func TestMatrixTrackPausesWaypointsAndAreasAreCarriedWhole(t *testing.T) {
+func TestMatrixTrackPausesPointsAndAreasAreCarriedWhole(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	track := out[strings.Index(out, "<name>Walk In</name>"):]
 	track = track[:strings.Index(track, "</Placemark>")]

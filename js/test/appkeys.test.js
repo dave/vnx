@@ -31,10 +31,10 @@ test('a null or empty application key survives a read and a write', () => {
 });
 
 test('a dotted key below the top level is an unknown key', () => {
-  const { diagnostics } = decodeText('{"vnx":"0.10.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}');
+  const { diagnostics } = decodeText('{"vnx":"0.10.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}');
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/points/0/app.viatrail.x', 'unknown-key'],
     ['/rulesets', 'unknown-key'],
-    ['/waypoints/0/app.viatrail.x', 'unknown-key'],
   ]);
 });
 

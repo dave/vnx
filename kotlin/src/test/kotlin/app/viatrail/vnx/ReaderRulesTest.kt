@@ -22,18 +22,18 @@ class ReaderRulesTest {
 
     @Test
     fun `an unrecognised key is skipped and the item kept`() {
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}""")
-        assertEquals(1, r.document.waypoints!!.size)
-        assertEquals("Car park", r.document.waypoints!![0].name)
+        val r = read("""{"vnx":"0.10.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}""")
+        assertEquals(1, r.document.points!!.size)
+        assertEquals("Car park", r.document.points!![0].name)
         assertEquals(1, r.diagnostics.size)
-        assertEquals("/waypoints/0/nmae", r.diagnostics[0].path)
+        assertEquals("/points/0/nmae", r.diagnostics[0].path)
     }
 
     @Test
     fun `a wrong type in an OPTIONAL key drops the field and keeps the item`() {
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"name":7,"at":[-3.675,57.1201]}]}""")
-        assertEquals(1, r.document.waypoints!!.size)
-        assertNull(r.document.waypoints!![0].name)
+        val r = read("""{"vnx":"0.10.0","points":[{"name":7,"at":[-3.675,57.1201]}]}""")
+        assertEquals(1, r.document.points!!.size)
+        assertNull(r.document.points!![0].name)
         assertEquals(DiagnosticCause.WRONG_TYPE_OPTIONAL, r.diagnostics.single().cause)
     }
 
@@ -47,13 +47,13 @@ class ReaderRulesTest {
         // pass a document carrying only one of the two.
         val r =
             read(
-                """{"vnx":"0.10.0","waypoints":[
+                """{"vnx":"0.10.0","points":[
                {"name":"Kept, minus one field","at":[-3.6712,57.118],"hidden":"yes"},
                {"name":"Dropped","at":"beside the burn"}]}""",
             )
-        assertEquals(1, r.document.waypoints!!.size, "one waypoint read, not two and not two with one positionless")
-        assertEquals("Kept, minus one field", r.document.waypoints!![0].name)
-        assertNull(r.document.waypoints!![0].hidden)
+        assertEquals(1, r.document.points!!.size, "one point read, not two and not two with one positionless")
+        assertEquals("Kept, minus one field", r.document.points!![0].name)
+        assertNull(r.document.points!![0].hidden)
         assertEquals(
             listOf("wrong-type-optional", "wrong-type-required"),
             r.diagnostics.map { it.code },
@@ -63,9 +63,9 @@ class ReaderRulesTest {
     @Test
     fun `a wrong type in a REQUIRED key drops the item`() {
         // The exception is not a special case: dropping a required field would
-        // leave a waypoint that is nowhere.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"name":"nowhere","at":"here"}]}""")
-        assertEquals(0, r.document.waypoints!!.size)
+        // leave a point that is nowhere.
+        val r = read("""{"vnx":"0.10.0","points":[{"name":"nowhere","at":"here"}]}""")
+        assertEquals(0, r.document.points!!.size)
         assertEquals(1, r.diagnostics.size)
     }
 
@@ -73,9 +73,9 @@ class ReaderRulesTest {
     fun `a folder naming a folder that is not present keeps the item at the top level`() {
         // Section 6.2 in as many words: dropping the item would lose content over
         // a lost grouping.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"folder":"ghost","at":[-3,57]}]}""")
-        assertEquals(1, r.document.waypoints!!.size)
-        assertNull(r.document.waypoints!![0].folder)
+        val r = read("""{"vnx":"0.10.0","points":[{"folder":"ghost","at":[-3,57]}]}""")
+        assertEquals(1, r.document.points!!.size)
+        assertNull(r.document.points!![0].folder)
         assertEquals(DiagnosticCause.FOLDER_ABSENT, r.diagnostics.single().cause)
     }
 
@@ -83,11 +83,11 @@ class ReaderRulesTest {
     fun `a folder with no id is dropped and its contents survive it`() {
         val r =
             read(
-                """{"vnx":"0.10.0","folders":[{"name":"No id here"}],"waypoints":[{"folder":"anything","at":[-3,57]}]}""",
+                """{"vnx":"0.10.0","folders":[{"name":"No id here"}],"points":[{"folder":"anything","at":[-3,57]}]}""",
             )
         assertEquals(0, r.document.folders!!.size)
-        assertEquals(1, r.document.waypoints!!.size)
-        assertNull(r.document.waypoints!![0].folder)
+        assertEquals(1, r.document.points!!.size)
+        assertNull(r.document.points!![0].folder)
         assertEquals(2, r.diagnostics.size, "the folder going and the reference failing are two facts")
     }
 
@@ -97,9 +97,9 @@ class ReaderRulesTest {
         // required key: the record goes, not the key.
         val r =
             read(
-                """{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
+                """{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
             )
-        val data = r.document.waypoints!![0].data!!
+        val data = r.document.points!![0].data!!
         assertEquals(1, data.size)
         assertEquals("com.example.x", data[0].type)
         assertEquals(DiagnosticCause.DATA_RECORD_TYPE_MISSING, r.diagnostics.single().cause)
@@ -260,8 +260,8 @@ class ReaderRulesTest {
         // it as the worked example of a range this document states. Section 3.10
         // makes a style object opaque, and the two are in tension — this is the
         // narrow reading that satisfies both. REPORTED; no corpus case decides it.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"style":{"importance":9,"color":"#fff"}}]}""")
-        val style = r.document.waypoints!![0].style!!
+        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"style":{"importance":9,"color":"#fff"}}]}""")
+        val style = r.document.points!![0].style!!
         assertNull(style["importance"])
         assertEquals(JsonString("#fff"), style["color"])
         assertEquals(DiagnosticCause.OUT_OF_RANGE, r.diagnostics.single().cause)
@@ -272,9 +272,9 @@ class ReaderRulesTest {
         // Section 3.10: style vocabulary grows faster than structural vocabulary,
         // so a fixed style key set would make every implementation diagnose a
         // valid document each time one of them added a key.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"style":{"halo-blur":2}}]}""")
+        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"style":{"halo-blur":2}}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals(JsonNumber(2.0), r.document.waypoints!![0].style!!["halo-blur"])
+        assertEquals(JsonNumber(2.0), r.document.points!![0].style!!["halo-blur"])
     }
 
     @Test
@@ -574,7 +574,7 @@ class ReaderRulesTest {
     @Test
     fun `a reader writes the version the document declared, not its own`() {
         // Section 2.2: a 0.10.0 reader that reads a 0.10.3 document writes 0.10.3.
-        val r = read("""{"vnx":"0.10.99","waypoints":[{"at":[-3,57]}]}""")
+        val r = read("""{"vnx":"0.10.99","points":[{"at":[-3,57]}]}""")
         assertTrue(Vnx.write(r.document).contains("\"vnx\":\"0.10.99\""))
     }
 
@@ -631,12 +631,12 @@ class ReaderRulesTest {
         // then requires a reader to treat the two alike, which is why section
         // 8.1's tree comparison normalises them together and why a writer may
         // emit either.
-        val withEmpty = read("""{"vnx":"0.10.0","waypoints":[],"networks":[]}""")
-        assertNotNull(withEmpty.document.waypoints)
-        assertEquals(0, withEmpty.document.waypoints!!.size)
+        val withEmpty = read("""{"vnx":"0.10.0","points":[],"networks":[]}""")
+        assertNotNull(withEmpty.document.points)
+        assertEquals(0, withEmpty.document.points!!.size)
         assertNull(withEmpty.document.tracks)
         assertEquals(
-            """{"vnx":"0.10.0","networks":[],"waypoints":[]}""" + "\n",
+            """{"vnx":"0.10.0","networks":[],"points":[]}""" + "\n",
             Vnx.write(withEmpty.document),
         )
         assertEquals("""{"vnx":"0.10.0"}""" + "\n", Vnx.write(read("""{"vnx":"0.10.0"}""").document))
@@ -670,9 +670,9 @@ class ReaderRulesTest {
     fun `a dotted key below the top level is an unrecognised key`() {
         // Section 3.9 applies at the top level only. An undotted unknown key at
         // the top level is still unknown too.
-        val r = read("""{"vnx":"0.10.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}""")
+        val r = read("""{"vnx":"0.10.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}""")
         assertEquals(
-            setOf("/rulesets", "/waypoints/0/app.viatrail.x"),
+            setOf("/rulesets", "/points/0/app.viatrail.x"),
             r.diagnostics.map { it.path }.toSet(),
         )
         assertEquals(setOf(DiagnosticCause.UNKNOWN_KEY), r.diagnostics.map { it.cause }.toSet())
@@ -718,7 +718,7 @@ class ReaderRulesTest {
             "the parser and the platform disagree on $literal by at least one bit",
         )
         // And through the whole reader, which is the path a document takes.
-        val at = read("""{"vnx":"0.10.0","waypoints":[{"at":[$literal,57.118]}]}""").document.waypoints!![0].at
+        val at = read("""{"vnx":"0.10.0","points":[{"at":[$literal,57.118]}]}""").document.points!![0].at
         assertEquals(reference.toRawBits(), at.lon.toRawBits(), "the decoded longitude is not the literal")
     }
 
@@ -742,9 +742,9 @@ class ReaderRulesTest {
         // Section 4.1: a reader MUST ignore a channel beyond those it knows and
         // MUST NOT report a diagnostic for it, so that a future channel is
         // additive. Nothing asks a writer to reproduce it.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57,340,1,99]}]}""")
+        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57,340,1,99]}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57,340,1]}]}""" + "\n", Vnx.write(r.document))
+        assertEquals("""{"vnx":"0.10.0","points":[{"at":[-3,57,340,1]}]}""" + "\n", Vnx.write(r.document))
     }
 
     @Test
@@ -803,16 +803,16 @@ class ReaderRulesTest {
 
     @Test
     fun `a position of one channel is unusable`() {
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"at":[-3]}]}""")
-        assertEquals(0, r.document.waypoints!!.size)
+        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3]}]}""")
+        assertEquals(0, r.document.points!!.size)
         assertEquals(DiagnosticCause.POSITION_UNUSABLE, r.diagnostics.single().cause)
     }
 
     @Test
     fun `a null longitude or latitude is unusable`() {
         // Section 4.1: `null` marks an absent value from index 2 UPWARD.
-        assertEquals(0, read("""{"vnx":"0.10.0","waypoints":[{"at":[null,57]}]}""").document.waypoints!!.size)
-        assertEquals(0, read("""{"vnx":"0.10.0","waypoints":[{"at":[-3,null]}]}""").document.waypoints!!.size)
+        assertEquals(0, read("""{"vnx":"0.10.0","points":[{"at":[null,57]}]}""").document.points!!.size)
+        assertEquals(0, read("""{"vnx":"0.10.0","points":[{"at":[-3,null]}]}""").document.points!!.size)
     }
 
     // ---------------------------------------------------------- moving time
@@ -884,11 +884,11 @@ class ReaderRulesTest {
     @Test
     fun `a type differing only by case is a different type`() {
         // Section 5: `@type` is compared exactly, including case.
-        val r = read("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
+        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
         assertEquals(emptyList(), r.diagnostics, "an unrecognised type is inert on any host")
         assertEquals(
             "App.viatrail.tag",
-            r.document.waypoints!![0]
+            r.document.points!![0]
                 .data!![0]
                 .type,
             "case is never folded for identity",

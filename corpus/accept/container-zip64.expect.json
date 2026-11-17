@@ -2,7 +2,7 @@
   "kind": "accept",
   "note": "An archive using the ZIP64 extensions, which section 7 requires every reader to accept. The other four .vnz cases are plain archives, so without this file an implementation could omit its extra-field parser entirely and pass every tier. The archive is hand-built, its central directory does the masking rather than its local headers, its entries are stored rather than deflated, and the root document is deliberately not the first entry. Every one of those is load-bearing and none of them is tidy. The corpus README has the argument for each, under `The ZIP64 case`; read it before editing this file or regenerating it with a stock zip library.",
   "counts": {
-    "waypoints": 1
+    "points": 1
   },
   "attachments": [
     "attachments/first.txt",

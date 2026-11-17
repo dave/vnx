@@ -3,11 +3,11 @@
   "schema": "valid",
   "note": "A version whose PATCH is above the reader's own (spec 2.1). This is the component that does NOT refuse: a patch bump is additive by definition, so a reader reads the document with the rules it has and anything the later patch added arrives through the ordinary unknown-key diagnostics of 6.2. The pairing matters - reject/version-too-new.vnx is the same file one MINOR higher and is refused - because a reader that compared all three components would refuse this one too, and to a user the two refusals would look identical.",
   "counts": {
-    "waypoints": 1
+    "points": 1
   },
   "positions": [
     {
-      "at": "/waypoints/0/at",
+      "at": "/points/0/at",
       "lon": -3.6712,
       "lat": 57.118
     }

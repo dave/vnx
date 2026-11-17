@@ -63,8 +63,8 @@ final class DocumentDecoder {
     document.networks = optionalItems(top, "networks", at: "", decode: decodeNetwork)
     document.plans = optionalItems(top, "plans", at: "", decode: decodePlan)
     document.tracks = optionalItems(top, "tracks", at: "", decode: decodeTrack)
-    document.waypoints = optionalItems(top, "waypoints", at: "") { v, p in
-      self.decodeWaypoint(v, at: p, shape: Keys.waypoint, allowsFolder: true)
+    document.points = optionalItems(top, "points", at: "") { v, p in
+      self.decodePoint(v, at: p, shape: Keys.topLevelPoint, allowsFolder: true)
     }
     document.areas = optionalItems(top, "areas", at: "") { v, p in
       self.decodeArea(v, at: p, shape: Keys.topLevelArea, allowsFolder: true)
@@ -173,21 +173,21 @@ final class DocumentDecoder {
     return folder
   }
 
-  private func decodeWaypoint(
+  private func decodePoint(
     _ value: JSONValue, at path: String, shape: Keys.Shape, allowsFolder: Bool
-  ) -> Waypoint? {
-    guard let o = object(value, at: path, what: "a waypoint") else { return nil }
+  ) -> Point? {
+    guard let o = object(value, at: path, what: "a point") else { return nil }
     report(unknownKeysIn: o, against: shape, at: path)
     guard let atValue = o["at"] else {
       diagnose(
         .wrongTypeRequired, at: pointer(path, "at"),
-        "a waypoint with no `at` cannot exist and was dropped")
+        "a point with no `at` cannot exist and was dropped")
       return nil
     }
     guard let at = position(atValue, at: pointer(path, "at"), cause: .wrongTypeRequired) else {
       return nil
     }
-    var w = Waypoint(at: at)
+    var w = Point(at: at)
     w.name = optionalString(o, "name", at: path)
     w.notes = optionalString(o, "notes", at: path)
     if allowsFolder { w.folder = optionalString(o, "folder", at: path) }
@@ -359,7 +359,7 @@ final class DocumentDecoder {
     network.nodes = decodeNodes(o, at: path)
     network.arcs = decodeArcs(o, at: path, nodes: network.nodes ?? [:])
     network.points = optionalItems(o, "points", at: path) { v, p in
-      self.decodeWaypoint(v, at: p, shape: Keys.networkPoint, allowsFolder: false)
+      self.decodePoint(v, at: p, shape: Keys.networkPoint, allowsFolder: false)
     }
     network.areas = optionalItems(o, "areas", at: path) { v, p in
       self.decodeArea(v, at: p, shape: Keys.networkArea, allowsFolder: false)
@@ -601,9 +601,9 @@ final class DocumentDecoder {
       document.tracks![i].folder = check(
         document.tracks![i].folder, at: "/tracks/\(i)", key: "folder")
     }
-    for i in document.waypoints?.indices ?? [].indices {
-      document.waypoints![i].folder = check(
-        document.waypoints![i].folder, at: "/waypoints/\(i)", key: "folder")
+    for i in document.points?.indices ?? [].indices {
+      document.points![i].folder = check(
+        document.points![i].folder, at: "/points/\(i)", key: "folder")
     }
     for i in document.areas?.indices ?? [].indices {
       document.areas![i].folder = check(document.areas![i].folder, at: "/areas/\(i)", key: "folder")
@@ -928,7 +928,7 @@ final class DocumentDecoder {
   /// wrong.
   ///
   /// The same malformed position is a different fact depending on where it
-  /// sits: under a waypoint's REQUIRED `at` the item goes, so it is
+  /// sits: under a point's REQUIRED `at` the item goes, so it is
   /// `wrongTypeRequired`; as one pip of a `pips` array the arc goes, so it is
   /// `positionUnusable`. SPEC 6.2 gives the remedies; a reader that reported
   /// one code for all of them would make a consumer re-derive which happened.

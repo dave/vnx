@@ -29,7 +29,7 @@ internal class Decoder(
                 "networks",
                 "plans",
                 "tracks",
-                "waypoints",
+                "points",
                 "areas",
             )
         val FOLDER_REQUIRED = setOf("id")
@@ -63,12 +63,12 @@ internal class Decoder(
         val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
         val SEGMENT_OPTIONAL = emptySet<String>()
-        val WAYPOINT_REQUIRED = setOf("at")
-        val WAYPOINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
+        val POINT_REQUIRED = setOf("at")
+        val POINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
 
-        // A network's point is a waypoint without `folder`: its network already
+        // A network's point is a top-level point without `folder`: its network already
         // contains it (section 3.10).
-        val POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
+        val NETWORK_POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
         val AREA_REQUIRED = setOf("polygon")
         val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
         val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
@@ -134,7 +134,7 @@ internal class Decoder(
                 networks = optionalItems(doc, "networks", at) { o, p -> network(o, p) },
                 plans = optionalItems(doc, "plans", at) { o, p -> plan(o, p) },
                 tracks = optionalItems(doc, "tracks", at) { o, p -> track(o, p) },
-                waypoints = optionalItems(doc, "waypoints", at) { o, p -> waypoint(o, p, inNetwork = false) },
+                points = optionalItems(doc, "points", at) { o, p -> point(o, p, inNetwork = false) },
                 areas = optionalItems(doc, "areas", at) { o, p -> area(o, p, inNetwork = false) },
                 // Section 3.9: opaque, preserved verbatim, interpreted not at all.
                 // A `null` value is kept as JsonNull; it is a present key.
@@ -424,12 +424,12 @@ internal class Decoder(
     }
 
     /**
-     * A position that IS its owner's required value: a waypoint's `at`.
+     * A position that IS its owner's required value: a top-level point's or a network point's `at`.
      *
      * A value that is not an array at all is a value of the wrong JSON TYPE, not
      * a malformed position: the two are different facts and section 6.2 gives
-     * them different codes. Both drop the owner, because a waypoint whose `at` is
-     * a string is a waypoint that is nowhere.
+     * them different codes. Both drop the owner, because a point whose `at` is
+     * a string is a point that is nowhere.
      */
     private fun requiredPosition(
         value: JsonValue,
@@ -550,7 +550,7 @@ internal class Decoder(
             nodes = nodes,
             arcs = arcs,
             highlights = optionalItems(obj, "highlights", at) { o, p -> highlight(o, p, arcs ?: emptyMap()) },
-            points = optionalItems(obj, "points", at) { o, p -> waypoint(o, p, inNetwork = true) },
+            points = optionalItems(obj, "points", at) { o, p -> point(o, p, inNetwork = true) },
             areas = optionalItems(obj, "areas", at) { o, p -> area(o, p, inNetwork = true) },
             data = optionalData(obj, at),
         )
@@ -865,26 +865,26 @@ internal class Decoder(
         )
     }
 
-    // ------------------------------------------------- waypoints and points
+    // ------------------------------------------------------------ points
 
-    private fun waypoint(
+    private fun point(
         obj: JsonObject,
         at: Pointer,
         inNetwork: Boolean,
-    ): Waypoint? {
+    ): Point? {
         recogniseKeys(
             obj,
             at,
-            Keys.WAYPOINT_REQUIRED,
-            if (inNetwork) Keys.POINT_OPTIONAL else Keys.WAYPOINT_OPTIONAL,
+            Keys.POINT_REQUIRED,
+            if (inNetwork) Keys.NETWORK_POINT_OPTIONAL else Keys.POINT_OPTIONAL,
         )
         val rawAt = obj["at"]
         if (rawAt == null) {
-            report(at.child("at"), "a waypoint requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(at.child("at"), "a point requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
         val position = requiredPosition(rawAt, at.child("at")) ?: return null
-        return Waypoint(
+        return Point(
             at = position,
             name = optionalString(obj, "name", at),
             notes = optionalString(obj, "notes", at),

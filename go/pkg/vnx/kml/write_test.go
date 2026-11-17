@@ -51,7 +51,7 @@ func countOf(s, sub string) int { return strings.Count(s, sub) }
 
 func TestGoldenFixtureEmitsEveryPlacemarkItShould(t *testing.T) {
 	out, report := writeDoc(t, fixture())
-	// 2 waypoints, 1 area, 1 track, 1 plan, 1 network arcs Placemark, 1
+	// 2 points, 1 area, 1 track, 1 plan, 1 network arcs Placemark, 1
 	// in-network point, 1 in-network area, 2 highlights.
 	if report.Emitted != 10 {
 		t.Errorf("Emitted = %d, want 10", report.Emitted)
@@ -155,7 +155,7 @@ func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 		t.Errorf("the network folder holds %d Polygons, want 1 — Network.Areas was dropped", n)
 	}
 	if !strings.Contains(folder, "-3.675,57.05,830") {
-		t.Errorf("the in-network waypoint's position is missing\n%s", folder)
+		t.Errorf("the in-network point's position is missing\n%s", folder)
 	}
 	// Nothing about the in-network items is diagnosed: their GEOMETRY is
 	// carried, so only their attributes are lost, and attribute-level losses
@@ -165,8 +165,8 @@ func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 	}
 }
 
-// ⚠ THE FOUR FIELDS THE OLD SHAPE DESTROYED. An in-network waypoint and an
-// in-network area are full vnx.Waypoint / vnx.Area values with Name, Notes,
+// ⚠ THE FOUR FIELDS THE OLD SHAPE DESTROYED. An in-network point and an
+// in-network area are full vnx.Point / vnx.Area values with Name, Notes,
 // Hidden and Style (item.go:34-55), and until 2026-09-03 every one of those
 // four was thrown away: they rode as bare <Point> and <Polygon> geometry inside
 // the network's shared Placemark, which has one name, one style and one
@@ -181,7 +181,7 @@ func TestInNetworkPointAndAreaKeepTheirOwnNameNotesVisibilityAndStyle(t *testing
 		"<color>ffab862e</color>", // the point's own IconStyle colour, #2E86AB
 	} {
 		if !strings.Contains(folder, want) {
-			t.Errorf("the in-network waypoint lost %s\n%s", want, folder)
+			t.Errorf("the in-network point lost %s\n%s", want, folder)
 		}
 	}
 	for _, want := range []string{
@@ -211,7 +211,7 @@ func TestInNetworkPointAndAreaKeepTheirOwnNameNotesVisibilityAndStyle(t *testing
 func TestNetworkWithNoArcsStillWritesItsFolderAndItsItems(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Networks: []vnx.Network{{
 		Name: "Empty graph", Notes: "no arcs yet",
-		Points: []vnx.Waypoint{{Name: "Lone cairn", At: pos(1, 2)}},
+		Points: []vnx.Point{{Name: "Lone cairn", At: pos(1, 2)}},
 	}}})
 	for _, want := range []string{
 		"<name>Empty graph</name>",
@@ -352,8 +352,8 @@ func TestFolderTreeIsNestedAndKeepsItsNotesAndVisibility(t *testing.T) {
 // raised. vnx.CodeEmptyFolderDropped belongs to the flattened formats.
 func TestEmptyFolderIsKeptAndNotDiagnosed(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
-		Folders:   []vnx.Folder{{ID: "f", Name: "Empty"}},
-		Waypoints: []vnx.Waypoint{{Name: "somewhere else", At: pos(1, 2)}},
+		Folders: []vnx.Folder{{ID: "f", Name: "Empty"}},
+		Points:  []vnx.Point{{Name: "somewhere else", At: pos(1, 2)}},
 	})
 	if !strings.Contains(out, "<name>Empty</name>") {
 		t.Errorf("the empty folder vanished\n%s", out)
@@ -392,7 +392,7 @@ func TestCyclicFoldersAreWrittenAtTheRootAndDiagnosed(t *testing.T) {
 				{ID: "a", Name: "A", Parent: "b"},
 				{ID: "b", Name: "B", Parent: "a"},
 			},
-			Waypoints: []vnx.Waypoint{{Folder: "a", Name: "inside A", At: pos(1, 2)}},
+			Points: []vnx.Point{{Folder: "a", Name: "inside A", At: pos(1, 2)}},
 		})
 	}()
 	<-done
@@ -410,7 +410,7 @@ func TestCyclicFoldersAreWrittenAtTheRootAndDiagnosed(t *testing.T) {
 
 func TestItemNamingAnUnknownFolderIsKeptAndDiagnosed(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Folder: "nowhere", Name: "Orphan", At: pos(1, 2)}},
+		Points: []vnx.Point{{Folder: "nowhere", Name: "Orphan", At: pos(1, 2)}},
 	})
 	if !strings.Contains(out, "<name>Orphan</name>") {
 		t.Fatalf("the item was dropped for naming a folder that is not here\n%s", out)
@@ -431,7 +431,7 @@ func TestDuplicateFolderIdDoesNotDuplicateASubtree(t *testing.T) {
 			{ID: "a", Name: "Second"},
 			{ID: "kid", Name: "Kid", Parent: "a"},
 		},
-		Waypoints: []vnx.Waypoint{{Folder: "kid", Name: "W", At: pos(1, 2)}},
+		Points: []vnx.Point{{Folder: "kid", Name: "W", At: pos(1, 2)}},
 	})
 	if n := countOf(out, "<name>Kid</name>"); n != 1 {
 		t.Fatalf("the subtree was written %d times\n%s", n, out)
@@ -442,7 +442,7 @@ func TestDuplicateFolderIdDoesNotDuplicateASubtree(t *testing.T) {
 }
 
 func TestUnknownElevationOmitsTheThirdOrdinateAndNeverWritesZero(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Waypoints: []vnx.Waypoint{
+	out, _ := writeDoc(t, &vnx.Document{Points: []vnx.Point{
 		{Name: "no ele", At: pos(-3.5, 57.5)},
 		{Name: "sea level", At: posEle(-3.5, 57.6, 0)},
 	}})
@@ -459,7 +459,7 @@ func TestUnknownElevationOmitsTheThirdOrdinateAndNeverWritesZero(t *testing.T) {
 }
 
 func TestCoordinatesAreLonLatNotLatLon(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Waypoints: []vnx.Waypoint{
+	out, _ := writeDoc(t, &vnx.Document{Points: []vnx.Point{
 		{Name: "Ben Nevis", At: pos(-5.0037, 56.7969)},
 	}})
 	if !strings.Contains(out, "<coordinates>-5.0037,56.7969</coordinates>") {
@@ -468,7 +468,7 @@ func TestCoordinatesAreLonLatNotLatLon(t *testing.T) {
 }
 
 func TestNamesAndNotesAreEscaped(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{Waypoints: []vnx.Waypoint{
+	out, _ := writeDoc(t, &vnx.Document{Points: []vnx.Point{
 		{Name: `Ben & <Nevis>`, Notes: `he said "go"`, At: pos(1, 2)},
 	}})
 	if !strings.Contains(out, "Ben &amp; &lt;Nevis&gt;") {
@@ -747,7 +747,7 @@ func TestInNetworkPlacemarksAreNamedByNameOrInteger(t *testing.T) {
 		Name:   "Ridges",
 		Nodes:  map[string]vnx.Vertex{"a": vx(pos(0, 0)), "b": vx(pos(0, 1))},
 		Arcs:   map[string]vnx.Arc{"arc": {From: "a", To: "b"}},
-		Points: []vnx.Waypoint{{At: pos(0, 0.5)}},
+		Points: []vnx.Point{{At: pos(0, 0.5)}},
 		Highlights: []vnx.Highlight{
 			{Name: "West ridge", Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "a"}, To: &vnx.Endpoint{Node: "b"}}}},
 			{Walk: []vnx.Pass{{Arc: "arc", From: &vnx.Endpoint{Node: "b"}, To: &vnx.Endpoint{Node: "a"}}}},

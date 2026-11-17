@@ -121,10 +121,10 @@ func (x *writer) bucket(l *layout, b *bucket, homeless bool) {
 	for _, i := range b.folders {
 		x.folder(l, i)
 	}
-	for _, i := range b.waypoints {
-		path := fmt.Sprintf("/waypoints/%d", i)
-		x.homeless(homeless, path, x.d.Waypoints[i].Name)
-		x.waypoint(x.d.Waypoints[i])
+	for _, i := range b.points {
+		path := fmt.Sprintf("/points/%d", i)
+		x.homeless(homeless, path, x.d.Points[i].Name)
+		x.point(x.d.Points[i])
 	}
 	for _, i := range b.areas {
 		path := fmt.Sprintf("/areas/%d", i)
@@ -206,7 +206,7 @@ func (x *writer) feature(name, notes string, hidden bool) {
 	}
 }
 
-func (x *writer) waypoint(p vnx.Waypoint) {
+func (x *writer) point(p vnx.Point) {
 	x.open("Placemark", "")
 	x.feature(p.Name, p.Notes, p.Hidden)
 	// A point carries no opacity in the model, so the alpha byte is opaque.
@@ -413,7 +413,7 @@ func (x *writer) plan(r vnx.Plan, path string) {
 //
 // ⚠ POINTS, AREAS AND HIGHLIGHTS ARE PLACEMARKS OF THEIR OWN BECAUSE A PLACEMARK HAS
 // ONE NAME, ONE STYLE AND ONE VISIBILITY. vnx.Arc carries none of those — it is
-// pure geometry — while Network.Points are full vnx.Waypoints and Network.Areas
+// pure geometry — while Network.Points are full vnx.Points and Network.Areas
 // full vnx.Areas, each with Name, Notes, Hidden AND Style (item.go:34-55). Until
 // this redesign all four fields were destroyed on every one of them: they rode as
 // bare geometry inside the network's shared MultiGeometry. Folding any of them
@@ -503,7 +503,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 	// Each item is named by its label (an integer when it has no name).
 	for j, p := range n.Points {
 		p.Name = labels.Points[j]
-		x.waypoint(p)
+		x.point(p)
 	}
 	for _, i := range areaOrder {
 		a := n.Areas[i]

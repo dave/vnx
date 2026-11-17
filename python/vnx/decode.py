@@ -38,7 +38,7 @@ from .model import (
     Segment,
     Style,
     Track,
-    Waypoint,
+    Point,
     AppKey,
     is_app_key,
 )
@@ -114,7 +114,7 @@ class _Reader:
         """SPEC 6.2 gives a wrong-typed value two remedies, so two codes.
 
         An optional key is dropped and the item kept; a required key drops the
-        item, because dropping the field would leave a waypoint that is nowhere.
+        item, because dropping the field would leave a point that is nowhere.
         A library that always drops the item, and one that always drops the
         field, each pass a document carrying only one of the two.
         """
@@ -383,8 +383,8 @@ class _Reader:
         document.networks = self._collection(obj, "networks", self._network)
         document.plans = self._collection(obj, "plans", self._plan)
         document.tracks = self._collection(obj, "tracks", self._track)
-        document.waypoints = self._collection(
-            obj, "waypoints", lambda v, p: self._waypoint(v, p)
+        document.points = self._collection(
+            obj, "points", lambda v, p: self._point(v, p)
         )
         document.areas = self._collection(obj, "areas", self._area)
 
@@ -416,7 +416,7 @@ class _Reader:
             ("networks", list(document.networks or [])),
             ("plans", list(document.plans or [])),
             ("tracks", list(document.tracks or [])),
-            ("waypoints", list(document.waypoints or [])),
+            ("points", list(document.points or [])),
             ("areas", list(document.areas or [])),
         ]
         for collection, items in hosts:
@@ -490,13 +490,13 @@ class _Reader:
             return None
         return folder
 
-    def _waypoint(
+    def _point(
         self,
         value: JSONValue,
         path: str,
-        known: frozenset[str] = K.WAYPOINT,
-    ) -> Union[Waypoint, None]:
-        obj = self._object(value, path, known, "a waypoint")
+        known: frozenset[str] = K.POINT,
+    ) -> Union[Point, None]:
+        obj = self._object(value, path, known, "a point")
         if obj is None:
             return None
         at = None
@@ -504,13 +504,13 @@ class _Reader:
             at = self._position(obj["at"], join(path, "at"), "wrong-type-required")
         style = self._style(obj, path)
         self._check_importance(style, path)
-        if not self._complete(obj, path, "a waypoint", {"at": at}):
+        if not self._complete(obj, path, "a point", {"at": at}):
             return None
-        return Waypoint(
+        return Point(
             folder=self._string(obj, "folder", path),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
-            hidden=self._bool(obj, "hidden", path, K.REQUIRED_WAYPOINT),
+            hidden=self._bool(obj, "hidden", path, K.REQUIRED_POINT),
             pinned=self._timestamp(obj, "pinned", path),
             at=at,
             style=style,
@@ -676,8 +676,8 @@ class _Reader:
         if points is not None:
             network.points = []
             for index, item in enumerate(points):
-                point = self._waypoint(
-                    item, join(path, "points", index), K.WAYPOINT_IN_NETWORK
+                point = self._point(
+                    item, join(path, "points", index), K.POINT_IN_NETWORK
                 )
                 if point is not None:
                     network.points.append(point)

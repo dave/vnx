@@ -50,7 +50,7 @@ func fixture() *vnx.Document {
 				Data: []vnx.Record{tagRecord("scotland")}},
 			{ID: "f-void", Name: "Nothing In Here"},
 		},
-		Waypoints: []vnx.Waypoint{
+		Points: []vnx.Point{
 			// At the root: bare name, no path prefix (§2.7).
 			{Name: "Car Park & Gate <north>", Notes: "Pay and display",
 				At: vnx.Position{Lon: -3.669, Lat: 57.1174, Ele: f(320.5)}},
@@ -61,7 +61,7 @@ func fixture() *vnx.Document {
 				Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "importance": 5},
 				Data:  []vnx.Record{tagRecord("munro"), tagRecord("bagged")},
 				At:    vnx.Position{Lon: -3.6689, Lat: 57.0704}},
-			// A timed waypoint with sub-second precision.
+			// A timed point with sub-second precision.
 			{Folder: "f-scot", Name: "Bothy", Notes: "",
 				At: vnx.Position{Lon: -3.7, Lat: 57.05, Ele: f(0), Time: ms(1725200000123)}},
 		},
@@ -234,7 +234,7 @@ func TestNetworkRaisesExactlyTheNetworkDiagnostic(t *testing.T) {
 		Nodes:      map[string]vnx.Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 2, Lat: 2}},
 		Arcs:       map[string]vnx.Arc{"a1": arc},
 		Highlights: []vnx.Highlight{{}},
-		Points:     []vnx.Waypoint{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
+		Points:     []vnx.Point{{Name: "In-network point", At: vnx.Position{Lon: 1.5, Lat: 1.5}}},
 	}}}
 	out, rep := write(t, d)
 	wantCodes(t, rep, vnx.CodeGPXNetworkUnsupported)
@@ -279,7 +279,7 @@ func TestEmptyFolderRaisesExactlyTheFolderDiagnostic(t *testing.T) {
 			{ID: "held", Name: "Held"},
 			{ID: "void", Name: "Void"},
 		},
-		Waypoints: []vnx.Waypoint{{Folder: "held", Name: "W", At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Folder: "held", Name: "W", At: vnx.Position{Lon: 1, Lat: 2}}},
 	}
 	out, rep := write(t, d)
 	wantCodes(t, rep, vnx.CodeEmptyFolderDropped)
@@ -302,7 +302,7 @@ func TestAnAncestorOfAHeldFolderIsNotEmpty(t *testing.T) {
 			{ID: "mid", Name: "Mid", Parent: "top"},
 			{ID: "leaf", Name: "Leaf", Parent: "mid"},
 		},
-		Waypoints: []vnx.Waypoint{{Folder: "leaf", Name: "W", At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Folder: "leaf", Name: "W", At: vnx.Position{Lon: 1, Lat: 2}}},
 	}
 	out, rep := write(t, d)
 	wantCodes(t, rep)
@@ -313,11 +313,11 @@ func TestAnAncestorOfAHeldFolderIsNotEmpty(t *testing.T) {
 
 func TestFolderPathUnavailableKeepsTheItemUnderItsBareName(t *testing.T) {
 	d := &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Folder: "ghost", Name: "Orphan", At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Folder: "ghost", Name: "Orphan", At: vnx.Position{Lon: 1, Lat: 2}}},
 	}
 	out, rep := write(t, d)
 	wantCodes(t, rep, vnx.CodeFolderPathUnavailable)
-	if rep.Diagnostics[0].Path != "/waypoints/0" || rep.Diagnostics[0].Args[0] != "Orphan" {
+	if rep.Diagnostics[0].Path != "/points/0" || rep.Diagnostics[0].Args[0] != "Orphan" {
 		t.Errorf("diagnostic %+v", rep.Diagnostics[0])
 	}
 	if !strings.Contains(out, "<name>Orphan</name>") {
@@ -398,7 +398,7 @@ func TestDiagnosticsAreInDocumentOrder(t *testing.T) {
 
 func TestEveryDiagnosticSetsCodeAndPath(t *testing.T) {
 	docs := []*vnx.Document{fixture(),
-		{Waypoints: []vnx.Waypoint{{Folder: "ghost", At: vnx.Position{Lon: 1, Lat: 1}}}},
+		{Points: []vnx.Point{{Folder: "ghost", At: vnx.Position{Lon: 1, Lat: 1}}}},
 		{Tracks: []vnx.Track{{Name: "empty"}}},
 	}
 	seen := 0
@@ -522,7 +522,7 @@ func TestATrackKeepsOneSegmentPerSegment(t *testing.T) {
 // TestUnknownElevationOmitsTheElement. Never 0: that puts every unknown point
 // at sea level and reads as data rather than absence.
 func TestUnknownElevationOmitsTheElement(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{
+	d := &vnx.Document{Points: []vnx.Point{
 		{Name: "unknown", At: vnx.Position{Lon: 1, Lat: 1}},
 		{Name: "known-zero", At: vnx.Position{Lon: 2, Lat: 2, Ele: f(0)}},
 	}}
@@ -539,7 +539,7 @@ func TestUnknownElevationOmitsTheElement(t *testing.T) {
 }
 
 func TestAbsentTimeOmitsTheElement(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{
+	d := &vnx.Document{Points: []vnx.Point{
 		{Name: "untimed", At: vnx.Position{Lon: 1, Lat: 1}},
 		{Name: "whole second", At: vnx.Position{Lon: 2, Lat: 2, Time: ms(1725200000000)}},
 		{Name: "millis", At: vnx.Position{Lon: 3, Lat: 3, Time: ms(1725200000123)}},
@@ -555,12 +555,12 @@ func TestAbsentTimeOmitsTheElement(t *testing.T) {
 	}
 }
 
-// TestWaypointsPrecedeRoutesPrecedeTracks — gpxType is a sequence (wpt*,
+// TestPointsPrecedeRoutesPrecedeTracks — gpxType is a sequence (wpt*,
 // rte*, trk*), so interleaving produces a file that some readers open and any
 // validator rejects. The document lists tracks BEFORE plans, so a writer
 // that walked document order would put the <trk> first; two of each kind
 // catch a writer that interleaves them.
-func TestWaypointsPrecedeRoutesPrecedeTracks(t *testing.T) {
+func TestPointsPrecedeRoutesPrecedeTracks(t *testing.T) {
 	trk := func(name string) vnx.Track {
 		return vnx.Track{Name: name, Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 1}}}}}
 	}
@@ -568,9 +568,9 @@ func TestWaypointsPrecedeRoutesPrecedeTracks(t *testing.T) {
 		return plan(vnx.Plan{Name: name}, lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 2}}})
 	}
 	d := &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "W1", At: vnx.Position{Lon: 1, Lat: 1}}, {Name: "W2", At: vnx.Position{Lon: 2, Lat: 2}}},
-		Tracks:    []vnx.Track{trk("T1"), trk("T2")},
-		Plans:     []vnx.Plan{rte("R1"), rte("R2")},
+		Points: []vnx.Point{{Name: "W1", At: vnx.Position{Lon: 1, Lat: 1}}, {Name: "W2", At: vnx.Position{Lon: 2, Lat: 2}}},
+		Tracks: []vnx.Track{trk("T1"), trk("T2")},
+		Plans:  []vnx.Plan{rte("R1"), rte("R2")},
 	}
 	out, _ := write(t, d)
 	var kinds []string
@@ -591,7 +591,7 @@ func TestWaypointsPrecedeRoutesPrecedeTracks(t *testing.T) {
 }
 
 func TestTextIsEscaped(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{
+	d := &vnx.Document{Points: []vnx.Point{
 		{Name: `Gate <north> & "east"`, Notes: "a & b", At: vnx.Position{Lon: 1, Lat: 1}}}}
 	out, _ := write(t, d)
 	if strings.Contains(out, "<north>") {
@@ -605,7 +605,7 @@ func TestTextIsEscaped(t *testing.T) {
 // TestCoordinatesNeverUseExponentNotation: 1e-7 is a legal float64 and an
 // illegal xsd:decimal, so an exponent makes the file invalid.
 func TestCoordinatesNeverUseExponentNotation(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{
+	d := &vnx.Document{Points: []vnx.Point{
 		{Name: "tiny", At: vnx.Position{Lon: 0.0000001, Lat: -0.00000002, Ele: f(0.0000003)}}}}
 	out, _ := write(t, d)
 	if strings.Contains(out, "e-") || strings.Contains(out, "E-") {
@@ -622,7 +622,7 @@ func TestANonFiniteCoordinateIsRefused(t *testing.T) {
 		{Lon: 1, Lat: math.Inf(1)},
 		{Lon: 1, Lat: 1, Ele: f(math.NaN())},
 	} {
-		d := &vnx.Document{Waypoints: []vnx.Waypoint{{Name: "bad", At: bad}}}
+		d := &vnx.Document{Points: []vnx.Point{{Name: "bad", At: bad}}}
 		var buf bytes.Buffer
 		if _, err := Write(&buf, d); err == nil {
 			t.Errorf("%v was written without an error: %s", bad, buf.String())
@@ -630,7 +630,7 @@ func TestANonFiniteCoordinateIsRefused(t *testing.T) {
 	}
 	// The working case, so a writer that refused everything would not pass.
 	var buf bytes.Buffer
-	if _, err := Write(&buf, &vnx.Document{Waypoints: []vnx.Waypoint{
+	if _, err := Write(&buf, &vnx.Document{Points: []vnx.Point{
 		{Name: "ok", At: vnx.Position{Lon: 1, Lat: 1}}}}); err != nil {
 		t.Fatalf("a finite document was refused: %v", err)
 	}

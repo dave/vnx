@@ -261,8 +261,8 @@ extension Document {
     func index() -> Int? { next().flatMap(Int.init) }
 
     switch next() {
-    case "waypoints":
-      guard let i = index(), let list = waypoints, list.indices.contains(i), next() == "at" else {
+    case "points":
+      guard let i = index(), let list = points, list.indices.contains(i), next() == "at" else {
         return nil
       }
       return list[i].at
@@ -352,7 +352,7 @@ extension Document {
       "networks": networks?.count ?? 0,
       "plans": plans?.count ?? 0,
       "tracks": tracks?.count ?? 0,
-      "waypoints": waypoints?.count ?? 0,
+      "points": points?.count ?? 0,
       "areas": areas?.count ?? 0,
     ]
   }

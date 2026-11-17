@@ -72,7 +72,7 @@ A **container** is a reading plus `documentEntry`, the root document's archive
 entry name, and `attachments`, a **`Map`** from entry name to `Buffer`. Its size
 is `attachments.size`, not `.length`.
 
-A `Document` carries `folders`, `networks`, `plans`, `tracks`, `waypoints`,
+A `Document` carries `folders`, `networks`, `plans`, `tracks`, `points`,
 `areas`, `appKeys` and `counts`. `appKeys` is a list of `AppKey` pairs, `key`
 and `value`, sorted by key: the application keys of
 [SPEC §3.9](../SPEC.md). A `null` value is a present key, and `encode` throws on

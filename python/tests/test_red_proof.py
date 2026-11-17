@@ -128,12 +128,8 @@ class RedProof(unittest.TestCase):
             return dataclasses.replace(got, lon=got.lat, lat=got.lon)
 
         with mock.patch.object(decode._Reader, "_position", transposing):
-            swapped = vnx.read_bytes(
-                b'{"vnx": "0.10.0", "waypoints": [{"at": [1, 2]}]}'
-            )
-        self.assertEqual(
-            swapped.document.waypoints, [model.Waypoint(at=Position(2.0, 1.0))]
-        )
+            swapped = vnx.read_bytes(b'{"vnx": "0.10.0", "points": [{"at": [1, 2]}]}')
+        self.assertEqual(swapped.document.points, [model.Point(at=Position(2.0, 1.0))])
 
         self.assertGoesRed(
             mock.patch.object(decode._Reader, "_position", transposing),

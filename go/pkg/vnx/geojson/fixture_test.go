@@ -29,7 +29,7 @@ func fixture() *vnx.Document {
 			// casualty (§2.7).
 			{ID: "f-empty", Name: "Nothing Here", Parent: "f-hi"},
 		},
-		Waypoints: []vnx.Waypoint{
+		Points: []vnx.Point{
 			{Name: "Corrour Bothy", Notes: "Shelter", Folder: "f-cg",
 				Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "pin-shape": "teardrop"},
 				Data:  []vnx.Record{tagRecord("bothy"), tagRecord("shelter")},
@@ -91,7 +91,7 @@ func fixture() *vnx.Document {
 				"arc-b": {From: "n2", To: "n3", Pips: vs(pos(-3.515, 57.03, nil))},
 				"arc-a": {From: "n1", To: "n2", Pips: vs(pos(-3.505, 57.01, nil))},
 			},
-			Points: []vnx.Waypoint{{Name: "Junction hut", At: pos(-3.51, 57.02, ptr(500.0))}},
+			Points: []vnx.Point{{Name: "Junction hut", At: pos(-3.51, 57.02, ptr(500.0))}},
 			Areas: []vnx.Area{{Name: "Boggy bit", Polygon: []vnx.Position{
 				pos(-3.53, 57.00, nil), pos(-3.52, 57.00, nil),
 				pos(-3.52, 57.01, nil),

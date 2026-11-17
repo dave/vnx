@@ -17,12 +17,12 @@ import "github.com/dave/vnx/go/pkg/vnx"
 // Every field is a list of indices into the Document's own slices, so nothing
 // here copies an item.
 type bucket struct {
-	folders   []int
-	waypoints []int
-	areas     []int
-	tracks    []int
-	plans     []int
-	networks  []int
+	folders  []int
+	points   []int
+	areas    []int
+	tracks   []int
+	plans    []int
+	networks []int
 }
 
 // layout is the whole document arranged as a tree.
@@ -118,9 +118,9 @@ func arrange(d *vnx.Document) *layout {
 	// the root when it was loose, nested when it was placeable — so an item
 	// nests correctly either way, and only an id this document has no folder
 	// for is homeless.
-	for i := range d.Waypoints {
+	for i := range d.Points {
 		i := i
-		file(d.Waypoints[i].Folder, func(b *bucket) { b.waypoints = append(b.waypoints, i) })
+		file(d.Points[i].Folder, func(b *bucket) { b.points = append(b.points, i) })
 	}
 	for i := range d.Areas {
 		i := i

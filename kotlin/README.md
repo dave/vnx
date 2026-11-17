@@ -109,7 +109,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Attachment` | `path: String`, `bytes: ByteArray`; equality is by value |
 | `Diagnostic` | `path: String`, `message: String`, `cause: DiagnosticCause`, `code: String?` |
 | `VnxRefusal` | `message: String`, `refusal: RefusalCause`; extends `Exception` |
-| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
+| `VnxDocument` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `points`, `areas`, and `appKeys: List<AppKey>` (`SPEC §3.9`) |
 | `AppKey` | `key: String`, `value: JsonValue`; a JSON `null` is `JsonNull`; `AppKey.isAppKey(key)` |
 | `Position` | `lon`, `lat`, `ele: Double?`, `timeMs: Double?` |
 | `Vertex` | `lon`, `lat`, `ele: Double?`: a node or an arc pip, which carries no time |

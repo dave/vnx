@@ -29,20 +29,18 @@ from vnx.model import (
     Plan,
     Segment,
     Track,
-    Waypoint,
+    Point,
 )
 from vnx.writer import encode_bytes, normalised_document
 
 
-def waypoint_at(
+def point_at(
     lon: float,
     lat: float,
     ele: float | None = None,
     time_ms: float | None = None,
 ) -> Document:
-    return Document(
-        vnx="0.10.0", waypoints=[Waypoint(at=Position(lon, lat, ele, time_ms))]
-    )
+    return Document(vnx="0.10.0", points=[Point(at=Position(lon, lat, ele, time_ms))])
 
 
 class TheEmitBoundary(unittest.TestCase):
@@ -62,8 +60,8 @@ class TheEmitBoundary(unittest.TestCase):
     def test_the_reader_keeps_the_full_precision_value(self) -> None:
         """SPEC 4.1: a reader MUST NOT round."""
         document = vnx.read_bytes(self.source()).document
-        assert document.waypoints is not None
-        at = document.waypoints[0].at
+        assert document.points is not None
+        at = document.points[0].at
         assert at is not None
         self.assertEqual(at.lon, -3.6712345678901235)
 
@@ -76,7 +74,7 @@ class TheEmitBoundary(unittest.TestCase):
         self.assertIs(document.areas[0].hidden, False)
 
     def test_the_normalised_copy_is_a_different_document(self) -> None:
-        document = waypoint_at(-3.6712345678901235, 57.118)
+        document = point_at(-3.6712345678901235, 57.118)
         self.assertIsNot(normalised_document(document), document)
 
 
@@ -89,7 +87,7 @@ class PrecisionPassesThrough(unittest.TestCase):
     """
 
     def emitted(self, lon: float, lat: float, ele: float | None = None) -> bytes:
-        return encode_bytes(waypoint_at(lon, lat, ele))
+        return encode_bytes(point_at(lon, lat, ele))
 
     def test_seventeen_digits_survive(self) -> None:
         self.assertIn(
@@ -141,7 +139,7 @@ class ShortestSpelling(unittest.TestCase):
     def test_the_document_carries_the_short_spelling(self) -> None:
         """`1.0` rather than `1` is a spelling, and a spelling is the writer's
         own business: SPEC 4.2 defines the round trip at value level."""
-        self.assertIn(b'"at":[1.0,2.0]', encode_bytes(waypoint_at(1.0, 2.0)))
+        self.assertIn(b'"at":[1.0,2.0]', encode_bytes(point_at(1.0, 2.0)))
 
 
 class HiddenIsWrittenOnlyWhenTrue(unittest.TestCase):
@@ -225,7 +223,7 @@ class AppKeyValueIsRequired(unittest.TestCase):
 
 class WriterOutputIsStable(unittest.TestCase):
     def test_encoding_twice_is_stable(self) -> None:
-        document = waypoint_at(-3.6712345678901235, 57.11812345678901, 340.26)
+        document = point_at(-3.6712345678901235, 57.11812345678901, 340.26)
         once = encode_bytes(document)
         twice = encode_bytes(vnx.read_bytes(once).document)
         self.assertEqual(once, twice)
@@ -233,7 +231,7 @@ class WriterOutputIsStable(unittest.TestCase):
     def test_the_output_carries_no_whitespace(self) -> None:
         """Whitespace is the writer's own business, and the smallest spelling
         is the useful one."""
-        encoded = encode_bytes(waypoint_at(1.0, 2.0))
+        encoded = encode_bytes(point_at(1.0, 2.0))
         self.assertNotIn(b" ", encoded)
         self.assertNotIn(b"\n", encoded)
 
@@ -410,7 +408,7 @@ class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
         for item in [
             *(document.plans or []),
             *(document.tracks or []),
-            *(document.waypoints or []),
+            *(document.points or []),
             *(document.areas or []),
         ]:
             out[item.name] = item.pinned
@@ -429,7 +427,7 @@ class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
                 )
             ],
             points=[
-                Waypoint(
+                Point(
                     name="point", pinned="2026-10-22T10:30:45.5Z", at=Position(1, 1.5)
                 )
             ],
@@ -460,11 +458,13 @@ class PinnedIsCarriedOnEveryItemButAFolder(unittest.TestCase):
                     segments=[Segment(pips=[Position(1, 1)])],
                 )
             ],
-            waypoints=[
-                Waypoint(
-                    name="waypoint", pinned="2026-10-26T14:00:00Z", at=Position(3, 3)
+            points=[
+                Point(
+                    name="top-level point",
+                    pinned="2026-10-26T14:00:00Z",
+                    at=Position(3, 3),
                 ),
-                Waypoint(name="unpinned", at=Position(4, 4)),
+                Point(name="unpinned", at=Position(4, 4)),
             ],
             areas=[
                 Area(

@@ -2,7 +2,7 @@
   "kind": "accept",
   "note": "A .vnz container with doc.vnx at the archive root and one attachment beside it (spec 7). Deflate, UTF-8 filename flag set. This archive is one of only two in the corpus that a reader cannot open without an inflater, and one of only two whose entries defer their sizes to a data descriptor. It is therefore a sole witness, with accept/container-named-document.vnz, for two of section 7's reader requirements: that a reader accepts deflate, and that a reader recovers a size from the central directory when general purpose bit 3 is set and the local header carries zero. Regenerating it as stored, or with bit 3 clear, removes both coverages and nothing anywhere goes red. The reject pair does not backfill it, and that is the non-obvious half: reject/container-escapes.vnz and reject/container-duplicate-entries.vnz are deflated too, but section 7's ordering has the path check and the duplicate-name check run over the central directory before any byte is inflated, so a reader with no inflater at all refuses both correctly. Measured: such a reader refuses both reject files and cannot open either of these two. Section 7.1's writer table does not apply here. It constrains what a library writes; this file is input, and section 7 requires a reader to accept what a conforming writer would not produce.",
   "counts": {
-    "waypoints": 1
+    "points": 1
   },
   "attachments": [
     "attachments/photo.txt"

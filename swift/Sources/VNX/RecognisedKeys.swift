@@ -24,7 +24,7 @@ enum Keys {
     required: ["vnx"],
     optional: [
       "generator", "created", "folders", "networks",
-      "plans", "tracks", "waypoints", "areas",
+      "plans", "tracks", "points", "areas",
     ])
 
   /// SPEC 3.9: whether a top-level key is an application key. No key the
@@ -85,8 +85,8 @@ enum Keys {
     required: ["pips"],
     optional: [])
 
-  /// A top-level waypoint. It places itself with `folder`.
-  static let waypoint = Shape(
+  /// A top-level point. It places itself with `folder`.
+  static let topLevelPoint = Shape(
     required: ["at"],
     optional: ["name", "notes", "folder", "hidden", "pinned", "style", "data"])
 

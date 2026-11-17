@@ -91,7 +91,7 @@ This library has none. The reference command-line tool is Go's; see
 | `Attachment` | `path: String`, `bytes: Data` |
 | `Diagnostic` | `path: String`, `message: String`, `cause: Cause`, `code: String` |
 | `Refusal` | `message: String`, `cause: Cause`; conforms to `Error` |
-| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `waypoints`, `areas`, `applicationKeys: [ApplicationKey]` |
+| `Document` | `vnx`, `generator`, `created`, and `folders`, `networks`, `plans`, `tracks`, `points`, `areas`, `applicationKeys: [ApplicationKey]` |
 | `ApplicationKey` | `key: String`, `value: JSONValue`; one top-level key containing a full stop (SPEC §3.9), `.null` for a JSON `null` |
 | `ApplicationKeyError` | `key: String`, `message: String`; thrown by `VNX.write` for a key without a full stop or held twice; conforms to `Error` |
 | `WriteError` | `message: String`; thrown by `VNX.write` for a closed ring or one of fewer than three distinct positions, an arc that is a self-loop or names an absent node, or a walk that is not valid; conforms to `Error` |

@@ -118,7 +118,7 @@ func walkCentralDirectory(t *testing.T, raw []byte) []zipHeader {
 func attachmentFixture(t *testing.T, attachments []vnx.Attachment) []byte {
 	t.Helper()
 	var b bytes.Buffer
-	doc := &vnx.Document{Version: "0.10.0", Waypoints: []vnx.Waypoint{{Name: "w", At: vnx.Position{Lon: -3, Lat: 57}}}}
+	doc := &vnx.Document{Version: "0.10.0", Points: []vnx.Point{{Name: "w", At: vnx.Position{Lon: -3, Lat: 57}}}}
 	err := vnx.WriteContainerWithAttachments(&b, vnx.RootDocumentName, func(w io.Writer) error {
 		return vnx.EncodeTo(w, doc)
 	}, attachments)
@@ -190,8 +190,8 @@ func TestTheUTF8FlagIsSetOnAnASCIIName(t *testing.T) {
 func TestTheArchiveIsSmallerThanTheDocumentItHolds(t *testing.T) {
 	doc := &vnx.Document{Version: "0.10.0"}
 	for i := 0; i < 2000; i++ {
-		doc.Waypoints = append(doc.Waypoints, vnx.Waypoint{
-			Name: "a waypoint with a repetitive name",
+		doc.Points = append(doc.Points, vnx.Point{
+			Name: "a point with a repetitive name",
 			At:   vnx.Position{Lon: -3.671 + float64(i)/1e6, Lat: 57.118 + float64(i)/1e6},
 		})
 	}

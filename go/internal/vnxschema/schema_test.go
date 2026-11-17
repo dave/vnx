@@ -134,7 +134,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 		{
 			// 8000 km wrong, every number in range.
 			"a transposed lon/lat pair",
-			`{"vnx":"0.10.0","waypoints":[{"name":"x","at":[57.1169,-3.6423]}]}`,
+			`{"vnx":"0.10.0","points":[{"name":"x","at":[57.1169,-3.6423]}]}`,
 		},
 		{
 			// A walk must join: each pass enters its arc at the node the
@@ -175,7 +175,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			// corpus/reject/version-too-old.vnx is what catches it, and it is
 			// recorded schema-VALID for the reason asserted here.
 			"a version below the reader's series",
-			`{"vnx":"0.1.9","waypoints":[{"at":[-3.6712,57.118]}]}`,
+			`{"vnx":"0.1.9","points":[{"at":[-3.6712,57.118]}]}`,
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {

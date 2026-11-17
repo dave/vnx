@@ -30,10 +30,10 @@
 //! # Example
 //!
 //! ```
-//! let bytes = br#"{"waypoints":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.10.0"}"#;
+//! let bytes = br#"{"points":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.10.0"}"#;
 //! let reading = vnx::decode(bytes).expect("a VNX document");
 //! assert!(reading.diagnostics.is_empty());
-//! assert_eq!(reading.document.waypoints.as_ref().unwrap().len(), 1);
+//! assert_eq!(reading.document.points.as_ref().unwrap().len(), 1);
 //!
 //! let out = vnx::encode(&reading.document).expect("encodable");
 //! assert!(out.contains(r#""at":[-3.6521,57.1,940]"#));

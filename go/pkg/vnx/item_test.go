@@ -2,8 +2,8 @@ package vnx
 
 import "testing"
 
-func TestWaypointCarriesEveryStyleField(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{
+func TestPointCarriesEveryStyleField(t *testing.T) {
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","points":[{
 	  "folder":"cairngorms","name":"Car park","notes":"Pay and display.",
 	  "at":[-3.6750,57.1201,320],
 	  "style":{"color":"#444444","icon":"parking","icon-size":16,
@@ -14,9 +14,9 @@ func TestWaypointCarriesEveryStyleField(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(diags) != 0 {
-		t.Fatalf("clean waypoint produced %v", diags)
+		t.Fatalf("clean point produced %v", diags)
 	}
-	w := doc.Waypoints[0]
+	w := doc.Points[0]
 	if w.Name != "Car park" || w.Folder != "cairngorms" || w.At.Lon != -3.6750 {
 		t.Fatalf("got %+v", w)
 	}
@@ -40,42 +40,42 @@ func TestWaypointCarriesEveryStyleField(t *testing.T) {
 // silently flattens Auto to hidden — a silent default, and the house-rule
 // violation the audit caught.
 func TestLabelVisibleAbsentMeansAutoNotFalse(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
+	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","points":[{"name":"n","at":[-3.6,57.1],"style":{"color":"#fff"}}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lv, present := doc.Waypoints[0].Style["label-visible"]; present {
+	if lv, present := doc.Points[0].Style["label-visible"]; present {
 		t.Fatalf("absent label-visible must stay ABSENT, which is Auto; got %v", lv)
 	}
 }
 
 // §3.8: omitted means visible, and a writer emits the key only when true.
 func TestHiddenAbsentMeansVisible(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[
+	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","points":[
 	  {"name":"plain","at":[-3.6,57.1]},
 	  {"name":"tucked away","at":[-3.6,57.1],"hidden":true}
 	]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if doc.Waypoints[0].Hidden {
+	if doc.Points[0].Hidden {
 		t.Fatal("absent hidden must mean visible")
 	}
-	if !doc.Waypoints[1].Hidden {
+	if !doc.Points[1].Hidden {
 		t.Fatal("hidden:true must be carried")
 	}
 }
 
-func TestWaypointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[
+func TestPointWithUnusablePositionIsDroppedAndDiagnosed(t *testing.T) {
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","points":[
 	  {"name":"bad","at":[-3.6]},{"name":"good","at":[-3.6,57.1]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Waypoints) != 1 || doc.Waypoints[0].Name != "good" {
-		t.Fatalf("got %+v", doc.Waypoints)
+	if len(doc.Points) != 1 || doc.Points[0].Name != "good" {
+		t.Fatalf("got %+v", doc.Points)
 	}
-	if len(diags) != 1 || diags[0].Path != "/waypoints/0/at" {
+	if len(diags) != 1 || diags[0].Path != "/points/0/at" {
 		t.Fatalf("got %v", diags)
 	}
 }
@@ -150,5 +150,21 @@ func TestNestedRingsAreDiagnosed(t *testing.T) {
 	}
 	if len(diags) == 0 {
 		t.Fatal("nested rings must be diagnosed, not silently flattened")
+	}
+}
+
+// The top-level collection is `points` (§3.6). The key `waypoints` has no
+// meaning at the top level, so it is an unknown key like any other: reported
+// and ignored, and nothing in it is read.
+func TestTopLevelWaypointsIsAnUnknownKey(t *testing.T) {
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"n","at":[-3.6,57.1]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Points) != 0 {
+		t.Fatalf("read %d points from `waypoints`, want 0", len(doc.Points))
+	}
+	if len(diags) != 1 || diags[0].Path != "/waypoints" || diags[0].Code != CodeUnknownKey {
+		t.Fatalf("got %v, want one unknown-key diagnostic at /waypoints", diags)
 	}
 }

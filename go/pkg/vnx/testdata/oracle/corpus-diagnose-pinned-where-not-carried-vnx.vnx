@@ -6,7 +6,7 @@
       "name": "Hills"
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "Car park",
       "at": [-3.675, 57.1201]

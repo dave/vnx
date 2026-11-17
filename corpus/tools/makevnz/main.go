@@ -26,7 +26,7 @@ type entry struct {
 // like every other accept file in the corpus.
 const doc = `{
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {
       "name": "In a container",
       "at": [-3.675, 57.1201]
@@ -79,6 +79,7 @@ func main() {
 	// root-document-first rule does not apply to it, and §7 selects the root
 	// by name at any position.
 	writeUnusableMethod("diagnose/container-unusable-method.vnz")
+	writeCorruptAttachment("diagnose/container-corrupt-attachment.vnz")
 	writeZip64("accept/container-zip64.vnz", []entry{
 		{name: "attachments/first.txt", body: "written before the document, so its offset is not zero\n", method: zip.Store},
 		{name: "doc.vnx", body: doc, method: zip.Store},
@@ -338,4 +339,61 @@ func writeUnusableMethod(path string) {
 		log.Fatal(err)
 	}
 	log.Printf("wrote %s (method %d attachment)", path, unusableMethod)
+}
+
+// writeCorruptAttachment builds an archive whose document is intact and whose
+// one attachment is DEFLATE, a method a reader must accept, with a stream
+// damaged so that it inflates to bytes that do not match the CRC.
+//
+// §7 gives the remedy an unusable method has: drop the attachment, record a
+// diagnostic, return the document. The archive must not be refusable on any
+// other ground, so the method is legal and the stream still inflates; only the
+// CRC check over the inflated bytes can find the damage.
+//
+// The damaged stream is a literal, not a function of a compressor's output.
+// It is the level-1-to-9 zlib deflate of the body with two bytes changed
+// (`51 28` to `7e d7`), and it inflates to "nos\x7f*eally a photo\n". A
+// compressor that emitted a different stream for the same body would move the
+// damage somewhere a reader might not reach, so the bytes are fixed here.
+//
+// The document is short and its one top-level point is what a reader must
+// return. Its CRC and the attachment's CRC (that of the UNDAMAGED body) are
+// computed, not written in.
+func writeCorruptAttachment(path string) {
+	const docBody = "{\n  \"vnx\":\"0.10.0\",\n  \"points\": [{\"name\":\"w\",\"at\":[-3.6712,57.118]}]\n}\n"
+	const photo = "not really a photo\n"
+	damaged := []byte{0xcb, 0xcb, 0x2f, 0xae, 0xd7, 0x4a, 0x4d, 0xcc, 0xc9, 0xa9,
+		0x54, 0x48, 0x54, 0x28, 0xc8, 0xc8, 0x2f, 0xc9, 0xe7, 0x02, 0x00}
+
+	f, err := os.Create(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: "doc.vnx", Method: zip.Deflate, Flags: 0x800})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if _, err := w.Write([]byte(docBody)); err != nil {
+		log.Fatal(err)
+	}
+	w, err = zw.CreateRaw(&zip.FileHeader{
+		Name:               "attachments/photo.txt",
+		Method:             zip.Deflate,
+		Flags:              0x800,
+		CRC32:              crc32.ChecksumIEEE([]byte(photo)),
+		CompressedSize64:   uint64(len(damaged)),
+		UncompressedSize64: uint64(len(photo)),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if _, err := w.Write(damaged); err != nil {
+		log.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("wrote %s (damaged deflate attachment)", path)
 }

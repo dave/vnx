@@ -25,10 +25,10 @@
         "$ref": "#/$defs/folder"
       }
     },
-    "waypoints": {
+    "points": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/waypoint"
+        "$ref": "#/$defs/point"
       }
     },
     "areas": {
@@ -167,7 +167,7 @@
         }
       }
     },
-    "waypoint": {
+    "point": {
       "type": "object",
       "required": [
         "at"

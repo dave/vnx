@@ -23,9 +23,9 @@ __all__ = [
     "PLAN",
     "TRACK",
     "SEGMENT",
-    "WAYPOINT",
+    "POINT",
     "AREA",
-    "WAYPOINT_IN_NETWORK",
+    "POINT_IN_NETWORK",
     "AREA_IN_NETWORK",
 ]
 
@@ -47,7 +47,7 @@ DOCUMENT = frozenset(
         "networks",
         "plans",
         "tracks",
-        "waypoints",
+        "points",
         "areas",
     }
 )
@@ -121,11 +121,11 @@ TRACK = frozenset(
 
 SEGMENT = frozenset({"pips"})
 
-# SPEC 3.6.  One shape for a top-level waypoint and a network's point.  SPEC
+# SPEC 3.6.  One shape for a top-level point and a network's point.  SPEC
 # 3.8 lists "points" among the hosts of `hidden` and does not say whether that
-# reaches a top-level waypoint; Dave ruled on 2026-09-09 that it does, because
+# reaches a top-level point; Dave ruled on 2026-09-09 that it does, because
 # "share one shape" governs.
-WAYPOINT = frozenset(
+POINT = frozenset(
     {"folder", "name", "notes", "hidden", "pinned", "at", "style", "data"}
 )
 
@@ -141,14 +141,14 @@ AREA = frozenset(
 # The ruling is conditional -- it stands unless Viatrail's exporter is found to
 # write one, in which case `folder` becomes legal there rather than have the
 # format diagnose its own output.  If that happens, delete these two names and
-# pass WAYPOINT and AREA from `decode._network` again; nothing else changes.
-WAYPOINT_IN_NETWORK = WAYPOINT - {"folder"}
+# pass POINT and AREA from `decode._network` again; nothing else changes.
+POINT_IN_NETWORK = POINT - {"folder"}
 AREA_IN_NETWORK = AREA - {"folder"}
 
 # SPEC 3.10's Required column.  "A key marked REQUIRED must be present for the
 # object to exist", and SPEC 6.2: a REQUIRED key carrying a value of the wrong
 # type means the reader MUST drop the ITEM, not the field, because dropping the
-# field would leave a waypoint that is nowhere or an arc with no geometry.
+# field would leave a point that is nowhere or an arc with no geometry.
 #
 # Requiring a key does not require a non-empty value: `"walk": []` satisfies
 # `walk`.  This implementation distinguishes them -- absent is None, present
@@ -163,7 +163,7 @@ REQUIRED_PASS = frozenset({"arc"})
 REQUIRED_PLAN = frozenset({"walk"})
 REQUIRED_TRACK = frozenset({"segments"})
 REQUIRED_SEGMENT = frozenset({"pips"})
-REQUIRED_WAYPOINT = frozenset({"at"})
+REQUIRED_POINT = frozenset({"at"})
 REQUIRED_AREA = frozenset({"polygon"})
 
 # There is deliberately NO style key set here.

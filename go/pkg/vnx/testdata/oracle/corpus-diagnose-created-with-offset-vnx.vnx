@@ -1,6 +1,6 @@
 {
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {
       "name": "Derry Lodge",
       "at": [-3.5831, 57.0203, 430]

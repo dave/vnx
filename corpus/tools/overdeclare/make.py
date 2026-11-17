@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Build `accept/container-over-declared-size.vnz`, which no writer can produce.
+"""Build the two archives that over-declare a size, which no writer can produce.
+
+`accept/container-over-declared-size.vnz` over-declares both of the document's
+sizes by the same amount. `accept/container-sizes-disagree.vnz` is the same
+archive with one field changed: the document's compressed size is true, so its
+two declared sizes disagree with each other.
 
 SPEC.md section 7: a reader MUST NOT refuse an entry on the ground that its
 declared size exceeds the bytes present, where the CRC over those bytes agrees.
@@ -13,7 +18,7 @@ That is also why this script shares no code with any VNX writer, the way
 inability to produce the case.
 
     python3 corpus/tools/overdeclare/make.py            # verify, refuse to drift
-    python3 corpus/tools/overdeclare/make.py --write     # write the fixture
+    python3 corpus/tools/overdeclare/make.py --write     # write the fixtures
 
 ⚠ IT VERIFIES THE ARCHIVE IT BUILT, NOT THE INTENT IT BUILT IT FROM. Every
 property below is re-derived by parsing the finished bytes. A generator that
@@ -42,7 +47,7 @@ DOCUMENT = (
     b"{\n"
     b'  "generator": "corpus",\n'
     b'  "vnx": "0.10.0",\n'
-    b'  "waypoints": [\n'
+    b'  "points": [\n'
     b"    {\n"
     b'      "name": "Ben Macdui",\n'
     b'      "at": [-3.6689, 57.0704]\n'
@@ -58,20 +63,31 @@ DOCUMENT = (
 # the central directory -- the two are different code paths in a reader and only
 # one of them is reachable from an archive whose last entry is the document.
 ENTRIES = [
-    ("before.txt", b"an attachment ahead of the document", 0),
-    ("doc.vnx", DOCUMENT, OVER_DECLARED_BY),
-    ("after.txt", b"an attachment behind it", 0),
+    ("before.txt", b"an attachment ahead of the document"),
+    ("doc.vnx", DOCUMENT),
+    ("after.txt", b"an attachment behind it"),
 ]
 
+# Each fixture, with how far the document's (compressed, uncompressed) sizes
+# over-declare. The two archives differ in that one field and nothing else, so
+# the two cases differ in exactly the property under test.
+FIXTURES = {
+    "container-over-declared-size.vnz": (OVER_DECLARED_BY, OVER_DECLARED_BY),
+    "container-sizes-disagree.vnz": (0, OVER_DECLARED_BY),
+}
 
-def build():
+
+def build(over):
     """Lay out the archive. Fixed timestamps, stored, UTF-8 flag, no extra fields."""
     out = bytearray()
     directory = bytearray()
-    for name, body, over in ENTRIES:
+    for name, body in ENTRIES:
         raw = name.encode("utf-8")
         crc = zlib.crc32(body) & 0xFFFFFFFF
-        declared = len(body) + over
+        compressed, uncompressed = len(body), len(body)
+        if name == "doc.vnx":
+            compressed += over[0]
+            uncompressed += over[1]
         offset = len(out)
         out += struct.pack(
             "<IHHHHHIIIHH",
@@ -82,8 +98,8 @@ def build():
             0,
             0x0021,
             crc,
-            declared,
-            declared,
+            compressed,
+            uncompressed,
             len(raw),
             0,
         )
@@ -93,7 +109,7 @@ def build():
         directory += struct.pack("<HH", 10, 10)
         directory += struct.pack("<HH", 0x0800, 0)
         directory += struct.pack("<HH", 0, 0x0021)
-        directory += struct.pack("<III", crc, declared, declared)
+        directory += struct.pack("<III", crc, compressed, uncompressed)
         directory += struct.pack("<HHH", len(raw), 0, 0)
         directory += struct.pack("<HHI", 0, 0, 0)
         directory += struct.pack("<I", offset)
@@ -119,12 +135,18 @@ def parse_local_headers(data):
     headers = []
     p = 0
     while p + 30 <= len(data) and struct.unpack_from("<I", data, p)[0] == SIG_LOCAL:
-        crc, declared, _ = struct.unpack_from("<III", data, p + 14)
+        crc, compressed, uncompressed = struct.unpack_from("<III", data, p + 14)
         name_len, extra_len = struct.unpack_from("<HH", data, p + 26)
         name = data[p + 30 : p + 30 + name_len].decode("utf-8")
         start = p + 30 + name_len + extra_len
         headers.append(
-            dict(name=name, crc=crc, declared=declared, offset=p, payload_at=start)
+            dict(
+                name=name,
+                crc=crc,
+                declared=(compressed, uncompressed),
+                offset=p,
+                payload_at=start,
+            )
         )
         # The next header is found by SEARCHING, not by trusting the declared
         # size -- the declared size is the thing under test.
@@ -143,22 +165,22 @@ def parse_central(data):
     p = directory_offset
     entries = []
     for _ in range(count):
-        crc, declared = struct.unpack_from("<II", data, p + 16)
+        crc, compressed, uncompressed = struct.unpack_from("<III", data, p + 16)
         name_len, extra_len, comment_len = struct.unpack_from("<HHH", data, p + 28)
         name = data[p + 46 : p + 46 + name_len].decode("utf-8")
-        entries.append(dict(name=name, crc=crc, declared=declared))
+        entries.append(dict(name=name, crc=crc, declared=(compressed, uncompressed)))
         p += 46 + name_len + extra_len + comment_len
     return entries
 
 
-def verify(data):
+def verify(data, over):
     """Re-derive every property the case depends on, from the bytes."""
     failures = []
     locals_ = parse_local_headers(data)
     centrals = parse_central(data)
     names = [h["name"] for h in locals_]
 
-    if names != [name for name, _, _ in ENTRIES]:
+    if names != [name for name, _ in ENTRIES]:
         failures.append(f"archive order is {names}")
     if len(locals_) != len(centrals):
         failures.append(
@@ -169,12 +191,28 @@ def verify(data):
     if doc is None:
         return ["there is no doc.vnx in the archive"]
 
-    # 1. The property the whole case exists for.
-    if doc["declared"] <= doc["present"]:
+    # 1. The property the whole case exists for. The uncompressed size
+    #    over-declares in both fixtures. The compressed size over-declares by
+    #    the same amount in one, and is true in the other, so that its two
+    #    declared sizes disagree.
+    compressed, uncompressed = doc["declared"]
+    if uncompressed <= doc["present"]:
         failures.append(
-            f"doc.vnx declares {doc['declared']} and holds {doc['present']}: it does not "
+            f"doc.vnx declares {uncompressed} and holds {doc['present']}: it does not "
             "over-declare, so every implementation passes this case"
         )
+    if over[0] == over[1] and compressed != uncompressed:
+        failures.append(
+            f"doc.vnx declares {compressed} compressed and {uncompressed} uncompressed: "
+            "they must over-declare equally"
+        )
+    if over[0] == 0 and compressed != doc["present"]:
+        failures.append(
+            f"doc.vnx declares {compressed} compressed and holds {doc['present']}: "
+            "the compressed size must be the true one"
+        )
+    if over[0] == 0 and compressed == uncompressed:
+        failures.append("doc.vnx declares two equal sizes, so they do not disagree")
     # 2. The CRC must agree over the bytes PRESENT, or section 7 does not apply
     #    and the archive is simply corrupt.
     present = data[doc["payload_at"] : doc["payload_at"] + doc["present"]]
@@ -203,27 +241,13 @@ def verify(data):
     return failures
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--write",
-        action="store_true",
-        help="write the fixture rather than only verifying",
-    )
-    ap.add_argument(
-        "--out",
-        type=pathlib.Path,
-        default=pathlib.Path(__file__).resolve().parents[2]
-        / "accept"
-        / "container-over-declared-size.vnz",
-    )
-    args = ap.parse_args()
-
-    data = build()
-    failures = verify(data)
+def make(out, over, write):
+    """Build, verify, and compare or write one fixture. Returns an exit status."""
+    data = build(over)
+    failures = verify(data, over)
     if failures:
         print(
-            "REFUSING to write: the archive does not have the properties the case needs",
+            f"REFUSING to write {out.name}: the archive does not have the properties the case needs",
             file=sys.stderr,
         )
         for f in failures:
@@ -231,12 +255,14 @@ def main():
         return 1
 
     doc = next(h for h in parse_local_headers(data) if h["name"] == "doc.vnx")
+    compressed, uncompressed = doc["declared"]
     print(
-        f"{args.out.name}: {len(data)} bytes; doc.vnx declares {doc['declared']} and holds {doc['present']}"
+        f"{out.name}: {len(data)} bytes; doc.vnx declares {compressed} compressed and "
+        f"{uncompressed} uncompressed, and holds {doc['present']}"
     )
 
-    if args.out.exists():
-        committed = args.out.read_bytes()
+    if out.exists():
+        committed = out.read_bytes()
         if committed == data:
             print("the committed fixture is byte-identical")
             return 0
@@ -244,17 +270,33 @@ def main():
             f"DRIFT: the committed fixture is {len(committed)} bytes and this script builds {len(data)}",
             file=sys.stderr,
         )
-        if not args.write:
+        if not write:
             print(
                 "re-run with --write only if you mean to replace it, and say in the sidecar "
                 "which rule the old bytes were the witness for",
                 file=sys.stderr,
             )
             return 1
-    if args.write:
-        args.out.write_bytes(data)
-        print(f"wrote {args.out}")
+    if write:
+        out.write_bytes(data)
+        print(f"wrote {out}")
     return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--write",
+        action="store_true",
+        help="write the fixtures rather than only verifying",
+    )
+    args = ap.parse_args()
+
+    accept = pathlib.Path(__file__).resolve().parents[2] / "accept"
+    status = 0
+    for name, over in FIXTURES.items():
+        status |= make(accept / name, over, args.write)
+    return status
 
 
 if __name__ == "__main__":

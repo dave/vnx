@@ -48,8 +48,8 @@ class DiagnosticMatcherTest {
         // `message_advisory` must not creep back into the comparison.
         assertNull(
             DiagnosticMatcher.mismatch(
-                expect("/waypoints/0/nmae" to "unknown-key"),
-                listOf(Diagnostic("/waypoints/0/nmae", "clé inconnue", DiagnosticCause.UNKNOWN_KEY)),
+                expect("/points/0/nmae" to "unknown-key"),
+                listOf(Diagnostic("/points/0/nmae", "clé inconnue", DiagnosticCause.UNKNOWN_KEY)),
             ),
         )
     }
@@ -60,8 +60,8 @@ class DiagnosticMatcherTest {
         // reports the right path with plausible prose and the wrong finding.
         assertNotNull(
             DiagnosticMatcher.mismatch(
-                expect("/waypoints/0/nmae" to "unknown-key"),
-                report("/waypoints/0/nmae" to DiagnosticCause.WRONG_TYPE_OPTIONAL),
+                expect("/points/0/nmae" to "unknown-key"),
+                report("/points/0/nmae" to DiagnosticCause.WRONG_TYPE_OPTIONAL),
             ),
         )
     }

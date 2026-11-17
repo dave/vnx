@@ -60,7 +60,7 @@ func wantDiag(t *testing.T, got []vnx.Diagnostic, i int, code, path string, args
 // CELL: Application key → dropped, diagnosed, one per key.
 func TestCellAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "keep", At: pos(1, 2, nil)}},
+		Points: []vnx.Point{{Name: "keep", At: pos(1, 2, nil)}},
 		AppKeys: []vnx.AppKey{
 			{Key: "app.viatrail.rulesets", Value: []any{map[string]any{"name": "Munros"}}},
 			{Key: "com.example.corbetts", Value: []any{}},
@@ -70,7 +70,7 @@ func TestCellAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 		t.Errorf("an application key reached the file: %s", out)
 	}
 	if report.Emitted != 1 {
-		t.Errorf("emitted %d, wanted only the waypoint", report.Emitted)
+		t.Errorf("emitted %d, wanted only the point", report.Emitted)
 	}
 	if len(report.Diagnostics) != 2 {
 		t.Fatalf("wanted one diagnostic per application key, got %v", report.Diagnostics)
@@ -83,8 +83,8 @@ func TestCellAppKeyIsDroppedAndDiagnosed(t *testing.T) {
 // CELL: Folder → path folded into the name; diagnosed ONLY if empty.
 func TestCellNonEmptyFolderIsNotACasualty(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
-		Folders:   []vnx.Folder{{ID: "a", Name: "Foo"}, {ID: "b", Name: "Bar", Parent: "a"}},
-		Waypoints: []vnx.Waypoint{{Name: "Baz", Folder: "b", At: pos(1, 2, nil)}},
+		Folders: []vnx.Folder{{ID: "a", Name: "Foo"}, {ID: "b", Name: "Bar", Parent: "a"}},
+		Points:  []vnx.Point{{Name: "Baz", Folder: "b", At: pos(1, 2, nil)}},
 	})
 	if !strings.Contains(out, `"name":"Foo / Bar / Baz"`) {
 		t.Errorf("the folder path is not in the name: %s", out)
@@ -101,7 +101,7 @@ func TestCellEmptyFolderIsDiagnosed(t *testing.T) {
 			{ID: "b", Name: "Bar", Parent: "a"},
 			{ID: "c", Name: "Hollow", Parent: "a"},
 		},
-		Waypoints: []vnx.Waypoint{{Name: "Baz", Folder: "b", At: pos(1, 2, nil)}},
+		Points: []vnx.Point{{Name: "Baz", Folder: "b", At: pos(1, 2, nil)}},
 	})
 	// "Foo" and "Bar" survive inside "Foo / Bar / Baz"; "Hollow" has nowhere
 	// to put its name.
@@ -115,8 +115,8 @@ func TestCellEmptyFolderIsDiagnosed(t *testing.T) {
 // beneath it, so its name reaches no feature either.
 func TestCellFolderHoldingOnlyAnEmptyFolderIsAlsoEmpty(t *testing.T) {
 	_, report := writeDoc(t, &vnx.Document{
-		Folders:   []vnx.Folder{{ID: "a", Name: "Foo"}, {ID: "b", Name: "Bar", Parent: "a"}},
-		Waypoints: []vnx.Waypoint{{Name: "root item", At: pos(1, 2, nil)}},
+		Folders: []vnx.Folder{{ID: "a", Name: "Foo"}, {ID: "b", Name: "Bar", Parent: "a"}},
+		Points:  []vnx.Point{{Name: "root item", At: pos(1, 2, nil)}},
 	})
 	if len(report.Diagnostics) != 2 {
 		t.Fatalf("both folders are empty and both should be diagnosed, got %v", report.Diagnostics)
@@ -127,7 +127,7 @@ func TestCellFolderHoldingOnlyAnEmptyFolderIsAlsoEmpty(t *testing.T) {
 
 func TestCellUnavailableFolderPathKeepsTheItem(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "Cairn", Folder: "nowhere", At: pos(1, 2, nil)}},
+		Points: []vnx.Point{{Name: "Cairn", Folder: "nowhere", At: pos(1, 2, nil)}},
 	})
 	if !strings.Contains(out, `"name":"Cairn"`) {
 		t.Errorf("the item must be KEPT under its bare name: %s", out)
@@ -135,7 +135,7 @@ func TestCellUnavailableFolderPathKeepsTheItem(t *testing.T) {
 	if report.Emitted != 1 {
 		t.Errorf("emitted %d; losing a position in a tree GeoJSON cannot express is not worth dropping content over", report.Emitted)
 	}
-	wantDiag(t, report.Diagnostics, 0, vnx.CodeFolderPathUnavailable, "/waypoints/0", "Cairn")
+	wantDiag(t, report.Diagnostics, 0, vnx.CodeFolderPathUnavailable, "/points/0", "Cairn")
 }
 
 // A cyclic parent chain reaches FolderPath only from a hand-built Document —
@@ -147,12 +147,12 @@ func TestCyclicFolderParentsDoNotHang(t *testing.T) {
 			{ID: "a", Name: "A", Parent: "b"},
 			{ID: "b", Name: "B", Parent: "a"},
 		},
-		Waypoints: []vnx.Waypoint{{Name: "Cairn", Folder: "a", At: pos(1, 2, nil)}},
+		Points: []vnx.Point{{Name: "Cairn", Folder: "a", At: pos(1, 2, nil)}},
 	})
 	if !strings.Contains(out, `"name":"Cairn"`) {
 		t.Errorf("the item must survive a cyclic tree: %s", out)
 	}
-	wantDiag(t, report.Diagnostics, 0, vnx.CodeFolderPathUnavailable, "/waypoints/0", "Cairn")
+	wantDiag(t, report.Diagnostics, 0, vnx.CodeFolderPathUnavailable, "/points/0", "Cairn")
 }
 
 // CELL: attribute losses are matrix facts, NOT per-item diagnostics
@@ -160,7 +160,7 @@ func TestCyclicFolderParentsDoNotHang(t *testing.T) {
 func TestCellStyleAndHiddenAreDroppedWithoutDiagnostics(t *testing.T) {
 	hidden := true
 	out, report := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Name: "Pinned", Notes: "note", Hidden: true, At: pos(1, 2, nil),
 			Style: vnx.Style{"color": "#ff0000", "icon": "peak", "pin-shape": "round", "label-visible": hidden},
 		}},
@@ -195,7 +195,7 @@ func TestCellStyleAndHiddenAreDroppedWithoutDiagnostics(t *testing.T) {
 // leaked every record in the document passed it, because the document held
 // none. Found by the T11 census, 2026-09-02, and red-proved against a writer
 // that emits the records. Records are now built on every kind that can hold
-// one, because "the writer drops waypoint records" is not evidence that it
+// one, because "the writer drops point records" is not evidence that it
 // drops a track's.
 func TestCellTagsAreNotCarried(t *testing.T) {
 	tag := func(v string) vnx.Record {
@@ -204,7 +204,7 @@ func TestCellTagsAreNotCarried(t *testing.T) {
 	routing := vnx.Record{Type: "app.viatrail.routing", Body: map[string]any{"profile": "walking"}}
 	out, report := writeDoc(t, &vnx.Document{
 		Folders: []vnx.Folder{{ID: "f", Name: "Munros", Data: []vnx.Record{tag("scotland")}}},
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Name: "Cairn", Folder: "f", At: pos(1, 2, nil),
 			Data: []vnx.Record{tag("bagged"), tag("winter")},
 		}},
@@ -357,7 +357,7 @@ func TestCellNetworkTopologyLosesOnlyTheSharing(t *testing.T) {
 // never 0.
 func TestCellUnknownElevationEmitsTwoOrdinates(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{
+		Points: []vnx.Point{
 			{Name: "known", At: pos(1, 2, ptr(300))},
 			{Name: "unknown", At: pos(3, 4, nil)},
 		},
@@ -422,7 +422,7 @@ func TestCellItemsWithoutGeometry(t *testing.T) {
 // The fixture's own casualties, in document order (writer.go convention 6).
 func TestFixtureDiagnostics(t *testing.T) {
 	_, report := writeDoc(t, fixture())
-	// 3 waypoints, 1 area, 1 track, 1 plan, then the network's arcs Feature,
+	// 3 points, 1 area, 1 track, 1 plan, then the network's arcs Feature,
 	// its in-network point, its in-network area and its one highlight.
 	if report.Emitted != 10 {
 		t.Errorf("emitted %d features, wanted 10", report.Emitted)
@@ -431,7 +431,7 @@ func TestFixtureDiagnostics(t *testing.T) {
 		t.Fatalf("wanted 5 diagnostics, got %d: %v", len(report.Diagnostics), report.Diagnostics)
 	}
 	wantDiag(t, report.Diagnostics, 0, vnx.CodeEmptyFolderDropped, "/folders/2", "Nothing Here")
-	wantDiag(t, report.Diagnostics, 1, vnx.CodeFolderPathUnavailable, "/waypoints/2", "Orphan Cairn")
+	wantDiag(t, report.Diagnostics, 1, vnx.CodeFolderPathUnavailable, "/points/2", "Orphan Cairn")
 	wantDiag(t, report.Diagnostics, 2, vnx.CodeItemNoGeometry, "/areas/1/polygon", "Sliver")
 	wantDiag(t, report.Diagnostics, 3, vnx.CodePartialGeometry, "/tracks/0/segments/1", "Lairig Ghru walk")
 	wantDiag(t, report.Diagnostics, 4, vnx.CodeAppKeyUnsupported, "/app.viatrail.rulesets", "app.viatrail.rulesets")

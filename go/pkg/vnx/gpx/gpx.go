@@ -63,13 +63,13 @@ type writer struct {
 	// ORDER by [writer.diagnostics]. They cannot simply be appended as the
 	// walk goes, because the walk order and the document order differ — see
 	// [writer.run].
-	folderDiags   []vnx.Diagnostic
-	waypointDiags []vnx.Diagnostic
-	areaDiags     []vnx.Diagnostic
-	trackDiags    []vnx.Diagnostic
-	planDiags     []vnx.Diagnostic
-	networkDiags  []vnx.Diagnostic
-	appKeyDiags   []vnx.Diagnostic
+	folderDiags  []vnx.Diagnostic
+	pointDiags   []vnx.Diagnostic
+	areaDiags    []vnx.Diagnostic
+	trackDiags   []vnx.Diagnostic
+	planDiags    []vnx.Diagnostic
+	networkDiags []vnx.Diagnostic
+	appKeyDiags  []vnx.Diagnostic
 }
 
 // run walks the document once and streams as it goes.
@@ -87,7 +87,7 @@ type writer struct {
 func (g *writer) run() {
 	g.collectFolderDiagnostics()
 	g.b.WriteString(header)
-	g.writeWaypoints()
+	g.writePoints()
 	g.writePlans()
 	g.writeTracks()
 	g.b.WriteString(footer)
@@ -96,17 +96,17 @@ func (g *writer) run() {
 	g.appKeyDiags = vnx.AppKeyDiagnostics(g.doc, "GPX")
 }
 
-// diagnostics concatenates in [vnx.Document] field order: folders, waypoints,
+// diagnostics concatenates in [vnx.Document] field order: folders, points,
 // areas, tracks, plans, networks, application keys.
 func (g *writer) diagnostics() []vnx.Diagnostic {
-	n := len(g.folderDiags) + len(g.waypointDiags) + len(g.areaDiags) +
+	n := len(g.folderDiags) + len(g.pointDiags) + len(g.areaDiags) +
 		len(g.trackDiags) + len(g.planDiags) + len(g.networkDiags) + len(g.appKeyDiags)
 	if n == 0 {
 		return nil
 	}
 	out := make([]vnx.Diagnostic, 0, n)
 	out = append(out, g.folderDiags...)
-	out = append(out, g.waypointDiags...)
+	out = append(out, g.pointDiags...)
 	out = append(out, g.areaDiags...)
 	out = append(out, g.trackDiags...)
 	out = append(out, g.planDiags...)
@@ -117,16 +117,16 @@ func (g *writer) diagnostics() []vnx.Diagnostic {
 
 // -- the things GPX keeps ----------------------------------------------------
 
-func (g *writer) writeWaypoints() {
-	for i := range g.doc.Waypoints {
+func (g *writer) writePoints() {
+	for i := range g.doc.Points {
 		if g.err != nil {
 			return
 		}
-		w := &g.doc.Waypoints[i]
-		path := fmt.Sprintf("/waypoints/%d", i)
-		// A waypoint IS its position; vnx.Waypoint.At is a value and cannot be
+		w := &g.doc.Points[i]
+		path := fmt.Sprintf("/points/%d", i)
+		// A point IS its position; vnx.Point.At is a value and cannot be
 		// absent, so CodeItemNoGeometry is unreachable here.
-		name := g.flatName(path, w.Folder, w.Name, &g.waypointDiags)
+		name := g.flatName(path, w.Folder, w.Name, &g.pointDiags)
 		// Rounded at the write, never in the model (vnx/round.go).
 		g.b.WriteString(`  <wpt lat="` + g.number(vnx.RoundCoordinate(w.At.Lat), "latitude") +
 			`" lon="` + g.number(vnx.RoundCoordinate(w.At.Lon), "longitude") + `"`)
@@ -354,8 +354,8 @@ func (g *writer) collectFolderDiagnostics() {
 			}
 		}
 	}
-	for i := range g.doc.Waypoints {
-		mark(g.doc.Waypoints[i].Folder)
+	for i := range g.doc.Points {
+		mark(g.doc.Points[i].Folder)
 	}
 	for i := range g.doc.Areas {
 		mark(g.doc.Areas[i].Folder)

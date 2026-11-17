@@ -21,7 +21,7 @@ func TestAcceptTierCatchesAReaderThatDiscardsWhatItRead(t *testing.T) {
 		spoil func(*Document)
 	}{
 		{"drops every data record", func(d *Document) {
-			d.Waypoints[0].Data = nil
+			d.Points[0].Data = nil
 			for i := range d.Networks {
 				d.Networks[i].Data = nil
 				for k, a := range d.Networks[i].Arcs {

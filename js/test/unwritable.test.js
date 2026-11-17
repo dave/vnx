@@ -12,7 +12,7 @@ const base = () =>
   decodeText(
     JSON.stringify({
       vnx: '0.10.0',
-      waypoints: [
+      points: [
         {
           at: [1, 2],
           style: { color: '#123456' },
@@ -37,10 +37,10 @@ const sites = {
     d.appKeys[0].value.nested.push(v);
   },
   'a record body': (d, v) => {
-    d.waypoints[0].data[0].value = v;
+    d.points[0].data[0].value = v;
   },
   'a style': (d, v) => {
-    d.waypoints[0].style.color = v;
+    d.points[0].style.color = v;
   },
 };
 

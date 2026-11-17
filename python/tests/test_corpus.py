@@ -38,7 +38,7 @@ def _bits(value: float) -> str:
     return struct.pack(">d", value).hex()
 
 
-COLLECTIONS = ("folders", "networks", "plans", "tracks", "waypoints", "areas")
+COLLECTIONS = ("folders", "networks", "plans", "tracks", "points", "areas")
 
 
 def _container_counts_by_pointer(document: vnx.Document) -> dict[str, int]:
@@ -830,7 +830,7 @@ class ExpectationsResolveByName(unittest.TestCase):
         probe, document = self.case(), self.document()
         with self.assertRaises((AssertionError, KeyError, IndexError)):
             probe._check_positions(
-                {"positions": [{"at": "/waypoints/0/at", "lon": 0.0, "lat": 0.0}]},
+                {"positions": [{"at": "/points/0/at", "lon": 0.0, "lat": 0.0}]},
                 document,
                 "probe",
             )

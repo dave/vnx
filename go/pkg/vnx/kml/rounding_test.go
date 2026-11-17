@@ -17,7 +17,7 @@ import (
 func kmlEle(v float64) *float64 { return &v }
 
 func TestCoordinatesAreRoundedAtTheWrite(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{{
+	d := &vnx.Document{Points: []vnx.Point{{
 		Name: "noisy",
 		At: vnx.Position{
 			Lon: -3.6712345678901235,
@@ -43,7 +43,7 @@ func TestCoordinatesAreRoundedAtTheWrite(t *testing.T) {
 // ⚠ HAZARD 5. KML has no way to say "unknown elevation", so the third ordinate
 // is omitted. Rounding must not fill it in — 0 is sea level, not absence.
 func TestRoundingNeverInventsAThirdOrdinate(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{{
+	d := &vnx.Document{Points: []vnx.Point{{
 		Name: "no elevation",
 		At:   vnx.Position{Lon: -3.6712345678901235, Lat: 57.11812345678901},
 	}}}

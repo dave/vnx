@@ -72,7 +72,7 @@ root.
 | `Attachment` | `path: String`, `bytes: Vec<u8>` |
 | `Diagnostic` | `path: String`, `cause: Cause`, and `code()` / `message()` |
 | `AttachmentFault` | `UnusableMethod(u16)` or `CorruptStream(String)`, carried by `Cause::AttachmentUnreadable` |
-| `Document` | `networks`, `plans`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
+| `Document` | `networks`, `plans`, `tracks`, `points`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created` |
 | `AppKey` | `key: String`, `value: Json`: one application key (SPEC §3.9), `Json::Null` for a `null`; `Document::app_keys` is sorted by key on decode |
 | `Network`, `Plan` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `highlights`, a plan its own `walk` |
 | `Arc` | `from`, `to`, `pips: Vec<Vertex>` (the interior points only), `data` |
@@ -81,7 +81,7 @@ root.
 | `Endpoint` | `Node(String)` or `At(LonLat)` |
 | `Vertex` | `lon`, `lat`, `ele: Option<f64>`: a node or an arc pip, which carries no time |
 | `LonLat` | `lon`, `lat`: a position in a walk |
-| `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()`: a waypoint's `at`, a track pip, a ring position |
+| `Position` | `channels()`, `lon()`, `lat()`, `ele()`, `time_ms()`, `arity()`: a point's `at`, a track pip, a ring position |
 | `Track` | `segments: Vec<Segment>`, and `moving_time_ms() -> Option<f64>` |
 
 Encoding what you decoded is legitimately not the bytes you read, because a

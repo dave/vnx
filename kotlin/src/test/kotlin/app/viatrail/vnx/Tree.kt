@@ -35,7 +35,7 @@ internal object Tree {
         val doc = value as? JsonObject ?: return value
         val out = mutable(doc)
         items(out, "folders", opt, ::folder)
-        items(out, "waypoints", opt, ::waypoint)
+        items(out, "points", opt, ::point)
         items(out, "areas", opt, ::area)
         items(out, "tracks", opt, ::track)
         items(out, "plans", opt, ::plan)
@@ -53,7 +53,7 @@ internal object Tree {
         dropEmptyContainer(o, "data")
     }
 
-    private fun waypoint(
+    private fun point(
         o: MutableMap<String, JsonValue>,
         opt: Options,
     ) {
@@ -141,7 +141,7 @@ internal object Tree {
     ) {
         graph(o, opt)
         items(o, "highlights", opt, ::highlight)
-        items(o, "points", opt, ::waypoint)
+        items(o, "points", opt, ::point)
         items(o, "areas", opt, ::area)
         dropEmptyContainer(o, "data")
     }

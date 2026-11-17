@@ -1,6 +1,6 @@
 {
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {
       "name": "Car park",
       "pinned": "2026-10-26T14:00:00Z",

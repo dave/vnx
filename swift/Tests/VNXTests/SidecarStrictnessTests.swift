@@ -43,7 +43,7 @@ final class SidecarStrictnessTests: XCTestCase {
     let url = try sidecar(
       """
       {"kind": "diagnose", "note": "a control, so the refusals below discriminate",
-       "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
+       "diagnostics": [{"path": "/points/0/nmae", "code": "unknown-key",
                         "message_advisory": "unknown key"}]}
       """)
     let parsed = try Corpus.Sidecar(url)
@@ -57,7 +57,7 @@ final class SidecarStrictnessTests: XCTestCase {
     let url = try sidecar(
       """
       {"kind": "diagnose", "note": "no code",
-       "diagnostics": [{"path": "/waypoints/0/nmae", "message_advisory": "unknown key"}]}
+       "diagnostics": [{"path": "/points/0/nmae", "message_advisory": "unknown key"}]}
       """)
     XCTAssertThrowsError(try Corpus.Sidecar(url)) { error in
       XCTAssertTrue(
@@ -73,7 +73,7 @@ final class SidecarStrictnessTests: XCTestCase {
     let url = try sidecar(
       """
       {"kind": "diagnose", "note": "the older English form",
-       "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
+       "diagnostics": [{"path": "/points/0/nmae", "code": "unknown-key",
                         "message": "unknown key"}]}
       """)
     XCTAssertThrowsError(try Corpus.Sidecar(url)) { error in

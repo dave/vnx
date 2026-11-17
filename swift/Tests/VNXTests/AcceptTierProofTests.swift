@@ -27,7 +27,7 @@ final class AcceptTierProofTests: XCTestCase {
       (
         "drops every data record",
         { d in
-          for i in d.waypoints?.indices ?? (0..<0) { d.waypoints?[i].data = nil }
+          for i in d.points?.indices ?? (0..<0) { d.points?[i].data = nil }
           for i in d.networks?.indices ?? (0..<0) {
             d.networks?[i].data = nil
             for key in d.networks?[i].arcs?.keys ?? [:].keys {
@@ -46,7 +46,7 @@ final class AcceptTierProofTests: XCTestCase {
       (
         "drops every style",
         { d in
-          for i in d.waypoints?.indices ?? (0..<0) { d.waypoints?[i].style = nil }
+          for i in d.points?.indices ?? (0..<0) { d.points?[i].style = nil }
         }
       ),
       (

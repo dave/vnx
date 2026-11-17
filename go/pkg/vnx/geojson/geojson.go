@@ -51,7 +51,7 @@ func Write(w io.Writer, d *vnx.Document) (vnx.WriteReport, error) {
 	// reads the collections in a different order; the STRUCT's order is the
 	// document's declared order and the one a reader of the type sees.
 	f.folders(d)
-	f.waypoints(d)
+	f.topPoints(d)
 	f.areas(d)
 	f.tracks(d)
 	f.plans(d)
@@ -147,8 +147,8 @@ func (f *features) folders(d *vnx.Document) {
 			i, ok = index[d.Folders[i].Parent]
 		}
 	}
-	for i := range d.Waypoints {
-		mark(d.Waypoints[i].Folder)
+	for i := range d.Points {
+		mark(d.Points[i].Folder)
 	}
 	for i := range d.Areas {
 		mark(d.Areas[i].Folder)
@@ -172,10 +172,10 @@ func (f *features) folders(d *vnx.Document) {
 	}
 }
 
-func (f *features) waypoints(d *vnx.Document) {
-	for i := range d.Waypoints {
-		w := &d.Waypoints[i]
-		at := fmt.Sprintf("/waypoints/%d", i)
+func (f *features) topPoints(d *vnx.Document) {
+	for i := range d.Points {
+		w := &d.Points[i]
+		at := fmt.Sprintf("/points/%d", i)
 		f.begin(f.flatName(d, at, w.Folder, w.Name), w.Notes)
 		f.point(w.At)
 		f.end()
@@ -274,7 +274,7 @@ func (f *features) plans(d *vnx.Document) {
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
 // in-network points and areas had somewhere to go, and the price was their Name,
 // Notes, Hidden and Style — vnx.Arc carries none of those, but Network.Points are
-// full vnx.Waypoints and Network.Areas full vnx.Areas (item.go:34-55), and all
+// full vnx.Points and Network.Areas full vnx.Areas (item.go:34-55), and all
 // four fields were destroyed on every one of them. Dave's rule replaces it:
 // unnamed things merge into one geometry, named things get their own named
 // object. A flat FeatureCollection of simple geometries is also what QGIS,
@@ -303,7 +303,7 @@ func (f *features) plans(d *vnx.Document) {
 //
 // ⚠ NETWORK AND FOLDER PATHS COLLIDE AND THAT IS ACCEPTED (Dave, 2026-09-03). An
 // in-network point "Bothy" in network "Cairngorms" in folder "Highlands" flattens
-// to the same name as a waypoint "Bothy" in folder "Highlands / Cairngorms". The
+// to the same name as a point "Bothy" in folder "Highlands / Cairngorms". The
 // earlier draft's "Contents" segment was what separated them and Dave removed it.
 // GeoJSON names are not identifiers and folder flattening already collides when
 // two items share a name in one folder. Do NOT "fix" it.

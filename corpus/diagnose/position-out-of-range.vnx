@@ -1,6 +1,6 @@
 {
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {"name": "Beyond the pole", "at": [-3.60, 90.5]},
     {"name": "On the pole", "at": [-3.60, 90]}
   ],

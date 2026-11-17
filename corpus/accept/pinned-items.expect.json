@@ -1,12 +1,12 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "A `pinned` timestamp on each kind of item that carries one (SPEC 3.8): a network, and inside it a highlight, a point and an area; a plan, a track, a waypoint and a top-level area. Each is read clean and written back equal, which the accept tier's tree comparison checks key by key, so a reader that skips `pinned` on any one kind, or a writer that leaves it out, fails here on that item alone. The values are kept as strings: `.250Z`, `.5Z`, `.001Z` and a nine-digit fraction each fail a reader that parses the value and formats it again. The top-level area's value is 2026-13-45T99:99:99Z, which names no calendar instant: SPEC 4.3 checks a record-level timestamp for shape only, so it is accepted and kept, and a reader that hands `pinned` to its platform's date parser fails here. The second waypoint is not pinned, and the round trip checks that a writer emits no `pinned` for it (SPEC 3.8).",
+  "note": "A `pinned` timestamp on each kind of item that carries one (SPEC 3.8): a network, and inside it a highlight, a point and an area; a plan, a track, a top-level point and a top-level area. Each is read clean and written back equal, which the accept tier's tree comparison checks key by key, so a reader that skips `pinned` on any one kind, or a writer that leaves it out, fails here on that item alone. The values are kept as strings: `.250Z`, `.5Z`, `.001Z` and a nine-digit fraction each fail a reader that parses the value and formats it again. The top-level area's value is 2026-13-45T99:99:99Z, which names no calendar instant: SPEC 4.3 checks a record-level timestamp for shape only, so it is accepted and kept, and a reader that hands `pinned` to its platform's date parser fails here. The second top-level point is not pinned, and the round trip checks that a writer emits no `pinned` for it (SPEC 3.8).",
   "counts": {
     "networks": 1,
     "plans": 1,
     "tracks": 1,
-    "waypoints": 2,
+    "points": 2,
     "areas": 1,
     "/networks/0/nodes": 2,
     "/networks/0/arcs": 1,
@@ -25,7 +25,7 @@
   },
   "positions": [
     {"at": "/networks/0/points/0/at", "lon": -3.655, "lat": 57.095},
-    {"at": "/waypoints/0/at", "lon": -3.675, "lat": 57.1201}
+    {"at": "/points/0/at", "lon": -3.675, "lat": 57.1201}
   ],
   "tracks": [
     {"name": "Lairig Ghru, 12 May", "moving_time_ms": 103000}

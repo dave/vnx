@@ -1,14 +1,14 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/highlights/points/areas, a top-level plan, a track, a waypoint, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a waypoint: one position of every kind the format carries — network node, network arc pip, walk position, in-network point, in-network area vertex, top-level area vertex, plan node, plan arc pip, track pip and waypoint. accept/lonlat-transposition.vnx holds a waypoint only, so a reader that swapped the two channels everywhere EXCEPT on waypoints would pass every other case in the corpus. Do not narrow this list.",
+  "note": "The worked example. Exercises every construct in the format: folders, a network with nodes/arcs/highlights/points/areas, a top-level plan, a track, a top-level point, an area, an application key, and data records on eight different hosts. Its `positions` list is the corpus's ONLY defence against a lon/lat transposition outside a top-level point: one position of every kind the format carries — network node, network arc pip, walk position, in-network point, in-network area vertex, top-level area vertex, plan node, plan arc pip, track pip and top-level point. accept/lonlat-transposition.vnx holds a top-level point only, so a reader that swapped the two channels everywhere EXCEPT on top-level points would pass every other case in the corpus. Do not narrow this list.",
   "counts": {
     "areas": 1,
     "folders": 2,
     "networks": 1,
     "plans": 1,
     "tracks": 1,
-    "waypoints": 1,
+    "points": 1,
     "/areas/0/polygon": 4,
     "/networks/0/arcs": 3,
     "/networks/0/arcs/arc-1/pips": 2,
@@ -77,7 +77,7 @@
       "lat": 57.118
     },
     {
-      "at": "/waypoints/0/at",
+      "at": "/points/0/at",
       "lon": -3.675,
       "lat": 57.1201
     }

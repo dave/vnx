@@ -9,7 +9,7 @@ import (
 )
 
 // pinnedDocument pins one item of every kind that carries `pinned` (§3.8),
-// each with its own value, and leaves one waypoint unpinned.
+// each with its own value, and leaves one top-level point unpinned.
 func pinnedDocument() *Document {
 	ring := []Position{{Lon: 1, Lat: 1}, {Lon: 2, Lat: 1}, {Lon: 2, Lat: 2}}
 	nodes := map[string]Vertex{"n1": {Lon: 1, Lat: 1}, "n2": {Lon: 1, Lat: 2}}
@@ -21,13 +21,13 @@ func pinnedDocument() *Document {
 		Networks: []Network{{
 			Name: "network", Pinned: "2026-10-20T08:15:00Z", Nodes: nodes, Arcs: arcs,
 			Highlights: []Highlight{{Pinned: "2026-10-21T09:00:00.250Z", Walk: walk}},
-			Points:     []Waypoint{{Name: "point", Pinned: "2026-10-22T10:30:45.5Z", At: Position{Lon: 1, Lat: 1.5}}},
+			Points:     []Point{{Name: "point", Pinned: "2026-10-22T10:30:45.5Z", At: Position{Lon: 1, Lat: 1.5}}},
 			Areas:      []Area{{Name: "network area", Pinned: "2026-10-23T11:00:00Z", Polygon: ring}},
 		}},
 		Plans:  []Plan{{Name: "plan", Pinned: "2026-10-24T12:00:00Z", Nodes: nodes, Arcs: arcs, Walk: walk}},
 		Tracks: []Track{{Name: "track", Pinned: "2026-10-25T13:00:00.001Z", Segments: []Segment{{Pips: ring}}}},
-		Waypoints: []Waypoint{
-			{Name: "waypoint", Pinned: "2026-10-26T14:00:00Z", At: Position{Lon: 3, Lat: 3}},
+		Points: []Point{
+			{Name: "top-level point", Pinned: "2026-10-26T14:00:00Z", At: Position{Lon: 3, Lat: 3}},
 			{Name: "unpinned", At: Position{Lon: 4, Lat: 4}},
 		},
 		Areas: []Area{{Name: "area", Pinned: "2026-13-45T99:99:99Z", Polygon: ring}},
@@ -56,7 +56,7 @@ func pinnedValues(d *Document) map[string]Timestamp {
 	for _, t := range d.Tracks {
 		out[t.Name] = t.Pinned
 	}
-	for _, w := range d.Waypoints {
+	for _, w := range d.Points {
 		out[w.Name] = w.Pinned
 	}
 	for _, a := range d.Areas {
@@ -107,16 +107,16 @@ func TestAnUnpinnedItemIsWrittenWithoutPinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tree struct {
-		Waypoints []map[string]any `json:"waypoints"`
+		Points []map[string]any `json:"points"`
 	}
 	if err := json.Unmarshal(data, &tree); err != nil {
 		t.Fatal(err)
 	}
-	if v, present := tree.Waypoints[1]["pinned"]; present {
-		t.Fatalf("an unpinned waypoint was written with pinned = %#v", v)
+	if v, present := tree.Points[1]["pinned"]; present {
+		t.Fatalf("an unpinned point was written with pinned = %#v", v)
 	}
-	if tree.Waypoints[0]["pinned"] != "2026-10-26T14:00:00Z" {
-		t.Fatalf("a pinned waypoint was written with pinned = %#v", tree.Waypoints[0]["pinned"])
+	if tree.Points[0]["pinned"] != "2026-10-26T14:00:00Z" {
+		t.Fatalf("a pinned point was written with pinned = %#v", tree.Points[0]["pinned"])
 	}
 }
 
@@ -125,14 +125,14 @@ func TestAnUnpinnedItemIsWrittenWithoutPinned(t *testing.T) {
 func TestEncodeRefusesAMalformedPinned(t *testing.T) {
 	const bad = Timestamp("2026-10-20T09:15:00+01:00")
 	for name, spoil := range map[string]func(*Document){
-		"network":      func(d *Document) { d.Networks[0].Pinned = bad },
-		"highlight":    func(d *Document) { d.Networks[0].Highlights[0].Pinned = bad },
-		"point":        func(d *Document) { d.Networks[0].Points[0].Pinned = bad },
-		"network area": func(d *Document) { d.Networks[0].Areas[0].Pinned = bad },
-		"plan":         func(d *Document) { d.Plans[0].Pinned = bad },
-		"track":        func(d *Document) { d.Tracks[0].Pinned = bad },
-		"waypoint":     func(d *Document) { d.Waypoints[0].Pinned = bad },
-		"area":         func(d *Document) { d.Areas[0].Pinned = bad },
+		"network":       func(d *Document) { d.Networks[0].Pinned = bad },
+		"highlight":     func(d *Document) { d.Networks[0].Highlights[0].Pinned = bad },
+		"network point": func(d *Document) { d.Networks[0].Points[0].Pinned = bad },
+		"network area":  func(d *Document) { d.Networks[0].Areas[0].Pinned = bad },
+		"plan":          func(d *Document) { d.Plans[0].Pinned = bad },
+		"track":         func(d *Document) { d.Tracks[0].Pinned = bad },
+		"point":         func(d *Document) { d.Points[0].Pinned = bad },
+		"area":          func(d *Document) { d.Areas[0].Pinned = bad },
 	} {
 		d := pinnedDocument()
 		spoil(d)

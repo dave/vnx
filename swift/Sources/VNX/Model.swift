@@ -60,9 +60,9 @@ public struct Folder: Equatable, Sendable {
   public var data: [DataRecord]?
 }
 
-/// A waypoint, or a network's point. SPEC 3.6 makes them one shape; `folder`
+/// A top-level point, or a network's point. SPEC 3.6 makes them one shape; `folder`
 /// appears only on the top-level spelling (SPEC 3.10).
-public struct Waypoint: Equatable, Sendable {
+public struct Point: Equatable, Sendable {
   public var at: Position
   public var name: String?
   public var notes: String?
@@ -207,7 +207,7 @@ public struct Network: Equatable, Sendable {
   public var nodes: [JSONKey: Vertex]?
   public var arcs: [JSONKey: Arc]?
   public var highlights: [Highlight]?
-  public var points: [Waypoint]?
+  public var points: [Point]?
   public var areas: [Area]?
   public var data: [DataRecord]?
 }
@@ -305,7 +305,7 @@ public struct Document: Equatable, Sendable {
   public var networks: [Network]?
   public var plans: [Plan]?
   public var tracks: [Track]?
-  public var waypoints: [Waypoint]?
+  public var points: [Point]?
   public var areas: [Area]?
   /// The application keys (SPEC 3.9): every top-level key containing a full
   /// stop, each value opaque and preserved through a read-modify-write. A

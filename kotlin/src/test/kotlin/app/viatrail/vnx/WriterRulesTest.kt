@@ -25,7 +25,7 @@ class WriterRulesTest {
         // mirroring RFC 7946 section 11.2, and carries no requirement.
         val file = File(corpus, "accept/full-precision-coordinate.vnx")
         val document = Vnx.readDocument(file.readText()).document
-        assertEquals(-3.6712345678901234, document.waypoints!![0].at.lon, "the reader must not round")
+        assertEquals(-3.6712345678901234, document.points!![0].at.lon, "the reader must not round")
         val written = Vnx.write(document)
         assertTrue(written.contains("[-3.6712345678901235,57.11812345678901]"), written)
     }
@@ -37,14 +37,14 @@ class WriterRulesTest {
         val file = File(corpus, "accept/absent-elevation-and-time.vnx")
         val written = Vnx.write(Vnx.readDocument(file.readText()).document)
         assertTrue(written.contains("[-3.6712,57.118,341]"), "the trailing null must go: $written")
-        assertTrue(written.contains("[-3.6712,57.118]"), "the waypoint's trailing null must go too: $written")
+        assertTrue(written.contains("[-3.6712,57.118]"), "the point's trailing null must go too: $written")
         assertTrue(!written.contains("null"), "no null should survive shortening here: $written")
     }
 
     @Test
     fun `an interior absence keeps its null`() {
         // Section 4.1: dropping it would move the time into the elevation channel.
-        val document = Vnx.readDocument("""{"vnx":"0.10.0","waypoints":[{"at":[-3,57,null,1778914991000]}]}""").document
+        val document = Vnx.readDocument("""{"vnx":"0.10.0","points":[{"at":[-3,57,null,1778914991000]}]}""").document
         assertTrue(Vnx.write(document).contains("[-3,57,null,1778914991000]"), Vnx.write(document))
     }
 
@@ -53,7 +53,7 @@ class WriterRulesTest {
         // The trap this replaces: `Math.round(x * 10) / 10` on the elevation, and
         // a six-place round on the coordinates. Every channel here would move
         // under the rule that left the format, and none may move now.
-        val document = Vnx.readDocument("""{"vnx":"0.10.0","waypoints":[{"at":[-3.12345678,57.87654321,340.25,1778914991000]}]}""").document
+        val document = Vnx.readDocument("""{"vnx":"0.10.0","points":[{"at":[-3.12345678,57.87654321,340.25,1778914991000]}]}""").document
         assertTrue(Vnx.write(document).contains("[-3.12345678,57.87654321,340.25,1778914991000]"), Vnx.write(document))
     }
 
@@ -92,7 +92,7 @@ class WriterRulesTest {
         val document =
             Vnx
                 .readDocument(
-                    """{"vnx":"0.10.0","waypoints":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
+                    """{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"@type":"x","t":1778914991000,"huge":1e19}]}]}""",
                 ).document
         val written = Vnx.write(document)
         assertTrue(written.contains("\"t\":1778914991000"), written)
@@ -103,7 +103,7 @@ class WriterRulesTest {
                 JsonParser
                     .parse(written)
                     .let { it as JsonObject }
-                    .let { ((it["waypoints"] as JsonArray).elements[0] as JsonObject) }
+                    .let { ((it["points"] as JsonArray).elements[0] as JsonObject) }
                     .let { ((it["data"] as JsonArray).elements[0] as JsonObject) }["huge"] as JsonNumber
             ).value,
         )

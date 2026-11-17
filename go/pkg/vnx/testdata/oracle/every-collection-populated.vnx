@@ -58,7 +58,7 @@
       "id": "bare"
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "every style field",
       "at": [-3.6712, 57.118],
@@ -98,7 +98,7 @@
       "at": [-3.6712, 57.118]
     },
     {
-      "name": "hidden waypoint",
+      "name": "hidden point",
       "notes": "note",
       "folder": "somewhere",
       "hidden": true,

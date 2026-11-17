@@ -244,7 +244,7 @@ func TestStickIsIdempotent(t *testing.T) {
 // grew a private copy, its errors would not reach a caller through this type.
 func TestStickyWriterIsTheOneTheEncoderUses(t *testing.T) {
 	sink := &failingWriter{after: 0, err: errors.New("no room")}
-	if err := EncodeTo(sink, &Document{Waypoints: []Waypoint{{Name: "x", At: Position{Lon: -3, Lat: 57}}}}); err == nil {
+	if err := EncodeTo(sink, &Document{Points: []Point{{Name: "x", At: Position{Lon: -3, Lat: 57}}}}); err == nil {
 		t.Fatal("EncodeTo returned nil against a sink that accepts nothing — it is not routing " +
 			"its writes through StickyWriter, so a truncated document would be reported as a " +
 			"clean one")
@@ -264,7 +264,7 @@ func TestLabelNetworkNamesEveryInNetworkItem(t *testing.T) {
 	d := &Document{Networks: []Network{
 		{
 			Name:       "A",
-			Points:     []Waypoint{{Name: "Hut"}, {}},
+			Points:     []Point{{Name: "Hut"}, {}},
 			Areas:      []Area{{Name: "2"}, {}},
 			Highlights: []Highlight{{Name: "Ridge"}, {}, {}},
 		},

@@ -28,7 +28,7 @@ test('a top level that is not an object is refused', () => {
 });
 
 test('a document with no vnx key is refused', () => {
-  assert.equal(refusal('{"waypoints": []}').cause_code, 'not-a-vnx-document');
+  assert.equal(refusal('{"points": []}').cause_code, 'not-a-vnx-document');
 });
 
 test('a version that is not three digit-runs is refused, and the refusal names the shape', () => {
@@ -97,19 +97,19 @@ test('a version above the reader names the version needed', () => {
 // --- position state ---------------------------------------------------------
 
 test('a position keeps its arity, including a trailing null', () => {
-  const { document } = decodeText(doc({ waypoints: [{ at: [1, 2, null] }] }));
-  assert.equal(document.waypoints[0].at.arity, 3);
-  assert.equal(document.waypoints[0].at.ele, null);
-  assert.equal(document.waypoints[0].at.time, undefined);
+  const { document } = decodeText(doc({ points: [{ at: [1, 2, null] }] }));
+  assert.equal(document.points[0].at.arity, 3);
+  assert.equal(document.points[0].at.ele, null);
+  assert.equal(document.points[0].at.time, undefined);
 });
 
 test('a trailing null survives into the model and is shortened on the way out', () => {
   // The model keeps the arity the document spelled; SPEC.md 4.1 puts the
   // shortest spelling at the emit boundary, so the two answers differ and both
   // are right.
-  const { document } = decodeText('{"vnx":"0.10.0","waypoints":[{"at":[1,2,null]}]}');
-  assert.equal(document.waypoints[0].at.arity, 3);
-  assert.equal(encode(document), '{"vnx":"0.10.0","waypoints":[{"at":[1,2]}]}');
+  const { document } = decodeText('{"vnx":"0.10.0","points":[{"at":[1,2,null]}]}');
+  assert.equal(document.points[0].at.arity, 3);
+  assert.equal(encode(document), '{"vnx":"0.10.0","points":[{"at":[1,2]}]}');
 });
 
 test('an interior absence keeps its null', () => {
@@ -127,15 +127,15 @@ test('a channel beyond those the reader knows survives the round trip', () => {
   // SPEC.md 4.1 says a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding: the position is
   // kept whole, so the unknown channel comes back out.
-  const text = '{"vnx":"0.10.0","waypoints":[{"at":[1,2,3,4,5]}]}';
+  const text = '{"vnx":"0.10.0","points":[{"at":[1,2,3,4,5]}]}';
   assert.equal(encode(decodeText(text).document), text);
 });
 
 test('an unusable position drops its element and diagnoses', () => {
-  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1] }] }));
-  assert.equal(document.waypoints.length, 0);
+  const { document, diagnostics } = decodeText(doc({ points: [{ at: [1] }] }));
+  assert.equal(document.points.length, 0);
   assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].path, '/waypoints/0/at');
+  assert.equal(diagnostics[0].path, '/points/0/at');
 });
 
 test('a pip that will not parse drops the SEGMENT, not the pip', () => {
@@ -212,42 +212,51 @@ test('a pip that will not parse drops the ARC, and the highlight walking it then
 // --- SPEC.md 6.2 ------------------------------------------------------------
 
 test('an unrecognised key is diagnosed, skipped, and the item kept', () => {
-  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], nmae: 'x' }] }));
-  assert.equal(document.waypoints.length, 1);
+  const { document, diagnostics } = decodeText(doc({ points: [{ at: [1, 2], nmae: 'x' }] }));
+  assert.equal(document.points.length, 1);
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
-    [['/waypoints/0/nmae', 'unknown-key']],
+    [['/points/0/nmae', 'unknown-key']],
+  );
+});
+
+test('a top-level waypoints key is an ordinary unknown key, not an alias of points', () => {
+  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2] }] }));
+  assert.equal(document.points, undefined);
+  assert.deepEqual(
+    diagnostics.map((d) => [d.path, d.code]),
+    [['/waypoints', 'unknown-key']],
   );
 });
 
 test('a JSON Pointer token escapes ~ and /', () => {
-  const { diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], 'a/b~c': 1 }] }));
-  assert.equal(diagnostics[0].path, '/waypoints/0/a~1b~0c');
+  const { diagnostics } = decodeText(doc({ points: [{ at: [1, 2], 'a/b~c': 1 }] }));
+  assert.equal(diagnostics[0].path, '/points/0/a~1b~0c');
 });
 
 test('a wrong-typed OPTIONAL key drops the field and keeps the item', () => {
-  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], name: 7 }] }));
-  assert.equal(document.waypoints.length, 1);
-  assert.equal(document.waypoints[0].name, undefined);
+  const { document, diagnostics } = decodeText(doc({ points: [{ at: [1, 2], name: 7 }] }));
+  assert.equal(document.points.length, 1);
+  assert.equal(document.points[0].name, undefined);
   assert.equal(diagnostics[0].code, 'wrong-type-optional');
 });
 
 test('a wrong-typed REQUIRED key drops the item', () => {
-  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: 'somewhere' }] }));
-  assert.equal(document.waypoints.length, 0);
+  const { document, diagnostics } = decodeText(doc({ points: [{ at: 'somewhere' }] }));
+  assert.equal(document.points.length, 0);
   assert.equal(diagnostics.length, 1);
 });
 
 test('a data record with no @type is dropped; the item survives', () => {
   const { document, diagnostics } = decodeText(
     doc({
-      waypoints: [{ at: [1, 2], data: [{ value: 1 }, { '@type': 'com.example.x' }] }],
+      points: [{ at: [1, 2], data: [{ value: 1 }, { '@type': 'com.example.x' }] }],
     }),
   );
-  assert.equal(document.waypoints[0].data.length, 1);
+  assert.equal(document.points[0].data.length, 1);
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
-    [['/waypoints/0/data/0', 'wrong-type-required']],
+    [['/points/0/data/0', 'wrong-type-required']],
   );
 });
 
@@ -266,32 +275,32 @@ test('a record body is never inspected, whatever its type says', () => {
 test('an importance outside 1 to 5 is dropped and the item kept', () => {
   const { document, diagnostics } = decodeText(
     doc({
-      waypoints: [{ at: [1, 2], style: { importance: 9, color: '#fff' } }],
+      points: [{ at: [1, 2], style: { importance: 9, color: '#fff' } }],
     }),
   );
   // SPEC.md 6.2: a value outside a stated range is an unusable value in an
   // optional key.
   assert.deepEqual(
     diagnostics.map((d) => [d.path, d.code]),
-    [['/waypoints/0/style/importance', 'wrong-type-optional']],
+    [['/points/0/style/importance', 'wrong-type-optional']],
   );
-  assert.deepEqual(document.waypoints[0].style, { color: '#fff' });
+  assert.deepEqual(document.points[0].style, { color: '#fff' });
 });
 
 test('an unrecognised style key is carried without a diagnostic', () => {
   const { document, diagnostics } = decodeText(
     doc({
-      waypoints: [{ at: [1, 2], style: { 'halo-width': 3 } }],
+      points: [{ at: [1, 2], style: { 'halo-width': 3 } }],
     }),
   );
   assert.deepEqual(diagnostics, []);
-  assert.deepEqual(document.waypoints[0].style, { 'halo-width': 3 });
+  assert.deepEqual(document.points[0].style, { 'halo-width': 3 });
 });
 
 test('a folder naming an absent folder puts the item at the top level', () => {
-  const { document, diagnostics } = decodeText(doc({ waypoints: [{ at: [1, 2], folder: 'ghost' }] }));
-  assert.equal(document.waypoints.length, 1);
-  assert.equal(document.waypoints[0].folder, undefined);
+  const { document, diagnostics } = decodeText(doc({ points: [{ at: [1, 2], folder: 'ghost' }] }));
+  assert.equal(document.points.length, 1);
+  assert.equal(document.points[0].folder, undefined);
   assert.equal(diagnostics[0].code, 'folder-absent');
 });
 
@@ -299,15 +308,15 @@ test('a folder with no id is dropped and its contents survive at the top level',
   const { document, diagnostics } = decodeText(
     doc({
       folders: [{ name: 'No id' }],
-      waypoints: [{ at: [1, 2], folder: 'anything' }],
+      points: [{ at: [1, 2], folder: 'anything' }],
     }),
   );
   assert.equal(document.folders.length, 0);
-  assert.equal(document.waypoints.length, 1);
+  assert.equal(document.points.length, 1);
   // An absent REQUIRED key takes wrong-type-required, at the key (SPEC.md 6.2).
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
     ['/folders/0/id', 'wrong-type-required'],
-    ['/waypoints/0/folder', 'folder-absent'],
+    ['/points/0/folder', 'folder-absent'],
   ]);
 });
 
@@ -459,20 +468,20 @@ test('a track with no segments has an unknown moving time', () => {
 // --- absence is not a default ----------------------------------------------
 
 test('an absent label-visible is neither true nor false', () => {
-  const { document } = decodeText(doc({ waypoints: [{ at: [1, 2], style: {} }] }));
-  assert.equal('label-visible' in document.waypoints[0].style, false);
+  const { document } = decodeText(doc({ points: [{ at: [1, 2], style: {} }] }));
+  assert.equal('label-visible' in document.points[0].style, false);
 });
 
 test('an absent collection stays absent and does not become empty', () => {
   const { document } = decodeText('{"vnx": "0.10.0"}');
-  assert.equal(document.waypoints, undefined);
+  assert.equal(document.points, undefined);
   assert.equal(encode(document), '{"vnx":"0.10.0"}');
 });
 
 test('an empty collection is distinct from an absent one', () => {
-  const { document } = decodeText('{"vnx": "0.10.0", "waypoints": []}');
-  assert.deepEqual(document.waypoints, []);
-  assert.equal(encode(document), '{"vnx":"0.10.0","waypoints":[]}');
+  const { document } = decodeText('{"vnx": "0.10.0", "points": []}');
+  assert.deepEqual(document.points, []);
+  assert.equal(encode(document), '{"vnx":"0.10.0","points":[]}');
 });
 
 test('moving time reads the FIRST and LAST pip, not the first and last TIMED pip', () => {
@@ -541,16 +550,16 @@ test('a wrong-typed position distinguishes a lost field from a lost item', () =>
   // find out whether the rest of the item survived.
   const { document, diagnostics } = decodeText(
     doc({
-      waypoints: [
+      points: [
         { name: 'kept', at: [1, 2], hidden: 'yes' },
         { name: 'dropped', at: 'beside the burn' },
       ],
     }),
   );
-  assert.equal(document.waypoints.length, 1);
+  assert.equal(document.points.length, 1);
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
-    ['/waypoints/0/hidden', 'wrong-type-optional'],
-    ['/waypoints/1/at', 'wrong-type-required'],
+    ['/points/0/hidden', 'wrong-type-optional'],
+    ['/points/1/at', 'wrong-type-required'],
   ]);
 });
 

@@ -45,8 +45,8 @@ func decodeTree(data []byte) (*Document, []Diagnostic, error) {
 				Message: fmt.Sprintf("`folders` is %s, expected an array — ignored", jsonKind(v))})
 		}
 	}
-	if arr, ok := treeCollection(obj, "waypoints", &diags); ok {
-		doc.Waypoints, diags = treeDecodeWaypoints(arr, "/waypoints", diags)
+	if arr, ok := treeCollection(obj, "points", &diags); ok {
+		doc.Points, diags = treeDecodePoints(arr, "/points", diags)
 	}
 	if arr, ok := treeCollection(obj, "networks", &diags); ok {
 		doc.Networks, diags = treeDecodeNetworks(arr, "/networks", diags)
@@ -121,8 +121,8 @@ func treeDecodeFolders(arr []any, diags []Diagnostic) ([]Folder, []Diagnostic) {
 	return resolveParents(out, diags)
 }
 
-func treeDecodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []Diagnostic) {
-	out := make([]Waypoint, 0, len(arr))
+func treeDecodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Diagnostic) {
+	out := make([]Point, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
 		obj, ok := item.(map[string]any)
@@ -153,7 +153,7 @@ func treeDecodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint
 				Message: err.Error() + " — item dropped"})
 			continue
 		}
-		var w Waypoint
+		var w Point
 		w.At = pos
 		w.Folder, diags = stringField(obj, "folder", diags)
 		w.Name, diags = stringField(obj, "name", diags)
@@ -162,7 +162,7 @@ func treeDecodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint
 		w.Pinned, diags = timeField(obj, "pinned", at, diags)
 		w.Style, diags = decodeStyle(obj, at, diags)
 		w.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, waypointKeys, diags)
+		diags = reportUnknownKeys(obj, at, pointKeys, diags)
 		out = append(out, w)
 	}
 	return out, diags
@@ -385,7 +385,7 @@ func treeDecodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, 
 		n.Arcs, diags = treeDecodeArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
 		n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
 		if sub, ok := obj["points"].([]any); ok {
-			n.Points, diags = treeDecodeWaypoints(sub, at+"/points", diags)
+			n.Points, diags = treeDecodePoints(sub, at+"/points", diags)
 		}
 		if sub, ok := obj["areas"].([]any); ok {
 			n.Areas, diags = treeDecodeAreas(sub, at+"/areas", diags)

@@ -54,7 +54,7 @@ class Sidecar(
          * The six top-level collections `counts` may name (SPEC.md section 3.1).
          * An application key is not a collection and has no entry.
          */
-        val COLLECTIONS = listOf("folders", "networks", "plans", "tracks", "waypoints", "areas")
+        val COLLECTIONS = listOf("folders", "networks", "plans", "tracks", "points", "areas")
 
         fun read(file: File): Sidecar {
             val value = JsonParser.parse(file.readText())

@@ -1,7 +1,7 @@
 {
   "vnx": "0.10.0",
   "generator": "negative-zero",
-  "waypoints": [
+  "points": [
     {
       "name": "signed zero position",
       "at": [0, 0]

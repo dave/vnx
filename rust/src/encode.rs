@@ -49,7 +49,7 @@ pub fn to_json(document: &Document) -> Result<Json, EncodeError> {
     o.list("networks", &document.networks, &root, network)?;
     o.list("plans", &document.plans, &root, plan)?;
     o.list("tracks", &document.tracks, &root, track)?;
-    o.list("waypoints", &document.waypoints, &root, waypoint)?;
+    o.list("points", &document.points, &root, point)?;
     o.list("areas", &document.areas, &root, area)?;
     // SPEC 3.9: each application key as held, `null` and empty values
     // included. A key with no full stop, or one written twice, is refused
@@ -107,7 +107,7 @@ fn network(n: &Network, path: &Path) -> Built {
         }
         o.raw("highlights", Json::Array(out));
     }
-    o.list("points", &n.points, path, waypoint)?;
+    o.list("points", &n.points, path, point)?;
     o.list("areas", &n.areas, path, area)?;
     o.records(&n.data);
     Ok(o.done())
@@ -240,7 +240,7 @@ fn track(t: &Track, _path: &Path) -> Built {
     Ok(o.done())
 }
 
-fn waypoint(w: &Waypoint, _path: &Path) -> Built {
+fn point(w: &Point, _path: &Path) -> Built {
     let mut o = Obj::new();
     o.str("name", w.name.as_deref());
     o.str("notes", w.notes.as_deref());
@@ -438,7 +438,7 @@ mod tests {
 
     #[test]
     fn a_writer_emits_the_shortest_spelling_of_a_position() {
-        let out = encode_text(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6712,57.118,null]}]}"#);
+        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[-3.6712,57.118,null]}]}"#);
         assert!(out.contains("[-3.6712,57.118]"), "{out}");
     }
 
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn a_writer_changes_no_value_it_was_handed() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
+            r#"{"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
         );
         assert!(
             out.contains("[-3.6712345678901235,57.11812345678901,340.06]"),
@@ -475,7 +475,7 @@ mod tests {
     #[test]
     fn the_values_that_used_to_need_a_tie_rule_pass_through() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","waypoints":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
+            r#"{"vnx":"0.10.0","points":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
         );
         assert!(out.contains("[-4e-8,0.15,340.25]"), "{out}");
         assert!(out.contains("[1.85,-0.04,340.75]"), "{out}");
@@ -486,9 +486,10 @@ mod tests {
     /// the half of it that is still a REQUIREMENT rather than a choice.
     #[test]
     fn a_reader_keeps_the_precision_the_document_carried() {
-        let text = r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
+        let text =
+            r#"{"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
         let document = decode(text.as_bytes()).expect("accepted").document;
-        let at = &document.waypoints.as_ref().expect("waypoints")[0].at;
+        let at = &document.points.as_ref().expect("points")[0].at;
         assert_eq!(
             at.channels()[0],
             Some(-3.6712345678901235),
@@ -500,9 +501,9 @@ mod tests {
     /// writer emits neither. `corpus/write/emit-boundary` pins it.
     #[test]
     fn a_false_hidden_is_not_written() {
-        let out = encode_text(r#"{"vnx":"0.10.0","waypoints":[{"at":[1,2],"hidden":false}]}"#);
+        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"hidden":false}]}"#);
         assert!(!out.contains("hidden"), "{out}");
-        let shown = encode_text(r#"{"vnx":"0.10.0","waypoints":[{"at":[1,2],"hidden":true}]}"#);
+        let shown = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"hidden":true}]}"#);
         assert!(shown.contains(r#""hidden":true"#), "{shown}");
     }
 
@@ -523,7 +524,7 @@ mod tests {
               "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
               "walk":[{"arc":"ab","from":"a","to":"b"}]}],
             "tracks":[{"pinned":"2026-10-25T13:00:00.001Z","segments":[]}],
-            "waypoints":[{"pinned":"2026-10-26T14:00:00Z","at":[3,3]},{"name":"unpinned","at":[4,4]}],
+            "points":[{"pinned":"2026-10-26T14:00:00Z","at":[3,3]},{"name":"unpinned","at":[4,4]}],
             "areas":[{"pinned":"2026-13-45T99:99:99Z","polygon":[[1,1],[2,1],[2,2]]}]}"#;
         let decoded = decode(text.as_bytes()).expect("accepted");
         assert!(decoded.diagnostics.is_empty(), "{:?}", decoded.diagnostics);
@@ -536,7 +537,7 @@ mod tests {
             network.areas.as_ref().unwrap()[0].pinned.as_deref(),
             d.plans.as_ref().unwrap()[0].pinned.as_deref(),
             d.tracks.as_ref().unwrap()[0].pinned.as_deref(),
-            d.waypoints.as_ref().unwrap()[0].pinned.as_deref(),
+            d.points.as_ref().unwrap()[0].pinned.as_deref(),
             d.areas.as_ref().unwrap()[0].pinned.as_deref(),
         ];
         let want = [
@@ -550,7 +551,7 @@ mod tests {
             "2026-13-45T99:99:99Z",
         ];
         assert_eq!(got, want.map(Some));
-        assert_eq!(d.waypoints.as_ref().unwrap()[1].pinned, None);
+        assert_eq!(d.points.as_ref().unwrap()[1].pinned, None);
 
         let out = encode_text(text);
         for value in want {
@@ -572,7 +573,7 @@ mod tests {
     /// (SPEC 8.1), and this pins the decision rather than the rule.
     #[test]
     fn the_output_carries_no_whitespace() {
-        let out = encode_text(r#"{"vnx":"0.10.0","waypoints":[{"at":[1,2],"name":"Spring"}]}"#);
+        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"name":"Spring"}]}"#);
         assert!(!out.contains('\n') && !out.contains("  "), "{out}");
     }
 

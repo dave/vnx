@@ -1,13 +1,13 @@
 {
   "kind": "diagnose",
   "schema": "valid",
-  "note": "An unknown key on a core object (spec 6.2): diagnose it, skip the key, KEEP the item. An unknown key is unrecognised, not unusable - and the waypoint's position is still perfectly good. This follows the same rule the format applies elsewhere: a value that will not parse is reported and skipped rather than killing the file.",
+  "note": "An unknown key on a core object (spec 6.2): diagnose it, skip the key, KEEP the item. An unknown key is unrecognised, not unusable - and the top-level point's position is still perfectly good. This follows the same rule the format applies elsewhere: a value that will not parse is reported and skipped rather than killing the file.",
   "counts": {
-    "waypoints": 1
+    "points": 1
   },
   "diagnostics": [
     {
-      "path": "/waypoints/0/nmae",
+      "path": "/points/0/nmae",
       "code": "unknown-key",
       "message_advisory": "unknown key"
     }

@@ -30,7 +30,7 @@ from .model import (
     Plan,
     Segment,
     Track,
-    Waypoint,
+    Point,
     is_app_key,
 )
 
@@ -99,7 +99,7 @@ def _folder(folder: Folder) -> JSONValue:
     return obj
 
 
-def _waypoint(point: Waypoint) -> JSONValue:
+def _point(point: Point) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, point)
     _put(obj, "at", _position(point.at) if point.at is not None else None)
@@ -198,7 +198,7 @@ def _network(network: Network) -> JSONValue:
             for i, highlight in enumerate(network.highlights)
         ]
     if network.points is not None:
-        obj["points"] = [_waypoint(point) for point in network.points]
+        obj["points"] = [_point(point) for point in network.points]
     if network.areas is not None:
         obj["areas"] = [_area(area) for area in network.areas]
     _put(obj, "data", _records(network.data))
@@ -246,8 +246,8 @@ def encode_document(document: Document) -> JSONValue:
         obj["plans"] = [_plan(item) for item in document.plans]
     if document.tracks is not None:
         obj["tracks"] = [_track(item) for item in document.tracks]
-    if document.waypoints is not None:
-        obj["waypoints"] = [_waypoint(item) for item in document.waypoints]
+    if document.points is not None:
+        obj["points"] = [_point(item) for item in document.points]
     if document.areas is not None:
         obj["areas"] = [_area(item) for item in document.areas]
     for app_key in document.app_keys:

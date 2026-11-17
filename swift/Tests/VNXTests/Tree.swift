@@ -69,7 +69,7 @@ enum Tree {
   static func normaliseDocument(_ v: JSONValue, _ o: Options) -> JSONValue {
     guard var obj = v.objectValue else { return v }
     normItems(&obj, "folders", o, normFolder)
-    normItems(&obj, "waypoints", o, normWaypoint)
+    normItems(&obj, "points", o, normPoint)
     normItems(&obj, "areas", o, normArea)
     normItems(&obj, "tracks", o, normTrack)
     normItems(&obj, "plans", o, normPlan)
@@ -84,7 +84,7 @@ enum Tree {
     dropEmptyContainer(&o, "data")
   }
 
-  private static func normWaypoint(_ o: inout OpaqueObject, _ opt: Options) {
+  private static func normPoint(_ o: inout OpaqueObject, _ opt: Options) {
     if let at = o["at"] { o["at"] = normPosition(at, opt) }
     dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
@@ -134,7 +134,7 @@ enum Tree {
   private static func normNetwork(_ o: inout OpaqueObject, _ opt: Options) {
     normGraph(&o, opt)
     normItems(&o, "highlights", opt, normHighlight)
-    normItems(&o, "points", opt, normWaypoint)
+    normItems(&o, "points", opt, normPoint)
     normItems(&o, "areas", opt, normArea)
     dropEmptyContainer(&o, "data")
   }

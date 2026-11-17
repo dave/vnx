@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 /** SPEC.md section 7, beyond the four container cases the corpus carries. */
 class ContainerTest {
     private val doc =
-        "{\n  \"vnx\": \"0.10.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a container\"," +
+        "{\n  \"vnx\": \"0.10.0\",\n  \"points\": [\n    {\n      \"name\": \"In a container\"," +
             "\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n"
 
     private fun zip(
@@ -42,7 +42,7 @@ class ContainerTest {
     @Test
     fun `doc-vnx at the root wins over an earlier vnx entry`() {
         val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.10.0"}""", "doc.vnx" to doc))
-        assertEquals("In a container", r.document.waypoints!![0].name)
+        assertEquals("In a container", r.document.points!![0].name)
         assertEquals(listOf("aaa.vnx"), r.attachments!!.map { it.path })
     }
 
@@ -53,7 +53,7 @@ class ContainerTest {
         // with a `.vnx` extension in archive order." `second.vnx` being the
         // attachment is what says `first.vnx` was taken.
         val r = Vnx.readContainer(zip("first.vnx" to doc, "second.vnx" to """{"vnx":"0.10.0"}"""))
-        assertEquals("In a container", r.document.waypoints!![0].name)
+        assertEquals("In a container", r.document.points!![0].name)
         assertEquals(listOf("second.vnx"), r.attachments!!.map { it.path })
     }
 
@@ -64,7 +64,7 @@ class ContainerTest {
         val r = Vnx.readContainer(zip("first.vnx" to doc, "sub/doc.vnx" to """{"vnx":"0.10.0"}"""))
         assertEquals(
             "In a container",
-            r.document.waypoints!![0].name,
+            r.document.points!![0].name,
             "sub/doc.vnx is not a root document, so the fallback takes the first .vnx entry",
         )
     }
@@ -72,9 +72,9 @@ class ContainerTest {
     @Test
     fun `names are compared case-insensitively`() {
         val r = Vnx.readContainer(zip("aaa.vnx" to """{"vnx":"0.10.0"}""", "DOC.VNX" to doc))
-        assertEquals("In a container", r.document.waypoints!![0].name)
+        assertEquals("In a container", r.document.points!![0].name)
         val s = Vnx.readContainer(zip("only.VNX" to doc))
-        assertEquals("In a container", s.document.waypoints!![0].name)
+        assertEquals("In a container", s.document.points!![0].name)
     }
 
     @Test
@@ -87,7 +87,7 @@ class ContainerTest {
     @Test
     fun `a stored entry reads as well as a deflated one`() {
         val r = Vnx.readContainer(zip("doc.vnx" to doc, "notes.txt" to "hello", stored = true))
-        assertEquals("In a container", r.document.waypoints!![0].name)
+        assertEquals("In a container", r.document.points!![0].name)
         // The BYTES, not the name: a stored entry is the one shape where a
         // reader that never decompresses anything still returns the right length.
         assertEquals(listOf(Attachment("notes.txt", "hello".toByteArray())), r.attachments)
@@ -473,7 +473,7 @@ class ContainerTest {
         val r = Vnx.readContainer(bytes)
         // The document is untouched by damage to an attachment, and section 7
         // says so: refusing it discards good geometry over a damaged photograph.
-        assertEquals("In a container", r.document.waypoints!![0].name, why)
+        assertEquals("In a container", r.document.points!![0].name, why)
         // DROPPED, not returned empty: an attachment with no bytes cannot be told
         // apart from one the archive never carried.
         assertEquals(emptyList(), r.attachments, why)
@@ -560,7 +560,7 @@ class ContainerTest {
         val corpus = java.io.File(System.getProperty("vnx.corpus")!!)
         for (name in listOf("accept/container-root-doc.vnz", "accept/container-named-document.vnz")) {
             val r = Vnx.readContainer(java.io.File(corpus, name).readBytes())
-            assertEquals("In a container", r.document.waypoints!![0].name, name)
+            assertEquals("In a container", r.document.points!![0].name, name)
             assertEquals(emptyList(), r.diagnostics, name)
         }
     }

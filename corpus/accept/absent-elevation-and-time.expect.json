@@ -4,13 +4,13 @@
   "note": "Absent elevation and absent time, spelled `null` (spec 4.1). Absence is a first-class state, not a zero: a pip at sea level and a pip whose height nobody knows are different facts. The round trip in this runner is what proves the nulls survive re-encoding rather than becoming 0.",
   "counts": {
     "tracks": 1,
-    "waypoints": 1,
+    "points": 1,
     "/tracks/0/segments": 1,
     "/tracks/0/segments/0/pips": 2
   },
   "positions": [
     {
-      "at": "/waypoints/0/at",
+      "at": "/points/0/at",
       "lon": -3.6712,
       "lat": 57.118
     }

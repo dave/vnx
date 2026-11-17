@@ -21,7 +21,7 @@ internal class Encoder {
             .put("networks", doc.networks?.let { array(it, ::network) })
             .put("plans", doc.plans?.let { array(it, ::plan) })
             .put("tracks", doc.tracks?.let { array(it, ::track) })
-            .put("waypoints", doc.waypoints?.let { array(it) { w -> waypoint(w, inNetwork = false) } })
+            .put("points", doc.points?.let { array(it) { w -> point(w, inNetwork = false) } })
             .put("areas", doc.areas?.let { array(it) { a -> area(a, inNetwork = false) } })
             .apply { for (k in doc.appKeys) put(k.key, k.value) }
             .build()
@@ -121,7 +121,7 @@ internal class Encoder {
             .put("nodes", n.nodes?.let(::nodes))
             .put("arcs", n.arcs?.let(::arcs))
             .put("highlights", n.highlights?.let { array(it, ::highlight) })
-            .put("points", n.points?.let { array(it) { w -> waypoint(w, inNetwork = true) } })
+            .put("points", n.points?.let { array(it) { w -> point(w, inNetwork = true) } })
             .put("areas", n.areas?.let { array(it) { a -> area(a, inNetwork = true) } })
             .put("data", data(n.data))
             .build()
@@ -248,8 +248,8 @@ internal class Encoder {
             .put("data", data(t.data))
             .build()
 
-    private fun waypoint(
-        w: Waypoint,
+    private fun point(
+        w: Point,
         inNetwork: Boolean,
     ) = JsonObject
         .Builder()

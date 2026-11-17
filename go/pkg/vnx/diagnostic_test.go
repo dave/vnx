@@ -85,7 +85,7 @@ func TestRefusalReturnsNoPartialDocument(t *testing.T) {
 // habit this channel cannot survive.
 func TestKnownCollectionsAreNotReportedAsUnknown(t *testing.T) {
 	_, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[],"networks":[],"plans":[],
-	  "tracks":[],"waypoints":[],"areas":[],"app.viatrail.rulesets":[]}`))
+	  "tracks":[],"points":[],"areas":[],"app.viatrail.rulesets":[]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

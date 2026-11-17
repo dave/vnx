@@ -65,7 +65,7 @@ fn document(value: &Json, emit: EmitBoundary) -> Json {
     items(&mut out, "networks", emit, network);
     items(&mut out, "plans", emit, plan);
     items(&mut out, "tracks", emit, track);
-    items(&mut out, "waypoints", emit, waypoint);
+    items(&mut out, "points", emit, point);
     items(&mut out, "areas", emit, area);
     // Application keys are not touched: SPEC 3.9 exempts them from SPEC 8.1's
     // absent-equals-empty normalisation, so an empty or `null` value is
@@ -79,7 +79,7 @@ fn folder(o: &mut Entries, _emit: EmitBoundary) {
     drop_empty(o, "data");
 }
 
-fn waypoint(o: &mut Entries, emit: EmitBoundary) {
+fn point(o: &mut Entries, emit: EmitBoundary) {
     map_value(o, "at", |v| position(v, emit));
     drop_empty(o, "style");
     drop_empty(o, "data");
@@ -114,7 +114,7 @@ fn arc(o: &mut Entries, emit: EmitBoundary) {
 fn network(o: &mut Entries, emit: EmitBoundary) {
     graph(o, emit);
     items(o, "highlights", emit, highlight);
-    items(o, "points", emit, waypoint);
+    items(o, "points", emit, point);
     items(o, "areas", emit, area);
     drop_empty(o, "data");
 }

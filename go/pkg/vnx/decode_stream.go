@@ -102,12 +102,12 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 	// with nil, because only its name is used.
 	top := map[string]any{}
 	var (
-		folders   collected[Folder]
-		waypoints collected[Waypoint]
-		networks  collected[Network]
-		plans     collected[Plan]
-		tracks    collected[Track]
-		areas     collected[Area]
+		folders  collected[Folder]
+		points   collected[Point]
+		networks collected[Network]
+		plans    collected[Plan]
+		tracks   collected[Track]
+		areas    collected[Area]
 	)
 	for s.dec.More() {
 		key, err := s.key()
@@ -128,13 +128,13 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 			if err == nil && folders.items != nil {
 				folders.items, folders.diags = resolveParents(folders.items, folders.diags)
 			}
-		case "waypoints":
-			waypoints, err = readArray(s, "/waypoints", func(at string, diags []Diagnostic) (Waypoint, bool, []Diagnostic, error) {
+		case "points":
+			points, err = readArray(s, "/points", func(at string, diags []Diagnostic) (Point, bool, []Diagnostic, error) {
 				v, err := s.value()
 				if err != nil {
-					return Waypoint{}, false, diags, err
+					return Point{}, false, diags, err
 				}
-				w, ok, diags := waypointFromValue(v, at, diags)
+				w, ok, diags := pointFromValue(v, at, diags)
 				return w, ok, diags, nil
 			})
 		case "networks":
@@ -179,7 +179,7 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 	doc.Generator, diags = stringField(top, "generator", diags)
 	doc.Created, diags = timeField(top, "created", "", diags)
 	doc.Folders, diags = folders.items, append(diags, folders.diags...)
-	doc.Waypoints, diags = waypoints.items, append(diags, waypoints.diags...)
+	doc.Points, diags = points.items, append(diags, points.diags...)
 	doc.Networks, diags = networks.items, append(diags, networks.diags...)
 	doc.Plans, diags = plans.items, append(diags, plans.diags...)
 	doc.Tracks, diags = tracks.items, append(diags, tracks.diags...)

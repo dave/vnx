@@ -18,7 +18,7 @@ data class VnxDocument(
     val networks: List<Network>? = null,
     val plans: List<Plan>? = null,
     val tracks: List<Track>? = null,
-    val waypoints: List<Waypoint>? = null,
+    val points: List<Point>? = null,
     val areas: List<Area>? = null,
     /**
      * The application keys (SPEC.md section 3.9): every top-level key that
@@ -134,7 +134,7 @@ data class Network(
     val nodes: Map<String, Vertex>? = null,
     val arcs: Map<String, Arc>? = null,
     val highlights: List<Highlight>? = null,
-    val points: List<Waypoint>? = null,
+    val points: List<Point>? = null,
     val areas: List<Area>? = null,
     val data: List<DataRecord>? = null,
 )
@@ -279,11 +279,11 @@ data class Segment(
 )
 
 /**
- * A top-level waypoint or a network's point. SPEC.md section 3.6 makes them one
- * shape; section 3.10 gives a `folder` to the waypoint only, so `folder` is always
+ * A top-level point or a network's point. SPEC.md section 3.6 makes them one
+ * shape; section 3.10 gives a `folder` to the top-level point only, so `folder` is always
  * null on a network's point.
  */
-data class Waypoint(
+data class Point(
     val at: Position,
     val name: String? = null,
     val notes: String? = null,

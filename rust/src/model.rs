@@ -149,7 +149,7 @@ pub struct Document {
     pub networks: Option<Vec<Network>>,
     pub plans: Option<Vec<Plan>>,
     pub tracks: Option<Vec<Track>>,
-    pub waypoints: Option<Vec<Waypoint>>,
+    pub points: Option<Vec<Point>>,
     pub areas: Option<Vec<Area>>,
     /// The application keys (SPEC 3.9): every top-level key containing a full
     /// stop, each value kept verbatim and interpreted not at all. A JSON
@@ -200,7 +200,7 @@ pub struct Network {
     pub nodes: Option<Vec<(String, Vertex)>>,
     pub arcs: Option<Vec<(String, Arc)>>,
     pub highlights: Option<Vec<Highlight>>,
-    pub points: Option<Vec<Waypoint>>,
+    pub points: Option<Vec<Point>>,
     pub areas: Option<Vec<Area>>,
     pub data: Option<Vec<Record>>,
 }
@@ -401,13 +401,13 @@ pub struct Segment {
     pub pips: Vec<Position>,
 }
 
-/// A top-level waypoint, or a network's point. One shape (SPEC 3.6).
+/// A top-level point, or a network's point. One shape (SPEC 3.6).
 ///
-/// `folder` is carried only by a top-level waypoint; a network's point is
+/// `folder` is carried only by a top-level point; a network's point is
 /// placed by the network that contains it, and the decoder reports `folder` on
 /// one as an unrecognised key.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Waypoint {
+pub struct Point {
     pub name: Option<String>,
     pub notes: Option<String>,
     pub folder: Option<String>,
@@ -421,7 +421,7 @@ pub struct Waypoint {
 }
 
 /// A top-level area, or a network's area. `folder` is carried only by the
-/// top-level one, as for [`Waypoint`].
+/// top-level one, as for [`Point`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Area {
     pub name: Option<String>,

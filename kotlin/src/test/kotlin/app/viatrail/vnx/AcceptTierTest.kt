@@ -29,7 +29,7 @@ class AcceptTierTest {
         listOf(
             "drops every data record" to { d: VnxDocument ->
                 d.copy(
-                    waypoints = d.waypoints?.map { it.copy(data = null) },
+                    points = d.points?.map { it.copy(data = null) },
                     tracks = d.tracks?.map { it.copy(data = null) },
                     plans = d.plans?.map { r -> r.copy(data = null, arcs = r.arcs?.mapValues { (_, a) -> a.copy(data = null) }) },
                     networks =
@@ -47,7 +47,7 @@ class AcceptTierTest {
             "drops every application key" to { d: VnxDocument -> d.copy(appKeys = emptyList()) },
             "drops every style" to { d: VnxDocument ->
                 d.copy(
-                    waypoints = d.waypoints?.map { it.copy(style = null) },
+                    points = d.points?.map { it.copy(style = null) },
                     areas = d.areas?.map { it.copy(style = null) },
                     tracks = d.tracks?.map { it.copy(style = null) },
                     plans = d.plans?.map { it.copy(style = null) },
@@ -62,7 +62,7 @@ class AcceptTierTest {
             },
             "drops every notes" to { d: VnxDocument ->
                 d.copy(
-                    waypoints = d.waypoints?.map { it.copy(notes = null) },
+                    points = d.points?.map { it.copy(notes = null) },
                     areas = d.areas?.map { it.copy(notes = null) },
                     tracks = d.tracks?.map { it.copy(notes = null) },
                     plans = d.plans?.map { it.copy(notes = null) },

@@ -21,7 +21,7 @@ func roundEle(v float64) *float64 { return &v }
 // precision, and an elevation with a computed tail.
 func noisyDoc() *vnx.Document {
 	return &vnx.Document{
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Name: "noisy",
 			At: vnx.Position{
 				Lon: -3.6712345678901235,
@@ -59,15 +59,15 @@ func TestWritingDoesNotRoundTheDocument(t *testing.T) {
 	if _, err := Write(&b, d); err != nil {
 		t.Fatal(err)
 	}
-	if d.Waypoints[0].At.Lon != -3.6712345678901235 || *d.Waypoints[0].At.Ele != 328.06075289469285 {
-		t.Fatalf("the document was rounded in place: %v", d.Waypoints[0].At)
+	if d.Points[0].At.Lon != -3.6712345678901235 || *d.Points[0].At.Ele != 328.06075289469285 {
+		t.Fatalf("the document was rounded in place: %v", d.Points[0].At)
 	}
 }
 
 // ⚠ HAZARD 5. An unknown elevation stays a TWO-element position. Rounding must
 // not invent a third ordinate, which would put the point at sea level.
 func TestRoundingLeavesAnUnknownElevationAbsent(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{{
+	d := &vnx.Document{Points: []vnx.Point{{
 		Name: "no elevation",
 		At:   vnx.Position{Lon: -3.6712345678901235, Lat: 57.11812345678901},
 	}}}

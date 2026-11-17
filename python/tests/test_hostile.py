@@ -29,13 +29,13 @@ from vnx import decode, model
 from . import test_corpus, zipbytes
 
 # Long enough that deflate has something to compress and a flipped byte lands
-# inside the payload rather than in a header.  The bulk lives on a waypoint's
+# inside the payload rather than in a header.  The bulk lives on a point's
 # `notes`, which is a key this format defines: at the document level it would be
 # an unknown key, and every archive here would then carry a diagnostic that has
 # nothing to do with what these tests are about.
 _NOTES = "x" * 400
 _DOCUMENT = (
-    b'{\n  "vnx": "0.10.0",\n  "waypoints": [\n    {\n      "at": [-3.6, 57.1],\n'
+    b'{\n  "vnx": "0.10.0",\n  "points": [\n    {\n      "at": [-3.6, 57.1],\n'
     b'      "notes": "' + _NOTES.encode() + b'"\n    }\n  ]\n}\n'
 )
 
@@ -263,8 +263,8 @@ class LyingHeaders(unittest.TestCase):
         has improved while conformance has broken.
         """
         result = vnx.read_container_bytes(self.rewritten(uncompressed=self.LIE))
-        assert result.document.waypoints is not None
-        self.assertEqual(result.document.waypoints[0].notes, _NOTES)
+        assert result.document.points is not None
+        self.assertEqual(result.document.points[0].notes, _NOTES)
 
     def test_an_archive_deferring_its_sizes_still_reads(self) -> None:
         """SPEC 7: the CENTRAL directory is authoritative, not a local header.
@@ -282,8 +282,8 @@ class LyingHeaders(unittest.TestCase):
             zipbytes.central_headers(local_only)[0].uncompressed, len(_DOCUMENT)
         )
         result = vnx.read_container_bytes(local_only)
-        assert result.document.waypoints is not None
-        self.assertEqual(result.document.waypoints[0].notes, _NOTES)
+        assert result.document.points is not None
+        self.assertEqual(result.document.points[0].notes, _NOTES)
 
 
 class RunnerContainment(unittest.TestCase):

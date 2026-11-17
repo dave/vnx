@@ -19,7 +19,7 @@ import (
 func eleOf(v float64) *float64 { return &v }
 
 func TestCoordinatesAndElevationAreRoundedAtTheWrite(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{{
+	d := &vnx.Document{Points: []vnx.Point{{
 		Name: "noisy",
 		At: vnx.Position{
 			Lon: -3.6712345678901235,
@@ -45,7 +45,7 @@ func TestCoordinatesAndElevationAreRoundedAtTheWrite(t *testing.T) {
 	}
 }
 
-// A track point takes the same path as a waypoint, and a plan's points take a
+// A track point takes the same path as a top-level point, and a plan's points take a
 // third. All three must round, or one format spells one library two ways.
 func TestTrackAndPlanPointsRoundToo(t *testing.T) {
 	p := vnx.Position{Lon: -3.6712345678901235, Lat: 57.11812345678901, Ele: eleOf(328.06075289469285)}
@@ -70,7 +70,7 @@ func TestTrackAndPlanPointsRoundToo(t *testing.T) {
 // ⚠ HAZARD 5. An unknown elevation must not become <ele>0.0</ele>. The nil
 // test comes before the rounding, so absence survives.
 func TestRoundingNeverInventsAnElevation(t *testing.T) {
-	d := &vnx.Document{Waypoints: []vnx.Waypoint{{
+	d := &vnx.Document{Points: []vnx.Point{{
 		Name: "no elevation",
 		At:   vnx.Position{Lon: -3.6712345678901235, Lat: 57.11812345678901},
 	}}}

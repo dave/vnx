@@ -13,7 +13,7 @@ export {
   Plan,
   Track,
   Segment,
-  Waypoint,
+  Point,
   Area,
   Document,
   AppKey,

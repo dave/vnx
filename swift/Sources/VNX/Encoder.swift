@@ -21,7 +21,7 @@ enum DocumentEncoder {
     try putArray(&o, "networks", d.networks) { try network($0) }
     try putArray(&o, "plans", d.plans) { try plan($0) }
     putArray(&o, "tracks", d.tracks) { track($0) }
-    putArray(&o, "waypoints", d.waypoints) { waypoint($0, allowsFolder: true) }
+    putArray(&o, "points", d.points) { point($0, allowsFolder: true) }
     try putArray(&o, "areas", d.areas) { try area($0, allowsFolder: true) }
     // SPEC 3.9: each application key verbatim, `null` and empty values
     // included. A key without a full stop, or held twice, is refused.
@@ -53,7 +53,7 @@ enum DocumentEncoder {
     return .object(o)
   }
 
-  private static func waypoint(_ w: Waypoint, allowsFolder: Bool) -> JSONValue {
+  private static func point(_ w: Point, allowsFolder: Bool) -> JSONValue {
     var o: [JSONKey: JSONValue] = ["at": position(w.at)]
     put(&o, "name", w.name)
     put(&o, "notes", w.notes)
@@ -117,7 +117,7 @@ enum DocumentEncoder {
           return highlight(c)
         })
     }
-    putArray(&o, "points", n.points) { waypoint($0, allowsFolder: false) }
+    putArray(&o, "points", n.points) { point($0, allowsFolder: false) }
     try putArray(&o, "areas", n.areas) { try area($0, allowsFolder: false) }
     putData(&o, n.data)
     return .object(o)

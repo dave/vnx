@@ -35,7 +35,7 @@ import (
 // go is <extensions>, which §2.3 forbids.
 func TestMatrixStylesAreNotCarried(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2},
 			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
 		}},
@@ -82,7 +82,7 @@ func TestMatrixTagsAreNotCarried(t *testing.T) {
 	}
 	out, rep := write(t, &vnx.Document{
 		Folders: []vnx.Folder{{ID: "f", Name: "Munros", Data: []vnx.Record{tag("scotland")}}},
-		Waypoints: []vnx.Waypoint{{
+		Points: []vnx.Point{{
 			Folder: "f", Name: "Cairn", At: vnx.Position{Lon: 1, Lat: 2},
 			Data: []vnx.Record{tag("bagged"), tag("winter")},
 		}},
@@ -164,7 +164,7 @@ func TestMatrixRoutingConfigIsNotCarried(t *testing.T) {
 // "hidden".
 func TestMatrixHiddenStateIsLostAndTheItemIsStillExported(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "Secret Cairn", Hidden: true, At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Name: "Secret Cairn", Hidden: true, At: vnx.Position{Lon: 1, Lat: 2}}},
 		Tracks: []vnx.Track{{
 			Name: "Secret Walk", Hidden: true,
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
@@ -323,7 +323,7 @@ func TestMatrixTrackStartedAndEndedReachNoGPX(t *testing.T) {
 // regression check, not a claim about which element the notes went into.
 func TestMatrixNotesAreCarriedAsDesc(t *testing.T) {
 	out, rep := write(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "Hut", Notes: "locked in winter", At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Name: "Hut", Notes: "locked in winter", At: vnx.Position{Lon: 1, Lat: 2}}},
 		Tracks: []vnx.Track{{
 			Name: "Walk", Notes: "stopped for lunch",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
@@ -352,7 +352,7 @@ func TestMatrixNotesAreCarriedAsDesc(t *testing.T) {
 	// empty <desc/> says "described as nothing", which is not what absence
 	// means.
 	bare, _ := write(t, &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "Unnoted", At: vnx.Position{Lon: 1, Lat: 2}}},
+		Points: []vnx.Point{{Name: "Unnoted", At: vnx.Position{Lon: 1, Lat: 2}}},
 	})
 	if strings.Contains(bare, "<desc") {
 		t.Errorf("an item with no notes wrote a <desc>\n%s", bare)

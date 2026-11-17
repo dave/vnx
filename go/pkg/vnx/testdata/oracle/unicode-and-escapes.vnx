@@ -1,7 +1,7 @@
 {
   "vnx": "0.10.0",
   "generator": "unicode",
-  "waypoints": [
+  "points": [
     {
       "name": "Grüße aus München 🏔️",
       "at": [1.5, 2.5]

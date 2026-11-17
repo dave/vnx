@@ -1,7 +1,7 @@
 ---
 title: Concepts
 nav: Concepts
-description: The VNX model. Networks, nodes, arcs, highlights, plans, tracks, waypoints, areas, folders and data records, and how they differ from GPX and KML.
+description: The VNX model. Networks, nodes, arcs, highlights, plans, tracks, points, areas, folders and data records, and how they differ from GPX and KML.
 ---
 
 # Concepts
@@ -25,7 +25,7 @@ version, and up to six collections:
   "networks":  [],
   "plans":     [],
   "tracks":    [],
-  "waypoints": [],
+  "points":    [],
   "areas":     []
 }
 ```
@@ -46,9 +46,8 @@ A top-level key that contains a full stop, such as `com.example.routes`, is an
 | network | top level | `nodes`, `arcs`, `highlights`, `points`, `areas` |
 | plan | top level | its own `nodes` and `arcs`, and one `walk` |
 | track | top level | `segments` of recorded positions |
-| waypoint | top level | one position, `at` |
+| point | top level, or in a network | one position, `at` |
 | area | top level, or in a network | one ring of positions, `polygon` |
-| point | in a network | one position, `at` (the same shape as a waypoint) |
 | highlight | in a network | a `walk` over the network's arcs |
 | data record | in the `data` array of any item, or of an arc | a `@type` and any fields |
 
@@ -151,8 +150,8 @@ section", "the best descent".
 
 ### Points and areas in a network
 
-A network can also hold `points` (same shape as a waypoint) and `areas` (same
-shape as a top-level area). Put them in the network when they belong to it, for
+A network can also hold `points` and `areas`, with the same shape as
+top-level points and areas. Put them in the network when they belong to it, for
 example a shelter on the network's trails, or a no-go zone for its routes.
 
 ## Plans
@@ -190,10 +189,11 @@ A **track** is a recording: what a GPS device logged (§3.5).
   its first pip to its last. If a segment has no time on its first or last pip,
   the moving time is unknown, not zero.
 
-## Waypoints
+## Points
 
-A **waypoint** is one position, `at`, with a name, notes, style and data
-(§3.6). A network's points have the same shape.
+A **point** is one position, `at`, with a name, notes, style and data
+(§3.6). It is the same shape at the top level and in a network. A GPX
+`<wpt>` is a point.
 
 ```json
 {
@@ -225,7 +225,7 @@ A **folder** groups top-level items. It is the only top-level object with an
 
 An item goes in a folder with `"folder": "approaches"`. A folder goes in
 another folder with `parent`. Folders can hold networks, plans, tracks,
-waypoints, top-level areas, and other folders.
+top-level points, top-level areas, and other folders.
 
 ## Data records
 
@@ -245,7 +245,7 @@ not report an error for it. See [Extensions](extensions.html).
 
 ## Style, hidden and pinned
 
-- `style` is an object on waypoints, points, areas, plans and tracks: colour,
+- `style` is an object on points, areas, plans and tracks: colour,
   icon, line width, fill and so on. A reader keeps every key in it. The only
   checked value is `importance`, an integer from 1 to 5 (§3.6, §3.10).
 - `hidden: true` means the user hid the item. If `hidden` is not there, the

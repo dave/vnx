@@ -14,7 +14,7 @@ import (
 // named, in a region spec §3.10 declares opaque. Nobody reported the second,
 // because a dropped key looks exactly like a key that was never there.
 func TestAStyleIsOpaque(t *testing.T) {
-	const src = `{"vnx":"0.10.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","points":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"style":{}},` +
 		`{"name":"unknown keys","at":[-3,57],"style":{"color":"#abcdef","halo-width":3,"glyph":"cairn"}}]}`
@@ -25,13 +25,13 @@ func TestAStyleIsOpaque(t *testing.T) {
 	if len(diags) != 0 {
 		t.Fatalf("a style is opaque, so an unrecognised key inside one is not a diagnostic: %v", diags)
 	}
-	if doc.Waypoints[0].Style != nil {
+	if doc.Points[0].Style != nil {
 		t.Error("an absent style decoded to a non-nil value")
 	}
-	if doc.Waypoints[1].Style == nil {
+	if doc.Points[1].Style == nil {
 		t.Error("an empty style decoded to nil, so it cannot be told from an absent one")
 	}
-	if got := doc.Waypoints[2].Style["glyph"]; got != "cairn" {
+	if got := doc.Points[2].Style["glyph"]; got != "cairn" {
 		t.Errorf("an unrecognised style key was not carried: got %#v", got)
 	}
 
@@ -62,7 +62,7 @@ func TestAStyleIsOpaque(t *testing.T) {
 // read-modify-write — so a field named `importance` inside a record is carried
 // untouched however wrong it looks.
 func TestImportanceIsCheckedInAStyleAndNotInARecord(t *testing.T) {
-	const src = `{"vnx":"0.10.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","points":[` +
 		`{"name":"bad style importance","at":[-3,57],"style":{"importance":9}},` +
 		`{"name":"bad record importance","at":[-3,57],"data":[{"@type":"x.y","importance":9}]}]}`
 	doc, diags, err := Decode([]byte(src))
@@ -72,21 +72,21 @@ func TestImportanceIsCheckedInAStyleAndNotInARecord(t *testing.T) {
 	if len(diags) != 1 || diags[0].Code != CodeWrongTypeOptional {
 		t.Fatalf("want exactly one %q diagnostic, got %v", CodeWrongTypeOptional, diags)
 	}
-	if _, present := doc.Waypoints[0].Style["importance"]; present {
+	if _, present := doc.Points[0].Style["importance"]; present {
 		t.Error("an out-of-range style importance was kept")
 	}
-	if got := doc.Waypoints[1].Data[0].Body["importance"]; got != 9.0 {
+	if got := doc.Points[1].Data[0].Body["importance"]; got != 9.0 {
 		t.Errorf("a record body's importance was inspected; got %#v, want it carried untouched", got)
 	}
 	// `icon-size` has no stated range, so it is not checked at all.
-	doc2, diags2, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"n","at":[-3,57],"style":{"icon-size":"large"}}]}`))
+	doc2, diags2, err := Decode([]byte(`{"vnx":"0.10.0","points":[{"name":"n","at":[-3,57],"style":{"icon-size":"large"}}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(diags2) != 0 {
 		t.Errorf("no range is stated for icon-size, so it is not checked: %v", diags2)
 	}
-	if got := doc2.Waypoints[0].Style["icon-size"]; got != "large" {
+	if got := doc2.Points[0].Style["icon-size"]; got != "large" {
 		t.Errorf("icon-size was not carried: %#v", got)
 	}
 }

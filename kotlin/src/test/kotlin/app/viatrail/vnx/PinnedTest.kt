@@ -15,7 +15,7 @@ class PinnedTest {
     private val arcs = mapOf("a1" to Arc("n1", "n2", emptyList()))
     private val walk = listOf(Pass("a1", from = Endpoint.Node("n1"), to = Endpoint.Node("n2")))
 
-    /** One item of every kind that carries `pinned`, each with its own value, and one unpinned waypoint. */
+    /** One item of every kind that carries `pinned`, each with its own value, and one unpinned top-level point. */
     private val document =
         VnxDocument(
             vnx = "0.10.0",
@@ -27,16 +27,16 @@ class PinnedTest {
                         nodes = nodes,
                         arcs = arcs,
                         highlights = listOf(Highlight(walk, pinned = "2026-10-21T09:00:00.250Z")),
-                        points = listOf(Waypoint(Position(1.0, 1.5), name = "point", pinned = "2026-10-22T10:30:45.5Z")),
+                        points = listOf(Point(Position(1.0, 1.5), name = "point", pinned = "2026-10-22T10:30:45.5Z")),
                         areas = listOf(Area(ring, name = "network area", pinned = "2026-10-23T11:00:00Z")),
                     ),
                 ),
             plans = listOf(Plan(walk, nodes, arcs, name = "plan", pinned = "2026-10-24T12:00:00Z")),
             tracks = listOf(Track(listOf(Segment(ring)), name = "track", pinned = "2026-10-25T13:00:00.001Z")),
-            waypoints =
+            points =
                 listOf(
-                    Waypoint(Position(3.0, 3.0), name = "waypoint", pinned = "2026-10-26T14:00:00Z"),
-                    Waypoint(Position(4.0, 4.0), name = "unpinned"),
+                    Point(Position(3.0, 3.0), name = "top-level point", pinned = "2026-10-26T14:00:00Z"),
+                    Point(Position(4.0, 4.0), name = "unpinned"),
                 ),
             areas = listOf(Area(ring, name = "area", pinned = "2026-13-45T99:99:99Z")),
         )
@@ -51,7 +51,7 @@ class PinnedTest {
         }
         d.plans?.forEach { out[it.name] = it.pinned }
         d.tracks?.forEach { out[it.name] = it.pinned }
-        d.waypoints?.forEach { out[it.name] = it.pinned }
+        d.points?.forEach { out[it.name] = it.pinned }
         d.areas?.forEach { out[it.name] = it.pinned }
         return out
     }
@@ -68,9 +68,9 @@ class PinnedTest {
     @Test
     fun `an unpinned item is written without pinned`() {
         val written = JsonParser.parse(Vnx.write(document)) as JsonObject
-        val waypoints = (written["waypoints"] as JsonArray).elements.map { it as JsonObject }
-        assertEquals("2026-10-26T14:00:00Z", (waypoints[0]["pinned"] as JsonString).value)
-        assertFalse("pinned" in waypoints[1].keys, "an unpinned waypoint carries no pinned")
-        assertTrue("pinned" in waypoints[0].keys)
+        val points = (written["points"] as JsonArray).elements.map { it as JsonObject }
+        assertEquals("2026-10-26T14:00:00Z", (points[0]["pinned"] as JsonString).value)
+        assertFalse("pinned" in points[1].keys, "an unpinned point carries no pinned")
+        assertTrue("pinned" in points[0].keys)
     }
 }

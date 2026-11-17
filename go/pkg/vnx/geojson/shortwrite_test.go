@@ -135,5 +135,5 @@ func TestNonFiniteCoordinateFailsTheWrite(t *testing.T) {
 }
 
 func docWithLon(lon float64) *vnx.Document {
-	return &vnx.Document{Waypoints: []vnx.Waypoint{{Name: "broken", At: vnx.Position{Lon: lon, Lat: 1}}}}
+	return &vnx.Document{Points: []vnx.Point{{Name: "broken", At: vnx.Position{Lon: lon, Lat: 1}}}}
 }

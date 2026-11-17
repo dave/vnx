@@ -71,7 +71,7 @@ def normalised_document(document: Document) -> Document:
         networks=_networks(document.networks),
         plans=_unhidden_all(document.plans),
         tracks=_unhidden_all(document.tracks),
-        waypoints=_unhidden_all(document.waypoints),
+        points=_unhidden_all(document.points),
         areas=_unhidden_all(document.areas),
     )
 

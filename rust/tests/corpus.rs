@@ -30,7 +30,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use vnx::json::{parse, Json};
-use vnx::model::{Arc, Area, Document, Endpoint, Network, Position, Track, Vertex, Waypoint};
+use vnx::model::{Arc, Area, Document, Endpoint, Network, Point, Position, Track, Vertex};
 use vnx::{decode, encode, vnz};
 
 #[path = "support/tree.rs"]
@@ -215,9 +215,9 @@ fn well_formed(reported: &[vnx::Diagnostic]) -> Result<(), String> {
 #[test]
 fn a_path_carrying_two_codes_is_refused() {
     use vnx::{Cause, Diagnostic};
-    let key = Diagnostic::new("/waypoints/0/nmae", Cause::UnknownKey);
-    let utc = Diagnostic::new("/waypoints/0/nmae", Cause::TimestampNotUtc);
-    let elsewhere = Diagnostic::new("/waypoints/1/nmae", Cause::TimestampNotUtc);
+    let key = Diagnostic::new("/points/0/nmae", Cause::UnknownKey);
+    let utc = Diagnostic::new("/points/0/nmae", Cause::TimestampNotUtc);
+    let elsewhere = Diagnostic::new("/points/1/nmae", Cause::TimestampNotUtc);
     assert!(well_formed(&[key.clone(), elsewhere]).is_ok());
     assert!(well_formed(&[key, utc]).is_err());
 }
@@ -332,23 +332,23 @@ fn the_diagnostic_matcher_has_been_seen_to_fail() {
         code: code.to_string(),
         advisory: String::new(),
     };
-    let unknown_key = Diagnostic::new("/waypoints/0/nmae", Cause::UnknownKey);
-    let not_utc = Diagnostic::new("/waypoints/0/nmae", Cause::TimestampNotUtc);
+    let unknown_key = Diagnostic::new("/points/0/nmae", Cause::UnknownKey);
+    let not_utc = Diagnostic::new("/points/0/nmae", Cause::TimestampNotUtc);
 
     // The pairing it must accept.
     assert!(pair_diagnostics(
-        &[expect("/waypoints/0/nmae", "unknown-key")],
+        &[expect("/points/0/nmae", "unknown-key")],
         std::slice::from_ref(&unknown_key)
     )
     .is_ok());
 
     // Right path, WRONG code. This is the hole an English substring could not
     // see and a path-only match cannot see either.
-    assert!(pair_diagnostics(&[expect("/waypoints/0/nmae", "unknown-key")], &[not_utc]).is_err());
+    assert!(pair_diagnostics(&[expect("/points/0/nmae", "unknown-key")], &[not_utc]).is_err());
 
     // Right code, wrong path.
     assert!(pair_diagnostics(
-        &[expect("/waypoints/0/name", "unknown-key")],
+        &[expect("/points/0/name", "unknown-key")],
         std::slice::from_ref(&unknown_key)
     )
     .is_err());
@@ -357,21 +357,21 @@ fn the_diagnostic_matcher_has_been_seen_to_fail() {
     assert!(pair_diagnostics(&[], std::slice::from_ref(&unknown_key)).is_err());
 
     // An expected diagnostic nobody reported.
-    assert!(pair_diagnostics(&[expect("/waypoints/0/nmae", "unknown-key")], &[]).is_err());
+    assert!(pair_diagnostics(&[expect("/points/0/nmae", "unknown-key")], &[]).is_err());
 
     // Distinct pairing: two expectations may not share one reported diagnostic.
     assert!(pair_diagnostics(
         &[
-            expect("/waypoints/0/nmae", "unknown-key"),
-            expect("/waypoints/0/nmae", "unknown-key"),
+            expect("/points/0/nmae", "unknown-key"),
+            expect("/points/0/nmae", "unknown-key"),
         ],
         std::slice::from_ref(&unknown_key)
     )
     .is_err());
     assert!(pair_diagnostics(
         &[
-            expect("/waypoints/0/nmae", "unknown-key"),
-            expect("/waypoints/0/nmae", "unknown-key"),
+            expect("/points/0/nmae", "unknown-key"),
+            expect("/points/0/nmae", "unknown-key"),
         ],
         &[unknown_key.clone(), unknown_key.clone()]
     )
@@ -781,7 +781,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
 
     let spoilers: [Spoiler; 4] = [
         ("drops every data record", |d| {
-            for w in d.waypoints.iter_mut().flatten() {
+            for w in d.points.iter_mut().flatten() {
                 w.data = None;
             }
             for n in d.networks.iter_mut().flatten() {
@@ -856,8 +856,8 @@ fn a_reader_that_discards_what_it_read_is_caught() {
 /// task that has each of them read every other's output.
 #[test]
 fn a_number_compares_by_value_and_not_by_spelling() {
-    let integers = br#"{"vnx":"0.10.0","waypoints":[{"at":[1,2,340],"name":"a"}]}"#;
-    let floats = br#"{"vnx":"0.10.0","waypoints":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
+    let integers = br#"{"vnx":"0.10.0","points":[{"at":[1,2,340],"name":"a"}]}"#;
+    let floats = br#"{"vnx":"0.10.0","points":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
     for emit in [EmitBoundary::Normalise, EmitBoundary::Keep] {
         assert_eq!(
             tree::compare(integers, floats, emit),
@@ -867,7 +867,7 @@ fn a_number_compares_by_value_and_not_by_spelling() {
     }
 
     // And a real difference is still seen, or the above passes vacuously.
-    let different = br#"{"vnx":"0.10.0","waypoints":[{"at":[1,2,341],"name":"a"}]}"#;
+    let different = br#"{"vnx":"0.10.0","points":[{"at":[1,2,341],"name":"a"}]}"#;
     assert!(tree::compare(integers, different, EmitBoundary::Keep).is_some());
 }
 
@@ -1091,8 +1091,8 @@ fn check_counts(sidecar: &Json, document: &Document, case: &Case) {
         document.tracks.as_ref().map_or(0, Vec::len),
     );
     got.insert(
-        "waypoints".into(),
-        document.waypoints.as_ref().map_or(0, Vec::len),
+        "points".into(),
+        document.points.as_ref().map_or(0, Vec::len),
     );
     got.insert("areas".into(), document.areas.as_ref().map_or(0, Vec::len));
     // The nested containers, addressed by the same JSON Pointer vocabulary
@@ -1388,7 +1388,7 @@ fn resolve_position(document: &Document, pointer: &str) -> Option<(f64, f64)> {
     let index = |i: usize| tokens.get(i)?.parse::<usize>().ok();
 
     match token(0)? {
-        "waypoints" => waypoint_at(document.waypoints.as_ref()?.get(index(1)?)?, token(2)?),
+        "points" => point_at(document.points.as_ref()?.get(index(1)?)?, token(2)?),
         "areas" => ring_vertex(
             document.areas.as_ref()?.get(index(1)?)?,
             token(2)?,
@@ -1408,8 +1408,8 @@ fn lon_lat(p: &Position) -> (f64, f64) {
     (p.lon(), p.lat())
 }
 
-fn waypoint_at(waypoint: &Waypoint, key: &str) -> Option<(f64, f64)> {
-    (key == "at").then(|| lon_lat(&waypoint.at))
+fn point_at(point: &Point, key: &str) -> Option<(f64, f64)> {
+    (key == "at").then(|| lon_lat(&point.at))
 }
 
 fn ring_vertex(area: &Area, key: &str, index: usize) -> Option<(f64, f64)> {
@@ -1494,7 +1494,7 @@ fn network_position(network: &Network, tokens: &[String]) -> Option<(f64, f64)> 
             Some((at.lon, at.lat))
         }
         // /networks/N/points/P/at
-        "points" => waypoint_at(
+        "points" => point_at(
             network
                 .points
                 .as_ref()?

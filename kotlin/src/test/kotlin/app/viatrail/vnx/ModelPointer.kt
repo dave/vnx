@@ -58,7 +58,7 @@ object ModelPointer {
                     "networks" -> value.networks
                     "plans" -> value.plans
                     "tracks" -> value.tracks
-                    "waypoints" -> value.waypoints
+                    "points" -> value.points
                     "areas" -> value.areas
                     else -> null
                 }
@@ -92,7 +92,7 @@ object ModelPointer {
                 }
             is Track -> if (token == "segments") value.segments else null
             is Segment -> if (token == "pips") value.pips else null
-            is Waypoint -> if (token == "at") value.at else null
+            is Point -> if (token == "at") value.at else null
             is Area -> if (token == "polygon") value.polygon else null
             is List<*> -> index?.let { value.getOrNull(it) }
             is Map<*, *> -> value[token]

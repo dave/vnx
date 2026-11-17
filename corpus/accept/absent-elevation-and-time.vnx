@@ -13,7 +13,7 @@
       ]
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "No height known",
       "at": [-3.6712, 57.118, null]

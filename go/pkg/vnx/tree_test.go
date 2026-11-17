@@ -58,7 +58,7 @@ func normaliseDocument(v any, opt treeOptions) any {
 	}
 	out := copyObject(obj)
 	normItems(out, "folders", opt, normFolder)
-	normItems(out, "waypoints", opt, normWaypoint)
+	normItems(out, "points", opt, normPoint)
 	normItems(out, "areas", opt, normArea)
 	normItems(out, "tracks", opt, normTrack)
 	normItems(out, "plans", opt, normPlan)
@@ -73,7 +73,7 @@ func normFolder(o map[string]any, opt treeOptions) {
 	dropEmptyContainer(o, "data")
 }
 
-func normWaypoint(o map[string]any, opt treeOptions) {
+func normPoint(o map[string]any, opt treeOptions) {
 	if p, ok := o["at"]; ok {
 		o["at"] = normPosition(p, opt)
 	}
@@ -165,7 +165,7 @@ func normWalk(o map[string]any, opt treeOptions) {
 func normNetwork(o map[string]any, opt treeOptions) {
 	normGraph(o, opt)
 	normItems(o, "highlights", opt, normHighlight)
-	normItems(o, "points", opt, normWaypoint)
+	normItems(o, "points", opt, normPoint)
 	normItems(o, "areas", opt, normArea)
 	dropEmptyContainer(o, "data")
 }

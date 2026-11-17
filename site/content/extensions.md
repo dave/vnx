@@ -20,7 +20,7 @@ There are three ways to extend a document:
 
 ## Data records
 
-Every item (folder, network, highlight, plan, track, waypoint, point, area) and
+Every item (folder, network, highlight, plan, track, point, area) and
 every arc can have a `data` array. Each entry is a record: a JSON object with a
 `@type` and any other fields (§5).
 
@@ -64,7 +64,7 @@ spelling from JSON-LD, but a VNX document is not JSON-LD and has no `@context`.
   no notes or style, so its records are what it is.
 - On an **arc**, a record applies to that piece of trail itself, whatever walks
   use it: "this arc was routed by an engine".
-- On a **point, waypoint or area**, a record describes that place.
+- On a **point or area**, a record describes that place.
 - On a **network, plan, track or folder**, a record describes the whole item.
 
 ## Type IDs
@@ -167,7 +167,7 @@ is the application's rule, not a VNX rule.
 If other people will read or write your extension, publish:
 
 - each type ID, its fields, their JSON types and meaning;
-- which hosts each type is for (highlight, arc, waypoint, and so on);
+- which hosts each type is for (highlight, arc, point, and so on);
 - whether a type can repeat on one item, and what several records mean;
 - each application key and the shape of its value;
 - the folder and file names your types use in a `.vnz`;

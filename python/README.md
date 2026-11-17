@@ -99,7 +99,7 @@ This library has none. The reference command-line tool is Go's; see
 | `ContainerReadResult` | the same two, plus `document_name: str` and `attachments: list[Attachment]` |
 | `Attachment` | `path: str`, `bytes: bytes` — frozen |
 | `Diagnostic` | `path: str`, `message: str`, `code: str | None` |
-| `Document` | `networks`, `plans`, `tracks`, `waypoints`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
+| `Document` | `networks`, `plans`, `tracks`, `points`, `areas`, `folders`, `app_keys`, `vnx`, `generator`, `created`, and `counts()` |
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |

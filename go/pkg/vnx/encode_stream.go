@@ -215,9 +215,9 @@ var documentCollections = []documentCollection{
 		func(b *StickyWriter, d *Document) error {
 			return streamArray(b, len(d.Folders), func(i int) (any, error) { return folderWire(d.Folders[i]) })
 		}},
-	{"Waypoints", "waypoints", func(d *Document) int { return len(d.Waypoints) },
+	{"Points", "points", func(d *Document) int { return len(d.Points) },
 		func(b *StickyWriter, d *Document) error {
-			return streamArray(b, len(d.Waypoints), func(i int) (any, error) { return waypointWire(d.Waypoints[i], false) })
+			return streamArray(b, len(d.Points), func(i int) (any, error) { return pointWire(d.Points[i], false) })
 		}},
 	{"Areas", "areas", func(d *Document) int { return len(d.Areas) },
 		func(b *StickyWriter, d *Document) error {
@@ -336,7 +336,7 @@ func streamNetwork(b *StickyWriter, n Network) error {
 		if err := o.key("points"); err != nil {
 			return err
 		}
-		err := streamArray(b, len(n.Points), func(i int) (any, error) { return waypointWire(n.Points[i], true) })
+		err := streamArray(b, len(n.Points), func(i int) (any, error) { return pointWire(n.Points[i], true) })
 		if err != nil {
 			return err
 		}

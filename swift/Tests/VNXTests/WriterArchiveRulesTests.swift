@@ -21,8 +21,8 @@ final class WriterArchiveRulesTests: XCTestCase {
 
   private func document() -> Document {
     var document = Document()
-    document.waypoints = [
-      Waypoint(
+    document.points = [
+      Point(
         at: Position(lon: -3.675, lat: 57.1201),
         name: "In a container", notes: nil, folder: nil,
         hidden: nil, style: nil, data: nil)
@@ -150,8 +150,8 @@ final class WriterArchiveRulesTests: XCTestCase {
     var document = Document()
     // A repetitive document, because 200 bytes of JSON plus a ZIP envelope
     // is dominated by the envelope whatever the compressor does.
-    document.waypoints = (0..<200).map {
-      Waypoint(
+    document.points = (0..<200).map {
+      Point(
         at: Position(lon: -3.675, lat: 57.1201 + Double($0) / 10000),
         name: "Bothy", notes: "the same note over and over", folder: nil,
         hidden: nil, style: nil, data: nil)

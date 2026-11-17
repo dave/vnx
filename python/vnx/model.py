@@ -29,7 +29,7 @@ __all__ = [
     "Plan",
     "Segment",
     "Track",
-    "Waypoint",
+    "Point",
     "Area",
     "Document",
     "Endpoint",
@@ -153,7 +153,7 @@ class Network:
     nodes: Union[dict[str, Position], None] = None
     arcs: Union[dict[str, Arc], None] = None
     highlights: Union[list[Highlight], None] = None
-    points: Union[list["Waypoint"], None] = None
+    points: Union[list["Point"], None] = None
     areas: Union[list["Area"], None] = None
     data: Union[list[DataRecord], None] = None
 
@@ -226,8 +226,8 @@ class Track:
 
 
 @dataclass(slots=True)
-class Waypoint:
-    """A top-level waypoint or a network's point: one shape (SPEC 3.6)."""
+class Point:
+    """A top-level point or a network's point: one shape (SPEC 3.6)."""
 
     folder: Union[str, None] = None
     name: Union[str, None] = None
@@ -277,7 +277,7 @@ class Document:
     networks: Union[list[Network], None] = None
     plans: Union[list[Plan], None] = None
     tracks: Union[list[Track], None] = None
-    waypoints: Union[list[Waypoint], None] = None
+    points: Union[list[Point], None] = None
     areas: Union[list[Area], None] = None
     # SPEC 3.9: every top-level key containing a full stop, in key order.  A
     # list of pairs rather than a dict, matching the other implementations.
@@ -292,6 +292,6 @@ class Document:
             "networks": len(self.networks or []),
             "plans": len(self.plans or []),
             "tracks": len(self.tracks or []),
-            "waypoints": len(self.waypoints or []),
+            "points": len(self.points or []),
             "areas": len(self.areas or []),
         }

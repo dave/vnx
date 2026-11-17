@@ -1,6 +1,6 @@
 {
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {
       "name": "Car park",
       "at": [-3.675, 57.1201],
@@ -31,8 +31,8 @@
   "com.example.nothing-set": {},
   "org.example.label": "a string value",
   "org.example.cleared": null,
-  "waypoints.": [
-    {"at": "not a position", "importance": 99, "nmae": "not a waypoint key"}
+  "points.": [
+    {"at": "not a position", "importance": 99, "nmae": "not a top-level point key"}
   ],
   ".": 1
 }

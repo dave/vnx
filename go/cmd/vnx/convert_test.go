@@ -10,7 +10,7 @@ import (
 )
 
 // The fixture holds one of nearly everything: an area, a network and an
-// application key (none of which GPX can carry), plus a waypoint, a plan and a track (all of
+// application key (none of which GPX can carry), plus a point, a plan and a track (all of
 // which it can). Converting it therefore exercises BOTH halves of §2.2 —
 // "write what fits" and "diagnose the rest" — in one run, which a fixture of
 // only-supported or only-unsupported items could not.
@@ -139,7 +139,7 @@ func TestConvertReadsAContainer(t *testing.T) {
 		t.Fatalf("read back: %v", err)
 	}
 	if !strings.Contains(string(got), "<wpt") {
-		t.Errorf("the container's waypoint did not reach the GPX:\n%s", got)
+		t.Errorf("the container's point did not reach the GPX:\n%s", got)
 	}
 }
 
@@ -219,10 +219,10 @@ func TestConvertOfAFileWithDecodeDiagnosticsStillConverts(t *testing.T) {
 	dir := t.TempDir()
 	in := filepath.Join(dir, "typo.vnx")
 	// ⚠ "at" IS THE COORDINATE KEY, not "position". An earlier draft of this
-	// test used the wrong one: the waypoint then decoded with no coordinate,
+	// test used the wrong one: the point then decoded with no coordinate,
 	// GPX emitted nothing, and the run still exited 0 with a header-only file
 	// at --out. The test caught it; the CLI did not.
-	doc := `{"vnx":"0.10.0","nmae":"typo","waypoints":[{"name":"Car park","at":[-3.7,57.1]}]}`
+	doc := `{"vnx":"0.10.0","nmae":"typo","points":[{"name":"Car park","at":[-3.7,57.1]}]}`
 	if err := os.WriteFile(in, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestConvertOfAFileWithDecodeDiagnosticsStillConverts(t *testing.T) {
 		t.Fatalf("read back: %v", err)
 	}
 	if !strings.Contains(string(got), "Car park") {
-		t.Errorf("the waypoint did not reach the GPX:\n%s", got)
+		t.Errorf("the point did not reach the GPX:\n%s", got)
 	}
 }
 

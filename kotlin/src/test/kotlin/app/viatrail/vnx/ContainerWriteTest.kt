@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  * Writing a `.vnz` container (SPEC.md section 7).
  */
 class ContainerWriteTest {
-    private val fullPrecision = """{"vnx":"0.10.0","waypoints":[{"name":"Precise","at":[-3.6712345678901235,57.11812345678901]}]}"""
+    private val fullPrecision = """{"vnx":"0.10.0","points":[{"name":"Precise","at":[-3.6712345678901235,57.11812345678901]}]}"""
 
     private fun documentOf(json: String) = Vnx.readDocument(json).document
 
@@ -60,11 +60,11 @@ class ContainerWriteTest {
 
     @Test
     fun `a container round-trips through this library's own reader`() {
-        val document = documentOf("""{"vnx":"0.10.0","waypoints":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
+        val document = documentOf("""{"vnx":"0.10.0","points":[{"name":"Bothy","at":[-3.6712,57.118]}]}""")
         val bytes = Vnx.writeContainer(document, linkedMapOf("attachments/photo.txt" to "not a photo\n".toByteArray()))
         val back = Vnx.readContainer(bytes)
         assertEquals(emptyList(), back.diagnostics)
-        assertEquals("Bothy", back.document.waypoints!![0].name)
+        assertEquals("Bothy", back.document.points!![0].name)
         assertEquals(
             listOf(Attachment("attachments/photo.txt", "not a photo\n".toByteArray())),
             back.attachments,
@@ -333,11 +333,11 @@ class ContainerWriteTest {
         val out = java.io.ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(out).use { zo ->
             zo.putNextEntry(java.util.zip.ZipEntry("doc.vnx"))
-            zo.write(Vnx.write(documentOf("""{"vnx":"0.10.0","waypoints":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
+            zo.write(Vnx.write(documentOf("""{"vnx":"0.10.0","points":[{"name":"Bit three","at":[-3,57]}]}""")).toByteArray())
             zo.closeEntry()
         }
         val result = Vnx.readContainer(out.toByteArray())
-        assertEquals("Bit three", result.document.waypoints!![0].name)
+        assertEquals("Bit three", result.document.points!![0].name)
     }
 
     /** The bytes of the `doc.vnx` entry, read back out of an archive. */

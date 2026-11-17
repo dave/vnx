@@ -52,7 +52,7 @@ func TestRoundingLeavesNonFiniteValuesAloneSoTheRefusalsStillFire(t *testing.T) 
 		}
 	}
 	// And the refusal itself still reaches the caller through the encoder.
-	_, err := Encode(&Document{Waypoints: []Waypoint{{Name: "n", At: Position{Lon: math.NaN(), Lat: 1}}}})
+	_, err := Encode(&Document{Points: []Point{{Name: "n", At: Position{Lon: math.NaN(), Lat: 1}}}})
 	if err == nil || !strings.Contains(err.Error(), "longitude") {
 		t.Fatalf("Encode of a NaN longitude = %v, want a refusal naming the channel", err)
 	}

@@ -17,7 +17,7 @@
 
 use vnx::vnz;
 
-const DOCUMENT: &[u8] = b"{\n  \"vnx\": \"0.10.0\",\n  \"waypoints\": [\n    {\n      \"name\": \"In a ZIP64 container\",\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n";
+const DOCUMENT: &[u8] = b"{\n  \"vnx\": \"0.10.0\",\n  \"points\": [\n    {\n      \"name\": \"In a ZIP64 container\",\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n";
 
 /// Bit 11: the entry name is UTF-8 (SPEC 7).
 const UTF8_FLAG: u16 = 1 << 11;
@@ -151,9 +151,9 @@ fn a_zip64_container_reads() {
         container
             .reading
             .document
-            .waypoints
+            .points
             .as_ref()
-            .expect("a waypoint")
+            .expect("a point")
             .len(),
         1
     );

@@ -38,10 +38,10 @@ final class ApplicationKeyTests: XCTestCase {
     let read = try VNX.read(
       Data(
         """
-        {"vnx":"0.10.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}
+        {"vnx":"0.10.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}
         """.utf8))
     let got = Set(read.diagnostics.map { "\($0.path) \($0.code)" })
-    XCTAssertEqual(got, ["/rulesets unknown-key", "/waypoints/0/app.viatrail.x unknown-key"])
+    XCTAssertEqual(got, ["/rulesets unknown-key", "/points/0/app.viatrail.x unknown-key"])
   }
 
   /// A null stays null and an empty value stays empty through a

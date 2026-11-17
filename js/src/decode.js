@@ -19,7 +19,7 @@ import {
   Plan,
   Track,
   Segment,
-  Waypoint,
+  Point,
   Area,
   Document,
   AppKey,
@@ -353,7 +353,7 @@ const vertex = (p) => new Position(p.channels.slice(0, 3));
 
 // --- structure --------------------------------------------------------------
 
-const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'plans', 'tracks', 'waypoints', 'areas'];
+const DOC_OPTIONAL = ['generator', 'created', 'folders', 'networks', 'plans', 'tracks', 'points', 'areas'];
 
 /**
  * SPEC.md 3.9: a TOP-LEVEL key containing a full stop is an application key.
@@ -375,7 +375,7 @@ function readDocument(raw, ctx) {
   doc.networks = collection('networks', kv, ctx, readNetwork);
   doc.plans = collection('plans', kv, ctx, readPlan);
   doc.tracks = collection('tracks', kv, ctx, readTrack);
-  doc.waypoints = collection('waypoints', kv, ctx, (r, p, c) => readPointLike(r, p, c, true));
+  doc.points = collection('points', kv, ctx, (r, p, c) => readPointLike(r, p, c, true));
   doc.areas = collection('areas', kv, ctx, (r, p, c) => readArea(r, p, c, true));
   doc.appKeys = readAppKeys(kv);
   return doc;
@@ -700,12 +700,12 @@ function readTrack(raw, path, ctx) {
   return t;
 }
 
-/** A top-level waypoint and a network's point are one shape (SPEC.md 3.6). */
+/** A top-level point and a network's point are one shape (SPEC.md 3.6). */
 function readPointLike(raw, path, ctx, topLevel) {
   const optional = ['name', 'notes', 'hidden', 'pinned', 'style', 'data'];
   if (topLevel) optional.push('folder');
   const kv = known(raw, path, ['at'], optional, ctx);
-  const w = new Waypoint();
+  const w = new Point();
   if (kv.at === undefined) {
     ctx.diag(`${path}/at`, 'missing required key "at"', 'wrong-type-required');
     return DROP;
@@ -805,7 +805,7 @@ function resolveReferences(doc, ctx) {
     ...(doc.networks ?? []).map((n) => [n, 'folder']),
     ...(doc.plans ?? []).map((r) => [r, 'folder']),
     ...(doc.tracks ?? []).map((t) => [t, 'folder']),
-    ...(doc.waypoints ?? []).map((w) => [w, 'folder']),
+    ...(doc.points ?? []).map((w) => [w, 'folder']),
     ...(doc.areas ?? []).map((a) => [a, 'folder']),
   ];
   for (const [item, key] of placed) {
@@ -848,7 +848,7 @@ export function indexPositions(doc) {
   const pips = (path, list) => (list ?? []).forEach((p, i) => put(`${path}/pips/${i}`, p));
   const ring = (path, list) => (list ?? []).forEach((p, i) => put(`${path}/polygon/${i}`, p));
 
-  (doc.waypoints ?? []).forEach((w, i) => put(`/waypoints/${i}/at`, w.at));
+  (doc.points ?? []).forEach((w, i) => put(`/points/${i}/at`, w.at));
   (doc.areas ?? []).forEach((a, i) => ring(`/areas/${i}`, a.polygon));
   // Only a POSITION in a walk is a position. A node key is a reference, and is
   // addressed at the node.

@@ -31,7 +31,7 @@ use vnx::{decode, vnz, zip};
 /// A small, valid container, built by this crate's own writer.
 fn container() -> Vec<u8> {
     vnz::write(
-        b"{\n  \"vnx\": \"0.10.0\",\n  \"waypoints\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
+        b"{\n  \"vnx\": \"0.10.0\",\n  \"points\": [\n    {\n      \"at\": [-3.675, 57.1201]\n    }\n  ]\n}\n",
         &[vnz::Attachment {
             path: "attachments/photo.txt".into(),
             bytes: b"not really a photo\n".to_vec(),
@@ -246,7 +246,7 @@ fn no_truncation_or_corruption_of_a_document_panics() {
         "plans":[{"nodes":{"a":[-3.6,57.1]},"arcs":{},"walk":[]}],
         "tracks":[{"segments":[{"pips":[[-3.6,57.1,1,2]]}]}],
         "areas":[{"polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.0]]}],
-        "waypoints":[{"at":[-3.6,57.1],"style":{"importance":3},"data":[{"@type":"x.y","v":[1,2,3]}]}]}"#;
+        "points":[{"at":[-3.6,57.1],"style":{"importance":3},"data":[{"@type":"x.y","v":[1,2,3]}]}]}"#;
     let clean = decode(source).expect("the sample must itself be read");
     assert!(
         clean.diagnostics.is_empty(),
@@ -488,7 +488,7 @@ fn a_stored_entry_whose_two_sizes_disagree_is_read() {
     // be checked for CONTENT, because a reader that returned an empty document
     // would satisfy `is_ok` alone.
     assert_eq!(
-        container.reading.document.waypoints.as_ref().map(Vec::len),
+        container.reading.document.points.as_ref().map(Vec::len),
         Some(1),
         "the document came back empty"
     );

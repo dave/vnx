@@ -53,14 +53,14 @@ the run, not a skip.
   "kind": "accept",                           // must match the directory
   "note": "why this case exists",             // required
 
-  "counts":    {"waypoints": 1, "tracks": 1}, // exact, per collection
+  "counts":    {"points": 1, "tracks": 1}, // exact, per collection
   "positions": [{"at": "/networks/0/arcs/arc-1/pips/0", "lon": -3.6, "lat": 57.1}],
   "tracks":    [{"name": "T", "moving_time_ms": 167000}],  // null = unknown
   "attachments": ["photos/summit.jpg"],       // .vnz only
   "attachment_contents": {"photos/summit.jpg": "…"},  // .vnz only
 
   "refusal":     "substring of the expected error",        // reject only
-  "diagnostics": [{"path": "/waypoints/0/nmae", "code": "unknown-key",
+  "diagnostics": [{"path": "/points/0/nmae", "code": "unknown-key",
                    "message_advisory": "unknown key"}],
   "cannot_detect": "why no diagnostic is possible",
 
@@ -126,7 +126,7 @@ every segment carries a time on its first and last pip.
 of position the format carries:
 
 ```
-/waypoints/0/at                     /networks/0/nodes/node-1
+/points/0/at                     /networks/0/nodes/node-1
 /areas/0/polygon/0                  /networks/0/arcs/arc-1/pips/0
 /plans/0/arcs/arc-1/pips/0         /networks/0/highlights/0/walk/0/from
 /tracks/0/segments/0/pips/0         /networks/0/points/0/at
@@ -138,7 +138,7 @@ against the file compares the file to itself, which cannot see a decoder that
 swapped two channels.
 
 `accept/example-network.expect.json` pins one position of every kind, and that
-breadth is the point: a list naming waypoints only leaves a transposition on
+breadth is the point: a list naming top-level points only leaves a transposition on
 every arc pip, node, area vertex and track pip unchecked. Keep the list wide.
 
 ## Write a runner
@@ -376,8 +376,16 @@ be `corpus/`. The `go.mod` beside this file exists so the go tool will run it at
 all; see the comment in it.
 
 Run it when a `.vnz` fixture's source document changes. It writes every `.vnz`
-in the corpus, including `accept/container-zip64.vnz`, which it assembles field
-by field rather than through `archive/zip`.
+in the corpus except three, including `accept/container-zip64.vnz`, which it
+assembles field by field rather than through `archive/zip`. The three it does
+not write:
+
+- `accept/container-over-declared-size.vnz` and
+  `accept/container-sizes-disagree.vnz`: `python3 corpus/tools/overdeclare/make.py`
+  checks them, and `--write` writes them, from the repository root.
+- `write/container-cross-language.written.vnz`: the output of a conforming
+  writer. Make it with the Go write path from `container-cross-language.in.vnx`
+  and its attachments manifest, as the Go corpus runner's write tier does.
 
 The `.vnz` files are committed as binaries, because an implementation in another
 language cannot be asked to build a Go program before it can run the corpus.

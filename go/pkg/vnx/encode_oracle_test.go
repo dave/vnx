@@ -385,7 +385,7 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 			}
 			checkName(r.Name, nonASCII, rtl, &unicodeName, &rtlName)
 		}
-		for _, w := range d.Waypoints {
+		for _, w := range d.Points {
 			checkName(w.Name, nonASCII, rtl, &unicodeName, &rtlName)
 		}
 		for _, n := range d.Networks {
@@ -534,7 +534,7 @@ func generatedOracleCases() []oracleCase {
 		{"every-collection-empty-slice", &Document{
 			Generator: "empty-slices",
 			Folders:   []Folder{},
-			Waypoints: []Waypoint{},
+			Points:    []Point{},
 			Areas:     []Area{},
 			Tracks:    []Track{},
 			Plans:     []Plan{},
@@ -542,7 +542,7 @@ func generatedOracleCases() []oracleCase {
 			AppKeys:   []AppKey{},
 		}},
 		{"folders-deeply-nested", oracleFolders()},
-		{"waypoint-styles", oracleWaypointStyles()},
+		{"point-styles", oraclePointStyles()},
 		{"unicode-and-escapes", oracleUnicode()},
 		{"negative-zero", oracleNegativeZero()},
 		{"extreme-numbers", oracleExtremeNumbers()},
@@ -585,11 +585,11 @@ func oracleFolders() *Document {
 	return d
 }
 
-func oracleWaypointStyles() *Document {
+func oraclePointStyles() *Document {
 	at := Position{Lon: -3.6712, Lat: 57.1180}
 	return &Document{
-		Generator: "waypoint-styles",
-		Waypoints: []Waypoint{
+		Generator: "point-styles",
+		Points: []Point{
 			// ⚠ icon-size AND importance together, both *int (item.go:17,21),
 			// written natively into the tree at encode.go:404,407. This is the
 			// case the earlier type-coverage probe missed entirely.
@@ -601,7 +601,7 @@ func oracleWaypointStyles() *Document {
 			// gone (item.go:9-13). A rewrite that wrote false here would flatten
 			// Auto to always-hidden.
 			{Name: "no style at all", At: at},
-			{Name: "hidden waypoint", At: at, Hidden: true, Folder: "somewhere", Notes: "note"},
+			{Name: "hidden point", At: at, Hidden: true, Folder: "somewhere", Notes: "note"},
 		},
 	}
 }
@@ -610,7 +610,7 @@ func oracleUnicode() *Document {
 	at := Position{Lon: 1.5, Lat: 2.5}
 	return &Document{
 		Generator: "unicode",
-		Waypoints: []Waypoint{
+		Points: []Point{
 			{Name: "Grüße aus München 🏔️", At: at},
 			{Name: "日本語のトレイル", At: at},
 			{Name: "مسار الجبل الأحمر", Notes: "עברית", At: at},
@@ -628,7 +628,7 @@ func oracleNegativeZero() *Document {
 	nz := negZero()
 	return &Document{
 		Generator: "negative-zero",
-		Waypoints: []Waypoint{
+		Points: []Point{
 			// Null Island, spelled with the sign bit set on both channels.
 			{Name: "signed zero position", At: Position{Lon: nz, Lat: nz}},
 			{Name: "signed zero elevation", At: Position{Lon: nz, Lat: 1, Ele: &nz}},
@@ -668,7 +668,7 @@ func oracleExtremeNumbers() *Document {
 	d := &Document{Generator: "extreme-numbers"}
 	for n, v := range vals {
 		ele := v
-		d.Waypoints = append(d.Waypoints, Waypoint{
+		d.Points = append(d.Points, Point{
 			Name: fmt.Sprintf("value %d", n),
 			At:   Position{Lon: 0.1, Lat: 0.2, Ele: &ele},
 		})
@@ -812,8 +812,8 @@ func oracleData() *Document {
 	return &Document{
 		Generator: "data-records",
 		Folders:   []Folder{{ID: "f", Name: "carrier", Data: []Record{rec("t/folder", map[string]any{"value": 1.0})}}},
-		Waypoints: []Waypoint{{Name: "w", At: Position{Lon: 1, Lat: 2}, Data: []Record{
-			rec("t/waypoint", map[string]any{"value": "x"}),
+		Points: []Point{{Name: "w", At: Position{Lon: 1, Lat: 2}, Data: []Record{
+			rec("t/point", map[string]any{"value": "x"}),
 			// A record with NO body beyond its @type.
 			rec("t/bodyless", nil),
 			nested,
@@ -891,7 +891,7 @@ func oracleNetwork() Network {
 			},
 		},
 	}
-	n.Points = []Waypoint{
+	n.Points = []Point{
 		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}, Style: Style{"icon-size": 21, "importance": 3}},
 	}
 	n.Areas = []Area{
@@ -953,7 +953,7 @@ func oracleEverything() *Document {
 		Created:   "2026-09-02T12:00:00Z",
 	}
 	d.Folders = oracleFolders().Folders
-	d.Waypoints = oracleWaypointStyles().Waypoints
+	d.Points = oraclePointStyles().Points
 	d.Areas = oracleAreas().Areas
 	d.Tracks = oracleTiming().Tracks
 	d.Plans = oracleExtremeNumbers().Plans
@@ -967,7 +967,7 @@ func oracleEverything() *Document {
 // ---------------------------------------------------------------------------
 
 func eachPosition(d *Document, fn func(Position)) {
-	for _, w := range d.Waypoints {
+	for _, w := range d.Points {
 		fn(w.At)
 	}
 	for _, a := range d.Areas {
@@ -1025,7 +1025,7 @@ func eachPosition(d *Document, fn func(Position)) {
 }
 
 func eachPointStyle(d *Document, fn func(Style)) {
-	for _, w := range d.Waypoints {
+	for _, w := range d.Points {
 		fn(w.Style)
 	}
 	for _, n := range d.Networks {
@@ -1044,7 +1044,7 @@ func eachData(d *Document, fn func(Record)) {
 	for _, f := range d.Folders {
 		emit(f.Data)
 	}
-	for _, w := range d.Waypoints {
+	for _, w := range d.Points {
 		emit(w.Data)
 	}
 	for _, a := range d.Areas {

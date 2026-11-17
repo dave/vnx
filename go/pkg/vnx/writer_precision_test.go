@@ -88,8 +88,8 @@ func TestWritersRoundEveryCoordinateTheyEmit(t *testing.T) {
 		"network.point.at",
 		"plan.arc.pips",
 		"plan.node",
+		"point.at",
 		"track.segment.pips",
-		"waypoint.at",
 	}
 	seenChannels := map[string]bool{}
 
@@ -295,8 +295,8 @@ func vnxPositions(t *testing.T, out []byte) []foundPos {
 		}
 	}
 
-	for i, w := range asArray(doc["waypoints"]) {
-		add("waypoint.at", fmt.Sprintf("/waypoints/%d/at", i), asObject(w)["at"])
+	for i, w := range asArray(doc["points"]) {
+		add("point.at", fmt.Sprintf("/points/%d/at", i), asObject(w)["at"])
 	}
 	for i, a := range asArray(doc["areas"]) {
 		addEach("area.polygon", fmt.Sprintf("/areas/%d/polygon", i), asObject(a)["polygon"])
@@ -552,8 +552,8 @@ func TestTheVNXWriterDoesNotRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if doc.Waypoints[0].At.Lon != -3.6712345678901235 {
-		t.Fatalf("the reader lost precision: %v", doc.Waypoints[0].At.Lon)
+	if doc.Points[0].At.Lon != -3.6712345678901235 {
+		t.Fatalf("the reader lost precision: %v", doc.Points[0].At.Lon)
 	}
 	enc, err := vnx.Encode(doc)
 	if err != nil {
@@ -602,8 +602,8 @@ func noisyFixture() acceptFixture {
 	}
 	ring := []vnx.Position{noisy(0), noisy(1), noisy(2)}
 	doc := &vnx.Document{
-		Waypoints: []vnx.Waypoint{{Name: "Noisy waypoint", At: noisy(0)}},
-		Areas:     []vnx.Area{{Name: "Noisy area", Polygon: ring}},
+		Points: []vnx.Point{{Name: "Noisy top-level point", At: noisy(0)}},
+		Areas:  []vnx.Area{{Name: "Noisy area", Polygon: ring}},
 		Tracks: []vnx.Track{{
 			Name:     "Noisy track",
 			Segments: []vnx.Segment{{Pips: []vnx.Position{noisy(0), noisy(1), noisy(2)}}},
@@ -620,7 +620,7 @@ func noisyFixture() acceptFixture {
 			Arcs: map[string]vnx.Arc{
 				"a1": {From: "n1", To: "n2", Pips: []vnx.Vertex{vx(1)}},
 			},
-			Points: []vnx.Waypoint{{Name: "Noisy point", At: noisy(1)}},
+			Points: []vnx.Point{{Name: "Noisy point", At: noisy(1)}},
 			Areas:  []vnx.Area{{Name: "Noisy network area", Polygon: ring}},
 			Highlights: []vnx.Highlight{{
 				// One node end and one POSITION end, which is the only end

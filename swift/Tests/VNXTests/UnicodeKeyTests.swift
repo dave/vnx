@@ -22,13 +22,13 @@ final class UnicodeKeyTests: XCTestCase {
     let src = Data(
       """
       {"vnx":"0.10.0",
-       "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","\(nfc)":"precomposed","\(nfd)":"decomposed"}]}],
+       "points":[{"at":[1,2],"data":[{"@type":"com.example.x","\(nfc)":"precomposed","\(nfd)":"decomposed"}]}],
        "com.example.v":{"\(nfc)":1,"\(nfd)":2}}
       """.utf8)
     let first = try VNX.read(src)
     XCTAssertEqual(first.diagnostics, [])
     let back = try VNX.read(try VNX.write(first.document))
-    let body = try XCTUnwrap(back.document.waypoints?[0].data?[0].body)
+    let body = try XCTUnwrap(back.document.points?[0].data?[0].body)
     XCTAssertEqual(body[JSONKey(nfc)], .string("precomposed"))
     XCTAssertEqual(body[JSONKey(nfd)], .string("decomposed"))
     let value = try XCTUnwrap(back.document.applicationKeys.first?.value.objectValue)

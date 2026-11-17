@@ -128,7 +128,7 @@ class CorpusTest {
         actual["networks"] = document.networks?.size ?: 0
         actual["plans"] = document.plans?.size ?: 0
         actual["tracks"] = document.tracks?.size ?: 0
-        actual["waypoints"] = document.waypoints?.size ?: 0
+        actual["points"] = document.points?.size ?: 0
         actual["areas"] = document.areas?.size ?: 0
         // The nested containers, addressed by the same JSON Pointer vocabulary
         // `positions` uses. A bare name is a top-level collection; a name

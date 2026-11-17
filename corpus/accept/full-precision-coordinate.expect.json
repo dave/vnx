@@ -3,11 +3,11 @@
   "schema": "valid",
   "note": "A coordinate that only survives at full binary64 precision. `-3.6712345678901235` is not representable in fewer digits: parse it, write it back, and every digit must still be there.\n\nTHIS IS THE FIXTURE FOR THE ONE PRECISION RULE THE FORMAT STATES — a reader MUST NOT round (SPEC 4.1). It is also, since 4.1 stopped constraining a writer's precision, the only instrument that catches a writer which rounds: the accept tier re-encodes what it decoded and compares against THIS FILE, so a writer that emitted `-3.671235` differs from it and reddens. The interop matrix cannot do that job, because each of its cells compares a writer's output against readers' reproductions of that same output.\n\nDo not reduce the precision of this value, and do not let a runner normalise precision on both sides of the accept comparison. Several did carry such a normalisation; it would have absorbed exactly the defect this case exists to catch, calling a writer that lost digits equal to one that kept them.\n\nIn Rust this needs serde_json's `float_roundtrip` feature: without it this literal parses one bit away from what `str::parse` gives, and Cargo.toml says so.",
   "counts": {
-    "waypoints": 1
+    "points": 1
   },
   "positions": [
     {
-      "at": "/waypoints/0/at",
+      "at": "/points/0/at",
       "lon": -3.6712345678901235,
       "lat": 57.11812345678901
     }

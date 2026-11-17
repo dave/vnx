@@ -41,7 +41,7 @@ func fixture() *vnx.Document {
 			// decision this fixture exists to pin.
 			{ID: "f-empty", Name: "Nothing Here", Hidden: true},
 		},
-		Waypoints: []vnx.Waypoint{
+		Points: []vnx.Point{
 			{
 				Folder: "f-day1", Name: "Corrour Bothy", Notes: "locked in winter",
 				At:    posEle(-3.6512, 57.0421, 720),
@@ -111,7 +111,7 @@ func fixture() *vnx.Document {
 					},
 				},
 			},
-			Points: []vnx.Waypoint{{
+			Points: []vnx.Point{{
 				Name: "Pools of Dee", Notes: "in-network", At: posEle(-3.675, 57.05, 830),
 				Style: vnx.Style{"color": "#2E86AB"},
 			}},

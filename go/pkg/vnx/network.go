@@ -17,7 +17,7 @@ type Network struct {
 	Nodes      map[string]Vertex
 	Arcs       map[string]Arc
 	Highlights []Highlight
-	Points     []Waypoint
+	Points     []Point
 	Areas      []Area
 	Data       []Record
 }
@@ -55,7 +55,7 @@ func networkFromObject(obj map[string]any, at string, g *graphRead, areas *areas
 	n.Nodes, n.Arcs, diags = g.finish(at, diags)
 	n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
 	if sub, ok := obj["points"].([]any); ok {
-		n.Points, diags = decodeWaypoints(sub, at+"/points", diags)
+		n.Points, diags = decodePoints(sub, at+"/points", diags)
 	}
 	// A network's `areas` that is not an array is ignored without a word, as
 	// its `points` is.

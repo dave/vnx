@@ -52,7 +52,7 @@ from .model import (
     Plan,
     Segment,
     Track,
-    Waypoint,
+    Point,
     is_app_key,
 )
 from .writer import encode_bytes, normalised_document
@@ -77,7 +77,7 @@ __all__ = [
     "Segment",
     "Track",
     "VNXRefusal",
-    "Waypoint",
+    "Point",
     "decode_document",
     "encode_document",
     "encode_bytes",

@@ -6,7 +6,7 @@ use vnx::json::Json;
 use vnx::model::{AppKey, Position};
 use vnx::{decode, encode, EncodeError};
 
-const SRC: &str = r#"{"vnx":"0.10.0","waypoints":[{"at":[1,2],"style":{"importance":3}}]}"#;
+const SRC: &str = r#"{"vnx":"0.10.0","points":[{"at":[1,2],"style":{"importance":3}}]}"#;
 
 fn refused_at(doc: &vnx::Document, want: &str) {
     match encode(doc) {
@@ -30,15 +30,14 @@ fn a_non_finite_number_anywhere_is_an_encode_error() {
     for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         // A position channel.
         let mut doc = base.clone();
-        doc.waypoints.as_mut().expect("waypoints")[0].at =
-            Position::new(vec![Some(value), Some(2.0)]);
-        refused_at(&doc, "/waypoints/0/at/0");
+        doc.points.as_mut().expect("points")[0].at = Position::new(vec![Some(value), Some(2.0)]);
+        refused_at(&doc, "/points/0/at/0");
 
         // A style value.
         let mut doc = base.clone();
-        doc.waypoints.as_mut().expect("waypoints")[0].style =
+        doc.points.as_mut().expect("points")[0].style =
             Some(Json::Object(vec![("width".into(), Json::Number(value))]));
-        refused_at(&doc, "/waypoints/0/style/width");
+        refused_at(&doc, "/points/0/style/width");
 
         // An application key's value, nested.
         let mut doc = base.clone();

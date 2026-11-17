@@ -16,12 +16,12 @@ the steps in order. At the end, check the file with the reference tool.
 | A set of trails that join, with routes or notes along them | a **network**: nodes at junctions and ends, arcs between them, highlights over the arcs |
 | One planned route that is not part of a shared network | a **plan** |
 | A GPS recording | a **track** |
-| One place | a **waypoint**, or a **point** in a network if it belongs to that network |
+| One place | a **point**, at the top level, or in a network if it belongs to that network |
 | A region | an **area**, at the top level or in a network |
 | A grouping | a **folder** |
 
 If you import GPX: a `<trk>` is usually a track, a `<rte>` is usually a plan,
-and a `<wpt>` is a waypoint. To make a network from many lines, split each line
+and a `<wpt>` is a point. To make a network from many lines, split each line
 at the places where lines meet. Each split point becomes a node and each piece
 becomes an arc.
 
@@ -160,7 +160,7 @@ To turn a highlight into coordinates, for a map or for GPX, follow each pass:
 Section 3.3.3 of the specification defines "nearest point" exactly, so that
 every reader finds the same point.
 
-## 6. Add plans, tracks, waypoints and areas
+## 6. Add plans, tracks, points and areas
 
 ```json
 {
@@ -185,7 +185,7 @@ every reader finds the same point.
       ]
     }
   ],
-  "waypoints": [
+  "points": [
     { "folder": "feshie", "name": "Car park", "at": [-3.8571, 57.0623, 330], "style": { "icon": "parking", "importance": 2 } }
   ],
   "areas": [
@@ -235,7 +235,7 @@ If your records refer to files, write a `.vnz` ZIP archive:
 | `"hidden": false` | Not an error, but write `hidden` only when it is `true`. |
 | A closed area ring | The reader drops the last position and reports a diagnostic. |
 | `NaN` or `Infinity` | The whole document is refused. |
-| An unknown key, such as `description` on a waypoint | The reader drops the key and reports it. Use `notes`, or a data record. |
+| An unknown key, such as `description` on a point | The reader drops the key and reports it. Use `notes`, or a data record. |
 | `notes` or `style` on a highlight | Highlights have neither. Use a data record. |
 | A cached length or bounds | VNX has no key for them. Readers derive them. |
 | Numbers rounded by the reader | Readers must not round. You may round when you write: six decimal places is about 10 cm. |

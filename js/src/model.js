@@ -126,7 +126,7 @@ export class Highlight {
   }
 }
 
-export class Waypoint {
+export class Point {
   constructor() {
     /** @type {Position} */ this.at = undefined;
     /** @type {string|undefined} */ this.name = undefined;
@@ -162,7 +162,7 @@ export class Network {
     /** @type {Map<string, Position>|undefined} */ this.nodes = undefined;
     /** @type {Map<string, Arc>|undefined} */ this.arcs = undefined;
     /** @type {Highlight[]|undefined} */ this.highlights = undefined;
-    /** @type {Waypoint[]|undefined} */ this.points = undefined;
+    /** @type {Point[]|undefined} */ this.points = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
@@ -253,7 +253,7 @@ export class Document {
     /** @type {Network[]|undefined} */ this.networks = undefined;
     /** @type {Plan[]|undefined} */ this.plans = undefined;
     /** @type {Track[]|undefined} */ this.tracks = undefined;
-    /** @type {Waypoint[]|undefined} */ this.waypoints = undefined;
+    /** @type {Point[]|undefined} */ this.points = undefined;
     /** @type {Area[]|undefined} */ this.areas = undefined;
     /**
      * The application keys (SPEC.md 3.9), sorted by key on decode. A list of

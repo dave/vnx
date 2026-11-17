@@ -114,7 +114,7 @@ final class LibraryTests: XCTestCase {
   func testDamageIsToleratedRatherThanRefused() throws {
     let damaged = minimal(
       """
-      "waypoints":[{"at":"not a position"},{"at":[1,2],"style":7,"importance":9}],
+      "points":[{"at":"not a position"},{"at":[1,2],"style":7,"importance":9}],
       "tracks":[{"segments":"nope"}],
       "areas":[{"polygon":[[1,2],[3,4]]}],
       "folders":[{"name":"no id"}],
@@ -122,7 +122,7 @@ final class LibraryTests: XCTestCase {
       """)
     let result = try read(damaged)
     XCTAssertGreaterThan(result.diagnostics.count, 5)
-    XCTAssertEqual(result.document.waypoints?.count, 1, "the usable waypoint survives")
+    XCTAssertEqual(result.document.points?.count, 1, "the usable point survives")
     XCTAssertEqual(result.document.folders?.count, 0)
     XCTAssertEqual(result.document.areas?.count, 0)
     XCTAssertEqual(result.document.tracks?.count, 0)
@@ -141,11 +141,11 @@ final class LibraryTests: XCTestCase {
   func testAWriterEmitsTheShortestSpellingOfAPosition() throws {
     let json = minimal(
       """
-      "waypoints":[{"at":[1,2]},{"at":[1,2,null]},{"at":[1,2,3]},{"at":[1,2,null,4]},{"at":[1,2,3,4]}]
+      "points":[{"at":[1,2]},{"at":[1,2,null]},{"at":[1,2,3]},{"at":[1,2,null,4]},{"at":[1,2,3,4]}]
       """)
     let document = try read(json).document
-    XCTAssertEqual(document.waypoints?.map(\.at.elevation), [nil, nil, 3, nil, 3])
-    XCTAssertEqual(document.waypoints?.map(\.at.timeMilliseconds), [nil, nil, nil, 4, 4])
+    XCTAssertEqual(document.points?.map(\.at.elevation), [nil, nil, 3, nil, 3])
+    XCTAssertEqual(document.points?.map(\.at.timeMilliseconds), [nil, nil, nil, 4, 4])
 
     let written = String(decoding: try VNX.write(document), as: UTF8.self)
     XCTAssertTrue(written.contains("[1,2]"), "a trailing null is dropped")
@@ -159,10 +159,10 @@ final class LibraryTests: XCTestCase {
   /// Ignored, and not carried through a read-modify-write. No rule asks a
   /// writer to preserve a channel it does not understand.
   func testChannelsAboveIndexThreeAreIgnoredWithoutADiagnostic() throws {
-    let result = try read(minimal("\"waypoints\":[{\"at\":[1,2,3,4,5,null]}]"))
+    let result = try read(minimal("\"points\":[{\"at\":[1,2,3,4,5,null]}]"))
     XCTAssertEqual(result.diagnostics, [], "an unknown channel is not a diagnostic")
     XCTAssertEqual(
-      result.document.waypoints?[0].at,
+      result.document.points?[0].at,
       Position(lon: 1, lat: 2, elevation: 3, timeMilliseconds: 4))
     XCTAssertEqual(
       String(decoding: try VNX.write(result.document), as: UTF8.self)
@@ -176,7 +176,7 @@ final class LibraryTests: XCTestCase {
   /// nothing on the write path narrows it either.
   func testAWriterShortensAndNeitherSideRounds() throws {
     let json = minimal(
-      "\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
+      "\"points\":[{\"at\":[-3.6712345678901235,57.11812345678901,340.06,null]}]")
     let document = try read(json).document
     // BY BIT PATTERN. The message here used to claim the reader "keeps every
     // bit" while comparing by value, which is half a guard: two doubles one
@@ -185,9 +185,9 @@ final class LibraryTests: XCTestCase {
     // `testTheParserConvertsAFullPrecisionLiteralCorrectly` is the guard
     // proper; this is the same claim made honestly where it already stood.
     XCTAssertEqual(
-      document.waypoints?[0].at.lon.bitPattern, 0xc00d_5eb0_3aa8_431e,
+      document.points?[0].at.lon.bitPattern, 0xc00d_5eb0_3aa8_431e,
       "the reader keeps every bit")
-    XCTAssertEqual(document.waypoints?[0].at.lat.bitPattern, 0x404c_8f1e_ab5f_e64e)
+    XCTAssertEqual(document.points?[0].at.lat.bitPattern, 0x404c_8f1e_ab5f_e64e)
     XCTAssertTrue(
       String(decoding: try VNX.write(document), as: UTF8.self)
         .contains("[-3.6712345678901235,57.11812345678901,340.06]"),
@@ -208,7 +208,7 @@ final class LibraryTests: XCTestCase {
         decoding: try VNX.write(
           {
             var d = Document()
-            d.waypoints = [Waypoint(at: p)]
+            d.points = [Point(at: p)]
             return d
           }()),
         as: UTF8.self)
@@ -230,7 +230,7 @@ final class LibraryTests: XCTestCase {
   func testTheWritePathPreservesEveryDigitItIsHanded() throws {
     let source = Data(
       """
-      {"vnx":"0.10.0","waypoints":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
+      {"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
       """.utf8)
     let written = String(decoding: try VNX.write(try VNX.read(source).document), as: UTF8.self)
     XCTAssertTrue(
@@ -240,8 +240,8 @@ final class LibraryTests: XCTestCase {
 
   func testWriteKeepsAnInteriorNull() throws {
     var document = Document()
-    document.waypoints = [
-      Waypoint(
+    document.points = [
+      Point(
         at: Position(lon: 1.0, lat: 2.0, elevation: nil, timeMilliseconds: 1_778_914_991_000))
     ]
     XCTAssertTrue(
@@ -260,7 +260,7 @@ final class LibraryTests: XCTestCase {
   /// every file. Measured on this platform rather than assumed.
   func testNumbersAreWrittenAsTheShortestSpellingThatRoundTrips() throws {
     var document = Document()
-    document.waypoints = [Waypoint(at: Position(lon: -3.67, lat: 340, elevation: 0.1))]
+    document.points = [Point(at: Position(lon: -3.67, lat: 340, elevation: 0.1))]
     let written = String(decoding: try VNX.write(document), as: UTF8.self)
     XCTAssertTrue(written.contains("[-3.67,340,0.1]"), "got \(written)")
   }
@@ -270,8 +270,8 @@ final class LibraryTests: XCTestCase {
   /// compact, which is the whole argument.
   func testTheOutputIsCompact() throws {
     var document = Document()
-    document.waypoints = [
-      Waypoint(
+    document.points = [
+      Point(
         at: Position(lon: 1, lat: 2), name: "x", notes: nil,
         folder: nil, hidden: nil, style: nil, data: nil)
     ]
@@ -286,11 +286,11 @@ final class LibraryTests: XCTestCase {
     let document = try read(
       minimal(
         """
-        "waypoints":[{"at":[1,2],"data":[{"@type":"com.example.x","v":[1,null,2],"w":[1,"a"],"deep":{"k":{}}}]}]
+        "points":[{"at":[1,2],"data":[{"@type":"com.example.x","v":[1,null,2],"w":[1,"a"],"deep":{"k":{}}}]}]
         """)
     ).document
     let back = try VNX.read(try VNX.write(document)).document
-    XCTAssertEqual(back.waypoints?[0].data, document.waypoints?[0].data)
+    XCTAssertEqual(back.points?[0].data, document.points?[0].data)
   }
 
   func testAnEmptyCollectionIsWrittenAsAnEmptyCollection() throws {
@@ -298,8 +298,8 @@ final class LibraryTests: XCTestCase {
     // alike, so either spelling is conforming. This writer emits back what
     // the model holds, which is what makes the round trip a fixed point.
     XCTAssertEqual(
-      try VNX.write(try read(minimal("\"waypoints\":[]")).document),
-      Data("{\"vnx\":\"0.10.0\",\"waypoints\":[]}".utf8))
+      try VNX.write(try read(minimal("\"points\":[]")).document),
+      Data("{\"points\":[],\"vnx\":\"0.10.0\"}".utf8))
     XCTAssertEqual(
       try VNX.write(try read("{\"vnx\":\"0.10.0\"}").document),
       Data("{\"vnx\":\"0.10.0\"}".utf8))
@@ -318,21 +318,21 @@ final class LibraryTests: XCTestCase {
   func testRecordBodiesAreNotValidated() throws {
     let json = minimal(
       """
-      "waypoints":[{"at":[1,2],"data":[{"@type":"app.viatrail.camp","flat":"maybe","capacity":null,"importance":99}]}]
+      "points":[{"at":[1,2],"data":[{"@type":"app.viatrail.camp","flat":"maybe","capacity":null,"importance":99}]}]
       """)
     let result = try read(json)
     XCTAssertEqual(result.diagnostics, [], "nothing inside a record body is a reader's business")
-    XCTAssertEqual(result.document.waypoints?[0].data?.count, 1)
+    XCTAssertEqual(result.document.points?[0].data?.count, 1)
   }
 
   func testRecordWithNoTypeIsDropped() throws {
     let result = try read(
       minimal(
-        "\"waypoints\":[{\"at\":[1,2],\"data\":[{\"x\":1},{\"@type\":7},{\"@type\":\"ok\"}]}]"))
-    XCTAssertEqual(result.document.waypoints?[0].data?.map(\.type), ["ok"])
+        "\"points\":[{\"at\":[1,2],\"data\":[{\"x\":1},{\"@type\":7},{\"@type\":\"ok\"}]}]"))
+    XCTAssertEqual(result.document.points?[0].data?.map(\.type), ["ok"])
     XCTAssertEqual(
       result.diagnostics.filter { $0.cause == .wrongTypeRequired }.map(\.path),
-      ["/waypoints/0/data/0", "/waypoints/0/data/1"])
+      ["/points/0/data/0", "/points/0/data/1"])
   }
 
   // MARK: - Style (SPEC 3.10, 3.6, 6.2)
@@ -345,20 +345,20 @@ final class LibraryTests: XCTestCase {
     let result = try read(
       minimal(
         """
-        "waypoints":[{"at":[1,2],"style":{"importance":9,"icon-size":999,"invented-key":{"deep":1}}}]
+        "points":[{"at":[1,2],"style":{"importance":9,"icon-size":999,"invented-key":{"deep":1}}}]
         """))
     XCTAssertEqual(result.diagnostics.map(\.cause), [.importanceOutOfRange])
-    XCTAssertNil(result.document.waypoints?[0].style?["importance"], "the field goes")
+    XCTAssertNil(result.document.points?[0].style?["importance"], "the field goes")
     XCTAssertNotNil(
-      result.document.waypoints?[0].style?["invented-key"],
+      result.document.points?[0].style?["invented-key"],
       "the item, and the rest of the style, stay")
-    XCTAssertNotNil(result.document.waypoints?[0].style?["icon-size"])
+    XCTAssertNotNil(result.document.points?[0].style?["icon-size"])
   }
 
   func testImportanceInRangeIsKept() throws {
     for value in [1, 2, 3, 4, 5] {
       let result = try read(
-        minimal("\"waypoints\":[{\"at\":[1,2],\"style\":{\"importance\":\(value)}}]"))
+        minimal("\"points\":[{\"at\":[1,2],\"style\":{\"importance\":\(value)}}]"))
       XCTAssertEqual(result.diagnostics, [], "importance \(value)")
     }
   }
@@ -367,10 +367,10 @@ final class LibraryTests: XCTestCase {
 
   func testHiddenAbsenceMeansVisibleAndIsNotInvented() throws {
     let document = try read(
-      minimal("\"waypoints\":[{\"at\":[1,2]},{\"at\":[3,4],\"hidden\":true}]")
+      minimal("\"points\":[{\"at\":[1,2]},{\"at\":[3,4],\"hidden\":true}]")
     ).document
-    XCTAssertNil(document.waypoints?[0].hidden, "absence means visible; it is not `false`")
-    XCTAssertEqual(document.waypoints?[1].hidden, true)
+    XCTAssertNil(document.points?[0].hidden, "absence means visible; it is not `false`")
+    XCTAssertEqual(document.points?[1].hidden, true)
     XCTAssertFalse(
       String(decoding: try VNX.write(document), as: UTF8.self).contains("\"hidden\":false"))
   }
@@ -391,7 +391,7 @@ final class LibraryTests: XCTestCase {
         "nodes":{"n1":[1,1],"n2":[1,2]},"arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
         "walk":[{"arc":"a1","from":"n1","to":"n2"}]}],
       "tracks":[{"name":"track","pinned":"2026-10-25T13:00:00.001Z","segments":[]}],
-      "waypoints":[{"name":"waypoint","pinned":"2026-10-26T14:00:00Z","at":[3,3]},
+      "points":[{"name":"top-level point","pinned":"2026-10-26T14:00:00Z","at":[3,3]},
         {"name":"unpinned","at":[4,4]}],
       "areas":[{"name":"area","pinned":"2026-13-45T99:99:99Z","polygon":[[1,1],[2,1],[2,2]]}]
       """)
@@ -408,16 +408,16 @@ final class LibraryTests: XCTestCase {
       XCTAssertEqual(network.areas?.first?.pinned, "2026-10-23T11:00:00Z")
       XCTAssertEqual(document.plans?.first?.pinned, "2026-10-24T12:00:00Z")
       XCTAssertEqual(document.tracks?.first?.pinned, "2026-10-25T13:00:00.001Z")
-      XCTAssertEqual(document.waypoints?[0].pinned, "2026-10-26T14:00:00Z")
-      XCTAssertNil(document.waypoints?[1].pinned, "absence means not pinned")
+      XCTAssertEqual(document.points?[0].pinned, "2026-10-26T14:00:00Z")
+      XCTAssertNil(document.points?[1].pinned, "absence means not pinned")
       XCTAssertEqual(
         document.areas?.first?.pinned, "2026-13-45T99:99:99Z",
         "SPEC 4.3 checks shape only, so a value no calendar has is kept")
     }
     let tree = try XCTUnwrap(
       try JSONSerialization.jsonObject(with: written) as? [String: Any])
-    let waypoints = try XCTUnwrap(tree["waypoints"] as? [[String: Any]])
-    XCTAssertNil(waypoints[1]["pinned"], "a writer emits `pinned` only when the item is pinned")
+    let points = try XCTUnwrap(tree["points"] as? [[String: Any]])
+    XCTAssertNil(points[1]["pinned"], "a writer emits `pinned` only when the item is pinned")
   }
 
   func testPinnedOnAFolderIsAnUnknownKey() throws {
@@ -431,13 +431,13 @@ final class LibraryTests: XCTestCase {
   // MARK: - Folders (SPEC 6.2)
 
   func testFolderReferenceThatDoesNotResolveKeepsTheItemAtTheTopLevel() throws {
-    let result = try read(minimal("\"waypoints\":[{\"at\":[1,2],\"folder\":\"nowhere\"}]"))
+    let result = try read(minimal("\"points\":[{\"at\":[1,2],\"folder\":\"nowhere\"}]"))
     XCTAssertEqual(result.diagnostics.map(\.cause), [.folderNotPresent])
-    XCTAssertEqual(result.diagnostics.map(\.path), ["/waypoints/0/folder"])
+    XCTAssertEqual(result.diagnostics.map(\.path), ["/points/0/folder"])
     XCTAssertEqual(
-      result.document.waypoints?.count, 1,
+      result.document.points?.count, 1,
       "dropping the item would lose content over a lost grouping")
-    XCTAssertNil(result.document.waypoints?[0].folder)
+    XCTAssertNil(result.document.points?[0].folder)
   }
 
   /// "A folder with no `id` is dropped under the rule above. Items that named
@@ -447,10 +447,10 @@ final class LibraryTests: XCTestCase {
     let result = try read(
       minimal(
         """
-        "folders":[{"name":"no id here"}],"waypoints":[{"at":[1,2],"folder":"gone"}]
+        "folders":[{"name":"no id here"}],"points":[{"at":[1,2],"folder":"gone"}]
         """))
     XCTAssertEqual(result.document.folders, [])
-    XCTAssertEqual(result.document.waypoints?.count, 1)
+    XCTAssertEqual(result.document.points?.count, 1)
     XCTAssertEqual(Set(result.diagnostics.map(\.cause)), [.wrongTypeRequired, .folderNotPresent])
   }
 
@@ -524,9 +524,9 @@ final class LibraryTests: XCTestCase {
 
   func testDuplicateObjectKeysResolveLastWinsWithNoDiagnostic() throws {
     let result = try read(
-      "{\"vnx\":\"0.10.0\",\"waypoints\":[{\"at\":[1,2]}],\"waypoints\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
+      "{\"vnx\":\"0.10.0\",\"points\":[{\"at\":[1,2]}],\"points\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
     )
-    XCTAssertEqual(result.document.waypoints?.count, 2)
+    XCTAssertEqual(result.document.points?.count, 2)
     XCTAssertEqual(result.diagnostics, [], "a documented limitation, not a rule")
   }
 
@@ -571,9 +571,9 @@ final class LibraryTests: XCTestCase {
   /// conversion were the thing that broke.
   func testTheParserConvertsAFullPrecisionLiteralCorrectly() throws {
     let document = try read(
-      minimal("\"waypoints\":[{\"at\":[-3.6712345678901235,57.11812345678901]}]")
+      minimal("\"points\":[{\"at\":[-3.6712345678901235,57.11812345678901]}]")
     ).document
-    let at = try XCTUnwrap(document.waypoints?[0].at)
+    let at = try XCTUnwrap(document.points?[0].at)
     XCTAssertEqual(at.lon.bitPattern, Double("-3.6712345678901235")!.bitPattern)
     XCTAssertEqual(at.lon.bitPattern, 0xc00d_5eb0_3aa8_431e)
     XCTAssertEqual(at.lat.bitPattern, Double("57.11812345678901")!.bitPattern)
@@ -595,7 +595,7 @@ final class LibraryTests: XCTestCase {
 
   func testContainerRoundTripsThroughThisLibrarysOwnWriter() throws {
     var document = Document()
-    document.waypoints = [Waypoint(at: Position(lon: -3.675, lat: 57.1201))]
+    document.points = [Point(at: Position(lon: -3.675, lat: 57.1201))]
     let archive = try VNX.writeContainer(
       document: document,
       attachments: [Attachment(path: "attachments/photo.txt", bytes: Data("hello\n".utf8))])
@@ -669,13 +669,13 @@ final class LibraryTests: XCTestCase {
   func testZIP64ArchiveIsRead() throws {
     let viaLocalHeader = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.zip64Deflate))
     XCTAssertEqual(viaLocalHeader.documentName, "doc.vnx")
-    XCTAssertEqual(viaLocalHeader.document.waypoints?.count, 1)
+    XCTAssertEqual(viaLocalHeader.document.points?.count, 1)
     XCTAssertEqual(viaLocalHeader.attachments.map(\.path), ["attachments/photo.txt"])
 
     let viaCentralDirectory = try VNX.readContainer(
       ZipFixtures.bytes(ZipFixtures.zip64CentralDirectory))
     XCTAssertEqual(viaCentralDirectory.documentName, "doc.vnx")
-    XCTAssertEqual(viaCentralDirectory.document.waypoints?.count, 1)
+    XCTAssertEqual(viaCentralDirectory.document.points?.count, 1)
     XCTAssertEqual(viaCentralDirectory.attachments, [])
 
     // Third fixture, and the reason for it belongs to the Rust seat: a lost
@@ -688,7 +688,7 @@ final class LibraryTests: XCTestCase {
     // it.
     let padded = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.zip64PaddedCentralDirectory))
     XCTAssertEqual(padded.documentName, "doc.vnx")
-    XCTAssertEqual(padded.document.waypoints?.count, 1)
+    XCTAssertEqual(padded.document.points?.count, 1)
     XCTAssertEqual(padded.attachments.map(\.path), ["filler.txt"])
   }
 
@@ -710,7 +710,7 @@ final class LibraryTests: XCTestCase {
   func testAReaderAcceptsAnArchiveWhoseEntriesAreNotSorted() throws {
     let result = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.unsortedOnTheWire))
     XCTAssertEqual(result.documentName, "doc.vnx")
-    XCTAssertEqual(result.document.waypoints?.count, 1)
+    XCTAssertEqual(result.document.points?.count, 1)
     XCTAssertEqual(
       result.diagnostics, [], "entry order is a writer's rule; a reader has nothing to say about it"
     )
@@ -743,7 +743,7 @@ final class LibraryTests: XCTestCase {
 
     let result = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.dataDescriptorBit3))
     XCTAssertEqual(result.documentName, "doc.vnx")
-    XCTAssertEqual(result.document.waypoints?.count, 1)
+    XCTAssertEqual(result.document.points?.count, 1)
     XCTAssertEqual(result.diagnostics, [])
     XCTAssertEqual(result.attachments.map(\.path), ["attachments/note.txt"])
     XCTAssertEqual(result.attachments[0].bytes, Data("hello\n".utf8))
@@ -766,7 +766,7 @@ final class LibraryTests: XCTestCase {
   func testUnsupportedCompressionIsAnAttachmentDiagnosticAndARootRefusal() throws {
     let read = try VNX.readContainer(ZipFixtures.bytes(ZipFixtures.bzip2Attachment))
     XCTAssertEqual(
-      read.document.waypoints?.count, 1,
+      read.document.points?.count, 1,
       "refusing a library over one photograph would be disproportionate")
     XCTAssertEqual(read.attachments, [])
     XCTAssertEqual(read.diagnostics.map(\.cause), [.attachmentUnreadable])
@@ -816,8 +816,8 @@ final class LibraryTests: XCTestCase {
     document.folders = [
       Folder(id: "f", parent: nil, name: "F", notes: nil, hidden: true, data: nil)
     ]
-    document.waypoints = [
-      Waypoint(
+    document.points = [
+      Point(
         at: Position(lon: -3.675, lat: 57.1201, elevation: 320),
         name: "Car park", notes: "note", folder: "f", hidden: nil,
         style: ["color": .string("#444444"), "importance": .number(2)],

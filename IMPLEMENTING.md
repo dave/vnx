@@ -419,7 +419,7 @@ from the pointer. `corpus/diagnose/position-unusable.vnx` is the case.
 
 `SPEC §9` says a reader SHOULD bound what one document may consume. The library
 cannot know the bound while the caller can: an application exporting its own
-library legitimately produces a ten-million-waypoint document, and a server
+library legitimately produces a ten-million-point document, and a server
 accepting an upload from a stranger does not. Any constant picked inside the
 library is wrong for one of them.
 

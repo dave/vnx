@@ -1,7 +1,7 @@
 {
   "vnx": "0.10.0",
   "generator": "extreme-numbers",
-  "waypoints": [
+  "points": [
     {
       "name": "value 0",
       "at": [0.1, 0.2, 1e-07]

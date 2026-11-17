@@ -51,7 +51,7 @@ export function normaliseDocument(v, opt = {}) {
   if (!isObject(v)) return v;
   const out = { ...v };
   normItems(out, 'folders', opt, normFolder);
-  normItems(out, 'waypoints', opt, normWaypoint);
+  normItems(out, 'points', opt, normPoint);
   normItems(out, 'areas', opt, normArea);
   normItems(out, 'tracks', opt, normTrack);
   normItems(out, 'plans', opt, normPlan);
@@ -66,7 +66,7 @@ function normFolder(o) {
   dropEmptyContainer(o, 'data');
 }
 
-function normWaypoint(o, opt) {
+function normPoint(o, opt) {
   if ('at' in o) o.at = normPosition(o.at, opt);
   dropEmptyContainer(o, 'style');
   dropEmptyContainer(o, 'data');
@@ -99,7 +99,7 @@ function normArc(o, opt) {
 function normNetwork(o, opt) {
   normGraph(o, opt);
   normItems(o, 'highlights', opt, normHighlight);
-  normItems(o, 'points', opt, normWaypoint);
+  normItems(o, 'points', opt, normPoint);
   normItems(o, 'areas', opt, normArea);
   dropEmptyContainer(o, 'data');
 }

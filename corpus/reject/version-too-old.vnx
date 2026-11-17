@@ -1,6 +1,6 @@
 {
   "vnx": "0.1.9",
-  "waypoints": [
+  "points": [
     {
       "name": "From a series this reader does not implement",
       "at": [-3.6712, 57.118]

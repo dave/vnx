@@ -45,7 +45,7 @@ GeoJSON cannot express. A top-level plan owns a graph of the same shape and
 carries one walk over it.
 
 The full [`corpus/accept/example-network.vnx`](corpus/accept/example-network.vnx)
-shows the rest: folders, plans, tracks, waypoints, areas and styling. To check a
+shows the rest: folders, plans, tracks, points, areas and styling. To check a
 file of your own:
 
 ```sh

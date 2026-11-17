@@ -1,12 +1,12 @@
 {
   "kind": "diagnose",
   "schema": "invalid",
-  "note": "`pinned` is carried on every item except a folder (SPEC 3.8, 3.10). On a folder, an arc, a pass and a segment it is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the object, so every object survives, which `counts` pins. The folder is the case that matters most: it is an item, it carries `hidden`, and a reader that adds `pinned` to a key set shared by every item accepts it there without a word. The pass carries a timestamp rather than the boolean of the 0.9.0 spelling, which diagnose/walk-pin-unusable covers. The waypoint's `pinned` has an offset other than `Z`: it is a record-level timestamp (SPEC 4.3), so the field is dropped and reported with the code every malformed record-level timestamp takes, and the waypoint is kept. The schema rejects the file for that offset alone; a folder, an arc, a pass and a segment are open in the schema.",
+  "note": "`pinned` is carried on every item except a folder (SPEC 3.8, 3.10). On a folder, an arc, a pass and a segment it is an unrecognised key (SPEC 6.2): diagnose it, skip the key, keep the object, so every object survives, which `counts` pins. The folder is the case that matters most: it is an item, it carries `hidden`, and a reader that adds `pinned` to a key set shared by every item accepts it there without a word. The pass carries a timestamp rather than the boolean of the 0.9.0 spelling, which diagnose/walk-pin-unusable covers. The top-level point's `pinned` has an offset other than `Z`: it is a record-level timestamp (SPEC 4.3), so the field is dropped and reported with the code every malformed record-level timestamp takes, and the top-level point is kept. The schema rejects the file for that offset alone; a folder, an arc, a pass and a segment are open in the schema.",
   "counts": {
     "folders": 1,
     "networks": 1,
     "tracks": 1,
-    "waypoints": 1,
+    "points": 1,
     "/networks/0/nodes": 2,
     "/networks/0/arcs": 1,
     "/networks/0/arcs/a1/pips": 1,
@@ -37,7 +37,7 @@
       "message_advisory": "unknown key"
     },
     {
-      "path": "/waypoints/0/pinned",
+      "path": "/points/0/pinned",
       "code": "timestamp-not-utc",
       "message_advisory": "must be UTC with a Z suffix"
     }

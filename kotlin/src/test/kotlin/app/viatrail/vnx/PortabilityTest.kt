@@ -25,14 +25,14 @@ class PortabilityTest {
                 Locale.setDefault(locale)
                 val corpus = File(System.getProperty("vnx.corpus")!!)
                 val r = Vnx.readContainer(File(corpus, "accept/container-root-doc.vnz").readBytes())
-                assertEquals("In a container", r.document.waypoints!![0].name, "container reading broke under $locale")
+                assertEquals("In a container", r.document.points!![0].name, "container reading broke under $locale")
                 // And the writer's numbers must not pick up a locale's decimal
                 // separator: a comma there would not be JSON at all.
                 val written =
                     Vnx.write(
-                        Vnx.readDocument("""{"vnx":"0.10.0","waypoints":[{"at":[-3.6712,57.118]}]}""").document,
+                        Vnx.readDocument("""{"vnx":"0.10.0","points":[{"at":[-3.6712,57.118]}]}""").document,
                     )
-                assertEquals("""{"vnx":"0.10.0","waypoints":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
+                assertEquals("""{"vnx":"0.10.0","points":[{"at":[-3.6712,57.118]}]}""" + "\n", written, "under $locale")
             }
         } finally {
             Locale.setDefault(original)

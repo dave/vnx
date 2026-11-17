@@ -197,17 +197,17 @@ func cmdOutline(args []string) error {
 		Areas      int    `json:"areas"`
 	}
 	out := struct {
-		Version   string       `json:"vnx"`
-		Folders   int          `json:"folders"`
-		Networks  []netOutline `json:"networks"`
-		Plans     int          `json:"plans"`
-		Tracks    int          `json:"tracks"`
-		Waypoints int          `json:"waypoints"`
-		Areas     int          `json:"areas"`
+		Version  string       `json:"vnx"`
+		Folders  int          `json:"folders"`
+		Networks []netOutline `json:"networks"`
+		Plans    int          `json:"plans"`
+		Tracks   int          `json:"tracks"`
+		Points   int          `json:"points"`
+		Areas    int          `json:"areas"`
 	}{
 		Version: doc.Version, Folders: len(doc.Folders),
 		Plans: len(doc.Plans), Tracks: len(doc.Tracks),
-		Waypoints: len(doc.Waypoints), Areas: len(doc.Areas),
+		Points: len(doc.Points), Areas: len(doc.Areas),
 	}
 	for _, n := range doc.Networks {
 		out.Networks = append(out.Networks, netOutline{
@@ -225,7 +225,7 @@ func cmdOutline(args []string) error {
 		fmt.Printf("  network   %q — %d nodes, %d arcs, %d highlights, %d points, %d areas\n",
 			n.Name, n.Nodes, n.Arcs, n.Highlights, n.Points, n.Areas)
 	}
-	fmt.Printf("  plans    %d\n  tracks    %d\n  waypoints %d\n  areas     %d\n",
-		out.Plans, out.Tracks, out.Waypoints, out.Areas)
+	fmt.Printf("  plans     %d\n  tracks    %d\n  points    %d\n  areas     %d\n",
+		out.Plans, out.Tracks, out.Points, out.Areas)
 	return nil
 }

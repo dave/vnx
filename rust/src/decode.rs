@@ -48,7 +48,7 @@ struct Decoder {
 /// 6.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Slot {
-    /// A required key, such as a waypoint's `at`, or a node's value. A value
+    /// A required key, such as a point's `at`, or a node's value. A value
     /// that is not a position array at all is a wrong TYPE here, and the item
     /// cannot exist without it.
     RequiredKey,
@@ -72,7 +72,7 @@ const DOCUMENT_KEYS: &[&str] = &[
     "networks",
     "plans",
     "tracks",
-    "waypoints",
+    "points",
     "areas",
 ];
 const FOLDER_KEYS: &[&str] = &["id", "parent", "name", "notes", "hidden", "data"];
@@ -100,12 +100,12 @@ const TRACK_KEYS: &[&str] = &[
     "segments", "name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data",
 ];
 const SEGMENT_KEYS: &[&str] = &["pips"];
-const WAYPOINT_KEYS: &[&str] = &[
+const TOP_LEVEL_POINT_KEYS: &[&str] = &[
     "at", "name", "notes", "folder", "hidden", "pinned", "style", "data",
 ];
 /// A network's point is placed by the network that contains it, so it carries
 /// no `folder` (SPEC 3.10).
-const POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "style", "data"];
+const NETWORK_POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "style", "data"];
 const AREA_KEYS: &[&str] = &[
     "polygon", "name", "notes", "folder", "hidden", "pinned", "style", "data",
 ];
@@ -299,7 +299,7 @@ impl Decoder {
     /// A position in a REQUIRED key, where a value that is not an array at all
     /// is a wrong JSON TYPE rather than a position that will not parse. SPEC
     /// 6.2 gives those two clauses separately, and the corpus pins the
-    /// distinction at `/waypoints/1/at`.
+    /// distinction at `/points/1/at`.
     fn required_position(&mut self, value: &Json, path: &Path) -> Option<Position> {
         self.position_in(value, path, Slot::RequiredKey)
     }
@@ -502,13 +502,13 @@ impl Decoder {
                     .collect(),
             );
         }
-        if let Some(items) = self.opt_array(entries, "waypoints", &root) {
-            let path = root.key("waypoints");
-            document.waypoints = Some(
+        if let Some(items) = self.opt_array(entries, "points", &root) {
+            let path = root.key("points");
+            document.points = Some(
                 items
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, item)| self.waypoint(item, &path.index(i), WAYPOINT_KEYS))
+                    .filter_map(|(i, item)| self.point(item, &path.index(i), TOP_LEVEL_POINT_KEYS))
                     .collect(),
             );
         }
@@ -577,7 +577,9 @@ impl Decoder {
                 items
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, item)| self.waypoint(item, &points_path.index(i), POINT_KEYS))
+                    .filter_map(|(i, item)| {
+                        self.point(item, &points_path.index(i), NETWORK_POINT_KEYS)
+                    })
                     .collect(),
             );
         }
@@ -937,7 +939,7 @@ impl Decoder {
         })
     }
 
-    fn waypoint(&mut self, value: &Json, path: &Path, known: &[&str]) -> Option<Waypoint> {
+    fn point(&mut self, value: &Json, path: &Path, known: &[&str]) -> Option<Point> {
         let entries = self.object(value, path)?;
         self.check_keys(entries, known, path);
         let at = match self.field(entries, "at") {
@@ -947,7 +949,7 @@ impl Decoder {
             }
             Some(value) => self.required_position(value, &path.key("at"))?,
         };
-        Some(Waypoint {
+        Some(Point {
             name: self.opt_string(entries, "name", path),
             notes: self.opt_string(entries, "notes", path),
             folder: self.opt_string(entries, "folder", path),
@@ -1069,8 +1071,8 @@ impl Decoder {
             for (i, item) in document.tracks.iter_mut().flatten().enumerate() {
                 sweep(&mut item.folder, root.key("tracks").index(i), "folder");
             }
-            for (i, item) in document.waypoints.iter_mut().flatten().enumerate() {
-                sweep(&mut item.folder, root.key("waypoints").index(i), "folder");
+            for (i, item) in document.points.iter_mut().flatten().enumerate() {
+                sweep(&mut item.folder, root.key("points").index(i), "folder");
             }
             for (i, item) in document.areas.iter_mut().flatten().enumerate() {
                 sweep(&mut item.folder, root.key("areas").index(i), "folder");
@@ -1304,41 +1306,48 @@ mod tests {
     #[test]
     fn an_unknown_key_is_diagnosed_and_the_item_kept() {
         let reading = read(
-            r#"{"vnx":"0.10.0","waypoints":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
+            r#"{"vnx":"0.10.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
         );
         assert_eq!(reading.diagnostics.len(), 1);
-        assert_eq!(reading.diagnostics[0].path, "/waypoints/0/nmae");
+        assert_eq!(reading.diagnostics[0].path, "/points/0/nmae");
         assert_eq!(reading.diagnostics[0].cause, Cause::UnknownKey);
-        assert_eq!(reading.document.waypoints.expect("kept").len(), 1);
+        assert_eq!(reading.document.points.expect("kept").len(), 1);
+    }
+
+    #[test]
+    fn a_top_level_waypoints_key_is_an_unrecognised_key() {
+        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.675,57.1201]}]}"#);
+        assert_eq!(reading.diagnostics.len(), 1);
+        assert_eq!(reading.diagnostics[0].path, "/waypoints");
+        assert_eq!(reading.diagnostics[0].cause, Cause::UnknownKey);
+        assert_eq!(reading.document.points, None);
     }
 
     #[test]
     fn a_wrong_type_drops_an_optional_field_and_takes_a_required_one() {
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"name":7,"at":[-3.6,57.1]}]}"#);
-        assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
-        assert_eq!(reading.document.waypoints.expect("kept")[0].name, None);
+        let reading = read(r#"{"vnx":"0.10.0","points":[{"name":7,"at":[-3.6,57.1]}]}"#);
+        assert_eq!(reading.document.points.as_ref().expect("kept").len(), 1);
+        assert_eq!(reading.document.points.expect("kept")[0].name, None);
         assert_eq!(reading.diagnostics.len(), 1);
 
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"name":"x","at":"here"}]}"#);
-        assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
+        let reading = read(r#"{"vnx":"0.10.0","points":[{"name":"x","at":"here"}]}"#);
+        assert_eq!(reading.document.points.expect("kept").len(), 0);
         assert_eq!(reading.diagnostics.len(), 1);
     }
 
     #[test]
     fn an_absent_collection_is_not_an_empty_one() {
-        assert_eq!(read(r#"{"vnx":"0.10.0"}"#).document.waypoints, None);
+        assert_eq!(read(r#"{"vnx":"0.10.0"}"#).document.points, None);
         assert_eq!(
-            read(r#"{"vnx":"0.10.0","waypoints":[]}"#)
-                .document
-                .waypoints,
+            read(r#"{"vnx":"0.10.0","points":[]}"#).document.points,
             Some(vec![])
         );
     }
 
     #[test]
     fn a_position_keeps_every_channel_it_was_given() {
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1,null,5,99]}]}"#);
-        let at = &reading.document.waypoints.expect("kept")[0].at;
+        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1,null,5,99]}]}"#);
+        let at = &reading.document.points.expect("kept")[0].at;
         assert_eq!(at.arity(), 5, "an unknown channel is kept, not truncated");
         assert_eq!(at.ele(), None);
         assert_eq!(at.time_ms(), Some(5.0));
@@ -1346,8 +1355,8 @@ mod tests {
 
     #[test]
     fn longitude_and_latitude_are_never_null() {
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[null,57.1]}]}"#);
-        assert_eq!(reading.document.waypoints.expect("kept").len(), 0);
+        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[null,57.1]}]}"#);
+        assert_eq!(reading.document.points.expect("kept").len(), 0);
         assert!(matches!(
             reading.diagnostics[0].cause,
             Cause::PositionUnusable { .. }
@@ -1394,9 +1403,9 @@ mod tests {
     #[test]
     fn an_out_of_range_importance_is_dropped_and_the_rest_of_the_style_kept() {
         let reading = read(
-            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
+            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
         );
-        let style = reading.document.waypoints.expect("kept")[0]
+        let style = reading.document.points.expect("kept")[0]
             .style
             .clone()
             .expect("a style");
@@ -1411,12 +1420,12 @@ mod tests {
     #[test]
     fn a_record_body_is_never_inspected() {
         let reading = read(
-            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"data":[
+            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"data":[
                  {"@type":"app.viatrail.settlement","size":"metropolis"},
                  {"@type":"com.example.x","nmae":1,"deep":{"a":[1,2,{"b":null}]}}]}]}"#,
         );
         assert_eq!(reading.diagnostics, vec![], "a record body raises nothing");
-        let data = reading.document.waypoints.expect("kept")[0]
+        let data = reading.document.points.expect("kept")[0]
             .data
             .clone()
             .expect("data");
@@ -1427,11 +1436,11 @@ mod tests {
     #[test]
     fn a_record_with_no_type_is_dropped_and_the_bag_survives() {
         let reading = read(
-            r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
+            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
         );
         assert_eq!(reading.diagnostics[0].cause, Cause::RecordTypeMissing);
         assert_eq!(
-            reading.document.waypoints.expect("kept")[0]
+            reading.document.points.expect("kept")[0]
                 .data
                 .as_ref()
                 .expect("data")
@@ -1442,26 +1451,26 @@ mod tests {
 
     #[test]
     fn an_absent_folder_leaves_the_item_at_the_top_level() {
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
+        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
         assert_eq!(
             reading.diagnostics[0].cause,
             Cause::FolderAbsent { id: "ghost".into() }
         );
-        assert_eq!(reading.document.waypoints.expect("kept")[0].folder, None);
+        assert_eq!(reading.document.points.expect("kept")[0].folder, None);
     }
 
     #[test]
     fn a_folder_with_no_id_is_dropped_and_its_contents_survive() {
         let reading = read(
-            r#"{"vnx":"0.10.0","folders":[{"name":"Nameless"}],"waypoints":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
+            r#"{"vnx":"0.10.0","folders":[{"name":"Nameless"}],"points":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
         );
         assert_eq!(reading.document.folders.as_ref().expect("kept").len(), 0);
-        assert_eq!(reading.document.waypoints.as_ref().expect("kept").len(), 1);
+        assert_eq!(reading.document.points.as_ref().expect("kept").len(), 1);
         assert_eq!(
             pairs(&reading),
             vec![
                 ("/folders/0/id".into(), "wrong-type-required"),
-                ("/waypoints/0/folder".into(), "folder-absent"),
+                ("/points/0/folder".into(), "folder-absent"),
             ]
         );
     }
@@ -1810,7 +1819,7 @@ mod tests {
     #[test]
     fn an_absent_required_key_is_reported_at_the_key() {
         let reading =
-            read(r#"{"vnx":"0.10.0","waypoints":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
+            read(r#"{"vnx":"0.10.0","points":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
         assert_eq!(
             pairs(&reading),
             vec![
@@ -1818,7 +1827,7 @@ mod tests {
                     "/networks/0/highlights/0/walk".into(),
                     "wrong-type-required"
                 ),
-                ("/waypoints/0/at".into(), "wrong-type-required"),
+                ("/points/0/at".into(), "wrong-type-required"),
             ]
         );
     }

@@ -1,6 +1,6 @@
 {
   "vnx": "0.10.99",
-  "waypoints": [
+  "points": [
     {
       "name": "From a later patch",
       "at": [-3.6712, 57.118]

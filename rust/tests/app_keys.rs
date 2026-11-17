@@ -64,7 +64,7 @@ fn app_keys_are_preserved_opaquely_and_sorted() {
 #[test]
 fn a_dotted_key_below_the_top_level_is_reported() {
     let reading =
-        decode(br#"{"vnx":"0.10.0","rulesets":[],"waypoints":[{"at":[1,2],"app.viatrail.x":1}]}"#)
+        decode(br#"{"vnx":"0.10.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}"#)
             .expect("accepted");
     let mut got: Vec<(String, &str)> = reading
         .diagnostics
@@ -75,8 +75,8 @@ fn a_dotted_key_below_the_top_level_is_reported() {
     assert_eq!(
         got,
         [
+            ("/points/0/app.viatrail.x".to_string(), "unknown-key"),
             ("/rulesets".to_string(), "unknown-key"),
-            ("/waypoints/0/app.viatrail.x".to_string(), "unknown-key"),
         ]
     );
 }

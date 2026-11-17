@@ -13,7 +13,7 @@
       "parent": "cairngorms"
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "Car park",
       "notes": "Pay and display, closes 22:00.",

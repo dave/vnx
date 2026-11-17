@@ -73,12 +73,12 @@ type Document struct {
 	Generator string
 	Created   Timestamp // "" is absent
 
-	Folders   []Folder
-	Waypoints []Waypoint
-	Areas     []Area
-	Tracks    []Track
-	Plans     []Plan
-	Networks  []Network
+	Folders  []Folder
+	Points   []Point
+	Areas    []Area
+	Tracks   []Track
+	Plans    []Plan
+	Networks []Network
 
 	// AppKeys are the document's application keys (SPEC §3.9): every
 	// top-level key containing a full stop, each value carried VERBATIM and
@@ -236,7 +236,7 @@ func IsAppKey(key string) bool {
 // vnxbridge.documentIsEmpty, which delegates.
 func DocumentIsEmpty(d *Document) bool {
 	return len(d.Folders) == 0 &&
-		len(d.Waypoints) == 0 &&
+		len(d.Points) == 0 &&
 		len(d.Areas) == 0 &&
 		len(d.Tracks) == 0 &&
 		len(d.Plans) == 0 &&
@@ -277,7 +277,7 @@ func decodeAppKeys(obj map[string]any) []AppKey {
 var documentFormatKeys = map[string]bool{
 	"vnx": true, "generator": true, "created": true,
 	"folders": true, "networks": true, "plans": true,
-	"tracks": true, "waypoints": true, "areas": true,
+	"tracks": true, "points": true, "areas": true,
 }
 
 // isDocumentKey reports whether a top-level key is recognised: one the format

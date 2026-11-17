@@ -7,7 +7,7 @@
       "name": "Trips"
     }
   ],
-  "waypoints": [
+  "points": [
     {
       "name": "Bothy",
       "folder": "trips",

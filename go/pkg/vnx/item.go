@@ -2,9 +2,9 @@ package vnx
 
 import "fmt"
 
-// Waypoint is a top-level point; Point is the in-network one. They share a
-// shape, so they share a type.
-type Waypoint struct {
+// Point is a point: a top-level one in Document.Points, or an in-network one
+// in Network.Points. The two share a shape (§3.6), so they share a type.
+type Point struct {
 	Folder string
 	Name   string
 	Notes  string
@@ -31,15 +31,15 @@ type Area struct {
 }
 
 var (
-	waypointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "style": true, "data": true}
-	areaKeys     = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "style": true, "data": true}
+	pointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "style": true, "data": true}
+	areaKeys  = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "style": true, "data": true}
 )
 
-// decodeWaypoints reads a network's `points`, which arrive as a generic tree.
-func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []Diagnostic) {
-	out := make([]Waypoint, 0, len(arr))
+// decodePoints reads a network's `points`, which arrive as a generic tree.
+func decodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Diagnostic) {
+	out := make([]Point, 0, len(arr))
 	for i, item := range arr {
-		w, ok, d := waypointFromValue(item, fmt.Sprintf("%s/%d", path, i), diags)
+		w, ok, d := pointFromValue(item, fmt.Sprintf("%s/%d", path, i), diags)
 		diags = d
 		if ok {
 			out = append(out, w)
@@ -48,12 +48,12 @@ func decodeWaypoints(arr []any, path string, diags []Diagnostic) ([]Waypoint, []
 	return out, diags
 }
 
-// waypointFromValue reads one waypoint or network point. ok is false when it
+// pointFromValue reads one point, top-level or in a network. ok is false when it
 // is dropped.
-func waypointFromValue(item any, at string, diags []Diagnostic) (Waypoint, bool, []Diagnostic) {
+func pointFromValue(item any, at string, diags []Diagnostic) (Point, bool, []Diagnostic) {
 	obj, ok := item.(map[string]any)
 	if !ok {
-		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
 			Message: fmt.Sprintf("item is %s, expected an object — dropped", jsonKind(item))})
 	}
 	posArr, ok := obj["at"].([]any)
@@ -66,17 +66,17 @@ func waypointFromValue(item any, at string, diags []Diagnostic) (Waypoint, bool,
 		if _, present := obj["at"]; present {
 			what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
 		}
-		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
+		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
 			Code:    CodeWrongTypeRequired,
 			Message: fmt.Sprintf("`at` %s — item dropped", what)})
 	}
 	pos, err := decodePosition(posArr, at+"/at")
 	if err != nil {
 		// A point IS its position; without one there is nothing to keep.
-		return Waypoint{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at", Code: CodePositionUnusable,
+		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at", Code: CodePositionUnusable,
 			Message: err.Error() + " — item dropped"})
 	}
-	var w Waypoint
+	var w Point
 	w.At = pos
 	w.Folder, diags = stringField(obj, "folder", diags)
 	w.Name, diags = stringField(obj, "name", diags)
@@ -85,7 +85,7 @@ func waypointFromValue(item any, at string, diags []Diagnostic) (Waypoint, bool,
 	w.Pinned, diags = timeField(obj, "pinned", at, diags)
 	w.Style, diags = decodeStyle(obj, at, diags)
 	w.Data, diags = dataField(obj, at, diags)
-	diags = reportUnknownKeys(obj, at, waypointKeys, diags)
+	diags = reportUnknownKeys(obj, at, pointKeys, diags)
 	return w, true, diags
 }
 

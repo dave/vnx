@@ -1,7 +1,7 @@
 {
   "generator": "cross-language check",
   "vnx": "0.10.0",
-  "waypoints": [
+  "points": [
     {
       "name": "Ben Macdui",
       "at": [-3.6689, 57.0704]

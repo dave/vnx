@@ -10,9 +10,9 @@ import { writeArchive } from '../src/zip.js';
 
 const doc = (extra) => JSON.stringify({ vnx: '0.10.0', ...extra });
 
-/** The `at` of the first waypoint, as the encoded document spells it. */
+/** The `at` of the first point, as the encoded document spells it. */
 function encodedAt(document) {
-  return JSON.parse(encode(document)).waypoints[0].at;
+  return JSON.parse(encode(document)).points[0].at;
 }
 
 test('a coordinate is written at the precision the model holds', () => {
@@ -22,7 +22,7 @@ test('a coordinate is written at the precision the model holds', () => {
   // full binary64 precision leaves at full binary64 precision.
   const { document } = decodeText(
     doc({
-      waypoints: [{ at: [-3.6712345678901235, 57.11812345678901, 340.26] }],
+      points: [{ at: [-3.6712345678901235, 57.11812345678901, 340.26] }],
     }),
   );
   assert.deepEqual(encodedAt(document), [-3.6712345678901235, 57.11812345678901, 340.26]);
@@ -30,7 +30,7 @@ test('a coordinate is written at the precision the model holds', () => {
 });
 
 test('encoding emits the shortest spelling of a position', () => {
-  const { document } = decodeText(doc({ waypoints: [{ at: [1, 2, null] }] }));
+  const { document } = decodeText(doc({ points: [{ at: [1, 2, null] }] }));
   assert.deepEqual(encodedAt(document), [1, 2]);
 });
 
@@ -62,7 +62,7 @@ test('shortening stops at an interior absence', () => {
 test('a channel beyond those this version names is not dropped', () => {
   // SPEC.md 4.1: a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding.
-  const { document } = decodeText(doc({ waypoints: [{ at: [1, 2, 3, 4, 5.55555] }] }));
+  const { document } = decodeText(doc({ points: [{ at: [1, 2, 3, 4, 5.55555] }] }));
   assert.deepEqual(encodedAt(document), [1, 2, 3, 4, 5.55555]);
 });
 
@@ -88,18 +88,18 @@ test('a re-encoded document carries the version it declared, not the reader own'
 test('the output is compact: no space argument reaches JSON.stringify', () => {
   // SPEC.md 8.1 leaves whitespace to the writer, and a document is mostly
   // coordinates. Indentation would be pure size for no reader.
-  const out = encode(decodeText(doc({ waypoints: [{ at: [1, 2] }] })).document);
-  assert.equal(out, '{"vnx":"0.10.0","waypoints":[{"at":[1,2]}]}');
+  const out = encode(decodeText(doc({ points: [{ at: [1, 2] }] })).document);
+  assert.equal(out, '{"vnx":"0.10.0","points":[{"at":[1,2]}]}');
 });
 
 test('encoding does not mutate the model', () => {
   // Endpoint comparison and ring winding compare positions by full value, so a
   // writer that wrote back into the model would change the geometry rather than
   // its spelling. The shortening is on a copy.
-  const { document } = decodeText(doc({ waypoints: [{ at: [-3.6712345678901235, 57.118, null] }] }));
+  const { document } = decodeText(doc({ points: [{ at: [-3.6712345678901235, 57.118, null] }] }));
   encode(document);
-  assert.equal(document.waypoints[0].at.lon, -3.6712345678901235);
-  assert.equal(document.waypoints[0].at.arity, 3);
+  assert.equal(document.points[0].at.lon, -3.6712345678901235);
+  assert.equal(document.points[0].at.arity, 3);
 });
 
 test('a writer invents no negative zero', () => {
@@ -108,28 +108,28 @@ test('a writer invents no negative zero', () => {
   // matters is on the VALUE.
   const { document } = decodeText(
     doc({
-      waypoints: [{ at: [-0.00000004, -0.00000004, -0.04] }],
+      points: [{ at: [-0.00000004, -0.00000004, -0.04] }],
     }),
   );
   for (const channel of encodedAt(document)) assert.ok(!Object.is(channel, -0));
 });
 
 test('a container round-trips its document and its attachments', () => {
-  const text = doc({ waypoints: [{ at: [-3.6712345678901235, 57.118, null] }] });
+  const text = doc({ points: [{ at: [-3.6712345678901235, 57.118, null] }] });
   const packed = encodeContainer(text, [['a/photo.txt', Buffer.from('x')]]);
   const container = decodeContainer(packed);
 
   const again = decodeContainer(writeContainer(container));
   // The document went through the encoder, so its position is shortened — and
   // its coordinate is unchanged, which is the other half of the same claim.
-  assert.equal(again.document.waypoints[0].at.lon, -3.6712345678901235);
-  assert.equal(again.document.waypoints[0].at.arity, 2);
+  assert.equal(again.document.points[0].at.lon, -3.6712345678901235);
+  assert.equal(again.document.points[0].at.arity, 2);
   assert.deepEqual([...again.attachments.keys()], ['a/photo.txt']);
   assert.equal(again.attachments.get('a/photo.txt').toString('utf8'), 'x');
 });
 
 test('repackaging keeps the document entry name it was read under', () => {
-  const packed = writeArchive([{ name: 'some-export.vnx', data: Buffer.from(doc({ waypoints: [] })) }]);
+  const packed = writeArchive([{ name: 'some-export.vnx', data: Buffer.from(doc({ points: [] })) }]);
   const container = decodeContainer(packed);
   assert.equal(decodeContainer(writeContainer(container)).documentEntry, 'some-export.vnx');
 });
@@ -159,8 +159,8 @@ test('every item but a folder keeps its pinned through a write and a read', () =
     ],
     plans: [{ name: 'plan', pinned: '2026-10-24T12:00:00Z', nodes, arcs, walk }],
     tracks: [{ name: 'track', pinned: '2026-10-25T13:00:00.001Z', segments: [{ pips: [[1, 1]] }] }],
-    waypoints: [
-      { name: 'waypoint', pinned: '2026-10-26T14:00:00Z', at: [3, 3] },
+    points: [
+      { name: 'top-level point', pinned: '2026-10-26T14:00:00Z', at: [3, 3] },
       { name: 'unpinned', at: [4, 4] },
     ],
     areas: [{ name: 'area', pinned: '2026-13-45T99:99:99Z', polygon: ring }],
@@ -172,7 +172,7 @@ test('every item but a folder keeps its pinned through a write and a read', () =
       n.highlights.forEach((h, i) => (out[`highlight ${i}`] = h.pinned));
       for (const i of [...n.points, ...n.areas]) out[i.name] = i.pinned;
     }
-    for (const i of [...d.plans, ...d.tracks, ...d.waypoints, ...d.areas]) out[i.name] = i.pinned;
+    for (const i of [...d.plans, ...d.tracks, ...d.points, ...d.areas]) out[i.name] = i.pinned;
     return out;
   };
   const first = decodeText(source);
@@ -186,7 +186,7 @@ test('every item but a folder keeps its pinned through a write and a read', () =
     'network area': '2026-10-23T11:00:00Z',
     plan: '2026-10-24T12:00:00Z',
     track: '2026-10-25T13:00:00.001Z',
-    waypoint: '2026-10-26T14:00:00Z',
+    'top-level point': '2026-10-26T14:00:00Z',
     unpinned: undefined,
     area: '2026-13-45T99:99:99Z',
   };
@@ -196,6 +196,6 @@ test('every item but a folder keeps its pinned through a write and a read', () =
 
 test('a writer emits pinned only when the item is pinned', () => {
   // SPEC.md 3.8: absence means not pinned.
-  const { document } = decodeText(doc({ waypoints: [{ name: 'a', at: [1, 1] }] }));
-  assert.equal('pinned' in JSON.parse(encode(document)).waypoints[0], false);
+  const { document } = decodeText(doc({ points: [{ name: 'a', at: [1, 1] }] }));
+  assert.equal('pinned' in JSON.parse(encode(document)).points[0], false);
 });

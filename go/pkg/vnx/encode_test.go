@@ -46,7 +46,7 @@ func TestExampleRoundTripsAsATree(t *testing.T) {
 
 func TestEncodeRefusesNonFinite(t *testing.T) {
 	nan := math.NaN()
-	doc := &Document{Waypoints: []Waypoint{{Name: "x", At: Position{Lon: 1, Lat: 2, Ele: &nan}}}}
+	doc := &Document{Points: []Point{{Name: "x", At: Position{Lon: 1, Lat: 2, Ele: &nan}}}}
 	if _, err := Encode(doc); err == nil {
 		t.Fatal("a non-finite elevation must be refused at write time, not written as a NaN literal no reader accepts")
 	}
@@ -122,14 +122,14 @@ func excerpt(b []byte, i int) string {
 // spelling on purpose to keep that tolerance under test — and §4.1 has a WRITER
 // emit the short one.
 func TestTrailingNullDecodesAndReEncodesShort(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","waypoints":[{"name":"x","at":[-3.64,57.09,null]}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","points":[{"name":"x","at":[-3.64,57.09,null]}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(diags) != 0 {
 		t.Fatalf("the long spelling is legal and must read cleanly: %v", diags)
 	}
-	if doc.Waypoints[0].At.Ele != nil {
+	if doc.Points[0].At.Ele != nil {
 		t.Fatal("null elevation must decode as ABSENT, not as a zero")
 	}
 	got, err := Encode(doc)
@@ -174,9 +174,9 @@ func TestTimestampsKeepTheirMilliseconds(t *testing.T) {
 // TestInNetworkItemsCarryNoFolder pins the one thing that stops the encoder
 // emitting a document spec §3.10 forbids.
 //
-// ⚠ waypointTree AND areaTree ARE SHARED between top-level and in-network use,
+// ⚠ pointTree AND areaTree ARE SHARED between top-level and in-network use,
 // so nothing about the model distinguishes the two cases — a network's point is
-// the same struct as a waypoint, Folder field and all. Before this, only the
+// the same struct as a top-level point, Folder field and all. Before this, only the
 // caller's discipline kept `folder` off an in-network item, and the caller is
 // in another package. A network already contains its points and areas, so a
 // folder there would place an item that is not placed.
@@ -185,11 +185,11 @@ func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 		Version: "0.10.0",
 		// The same Folder value on both, so the test cannot pass by the
 		// in-network one simply being empty.
-		Waypoints: []Waypoint{{Name: "top", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
-		Areas:     []Area{{Name: "top area", Folder: "f", Polygon: ring()}},
+		Points: []Point{{Name: "top", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
+		Areas:  []Area{{Name: "top area", Folder: "f", Polygon: ring()}},
 		Networks: []Network{{
 			Name:   "n",
-			Points: []Waypoint{{Name: "inside", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
+			Points: []Point{{Name: "inside", Folder: "f", At: Position{Lon: -3, Lat: 57}}},
 			Areas:  []Area{{Name: "inside area", Folder: "f", Polygon: ring()}},
 		}},
 	}
@@ -198,7 +198,7 @@ func TestInNetworkItemsCarryNoFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := bytes.Count(got, []byte(`"folder":"f"`)); n != 2 {
-		t.Errorf("got %d `folder` keys, want 2 — the top-level waypoint and the top-level area only:\n%s", n, got)
+		t.Errorf("got %d `folder` keys, want 2 — the top-level point and the top-level area only:\n%s", n, got)
 	}
 }
 
@@ -216,7 +216,7 @@ func ring() []Position {
 // is what a caller reading the document sees. The WRITER spells both as
 // absence, which is what `omitempty` does and what §3.1 permits.
 func TestAnEmptyDataBagIsWrittenAsAnAbsentOne(t *testing.T) {
-	const src = `{"vnx":"0.10.0","waypoints":[` +
+	const src = `{"vnx":"0.10.0","points":[` +
 		`{"name":"absent","at":[-3,57]},` +
 		`{"name":"empty","at":[-3,57],"data":[]}]}`
 	doc, diags, err := Decode([]byte(src))
@@ -226,10 +226,10 @@ func TestAnEmptyDataBagIsWrittenAsAnAbsentOne(t *testing.T) {
 	if len(diags) != 0 {
 		t.Fatalf("an empty data bag is legal: %v", diags)
 	}
-	if doc.Waypoints[0].Data != nil {
+	if doc.Points[0].Data != nil {
 		t.Error("an absent `data` decoded to a non-nil bag")
 	}
-	if doc.Waypoints[1].Data == nil {
+	if doc.Points[1].Data == nil {
 		t.Error("an empty `data` decoded to nil, so a caller cannot tell the two apart")
 	}
 	got, err := Encode(doc)

@@ -19,7 +19,7 @@ import { compareDocuments } from './tree.js';
 // archive, which the accept and diagnose tiers already cover.
 import { readEntries, readEntryData } from '../src/zip.js';
 
-const COLLECTIONS = ['folders', 'networks', 'plans', 'tracks', 'waypoints', 'areas'];
+const COLLECTIONS = ['folders', 'networks', 'plans', 'tracks', 'points', 'areas'];
 
 export class Case {
   constructor(name) {

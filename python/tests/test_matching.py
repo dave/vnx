@@ -18,7 +18,7 @@ from .matching import match_diagnostics
 
 
 class MatchDiagnostics(unittest.TestCase):
-    A = Diagnostic("/waypoints/0/nmae", "unknown key `nmae`", "unknown-key")
+    A = Diagnostic("/points/0/nmae", "unknown key `nmae`", "unknown-key")
     B = Diagnostic(
         "/areas/0/polygon", "nested rings: one closed ring only", "polygon-nested-rings"
     )
@@ -26,29 +26,27 @@ class MatchDiagnostics(unittest.TestCase):
     def test_an_exact_pair_matches(self) -> None:
         self.assertIsNone(
             match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "unknown-key"}], [self.A]
+                [{"path": "/points/0/nmae", "code": "unknown-key"}], [self.A]
             )
         )
 
     def test_order_does_not_matter(self) -> None:
         expected = [
             {"path": "/areas/0/polygon", "code": "polygon-nested-rings"},
-            {"path": "/waypoints/0/nmae", "code": "unknown-key"},
+            {"path": "/points/0/nmae", "code": "unknown-key"},
         ]
         self.assertIsNone(match_diagnostics(expected, [self.A, self.B]))
 
     def test_a_missing_report_fails(self) -> None:
         self.assertIsNotNone(
-            match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "unknown-key"}], []
-            )
+            match_diagnostics([{"path": "/points/0/nmae", "code": "unknown-key"}], [])
         )
 
     def test_an_extra_report_fails(self) -> None:
         """An unexpected diagnostic is a defect, not a bonus."""
         self.assertIsNotNone(
             match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "unknown-key"}],
+                [{"path": "/points/0/nmae", "code": "unknown-key"}],
                 [self.A, self.B],
             )
         )
@@ -56,14 +54,14 @@ class MatchDiagnostics(unittest.TestCase):
     def test_a_wrong_path_fails(self) -> None:
         self.assertIsNotNone(
             match_diagnostics(
-                [{"path": "/waypoints/1/nmae", "code": "unknown-key"}], [self.A]
+                [{"path": "/points/1/nmae", "code": "unknown-key"}], [self.A]
             )
         )
 
     def test_a_wrong_code_fails(self) -> None:
         self.assertIsNotNone(
             match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "polygon-nested-rings"}],
+                [{"path": "/points/0/nmae", "code": "polygon-nested-rings"}],
                 [self.A],
             )
         )
@@ -76,12 +74,12 @@ class MatchDiagnostics(unittest.TestCase):
         rule. This is the assertion that says the old substring matching is
         really gone rather than merely unused.
         """
-        foreign = Diagnostic("/waypoints/0/nmae", "clé inconnue", "unknown-key")
+        foreign = Diagnostic("/points/0/nmae", "clé inconnue", "unknown-key")
         self.assertIsNone(
             match_diagnostics(
                 [
                     {
-                        "path": "/waypoints/0/nmae",
+                        "path": "/points/0/nmae",
                         "code": "unknown-key",
                         "message_advisory": "unknown key",
                     }
@@ -92,10 +90,10 @@ class MatchDiagnostics(unittest.TestCase):
 
     def test_a_missing_code_on_the_report_fails(self) -> None:
         """A pinned case needs a code from the reader too, not just a path."""
-        codeless = Diagnostic("/waypoints/0/nmae", "unknown key `nmae`")
+        codeless = Diagnostic("/points/0/nmae", "unknown key `nmae`")
         self.assertIsNotNone(
             match_diagnostics(
-                [{"path": "/waypoints/0/nmae", "code": "unknown-key"}], [codeless]
+                [{"path": "/points/0/nmae", "code": "unknown-key"}], [codeless]
             )
         )
 
@@ -106,17 +104,17 @@ class MatchDiagnostics(unittest.TestCase):
         reader that found half the defects.
         """
         expected = [
-            {"path": "/waypoints/0/nmae", "code": "unknown-key"},
-            {"path": "/waypoints/0/nmae", "code": "unknown-key"},
+            {"path": "/points/0/nmae", "code": "unknown-key"},
+            {"path": "/points/0/nmae", "code": "unknown-key"},
         ]
         self.assertIsNotNone(match_diagnostics(expected, [self.A]))
 
     def test_two_reports_answer_two_expectations(self) -> None:
         expected = [
-            {"path": "/waypoints/0/nmae", "code": "unknown-key"},
-            {"path": "/waypoints/0/nmae", "code": "unknown-key"},
+            {"path": "/points/0/nmae", "code": "unknown-key"},
+            {"path": "/points/0/nmae", "code": "unknown-key"},
         ]
-        twice = [self.A, Diagnostic("/waypoints/0/nmae", "again", "unknown-key")]
+        twice = [self.A, Diagnostic("/points/0/nmae", "again", "unknown-key")]
         self.assertIsNone(match_diagnostics(expected, twice))
 
     def test_a_greedy_pairing_does_not_decide_it(self) -> None:

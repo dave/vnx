@@ -76,7 +76,7 @@ def _normalise_document(value: Any, options: Options) -> Any:
         return value
     out = dict(value)
     _items(out, "folders", options, _folder)
-    _items(out, "waypoints", options, _waypoint)
+    _items(out, "points", options, _point)
     _items(out, "areas", options, _area)
     _items(out, "tracks", options, _track)
     _items(out, "plans", options, _plan)
@@ -91,7 +91,7 @@ def _folder(obj: dict[str, Any], options: Options) -> None:
     _drop_empty(obj, "data")
 
 
-def _waypoint(obj: dict[str, Any], options: Options) -> None:
+def _point(obj: dict[str, Any], options: Options) -> None:
     if "at" in obj:
         obj["at"] = _position(obj["at"], options)
     _drop_empty(obj, "style")
@@ -169,7 +169,7 @@ def _walk(obj: dict[str, Any], options: Options) -> None:
 def _network(obj: dict[str, Any], options: Options) -> None:
     _graph(obj, options)
     _items(obj, "highlights", options, _highlight)
-    _items(obj, "points", options, _waypoint)
+    _items(obj, "points", options, _point)
     _items(obj, "areas", options, _area)
     _drop_empty(obj, "data")
 

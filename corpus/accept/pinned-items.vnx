@@ -48,7 +48,7 @@
       ]
     }
   ],
-  "waypoints": [
+  "points": [
     {"name": "Car park", "pinned": "2026-10-26T14:00:00Z", "at": [-3.675, 57.1201]},
     {"name": "Bothy", "at": [-3.70, 57.08]}
   ],

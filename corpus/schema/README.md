@@ -15,7 +15,7 @@ schema can only check shape.
 
 - The document is an object with a `vnx` version string.
 - Every collection is an array of the right kind of object, and the required
-  fields of each are present: a waypoint has an `at`, an area a `polygon`, a
+  fields of each are present: a top-level point has an `at`, an area a `polygon`, a
   track its `segments`, a highlight and a plan their `walk`, an arc its `from`,
   `to` and `pips`, a pass its `arc`.
 - A position is an array of at least two numbers, longitude within ±180 and

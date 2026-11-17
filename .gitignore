@@ -11,3 +11,8 @@ go/cmd/vnx/vnx
 .build/
 .swiftpm/
 *.xcodeproj
+
+# The vnx.tools site build (site/): dependencies and build output.
+site/node_modules/
+site/dist/
+site/dist-preview/

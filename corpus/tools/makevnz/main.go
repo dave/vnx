@@ -40,6 +40,16 @@ func main() {
 		{name: "doc.vnx", body: doc, method: zip.Deflate},
 		{name: "attachments/photo.txt", body: "not really a photo\n", method: zip.Deflate},
 	})
+	// §7.2: files in folders named after type ids and an application key,
+	// one at the archive root, and none named by any record. A reader returns
+	// every one as an attachment; the folder name is never interpreted.
+	write("accept/container-type-folders.vnz", []entry{
+		{name: "doc.vnx", body: doc, method: zip.Deflate},
+		{name: "com.example.photo/summit.jpg", body: "not really a photo\n", method: zip.Deflate},
+		{name: "org.example.audio/ridge-notes.m4a", body: "not really audio\n", method: zip.Deflate},
+		{name: "com.example.routes/plan.gpx", body: "not really a gpx file\n", method: zip.Deflate},
+		{name: "readme.txt", body: "an attachment at the root\n", method: zip.Deflate},
+	})
 	write("accept/container-named-document.vnz", []entry{
 		{name: "some-export.vnx", body: doc, method: zip.Deflate},
 	})

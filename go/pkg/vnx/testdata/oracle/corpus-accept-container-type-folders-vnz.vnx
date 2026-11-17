@@ -1,0 +1,9 @@
+{
+  "vnx": "0.10.0",
+  "waypoints": [
+    {
+      "name": "In a container",
+      "at": [-3.675, 57.1201]
+    }
+  ]
+}

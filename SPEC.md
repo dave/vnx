@@ -1233,6 +1233,34 @@ and nothing else about the archive is constrained.
 Every other field of the archive is the writer's own business. Two conforming
 writers are not expected to produce the same bytes for the same document.
 
+### 7.2 Where an application puts its files
+
+A container MAY carry any number of attachments, of any kind, beside the root
+document: photographs, sound, documents, or anything else an application
+attaches. This format does not define what an attachment means. An application
+that needs one names it from its own content, usually from a field of a data
+record (Section 5) or from inside the value of an application key
+(Section 3.9), by its full entry name.
+
+An application that writes the files of a data type SHOULD put them in a folder
+at the archive root whose name is that type's `@type` identifier, exactly as
+written. The files of an application key SHOULD go in a folder named after the
+key in the same way. Each identifier is chosen by the owner of a domain, so two
+applications that write into one archive cannot write the same entry name.
+
+```
+doc.vnx
+com.example.photo/summit.jpg
+com.example.photo/descent.jpg
+org.example.audio/ridge-notes.m4a
+```
+
+That is a recommendation about names, not a rule a reader applies. A reader
+MUST treat every attachment alike whatever folder it is in: a folder named after
+a type the reader does not know, a folder no record names, and an attachment at
+the archive root are all returned as attachments, with no diagnostic. A full
+stop in a folder name is an ordinary character in a path.
+
 ## 8. Conformance corpus
 
 The corpus distributed with this specification is what decides whether an

@@ -1,0 +1,19 @@
+{
+  "kind": "accept",
+  "note": "A .vnz container whose attachments follow section 7.2's recommendation: files in folders named after data type identifiers (com.example.photo, org.example.audio) and an application key (com.example.routes), plus one file at the archive root. No record in the document names any of them. Section 7.2 makes the folder name a recommendation for writers and nothing a reader interprets, so all four are attachments with no diagnostic. A reader that drops a file no record names, that drops or flags a folder for a type it does not know, or that splits an entry name at its first full stop to find an extension, loses an entry here. The two entries that are not .jpg are there so a reader that keeps only image types also fails.",
+  "counts": {
+    "waypoints": 1
+  },
+  "attachments": [
+    "com.example.photo/summit.jpg",
+    "org.example.audio/ridge-notes.m4a",
+    "com.example.routes/plan.gpx",
+    "readme.txt"
+  ],
+  "attachment_contents": {
+    "com.example.photo/summit.jpg": "not really a photo\n",
+    "org.example.audio/ridge-notes.m4a": "not really audio\n",
+    "com.example.routes/plan.gpx": "not really a gpx file\n",
+    "readme.txt": "an attachment at the root\n"
+  }
+}

@@ -36,7 +36,6 @@ from .model import (
     Position,
     Plan,
     Segment,
-    Style,
     Track,
     Point,
     AppKey,
@@ -47,7 +46,7 @@ from .pointer import join
 __all__ = ["ReadResult", "read_bytes", "decode_document", "SUPPORTED_VERSION"]
 
 # The MAJOR.MINOR this reader implements (SPEC 2.2).
-SUPPORTED_VERSION = (0, 10)
+SUPPORTED_VERSION = (0, 11)
 
 _VERSION = re.compile(r"\A(\d+)\.(\d+)\.(\d+)\Z")
 # SPEC 4.3: ISO 8601 in UTC, a literal Z suffix, optional fractional seconds.
@@ -142,8 +141,13 @@ class _Reader:
         missing = [key for key, value in fields.items() if value is None]
         for key in missing:
             if key not in obj:
+                # An absent key has no element of its own, so the diagnostic
+                # names the object that lacks it (SPEC 6.3, the corpus case
+                # `required-key-absent`), never the key.
                 self.note(
-                    join(path, key), f"{what} must carry `{key}`", "wrong-type-required"
+                    path,
+                    f"{what} requires `{key}`; it is dropped",
+                    "wrong-type-required",
                 )
         return not missing
 
@@ -219,37 +223,6 @@ class _Reader:
             )
             return None
         return value
-
-    def _style(self, obj: dict[str, JSONValue], path: str) -> Union[Style, None]:
-        """A style body is opaque (ruled 2026-09-09; see `keys.py`).
-
-        Its shape is checked and its contents are not: no key inside a style is
-        ever unknown, and every key survives a read-modify-write.
-        """
-        if "style" not in obj:
-            return None
-        value = obj["style"]
-        if not isinstance(value, dict):
-            self.note(join(path, "style"), "a style must be an object")
-            return None
-        return dict(value)
-
-    def _check_importance(self, style: Union[Style, None], path: str) -> None:
-        """SPEC 3.6's `importance` range, ruled normative on 2026-09-09.
-
-        `icon-size`'s list of the sizes Viatrail uses was ruled informative in
-        the same breath and is not checked.  An out-of-range `importance` is an
-        unusable value under SPEC 6.2: the key is dropped, the style and the
-        item are kept.  That remedy is this implementation's reading -- SPEC 6.2
-        gives none for a value outside a stated range.
-        """
-        if style is None or "importance" not in style:
-            return
-        if not _is_importance(style["importance"]):
-            self.note(
-                join(path, "style", "importance"), "must be an integer from 1 to 5"
-            )
-            del style["importance"]
 
     def _data(
         self, obj: dict[str, JSONValue], path: str
@@ -342,9 +315,13 @@ class _Reader:
         )
 
     def _positions(
-        self, obj: dict[str, JSONValue], key: str, path: str
+        self,
+        obj: dict[str, JSONValue],
+        key: str,
+        path: str,
+        required: frozenset[str] = frozenset(),
     ) -> Union[list[Position], None]:
-        items = self._array(obj, key, path)
+        items = self._array(obj, key, path, required)
         if items is None:
             return None
         out: list[Position] = []
@@ -403,23 +380,26 @@ class _Reader:
         return document
 
     def _check_folder_references(self, document: Document) -> None:
-        """SPEC 6.2: a `folder`, or a folder's `parent`, naming a folder that
-        is not present.
+        """SPEC 3.2 and 6.2: the folder rules, applied once every collection is
+        decoded, because a folder may be written after the items that name it --
+        key and element order carry no meaning (SPEC 4.4).
 
-        Not an unusable value: the reader treats the key as absent, so the item
-        sits at the top level or the folder at the root, and records
-        `folder-absent` at the key.  The path tells the two keys apart.
-        Dropping the object would lose content over a lost grouping.  A folder
-        dropped for having no `id` is not present, so what named it is caught
-        here too.
+        Three steps, in this order:
 
-        This runs after every collection is decoded, because a folder may be
-        written after the items that name it -- key and element order carry no
-        meaning (SPEC 4.4).
+        1. A folder whose `id` an earlier folder already carries is dropped,
+           `folder-duplicate-id` at its `id`.  The first one stays, so an item
+           naming the id sits in it.
+        2. A `folder`, or a folder's `parent`, naming a folder that is not
+           present is treated as absent, `folder-absent` at the key.  Not an
+           unusable value: dropping the object would lose content over a lost
+           grouping.  A folder dropped for having no `id` is not present, so
+           what named it is caught here too.
+        3. Parent loops: see `_break_parent_loops`.
+
+        Every path is the folder's index in the file, never among kept folders.
         """
-        known = {
-            folder.id for folder in (document.folders or []) if folder.id is not None
-        }
+        self._drop_duplicate_folders(document)
+        known = {folder.id for folder in (document.folders or [])}
         for folder in document.folders or []:
             if folder.parent is not None and folder.parent not in known:
                 self.note(
@@ -428,6 +408,7 @@ class _Reader:
                     "folder-absent",
                 )
                 folder.parent = None
+        self._break_parent_loops(document.folders or [])
         hosts: list[list[Any]] = [
             list(document.networks or []),
             list(document.plans or []),
@@ -445,6 +426,51 @@ class _Reader:
                     )
                     item.folder = None
 
+    def _drop_duplicate_folders(self, document: Document) -> None:
+        """SPEC 6.2: a folder whose `id` an earlier folder already carries is
+        dropped, `folder-duplicate-id` at its `id`.  The first one stays."""
+        if document.folders is not None:
+            seen: set[str] = set()
+            kept: list[Folder] = []
+            for folder in document.folders:
+                assert folder.id is not None
+                if folder.id in seen:
+                    self.note(
+                        join(self._wire_paths[id(folder)], "id"),
+                        f"folder id `{folder.id}` is already used by an earlier "
+                        "folder; this folder is dropped",
+                        "folder-duplicate-id",
+                    )
+                    continue
+                seen.add(folder.id)
+                kept.append(folder)
+            document.folders = kept
+
+    def _break_parent_loops(self, folders: list[Folder]) -> None:
+        """SPEC 6.2: a folder is in a loop when following `parent` from it
+        comes back to it.  Folders are taken in document order, and the first
+        folder of each loop has its `parent` treated as absent, so it sits at
+        the root, with `folder-parent-loop` at that `parent`.  That breaks the
+        loop, so the loop's other folders keep their parents and are not
+        reported.  A folder whose chain only leads INTO a loop never comes back
+        to itself, so it is not reported either.  A folder naming itself is a
+        loop of one.
+        """
+        by_id = {folder.id: folder for folder in folders}
+        for folder in folders:
+            visited: set[str] = set()
+            step = folder.parent
+            while step is not None and step != folder.id and step not in visited:
+                visited.add(step)
+                step = by_id[step].parent
+            if step == folder.id:
+                self.note(
+                    join(self._wire_paths[id(folder)], "parent"),
+                    f"folder `{folder.id}` is in a parent loop; it sits at the root",
+                    "folder-parent-loop",
+                )
+                folder.parent = None
+
     def _check_version(self, version: str) -> None:
         match = _VERSION.match(version)
         if match is None:
@@ -456,10 +482,10 @@ class _Reader:
         # SPEC 2.2: PATCH never refuses.  Through 0.x, MAJOR and MINOR are both
         # breaking axes, and each MINOR is ITS OWN SERIES -- so the test is "not
         # the series this reader implements", not "above it".  0.1 is not an
-        # older spelling of 0.10; this reader has no rules for it and refuses it
+        # older spelling of 0.11; this reader has no rules for it and refuses it
         # for the same reason it refuses 0.3.  Written as `>` -- the shape five
         # of the six implementations once had -- a 0.1.9 document reads as
-        # though it were 0.10, under rules it was never written to.
+        # though it were 0.11, under rules it was never written to.
         if (major, minor) == SUPPORTED_VERSION:
             return
         supported = f"{SUPPORTED_VERSION[0]}.{SUPPORTED_VERSION[1]}"
@@ -495,13 +521,22 @@ class _Reader:
         if obj is None:
             return None
         folder = Folder(
-            id=self._string(obj, "id", path),
+            id=self._string(obj, "id", path, K.REQUIRED_FOLDER),
             name=self._string(obj, "name", path),
             notes=self._string(obj, "notes", path),
             parent=self._string(obj, "parent", path),
             hidden=self._bool(obj, "hidden", path),
             data=self._data(obj, path),
         )
+        if folder.id == "":
+            # SPEC 3.2: an `id` is a non-empty string, so "" is a wrong-typed
+            # value in a REQUIRED key, named at the key (SPEC 6.3).
+            self.note(
+                join(path, "id"),
+                "a folder's `id` must be a non-empty string; it is dropped",
+                "wrong-type-required",
+            )
+            return None
         if not self._complete(obj, path, "a folder", {"id": folder.id}):
             # SPEC 6.2: items that named it are then covered by the dangling
             # `folder` rule and sit at the top level, so a folder's contents
@@ -521,8 +556,6 @@ class _Reader:
         at = None
         if "at" in obj:
             at = self._position(obj["at"], join(path, "at"), "wrong-type-required")
-        style = self._style(obj, path)
-        self._check_importance(style, path)
         if not self._complete(obj, path, "a point", {"at": at}):
             return None
         return Point(
@@ -532,7 +565,6 @@ class _Reader:
             hidden=self._bool(obj, "hidden", path, K.REQUIRED_POINT),
             pinned=self._timestamp(obj, "pinned", path),
             at=at,
-            style=style,
             data=self._data(obj, path),
         )
 
@@ -562,7 +594,6 @@ class _Reader:
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
             polygon=polygon,
-            style=self._style(obj, path),
             data=self._data(obj, path),
         )
 
@@ -618,7 +649,7 @@ class _Reader:
         if obj is None:
             return None
         segments = None
-        items = self._array(obj, "segments", path)
+        items = self._array(obj, "segments", path, K.REQUIRED_TRACK)
         if items is not None:
             segments = []
             for index, item in enumerate(items):
@@ -626,7 +657,7 @@ class _Reader:
                 seg = self._object(item, at, K.SEGMENT, "a segment")
                 if seg is None:
                     continue
-                pips = self._positions(seg, "pips", at)
+                pips = self._positions(seg, "pips", at, K.REQUIRED_SEGMENT)
                 if pips is None and "pips" in seg:
                     # SPEC 6.2: an unusable position drops the container that
                     # holds the geometry, and the diagnostic is already
@@ -646,7 +677,6 @@ class _Reader:
             ended=self._timestamp(obj, "ended", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
-            style=self._style(obj, path),
             segments=segments,
             data=self._data(obj, path),
         )
@@ -663,7 +693,6 @@ class _Reader:
             notes=self._string(obj, "notes", path),
             hidden=self._bool(obj, "hidden", path),
             pinned=self._timestamp(obj, "pinned", path),
-            style=self._style(obj, path),
         )
         plan.nodes = self._nodes(obj, path)
         plan.arcs = self._arcs(obj, path, plan.nodes or {})
@@ -773,13 +802,32 @@ class _Reader:
         for end in ("from", "to"):
             name = entry.get(end)
             if not isinstance(name, str):
-                what = "is missing" if end not in entry else "is not a node key"
-                self.note(join(here, end), f"arc `{end}` {what}", "wrong-type-required")
+                # An absent key names the arc, a wrong-typed one the key (SPEC 6.3).
+                if end not in entry:
+                    self.note(
+                        here,
+                        f"an arc requires `{end}`; it is dropped",
+                        "wrong-type-required",
+                    )
+                else:
+                    self.note(
+                        join(here, end),
+                        f"arc `{end}` is not a node key",
+                        "wrong-type-required",
+                    )
                 return None
             ends.append(name)
         if not isinstance(entry.get("pips"), list):
-            what = "is missing" if "pips" not in entry else "is not an array"
-            self.note(join(here, "pips"), f"arc `pips` {what}", "wrong-type-required")
+            if "pips" not in entry:
+                self.note(
+                    here, "an arc requires `pips`; it is dropped", "wrong-type-required"
+                )
+            else:
+                self.note(
+                    join(here, "pips"),
+                    "arc `pips` is not an array",
+                    "wrong-type-required",
+                )
             return None
         pips = self._positions(entry, "pips", here)
         if pips is None:
@@ -879,8 +927,14 @@ class _Reader:
         path = join(owner, "walk")
         items = obj.get("walk")
         if not isinstance(items, list):
-            what = "is missing" if "walk" not in obj else "is not an array"
-            self.note(path, f"`walk` {what}", "wrong-type-required")
+            if "walk" not in obj:
+                self.note(
+                    owner,
+                    "`walk` is missing; the owner is dropped",
+                    "wrong-type-required",
+                )
+            else:
+                self.note(path, "`walk` is not an array", "wrong-type-required")
             return None
         walk: list[Pass] = []
         cursor = W.Cursor(last=len(items) - 1, plan=plan)
@@ -980,9 +1034,3 @@ def _json_type(value: JSONValue) -> str:
     if isinstance(value, list):
         return "an array"
     return "an object"
-
-
-def _is_importance(value: JSONValue) -> bool:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    return float(value).is_integer() and 1 <= value <= 5

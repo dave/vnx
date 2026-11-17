@@ -46,7 +46,7 @@ OVER_DECLARED_BY = 7
 DOCUMENT = (
     b"{\n"
     b'  "generator": "corpus",\n'
-    b'  "vnx": "0.10.0",\n'
+    b'  "vnx": "0.11.0",\n'
     b'  "points": [\n'
     b"    {\n"
     b'      "name": "Ben Macdui",\n'

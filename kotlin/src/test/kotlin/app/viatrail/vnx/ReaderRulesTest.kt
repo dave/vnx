@@ -22,7 +22,7 @@ class ReaderRulesTest {
 
     @Test
     fun `an unrecognised key is skipped and the item kept`() {
-        val r = read("""{"vnx":"0.10.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}""")
         assertEquals(1, r.document.points!!.size)
         assertEquals("Car park", r.document.points!![0].name)
         assertEquals(1, r.diagnostics.size)
@@ -31,7 +31,7 @@ class ReaderRulesTest {
 
     @Test
     fun `a wrong type in an OPTIONAL key drops the field and keeps the item`() {
-        val r = read("""{"vnx":"0.10.0","points":[{"name":7,"at":[-3.675,57.1201]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"name":7,"at":[-3.675,57.1201]}]}""")
         assertEquals(1, r.document.points!!.size)
         assertNull(r.document.points!![0].name)
         assertEquals(DiagnosticCause.WRONG_TYPE_OPTIONAL, r.diagnostics.single().cause)
@@ -47,7 +47,7 @@ class ReaderRulesTest {
         // pass a document carrying only one of the two.
         val r =
             read(
-                """{"vnx":"0.10.0","points":[
+                """{"vnx":"0.11.0","points":[
                {"name":"Kept, minus one field","at":[-3.6712,57.118],"hidden":"yes"},
                {"name":"Dropped","at":"beside the burn"}]}""",
             )
@@ -64,7 +64,7 @@ class ReaderRulesTest {
     fun `a wrong type in a REQUIRED key drops the item`() {
         // The exception is not a special case: dropping a required field would
         // leave a point that is nowhere.
-        val r = read("""{"vnx":"0.10.0","points":[{"name":"nowhere","at":"here"}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"name":"nowhere","at":"here"}]}""")
         assertEquals(0, r.document.points!!.size)
         assertEquals(1, r.diagnostics.size)
     }
@@ -73,7 +73,7 @@ class ReaderRulesTest {
     fun `a folder naming a folder that is not present keeps the item at the top level`() {
         // Section 6.2 in as many words: dropping the item would lose content over
         // a lost grouping.
-        val r = read("""{"vnx":"0.10.0","points":[{"folder":"ghost","at":[-3,57]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"folder":"ghost","at":[-3,57]}]}""")
         assertEquals(1, r.document.points!!.size)
         assertNull(r.document.points!![0].folder)
         assertEquals(DiagnosticCause.FOLDER_ABSENT, r.diagnostics.single().cause)
@@ -83,7 +83,7 @@ class ReaderRulesTest {
     fun `a folder with no id is dropped and its contents survive it`() {
         val r =
             read(
-                """{"vnx":"0.10.0","folders":[{"name":"No id here"}],"points":[{"folder":"anything","at":[-3,57]}]}""",
+                """{"vnx":"0.11.0","folders":[{"name":"No id here"}],"points":[{"folder":"anything","at":[-3,57]}]}""",
             )
         assertEquals(0, r.document.folders!!.size)
         assertEquals(1, r.document.points!!.size)
@@ -99,7 +99,7 @@ class ReaderRulesTest {
     fun `a parent naming a folder that is not present puts the folder at the root, with the same code`() {
         val r =
             read(
-                """{"vnx":"0.10.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"folder":"lakes","at":[-3,57]}]}""",
+                """{"vnx":"0.11.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"folder":"lakes","at":[-3,57]}]}""",
             )
         assertEquals(listOf("/folders/0/parent" to "folder-absent"), r.diagnostics.map { it.path to it.code })
         assertEquals(1, r.document.folders!!.size)
@@ -109,14 +109,79 @@ class ReaderRulesTest {
 
     @Test
     fun `a parent written before the folder it names resolves`() {
-        val r = read("""{"vnx":"0.10.0","folders":[{"id":"b","parent":"a"},{"id":"a"}]}""")
+        val r = read("""{"vnx":"0.11.0","folders":[{"id":"b","parent":"a"},{"id":"a"}]}""")
         assertEquals(emptyList(), r.diagnostics)
         assertEquals("a", r.document.folders!![0].parent)
     }
 
     @Test
+    fun `an absent required key is named at the object, a wrong-typed one at the key`() {
+        val r =
+            read(
+                """{"vnx":"0.11.0","points":[{"name":"w"},{"at":7}],"tracks":[{},{"segments":[{}]}],"areas":[{}],""" +
+                    """"folders":[{},{"id":3},{"id":""}],"networks":[{"nodes":{"a":[0,0],"b":[1,1]},""" +
+                    """"arcs":{"x":{"to":"b","pips":[]},"y":{"from":"a","to":"b"}}}]}""",
+            )
+        assertEquals(
+            setOf(
+                "/points/0",
+                "/points/1/at",
+                "/tracks/0",
+                "/areas/0",
+                "/folders/0",
+                "/folders/1/id",
+                "/folders/2/id",
+                "/tracks/1/segments/0",
+                "/networks/0/arcs/x",
+                "/networks/0/arcs/y",
+            ),
+            r.diagnostics
+                .filter { it.code == "wrong-type-required" }
+                .map { it.path }
+                .toSet(),
+        )
+    }
+
+    @Test
+    fun `a second folder with an id already used is dropped and items sit in the first`() {
+        val r =
+            read(
+                """{"vnx":"0.11.0","folders":[{"id":"x","name":"one"},{"id":"x","name":"two"},{"id":"y","parent":"x"}],""" +
+                    """"points":[{"folder":"x","at":[-3,57]}]}""",
+            )
+        assertEquals(listOf("/folders/1/id" to "folder-duplicate-id"), r.diagnostics.map { it.path to it.code })
+        assertEquals("one", r.document.folders!![0].name)
+        assertEquals(listOf("x", "y"), r.document.folders!!.map { it.id })
+        assertEquals("x", r.document.folders!![1].parent)
+        assertEquals("x", r.document.points!![0].folder)
+    }
+
+    @Test
+    fun `the first folder of a parent loop sits at the root and the others keep their parents`() {
+        val r =
+            read(
+                """{"vnx":"0.11.0","folders":[{"id":"in","parent":"a"},{"id":"a","parent":"b"},""" +
+                    """{"id":"b","parent":"c"},{"id":"c","parent":"a"},{"id":"s","parent":"s"}]}""",
+            )
+        assertEquals(
+            listOf("/folders/1/parent" to "folder-parent-loop", "/folders/4/parent" to "folder-parent-loop"),
+            r.diagnostics.map { it.path to it.code },
+        )
+        assertEquals(listOf("a", null, "c", "a", null), r.document.folders!!.map { it.parent })
+    }
+
+    @Test
+    fun `a loop path uses the index in the file, not among kept folders`() {
+        val r = read("""{"vnx":"0.11.0","folders":[{"name":"no id"},{"id":"a","parent":"a"}]}""")
+        assertEquals(
+            setOf("/folders/0" to "wrong-type-required", "/folders/1/parent" to "folder-parent-loop"),
+            r.diagnostics.map { it.path to it.code }.toSet(),
+        )
+    }
+
+    @Test
     fun `a parent naming a folder dropped for having no id is folder-absent at its wire path`() {
-        val r = read("""{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"f","parent":"gone"}]}""")
+        val r = read("""{"vnx":"0.11.0","folders":[{"name":"No id"},{"id":"f","parent":"gone"}]}""")
         assertEquals(1, r.document.folders!!.size)
         assertNull(r.document.folders!![0].parent)
         assertEquals(
@@ -131,7 +196,7 @@ class ReaderRulesTest {
         // required key: the record goes, not the key.
         val r =
             read(
-                """{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
+                """{"vnx":"0.11.0","points":[{"at":[-3,57],"data":[{"value":1},{"@type":"com.example.x","value":2}]}]}""",
             )
         val data = r.document.points!![0].data!!
         assertEquals(1, data.size)
@@ -148,7 +213,7 @@ class ReaderRulesTest {
         // smallest element that could not be used (section 6.3 rule 1).
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57]},
+                """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57]},
                "arcs":{"x":{"from":"a","to":"ghost","pips":[[-2.5,57.5]]}}}]}""",
             )
         assertEquals(
@@ -164,7 +229,7 @@ class ReaderRulesTest {
     fun `an arc naming two absent nodes reports each end`() {
         // Each end is its own fact at its own path, so two diagnostics can never
         // share a path and a code (section 6.3).
-        val r = read("""{"vnx":"0.10.0","networks":[{"arcs":{"x":{"from":"p","to":"q","pips":[]}}}]}""")
+        val r = read("""{"vnx":"0.11.0","networks":[{"arcs":{"x":{"from":"p","to":"q","pips":[]}}}]}""")
         assertEquals(
             0,
             r.document.networks!![0]
@@ -183,7 +248,7 @@ class ReaderRulesTest {
         // leave by, so this format cannot carry one.
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"o":{"from":"a","to":"a","pips":[[-2.9,57.1]]}}}]}""",
+                """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57]},"arcs":{"o":{"from":"a","to":"a","pips":[[-2.9,57.1]]}}}]}""",
             )
         assertEquals(
             0,
@@ -198,7 +263,7 @@ class ReaderRulesTest {
     fun `a time on an arc pip is dropped from every pip, and reported once for the arc`() {
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+                """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[[-2.8,57,10,1000],[-2.6,57,20],[-2.4,57,null,3000]]}}}]}""",
             )
         val pips =
@@ -216,7 +281,7 @@ class ReaderRulesTest {
 
     @Test
     fun `a time on a node is dropped and the node kept`() {
-        val r = read("""{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57,410,1000]}}]}""")
+        val r = read("""{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57,410,1000]}}]}""")
         assertEquals(
             Vertex(-3.0, 57.0, 410.0),
             r.document.networks!![0]
@@ -233,7 +298,7 @@ class ReaderRulesTest {
         // facts, three diagnostics.
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57],"b":"somewhere"},
+                """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57],"b":"somewhere"},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
                "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]}]}]}""",
             )
@@ -255,7 +320,7 @@ class ReaderRulesTest {
 
     @Test
     fun `a ring that repeats its first position loses the repeat and keeps the area`() {
-        val r = read("""{"vnx":"0.10.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58],[-3,57]]}]}""")
+        val r = read("""{"vnx":"0.11.0","areas":[{"polygon":[[-3,57],[-2,57],[-2,58],[-3,57]]}]}""")
         assertEquals(
             3,
             r.document.areas!![0]
@@ -267,7 +332,7 @@ class ReaderRulesTest {
     @Test
     fun `a closed ring of two distinct positions takes both diagnostics`() {
         // Section 6.2: the repeat is dropped first, and what remains is counted.
-        val r = read("""{"vnx":"0.10.0","areas":[{"polygon":[[-3,57],[-2,57],[-3,57]]}]}""")
+        val r = read("""{"vnx":"0.11.0","areas":[{"polygon":[[-3,57],[-2,57],[-3,57]]}]}""")
         assertEquals(0, r.document.areas!!.size)
         assertEquals(
             setOf("/areas/0/polygon/2" to "ring-closed", "/areas/0/polygon" to "ring-too-few-points"),
@@ -282,33 +347,25 @@ class ReaderRulesTest {
             "[[-3,57,1],[-2,57],[-2,57,5]]",
             "[[0,57],[-0.0,57],[1,58]]",
         )) {
-            val r = read("""{"vnx":"0.10.0","areas":[{"polygon":$polygon}]}""")
+            val r = read("""{"vnx":"0.11.0","areas":[{"polygon":$polygon}]}""")
             assertEquals(0, r.document.areas!!.size, polygon)
             assertEquals(listOf("ring-too-few-points"), r.diagnostics.map { it.code }, polygon)
         }
     }
 
     @Test
-    fun `an importance outside 1 to 5 drops the field and keeps the item and the rest of the style`() {
-        // Section 3.6 states the range and calls it normative; section 6.2 names
-        // it as the worked example of a range this document states. Section 3.10
-        // makes a style object opaque, and the two are in tension — this is the
-        // narrow reading that satisfies both. REPORTED; no corpus case decides it.
-        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"style":{"importance":9,"color":"#fff"}}]}""")
-        val style = r.document.points!![0].style!!
-        assertNull(style["importance"])
-        assertEquals(JsonString("#fff"), style["color"])
-        assertEquals(DiagnosticCause.OUT_OF_RANGE, r.diagnostics.single().cause)
-    }
-
-    @Test
-    fun `a style key this format never defined is carried through in silence`() {
-        // Section 3.10: style vocabulary grows faster than structural vocabulary,
-        // so a fixed style key set would make every implementation diagnose a
-        // valid document each time one of them added a key.
-        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"style":{"halo-blur":2}}]}""")
-        assertEquals(emptyList(), r.diagnostics)
-        assertEquals(JsonNumber(2.0), r.document.points!![0].style!!["halo-blur"])
+    fun `a style key is an unrecognised key since 0-11, skipped with the item kept`() {
+        // Section 6.2: VNX defines no `style`. An empty one is reported too.
+        val r =
+            read(
+                """{"vnx":"0.11.0","points":[{"at":[-3,57],"style":{"importance":9}},""" +
+                    """{"at":[-3,57],"style":{}}]}""",
+            )
+        assertEquals(2, r.document.points!!.size)
+        assertEquals(
+            setOf("/points/0/style" to "unknown-key", "/points/1/style" to "unknown-key"),
+            r.diagnostics.map { it.path to it.code }.toSet(),
+        )
     }
 
     @Test
@@ -317,7 +374,7 @@ class ReaderRulesTest {
         // reader MUST NOT check the type, range or enumeration of a field in one.
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"points":[{"at":[-3,57],
+                """{"vnx":"0.11.0","networks":[{"points":[{"at":[-3,57],
                "data":[{"@type":"app.viatrail.camp","flat":"maybe","capacity":"lots"},
                        {"@type":"app.viatrail.settlement","size":"metropolis"}]}]}]}""",
             )
@@ -338,7 +395,7 @@ class ReaderRulesTest {
      * `cb` runs c to b, and `cd` runs c to d. [highlights] is the network's `highlights`.
      */
     private fun network(highlights: String) =
-        """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1],"d":[-3.57,57.1]},
+        """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3.6,57.1],"b":[-3.59,57.1],"c":[-3.58,57.1],"d":[-3.57,57.1]},
            "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]},"cb":{"from":"c","to":"b","pips":[]},
                    "cd":{"from":"c","to":"d","pips":[[-3.575,57.102]]}},
            "highlights":$highlights}]}"""
@@ -375,7 +432,7 @@ class ReaderRulesTest {
         // The arc going and the highlight going are two facts (section 6.2).
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+                """{"vnx":"0.11.0","networks":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]},"bb":{"from":"b","to":"b","pips":[]}},
                "highlights":[{"walk":[{"arc":"ab","from":"a","to":"b"}]},
                          {"walk":[{"arc":"ab","from":"a"},{"arc":"bb","to":"b"}]}]}]}""",
@@ -551,7 +608,8 @@ class ReaderRulesTest {
                 .size,
         )
         val r = read(network("""[{"hidden":false}]"""))
-        assertEquals(listOf("/networks/0/highlights/0/walk" to "wrong-type-required"), r.pairs())
+        // Section 6.3 rule 1: an absent REQUIRED key is named at the object.
+        assertEquals(listOf("/networks/0/highlights/0" to "wrong-type-required"), r.pairs())
         assertEquals(
             0,
             r.document.networks!![0]
@@ -564,7 +622,7 @@ class ReaderRulesTest {
     fun `a plan walks node to node, and anything else drops the plan`() {
         fun plan(walk: String) =
             read(
-                """{"vnx":"0.10.0","plans":[{"nodes":{"a":[-3,57],"b":[-2,57]},
+                """{"vnx":"0.11.0","plans":[{"nodes":{"a":[-3,57],"b":[-2,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":$walk}]}""",
             )
         assertEquals(emptyList(), plan("""[{"arc":"ab","from":"b","to":"a"}]""").diagnostics)
@@ -586,7 +644,7 @@ class ReaderRulesTest {
     fun `a plan is its own highlight, so a plan walking a dropped arc is dropped`() {
         val r =
             read(
-                """{"vnx":"0.10.0","plans":[{"nodes":{"a":[-3,57]},
+                """{"vnx":"0.11.0","plans":[{"nodes":{"a":[-3,57]},
                "arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":"b"}]}]}""",
             )
         assertEquals(0, r.document.plans!!.size)
@@ -600,32 +658,36 @@ class ReaderRulesTest {
 
     @Test
     fun `a leading zero is a legal spelling and the comparison is numeric`() {
-        // Section 2.2: `00.010.0000` is a legal spelling of 0.10.0.
-        assertEquals(emptyList(), read("""{"vnx":"00.010.0000"}""").diagnostics)
-        assertEquals("00.010.0000", read("""{"vnx":"00.010.0000"}""").document.vnx)
+        // Section 2.2: `00.011.0000` is a legal spelling of 0.11.0.
+        assertEquals(emptyList(), read("""{"vnx":"00.011.0000"}""").diagnostics)
+        assertEquals("00.011.0000", read("""{"vnx":"00.011.0000"}""").document.vnx)
     }
 
     @Test
     fun `a reader writes the version the document declared, not its own`() {
-        // Section 2.2: a 0.10.0 reader that reads a 0.10.3 document writes 0.10.3.
-        val r = read("""{"vnx":"0.10.99","points":[{"at":[-3,57]}]}""")
-        assertTrue(Vnx.write(r.document).contains("\"vnx\":\"0.10.99\""))
+        // Section 2.2: a 0.11.0 reader that reads a 0.11.3 document writes 0.11.3.
+        val r = read("""{"vnx":"0.11.99","points":[{"at":[-3,57]}]}""")
+        assertTrue(Vnx.write(r.document).contains("\"vnx\":\"0.11.99\""))
     }
 
     @Test
     fun `through 0-x a minor that is not the reader's own is refused, in EITHER direction`() {
         // Section 2.2: each MINOR is its own series, so the rule is "not the same
         // series" and not "greater than". A lower minor is refused for the same
-        // reason as a higher one — 0.1 is not an older spelling of 0.10.
+        // reason as a higher one — 0.1 is not an older spelling of 0.11.
         //
         // BOTH DIRECTIONS, because a reader written to the wrong rule passes
         // whichever one it was tested on. This library read 0.0.9 until
         // 2026-09-12, with the higher direction green throughout.
-        for (above in listOf("0.11.0", "1.0.0", "9.9.9")) {
+        for (above in listOf("0.12.0", "1.0.0", "9.9.9")) {
             val e = assertFailsWith<VnxRefusal>("\"$above\" must be refused") { read("""{"vnx":"$above"}""") }
             assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, e.refusal, "for \"$above\"")
             assertTrue(e.message.contains(above), "the refusal must name the version: ${e.message}")
         }
+        // The series just before this one: 0.11 is not a newer patch of 0.10.
+        val previous = assertFailsWith<VnxRefusal> { read("""{"vnx":"0.10.0"}""") }
+        assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, previous.refusal)
+        assertEquals(emptyList(), read("""{"vnx":"0.11.7"}""").diagnostics)
         val older = assertFailsWith<VnxRefusal> { read("""{"vnx":"0.1.9"}""") }
         assertEquals(RefusalCause.VERSION_SERIES_UNSUPPORTED, older.refusal)
         assertTrue(older.message.contains("0.1.9"), "the refusal must name the version: ${older.message}")
@@ -642,14 +704,14 @@ class ReaderRulesTest {
     fun `the fix did not swap one direction for the other`() {
         // The failure mode of a rule written the other way round: a reader that
         // now refuses 0.1.9 and has stopped reading its own series.
-        assertEquals(emptyList(), read("""{"vnx":"0.10.5"}""").diagnostics)
-        assertEquals("0.10.5", read("""{"vnx":"0.10.5"}""").document.vnx)
-        assertEquals(emptyList(), read("""{"vnx":"0.10.0"}""").diagnostics)
+        assertEquals(emptyList(), read("""{"vnx":"0.11.5"}""").diagnostics)
+        assertEquals("0.11.5", read("""{"vnx":"0.11.5"}""").document.vnx)
+        assertEquals(emptyList(), read("""{"vnx":"0.11.0"}""").diagnostics)
     }
 
     @Test
     fun `every malformed version shape is refused and none is coerced`() {
-        for (bad in listOf("0.10", "0.10.0.0", "0.10.x", "0.10.+1", "", "v0.10.0", " 0.10.0")) {
+        for (bad in listOf("0.11", "0.11.0.0", "0.11.x", "0.11.+1", "", "v0.11.0", " 0.11.0")) {
             val e = assertFailsWith<VnxRefusal>("\"$bad\" must be refused") { read("""{"vnx":"$bad"}""") }
             assertEquals(RefusalCause.VERSION_MALFORMED, e.refusal, "for \"$bad\"")
             assertTrue(e.message.contains("MAJOR.MINOR.PATCH"), "the refusal must name the expected shape")
@@ -665,15 +727,15 @@ class ReaderRulesTest {
         // then requires a reader to treat the two alike, which is why section
         // 8.1's tree comparison normalises them together and why a writer may
         // emit either.
-        val withEmpty = read("""{"vnx":"0.10.0","points":[],"networks":[]}""")
+        val withEmpty = read("""{"vnx":"0.11.0","points":[],"networks":[]}""")
         assertNotNull(withEmpty.document.points)
         assertEquals(0, withEmpty.document.points!!.size)
         assertNull(withEmpty.document.tracks)
         assertEquals(
-            """{"vnx":"0.10.0","networks":[],"points":[]}""" + "\n",
+            """{"vnx":"0.11.0","networks":[],"points":[]}""" + "\n",
             Vnx.write(withEmpty.document),
         )
-        assertEquals("""{"vnx":"0.10.0"}""" + "\n", Vnx.write(read("""{"vnx":"0.10.0"}""").document))
+        assertEquals("""{"vnx":"0.11.0"}""" + "\n", Vnx.write(read("""{"vnx":"0.11.0"}""").document))
     }
 
     @Test
@@ -682,7 +744,7 @@ class ReaderRulesTest {
         // key. Its value is kept verbatim and never reported: a null stays null
         // and an empty value stays empty. Decode sorts the keys by key.
         val json =
-            """{"vnx":"0.10.0","app.viatrail.rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}],""" +
+            """{"vnx":"0.11.0","app.viatrail.rulesets":[{"anything":true,"nested":{"deep":[1,2,3]}}],""" +
                 """"com.example.empty":[],"com.example.null":null,"org.example.s":"text"}"""
         val r = read(json)
         assertEquals(emptyList(), r.diagnostics)
@@ -696,7 +758,7 @@ class ReaderRulesTest {
 
     @Test
     fun `application keys are decoded sorted by key`() {
-        val r = read("""{"vnx":"0.10.0","z.b":1,"a.b":2,"m.b":3}""")
+        val r = read("""{"vnx":"0.11.0","z.b":1,"a.b":2,"m.b":3}""")
         assertEquals(listOf("a.b", "m.b", "z.b"), r.document.appKeys.map { it.key })
     }
 
@@ -704,7 +766,7 @@ class ReaderRulesTest {
     fun `a dotted key below the top level is an unrecognised key`() {
         // Section 3.9 applies at the top level only. An undotted unknown key at
         // the top level is still unknown too.
-        val r = read("""{"vnx":"0.10.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}""")
+        val r = read("""{"vnx":"0.11.0","rulesets":[],"points":[{"at":[1,2],"app.viatrail.x":1}]}""")
         assertEquals(
             setOf("/rulesets", "/points/0/app.viatrail.x"),
             r.diagnostics.map { it.path }.toSet(),
@@ -721,7 +783,7 @@ class ReaderRulesTest {
             listOf(AppKey("a.b", JsonNumber(1.0)), AppKey("a.b", JsonNumber(2.0))),
         )) {
             assertFailsWith<IllegalArgumentException>("$keys") {
-                Vnx.write(VnxDocument(vnx = "0.10.0", appKeys = keys))
+                Vnx.write(VnxDocument(vnx = "0.11.0", appKeys = keys))
             }
         }
     }
@@ -752,7 +814,7 @@ class ReaderRulesTest {
             "the parser and the platform disagree on $literal by at least one bit",
         )
         // And through the whole reader, which is the path a document takes.
-        val at = read("""{"vnx":"0.10.0","points":[{"at":[$literal,57.118]}]}""").document.points!![0].at
+        val at = read("""{"vnx":"0.11.0","points":[{"at":[$literal,57.118]}]}""").document.points!![0].at
         assertEquals(reference.toRawBits(), at.lon.toRawBits(), "the decoded longitude is not the literal")
     }
 
@@ -761,7 +823,7 @@ class ReaderRulesTest {
         // Section 4.1: a reader MUST read each position independently of its
         // neighbours. Forcing one shape would mean inventing elevations or
         // discarding them.
-        val r = read("""{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,57,340],[-3,57,null,1]]}]}]}""")
+        val r = read("""{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,57,340],[-3,57,null,1]]}]}]}""")
         assertEquals(emptyList(), r.diagnostics)
         val pips =
             r.document.tracks!![0]
@@ -776,9 +838,9 @@ class ReaderRulesTest {
         // Section 4.1: a reader MUST ignore a channel beyond those it knows and
         // MUST NOT report a diagnostic for it, so that a future channel is
         // additive. Nothing asks a writer to reproduce it.
-        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57,340,1,99]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"at":[-3,57,340,1,99]}]}""")
         assertEquals(emptyList(), r.diagnostics)
-        assertEquals("""{"vnx":"0.10.0","points":[{"at":[-3,57,340,1]}]}""" + "\n", Vnx.write(r.document))
+        assertEquals("""{"vnx":"0.11.0","points":[{"at":[-3,57,340,1]}]}""" + "\n", Vnx.write(r.document))
     }
 
     @Test
@@ -788,7 +850,7 @@ class ReaderRulesTest {
         // obviously right.
         val r =
             read(
-                """{"vnx":"0.10.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+                """{"vnx":"0.11.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
                "arcs":{"broken":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
                        "sound":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}},
                "highlights":[{"walk":[{"arc":"broken","from":"n1","to":"n2"}]}]}]}""",
@@ -810,7 +872,7 @@ class ReaderRulesTest {
         // the same pointer. Only the derived number separates the two readings.
         val r =
             read(
-                """{"vnx":"0.10.0","tracks":[{"segments":[
+                """{"vnx":"0.11.0","tracks":[{"segments":[
                {"pips":[[-3.6712,57.118,341,1778569391000],[-3.6699,"57.1158",352.4,1778569442000],
                         [-3.6681,57.1139,366.9,1778569591000]]},
                {"pips":[[-3.6644,57.1085,452,1778571280000],[-3.6605,57.1042,513.1,1778571344000]]}]}]}""",
@@ -825,7 +887,7 @@ class ReaderRulesTest {
     fun `a vertex that will not parse drops the area, and reports once`() {
         val r =
             read(
-                """{"vnx":"0.10.0","areas":[
+                """{"vnx":"0.11.0","areas":[
                {"name":"Dropped","polygon":[[-3.74,57.09],[-3.72],[-3.72,57.075]]},
                {"name":"Kept","polygon":[[-3.7,57.09],[-3.68,57.09],[-3.68,57.075]]}]}""",
             )
@@ -837,7 +899,7 @@ class ReaderRulesTest {
 
     @Test
     fun `a position of one channel is unusable`() {
-        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"at":[-3]}]}""")
         assertEquals(0, r.document.points!!.size)
         assertEquals(DiagnosticCause.POSITION_UNUSABLE, r.diagnostics.single().cause)
     }
@@ -845,8 +907,8 @@ class ReaderRulesTest {
     @Test
     fun `a null longitude or latitude is unusable`() {
         // Section 4.1: `null` marks an absent value from index 2 UPWARD.
-        assertEquals(0, read("""{"vnx":"0.10.0","points":[{"at":[null,57]}]}""").document.points!!.size)
-        assertEquals(0, read("""{"vnx":"0.10.0","points":[{"at":[-3,null]}]}""").document.points!!.size)
+        assertEquals(0, read("""{"vnx":"0.11.0","points":[{"at":[null,57]}]}""").document.points!!.size)
+        assertEquals(0, read("""{"vnx":"0.11.0","points":[{"at":[-3,null]}]}""").document.points!!.size)
     }
 
     // ---------------------------------------------------------- moving time
@@ -859,7 +921,7 @@ class ReaderRulesTest {
 
     @Test
     fun `a track with no pip times reports unknown, which is not zero`() {
-        val r = read("""{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,58]]}]}]}""")
+        val r = read("""{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[-3,57],[-3,58]]}]}]}""")
         assertNull(r.document.tracks!![0].movingTimeMs())
     }
 
@@ -867,7 +929,7 @@ class ReaderRulesTest {
     fun `a track with no segments at all reports unknown`() {
         // Section 3.5, now stated: a track with no segments at all is unknown, for
         // the same reason a partial sum is.
-        assertNull(read("""{"vnx":"0.10.0","tracks":[{"segments":[]}]}""").document.tracks!![0].movingTimeMs())
+        assertNull(read("""{"vnx":"0.11.0","tracks":[{"segments":[]}]}""").document.tracks!![0].movingTimeMs())
     }
 
     @Test
@@ -879,7 +941,7 @@ class ReaderRulesTest {
         // every tier stayed green until accept/track-partly-timed.vnx existed.
         val r =
             read(
-                """{"vnx":"0.10.0","tracks":[{"segments":[
+                """{"vnx":"0.11.0","tracks":[{"segments":[
                {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
                {"pips":[[-3,57.2,342],[-3,57.3,343]]}]}]}""",
             )
@@ -893,7 +955,7 @@ class ReaderRulesTest {
         // time invents one.
         val r =
             read(
-                """{"vnx":"0.10.0","tracks":[{"segments":[
+                """{"vnx":"0.11.0","tracks":[{"segments":[
                {"pips":[[-3,57,340],[-3,57.1,341,1000],[-3,57.2,342,61000],[-3,57.3,343]]}]}]}""",
             )
         assertNull(r.document.tracks!![0].movingTimeMs())
@@ -906,7 +968,7 @@ class ReaderRulesTest {
         // implementations differed with nothing to catch them.
         val r =
             read(
-                """{"vnx":"0.10.0","tracks":[{"segments":[
+                """{"vnx":"0.11.0","tracks":[{"segments":[
                {"pips":[[-3,57,340,1000],[-3,57.1,341,61000]]},
                {"pips":[]}]}]}""",
             )
@@ -918,7 +980,7 @@ class ReaderRulesTest {
     @Test
     fun `a type differing only by case is a different type`() {
         // Section 5: `@type` is compared exactly, including case.
-        val r = read("""{"vnx":"0.10.0","points":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
+        val r = read("""{"vnx":"0.11.0","points":[{"at":[-3,57],"data":[{"@type":"App.viatrail.tag","value":"x"}]}]}""")
         assertEquals(emptyList(), r.diagnostics, "an unrecognised type is inert on any host")
         assertEquals(
             "App.viatrail.tag",

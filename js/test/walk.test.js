@@ -8,7 +8,7 @@ import { decodeText } from '../src/decode.js';
 import { encode, walkLegs, walkLine } from '../src/index.js';
 import { nearestOnSegment, EARTH_RADIUS_M } from '../src/geo.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.10.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.11.0', ...extra });
 
 // a --ab-- b --bc-- c, and a --ad-- d. Node `b` has an elevation.
 const NODES = { a: [0, 0], b: [0.001, 0, 100], c: [0.002, 0], d: [0, 0.001] };
@@ -230,11 +230,15 @@ test('a highlight dropped for its walk still reports the diagnostics of its othe
 });
 
 test('a highlight with no `walk`, or a `walk` that is not an array, is dropped', () => {
-  for (const highlight of [{ hidden: true }, { walk: {} }]) {
+  // An absent key names the highlight; a wrong-typed one names the key.
+  for (const [highlight, at] of [
+    [{ hidden: true }, '/networks/0/highlights/0'],
+    [{ walk: {} }, W],
+  ]) {
     const { document, diagnostics } = decodeText(
       doc({ networks: [{ nodes: NODES, arcs: ARCS, highlights: [highlight] }] }),
     );
-    assert.deepEqual(pairs(diagnostics), [[W, 'wrong-type-required']]);
+    assert.deepEqual(pairs(diagnostics), [[at, 'wrong-type-required']]);
     assert.equal(document.networks[0].highlights.length, 0);
   }
 });
@@ -363,15 +367,15 @@ function readWalkWithNodes(nodes) {
   );
 }
 
-test('an arc missing a required key is dropped, named at the key', () => {
+test('an arc missing a required key is dropped, named at the arc', () => {
   const { diagnostics } = decodeText(
     doc({
       networks: [{ nodes: NODES, arcs: { x: { from: 'a', pips: [] }, y: { from: 'a', to: 'b' } } }],
     }),
   );
   assert.deepEqual(pairs(diagnostics).sort(), [
-    ['/networks/0/arcs/x/to', 'wrong-type-required'],
-    ['/networks/0/arcs/y/pips', 'wrong-type-required'],
+    ['/networks/0/arcs/x', 'wrong-type-required'],
+    ['/networks/0/arcs/y', 'wrong-type-required'],
   ]);
 });
 
@@ -421,7 +425,7 @@ test('where a highlight would be dropped, the plan is', () => {
 
 test('a plan with no `walk` is dropped', () => {
   const { document, diagnostics } = decodeText(doc({ plans: [{ nodes: NODES, arcs: ARCS }] }));
-  assert.deepEqual(pairs(diagnostics), [['/plans/0/walk', 'wrong-type-required']]);
+  assert.deepEqual(pairs(diagnostics), [['/plans/0', 'wrong-type-required']]);
   assert.equal(document.plans.length, 0);
 });
 

@@ -1,7 +1,7 @@
 {
   "kind": "accept",
   "schema": "valid",
-  "note": "JSON compares member names by code point, so a name spelled with U+00E9 (NFC) and one spelled e followed by U+0301 (NFD) are two different keys, however a platform's own string equality treats them. Both spellings appear side by side in a data record body, a style, a network's nodes object and an application key's value, and as two top-level application keys. A reader that stores an object in a map keyed by a canonically-normalising string type merges each pair and loses one member with no diagnostic, and the tree comparison sees the loss. The arc names both nodes, so the node map is load-bearing too.",
+  "note": "JSON compares member names by code point, so a name spelled with U+00E9 (NFC) and one spelled e followed by U+0301 (NFD) are two different keys, however a platform's own string equality treats them. Both spellings appear side by side in a data record body, in an object nested inside that body, a network's nodes object and an application key's value, and as two top-level application keys. A reader that stores an object in a map keyed by a canonically-normalising string type merges each pair and loses one member with no diagnostic, and the tree comparison sees the loss. The arc names both nodes, so the node map is load-bearing too.",
   "counts": {
     "points": 1,
     "networks": 1,

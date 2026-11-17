@@ -6,8 +6,8 @@
 //   * A position keeps its ARITY, including a trailing `null` (SPEC.md 4.1).
 //     An `ele` field that is merely optional is the model that cannot re-render
 //     `accept/absent-elevation-and-time.vnx`.
-//   * Opaque values — data record bodies, `style` objects, the values of
-//     application keys — are kept as the parsed JSON value, whole. Nothing
+//   * Opaque values — data record bodies and the values of application
+//     keys — are kept as the parsed JSON value, whole. Nothing
 //     here inspects them.
 //
 // Absent is `undefined` throughout, and is never a default (SPEC.md 3.1).
@@ -113,7 +113,7 @@ export class Pass {
 
 /**
  * A lightweight container for data objects along a walk of its network's arcs
- * (SPEC.md 3.3.3). It has an optional name, and no notes or style of its own. Its geometry is by
+ * (SPEC.md 3.3.3). It has an optional name, and no notes of its own. Its geometry is by
  * reference: two highlights that cross one trail name the same arc.
  */
 export class Highlight {
@@ -134,7 +134,6 @@ export class Point {
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
-    /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
 }
@@ -147,7 +146,6 @@ export class Area {
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
-    /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
 }
@@ -183,7 +181,6 @@ export class Plan {
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
-    /** @type {object|undefined} */ this.style = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;
   }
 }
@@ -202,7 +199,6 @@ export class Track {
     /** @type {string|undefined} */ this.folder = undefined;
     /** @type {boolean|undefined} */ this.hidden = undefined;
     /** @type {string|undefined} */ this.pinned = undefined;
-    /** @type {object|undefined} */ this.style = undefined;
     /** @type {string|undefined} */ this.started = undefined;
     /** @type {string|undefined} */ this.ended = undefined;
     /** @type {object[]|undefined} */ this.data = undefined;

@@ -1,0 +1,10 @@
+{
+  "vnx": "0.11.0",
+  "folders": [
+    { "id": "", "name": "Empty id" },
+    { "id": "kept", "name": "Kept" }
+  ],
+  "points": [
+    { "name": "In kept", "at": [-3.675, 57.1201], "folder": "kept" }
+  ]
+}

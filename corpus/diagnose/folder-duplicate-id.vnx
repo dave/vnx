@@ -1,0 +1,11 @@
+{
+  "vnx": "0.11.0",
+  "folders": [
+    { "id": "lakes", "name": "Lakes" },
+    { "id": "lakes", "name": "Lakes again" },
+    { "name": "No id" }
+  ],
+  "points": [
+    { "name": "Boathouse", "at": [-3.6712, 57.118], "folder": "lakes" }
+  ]
+}

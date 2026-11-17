@@ -31,9 +31,8 @@ func fixture() *vnx.Document {
 		},
 		Points: []vnx.Point{
 			{Name: "Corrour Bothy", Notes: "Shelter", Folder: "f-cg",
-				Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "pin-shape": "teardrop"},
-				Data:  []vnx.Record{tagRecord("bothy"), tagRecord("shelter")},
-				At:    pos(-3.7003, 56.9932, ptr(733.0))},
+				Data: []vnx.Record{tagRecord("bothy"), tagRecord("shelter")},
+				At:   pos(-3.7003, 56.9932, ptr(733.0))},
 			// No elevation: the position must be TWO elements.
 			{Name: "Unnamed Spring", Folder: "f-hi", At: pos(-3.6210, 57.0704, nil)},
 			// Names a folder this document does not hold: kept, under its bare
@@ -45,8 +44,7 @@ func fixture() *vnx.Document {
 			// so the golden pins the REVERSED order and a writer that stopped
 			// normalising would show up here as well as in TestWinding.
 			{Name: "Deer Reserve", Notes: "No dogs", Folder: "f-hi", Hidden: true,
-				Style: vnx.Style{"fill-color": "#1E9C45", "stroke-color": "#123456"},
-				Data:  []vnx.Record{tagRecord("wildlife")},
+				Data: []vnx.Record{tagRecord("wildlife")},
 				Polygon: []vnx.Position{
 					pos(-3.80, 57.00, nil), pos(-3.80, 57.10, nil),
 					pos(-3.70, 57.10, nil), pos(-3.70, 57.00, nil),
@@ -71,7 +69,6 @@ func fixture() *vnx.Document {
 		Plans: []vnx.Plan{
 			// Two arcs meeting at one position: the join must not double it.
 			plan(vnx.Plan{Name: "Planned line",
-				Style: vnx.Style{"color": "#3A6FB0", "line-style": "dashed"},
 				Data: []vnx.Record{{Type: "app.viatrail.routing",
 					Body: map[string]any{"profile": "walking"}}}},
 				lineArc{Pips: []vnx.Position{pos(-3.60, 57.00, nil), pos(-3.61, 57.01, nil)}},

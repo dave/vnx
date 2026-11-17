@@ -58,7 +58,7 @@ spelling from JSON-LD, but a VNX document is not JSON-LD and has no `@context`.
 
 - On a **highlight**, a record applies along the highlight's walk: "this
   stretch is a scramble". This is the main use of highlights. A highlight has
-  no notes or style, so its records are what it is.
+  no notes, so its records are what it is.
 - On an **arc**, a record applies to that piece of trail itself, whatever walks
   use it: "this arc was routed by an engine".
 - On a **point or area**, a record describes that place.
@@ -95,7 +95,7 @@ adds a kind of content that VNX does not define (§3.9).
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "networks": [],
   "com.example.routes": {
     "profiles": [{ "id": "dry", "avoid": ["com.example.bog"] }]
@@ -112,7 +112,7 @@ adds a kind of content that VNX does not define (§3.9).
 - Write each application key once only.
 - Application keys exist at the top level only. On any other object that VNX
   defines, a key with a full stop is an unknown key, and the reader drops it and
-  reports it. Inside a style object, a record body or an application key's
+  reports it. Inside a record body or an application key's
   value, a key with a full stop is ordinary data and is kept.
 
 Choose a record when the information is about one item. Choose an application
@@ -154,7 +154,7 @@ Then the record names its file by the full entry name:
 | a record with no usable `@type` | drops that record and reports a diagnostic |
 | an application key it knows | uses it |
 | an application key it does not know | keeps it, writes it back unchanged, reports nothing |
-| a dotted key on any other object that VNX defines (not inside a style, a record body or an application key's value) | drops the key and reports a diagnostic |
+| a dotted key on any other object that VNX defines (not inside a record body or an application key's value) | drops the key and reports a diagnostic |
 | a file in a `.vnz` that no record names | returns it as an attachment, reports nothing |
 
 An application can be stricter about its **own** namespace. For example, it

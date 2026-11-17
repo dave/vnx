@@ -27,25 +27,41 @@ func folderFromValue(item any, at string, seen map[string]bool, diags []Diagnost
 		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
 			Message: fmt.Sprintf("folder is %s, expected an object — dropped", jsonKind(item))})
 	}
-	id, _ := obj["id"].(string)
-	if id == "" {
-		// Without an id nothing can reference it, so the folder cannot hold
-		// anything. Unlike a dangling parent, dropping it loses nothing that
-		// was reachable.
+	rawID, present := obj["id"]
+	if !present {
+		// `id` is REQUIRED (§3.10): a missing one drops the folder, reported at
+		// the folder because there is no key to point at.
 		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
+			Code:    CodeWrongTypeRequired,
 			Message: "folder has no `id` — dropped, nothing could reference it"})
 	}
+	id, ok := rawID.(string)
+	if !ok {
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/id",
+			Code:    CodeWrongTypeRequired,
+			Message: fmt.Sprintf("`id` is %s, expected a string — folder dropped", jsonKind(rawID))})
+	}
+	if id == "" {
+		// A folder's id is a non-empty string (§3.2), so "" is a value of the
+		// wrong type in a REQUIRED key, named at the key (§6.3).
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/id",
+			Code:    CodeWrongTypeRequired,
+			Message: "folder `id` is empty, expected a non-empty string — folder dropped"})
+	}
 	if seen[id] {
-		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
-			Message: fmt.Sprintf("duplicate folder id %q — dropped, the first one wins", id)})
+		// Folder ids are unique (§3.2). The first folder keeps the id, so every
+		// reference to it resolves to the folder a reader met first.
+		return Folder{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/id",
+			Code:    CodeFolderDuplicateID,
+			Message: fmt.Sprintf("folder id %q is already used by an earlier folder — this folder is dropped", id)})
 	}
 	seen[id] = true
 
 	var f Folder
 	f.ID = id
-	f.Name, diags = stringField(obj, "name", diags)
-	f.Notes, diags = stringField(obj, "notes", diags)
-	f.Parent, diags = stringField(obj, "parent", diags)
+	f.Name, diags = stringField(obj, "name", at, diags)
+	f.Notes, diags = stringField(obj, "notes", at, diags)
+	f.Parent, diags = stringField(obj, "parent", at, diags)
 	f.Hidden, diags = boolField(obj, "hidden", at, diags)
 	f.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, folderKeys, diags)
@@ -55,8 +71,9 @@ func folderFromValue(item any, at string, seen map[string]bool, diags []Diagnost
 // resolveParents clears any parent that cannot be walked, and says so.
 //
 // The choice of WHAT to drop matters. §6.2 treats a parent naming a folder
-// the document does not hold as absent ([CodeFolderAbsent]), and a circular
-// one is cleared the same way: the REFERENCE goes, not the folder. Dropping
+// the document does not hold as absent ([CodeFolderAbsent]), and a loop is
+// broken the same way ([CodeFolderParentLoop]): the REFERENCE goes, not the
+// folder. Dropping
 // the folder would take everything filed under it with it; clearing the parent
 // loses only the folder's position in the tree. Losing a position is
 // recoverable by hand; losing content is not.
@@ -78,13 +95,20 @@ func resolveParents(folders []Folder, paths []string, diags []Diagnostic) ([]Fol
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeFolderAbsent,
 				Message: fmt.Sprintf("parent folder %q is not in this document — the folder sits at the root", folders[i].Parent)})
 			folders[i].Parent = ""
+		}
+	}
+	// §3.2, §6.2: the folders are taken in document order, and the first folder
+	// of each loop has its `parent` treated as absent. Clearing it breaks that
+	// loop, so no later folder of the same loop is reported. A folder whose
+	// chain only LEADS INTO a loop is not in it and is not reported: following
+	// its parents never comes back to it.
+	for i := range folders {
+		if folders[i].Parent == "" || !inParentLoop(folders, index, i) {
 			continue
 		}
-		if cycle := walkToRoot(folders, index, i); cycle {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: "parent chain forms a cycle — folder kept at the root"})
-			folders[i].Parent = ""
-		}
+		diags = append(diags, Diagnostic{Severity: Warning, Path: paths[i] + "/parent", Code: CodeFolderParentLoop,
+			Message: fmt.Sprintf("folder %q is in a parent loop — it sits at the root", folders[i].ID)})
+		folders[i].Parent = ""
 	}
 	return folders, diags
 }
@@ -118,27 +142,22 @@ func clearAbsentFolders[T any](items []T, paths []string, kind string, held map[
 	return diags
 }
 
-// walkToRoot reports whether following parents from start revisits a folder.
-// Bounded by the folder count, so a cycle cannot spin.
-func walkToRoot(folders []Folder, index map[string]int, start int) bool {
-	seen := map[int]bool{start: true}
+// inParentLoop reports whether following parents from start comes back to
+// start. A chain that only enters a loop never does. The walk is bounded by the
+// folder count: a chain longer than that has repeated a folder.
+func inParentLoop(folders []Folder, index map[string]int, start int) bool {
 	cur := start
 	for range folders {
-		parent := folders[cur].Parent
-		if parent == "" {
+		next, ok := index[folders[cur].Parent]
+		if !ok || folders[cur].Parent == "" {
 			return false
 		}
-		next, ok := index[parent]
-		if !ok {
-			return false
-		}
-		if seen[next] {
+		if next == start {
 			return true
 		}
-		seen[next] = true
 		cur = next
 	}
-	return true
+	return false
 }
 
 // boolField reads an optional boolean. Absence is not false-by-default in

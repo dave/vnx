@@ -29,45 +29,45 @@ var streamCases = map[string]string{
 	"array root, truncated":               `[1,2`,
 	"string root":                         `"vnx"`,
 	"null root":                           `null`,
-	"trailing data":                       `{"vnx":"0.10.0"} x`,
-	"trailing value":                      `{"vnx":"0.10.0"} {}`,
-	"truncated object":                    `{"vnx":"0.10.0","tracks":[{"name":"a"`,
+	"trailing data":                       `{"vnx":"0.11.0"} x`,
+	"trailing value":                      `{"vnx":"0.11.0"} {}`,
+	"truncated object":                    `{"vnx":"0.11.0","tracks":[{"name":"a"`,
 	"no vnx key":                          `{"tracks":[]}`,
 	"vnx a number":                        `{"vnx":1}`,
 	"vnx null":                            `{"vnx":null}`,
-	"vnx twice, bad then good":            `{"vnx":"9.0.0","points":[{"at":[1,2]}],"vnx":"0.10.0"}`,
-	"vnx twice, good then bad":            `{"vnx":"0.10.0","points":[{"at":[1,2]}],"vnx":"0.1"}`,
-	"version last":                        `{"points":[{"at":[1,2],"zz":1}],"tracks":[{"bogus":1}],"vnx":"0.10.0"}`,
-	"newer version":                       `{"vnx":"0.11.0","tracks":[]}`,
+	"vnx twice, bad then good":            `{"vnx":"9.0.0","points":[{"at":[1,2]}],"vnx":"0.11.0"}`,
+	"vnx twice, good then bad":            `{"vnx":"0.11.0","points":[{"at":[1,2]}],"vnx":"0.1"}`,
+	"version last":                        `{"points":[{"at":[1,2],"zz":1}],"tracks":[{"bogus":1}],"vnx":"0.11.0"}`,
+	"newer version":                       `{"vnx":"0.12.0","tracks":[]}`,
 	"older version":                       `{"vnx":"0.9.1","tracks":[]}`,
 	"newer version, then bad JSON":        `{"vnx":"9.0.0","points":[`,
-	"1e400 in an unknown key":             `{"vnx":"0.10.0","points":[{"name":"a","at":[1,2]}],"zzz":[1e400]}`,
-	"1e400 in a fifth channel":            `{"vnx":"0.10.0","points":[{"name":"a","at":[1,2,3,4,1e400]}]}`,
-	"1e400 in an application key":         `{"vnx":"0.10.0","app.x":1e400}`,
-	"1e400 after a bad pip":               `{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[1,2],"x",[1,1e400]]}]}]}`,
+	"1e400 in an unknown key":             `{"vnx":"0.11.0","points":[{"name":"a","at":[1,2]}],"zzz":[1e400]}`,
+	"1e400 in a fifth channel":            `{"vnx":"0.11.0","points":[{"name":"a","at":[1,2,3,4,1e400]}]}`,
+	"1e400 in an application key":         `{"vnx":"0.11.0","app.x":1e400}`,
+	"1e400 after a bad pip":               `{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[1,2],"x",[1,1e400]]}]}]}`,
 	"1e400 in a skipped root":             `[1e400]`,
-	"1e400 in a wrong-kind key":           `{"vnx":"0.10.0","tracks":{"a":1e400}}`,
-	"dup tracks":                          `{"vnx":"0.10.0","tracks":[{"name":"a","bogus":1}],"tracks":[{"name":"b"}]}`,
-	"dup segments":                        `{"vnx":"0.10.0","tracks":[{"segments":[{"pips":"x"}],"segments":[{"pips":[[1,2]]}]}]}`,
-	"dup pips":                            `{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[1,2]],"pips":null}]}]}`,
-	"dup polygon":                         `{"vnx":"0.10.0","areas":[{"polygon":[[0,0],[1,0],[1,1]],"polygon":7}]}`,
-	"dup nodes":                           `{"vnx":"0.10.0","networks":[{"nodes":{"a":[1,2]},"arcs":{"x":{"from":"a","to":"b","pips":[]}},"nodes":{"a":[1,2],"b":[3,4]}}]}`,
-	"dup arcs":                            `{"vnx":"0.10.0","networks":[{"nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":7},"arcs":{"y":{"from":"a","to":"b","pips":[]}}}]}`,
-	"dup arc id":                          `{"vnx":"0.10.0","networks":[{"nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":7,"x":{"from":"a","to":"b","pips":[]}}}]}`,
-	"dup node id":                         `{"vnx":"0.10.0","networks":[{"nodes":{"a":"bad","a":[1,2,3,4]}}]}`,
-	"dup network areas":                   `{"vnx":"0.10.0","networks":[{"areas":[{"polygon":1}],"areas":5}]}`,
-	"dup folders":                         `{"vnx":"0.10.0","folders":[{"id":"a"},{"id":"a"}],"folders":[{"id":"b","parent":"c"}]}`,
-	"arcs before nodes":                   `{"vnx":"0.10.0","networks":[{"arcs":{"b":{"from":"n1","to":"n9","pips":[[1,2],[3,4]]},"a":{"from":"n1","to":"n2","pips":[[1,2],[3,4]],"q":1}},"nodes":{"n1":[1,2],"n2":[3,4]}}]}`,
-	"collections of every wrong kind":     `{"vnx":"0.10.0","folders":{},"points":"x","networks":1,"plans":true,"tracks":null,"areas":{"a":[1]}}`,
-	"elements of every wrong kind":        `{"vnx":"0.10.0","folders":[1],"points":[null],"networks":["x"],"plans":[[]],"tracks":[true],"areas":[2]}`,
-	"segments kinds":                      `{"vnx":"0.10.0","tracks":[{"segments":null},{"segments":"x"},{"segments":[]},{"segments":[1,null,{},{"pips":null},{"pips":[]},{"pips":{}},{"pips":[[1,2],[200,1]]},{"pips":[[1,2],[1,2,null,5]],"zz":1,"a/b":2}]}]}`,
-	"pips kinds":                          `{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[1]},{"pips":[[1]]},{"pips":[["a",1]]},{"pips":[[1,2,"e"]]},{"pips":[[1,2,null,"t"]]},{"pips":[[1,2,null,null,{"x":1}]]}]}]}`,
-	"ring kinds":                          `{"vnx":"0.10.0","areas":[{},{"polygon":null},{"polygon":"x"},{"polygon":[]},{"polygon":[[[0,0]]]},{"polygon":[[]]},{"polygon":[[0,0],1]},{"polygon":[[0,0],[1,0],[1,1],[0,0]]},{"polygon":[[0,0],[1,0],[0,0]]},{"polygon":[[0,0],[1,0],[1,91]]},{"polygon":[[0,0],[1,0],[1,1]],"name":5,"zz":1}]}`,
-	"graph kinds":                         `{"vnx":"0.10.0","networks":[{"nodes":null,"arcs":null},{"nodes":1,"arcs":[]},{"nodes":{},"arcs":{}},{"nodes":{"a":[1,2,3,4],"b":"x","c":[1],"d":[5,6]},"arcs":{"z":null,"y":{"from":"a","to":"a","pips":[]},"x":{"from":"a","to":"d"},"w":{"from":"a","to":"d","pips":null},"v":{"from":"a","to":"d","pips":[[1,2,3,4]],"data":[{"@type":"a.b"}]},"u":{"from":1,"to":"d","pips":[[1,2]]},"t":{"from":"a","to":"b","pips":[[1,2]]},"s":{"from":"a","to":"d","pips":[[1,2],"bad"]},"r~/":{"from":"a","to":"d","pips":[],"zz":1}},"highlights":[{"walk":[{"arc":"v"}]},{"walk":[{"arc":"t"}]}],"points":[{"at":[1,2]}],"areas":[{"polygon":[[0,0],[1,0],[1,1]]},{"polygon":3}]}]}`,
-	"network points and areas not arrays": `{"vnx":"0.10.0","networks":[{"points":{},"areas":"x"}]}`,
-	"plans":                               `{"vnx":"0.10.0","plans":[{"walk":[]},{"name":"p","nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":{"from":"a","to":"b","pips":[[1,2],[3,4]]}},"walk":[{"arc":"x","from":"a","to":"b"}],"zz":1},{"arcs":{"x":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"x"}],"nodes":{"a":[1,2],"b":[3,4]}}]}`,
-	"header kinds":                        `{"vnx":"0.10.0","generator":5,"created":"yesterday","zz":{"deep":[1,[2,{"x":null}]]},"app.a":null,"app.b":[],"a/b":1}`,
-	"unicode key folds":                   `{"vnx":"0.10.0","Tracks":[],"tracks":[{"Name":"x","name":"y"}]}`,
+	"1e400 in a wrong-kind key":           `{"vnx":"0.11.0","tracks":{"a":1e400}}`,
+	"dup tracks":                          `{"vnx":"0.11.0","tracks":[{"name":"a","bogus":1}],"tracks":[{"name":"b"}]}`,
+	"dup segments":                        `{"vnx":"0.11.0","tracks":[{"segments":[{"pips":"x"}],"segments":[{"pips":[[1,2]]}]}]}`,
+	"dup pips":                            `{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[1,2]],"pips":null}]}]}`,
+	"dup polygon":                         `{"vnx":"0.11.0","areas":[{"polygon":[[0,0],[1,0],[1,1]],"polygon":7}]}`,
+	"dup nodes":                           `{"vnx":"0.11.0","networks":[{"nodes":{"a":[1,2]},"arcs":{"x":{"from":"a","to":"b","pips":[]}},"nodes":{"a":[1,2],"b":[3,4]}}]}`,
+	"dup arcs":                            `{"vnx":"0.11.0","networks":[{"nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":7},"arcs":{"y":{"from":"a","to":"b","pips":[]}}}]}`,
+	"dup arc id":                          `{"vnx":"0.11.0","networks":[{"nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":7,"x":{"from":"a","to":"b","pips":[]}}}]}`,
+	"dup node id":                         `{"vnx":"0.11.0","networks":[{"nodes":{"a":"bad","a":[1,2,3,4]}}]}`,
+	"dup network areas":                   `{"vnx":"0.11.0","networks":[{"areas":[{"polygon":1}],"areas":5}]}`,
+	"dup folders":                         `{"vnx":"0.11.0","folders":[{"id":"a"},{"id":"a"}],"folders":[{"id":"b","parent":"c"}]}`,
+	"arcs before nodes":                   `{"vnx":"0.11.0","networks":[{"arcs":{"b":{"from":"n1","to":"n9","pips":[[1,2],[3,4]]},"a":{"from":"n1","to":"n2","pips":[[1,2],[3,4]],"q":1}},"nodes":{"n1":[1,2],"n2":[3,4]}}]}`,
+	"collections of every wrong kind":     `{"vnx":"0.11.0","folders":{},"points":"x","networks":1,"plans":true,"tracks":null,"areas":{"a":[1]}}`,
+	"elements of every wrong kind":        `{"vnx":"0.11.0","folders":[1],"points":[null],"networks":["x"],"plans":[[]],"tracks":[true],"areas":[2]}`,
+	"segments kinds":                      `{"vnx":"0.11.0","tracks":[{"segments":null},{"segments":"x"},{"segments":[]},{"segments":[1,null,{},{"pips":null},{"pips":[]},{"pips":{}},{"pips":[[1,2],[200,1]]},{"pips":[[1,2],[1,2,null,5]],"zz":1,"a/b":2}]}]}`,
+	"pips kinds":                          `{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[1]},{"pips":[[1]]},{"pips":[["a",1]]},{"pips":[[1,2,"e"]]},{"pips":[[1,2,null,"t"]]},{"pips":[[1,2,null,null,{"x":1}]]}]}]}`,
+	"ring kinds":                          `{"vnx":"0.11.0","areas":[{},{"polygon":null},{"polygon":"x"},{"polygon":[]},{"polygon":[[[0,0]]]},{"polygon":[[]]},{"polygon":[[0,0],1]},{"polygon":[[0,0],[1,0],[1,1],[0,0]]},{"polygon":[[0,0],[1,0],[0,0]]},{"polygon":[[0,0],[1,0],[1,91]]},{"polygon":[[0,0],[1,0],[1,1]],"name":5,"zz":1}]}`,
+	"graph kinds":                         `{"vnx":"0.11.0","networks":[{"nodes":null,"arcs":null},{"nodes":1,"arcs":[]},{"nodes":{},"arcs":{}},{"nodes":{"a":[1,2,3,4],"b":"x","c":[1],"d":[5,6]},"arcs":{"z":null,"y":{"from":"a","to":"a","pips":[]},"x":{"from":"a","to":"d"},"w":{"from":"a","to":"d","pips":null},"v":{"from":"a","to":"d","pips":[[1,2,3,4]],"data":[{"@type":"a.b"}]},"u":{"from":1,"to":"d","pips":[[1,2]]},"t":{"from":"a","to":"b","pips":[[1,2]]},"s":{"from":"a","to":"d","pips":[[1,2],"bad"]},"r~/":{"from":"a","to":"d","pips":[],"zz":1}},"highlights":[{"walk":[{"arc":"v"}]},{"walk":[{"arc":"t"}]}],"points":[{"at":[1,2]}],"areas":[{"polygon":[[0,0],[1,0],[1,1]]},{"polygon":3}]}]}`,
+	"network points and areas not arrays": `{"vnx":"0.11.0","networks":[{"points":{},"areas":"x"}]}`,
+	"plans":                               `{"vnx":"0.11.0","plans":[{"walk":[]},{"name":"p","nodes":{"a":[1,2],"b":[3,4]},"arcs":{"x":{"from":"a","to":"b","pips":[[1,2],[3,4]]}},"walk":[{"arc":"x","from":"a","to":"b"}],"zz":1},{"arcs":{"x":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"x"}],"nodes":{"a":[1,2],"b":[3,4]}}]}`,
+	"header kinds":                        `{"vnx":"0.11.0","generator":5,"created":"yesterday","zz":{"deep":[1,[2,{"x":null}]]},"app.a":null,"app.b":[],"a/b":1}`,
+	"unicode key folds":                   `{"vnx":"0.11.0","Tracks":[],"tracks":[{"Name":"x","name":"y"}]}`,
 }
 
 // TestDecodeReaderMatchesTreeDecode is the reader's whole contract: for every
@@ -322,7 +322,7 @@ func (f *failingReader) Read(p []byte) (int, error) {
 // error returned, not ErrMalformed, wherever in the document it comes —
 // including after the last brace, where the reader is still read to its end.
 func TestDecodeReaderPassesReaderErrorsThrough(t *testing.T) {
-	doc := `{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[1,2],[3,4]]}]}]}`
+	doc := `{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[1,2],[3,4]]}]}]}`
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, cause := range []error{errors.New("disk on fire"), ctx.Err()} {
@@ -342,7 +342,7 @@ func TestDecodeContainerChecksTheRootEntryWhateverItsJSON(t *testing.T) {
 	// The padding puts the end of the entry well past where a malformed
 	// document stops being read.
 	pad := strings.Repeat(" ", 1<<20)
-	for _, doc := range []string{`{"vnx":` + "x" + pad, `[1,2] x` + pad, `{"vnx":"9.0.0"}` + pad, `{"vnx":"0.10.0"}`} {
+	for _, doc := range []string{`{"vnx":` + "x" + pad, `[1,2] x` + pad, `{"vnx":"9.0.0"}` + pad, `{"vnx":"0.11.0"}`} {
 		var b bytes.Buffer
 		err := WriteContainer(&b, RootDocumentName, func(w io.Writer) error {
 			_, err := io.WriteString(w, doc)

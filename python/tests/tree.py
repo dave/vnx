@@ -5,10 +5,10 @@ whitespace are the writer's own business.  So two documents are compared as the
 trees they parse to.
 
 ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier rests
-on.  A reader that discarded every data record, every application key, every style and
+on.  A reader that discarded every data record, every application key and
 every ``notes`` produces a model that compares equal to itself, and passes an
 accept tier built that way green -- that is the whole extensibility mechanism,
-all styling and all user prose.  Comparing the tree parsed from the ORIGINAL
+and all user prose.  Comparing the tree parsed from the ORIGINAL
 FILE against the tree parsed from encode(decode(file)) is what proves a reader
 kept what it read.  `test_red_proof.py` freezes the proof.
 
@@ -63,10 +63,10 @@ def compare_documents(got: bytes, want: bytes, options: Options) -> str:
 
 # -- normalisation -------------------------------------------------------
 #
-# It is SCHEMA-AWARE rather than a heuristic over shapes, because the two
-# regions the format declares opaque -- a data record's body and a style -- may
-# hold arrays of numbers that are not positions and must not be shortened, and
-# may hold empty containers that a third party means to keep.
+# It is SCHEMA-AWARE rather than a heuristic over shapes, because the region
+# the format declares opaque -- a data record's body -- may hold arrays of
+# numbers that are not positions and must not be shortened, and may hold empty
+# containers that a third party means to keep.
 
 Each = Callable[[dict[str, Any], Options], None]
 
@@ -94,13 +94,11 @@ def _folder(obj: dict[str, Any], options: Options) -> None:
 def _point(obj: dict[str, Any], options: Options) -> None:
     if "at" in obj:
         obj["at"] = _position(obj["at"], options)
-    _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
 
 def _area(obj: dict[str, Any], options: Options) -> None:
     _position_list(obj, "polygon", options)
-    _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
 
@@ -109,14 +107,12 @@ def _track(obj: dict[str, Any], options: Options) -> None:
         _position_list(seg, "pips", options)
 
     _items(obj, "segments", options, segment)
-    _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
 
 def _plan(obj: dict[str, Any], options: Options) -> None:
     _graph(obj, options)
     _walk(obj, options)
-    _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
 
@@ -176,7 +172,6 @@ def _network(obj: dict[str, Any], options: Options) -> None:
 
 def _highlight(obj: dict[str, Any], options: Options) -> None:
     _walk(obj, options)
-    _drop_empty(obj, "style")
     _drop_empty(obj, "data")
 
 

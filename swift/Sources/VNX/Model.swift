@@ -35,8 +35,8 @@ public struct Position: Equatable, Sendable {
   }
 }
 
-/// An opaque JSON object: a style, or a data record body. SPEC 3.10 forbids
-/// applying the unrecognised-key rule inside either.
+/// An opaque JSON object: a data record body. SPEC 5 forbids applying the
+/// unrecognised-key rule inside one.
 public typealias OpaqueObject = [JSONKey: JSONValue]
 
 /// A data record (SPEC 5). Everything but `@type` is opaque and survives a
@@ -71,7 +71,6 @@ public struct Point: Equatable, Sendable {
   /// The time the user pinned the item (SPEC 3.8), held as written for the
   /// reason `Track.started` is. `nil` is not pinned.
   public var pinned: String?
-  public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
 
@@ -87,7 +86,6 @@ public struct Area: Equatable, Sendable {
   /// The time the user pinned the item (SPEC 3.8), held as written for the
   /// reason `Track.started` is. `nil` is not pinned.
   public var pinned: String?
-  public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
 
@@ -183,8 +181,8 @@ public struct Pass: Equatable, Sendable {
 }
 
 /// A highlight: a lightweight container for data objects along a walk over arcs
-/// its network owns (SPEC 3.3.3). It has an optional name, and no notes or
-/// style. The highlight does not own the arcs: two highlights over one trail
+/// its network owns (SPEC 3.3.3). It has an optional name, and no notes.
+/// The highlight does not own the arcs: two highlights over one trail
 /// name the same arc.
 public struct Highlight: Equatable, Sendable {
   public var walk: [Pass]
@@ -226,7 +224,6 @@ public struct Plan: Equatable, Sendable {
   /// The time the user pinned the item (SPEC 3.8), held as written for the
   /// reason `Track.started` is. `nil` is not pinned.
   public var pinned: String?
-  public var style: OpaqueObject?
   public var data: [DataRecord]?
 }
 
@@ -257,7 +254,6 @@ public struct Track: Equatable, Sendable {
   /// The time the user pinned the item (SPEC 3.8), held as written for the
   /// reason `Track.started` is. `nil` is not pinned.
   public var pinned: String?
-  public var style: OpaqueObject?
   /// Held as written. SPEC 4.3 pins the spelling — ISO 8601 in UTC with a
   /// literal `Z` and optional fractional seconds — and a writer must not
   /// change a timestamp it did not change, which a parsed `Date` cannot

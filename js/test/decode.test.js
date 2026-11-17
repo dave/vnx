@@ -7,7 +7,7 @@ import { decodeText } from '../src/decode.js';
 import { VnxRefusal } from '../src/errors.js';
 import { encode } from '../src/index.js';
 
-const doc = (extra) => JSON.stringify({ vnx: '0.10.0', ...extra });
+const doc = (extra) => JSON.stringify({ vnx: '0.11.0', ...extra });
 
 function refusal(text) {
   try {
@@ -23,7 +23,7 @@ function refusal(text) {
 
 test('a top level that is not an object is refused', () => {
   assert.equal(refusal('[]').cause_code, 'not-a-vnx-document');
-  assert.equal(refusal('"0.10.0"').cause_code, 'not-a-vnx-document');
+  assert.equal(refusal('"0.11.0"').cause_code, 'not-a-vnx-document');
   assert.equal(refusal('null').cause_code, 'not-a-vnx-document');
 });
 
@@ -49,11 +49,11 @@ test("a MAJOR or MINOR outside the reader's series is refused; PATCH never is", 
   // is refused for the same reason as a higher one". Both directions are here
   // because a reader written as "greater than" passes the first two lines and
   // reads 0.1.9, which is the defect this pair exists to catch.
-  assert.equal(refusal(doc0('0.11.0').text).cause_code, 'version-too-new');
+  assert.equal(refusal(doc0('0.12.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('1.0.0').text).cause_code, 'version-too-new');
   assert.equal(refusal(doc0('0.1.9').text).cause_code, 'version-too-old');
   assert.equal(refusal(doc0('0.0.9').text).cause_code, 'version-too-old');
-  for (const v of ['0.10.99', '0.10.0']) {
+  for (const v of ['0.11.99', '0.11.0']) {
     assert.equal(decodeText(doc0(v).text).document.vnx, v);
   }
 });
@@ -71,19 +71,19 @@ function doc0(v) {
 }
 
 test('leading zeros are a legal spelling and compare numerically', () => {
-  assert.equal(decodeText('{"vnx": "00.010.0000"}').document.vnx, '00.010.0000');
+  assert.equal(decodeText('{"vnx": "00.011.0000"}').document.vnx, '00.011.0000');
 });
 
 test('a NaN or Infinity literal is refused as malformed JSON', () => {
-  assert.equal(refusal('{"vnx": "0.10.0", "a": NaN}').cause_code, 'malformed-json');
-  assert.equal(refusal('{"vnx": "0.10.0", "a": Infinity}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.11.0", "a": NaN}').cause_code, 'malformed-json');
+  assert.equal(refusal('{"vnx": "0.11.0", "a": Infinity}').cause_code, 'malformed-json');
 });
 
 test('a numeric literal that overflows to Infinity is refused as not finite', () => {
   // `1e400` is well-formed JSON and parses to Infinity. SPEC.md 4.2 forbids a
   // non-finite number throughout a document; the corpus has no case for this
   // spelling, so the guard is proved here.
-  const err = refusal('{"vnx": "0.10.0", "a": 1e400}');
+  const err = refusal('{"vnx": "0.11.0", "a": 1e400}');
   assert.equal(err.cause_code, 'non-finite-number');
   assert.ok(err.message.includes('not finite'), err.message);
 });
@@ -107,9 +107,9 @@ test('a trailing null survives into the model and is shortened on the way out', 
   // The model keeps the arity the document spelled; SPEC.md 4.1 puts the
   // shortest spelling at the emit boundary, so the two answers differ and both
   // are right.
-  const { document } = decodeText('{"vnx":"0.10.0","points":[{"at":[1,2,null]}]}');
+  const { document } = decodeText('{"vnx":"0.11.0","points":[{"at":[1,2,null]}]}');
   assert.equal(document.points[0].at.arity, 3);
-  assert.equal(encode(document), '{"vnx":"0.10.0","points":[{"at":[1,2]}]}');
+  assert.equal(encode(document), '{"vnx":"0.11.0","points":[{"at":[1,2]}]}');
 });
 
 test('an interior absence keeps its null', () => {
@@ -127,7 +127,7 @@ test('a channel beyond those the reader knows survives the round trip', () => {
   // SPEC.md 4.1 says a reader ignores channels beyond those it knows so that a
   // future channel is additive. Ignoring is not discarding: the position is
   // kept whole, so the unknown channel comes back out.
-  const text = '{"vnx":"0.10.0","points":[{"at":[1,2,3,4,5]}]}';
+  const text = '{"vnx":"0.11.0","points":[{"at":[1,2,3,4,5]}]}';
   assert.equal(encode(decodeText(text).document), text);
 });
 
@@ -272,29 +272,35 @@ test('a record body is never inspected, whatever its type says', () => {
   assert.equal(document.networks[0].points[0].data[0].size, 'metropolis');
 });
 
-test('an importance outside 1 to 5 is dropped and the item kept', () => {
+test('a style key is an unrecognised key on every host, and the item is kept', () => {
+  // VNX 0.11 defines no `style`. An empty one is reported too.
   const { document, diagnostics } = decodeText(
     doc({
-      points: [{ at: [1, 2], style: { importance: 9, color: '#fff' } }],
+      folders: [{ id: 'f', style: {} }],
+      points: [{ at: [1, 2], style: { color: '#fff' } }],
+      areas: [
+        {
+          polygon: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+          ],
+          style: {},
+        },
+      ],
+      tracks: [{ segments: [], style: 3 }],
+      plans: [{ walk: [], style: { importance: 9 } }],
     }),
   );
-  // SPEC.md 6.2: a value outside a stated range is an unusable value in an
-  // optional key.
-  assert.deepEqual(
-    diagnostics.map((d) => [d.path, d.code]),
-    [['/points/0/style/importance', 'wrong-type-optional']],
-  );
-  assert.deepEqual(document.points[0].style, { color: '#fff' });
-});
-
-test('an unrecognised style key is carried without a diagnostic', () => {
-  const { document, diagnostics } = decodeText(
-    doc({
-      points: [{ at: [1, 2], style: { 'halo-width': 3 } }],
-    }),
-  );
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(document.points[0].style, { 'halo-width': 3 });
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/areas/0/style', 'unknown-key'],
+    ['/folders/0/style', 'unknown-key'],
+    ['/plans/0/style', 'unknown-key'],
+    ['/points/0/style', 'unknown-key'],
+    ['/tracks/0/style', 'unknown-key'],
+  ]);
+  for (const c of ['points', 'areas', 'tracks', 'plans']) assert.equal(document[c].length, 1, c);
+  assert.equal(encode(document).includes('style'), false);
 });
 
 test('a folder naming an absent folder puts the item at the top level', () => {
@@ -329,7 +335,7 @@ test('a parent naming a folder dropped for having no id is folder-absent', () =>
   assert.equal(document.folders.length, 1);
   assert.equal(document.folders[0].parent, undefined);
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
-    ['/folders/0/id', 'wrong-type-required'],
+    ['/folders/0', 'wrong-type-required'],
     ['/folders/1/parent', 'folder-absent'],
   ]);
 });
@@ -343,10 +349,140 @@ test('a folder with no id is dropped and its contents survive at the top level',
   );
   assert.equal(document.folders.length, 0);
   assert.equal(document.points.length, 1);
-  // An absent REQUIRED key takes wrong-type-required, at the key (SPEC.md 6.2).
+  // An absent REQUIRED key takes wrong-type-required, at the object that lacks
+  // it: the key has no element to point at (SPEC.md 6.3).
   assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
-    ['/folders/0/id', 'wrong-type-required'],
+    ['/folders/0', 'wrong-type-required'],
     ['/points/0/folder', 'folder-absent'],
+  ]);
+});
+
+test('a wrong-typed required key is named at the key, an absent one at the object', () => {
+  // SPEC.md 6.3: only an ABSENT key names the object that lacks it.
+  const { diagnostics } = decodeText(
+    doc({
+      folders: [{ id: 7 }, {}],
+      tracks: [{ segments: 3 }, { segments: [{ pips: 3 }] }, {}],
+      areas: [{ polygon: 3 }],
+      points: [{ at: 3 }, {}],
+    }),
+  );
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/areas/0/polygon', 'wrong-type-required'],
+    ['/folders/0/id', 'wrong-type-required'],
+    ['/folders/1', 'wrong-type-required'],
+    ['/points/0/at', 'wrong-type-required'],
+    ['/points/1', 'wrong-type-required'],
+    ['/tracks/0/segments', 'wrong-type-required'],
+    ['/tracks/1/segments/0/pips', 'wrong-type-required'],
+    ['/tracks/2', 'wrong-type-required'],
+  ]);
+});
+
+// --- folder ids and parent loops (SPEC.md 3.2, 6.2) --------------------------
+
+const folderPairs = (diagnostics) => diagnostics.map((d) => [d.path, d.code]);
+const parents = (document) => document.folders.map((f) => [f.id, f.parent]);
+
+test('a folder whose id an earlier folder carries is dropped, and the first kept', () => {
+  const { document, diagnostics } = decodeText(
+    doc({
+      folders: [{ id: 'a', name: 'First' }, { id: 'b' }, { id: 'a', name: 'Second' }, { id: 'a' }],
+      points: [{ at: [1, 2], folder: 'a' }],
+    }),
+  );
+  assert.deepEqual(folderPairs(diagnostics), [
+    ['/folders/2/id', 'folder-duplicate-id'],
+    ['/folders/3/id', 'folder-duplicate-id'],
+  ]);
+  assert.deepEqual(
+    document.folders.map((f) => [f.id, f.name]),
+    [
+      ['a', 'First'],
+      ['b', undefined],
+    ],
+  );
+  assert.equal(document.points[0].folder, 'a');
+});
+
+test('a dropped duplicate folder takes its parent with it, unchecked', () => {
+  const { diagnostics } = decodeText(doc({ folders: [{ id: 'a' }, { id: 'a', parent: 'ghost' }] }));
+  assert.deepEqual(folderPairs(diagnostics), [['/folders/1/id', 'folder-duplicate-id']]);
+});
+
+test('a folder that is its own parent sits at the root', () => {
+  const { document, diagnostics } = decodeText(doc({ folders: [{ id: 'a', parent: 'a' }] }));
+  assert.deepEqual(folderPairs(diagnostics), [['/folders/0/parent', 'folder-parent-loop']]);
+  assert.deepEqual(parents(document), [['a', undefined]]);
+});
+
+test('the first folder of a loop, in document order, goes to the root and the rest keep their parents', () => {
+  // The loop is a -> b -> c -> a, and c is written first.
+  const { document, diagnostics } = decodeText(
+    doc({
+      folders: [
+        { id: 'c', parent: 'a' },
+        { id: 'a', parent: 'b' },
+        { id: 'b', parent: 'c' },
+      ],
+    }),
+  );
+  assert.deepEqual(folderPairs(diagnostics), [['/folders/0/parent', 'folder-parent-loop']]);
+  assert.deepEqual(parents(document), [
+    ['c', undefined],
+    ['a', 'b'],
+    ['b', 'c'],
+  ]);
+});
+
+test('a folder that only leads into a loop is not reported', () => {
+  const { document, diagnostics } = decodeText(
+    doc({
+      folders: [
+        { id: 'in', parent: 'x' },
+        { id: 'x', parent: 'y' },
+        { id: 'y', parent: 'x' },
+        { id: 'deeper', parent: 'in' },
+      ],
+    }),
+  );
+  assert.deepEqual(folderPairs(diagnostics), [['/folders/1/parent', 'folder-parent-loop']]);
+  assert.deepEqual(parents(document), [
+    ['in', 'x'],
+    ['x', undefined],
+    ['y', 'x'],
+    ['deeper', 'in'],
+  ]);
+});
+
+test('two loops are each broken once, and a plain chain raises nothing', () => {
+  const loops = decodeText(
+    doc({
+      folders: [
+        { id: 'a', parent: 'b' },
+        { id: 'p', parent: 'p' },
+        { id: 'b', parent: 'a' },
+      ],
+    }),
+  );
+  assert.deepEqual(folderPairs(loops.diagnostics), [
+    ['/folders/0/parent', 'folder-parent-loop'],
+    ['/folders/1/parent', 'folder-parent-loop'],
+  ]);
+  const chain = decodeText(doc({ folders: [{ id: 'a', parent: 'b' }, { id: 'b', parent: 'c' }, { id: 'c' }] }));
+  assert.deepEqual(chain.diagnostics, []);
+});
+
+test('folder paths are the index in the file, not among the folders kept', () => {
+  const { diagnostics } = decodeText(
+    doc({
+      folders: [{ name: 'no id' }, { id: 'a' }, { id: 'a', parent: 'a' }, { id: 's', parent: 's' }],
+    }),
+  );
+  assert.deepEqual(folderPairs(diagnostics), [
+    ['/folders/0', 'wrong-type-required'],
+    ['/folders/2/id', 'folder-duplicate-id'],
+    ['/folders/3/parent', 'folder-parent-loop'],
   ]);
 });
 
@@ -497,21 +633,16 @@ test('a track with no segments has an unknown moving time', () => {
 
 // --- absence is not a default ----------------------------------------------
 
-test('an absent label-visible is neither true nor false', () => {
-  const { document } = decodeText(doc({ points: [{ at: [1, 2], style: {} }] }));
-  assert.equal('label-visible' in document.points[0].style, false);
-});
-
 test('an absent collection stays absent and does not become empty', () => {
-  const { document } = decodeText('{"vnx": "0.10.0"}');
+  const { document } = decodeText('{"vnx": "0.11.0"}');
   assert.equal(document.points, undefined);
-  assert.equal(encode(document), '{"vnx":"0.10.0"}');
+  assert.equal(encode(document), '{"vnx":"0.11.0"}');
 });
 
 test('an empty collection is distinct from an absent one', () => {
-  const { document } = decodeText('{"vnx": "0.10.0", "points": []}');
+  const { document } = decodeText('{"vnx": "0.11.0", "points": []}');
   assert.deepEqual(document.points, []);
-  assert.equal(encode(document), '{"vnx":"0.10.0","points":[]}');
+  assert.equal(encode(document), '{"vnx":"0.11.0","points":[]}');
 });
 
 test('moving time reads the FIRST and LAST pip, not the first and last TIMED pip', () => {

@@ -102,35 +102,6 @@ func TestMatrixFolderKeepsTreeNameNotesAndVisibilityAndLosesIdAndData(t *testing
 	}
 }
 
-// Row: Styles — "per-item Style, partial".
-func TestMatrixStyleCarriesColourAndWidthAndLosesTheRest(t *testing.T) {
-	out, _ := writeDoc(t, &vnx.Document{
-		Points: []vnx.Point{{
-			Name: "W", At: pos(1, 2),
-			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
-		}},
-		Plans: []vnx.Plan{plan(vnx.Plan{
-			Name:  "R",
-			Style: vnx.Style{"color": "#3A6FB0", "width": 4.0, "line-style": "dashed"}},
-			lineArc{Pips: []vnx.Position{pos(0, 0), pos(0, 1)}},
-		)},
-	})
-	// CARRIED: icon colour, line colour, line width.
-	for _, want := range []string{"<IconStyle>", "<color>ff3545e0</color>", "<color>ffb06f3a</color>", "<width>4</width>"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — the cell says a Style IS written\n%s", want, out)
-		}
-	}
-	// LOST: everything else. KML has no vocabulary for our icon names, pin
-	// shapes, label rules or importance, and inventing one would be §2.3's
-	// forbidden extension.
-	for _, gone := range []string{"mountain-hut", "teardrop", "below", "dashed", "27", "Importance", "importance"} {
-		if strings.Contains(out, gone) {
-			t.Errorf("%q reached the file; the cell says the Style is PARTIAL\n%s", gone, out)
-		}
-	}
-}
-
 // Row: Tags — "❌".
 func TestMatrixTagsAreNotCarried(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{Points: []vnx.Point{{

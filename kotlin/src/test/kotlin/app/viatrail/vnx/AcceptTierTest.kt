@@ -11,9 +11,9 @@ import kotlin.test.assertNull
  *
  * THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
  * ANOTHER MODEL. A reader that discarded every data record, every application
- * key, every style or every `notes` produces a model that compares equal to itself
+ * key or every `notes` produces a model that compares equal to itself
  * and passes a model-versus-model tier GREEN. That is the entire extensibility
- * mechanism, all styling and all user prose, silently droppable by a
+ * mechanism and all user prose, silently droppable by a
  * "conforming" implementation.
  *
  * Each case below is one of those readers, made by spoiling a document this
@@ -45,21 +45,6 @@ class AcceptTierTest {
                 )
             },
             "drops every application key" to { d: VnxDocument -> d.copy(appKeys = emptyList()) },
-            "drops every style" to { d: VnxDocument ->
-                d.copy(
-                    points = d.points?.map { it.copy(style = null) },
-                    areas = d.areas?.map { it.copy(style = null) },
-                    tracks = d.tracks?.map { it.copy(style = null) },
-                    plans = d.plans?.map { it.copy(style = null) },
-                    networks =
-                        d.networks?.map { n ->
-                            n.copy(
-                                points = n.points?.map { it.copy(style = null) },
-                                areas = n.areas?.map { it.copy(style = null) },
-                            )
-                        },
-                )
-            },
             "drops every notes" to { d: VnxDocument ->
                 d.copy(
                     points = d.points?.map { it.copy(notes = null) },

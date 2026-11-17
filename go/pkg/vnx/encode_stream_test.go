@@ -217,10 +217,10 @@ func TestAnAbsentCollectionAndAnEmptyOneAreWrittenAlike(t *testing.T) {
 // written in the order [Document] declares them.
 func TestEncodeToOmitsEmptyHeaderFields(t *testing.T) {
 	var b bytes.Buffer
-	if err := EncodeTo(&b, &Document{Version: "0.10.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
+	if err := EncodeTo(&b, &Document{Version: "0.11.0", Generator: "g", Created: "2026-09-02T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	want := "{\"vnx\":\"0.10.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
+	want := "{\"vnx\":\"0.11.0\",\"generator\":\"g\",\"created\":\"2026-09-02T00:00:00Z\"}\n"
 	if b.String() != want {
 		t.Errorf("got %q\nwant %q", b.String(), want)
 	}
@@ -270,10 +270,10 @@ func TestEncodeToFailsRatherThanTruncating(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := full.Len()
-	if n < 4096 {
+	if n < 2048 {
 		t.Fatalf("the subject is %d bytes; too small for a mid-document failure to be interesting", n)
 	}
-	for _, limit := range []int{0, 1, 17, 512, 4096, n - 1} {
+	for _, limit := range []int{0, 1, 17, 512, 2048, n - 1} {
 		w := &failAfter{n: limit}
 		err := EncodeTo(w, doc)
 		if err == nil {

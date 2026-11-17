@@ -18,7 +18,7 @@ class PinnedTest {
     /** One item of every kind that carries `pinned`, each with its own value, and one unpinned top-level point. */
     private val document =
         VnxDocument(
-            vnx = "0.10.0",
+            vnx = "0.11.0",
             networks =
                 listOf(
                     Network(

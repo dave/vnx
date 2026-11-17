@@ -103,7 +103,6 @@ def _point(point: Point) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, point)
     _put(obj, "at", _position(point.at) if point.at is not None else None)
-    _put(obj, "style", point.style)
     _put(obj, "data", _records(point.data))
     return obj
 
@@ -116,7 +115,6 @@ def _area(area: Area) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     _common(obj, area)
     _put(obj, "polygon", _positions(area.polygon))
-    _put(obj, "style", area.style)
     _put(obj, "data", _records(area.data))
     return obj
 
@@ -209,7 +207,6 @@ def _plan(plan: Plan) -> JSONValue:
     obj: dict[str, JSONValue] = {}
     owner = f"plan {json.dumps(plan.name or '', ensure_ascii=False)}"
     _common(obj, plan)
-    _put(obj, "style", plan.style)
     _graph(obj, plan.nodes, plan.arcs, owner)
     _put(obj, "walk", _walk(plan.walk, plan.arcs or {}, True, owner))
     _put(obj, "data", _records(plan.data))
@@ -227,7 +224,6 @@ def _track(track: Track) -> JSONValue:
     _common(obj, track)
     _put(obj, "started", track.started)
     _put(obj, "ended", track.ended)
-    _put(obj, "style", track.style)
     if track.segments is not None:
         obj["segments"] = [_segment(segment) for segment in track.segments]
     _put(obj, "data", _records(track.data))

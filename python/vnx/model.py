@@ -33,14 +33,12 @@ __all__ = [
     "Area",
     "Document",
     "Endpoint",
-    "Style",
     "JSONValue",
     "AppKey",
     "is_app_key",
 ]
 
 JSONValue = Any
-Style = dict[str, JSONValue]
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +132,7 @@ class Pass:
 @dataclass(slots=True)
 class Highlight:
     """SPEC 3.3.3.  A lightweight container for data objects along a walk of its
-    network's arcs.  It has an optional name, and no notes or style of its own."""
+    network's arcs.  It has an optional name, and no notes of its own."""
 
     name: Union[str, None] = None
     hidden: Union[bool, None] = None
@@ -168,7 +166,6 @@ class Plan:
     notes: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
-    style: Union[Style, None] = None
     nodes: Union[dict[str, Position], None] = None
     arcs: Union[dict[str, Arc], None] = None
     walk: Union[list[Pass], None] = None
@@ -189,7 +186,6 @@ class Track:
     ended: Union[str, None] = None
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
-    style: Union[Style, None] = None
     segments: Union[list[Segment], None] = None
     data: Union[list[DataRecord], None] = None
 
@@ -235,7 +231,6 @@ class Point:
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     at: Union[Position, None] = None
-    style: Union[Style, None] = None
     data: Union[list[DataRecord], None] = None
 
 
@@ -247,7 +242,6 @@ class Area:
     hidden: Union[bool, None] = None
     pinned: Union[str, None] = None
     polygon: Union[list[Position], None] = None
-    style: Union[Style, None] = None
     data: Union[list[DataRecord], None] = None
 
 
@@ -270,7 +264,7 @@ def is_app_key(key: str) -> bool:
 
 @dataclass(slots=True)
 class Document:
-    vnx: str = "0.10.6"
+    vnx: str = "0.11.0"
     generator: Union[str, None] = None
     created: Union[str, None] = None
     folders: Union[list[Folder], None] = None

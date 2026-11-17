@@ -139,7 +139,7 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 				if err != nil {
 					return Point{}, false, diags, err
 				}
-				w, ok, diags := pointFromValue(v, at, diags)
+				w, ok, diags := pointFromValue(v, at, false, diags)
 				return w, ok, diags, nil
 			})
 		case "networks":
@@ -149,7 +149,7 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 		case "tracks":
 			tracks, err = readArray(s, "/tracks", s.track)
 		case "areas":
-			areas, err = readArray(s, "/areas", s.area)
+			areas, err = readArray(s, "/areas", s.topArea)
 		default:
 			if isDocumentKey(key) {
 				top[key], err = s.value()
@@ -191,7 +191,7 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 	areas.diags = clearAbsentFolders(areas.items, areas.paths, "area", held, func(a *Area) *string { return &a.Folder }, areas.diags)
 
 	doc = &Document{Version: declared}
-	doc.Generator, diags = stringField(top, "generator", diags)
+	doc.Generator, diags = stringField(top, "generator", "", diags)
 	doc.Created, diags = timeField(top, "created", "", diags)
 	doc.Folders, diags = folders.items, append(diags, folders.diags...)
 	doc.Points, diags = points.items, append(diags, points.diags...)
@@ -246,28 +246,40 @@ func (s *streamReader) track(at string, diags []Diagnostic) (Track, bool, []Diag
 	}
 	var segs []Segment
 	var segDiags []Diagnostic
+	segPresent, segOK := false, false
 	obj, err := s.object(trackKeys, map[string]func() error{
 		"segments": func() (err error) {
-			segs, segDiags, err = s.segments(at + "/segments")
+			segPresent = true
+			segs, segOK, segDiags, err = s.segments(at + "/segments")
 			return err
 		},
 	})
 	if err != nil {
 		return Track{}, false, diags, err
 	}
+	// `segments` is REQUIRED (§3.10). §6.3 rule 1: an absent one names the
+	// track, a wrong-typed one the key.
+	if !segPresent {
+		return Track{}, false, append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+			Message: "`segments` is missing — track dropped"}), nil
+	}
+	if !segOK {
+		return Track{}, false, append(diags, segDiags...), nil
+	}
 	tr, diags := trackFromObject(obj, at, segs, segDiags, diags)
 	return tr, true, diags, nil
 }
 
-// segments reads a track's `segments`.
-func (s *streamReader) segments(path string) ([]Segment, []Diagnostic, error) {
+// segments reads a track's `segments`. ok is false when the value is not an
+// array, which drops the track.
+func (s *streamReader) segments(path string) ([]Segment, bool, []Diagnostic, error) {
 	t, err := s.dec.Token()
-	if err != nil || t == nil {
-		return nil, nil, err
+	if err != nil {
+		return nil, false, nil, err
 	}
 	if t != json.Delim('[') {
-		return nil, []Diagnostic{{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`segments` is %s, expected an array — ignored", kindOf(t))}}, s.skip(t)
+		return nil, false, []Diagnostic{{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
+			Message: fmt.Sprintf("`segments` is %s, expected an array — track dropped", kindOf(t))}}, s.skip(t)
 	}
 	out := make([]Segment, 0)
 	var diags []Diagnostic
@@ -275,13 +287,13 @@ func (s *streamReader) segments(path string) ([]Segment, []Diagnostic, error) {
 		at := fmt.Sprintf("%s/%d", path, i)
 		t, err := s.dec.Token()
 		if err != nil {
-			return nil, nil, err
+			return nil, false, nil, err
 		}
 		if t != json.Delim('{') {
 			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
 				Message: fmt.Sprintf("segment is %s, expected an object — dropped", kindOf(t))})
 			if err := s.skip(t); err != nil {
-				return nil, nil, err
+				return nil, false, nil, err
 			}
 			continue
 		}
@@ -293,16 +305,19 @@ func (s *streamReader) segments(path string) ([]Segment, []Diagnostic, error) {
 			},
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, false, nil, err
 		}
 		diags = reportUnknownKeys(obj, at, segmentKeys, diags)
-		if !pr.present || pr.kind == "null" {
-			out = append(out, Segment{})
+		// `pips` is REQUIRED (§3.10): without it the segment is dropped. §6.3
+		// rule 1: an absent one names the segment, a wrong-typed one the key.
+		if !pr.present {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+				Message: "`pips` is missing — segment dropped"})
 			continue
 		}
 		if !pr.isArray {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/pips",
-				Message: fmt.Sprintf("`pips` is %s, expected an array — ignored", pr.kind)})
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/pips", Code: CodeWrongTypeRequired,
+				Message: fmt.Sprintf("`pips` is %s, expected an array — segment dropped", pr.kind)})
 			continue
 		}
 		diags = append(diags, pr.diags...)
@@ -317,7 +332,7 @@ func (s *streamReader) segments(path string) ([]Segment, []Diagnostic, error) {
 		out = append(out, Segment{Pips: pr.positions})
 	}
 	_, err = s.dec.Token() // the closing bracket
-	return out, diags, err
+	return out, true, diags, err
 }
 
 // pipsRead is a position list read by [streamReader.pips]: whether the key was
@@ -612,7 +627,7 @@ func (s *streamReader) networkAreas(ar *areasRead, path string) error {
 	ar.isArray = true
 	ar.items = make([]Area, 0)
 	for i := 0; s.dec.More(); i++ {
-		a, ok, diags, err := s.area(fmt.Sprintf("%s/%d", path, i), ar.diags)
+		a, ok, diags, err := s.area(fmt.Sprintf("%s/%d", path, i), true, ar.diags)
 		ar.diags = diags
 		if err != nil {
 			return err
@@ -633,9 +648,14 @@ type ringRead struct {
 	diags []Diagnostic
 }
 
-// area reads one element of a top-level or a network's `areas`, streaming its
-// polygon.
-func (s *streamReader) area(at string, diags []Diagnostic) (Area, bool, []Diagnostic, error) {
+// topArea reads one element of the top-level `areas`.
+func (s *streamReader) topArea(at string, diags []Diagnostic) (Area, bool, []Diagnostic, error) {
+	return s.area(at, false, diags)
+}
+
+// area reads one element of a top-level or a network's (inNetwork) `areas`,
+// streaming its polygon.
+func (s *streamReader) area(at string, inNetwork bool, diags []Diagnostic) (Area, bool, []Diagnostic, error) {
 	t, err := s.dec.Token()
 	if err != nil {
 		return Area{}, false, diags, err
@@ -644,8 +664,12 @@ func (s *streamReader) area(at string, diags []Diagnostic) (Area, bool, []Diagno
 		return Area{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
 			Message: fmt.Sprintf("item is %s, expected an object — dropped", kindOf(t))}), s.skip(t)
 	}
-	rr := missingRing(at + "/polygon")
-	obj, err := s.object(areaKeys, map[string]func() error{
+	rr := missingRing(at)
+	keys := areaKeys
+	if inNetwork {
+		keys = networkAreaKeys
+	}
+	obj, err := s.object(keys, map[string]func() error{
 		"polygon": func() error {
 			rr = ringRead{}
 			return s.ring(&rr, at+"/polygon")
@@ -654,12 +678,14 @@ func (s *streamReader) area(at string, diags []Diagnostic) (Area, bool, []Diagno
 	if err != nil {
 		return Area{}, false, diags, err
 	}
-	a, ok, diags := areaFromObject(obj, at, &rr, diags)
+	a, ok, diags := areaFromObject(obj, at, &rr, inNetwork, diags)
 	return a, ok, diags, nil
 }
 
-func missingRing(path string) ringRead {
-	return ringRead{diags: []Diagnostic{{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
+// missingRing is the result for an area with no `polygon`. §6.3 rule 1: an
+// absent key has no element of its own, so at is the AREA's path.
+func missingRing(at string) ringRead {
+	return ringRead{diags: []Diagnostic{{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
 		Message: "polygon is missing — area dropped"}}}
 }
 
@@ -680,10 +706,6 @@ func (s *streamReader) ring(rr *ringRead, path string) error {
 	t, err := s.dec.Token()
 	if err != nil {
 		return err
-	}
-	if t == nil {
-		*rr = missingRing(path)
-		return nil
 	}
 	if t != json.Delim('[') {
 		rr.diags = []Diagnostic{{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,

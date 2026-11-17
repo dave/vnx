@@ -27,7 +27,7 @@ import (
 	"github.com/dave/vnx/go/pkg/vnx"
 )
 
-const smallDoc = "{\n  \"vnx\": \"0.10.0\"\n}\n"
+const smallDoc = "{\n  \"vnx\": \"0.11.0\"\n}\n"
 
 // entrySpec is one entry to assemble, with every field a conforming writer would
 // fix left open so a test can lie about exactly one of them.
@@ -205,8 +205,8 @@ func TestAnOverDeclaredSizeIsAccepted(t *testing.T) {
 	e := stored("doc.vnx", smallDoc)
 	e.declaredSize = uint32(len(smallDoc)) + 7
 	c, diags := readArchive(t, assemble([]entrySpec{e}, assembleOpts{}))
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0", c.Document.Version)
 	}
 	if len(diags) != 0 {
 		t.Errorf("an accepted archive produced diagnostics: %v", diags)
@@ -252,8 +252,8 @@ func TestAStoredEntrysTwoDeclaredSizesMayDisagree(t *testing.T) {
 	attachment.inflatedSize = &attachmentInflated
 
 	c, diags := readArchive(t, assemble([]entrySpec{root, attachment}, assembleOpts{}))
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0", c.Document.Version)
 	}
 	if len(c.Attachments) != 1 || c.Attachments[0].Path != "photos/summit.jpg" {
 		t.Fatalf("attachments = %q, want photos/summit.jpg: §7 forbids dropping it", c.Attachments)
@@ -289,7 +289,7 @@ func TestSizesDisagreeingDoesNotSuspendTheChecksum(t *testing.T) {
 		name: "corrupt payload",
 		want: "fails its CRC",
 		make: func() entrySpec {
-			e := stored("doc.vnx", strings.Replace(smallDoc, "0.10.0", "0.10.1", 1))
+			e := stored("doc.vnx", strings.Replace(smallDoc, "0.11.0", "0.11.1", 1))
 			crc := crc32.ChecksumIEEE([]byte(smallDoc))
 			inflated := uint32(len(smallDoc)) + 7
 			e.crcOverride, e.inflatedSize = &crc, &inflated
@@ -334,8 +334,8 @@ func TestADeferredSizeIsRead(t *testing.T) {
 	e := stored("doc.vnx", smallDoc)
 	e.deferred = true
 	c, _ := readArchive(t, assemble([]entrySpec{e}, assembleOpts{}))
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0 — the sizes must come from the central directory", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0 — the sizes must come from the central directory", c.Document.Version)
 	}
 }
 
@@ -356,8 +356,8 @@ func TestAZip64ArchiveIsRead(t *testing.T) {
 		t.Fatal("the fixture carries no ZIP64 end-of-central-directory record, so it tests nothing")
 	}
 	c, _ := readArchive(t, raw)
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0", c.Document.Version)
 	}
 }
 
@@ -438,8 +438,8 @@ func TestANonASCIINameWithoutTheUTF8FlagIsRefused(t *testing.T) {
 func TestTheEndRecordIsNotFoundInsideAnArchiveComment(t *testing.T) {
 	comment := "PK\x05\x06 and then some trailing prose"
 	c, _ := readArchive(t, assemble([]entrySpec{stored("doc.vnx", smallDoc)}, assembleOpts{comment: comment}))
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0", c.Document.Version)
 	}
 }
 
@@ -521,7 +521,7 @@ func TestADuplicateNameIsSeenTwice(t *testing.T) {
 func TestADeflatedEntryIsRead(t *testing.T) {
 	// Compressible, and still a document: a deflated entry the decoder rejects
 	// would pass this test for the wrong reason.
-	body := "{\n  \"vnx\": \"0.10.0\",\n  \"generator\": \"" + strings.Repeat("compressible ", 40) + "\"\n}\n"
+	body := "{\n  \"vnx\": \"0.11.0\",\n  \"generator\": \"" + strings.Repeat("compressible ", 40) + "\"\n}\n"
 	deflated := deflateBytes(t, body)
 	e := entrySpec{name: "doc.vnx", payload: deflated, method: 8}
 	inflated := uint32(len(body))
@@ -529,8 +529,8 @@ func TestADeflatedEntryIsRead(t *testing.T) {
 	crc := crc32.ChecksumIEEE([]byte(body))
 	e.crcOverride = &crc
 	c, _ := readArchive(t, assemble([]entrySpec{e}, assembleOpts{}))
-	if c.Document.Version != "0.10.0" {
-		t.Errorf("version = %q, want 0.10.0", c.Document.Version)
+	if c.Document.Version != "0.11.0" {
+		t.Errorf("version = %q, want 0.11.0", c.Document.Version)
 	}
 }
 
@@ -579,7 +579,7 @@ func TestACorruptAttachmentIsDroppedAndTheRootStillRefuses(t *testing.T) {
 	if len(c.Attachments) != 1 || c.Attachments[0].Path != "ok.jpg" {
 		t.Errorf("attachments = %v, want just ok.jpg: the corrupt one is dropped, not blanked", c.Attachments)
 	}
-	if c.Document == nil || c.Document.Version != "0.10.0" {
+	if c.Document == nil || c.Document.Version != "0.11.0" {
 		t.Errorf("document = %+v; §7 returns it, damaged photograph or not", c.Document)
 	}
 	if len(diags) != 1 {

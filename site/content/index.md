@@ -16,7 +16,7 @@ and its attachments (photos, audio, any other files) has the extension `.vnz`.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "networks": [{
     "name": "Lairig Ghru approaches",
     "nodes": {
@@ -58,7 +58,7 @@ wrong part of the world.
 Read [`/llms.txt`](llms.txt) first. It lists every page. [`/llms-full.txt`](llms-full.txt)
 holds the concepts, the writing guide, the extensions page and the full
 specification in one plain Markdown file. The JSON Schema for the document is at
-[`/schema/vnx-0.10.schema.json`](schema/vnx-0.10.schema.json). The schema checks
+[`/schema/vnx-0.11.schema.json`](schema/vnx-0.11.schema.json). The schema checks
 shape only. The specification has rules that a schema cannot state, such as
 walk connectivity, and the reference tool checks them:
 

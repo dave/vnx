@@ -78,9 +78,6 @@ public enum Cause: String, Sendable, CaseIterable {
   /// A position that will not parse. SPEC 6.2's table says which object
   /// goes: the node, the arc, the segment, the area, or the highlight.
   case positionUnusable
-  /// `importance` outside 1 to 5 (SPEC 3.6), the one normative range this
-  /// format states for a style key.
-  case importanceOutOfRange
   /// A record-level timestamp carrying an offset other than `Z` (SPEC 4.3).
   case timestampNotUTC
   /// A `polygon` carrying a nested or additional ring (SPEC 3.7).
@@ -119,6 +116,15 @@ public enum Cause: String, Sendable, CaseIterable {
   /// in the document. The key is treated as absent: the item sits at the top
   /// level, the folder at the root (SPEC 6.2).
   case folderNotPresent
+  /// A folder whose `id` an earlier folder in the document already carries
+  /// (SPEC 3.2). The later folder goes; items naming the id sit in the first.
+  /// The path is the dropped folder's `id`, at its index in the file.
+  case folderDuplicateID
+  /// The first folder, in document order, of a parent loop (SPEC 3.2). Its
+  /// `parent` is treated as absent, so it sits at the root; that breaks the
+  /// loop, and the other folders of the loop keep their parents. A folder
+  /// whose parents only lead into a loop is not reported.
+  case folderParentLoop
   /// An attachment that cannot be recovered. The attachment goes and the
   /// document is returned (SPEC 7).
   ///
@@ -160,6 +166,8 @@ public enum Cause: String, Sendable, CaseIterable {
     .ringTooFewPoints: "ring-too-few-points",
     .attachmentUnreadable: "attachment-unreadable",
     .folderNotPresent: "folder-absent",
+    .folderDuplicateID: "folder-duplicate-id",
+    .folderParentLoop: "folder-parent-loop",
   ]
 
   /// Codes for the causes SPEC 6.2's table does not name. Kept separate from
@@ -176,7 +184,6 @@ public enum Cause: String, Sendable, CaseIterable {
     .containerDuplicateEntry: "container-duplicate-entry",
     .containerNoDocument: "container-no-document",
     .containerRootCompressionUnsupported: "container-root-compression-unsupported",
-    .importanceOutOfRange: "importance-out-of-range",
   ]
 
   /// The English substrings the corpus expects for this cause today, for

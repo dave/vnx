@@ -17,7 +17,7 @@ func pinnedDocument() *Document {
 	n1, n2 := Endpoint{Node: "n1"}, Endpoint{Node: "n2"}
 	walk := []Pass{{Arc: "a1", From: &n1, To: &n2}}
 	return &Document{
-		Version: "0.10.0",
+		Version: "0.11.0",
 		Networks: []Network{{
 			Name: "network", Pinned: "2026-10-20T08:15:00Z", Nodes: nodes, Arcs: arcs,
 			Highlights: []Highlight{{Pinned: "2026-10-21T09:00:00.250Z", Walk: walk}},

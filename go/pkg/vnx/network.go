@@ -24,7 +24,7 @@ type Network struct {
 
 // Highlight is a lightweight container for data objects along a walk of its
 // network's arcs (§3.3.3). It has an optional Name, "" for none, and no notes
-// or style of its own: what it is, beyond its name, is what its Data says.
+// of its own: what it is, beyond its name, is what its Data says.
 // Unlike a Plan, its geometry is BY REFERENCE — two highlights crossing the
 // same trail name the same arc, and that sharing is the whole reason this
 // format exists.
@@ -47,9 +47,9 @@ var (
 // but `nodes`, `arcs` and `areas`, which g and areas hold.
 func networkFromObject(obj map[string]any, at string, g *graphRead, areas *areasRead, diags []Diagnostic) (Network, []Diagnostic) {
 	var n Network
-	n.Folder, diags = stringField(obj, "folder", diags)
-	n.Name, diags = stringField(obj, "name", diags)
-	n.Notes, diags = stringField(obj, "notes", diags)
+	n.Folder, diags = stringField(obj, "folder", at, diags)
+	n.Name, diags = stringField(obj, "name", at, diags)
+	n.Notes, diags = stringField(obj, "notes", at, diags)
 	n.Hidden, diags = boolField(obj, "hidden", at, diags)
 	n.Pinned, diags = timeField(obj, "pinned", at, diags)
 	n.Nodes, n.Arcs, diags = g.finish(at, diags)
@@ -104,20 +104,20 @@ func arcFromObject(obj map[string]any, at string, nodes map[string]Vertex, pr *p
 	}{{"from", &a.From}, {"to", &a.To}} {
 		*end.dst, ok = obj[end.key].(string)
 		if !ok {
-			what := "is missing"
+			what, where := "is missing", at
 			if _, present := obj[end.key]; present {
-				what = fmt.Sprintf("is %s, expected a node key", jsonKind(obj[end.key]))
+				what, where = fmt.Sprintf("is %s, expected a node key", jsonKind(obj[end.key])), at+"/"+end.key
 			}
-			return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/" + end.key,
+			return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 				Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `%s` %s — arc dropped", end.key, what)})
 		}
 	}
 	if !pr.isArray {
-		what := "is missing"
+		what, where := "is missing", at
 		if pr.present {
-			what = fmt.Sprintf("is %s, expected an array", pr.kind)
+			what, where = fmt.Sprintf("is %s, expected an array", pr.kind), at+"/pips"
 		}
-		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/pips",
+		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `pips` %s — arc dropped", what)})
 	}
 	diags = append(diags, pr.diags...)
@@ -168,7 +168,7 @@ func decodeHighlights(v any, path string, arcs map[string]Arc, diags []Diagnosti
 			continue
 		}
 		var c Highlight
-		c.Name, diags = stringField(obj, "name", diags)
+		c.Name, diags = stringField(obj, "name", at, diags)
 		c.Hidden, diags = boolField(obj, "hidden", at, diags)
 		c.Pinned, diags = timeField(obj, "pinned", at, diags)
 		c.Data, diags = dataField(obj, at, diags)

@@ -33,7 +33,7 @@ import (
 
 // Version is the specification version this package implements. It is
 // MAJOR.MINOR.PATCH; see checkVersion for what each component decides.
-const Version = "0.10.6"
+const Version = "0.11.0"
 
 // Sentinel errors. A caller distinguishes a refusal (these) from a document
 // that read with diagnostics — see Decode.
@@ -416,8 +416,9 @@ func parseVersion(s string) (major, minor, patch int, err error) {
 
 // stringField reads an optional string. Per spec, only `vnx` is required;
 // absence is normal and means "not known", never a default. A key that IS
-// present but holds the wrong type is a diagnostic, not a silent zero.
-func stringField(obj map[string]any, key string, diags []Diagnostic) (string, []Diagnostic) {
+// present but holds the wrong type is `wrong-type-optional` at its full path:
+// path is the path of the object that holds the key (§6.2).
+func stringField(obj map[string]any, key, path string, diags []Diagnostic) (string, []Diagnostic) {
 	v, present := obj[key]
 	if !present {
 		return "", diags
@@ -426,8 +427,9 @@ func stringField(obj map[string]any, key string, diags []Diagnostic) (string, []
 	if !ok {
 		return "", append(diags, Diagnostic{
 			Severity: Warning,
-			Path:     "/" + key,
-			Message:  fmt.Sprintf("expected a string, found %s — value ignored", jsonKind(v)),
+			Path:     path + "/" + key,
+			Code:     CodeWrongTypeOptional,
+			Message:  fmt.Sprintf("expected a string, found %s — field dropped, item kept", jsonKind(v)),
 		})
 	}
 	return s, diags

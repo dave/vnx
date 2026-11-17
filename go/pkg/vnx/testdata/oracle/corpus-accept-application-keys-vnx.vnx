@@ -1,12 +1,9 @@
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "points": [
     {
       "name": "Car park",
       "at": [-3.675, 57.1201],
-      "style": {
-        "com.example.marker": "pin"
-      },
       "data": [
         {
           "@type": "com.example.note",

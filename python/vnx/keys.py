@@ -80,7 +80,7 @@ NETWORK = frozenset(
 ARC = frozenset({"from", "to", "pips", "data"})
 
 # SPEC 3.3.3.  A highlight is a lightweight container for data objects along a
-# walk, with an optional name and no notes or style of its own.
+# walk, with an optional name and no notes of its own.
 HIGHLIGHT = frozenset({"name", "hidden", "pinned", "walk", "data"})
 
 # SPEC 3.3.3.  A pass of a highlight's walk or of a plan's.
@@ -94,7 +94,6 @@ PLAN = frozenset(
         "notes",
         "hidden",
         "pinned",
-        "style",
         "nodes",
         "arcs",
         "walk",
@@ -113,7 +112,6 @@ TRACK = frozenset(
         "pinned",
         "started",
         "ended",
-        "style",
         "segments",
         "data",
     }
@@ -125,14 +123,10 @@ SEGMENT = frozenset({"pips"})
 # 3.8 lists "points" among the hosts of `hidden` and does not say whether that
 # reaches a top-level point; Dave ruled on 2026-09-09 that it does, because
 # "share one shape" governs.
-POINT = frozenset(
-    {"folder", "name", "notes", "hidden", "pinned", "at", "style", "data"}
-)
+POINT = frozenset({"folder", "name", "notes", "hidden", "pinned", "at", "data"})
 
 # SPEC 3.7.
-AREA = frozenset(
-    {"folder", "name", "notes", "hidden", "pinned", "polygon", "style", "data"}
-)
+AREA = frozenset({"folder", "name", "notes", "hidden", "pinned", "polygon", "data"})
 
 # SPEC 3.2 gives `folder` to "any item", which this implementation read as
 # reaching a network's own points and areas too.  Ruled the other way on
@@ -154,8 +148,8 @@ AREA_IN_NETWORK = AREA - {"folder"}
 # `walk`.  This implementation distinguishes them -- absent is None, present
 # and empty is an empty list -- so the two cannot be confused.
 #
-# No corpus case omits a required key, so nothing here is constrained by the
-# corpus; it is constrained by the table.
+# An absent required key is reported at the object that lacks it (SPEC 6.3);
+# `diagnose/required-key-absent` and `diagnose/folder-duplicate-id` pin that.
 REQUIRED_FOLDER = frozenset({"id"})
 REQUIRED_ARC = frozenset({"from", "to", "pips"})
 REQUIRED_HIGHLIGHT = frozenset({"walk"})
@@ -165,27 +159,3 @@ REQUIRED_TRACK = frozenset({"segments"})
 REQUIRED_SEGMENT = frozenset({"pips"})
 REQUIRED_POINT = frozenset({"at"})
 REQUIRED_AREA = frozenset({"polygon"})
-
-# There is deliberately NO style key set here.
-#
-# This implementation had three, invented from the three examples in SPEC 3.3.3,
-# 3.6 and 3.7, because a style is an object this format defines and SPEC 6.2
-# therefore reaches it.  Ruled the other way on 2026-09-09, and the reasoning is
-# worth keeping so nobody re-adds them as an obvious improvement:
-#
-#   A style vocabulary grows faster than a structural one.  Key sets would mean
-#   every implementation diagnosing a valid document each time Viatrail adds a
-#   style key, and that brittleness costs more than the typo detection buys.
-#   A data record body is opaque for the same reason (SPEC 5.1.2), so making a
-#   style opaque is the consistent answer rather than a special case.
-#
-# A style body is therefore opaque: no key inside one can be unknown, and every
-# key survives a read-modify-write untouched.
-#
-# "Styles are opaque, so why is `importance` checked?"  Because opacity is a
-# rule about the KEY SET and a normative range is a rule about a VALUE, and the
-# two do not collide.  So a style whose keys are not enumerated can still have a
-# stated range on one of them --
-# SPEC 3.6's `importance`, 1 to 5, ruled normative on 2026-09-09 in the same
-# breath as `icon-size`'s list of sizes being ruled informative.  The check is
-# `decode._Reader._check_importance`.

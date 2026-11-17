@@ -56,23 +56,3 @@ func TestRoundingNeverInventsAThirdOrdinate(t *testing.T) {
 		t.Fatalf("output does not contain %s:\n%s", want, b.String())
 	}
 }
-
-// ⚠ A STYLE WIDTH IS NOT A COORDINATE. `num` spells both, so a rounding rule
-// pushed down into it would quietly round line widths to six places as well —
-// harmless today and wrong in principle, and the kind of thing that is
-// discovered when someone asks for sub-pixel widths.
-func TestAStyleWidthIsNotRounded(t *testing.T) {
-	w := 2.3456789012
-	d := &vnx.Document{Plans: []vnx.Plan{plan(vnx.Plan{
-		Name:  "r",
-		Style: vnx.Style{"width": w}},
-		lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 4}}},
-	)}}
-	var b bytes.Buffer
-	if _, err := Write(&b, d); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(b.String(), "<width>2.3456789012</width>") {
-		t.Fatalf("the style width was rounded:\n%s", b.String())
-	}
-}

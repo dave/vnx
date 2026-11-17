@@ -28,7 +28,7 @@ import { WalkCursor } from './walk.js';
 
 /** The MAJOR.MINOR this reader implements (SPEC.md 2.2). */
 export const READER_MAJOR = 0;
-export const READER_MINOR = 10;
+export const READER_MINOR = 11;
 
 const DROP = Symbol('drop');
 
@@ -126,7 +126,7 @@ export function decodeValue(value) {
   // SPEC.md 2.2: through 0.x each MINOR is its own series, so the question is
   // whether the document is in THIS reader's series, not whether it is newer
   // than it. A lower minor is refused for the same reason as a higher one: a
-  // 0.10 reader has no rules for 0.1, exactly as it has none for 0.11. PATCH
+  // 0.11 reader has no rules for 0.1, exactly as it has none for 0.12. PATCH
   // never refuses, at any version, because a patch increment is additive.
   if (major !== READER_MAJOR || minor !== READER_MINOR) {
     const newer = major > READER_MAJOR || (major === READER_MAJOR && minor > READER_MINOR);
@@ -186,13 +186,14 @@ function typeName(v) {
  * A value of the wrong JSON type is an unusable value (SPEC.md 6.2). Where the
  * key is OPTIONAL the field is dropped and the item kept; where it is REQUIRED
  * the item goes, because the object cannot exist without it. An absent
- * REQUIRED key takes the same code as a wrong-typed one, at the key's path.
+ * REQUIRED key takes the same code as a wrong-typed one, at the OBJECT's path:
+ * the key has no element of its own to point at (SPEC.md 6.3).
  */
 function field(k, path, kv, want, check, required, ctx) {
   const v = kv[k];
   if (v === undefined) {
     if (required) {
-      ctx.diag(`${path}/${esc(k)}`, `missing required key "${k}"`, 'wrong-type-required');
+      ctx.diag(path, `missing required key "${k}"`, 'wrong-type-required');
       return DROP;
     }
     return undefined;
@@ -224,28 +225,6 @@ function timestamp(k, path, kv, ctx) {
     return undefined;
   }
   return v;
-}
-
-/**
- * A `style` object is opaque (SPEC.md 3.10): a reader carries any key it does
- * not define through a read-modify-write without reporting it.
- *
- * `importance` is the one style value this format constrains normatively
- * (SPEC.md 3.6). Out of range it is an unusable value in an optional key, so it
- * is dropped and the item kept. Nothing else in a style object is inspected.
- */
-function style(path, kv, ctx) {
-  const s = objField('style', path, kv, false, ctx);
-  if (s === undefined) return undefined;
-  if (!Object.prototype.hasOwnProperty.call(s, 'importance')) return s;
-  const imp = s.importance;
-  if (typeof imp === 'number' && Number.isInteger(imp) && imp >= 1 && imp <= 5) return s;
-  // SPEC.md 6.2: a value outside a stated range is an unusable value in an
-  // optional key, so it takes that code.
-  ctx.diag(`${path}/style/importance`, '"importance" must be an integer from 1 to 5', 'wrong-type-optional');
-  const copy = { ...s };
-  delete copy.importance;
-  return copy;
 }
 
 /**
@@ -422,6 +401,16 @@ function readFolder(raw, path, ctx) {
   const f = new Folder();
   f.id = str('id', path, kv, true, ctx);
   if (f.id === DROP) return DROP;
+  if (f.id === '') {
+    // SPEC.md 3.2: an `id` is a non-empty string, so "" is a wrong-typed value
+    // in a REQUIRED key, named at the key (SPEC.md 6.3).
+    ctx.diag(
+      `${path}/id`,
+      'a folder\'s "id" must be a non-empty string, so the folder is dropped',
+      'wrong-type-required',
+    );
+    return DROP;
+  }
   f.parent = str('parent', path, kv, false, ctx);
   f.name = str('name', path, kv, false, ctx);
   f.notes = str('notes', path, kv, false, ctx);
@@ -642,20 +631,13 @@ function readWalk(kv, owner, arcs, plan, ctx) {
  * would be dropped, the whole plan is.
  */
 function readPlan(raw, path, ctx) {
-  const kv = known(
-    raw,
-    path,
-    ['walk'],
-    ['name', 'notes', 'folder', 'hidden', 'pinned', 'style', 'nodes', 'arcs', 'data'],
-    ctx,
-  );
+  const kv = known(raw, path, ['walk'], ['name', 'notes', 'folder', 'hidden', 'pinned', 'nodes', 'arcs', 'data'], ctx);
   const r = new Plan();
   r.name = str('name', path, kv, false, ctx);
   r.notes = str('notes', path, kv, false, ctx);
   r.folder = str('folder', path, kv, false, ctx);
   r.hidden = bool('hidden', path, kv, false, ctx);
   r.pinned = timestamp('pinned', path, kv, ctx);
-  r.style = style(path, kv, ctx);
   r.data = data(path, kv, ctx);
   r.nodes = readNodes(kv, path, ctx);
   r.arcs = readArcs(kv, path, r.nodes, ctx);
@@ -668,7 +650,7 @@ function readTrack(raw, path, ctx) {
     raw,
     path,
     ['segments'],
-    ['name', 'notes', 'folder', 'hidden', 'pinned', 'style', 'started', 'ended', 'data'],
+    ['name', 'notes', 'folder', 'hidden', 'pinned', 'started', 'ended', 'data'],
     ctx,
   );
   const t = new Track();
@@ -693,7 +675,6 @@ function readTrack(raw, path, ctx) {
   t.folder = str('folder', path, kv, false, ctx);
   t.hidden = bool('hidden', path, kv, false, ctx);
   t.pinned = timestamp('pinned', path, kv, ctx);
-  t.style = style(path, kv, ctx);
   t.started = timestamp('started', path, kv, ctx);
   t.ended = timestamp('ended', path, kv, ctx);
   t.data = data(path, kv, ctx);
@@ -702,12 +683,12 @@ function readTrack(raw, path, ctx) {
 
 /** A top-level point and a network's point are one shape (SPEC.md 3.6). */
 function readPointLike(raw, path, ctx, topLevel) {
-  const optional = ['name', 'notes', 'hidden', 'pinned', 'style', 'data'];
+  const optional = ['name', 'notes', 'hidden', 'pinned', 'data'];
   if (topLevel) optional.push('folder');
   const kv = known(raw, path, ['at'], optional, ctx);
   const w = new Point();
   if (kv.at === undefined) {
-    ctx.diag(`${path}/at`, 'missing required key "at"', 'wrong-type-required');
+    ctx.diag(path, 'missing required key "at"', 'wrong-type-required');
     return DROP;
   }
   const at = position(kv.at, `${path}/at`, ctx, 'wrong-type-required', 'so the item is dropped');
@@ -718,7 +699,6 @@ function readPointLike(raw, path, ctx, topLevel) {
   if (topLevel) w.folder = str('folder', path, kv, false, ctx);
   w.hidden = bool('hidden', path, kv, false, ctx);
   w.pinned = timestamp('pinned', path, kv, ctx);
-  w.style = style(path, kv, ctx);
   w.data = data(path, kv, ctx);
   return w;
 }
@@ -736,7 +716,7 @@ function readPointLike(raw, path, ctx, topLevel) {
  * two positions and the area goes.
  */
 function readArea(raw, path, ctx, topLevel) {
-  const optional = ['name', 'notes', 'hidden', 'pinned', 'style', 'data'];
+  const optional = ['name', 'notes', 'hidden', 'pinned', 'data'];
   if (topLevel) optional.push('folder');
   const kv = known(raw, path, ['polygon'], optional, ctx);
   const ring = arr('polygon', path, kv, true, ctx);
@@ -777,7 +757,6 @@ function readArea(raw, path, ctx, topLevel) {
   if (topLevel) a.folder = str('folder', path, kv, false, ctx);
   a.hidden = bool('hidden', path, kv, false, ctx);
   a.pinned = timestamp('pinned', path, kv, ctx);
-  a.style = style(path, kv, ctx);
   a.data = data(path, kv, ctx);
   return a;
 }
@@ -794,6 +773,9 @@ export function distinctLonLat(ring) {
 // --- cross-references -------------------------------------------------------
 
 function resolveReferences(doc, ctx) {
+  // The folder rules run in this order, and every path is the folder's index in
+  // the file, not among the folders kept.
+  if (doc.folders !== undefined) doc.folders = dropDuplicateFolders(doc.folders, ctx);
   const folders = new Set((doc.folders ?? []).map((f) => f.id));
 
   // SPEC.md 6.2: a `folder`, or a folder's `parent`, naming a folder that is
@@ -818,6 +800,56 @@ function resolveReferences(doc, ctx) {
       'folder-absent',
     );
     item[key] = undefined;
+  }
+  breakParentLoops(doc.folders ?? [], ctx);
+}
+
+/**
+ * SPEC.md 6.2: a folder whose `id` an earlier folder already carries is
+ * dropped, `folder-duplicate-id` at its `id`. The first one stays, so an item
+ * naming the id sits in it.
+ */
+function dropDuplicateFolders(folders, ctx) {
+  const seen = new Set();
+  return folders.filter((f) => {
+    if (!seen.has(f.id)) {
+      seen.add(f.id);
+      return true;
+    }
+    ctx.diag(
+      `${ctx.paths.get(f)}/id`,
+      `folder id ${JSON.stringify(f.id)} is already used by an earlier folder; this folder is dropped`,
+      'folder-duplicate-id',
+    );
+    return false;
+  });
+}
+
+/**
+ * SPEC.md 6.2: a folder is in a loop when following `parent` from it comes back
+ * to it. Folders are taken in document order, and the first folder of each loop
+ * has its `parent` treated as absent, `folder-parent-loop` at that `parent`.
+ * That breaks the loop, so its other folders keep their parents and are not
+ * reported. A folder whose chain only leads INTO a loop never comes back to
+ * itself, so it is not reported either. A folder naming itself is a loop of
+ * one. Every `parent` left names a present folder: `folder-absent` ran first.
+ */
+function breakParentLoops(folders, ctx) {
+  const byId = new Map(folders.map((f) => [f.id, f]));
+  for (const f of folders) {
+    const visited = new Set();
+    let step = f.parent;
+    while (step !== undefined && step !== f.id && !visited.has(step)) {
+      visited.add(step);
+      step = byId.get(step).parent;
+    }
+    if (step !== f.id) continue;
+    ctx.diag(
+      `${ctx.paths.get(f)}/parent`,
+      `folder ${JSON.stringify(f.id)} is in a parent loop; it sits at the root`,
+      'folder-parent-loop',
+    );
+    f.parent = undefined;
   }
 }
 

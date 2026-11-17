@@ -16,7 +16,7 @@ final class LibraryTests: XCTestCase {
   }
 
   private func minimal(_ body: String) -> String {
-    "{\"vnx\":\"0.10.0\"\(body.isEmpty ? "" : ",")\(body)}"
+    "{\"vnx\":\"0.11.0\"\(body.isEmpty ? "" : ",")\(body)}"
   }
 
   // MARK: - Versions (SPEC 2.2)
@@ -24,25 +24,25 @@ final class LibraryTests: XCTestCase {
   func testVersionComponentsAreCompletelyNumeric() throws {
     // "Each component is one or more decimal digits, with no bound on
     // length and no rule against a leading zero: `00.01.0000` is a legal
-    // spelling of 0.1.0." The same holds of 0.10.0, the series this reader
+    // spelling of 0.1.0." The same holds of 0.11.0, the series this reader
     // implements.
-    let result = try read("{\"vnx\":\"00.010.0000\"}")
+    let result = try read("{\"vnx\":\"00.011.0000\"}")
     XCTAssertEqual(
-      result.document.vnx, "00.010.0000",
+      result.document.vnx, "00.011.0000",
       "a reader that re-encodes writes the version the document declared")
-    XCTAssertEqual(try VNX.write(result.document), Data("{\"vnx\":\"00.010.0000\"}".utf8))
+    XCTAssertEqual(try VNX.write(result.document), Data("{\"vnx\":\"00.011.0000\"}".utf8))
   }
 
   func testVersionsAcceptedAndRefused() throws {
-    // Every accepted spelling is in the 0.10 series. A long or
+    // Every accepted spelling is in the 0.11 series. A long or
     // leading-zeroed component is a SPELLING of a series, not another one.
-    for accepted in ["0.10.0", "0.10.3", "0.10.99", "00.10.0", "0.010.000000000000000000005"] {
+    for accepted in ["0.11.0", "0.11.3", "0.11.99", "00.11.0", "0.011.000000000000000000005"] {
       XCTAssertNoThrow(try read("{\"vnx\":\"\(accepted)\"}"), accepted)
     }
     // Another series, in either direction: SPEC 2.2 refuses a lower minor
     // for the same reason as a higher one, so `0.0.9` belongs in this list
-    // and not the one above. A 0.10 reader does not read 0.1.
-    for otherSeries in ["0.1.0", "0.1.99", "0.0.9", "0.0.0", "0.11.0", "1.0.0", "9.9.9", "0.90.0"] {
+    // and not the one above. A 0.11 reader does not read 0.1.
+    for otherSeries in ["0.1.0", "0.1.99", "0.0.9", "0.0.0", "0.12.0", "1.0.0", "9.9.9", "0.90.0"] {
       XCTAssertThrowsError(try read("{\"vnx\":\"\(otherSeries)\"}"), otherSeries) {
         XCTAssertEqual(($0 as? Refusal)?.cause, .versionUnsupportedSeries, otherSeries)
       }
@@ -81,7 +81,7 @@ final class LibraryTests: XCTestCase {
     }
     // A minor either side of the reader's is refused for the MINOR rule,
     // which names the series rather than the major regime.
-    for otherMinor in ["0.11.0", "0.1.0"] {
+    for otherMinor in ["0.12.0", "0.1.0"] {
       XCTAssertThrowsError(try read("{\"vnx\":\"" + otherMinor + "\"}"), otherMinor) {
         let refusal = $0 as! Refusal
         XCTAssertTrue(
@@ -90,7 +90,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(refusal.message.contains("MUST NOT read another one under its own rules"))
       }
     }
-    XCTAssertNoThrow(try read("{\"vnx\":\"0.10.99\"}"))
+    XCTAssertNoThrow(try read("{\"vnx\":\"0.11.99\"}"))
   }
 
   func testTopLevelMustBeAnObjectCarryingVNX() {
@@ -105,6 +105,15 @@ final class LibraryTests: XCTestCase {
     }
     XCTAssertThrowsError(try read("{\"vnx\":10}")) {
       XCTAssertEqual(($0 as? Refusal)?.cause, .versionMalformed)
+    }
+  }
+
+  /// SPEC 2.2: this reader implements the 0.11 series. Any PATCH of it is
+  /// read; the 0.10 series before it is refused, not read as an older patch.
+  func testTheLibraryReadsItsOwnSeriesAndRefusesThePreviousOne() throws {
+    XCTAssertEqual(try read("{\"vnx\":\"0.11.7\"}").diagnostics, [])
+    XCTAssertThrowsError(try read("{\"vnx\":\"0.10.0\"}")) {
+      XCTAssertEqual(($0 as? Refusal)?.cause, .versionUnsupportedSeries)
     }
   }
 
@@ -230,7 +239,7 @@ final class LibraryTests: XCTestCase {
   func testTheWritePathPreservesEveryDigitItIsHanded() throws {
     let source = Data(
       """
-      {"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
+      {"vnx":"0.11.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06,1778914991000]}]}
       """.utf8)
     let written = String(decoding: try VNX.write(try VNX.read(source).document), as: UTF8.self)
     XCTAssertTrue(
@@ -273,14 +282,14 @@ final class LibraryTests: XCTestCase {
     document.points = [
       Point(
         at: Position(lon: 1, lat: 2), name: "x", notes: nil,
-        folder: nil, hidden: nil, style: nil, data: nil)
+        folder: nil, hidden: nil, data: nil)
     ]
     let written = String(decoding: try VNX.write(document), as: UTF8.self)
     XCTAssertFalse(written.contains("\n"), "no newline")
     XCTAssertFalse(written.contains(": "), "no space after a colon")
   }
 
-  /// A data record body and a style are opaque and survive a write at VALUE
+  /// A data record body is opaque and survives a write at VALUE
   /// level (SPEC 5.1 rule 4), whatever they hold.
   func testAnOpaqueBodySurvivesAWriteWhateverItHolds() throws {
     let document = try read(
@@ -299,10 +308,10 @@ final class LibraryTests: XCTestCase {
     // the model holds, which is what makes the round trip a fixed point.
     XCTAssertEqual(
       try VNX.write(try read(minimal("\"points\":[]")).document),
-      Data("{\"points\":[],\"vnx\":\"0.10.0\"}".utf8))
+      Data("{\"points\":[],\"vnx\":\"0.11.0\"}".utf8))
     XCTAssertEqual(
-      try VNX.write(try read("{\"vnx\":\"0.10.0\"}").document),
-      Data("{\"vnx\":\"0.10.0\"}".utf8))
+      try VNX.write(try read("{\"vnx\":\"0.11.0\"}").document),
+      Data("{\"vnx\":\"0.11.0\"}".utf8))
   }
 
   // MARK: - Data records (SPEC 5)
@@ -335,44 +344,20 @@ final class LibraryTests: XCTestCase {
       ["/points/0/data/0", "/points/0/data/1"])
   }
 
-  // MARK: - Style (SPEC 3.10, 3.6, 6.2)
+  // MARK: - Style (removed in 0.11)
 
-  /// A style object is opaque, with one exception the specification states
-  /// twice: `importance` is "an integer from 1 to 5, and that is normative",
-  /// and SPEC 6.2 names it as the worked example of a value outside a stated
-  /// range.
-  func testImportanceIsTheOnlyCheckedStyleKey() throws {
+  /// SPEC 6.2: VNX defines no `style`. On any object it is an unrecognised
+  /// key: reported, skipped, and the object kept, an empty one included.
+  func testStyleIsAnUnknownKey() throws {
     let result = try read(
       minimal(
         """
-        "points":[{"at":[1,2],"style":{"importance":9,"icon-size":999,"invented-key":{"deep":1}}}]
+        "points":[{"at":[1,2],"style":{"importance":9}},{"at":[1,2],"style":{}}]
         """))
-    XCTAssertEqual(result.diagnostics.map(\.cause), [.importanceOutOfRange])
-    XCTAssertNil(result.document.points?[0].style?["importance"], "the field goes")
-    XCTAssertNotNil(
-      result.document.points?[0].style?["invented-key"],
-      "the item, and the rest of the style, stay")
-    XCTAssertNotNil(result.document.points?[0].style?["icon-size"])
-  }
-
-  func testImportanceInRangeIsKept() throws {
-    for value in [1, 2, 3, 4, 5] {
-      let result = try read(
-        minimal("\"points\":[{\"at\":[1,2],\"style\":{\"importance\":\(value)}}]"))
-      XCTAssertEqual(result.diagnostics, [], "importance \(value)")
-    }
-  }
-
-  // MARK: - Hidden (SPEC 3.8)
-
-  func testHiddenAbsenceMeansVisibleAndIsNotInvented() throws {
-    let document = try read(
-      minimal("\"points\":[{\"at\":[1,2]},{\"at\":[3,4],\"hidden\":true}]")
-    ).document
-    XCTAssertNil(document.points?[0].hidden, "absence means visible; it is not `false`")
-    XCTAssertEqual(document.points?[1].hidden, true)
-    XCTAssertFalse(
-      String(decoding: try VNX.write(document), as: UTF8.self).contains("\"hidden\":false"))
+    XCTAssertEqual(result.document.points?.count, 2)
+    XCTAssertEqual(
+      Set(result.diagnostics.map { "\($0.path) \($0.code)" }),
+      ["/points/0/style unknown-key", "/points/1/style unknown-key"])
   }
 
   // MARK: - Pinned (SPEC 3.8)
@@ -483,6 +468,66 @@ final class LibraryTests: XCTestCase {
     XCTAssertEqual(Set(result.diagnostics.map(\.cause)), [.wrongTypeRequired, .folderNotPresent])
   }
 
+  /// SPEC 3.2: a folder's `id` is a non-empty string. "" is a wrong-typed
+  /// value in a REQUIRED key, so the folder goes and the key is named.
+  func testAnEmptyFolderIDDropsTheFolderAtTheKey() throws {
+    let result = try read(minimal("\"folders\":[{\"id\":\"\"},{\"id\":\"k\"}]"))
+    XCTAssertEqual(
+      result.diagnostics.map { "\($0.path) \($0.code)" }, ["/folders/0/id wrong-type-required"])
+    XCTAssertEqual(result.document.folders?.map(\.id), ["k"])
+  }
+
+  /// SPEC 6.3 rule 1: a segment with no `pips` is named at the segment, and
+  /// its track keeps the other segments.
+  func testASegmentWithNoPipsIsNamedAtTheSegment() throws {
+    let result = try read(minimal("\"tracks\":[{\"segments\":[{},{\"pips\":[[0,0],[1,1]]}]}]"))
+    XCTAssertEqual(
+      result.diagnostics.map { "\($0.path) \($0.code)" },
+      ["/tracks/0/segments/0 wrong-type-required"])
+    XCTAssertEqual(result.document.tracks?[0].segments.count, 1)
+  }
+
+  /// SPEC 3.2, 6.2: a second folder with an id already used is dropped and
+  /// reported at its `id`; items naming the id sit in the first folder.
+  func testADuplicateFolderIDDropsTheLaterFolder() throws {
+    let result = try read(
+      minimal(
+        """
+        "folders":[{"id":"x","name":"one"},{"id":"x","name":"two"},{"id":"y","parent":"x"}],\
+        "points":[{"at":[1,2],"folder":"x"}]
+        """))
+    XCTAssertEqual(result.diagnostics.map(\.path), ["/folders/1/id"])
+    XCTAssertEqual(result.diagnostics.map(\.code), ["folder-duplicate-id"])
+    XCTAssertEqual(result.document.folders?.map(\.id), ["x", "y"])
+    XCTAssertEqual(result.document.folders?[0].name, "one")
+    XCTAssertEqual(result.document.folders?[1].parent, "x")
+    XCTAssertEqual(result.document.points?[0].folder, "x")
+  }
+
+  /// SPEC 3.2, 6.2: the first folder of each parent loop sits at the root;
+  /// the others keep their parents, and a folder leading into a loop is not
+  /// reported. A self-parent is a loop of one.
+  func testTheFirstFolderOfAParentLoopSitsAtTheRoot() throws {
+    let result = try read(
+      minimal(
+        """
+        "folders":[{"id":"in","parent":"a"},{"id":"a","parent":"b"},{"id":"b","parent":"c"},\
+        {"id":"c","parent":"a"},{"id":"s","parent":"s"}]
+        """))
+    XCTAssertEqual(result.diagnostics.map(\.path), ["/folders/1/parent", "/folders/4/parent"])
+    XCTAssertEqual(result.diagnostics.map(\.code), ["folder-parent-loop", "folder-parent-loop"])
+    XCTAssertEqual(result.document.folders?.map(\.parent), ["a", nil, "c", "a", nil])
+  }
+
+  /// A loop's path is the folder's index in the file, not among kept folders.
+  func testAParentLoopPathIsTheWireIndex() throws {
+    let result = try read(
+      minimal("\"folders\":[{\"name\":\"no id\"},{\"id\":\"a\",\"parent\":\"a\"}]"))
+    XCTAssertEqual(
+      Set(result.diagnostics.map { "\($0.path) \($0.code)" }),
+      ["/folders/0 wrong-type-required", "/folders/1/parent folder-parent-loop"])
+  }
+
   /// SPEC 3.5, as corrected 2026-09-09: moving time is derivable only when
   /// EVERY segment carries a time on its first and its last pip. Otherwise a
   /// reader reports unknown, and MUST NOT report a sum over the segments that
@@ -553,7 +598,7 @@ final class LibraryTests: XCTestCase {
 
   func testDuplicateObjectKeysResolveLastWinsWithNoDiagnostic() throws {
     let result = try read(
-      "{\"vnx\":\"0.10.0\",\"points\":[{\"at\":[1,2]}],\"points\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
+      "{\"vnx\":\"0.11.0\",\"points\":[{\"at\":[1,2]}],\"points\":[{\"at\":[3,4]},{\"at\":[5,6]}]}"
     )
     XCTAssertEqual(result.document.points?.count, 2)
     XCTAssertEqual(result.diagnostics, [], "a documented limitation, not a rule")
@@ -563,7 +608,7 @@ final class LibraryTests: XCTestCase {
 
   func testTheParserIsStrict() {
     for bad in [
-      "{\"vnx\":\"0.10.0\",}", "{'vnx':'0.1.0'}", "{\"vnx\":\"0.10.0\"} trailing",
+      "{\"vnx\":\"0.11.0\",}", "{'vnx':'0.1.0'}", "{\"vnx\":\"0.11.0\"} trailing",
       "{\"vnx\":NaN}", "{\"vnx\":Infinity}", "{\"vnx\":-Infinity}", "{\"vnx\":01}",
       "{\"vnx\":.5}", "{\"vnx\":+1}", "{\"vnx\":\"a\\u00\"}", "// c\n{}",
       "{\"vnx\":\"tab\there\"}",
@@ -616,7 +661,7 @@ final class LibraryTests: XCTestCase {
 
   func testTheParserAcceptsWhatJSONAllows() throws {
     let result = try read(
-      "{\"vnx\":\"0.10.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
+      "{\"vnx\":\"0.11.0\",\"generator\":\"\\u00e9\\ud83d\\ude00 \\\"q\\\" \\/ \\b\\f\\n\\r\\t\"}")
     XCTAssertEqual(result.document.generator, "é😀 \"q\" / \u{08}\u{0C}\n\r\t")
   }
 
@@ -815,7 +860,7 @@ final class LibraryTests: XCTestCase {
   }
 
   func testNotAZipAtAll() {
-    XCTAssertThrowsError(try VNX.readContainer(Data("{\"vnx\":\"0.10.0\"}".utf8))) {
+    XCTAssertThrowsError(try VNX.readContainer(Data("{\"vnx\":\"0.11.0\"}".utf8))) {
       XCTAssertEqual(($0 as? Refusal)?.cause, .containerMalformed)
     }
   }
@@ -849,7 +894,6 @@ final class LibraryTests: XCTestCase {
       Point(
         at: Position(lon: -3.675, lat: 57.1201, elevation: 320),
         name: "Car park", notes: "note", folder: "f", hidden: nil,
-        style: ["color": .string("#444444"), "importance": .number(2)],
         data: [DataRecord(type: "com.example.x", body: ["value": .bool(true)])])
     ]
     document.networks = [
@@ -884,7 +928,7 @@ final class LibraryTests: XCTestCase {
             Position(lon: 1, lat: 1, elevation: 2, timeMilliseconds: 4000),
           ])
         ],
-        name: "T", notes: nil, folder: nil, hidden: nil, style: nil,
+        name: "T", notes: nil, folder: nil, hidden: nil,
         started: "2026-09-09T12:00:00Z", ended: "2026-09-09T12:00:04Z", data: nil)
     ]
     document.applicationKeys = [

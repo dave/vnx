@@ -13,7 +13,7 @@ container for data objects along a walk of that arc.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "networks": [{
     "name": "Lairig Ghru approaches",
     "nodes": {
@@ -38,8 +38,8 @@ file that parses perfectly and draws in the wrong hemisphere, which
 catches.
 
 A network owns its graph: `nodes` and `arcs` keyed by identifier, with `highlights`
-walking those arcs by reference. A highlight has an optional name and no notes or
-style of its own: it is a lightweight container for the data records that apply
+walking those arcs by reference. A highlight has an optional name and no notes
+of its own: it is a lightweight container for the data records that apply
 along its walk. That reference is the construct GPX, KML and
 GeoJSON cannot express. A top-level plan owns a graph of the same shape and
 carries one walk over it.
@@ -119,9 +119,9 @@ VNX describes trail data, and a library's job is to read it, write it and report
 diagnostics. That is the whole of what the corpus tests and what "a VNX library"
 means here.
 
-A document may carry style properties on its features. How those are drawn,
-tiled or rendered belongs to the reading application; the format defines the
-properties and stops there.
+The format defines no style. How a feature is drawn, tiled or rendered belongs
+to the application; an application that wants to carry its look writes data
+records of its own types.
 
 Conversion to GPX, KML and GeoJSON belongs to the `vnx` command-line tool under
 [`go/`](go/). Those three formats cannot express a network, so the conversion is

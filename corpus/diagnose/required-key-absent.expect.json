@@ -1,0 +1,28 @@
+{
+  "kind": "diagnose",
+  "schema": "invalid",
+  "note": "A REQUIRED key that is absent drops the object that lacks it, with `wrong-type-required` (SPEC 3.10, 6.2). An absent key has no element of its own, so the diagnostic names the object, not the missing key (SPEC 6.3 rule 1): `/points/0`, not `/points/0/at`. Compare diagnose/wrong-typed-value, where the key is present with the wrong type and is named at the key. A reader that names the missing key, or that names nothing, fails. A segment with no `pips` is dropped the same way, and its track is kept with the remaining segment. `counts` pins that only the second point survives, the first track goes, and the second track keeps one segment of two pips.",
+  "counts": {
+    "points": 1,
+    "tracks": 1,
+    "/tracks/0/segments": 1,
+    "/tracks/0/segments/0/pips": 2
+  },
+  "diagnostics": [
+    {
+      "path": "/points/0",
+      "code": "wrong-type-required",
+      "message_advisory": "a point requires `at`; the point is dropped"
+    },
+    {
+      "path": "/tracks/0",
+      "code": "wrong-type-required",
+      "message_advisory": "a track requires `segments`; the track is dropped"
+    },
+    {
+      "path": "/tracks/1/segments/0",
+      "code": "wrong-type-required",
+      "message_advisory": "a segment requires `pips`; the segment is dropped"
+    }
+  ]
+}

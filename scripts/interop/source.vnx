@@ -1,7 +1,7 @@
 {
   "created": "2026-08-31T06:45:12Z",
   "generator": "Viatrail 0.1.93",
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "areas": [
     {
       "folder": "cairngorms",
@@ -12,13 +12,7 @@
         [-3.72, 57.09],
         [-3.72, 57.075],
         [-3.74, 57.075]
-      ],
-      "style": {
-        "fill-color": "#8d5524",
-        "fill-opacity": 0.2,
-        "stroke-color": "#8d5524",
-        "stroke-width": 2
-      }
+      ]
     }
   ],
   "folders": [
@@ -98,13 +92,7 @@
             [-3.666, 57.115],
             [-3.666, 57.112],
             [-3.67, 57.112]
-          ],
-          "style": {
-            "fill-color": "#3a7d44",
-            "fill-opacity": 0.25,
-            "stroke-color": "#3a7d44",
-            "stroke-width": 2
-          }
+          ]
         }
       ],
       "highlights": [
@@ -189,16 +177,7 @@
               "@type": "app.viatrail.water",
               "seasonal": true
             }
-          ],
-          "style": {
-            "color": "#1e6091",
-            "icon": "water",
-            "icon-size": 21,
-            "importance": 3,
-            "label-position": "right",
-            "label-visible": true,
-            "pin-shape": "teardrop"
-          }
+          ]
         },
         {
           "name": "Clearing",
@@ -227,12 +206,6 @@
           "value": "winter"
         }
       ],
-      "style": {
-        "color": "#0b7a75",
-        "line-style": "dashed",
-        "opacity": 1,
-        "width": 4
-      },
       "nodes": {
         "node-1": [-3.728, 57.0782, 1296],
         "node-2": [-3.7101, 57.0699, 1150],
@@ -330,11 +303,7 @@
             [-3.6605, 57.1042, 513.1, 1778571344000]
           ]
         }
-      ],
-      "style": {
-        "color": "#6a4c93",
-        "width": 3
-      }
+      ]
     }
   ],
   "points": [
@@ -352,13 +321,7 @@
           "@type": "com.myapp.last-visit",
           "value": "2026-05-12"
         }
-      ],
-      "style": {
-        "color": "#444444",
-        "icon": "parking",
-        "icon-size": 16,
-        "importance": 2
-      }
+      ]
     },
     {
       "folder": "cairngorms",
@@ -401,15 +364,7 @@
           "@type": "app.viatrail.tag",
           "value": "interop"
         }
-      ],
-      "style": {
-        "color": "#112233",
-        "icon": "flag",
-        "icon-size": 18,
-        "importance": 1,
-        "label-visible": true,
-        "opacity": 0.75
-      }
+      ]
     }
   ],
   "com.example.cleared": null,

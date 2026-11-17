@@ -1,6 +1,6 @@
 # VNX Wire Format Specification
 
-Version 0.10.6
+Version 0.11.0
 
 ## Abstract
 
@@ -87,7 +87,7 @@ a term is listed after every term its definition uses.
   arcs; the order is the direction of travel (Section 3.3.3).
 - A **highlight** is a lightweight container for data objects along a walk of
   its network's arcs: an item carrying a walk and an optional name, with no
-  notes or style of its own. A highlight does not own the arcs it walks
+  notes of its own. A highlight does not own the arcs it walks
   (Section 3.3.3).
 - A **plan** is a top-level item that owns its nodes and arcs and carries one
   walk over them (Section 3.4).
@@ -120,7 +120,7 @@ rule. The document below is complete and is read with no diagnostics.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "generator": "example 1.0",
   "created": "2026-08-31T06:45:12Z",
   "folders": [
@@ -186,7 +186,7 @@ carrying one data record along that walk (Section 3.3). The point carries its po
 | Plain document | `.vnx`, `application/vnd.viatrail.vnx+json` |
 | Container | `.vnz`, `application/vnd.viatrail.vnz+zip` |
 | Version key | `vnx` |
-| Current version | `0.10.6` |
+| Current version | `0.11.0` |
 
 The media types use the vendor tree and the `+json` and `+zip` structured
 suffixes of [RFC 6839], so that generic tooling can process a VNX document
@@ -202,11 +202,11 @@ The value is `MAJOR.MINOR.PATCH`: three components, each one or more decimal
 digits, separated by U+002E, full stop. All three components are REQUIRED.
 
 Each component is one or more decimal digits, with no bound on length and no
-rule against a leading zero: `00.010.0000` is a legal spelling of 0.10.0, and a
+rule against a leading zero: `00.011.0000` is a legal spelling of 0.11.0, and a
 reader compares the numeric values rather than the text.
 
 A version string that is not three digit-runs separated by full stops MUST be
-refused, and MUST NOT be coerced. `"0.10"`, `"0.10.0.0"`, `"0.10.x"` and `"0.10.+1"`
+refused, and MUST NOT be coerced. `"0.11"`, `"0.11.0.0"`, `"0.11.x"` and `"0.11.+1"`
 are all refused. A two-component version is not a spelling of a three-component
 one. The refusal MUST name the expected shape.
 
@@ -232,11 +232,11 @@ Through 0.x:
   and MUST refuse a document in a series it does not support, naming the
   version.
 - A reader MUST accept a document in a series it supports, whatever the PATCH
-  component. A 0.10.0 reader accepts 0.10.3. It refuses 0.11.0, and it refuses
+  component. A 0.11.0 reader accepts 0.11.3. It refuses 0.12.0, and it refuses
   0.8.4 unless it declares support for the 0.8 series. A lower minor is refused
   for the same reason as a higher one.
 
-A reader of this version supports the 0.10 series only.
+A reader of this version supports the 0.11 series only.
 
 From version 1.0 onward, minor versions are additive: a reader MUST accept any
 minor version at or above its own and MUST ignore constructs it does not
@@ -244,8 +244,8 @@ recognise, and only a MAJOR increment is a refusal. The rule for PATCH does not
 change.
 
 A reader that re-encodes a document MUST write the version the document
-declared, not the reader's own. A 0.10.0 reader that reads a 0.10.3 document and
-writes it back writes `0.10.3`.
+declared, not the reader's own. A 0.11.0 reader that reads a 0.11.3 document and
+writes it back writes `0.11.3`.
 
 ## 3. Document structure
 
@@ -258,7 +258,7 @@ A VNX document is a JSON object [RFC 8259].
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "generator": "Example Trails 2.4.1",
   "created": "2026-08-31T06:45:12Z",
 
@@ -276,10 +276,9 @@ A VNX document is a JSON object [RFC 8259].
 Every key is OPTIONAL except the ones its object requires, which Section 3.10
 lists. A reader MUST accept the absence of every other key.
 
-Absence means "not known". It MUST NOT be read as a default value, with three
-exceptions stated where they arise: `label-visible`, where absence means Auto
-(Section 3.6), `hidden`, where absence means visible, and `pinned`, where
-absence means not pinned (Section 3.8).
+Absence means "not known". It MUST NOT be read as a default value, with two
+exceptions stated where they arise: `hidden`, where absence means visible, and
+`pinned`, where absence means not pinned (Section 3.8).
 
 All six collections are OPTIONAL. An absent collection and an empty one carry
 the same content, and a reader MUST treat them alike when reading. That holds
@@ -309,6 +308,14 @@ absent.
 
 `parent` is absent at the root. Folders are the only top-level items that carry
 an `id`, because they are the only top-level items referenced from elsewhere.
+
+A folder's `id` is a non-empty string. An empty `id` is a value of the wrong type
+in a REQUIRED key (Section 6.2).
+
+Folder ids are unique within a document: no two folders carry the same `id`.
+Folder parents never form a loop: following `parent` from a folder never comes
+back to that folder. Section 6.2 states what a reader does with a document that
+breaks either rule.
 
 A top-level item other than a folder MAY carry a `folder` key naming the folder
 that contains it.
@@ -372,8 +379,8 @@ pass naming an absent arc (Section 6.2).
 A highlight is a lightweight container for data objects along a walk of its
 network's arcs. It carries a walk over arcs that it does not own, and its `data`
 records apply along that walk. A highlight can carry a `name`. It has no notes
-or style of its own: what it is, beyond its name, is what its data records say.
-A `notes` or `style` on a highlight is an unrecognised key (Sections 3.10 and
+of its own: what it is, beyond its name, is what its data records say.
+A `notes` on a highlight is an unrecognised key (Sections 3.10 and
 6.2).
 
 ```json
@@ -478,7 +485,6 @@ its nodes or arcs.
 {
   "folder": "cairngorms",
   "name": "Braeriach direct",
-  "style": { },
   "nodes": { "node-1": [-3.728, 57.0782, 1296], "node-2": [-3.7101, 57.0699, 1150] },
   "arcs":  { "arc-1": { "from": "node-1", "to": "node-2", "pips": [ ], "data": [ ] } },
   "walk":  [ { "arc": "arc-1", "from": "node-2", "to": "node-1" } ],
@@ -505,7 +511,6 @@ either direction.
   "name": "Lairig Ghru, 12 May",
   "started": "2026-05-12T07:03:11Z",
   "ended":   "2026-05-12T16:41:02Z",
-  "style":   { "color": "#6a4c93", "width": 3 },
   "segments": [ { "pips": [ [-3.6521, 57.1, 940, 1778569391000] ] } ],
   "data": [ ]
 }
@@ -539,34 +544,15 @@ share one shape.
   "name": "Spring",
   "at": [-3.6521, 57.1, 940],
   "notes": "...",
-  "style": {
-    "color": "#1e6091", "icon": "water", "icon-size": 21,
-    "pin-shape": "teardrop", "label-position": "right",
-    "label-visible": true, "importance": 3
-  },
   "data": [ ]
 }
 ```
 
 `at` is a position (Section 4.1).
 
-`icon-size` is an integer in points. No range is stated for it, so a reader
-does not check it and `"icon-size": "large"` passes unremarked. Section 6.2
-checks a value only where this document states a range or an enumeration.
-
-`importance` is an integer from 1 to 5, and that is normative: a value outside
-the range is handled under Section 6.2. Neither is spelled as a word.
-
-`label-visible` is a tristate, and its absence is meaningful:
-
-| Value | Meaning |
-|---|---|
-| absent | Auto: the renderer decides from importance and zoom |
-| `true` | forced visible |
-| `false` | forced hidden |
-
-A reader MUST NOT treat an absent `label-visible` as `false`. Doing so flattens
-Auto to hidden with nothing to report.
+This format defines no style. How an item is drawn (colour, icon, line width,
+label) is application data: an application that carries it writes data records
+of its own types (Section 5).
 
 ### 3.7 Areas
 
@@ -574,7 +560,6 @@ Auto to hidden with nothing to report.
 {
   "name": "Boggy ground",
   "polygon": [ [-3.65, 57.1], [-3.64, 57.1], [-3.64, 57.11] ],
-  "style": { "fill-color": "#1e6091", "fill-opacity": 0.25, "stroke-color": "#1e6091", "stroke-width": 2 },
   "data": [ ]
 }
 ```
@@ -639,8 +624,7 @@ The value of an application key is any JSON value, and it is opaque. A reader:
   does not apply to an application key or to anything inside its value.
 - MUST NOT record a diagnostic for an application key, whatever its value.
 - MUST NOT apply any rule of this format inside the value. A value under
-  `points.` that would be unusable as a point is carried as written, and
-  so is an `importance` outside 1 to 5.
+  `points.` that would be unusable as a point is carried as written.
 
 The rule applies only at the top level of a document. On any other object this
 format defines, except the opaque objects of Section 3.10, a key that contains
@@ -672,13 +656,13 @@ array is distinct from an absent one.
 | arc, in a network or a plan | `from`, `to`, `pips` | `data` |
 | highlight | `walk` | `name`, `hidden`, `pinned`, `data` |
 | pass | `arc` | `from`, `to`, `turn`, `pin` |
-| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `nodes`, `arcs`, `data` |
-| track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `started`, `ended`, `data` |
+| plan | `walk` | `name`, `notes`, `folder`, `hidden`, `pinned`, `nodes`, `arcs`, `data` |
+| track | `segments` | `name`, `notes`, `folder`, `hidden`, `pinned`, `started`, `ended`, `data` |
 | segment | `pips` | — |
-| point, at the top level | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
-| point, in a network | `at` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
-| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `pinned`, `style`, `data` |
-| area, in a network | `polygon` | `name`, `notes`, `hidden`, `pinned`, `style`, `data` |
+| point, at the top level | `at` | `name`, `notes`, `folder`, `hidden`, `pinned`, `data` |
+| point, in a network | `at` | `name`, `notes`, `hidden`, `pinned`, `data` |
+| area, at the top level | `polygon` | `name`, `notes`, `folder`, `hidden`, `pinned`, `data` |
+| area, in a network | `polygon` | `name`, `notes`, `hidden`, `pinned`, `data` |
 | data record | `@type` | opaque; see below |
 
 A node is a position (Section 4.1), not an object, and has no keys.
@@ -690,13 +674,16 @@ Notes on the table:
   `points` or `areas`, which their network already contains.
 - `name`, `hidden` and `data` appear on every item, and `notes` on every item
   but a highlight, which is a lightweight container for data along its walk
-  and has no notes or style of its own (Section 3.3.3). Apart from `data` on an
+  and has no notes of its own (Section 3.3.3). Apart from `data` on an
   arc, none of the four appears on any other object in the table. An
   object to which the table gives none of them is not an item. `hidden` therefore appears on a
   top-level point: Section 3.8 names the shape rather than the collection,
   and a top-level point and a network's point are one shape (Section 3.6).
 - `pinned` appears on every item except a folder (Section 3.8).
-- An arc carries no `name`, `notes`, `hidden` or `style`, and neither a pass nor
+- `notes` is a string of Markdown, as [CommonMark] defines it. A reader that
+  does not render Markdown MAY show the text as written. A writer MUST NOT
+  put HTML in `notes`, because readers render it differently.
+- An arc carries no `name`, `notes` or `hidden`, and neither a pass nor
   a segment carries `hidden`.
 
 #### Objects this section does not reach
@@ -707,24 +694,9 @@ unrecognised-key rule inside either:
 - A data record, apart from its `@type` (Section 5.1).
 - The value of an application key (Section 3.9).
 
-A style object is opaque for the same reason. A reader MUST carry every key in a
-style object through a read-modify-write, and MUST NOT report an unrecognised
-one.
-
-Opaque means unrecognised keys are not reported. It does not exempt a value from
-a range this document states normatively: `importance` is an integer from 1 to 5
-(Section 3.6), and a reader MUST apply that range to the `importance` key of
-any style object, including one this format does not otherwise document. A
-non-integer `importance` is out of range. The rule reaches the style object's
-own keys only: a key named `importance` inside a nested object in a style is
-carried untouched, like every other style value, because no other style key has
-a stated range.
-
-A field named `importance` inside a data record body is not checked. Section
-6.2's prohibition on inspecting a record body is the mechanism by which a record
-of an unrecognised type survives a read-modify-write, and it wins. The same
-holds inside an application key's value, where no rule of this format applies
-(Section 3.9).
+Inside either, a reader checks nothing: no key, type, range or enumeration.
+That is how a record of an unrecognised type, and an application key, survive a
+read-modify-write.
 
 ## 4. Values
 
@@ -737,7 +709,8 @@ A position is a JSON array of fixed positional channels:
 ```
 
 - Coordinate order is longitude first, then latitude, as in [RFC 7946].
-- `ele` is elevation in metres.
+- `lon` and `lat` are decimal degrees on the WGS 84 datum, as in [RFC 7946].
+- `ele` is elevation in metres above mean sea level.
 - `time_ms` is a time in Unix milliseconds (Section 4.2).
 
 The following rules apply:
@@ -919,9 +892,9 @@ A reader is tolerant of damage and silent about nothing.
 
   Section 5.1's rule for a record with an unusable `@type` is the same rule: the
   record goes, not the key.
-- A value outside a range this document states normatively, such as an
-  `importance` outside 1 to 5 (Section 3.6), is an unusable value in an optional
-  key, so the reader MUST drop the field and MUST keep the item.
+- A value outside a range or enumeration this document states normatively is
+  an unusable value. In an optional key the reader MUST drop the field and MUST
+  keep the item.
 
   A reader checks a value only where this document states a normative range or
   enumeration for it. A record body is opaque apart from `@type` (Section 5.1),
@@ -986,6 +959,8 @@ The remedies for the constructs this document constrains:
 | a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
 | a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
 | an item's `folder`, or a folder's `parent`, naming a folder that is not present (6.2) | treat the key as absent | `folder-absent` |
+| a folder whose `id` an earlier folder already carries (3.2) | drop the folder | `folder-duplicate-id` |
+| the first folder, in document order, of a parent loop (3.2) | treat its `parent` as absent | `folder-parent-loop` |
 | an attachment that cannot be recovered (7) | drop the attachment | `attachment-unreadable` |
 
 In a plan, "the highlight" in this table is the plan itself (Section 3.4).
@@ -1037,6 +1012,22 @@ MUST record a diagnostic.
 A folder with no `id` is dropped under the rule above. Items that named it are
 then covered by the previous paragraph and sit at the top level.
 
+A folder whose `id` an earlier folder in the document already carries is
+dropped, and the reader MUST record a diagnostic at its `id`. The first folder
+with that id stays, and items that name the id sit in it.
+
+A folder is in a loop when following `parent` from it comes back to it. A
+reader takes the folders in document order. For the first folder of each loop,
+the reader MUST treat its `parent` as absent, so it sits at the root, and MUST
+record a diagnostic at that `parent`. That breaks the loop: the other folders
+of the loop keep their parents. A folder whose parents lead into a loop but
+that is not itself in the loop is not reported.
+
+The reader applies the folder rules in this order: it drops folders with no
+`id` and folders with a duplicate `id`, then treats a `parent` that names no
+remaining folder as absent, then breaks loops. A `parent` naming a dropped
+duplicate therefore names the first folder with that id.
+
 Neither tolerance nor refusal may be silent.
 
 ### 6.3 Diagnostics
@@ -1074,6 +1065,11 @@ diagnostic rather than one rule with two exceptions.
    different depths: when the arc is absent nothing about the pass resolves, so
    the pass is named; when the `turn` will not parse, the arc and the rest of
    the pass still resolve, so only `turn` is.
+
+   A REQUIRED key that is absent has no element of its own, so `path` names the
+   object that lacks it: a folder with no `id` is named `/folders/N`, a point
+   with no `at` is named `/points/N`. A REQUIRED key that is present with a
+   value of the wrong type is named at the key.
 2. Where the diagnostic is about a relationship between parts that are each
    usable, `path` names the part that breaks it. A pass that does not continue
    from the node where the previous pass left names the later pass, not the one
@@ -1285,7 +1281,7 @@ For every file in `accept/`, a runner MUST decode it, encode the decoded
 document, and compare the tree parsed from the original file against the tree
 parsed from the encoded output. It MUST NOT be reduced to a comparison of one
 decoded model against another: a reader that discarded every data record, every
-application key, every style and every `notes` field produces a model equal to
+application key and every `notes` field produces a model equal to
 itself. Two normalisations are permitted and no others — trailing `null` channels
 dropped from a position, and an absent container equal to an empty one. The
 second does not apply to an application key or inside its value, which the
@@ -1318,6 +1314,8 @@ the size of an opaque data record.
 
 - [APPNOTE] PKWARE, Inc., ".ZIP File Format Specification", APPNOTE.TXT,
   version 6.3.10, November 2022.
+- [CommonMark] MacFarlane, J., "CommonMark Spec", version 0.31.2, January 2024,
+  <https://spec.commonmark.org/0.31.2/>.
 - [RFC 2119] Bradner, S., "Key words for use in RFCs to Indicate Requirement
   Levels", BCP 14, RFC 2119, March 1997.
 - [RFC 6839] Hansen, T. and A. Melnikov, "Additional Media Type Structured

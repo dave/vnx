@@ -5,10 +5,10 @@ package app.viatrail.vnx
  * a document are not constrained (SPEC.md section 8.1).
  *
  * IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier rests
- * on. A reader that discarded every data record, every application key, every
- * style and every `notes` produces a model that compares equal to itself, and passes an
- * accept tier built that way green — that is the whole extensibility mechanism,
- * all styling and all user prose. Comparing the tree parsed from the ORIGINAL
+ * on. A reader that discarded every data record, every application key and every
+ * `notes` produces a model that compares equal to itself, and passes an
+ * accept tier built that way green — that is the whole extensibility mechanism
+ * and all user prose. Comparing the tree parsed from the ORIGINAL
  * FILE against the tree parsed from `write(read(file))` is what proves a reader
  * kept what it read. AcceptTierTest freezes the proof.
  */
@@ -58,7 +58,6 @@ internal object Tree {
         opt: Options,
     ) {
         o["at"]?.let { o["at"] = position(it, opt) }
-        dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
@@ -67,7 +66,6 @@ internal object Tree {
         opt: Options,
     ) {
         positionList(o, "polygon", opt)
-        dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
@@ -76,7 +74,6 @@ internal object Tree {
         opt: Options,
     ) {
         items(o, "segments", opt) { segment, _ -> positionList(segment, "pips", opt) }
-        dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
@@ -86,7 +83,6 @@ internal object Tree {
     ) {
         graph(o, opt)
         items(o, "walk", opt, ::pass)
-        dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 
@@ -151,7 +147,6 @@ internal object Tree {
         opt: Options,
     ) {
         items(o, "walk", opt, ::pass)
-        dropEmptyContainer(o, "style")
         dropEmptyContainer(o, "data")
     }
 

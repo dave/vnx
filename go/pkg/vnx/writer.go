@@ -38,8 +38,8 @@ import (
 //  4. **Severity is Warning at every writer site.** Every one of them reports
 //     something DROPPED, which is exactly what Warning is documented to mean.
 //  5. **One diagnostic per dropped ITEM, never per dropped attribute.** A
-//     GeoJSON export carries name and description only (§2.3), so tags,
-//     styles and hidden state are lost on every item in the library — one
+//     GeoJSON export carries name and description only (§2.3), so data
+//     records and hidden state are lost on every item in the library — one
 //     diagnostic each would bury the real casualties under hundreds of rows
 //     nobody can act on. Attribute-level losses are matrix facts, proven by
 //     the per-cell tests of §6.3, not per-item diagnostics. An application

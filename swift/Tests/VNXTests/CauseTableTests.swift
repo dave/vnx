@@ -205,11 +205,12 @@ final class CauseTableTests: XCTestCase {
         "containerDuplicateEntry", "containerNoDocument",
         "containerRootCompressionUnsupported",
         "unknownKey", "wrongTypeRequired", "wrongTypeOptional",
-        "positionUnusable", "importanceOutOfRange", "timestampNotUTC",
+        "positionUnusable", "timestampNotUTC",
         "polygonNestedRings", "ringClosed", "ringTooFewPoints",
         "extraChannel", "arcPipTime", "selfLoopArc", "arcNodeAbsent",
         "passArcAbsent", "walkSpelling", "walkNotConnected", "pinnedTurn",
-        "planPinOrPosition", "folderNotPresent", "attachmentUnreadable",
+        "planPinOrPosition", "folderNotPresent", "folderDuplicateID", "folderParentLoop",
+        "attachmentUnreadable",
       ])
   }
 }

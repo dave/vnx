@@ -11,7 +11,6 @@ type Point struct {
 	Hidden bool
 	Pinned Timestamp // "" is not pinned (§3.8)
 	At     Position
-	Style  Style
 	Data   []Record
 }
 
@@ -26,20 +25,35 @@ type Area struct {
 	Hidden  bool
 	Pinned  Timestamp // "" is not pinned (§3.8)
 	Polygon []Position
-	Style   Style
 	Data    []Record
 }
 
 var (
-	pointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "style": true, "data": true}
-	areaKeys  = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "style": true, "data": true}
+	pointKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "at": true, "data": true}
+	areaKeys  = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "polygon": true, "data": true}
+	// A network's points and areas sit in their network's folder and carry no
+	// `folder` of their own (§3.10), so on them `folder` is an unrecognised
+	// key.
+	networkPointKeys = withoutKey(pointKeys, "folder")
+	networkAreaKeys  = withoutKey(areaKeys, "folder")
 )
+
+// withoutKey is a copy of keys that lacks key.
+func withoutKey(keys map[string]bool, key string) map[string]bool {
+	out := make(map[string]bool, len(keys))
+	for k, v := range keys {
+		if k != key {
+			out[k] = v
+		}
+	}
+	return out
+}
 
 // decodePoints reads a network's `points`, which arrive as a generic tree.
 func decodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Diagnostic) {
 	out := make([]Point, 0, len(arr))
 	for i, item := range arr {
-		w, ok, d := pointFromValue(item, fmt.Sprintf("%s/%d", path, i), diags)
+		w, ok, d := pointFromValue(item, fmt.Sprintf("%s/%d", path, i), true, diags)
 		diags = d
 		if ok {
 			out = append(out, w)
@@ -48,9 +62,9 @@ func decodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Diagno
 	return out, diags
 }
 
-// pointFromValue reads one point, top-level or in a network. ok is false when it
-// is dropped.
-func pointFromValue(item any, at string, diags []Diagnostic) (Point, bool, []Diagnostic) {
+// pointFromValue reads one point, top-level or in a network (inNetwork). ok is
+// false when it is dropped.
+func pointFromValue(item any, at string, inNetwork bool, diags []Diagnostic) (Point, bool, []Diagnostic) {
 	obj, ok := item.(map[string]any)
 	if !ok {
 		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: at,
@@ -62,11 +76,13 @@ func pointFromValue(item any, at string, diags []Diagnostic) (Point, bool, []Dia
 		// FACT. §3.10 makes `at` required, so both drop the item, but a
 		// reader told "missing or malformed" learns neither. Distinguished
 		// here; the code is the same because the outcome is.
-		what := "is missing"
+		// §6.3 rule 1: an absent key has no element of its own, so the point
+		// is named; a present one of the wrong type is named at the key.
+		what, where := "is missing", at
 		if _, present := obj["at"]; present {
-			what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
+			what, where = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"])), at+"/at"
 		}
-		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
+		return Point{}, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 			Code:    CodeWrongTypeRequired,
 			Message: fmt.Sprintf("`at` %s — item dropped", what)})
 	}
@@ -78,34 +94,43 @@ func pointFromValue(item any, at string, diags []Diagnostic) (Point, bool, []Dia
 	}
 	var w Point
 	w.At = pos
-	w.Folder, diags = stringField(obj, "folder", diags)
-	w.Name, diags = stringField(obj, "name", diags)
-	w.Notes, diags = stringField(obj, "notes", diags)
+	keys := pointKeys
+	if inNetwork {
+		keys = networkPointKeys
+	} else {
+		w.Folder, diags = stringField(obj, "folder", at, diags)
+	}
+	w.Name, diags = stringField(obj, "name", at, diags)
+	w.Notes, diags = stringField(obj, "notes", at, diags)
 	w.Hidden, diags = boolField(obj, "hidden", at, diags)
 	w.Pinned, diags = timeField(obj, "pinned", at, diags)
-	w.Style, diags = decodeStyle(obj, at, diags)
 	w.Data, diags = dataField(obj, at, diags)
-	diags = reportUnknownKeys(obj, at, pointKeys, diags)
+	diags = reportUnknownKeys(obj, at, keys, diags)
 	return w, true, diags
 }
 
 // areaFromObject builds one area from its object, read with every key but
-// `polygon`, which rr holds. ok is false when the area is dropped.
-func areaFromObject(obj map[string]any, at string, rr *ringRead, diags []Diagnostic) (Area, bool, []Diagnostic) {
+// `polygon`, which rr holds. inNetwork says whether it is a network's area. ok
+// is false when the area is dropped.
+func areaFromObject(obj map[string]any, at string, rr *ringRead, inNetwork bool, diags []Diagnostic) (Area, bool, []Diagnostic) {
 	diags = append(diags, rr.diags...)
 	if !rr.ok {
 		return Area{}, false, diags
 	}
 	var a Area
 	a.Polygon = rr.ring
-	a.Folder, diags = stringField(obj, "folder", diags)
-	a.Name, diags = stringField(obj, "name", diags)
-	a.Notes, diags = stringField(obj, "notes", diags)
+	keys := areaKeys
+	if inNetwork {
+		keys = networkAreaKeys
+	} else {
+		a.Folder, diags = stringField(obj, "folder", at, diags)
+	}
+	a.Name, diags = stringField(obj, "name", at, diags)
+	a.Notes, diags = stringField(obj, "notes", at, diags)
 	a.Hidden, diags = boolField(obj, "hidden", at, diags)
 	a.Pinned, diags = timeField(obj, "pinned", at, diags)
-	a.Style, diags = decodeStyle(obj, at, diags)
 	a.Data, diags = dataField(obj, at, diags)
-	diags = reportUnknownKeys(obj, at, areaKeys, diags)
+	diags = reportUnknownKeys(obj, at, keys, diags)
 	return a, true, diags
 }
 

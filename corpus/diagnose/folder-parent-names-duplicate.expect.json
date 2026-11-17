@@ -1,0 +1,20 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "The order of the folder rules (SPEC 6.2): drop duplicates first, then treat a parent that names no remaining folder as absent, then break loops. The second `hills` is dropped with `folder-duplicate-id`, and `tops`, whose parent names `hills`, sits in the FIRST `hills` with no diagnostic: a reader that resolves parents before dropping duplicates may name the wrong folder or report it. `y` names a folder that is not present, so its parent is absent (`folder-absent`), and the chain x -> y then ends at the root: there is no loop, so nothing else is reported. Four folders survive.",
+  "counts": {
+    "folders": 4
+  },
+  "diagnostics": [
+    {
+      "path": "/folders/1/id",
+      "code": "folder-duplicate-id",
+      "message_advisory": "folder id \"hills\" is already used by an earlier folder; this folder is dropped"
+    },
+    {
+      "path": "/folders/4/parent",
+      "code": "folder-absent",
+      "message_advisory": "parent folder \"gone\" is not in the document; the folder sits at the root"
+    }
+  ]
+}

@@ -12,10 +12,10 @@ import (
 // a document are not constrained (spec §8.1).
 //
 // ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the tier rests on.
-// A reader that discarded every data record, every application key, every style
-// and every `notes` produces a model that compares equal to itself, and passes an
-// accept tier built that way green — that is the whole extensibility mechanism,
-// all styling and all user prose. Comparing the tree parsed from the ORIGINAL
+// A reader that discarded every data record, every application key and every
+// `notes` produces a model that compares equal to itself, and passes an accept
+// tier built that way green — that is the whole extensibility mechanism and all
+// user prose. Comparing the tree parsed from the ORIGINAL
 // FILE against the tree parsed from encode(decode(file)) is what proves a reader
 // kept what it read. accept_tier_test.go freezes the proof.
 
@@ -48,9 +48,9 @@ func parseTree(data []byte) (any, error) {
 // normalisations.
 //
 // It is SCHEMA-AWARE rather than a heuristic over shapes, because the two
-// regions the format declares opaque — a data record's body and a style — may
-// hold arrays of numbers that are not positions and must not be rounded, and
-// may hold empty containers that a third party means to keep.
+// regions the format declares opaque — a data record's body and an application
+// key's value — may hold arrays of numbers that are not positions and must not
+// be rounded, and may hold empty containers that a third party means to keep.
 func normaliseDocument(v any, opt treeOptions) any {
 	obj, ok := v.(map[string]any)
 	if !ok {
@@ -77,13 +77,11 @@ func normPoint(o map[string]any, opt treeOptions) {
 	if p, ok := o["at"]; ok {
 		o["at"] = normPosition(p, opt)
 	}
-	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
 
 func normArea(o map[string]any, opt treeOptions) {
 	normPositionList(o, "polygon", opt)
-	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
 
@@ -91,14 +89,12 @@ func normTrack(o map[string]any, opt treeOptions) {
 	normItems(o, "segments", opt, func(s map[string]any, opt treeOptions) {
 		normPositionList(s, "pips", opt)
 	})
-	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
 
 func normPlan(o map[string]any, opt treeOptions) {
 	normGraph(o, opt)
 	normWalk(o, opt)
-	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
 
@@ -172,7 +168,6 @@ func normNetwork(o map[string]any, opt treeOptions) {
 
 func normHighlight(o map[string]any, opt treeOptions) {
 	normWalk(o, opt)
-	dropEmptyContainer(o, "style")
 	dropEmptyContainer(o, "data")
 }
 

@@ -1,5 +1,5 @@
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "networks": [
     {
       "name": "An arc to a node that is not there",

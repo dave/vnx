@@ -171,10 +171,9 @@ func runAccept(t *testing.T, c corpusCase) {
 	// and require the two JSON TREES equal.
 	//
 	// ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER. A reader that
-	// discarded every data record, every application key, every style and every `notes`
+	// discarded every data record, every application key and every `notes`
 	// produces a model that compares equal to itself and passes such a tier
-	// green — that is the whole extensibility mechanism, all styling and all
-	// user prose. Comparing against the tree parsed from the ORIGINAL FILE is
+	// green — that is the whole extensibility mechanism and all user prose. Comparing against the tree parsed from the ORIGINAL FILE is
 	// what proves a reader kept what it read, and accept_tier_test.go freezes
 	// the proof.
 	//

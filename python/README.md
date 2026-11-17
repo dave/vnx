@@ -3,7 +3,7 @@
 `vnx` reads and writes VNX documents and VNZ containers in Python, and reports
 diagnostics.
 
-Python 3.11 or later, and no dependencies. Implements VNX 0.10.0 —
+Python 3.11 or later, and no dependencies. Implements VNX 0.11.0 —
 [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -70,7 +70,7 @@ except vnx.VNXRefusal as refusal:
 ```
 document entry doc.vnx
 attachment attachments/photo.txt 19 bytes
-refused: this document is version 0.1.9 and this reader does not support the 0.1 series: it reads 0.10.x
+refused: this document is version 0.1.9 and this reader does not support the 0.1 series: it reads 0.11.x
 ```
 
 ## Command-line tool
@@ -103,7 +103,7 @@ This library has none. The reference command-line tool is Go's; see
 | `AppKey` | `key: str`, `value` — one application key (SPEC §3.9); `value` is the parsed JSON, `None` for a JSON `null` |
 | `Network` | `nodes: dict[str, Position]`, `arcs: dict[str, Arc]`, `highlights`, `points`, `areas` |
 | `Arc` | `from_`, `to`, and `pips: list[Position]`, the interior points of the line between its two nodes |
-| `Highlight` | `walk: list[Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes or style of its own |
+| `Highlight` | `walk: list[Pass]`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes of its own |
 | `Pass` | `arc`, `from_`, `to`, `turn`, `pin`; `from_` and `to` are a node key or a `Position`, `turn` and `pin` a `Position` |
 | `Plan` | `nodes`, `arcs` and `walk`, of the same shapes as a network's and a highlight's |
 | `Track` | `segments: list[Segment]`, each carrying `pips`, and `moving_time_ms()` |
@@ -121,7 +121,7 @@ guess about what the caller meant. `encode_file` encodes in full before it write
 replaces the file only once the bytes are on disk, so a refused encode leaves an
 existing file unchanged.
 
-Items also carry `name`, `notes`, `folder`, `hidden`, `style` and `data` where
+Items also carry `name`, `notes`, `folder`, `hidden` and `data` where
 SPEC §3 gives them. `from_` takes the underscore because `from` is a keyword.
 
 Encoding what you decoded is legitimately not the bytes you read, because a
@@ -152,8 +152,8 @@ is a raised exception against the `diagnostics` list returned beside a document.
   `null` or left off.
 - **A version outside this reader's series is refused, in either direction.**
   Through 0.x each MINOR is its own series (SPEC §2.2), so `0.1.9` is refused
-  exactly as `0.11.0` is, and the message names the series. Any PATCH within
-  `0.10` reads.
+  exactly as `0.12.0` is, and the message names the series. Any PATCH within
+  `0.11` reads.
 - **Damaged geometry costs its container.** A position inside `pips` that will
   not parse drops the arc or segment holding it (SPEC §6.2).
 - **A walk is used whole or not at all.** The first problem in a walk drops the

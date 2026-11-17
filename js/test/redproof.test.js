@@ -41,7 +41,7 @@ let counter = 0;
 /** A highlight over a fixed three-node line, a --ab-- b --bc-- c. */
 function highlightDoc(walk) {
   return JSON.stringify({
-    vnx: '0.10.0',
+    vnx: '0.11.0',
     networks: [
       {
         nodes: { a: [0, 0], b: [1, 0], c: [2, 0] },
@@ -192,13 +192,13 @@ test('dropping a TRAILING null in the model is permitted; dropping an INTERIOR o
   assert.deepEqual(await failingDelta(interior), ['write/arc-pip-time', 'write/emit-boundary']);
 });
 
-// ⚠ THE FOUR SPOILED READERS. Each of the next four cases is a reader that
+// ⚠ THE THREE SPOILED READERS. Each of the next three cases is a reader that
 // silently drops one thing it read: every data record, every application key,
-// every style, every `notes`. That is the entire extensibility mechanism, all styling
-// and all user prose. Every one of them produces a MODEL EQUAL TO ITSELF and
+// every `notes`. That is the entire extensibility mechanism and all user
+// prose. Every one of them produces a MODEL EQUAL TO ITSELF and
 // passes a model-versus-model accept tier green — measured in Python, re-proved
 // in Go. Comparing against the tree parsed from the ORIGINAL FILE is what
-// catches them, and these four cases are the proof that it does.
+// catches them, and these three cases are the proof that it does.
 test('a reader that discards data records is caught by the accept tier', async () => {
   const cases = await runMutated([
     {
@@ -252,18 +252,6 @@ test('a reader that recognises dotted keys below the top level is caught', async
   ]);
   const red = await failingDelta(cases);
   assert.ok(red.includes('diagnose/dotted-key-on-item.vnx'), red.join(', '));
-});
-
-test('a reader that discards every style is caught by the accept tier', async () => {
-  const cases = await runMutated([
-    {
-      file: 'decode.js',
-      from: "  const s = objField('style', path, kv, false, ctx);\n  if (s === undefined) return undefined;",
-      to: "  const s = objField('style', path, kv, false, ctx);\n  return undefined;\n  if (s === undefined) return undefined;",
-    },
-  ]);
-  const red = await failingDelta(cases);
-  assert.ok(red.includes('accept/example-network.vnx'), red.join(', '));
 });
 
 test('a reader that discards every notes is caught by the accept tier', async () => {
@@ -379,7 +367,7 @@ test("accepting a version outside the reader's series is caught by the reject ti
 
 test('comparing versions as "newer than" rather than "not this series" is caught by one file only', async () => {
   // The historical defect, restored exactly: SPEC.md 2.2 makes each 0.x MINOR
-  // its own series, and a "greater than" reader reads a 0.1 document under 0.10
+  // its own series, and a "greater than" reader reads a 0.1 document under 0.11
   // rules. reject/version-too-new.vnx does NOT catch it, which is why the pair
   // was incomplete and five of the six implementations shared the shape.
   const cases = await runMutated([
@@ -400,7 +388,7 @@ test('refusing a newer PATCH is caught by the accept tier', async () => {
       to: "  const [, majorText, minorText, patchText] = VERSION.exec(declared);\n  if (Number(patchText) > 0) throw new VnxRefusal('version-too-new', 'a newer reader is needed');",
     },
   ]);
-  // write/emit-boundary declares 0.10.99 too, so the same defect reddens both.
+  // write/emit-boundary declares 0.11.99 too, so the same defect reddens both.
   // reject/version-too-old.vnx is red for a third reason: 0.1.9 has a non-zero
   // PATCH, so the mutant refuses it before reaching the series check and says
   // "a newer reader is needed" about a document below the reader. It is refused
@@ -466,6 +454,7 @@ test('skipping an unknown key silently is caught by the diagnose tier', async ()
     'diagnose/dotted-key-on-item.vnx',
     'diagnose/highlight-notes-unknown.vnx',
     'diagnose/pinned-where-not-carried.vnx',
+    'diagnose/style-is-unknown.vnx',
     'diagnose/unknown-key.vnx',
     'diagnose/walk-pin-unusable.vnx',
   ]);
@@ -727,7 +716,10 @@ test('a reader that checks only items and not a folder parent is caught by folde
       to: '',
     },
   ]);
-  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-absent.vnx']);
+  assert.deepEqual(await failingDelta(cases), [
+    'diagnose/folder-absent.vnx',
+    'diagnose/folder-parent-names-duplicate.vnx',
+  ]);
 });
 
 test('a reader that does not check an item folder is caught by folder-absent', async () => {
@@ -739,6 +731,59 @@ test('a reader that does not check an item folder is caught by folder-absent', a
     },
   ]);
   assert.deepEqual(await failingDelta(cases), ['diagnose/folder-absent.vnx']);
+});
+
+test('a reader that names an absent required key at the key is caught', async () => {
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: '      ctx.diag(path, `missing required key "${k}"`, \'wrong-type-required\');',
+      to: '      ctx.diag(`${path}/${esc(k)}`, `missing required key "${k}"`, \'wrong-type-required\');',
+    },
+    {
+      file: 'decode.js',
+      from: "    ctx.diag(path, 'missing required key \"at\"', 'wrong-type-required');",
+      to: "    ctx.diag(`${path}/at`, 'missing required key \"at\"', 'wrong-type-required');",
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-duplicate-id.vnx', 'diagnose/required-key-absent.vnx']);
+});
+
+test('a reader that keeps a duplicate folder id is caught by folder-duplicate-id', async () => {
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: '  if (doc.folders !== undefined) doc.folders = dropDuplicateFolders(doc.folders, ctx);\n',
+      to: '',
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), [
+    'diagnose/folder-duplicate-id.vnx',
+    'diagnose/folder-parent-names-duplicate.vnx',
+  ]);
+});
+
+test('a reader that breaks no parent loop is caught by folder-parent-loop', async () => {
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: '  breakParentLoops(doc.folders ?? [], ctx);\n',
+      to: '',
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-parent-loop.vnx']);
+});
+
+test('a reader that reports every folder whose chain reaches a loop is caught', async () => {
+  // `outside` in folder-parent-loop leads INTO the loop and must raise nothing.
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: '    if (step !== f.id) continue;\n',
+      to: '    if (step === undefined) continue;\n',
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-parent-loop.vnx']);
 });
 
 test('a reader with no rule for `from` and `to` is caught by walk-spelling', async () => {
@@ -918,7 +963,7 @@ test('a reader that reports an arc pip time and keeps it is caught by the write 
   // reaches the writer, which refuses it, and the case fails.
   assert.deepEqual(await failingDelta(cases), ['write/arc-pip-time']);
   const text = JSON.stringify({
-    vnx: '0.10.0',
+    vnx: '0.11.0',
     networks: [{ nodes: { a: [0, 0], b: [1, 0] }, arcs: { ab: { from: 'a', to: 'b', pips: [[0.5, 0, 3, 100]] } } }],
   });
   const pip = (api) => api.decodeText(text).document.networks[0].arcs.get('ab').pips[0].channels;

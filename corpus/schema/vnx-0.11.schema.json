@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vnx.tools/schema/vnx-0.10.schema.json",
-  "title": "VNX 0.10",
-  "description": "Structural schema for a VNX 0.10 document. A JSON Schema can check shape only, and several of this format's rules are not about shape (walk connectivity, for example), so validate with a VNX reader as well. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
+  "$id": "https://vnx.tools/schema/vnx-0.11.schema.json",
+  "title": "VNX 0.11",
+  "description": "Structural schema for a VNX 0.11 document. A JSON Schema can check shape only, and several of this format's rules are not about shape (walk connectivity, for example), so validate with a VNX reader as well. It is deliberately permissive about unknown keys, because spec §6.2 makes an unknown key a reader DIAGNOSTIC and keeps the item — a schema that refused them would disagree with every conforming reader.",
   "type": "object",
   "required": [
     "vnx"
@@ -155,18 +155,6 @@
       },
       "description": "ONE open ring (spec §3.7): at least three positions, the last NOT repeating the first; the boundary runs from the last back to the first. That the ring is open, and that three of its positions are distinct, are relationships between values, which JSON Schema cannot state; the reader checks them. Nested rings ARE caught here, because a ring element must be a position and a position's first element must be a number."
     },
-    "style": {
-      "type": "object",
-      "description": "A style object is OPAQUE (SPEC 3.10): a reader carries every key through a read-modify-write and reports none of them as unrecognised, so this definition constrains almost nothing. `importance` is the one exception, because it is the one style value SPEC 3.6 gives a normative range. Nothing else here is typed ON PURPOSE, not by omission: SPEC 3.6 states that `icon-size` has no stated range and that `\"icon-size\": \"large\"` therefore passes unremarked, so a schema typing it as an integer would refuse a document every conforming reader accepts.",
-      "properties": {
-        "importance": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 5,
-          "description": "SPEC 3.6: an integer from 1 to 5, normatively. A value outside the range is an unusable value in an optional field (SPEC 6.2)."
-        }
-      }
-    },
     "point": {
       "type": "object",
       "required": [
@@ -191,9 +179,6 @@
         },
         "at": {
           "$ref": "#/$defs/position"
-        },
-        "style": {
-          "$ref": "#/$defs/style"
         },
         "data": {
           "$ref": "#/$defs/data"
@@ -224,9 +209,6 @@
         },
         "polygon": {
           "$ref": "#/$defs/ring"
-        },
-        "style": {
-          "$ref": "#/$defs/style"
         },
         "data": {
           "$ref": "#/$defs/data"
@@ -282,9 +264,6 @@
             "$ref": "#/$defs/segment"
           }
         },
-        "style": {
-          "$ref": "#/$defs/style"
-        },
         "data": {
           "$ref": "#/$defs/data"
         }
@@ -338,9 +317,6 @@
             "$ref": "#/$defs/planPass"
           }
         },
-        "style": {
-          "$ref": "#/$defs/style"
-        },
         "data": {
           "$ref": "#/$defs/data"
         }
@@ -385,7 +361,7 @@
     },
     "highlight": {
       "type": "object",
-      "description": "SPEC 3.3.3: a lightweight container for data objects along a walk of its network's arcs. It has an optional name, and no notes or style of its own.",
+      "description": "SPEC 3.3.3: a lightweight container for data objects along a walk of its network's arcs. It has an optional name, and no notes of its own.",
       "required": [
         "walk"
       ],
@@ -429,9 +405,6 @@
         },
         "at": {
           "$ref": "#/$defs/position"
-        },
-        "style": {
-          "$ref": "#/$defs/style"
         },
         "data": {
           "$ref": "#/$defs/data"

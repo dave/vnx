@@ -9,9 +9,9 @@ import (
 )
 
 // One test per GPX cell of engine-spec §8 that gpx_test.go does not already
-// pin — Styles, Tags, Hidden state, Routing config, Moving time, and the
+// pin — Tags, Hidden state, Routing config, Moving time, and the
 // Track.Started/Ended half of Timestamps. The T11 census (2026-09-02) found
-// all six ratified from the writer CODE and unpinned by any test, and the
+// all of them ratified from the writer CODE and unpinned by any test, and the
 // fixture in gpx_test.go carried none of them, so the golden did not witness
 // the drops either.
 //
@@ -28,49 +28,6 @@ import (
 // would be several rows for every item in the library, burying the real
 // casualties. Each test asserts the empty diagnostic list, so "no diagnostic"
 // is a pinned decision and not an accident.
-
-// -- Styles: ❌ ---------------------------------------------------------------
-
-// GPX 1.1 core has no styling vocabulary at all; the only place a colour could
-// go is <extensions>, which §2.3 forbids.
-func TestMatrixStylesAreNotCarried(t *testing.T) {
-	out, rep := write(t, &vnx.Document{
-		Points: []vnx.Point{{
-			Name: "Hut", At: vnx.Position{Lon: 1, Lat: 2},
-			Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "label-position": "below", "label-visible": true, "importance": 5},
-		}},
-		Plans: []vnx.Plan{plan(vnx.Plan{Name: "Ridge", Style: vnx.Style{"color": "#3A6FB0", "width": 4, "opacity": 0.75, "line-style": "dashed"}},
-			lineArc{Pips: []vnx.Position{{Lon: 1, Lat: 2}, {Lon: 3, Lat: 2}}},
-		)},
-		Tracks: []vnx.Track{{
-			Name:     "Walk",
-			Style:    vnx.Style{"color": "#E08A1A", "width": 3},
-			Segments: []vnx.Segment{{Pips: []vnx.Position{{Lon: 1, Lat: 3}, {Lon: 2, Lat: 3}}}},
-		}},
-	})
-	// CARRIED: the styled items themselves. A writer that refused to write a
-	// styled item would also have no style in the file.
-	for _, want := range []string{"<name>Hut</name>", "<name>Ridge</name>", "<name>Walk</name>"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("missing %s — the styled item must still be exported\n%s", want, out)
-		}
-	}
-	if rep.Emitted != 3 {
-		t.Errorf("emitted %d, want 3", rep.Emitted)
-	}
-	// LOST: every field of every style, and no <extensions> to smuggle one in.
-	for _, gone := range []string{
-		"E04535", "3A6FB0", "E08A1A", "mountain-hut", "teardrop", "below",
-		"dashed", "27", "0.75", "extensions", "color", "Color", "opacity", "importance", "Importance",
-	} {
-		if strings.Contains(out, gone) {
-			t.Errorf("%q reached the file; GPX 1.1 core has no styling and §2.3 forbids inventing one\n%s", gone, out)
-		}
-	}
-	if len(rep.Diagnostics) != 0 {
-		t.Errorf("diagnostics %v, want none — a style lost on every item in the library is a matrix fact, not a per-item casualty (convention 5)", codesOf(rep))
-	}
-}
 
 // -- Tags: ❌ -----------------------------------------------------------------
 

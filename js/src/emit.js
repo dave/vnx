@@ -30,7 +30,7 @@ import { distinctLonLat } from './decode.js';
  *
  * Throws an `Error` for a value JSON cannot carry — `undefined`, a function, a
  * symbol, a bigint, or a number that is not finite — wherever it sits,
- * including inside an application key's value, a record body or a style.
+ * including inside an application key's value or a record body.
  * `JSON.stringify` alone would drop the first three from an object, write them
  * as `null` in an array, and write `NaN` and `Infinity` as `null`: a document
  * silently different from the model. A `null` is a value and is written.
@@ -237,7 +237,6 @@ function emitPlan(r) {
   put(o, 'folder', r.folder);
   putHidden(o, r.hidden);
   put(o, 'pinned', r.pinned);
-  put(o, 'style', r.style);
   put(o, 'data', r.data);
   const owner = `plan ${JSON.stringify(r.name ?? '')}`;
   emitNodes(o, r.nodes, owner);
@@ -255,7 +254,6 @@ function emitTrack(t) {
   put(o, 'ended', t.ended);
   putHidden(o, t.hidden);
   put(o, 'pinned', t.pinned);
-  put(o, 'style', t.style);
   put(o, 'data', t.data);
   o.segments = t.segments.map((s) => ({ pips: emitPips(s.pips) }));
   return o;
@@ -269,7 +267,6 @@ function emitPointLike(w) {
   putHidden(o, w.hidden);
   put(o, 'pinned', w.pinned);
   o.at = emitPosition(w.at);
-  put(o, 'style', w.style);
   put(o, 'data', w.data);
   return o;
 }
@@ -283,7 +280,6 @@ function emitArea(a) {
   put(o, 'pinned', a.pinned);
   checkRing(a);
   o.polygon = a.polygon.map((p) => emitPosition(p));
-  put(o, 'style', a.style);
   put(o, 'data', a.data);
   return o;
 }

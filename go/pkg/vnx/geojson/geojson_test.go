@@ -118,23 +118,20 @@ func TestNetworkEmitsArcsPointsAreasAndHighlights(t *testing.T) {
 	}
 }
 
-// ⚠ THE FOUR FIELDS THE GeometryCollection DESTROYED, and the two GeoJSON can
-// keep. Network.Points are full vnx.Points and Network.Areas full vnx.Areas,
-// each with Name, Notes, Hidden and Style (item.go:34-55). As bare geometries
-// inside a shared collection all four were lost; as Features of their own the
-// name and the notes survive.
+// ⚠ THE FIELDS THE GeometryCollection DESTROYED, and the two GeoJSON can keep.
+// Network.Points are full vnx.Points and Network.Areas full vnx.Areas, each
+// with Name, Notes and Hidden. As bare geometries inside a shared collection
+// all three were lost; as Features of their own the name and the notes survive.
 //
-// ⚠ HIDDEN AND STYLE STILL DO NOT, AND MUST NOT START TO. §2.3's properties lock
+// ⚠ HIDDEN STILL DOES NOT, AND MUST NOT START TO. §2.3's properties lock
 // is name and description ONLY — splitting the items out does not open the door.
 func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 	out, _ := writeDoc(t, &vnx.Document{
 		Folders: []vnx.Folder{{ID: "f", Name: "Highlands"}},
 		Networks: []vnx.Network{{
 			Name: "Cairngorms", Folder: "f",
-			Points: []vnx.Point{{Name: "Summit cairn", Notes: "big pile", Hidden: true,
-				Style: vnx.Style{"color": "#E04535"}, At: pos(1, 2, nil)}},
-			Areas: []vnx.Area{{Name: "Deer reserve", Notes: "no dogs", Hidden: true,
-				Style: vnx.Style{"fill-color": "#1E9C45"}, Polygon: square()}},
+			Points: []vnx.Point{{Name: "Summit cairn", Notes: "big pile", Hidden: true, At: pos(1, 2, nil)}},
+			Areas:  []vnx.Area{{Name: "Deer reserve", Notes: "no dogs", Hidden: true, Polygon: square()}},
 		}},
 	})
 	for _, want := range []string{
@@ -145,7 +142,7 @@ func TestInNetworkPointAndAreaKeepTheirNameAndNotes(t *testing.T) {
 			t.Errorf("missing %s — an in-network item lost its name or its notes:\n%s", want, out)
 		}
 	}
-	for _, locked := range []string{"hidden", "Hidden", "E04535", "1E9C45", "style", "color"} {
+	for _, locked := range []string{"hidden", "Hidden"} {
 		if strings.Contains(out, locked) {
 			t.Errorf("%q reached properties; §2.3 allows name and description only:\n%s", locked, out)
 		}

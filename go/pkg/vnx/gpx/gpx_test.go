@@ -58,9 +58,8 @@ func fixture() *vnx.Document {
 			// never 0. It is also HIDDEN, STYLED and TAGGED: all three are ❌
 			// cells, and a hidden item is EXPORTED — only the state is lost.
 			{Folder: "f-cairn", Name: "Summit Cairn", Hidden: true,
-				Style: vnx.Style{"color": "#E04535", "icon": "mountain-hut", "icon-size": 27, "pin-shape": "teardrop", "importance": 5},
-				Data:  []vnx.Record{tagRecord("munro"), tagRecord("bagged")},
-				At:    vnx.Position{Lon: -3.6689, Lat: 57.0704}},
+				Data: []vnx.Record{tagRecord("munro"), tagRecord("bagged")},
+				At:   vnx.Position{Lon: -3.6689, Lat: 57.0704}},
 			// A timed point with sub-second precision.
 			{Folder: "f-scot", Name: "Bothy", Notes: "",
 				At: vnx.Position{Lon: -3.7, Lat: 57.05, Ele: f(0), Time: ms(1725200000123)}},
@@ -79,13 +78,11 @@ func fixture() *vnx.Document {
 			Started:  tstamp(2024, 8, 31),
 			Ended:    tstamp(2024, 9, 2),
 			Hidden:   true,
-			Style:    vnx.Style{"color": "#E08A1A", "width": float64(3), "line-style": "dashed"},
 			Data:     []vnx.Record{tagRecord("solo")},
 			Segments: []vnx.Segment{{Pips: leg(0, 40, true)}, {Pips: leg(40, 40, true)}},
 		}},
 		Plans: []vnx.Plan{plan(vnx.Plan{
 			Folder: "f-scot", Name: "Planned Line",
-			Style: vnx.Style{"color": "#3A6FB0", "opacity": float64(0.75)},
 			Data: []vnx.Record{{Type: "app.viatrail.routing",
 				Body: map[string]any{"profile": "walking", "avoid": "roads"}}}},
 			lineArc{Pips: leg(200, 30, false)},

@@ -2,7 +2,7 @@
 
 `@viatrail/vnx` reads and writes VNX documents and VNZ containers in
 JavaScript, and reports diagnostics. It implements
-[`SPEC.md`](../SPEC.md) version 0.10 and passes [`corpus/`](../corpus).
+[`SPEC.md`](../SPEC.md) version 0.11 and passes [`corpus/`](../corpus).
 
 Node 22 or later, ESM only, no runtime dependencies. The ZIP container is
 written here rather than imported, over `node:zlib`.
@@ -83,7 +83,7 @@ the document, where `JSON.stringify` would drop the value or write `null`.
 A `Network` carries `nodes` and `arcs`, each a `Map` keyed by id, and `highlights`,
 `points` and `areas`. A `Highlight` is a lightweight container for data objects
 along a walk of its network's arcs: it carries `walk`, `name`, `hidden`,
-`pinned` and `data`, and has no notes or style of its own. A `Plan` carries its own `nodes`,
+`pinned` and `data`, and has no notes of its own. A `Plan` carries its own `nodes`,
 `arcs` and one `walk`.
 A walk is a list of `Pass` (`arc`, `from`, `to`, `turn`, `pin`) over the
 arcs of its owner, by reference. `from` and `to` are an `Endpoint`, a node key
@@ -110,9 +110,8 @@ returns a document alongside its diagnostics. There are no fallbacks: a
 malformed value is dropped and a diagnostic names what and where. Five
 consequences for a caller:
 
-- Absent is `undefined` and is not a default. An absent `label-visible` is Auto,
-  not `false`, and an absent collection is not an empty one, so a traversal
-  needs `?? []`.
+- Absent is `undefined` and is not a default. An absent collection is not an
+  empty one, so a traversal needs `?? []`.
 - A position keeps its arity. `[lon, lat, null]` and `[lon, lat]` are different
   spellings and the model holds whichever it read. `position.channels` is the
   array; `lon`, `lat`, `ele` and `time` are the channels. A node and an arc pip
@@ -122,8 +121,8 @@ consequences for a caller:
   its plan, and the diagnostic names the pass and the rule. A dropped arc drops
   every highlight that walks it, with a diagnostic of its own.
 - `Track#movingTimeMs()` returns `null` for unknown. Unknown is not zero.
-- Opaque values come back whole. Data record bodies, `style` objects and
-  application-key values are the parsed JSON value, and nothing inspects them.
+- Opaque values come back whole. Data record bodies and application-key
+  values are the parsed JSON value, and nothing inspects them.
 - A backslash in an archive entry name is refused outright, which is stricter
   than the ZIP specification. An archive authored on Windows can carry one.
 
@@ -171,8 +170,8 @@ the shortest spelling of a position, which is about ARITY and not precision:
 not. See [`IMPLEMENTING.md`](../IMPLEMENTING.md).
 
 Version comparison is "not this reader's series", not "newer than this reader".
-Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.10
-reader refuses 0.1.9 for the same reason it refuses 0.11.0, and only PATCH is
+Through 0.x each MINOR is its own series ([SPEC §2.2](../SPEC.md)), so a 0.11
+reader refuses 0.1.9 for the same reason it refuses 0.12.0, and only PATCH is
 free. A reader written with `>` reads the older document under rules that were
 never meant for it. `reject/version-too-old.vnx` is the case that catches it.
 

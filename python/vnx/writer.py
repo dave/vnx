@@ -62,7 +62,7 @@ def normalised_document(document: Document) -> Document:
     """A copy of *document* with the model-side emit rules applied.
 
     Today that is SPEC 3.8's ``hidden`` only.  The original is not modified.
-    Everything untouched -- positions, data records, styles, application keys -- is
+    Everything untouched -- positions, data records, application keys -- is
     shared rather than copied, because nothing here mutates it.
     """
     return replace(

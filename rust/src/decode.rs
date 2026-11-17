@@ -107,24 +107,21 @@ const ARC_KEYS: &[&str] = &["from", "to", "pips", "data"];
 const HIGHLIGHT_KEYS: &[&str] = &["walk", "name", "hidden", "pinned", "data"];
 const PASS_KEYS: &[&str] = &["arc", "from", "to", "turn", "pin"];
 const PLAN_KEYS: &[&str] = &[
-    "walk", "name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data",
+    "walk", "name", "notes", "folder", "hidden", "pinned", "nodes", "arcs", "data",
 ];
 const TRACK_KEYS: &[&str] = &[
-    "segments", "name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data",
+    "segments", "name", "notes", "folder", "hidden", "pinned", "started", "ended", "data",
 ];
 const SEGMENT_KEYS: &[&str] = &["pips"];
-const TOP_LEVEL_POINT_KEYS: &[&str] = &[
-    "at", "name", "notes", "folder", "hidden", "pinned", "style", "data",
-];
+const TOP_LEVEL_POINT_KEYS: &[&str] =
+    &["at", "name", "notes", "folder", "hidden", "pinned", "data"];
 /// A network's point is placed by the network that contains it, so it carries
 /// no `folder` (SPEC 3.10).
-const NETWORK_POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "style", "data"];
+const NETWORK_POINT_KEYS: &[&str] = &["at", "name", "notes", "hidden", "pinned", "data"];
 const AREA_KEYS: &[&str] = &[
-    "polygon", "name", "notes", "folder", "hidden", "pinned", "style", "data",
+    "polygon", "name", "notes", "folder", "hidden", "pinned", "data",
 ];
-const NETWORK_AREA_KEYS: &[&str] = &[
-    "polygon", "name", "notes", "hidden", "pinned", "style", "data",
-];
+const NETWORK_AREA_KEYS: &[&str] = &["polygon", "name", "notes", "hidden", "pinned", "data"];
 
 impl Decoder {
     fn report(&mut self, path: &Path, cause: Cause) {
@@ -139,7 +136,7 @@ impl Decoder {
     /// SPEC 6.2: an unrecognised key is diagnosed, skipped, and the item kept.
     ///
     /// Applied only to objects this format defines. It is NOT applied inside a
-    /// data record, a style object, an application key's value, or the
+    /// data record, an application key's value, or the
     /// identifier-keyed `nodes` and `arcs` maps. The document itself is checked
     /// by [`Decoder::check_document_keys`], because its key set is open.
     fn check_keys(&mut self, entries: &[(String, Json)], known: &[&str], path: &Path) {
@@ -245,9 +242,10 @@ impl Decoder {
     }
 
     /// A REQUIRED array. Absence or the wrong type takes the object with it
-    /// (SPEC 6.2), so the caller drops on `None`. Both are reported at the
-    /// key, present or not, under one code: SPEC 6.2's table puts them in one
-    /// row.
+    /// (SPEC 6.2), so the caller drops on `None`. Both take one code, because
+    /// SPEC 6.2's table puts them in one row. A wrong type is reported at the
+    /// key; an absent key has no element of its own, so it is reported at the
+    /// object that lacks it (SPEC 6.3).
     fn req_array<'a>(
         &mut self,
         entries: &'a [(String, Json)],
@@ -256,7 +254,7 @@ impl Decoder {
     ) -> Option<&'a [Json]> {
         match self.field(entries, key) {
             None => {
-                self.report(&path.key(key), Cause::MissingRequiredKey { key });
+                self.report(path, Cause::MissingRequiredKey { key });
                 None
             }
             Some(Json::Array(items)) => Some(items),
@@ -281,7 +279,7 @@ impl Decoder {
     ) -> Option<String> {
         match self.field(entries, key) {
             None => {
-                self.report(&path.key(key), Cause::MissingRequiredKey { key });
+                self.report(path, Cause::MissingRequiredKey { key });
                 None
             }
             Some(Json::String(s)) => Some(s.clone()),
@@ -410,35 +408,6 @@ impl Decoder {
         Some(out)
     }
 
-    /// SPEC 3.10 makes a style object opaque and SPEC 3.6 makes `importance`
-    /// an integer from 1 to 5, routing an out-of-range value to SPEC 6.2. The
-    /// two rules meet here: every key is carried through untouched except
-    /// `importance`, which is the one key inside an opaque object this reader
-    /// is required to inspect and may drop. Reported as a spec tension.
-    fn style(&mut self, entries: &[(String, Json)], path: &Path) -> Option<Json> {
-        let members = self.opt_object(entries, "style", path)?;
-        let importance = members.iter().find(|(k, _)| k == "importance");
-        let acceptable = match importance {
-            None => true,
-            Some((_, Json::Number(n))) => n.fract() == 0.0 && (1.0..=5.0).contains(n),
-            Some(_) => false,
-        };
-        if acceptable {
-            return Some(Json::Object(members.to_vec()));
-        }
-        self.report(
-            &path.key("style").key("importance"),
-            Cause::ImportanceOutOfRange,
-        );
-        Some(Json::Object(
-            members
-                .iter()
-                .filter(|(k, _)| k != "importance")
-                .cloned()
-                .collect(),
-        ))
-    }
-
     // -----------------------------------------------------------------------
     // The document
     // -----------------------------------------------------------------------
@@ -524,7 +493,9 @@ impl Decoder {
         app_keys.sort_by(|a, b| a.key.cmp(&b.key));
         document.app_keys = app_keys;
 
+        self.drop_duplicate_folders(&mut document, &mut wire);
         self.resolve_folder_references(&mut document, &wire);
+        self.break_parent_loops(&mut document, &wire);
         Ok(document)
     }
 
@@ -553,6 +524,18 @@ impl Decoder {
         // SPEC 6.2: a folder with no `id` is dropped. Items that named it then
         // sit at the top level, so a folder's contents survive its loss.
         let id = self.req_string(entries, "id", path)?;
+        if id.is_empty() {
+            // SPEC 3.2: an `id` is a non-empty string, so "" is a wrong-typed
+            // value in a REQUIRED key, named at the key (SPEC 6.3).
+            self.report(
+                &path.key("id"),
+                Cause::WrongTypeRequired {
+                    expected: "a non-empty string",
+                    found: "an empty string",
+                },
+            );
+            return None;
+        }
         Some(Folder {
             id,
             parent: self.opt_string(entries, "parent", path),
@@ -897,7 +880,6 @@ impl Decoder {
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
-            style: self.style(entries, path),
             data: self.records(entries, path),
             walk: Vec::new(),
             nodes,
@@ -925,7 +907,6 @@ impl Decoder {
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
-            style: self.style(entries, path),
             started: self.timestamp(entries, "started", path),
             ended: self.timestamp(entries, "ended", path),
             segments,
@@ -952,7 +933,7 @@ impl Decoder {
         self.check_keys(entries, known, path);
         let at = match self.field(entries, "at") {
             None => {
-                self.report(&path.key("at"), Cause::MissingRequiredKey { key: "at" });
+                self.report(path, Cause::MissingRequiredKey { key: "at" });
                 return None;
             }
             Some(value) => self.required_position(value, &path.key("at"))?,
@@ -963,7 +944,6 @@ impl Decoder {
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
-            style: self.style(entries, path),
             at,
             data: self.records(entries, path),
         })
@@ -980,7 +960,6 @@ impl Decoder {
             folder: self.opt_string(entries, "folder", path),
             hidden: self.opt_bool(entries, "hidden", path),
             pinned: self.timestamp(entries, "pinned", path),
-            style: self.style(entries, path),
             polygon,
             data: self.records(entries, path),
         })
@@ -1094,6 +1073,77 @@ impl Decoder {
             self.report(&path, Cause::FolderAbsent { id });
         }
     }
+
+    /// SPEC 6.2: a folder whose `id` an earlier folder already carries is
+    /// dropped, `folder-duplicate-id` at its `id`. The first one stays, so an
+    /// item naming the id sits in it. Runs before `folder-absent`, so a dropped
+    /// duplicate's `parent` is never checked.
+    fn drop_duplicate_folders(&mut self, document: &mut Document, wire: &mut WireIndices) {
+        let Some(folders) = document.folders.take() else {
+            return;
+        };
+        let mut seen: Vec<String> = Vec::new();
+        let mut kept = Vec::with_capacity(folders.len());
+        let mut kept_wire = Vec::with_capacity(folders.len());
+        for (folder, &i) in folders.into_iter().zip(&wire.folders) {
+            if seen.contains(&folder.id) {
+                self.report(
+                    &Path::root().key("folders").index(i).key("id"),
+                    Cause::FolderDuplicateId { id: folder.id },
+                );
+                continue;
+            }
+            seen.push(folder.id.clone());
+            kept.push(folder);
+            kept_wire.push(i);
+        }
+        document.folders = Some(kept);
+        wire.folders = kept_wire;
+    }
+
+    /// SPEC 6.2: a folder is in a loop when following `parent` from it comes
+    /// back to it. Folders are taken in document order, and the first folder
+    /// of each loop has its `parent` treated as absent, `folder-parent-loop` at
+    /// that `parent`. That breaks the loop, so the loop's other folders keep
+    /// their parents and are not reported. A folder whose chain only leads INTO
+    /// a loop never comes back to itself, so it is not reported either. A
+    /// folder naming itself is a loop of one.
+    ///
+    /// Runs after `folder-absent`, so every `parent` left names a folder that
+    /// is present.
+    fn break_parent_loops(&mut self, document: &mut Document, wire: &WireIndices) {
+        let Some(folders) = document.folders.as_mut() else {
+            return;
+        };
+        for n in 0..folders.len() {
+            let start = folders[n].id.clone();
+            let mut visited: Vec<&str> = Vec::new();
+            let mut step = folders[n].parent.as_deref();
+            while let Some(id) = step {
+                if id == start || visited.contains(&id) {
+                    break;
+                }
+                visited.push(id);
+                step = folders
+                    .iter()
+                    .find(|f| f.id == id)
+                    .expect("folder-absent has cleared every parent naming no folder")
+                    .parent
+                    .as_deref();
+            }
+            if step != Some(start.as_str()) {
+                continue;
+            }
+            folders[n].parent = None;
+            self.report(
+                &Path::root()
+                    .key("folders")
+                    .index(wire.folders[n])
+                    .key("parent"),
+                Cause::FolderParentLoop { id: start },
+            );
+        }
+    }
 }
 
 /// SPEC 4.1. Every channel is kept, including one this reader does not know,
@@ -1172,7 +1222,7 @@ fn distinct_points(ring: &[Position], enough: usize) -> usize {
 }
 
 /// SPEC 2.2. Three runs of decimal digits separated by full stops. A leading
-/// zero is legal and the comparison is numeric, so `00.010.0000` is 0.10.0.
+/// zero is legal and the comparison is numeric, so `00.011.0000` is 0.11.0.
 fn parse_version(text: &str) -> Result<Version, Refusal> {
     let malformed = || Refusal::VersionMalformed {
         found: text.to_string(),
@@ -1201,7 +1251,7 @@ fn parse_version(text: &str) -> Result<Version, Refusal> {
     // SPEC 2.2, through 0.x: EACH MINOR IS ITS OWN SERIES, so the test is
     // "not this reader's series", NOT "above it". 0.0 is not an older spelling
     // of 0.1 and this reader has no rules for it, so `0.0.9` is refused for
-    // the same reason `0.10.0` is. PATCH never refuses, at any version.
+    // the same reason `0.11.0` is. PATCH never refuses, at any version.
     if (version.major, version.minor) != SUPPORTED {
         return Err(Refusal::VersionUnsupportedSeries {
             found: text.to_string(),
@@ -1266,7 +1316,7 @@ mod tests {
     fn versions_that_refuse_and_versions_that_do_not() {
         // Above this reader's series.
         assert!(matches!(
-            refuse(r#"{"vnx": "0.11.0"}"#),
+            refuse(r#"{"vnx": "0.12.0"}"#),
             Refusal::VersionUnsupportedSeries { .. }
         ));
         assert!(matches!(
@@ -1275,7 +1325,7 @@ mod tests {
         ));
         // And BELOW it, which is the same refusal for the same reason: a
         // reader comparing with `>` reads these and passes everything above.
-        // A 0.10 reader reads the 0.10 series only (SPEC 2.2), so 0.1 is refused.
+        // A 0.11 reader reads the 0.11 series only (SPEC 2.2), so 0.1 is refused.
         for text in ["0.1.0", "0.1.9", "0.0.9", "0.0.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
@@ -1284,7 +1334,7 @@ mod tests {
             );
         }
         for text in [
-            "0.10", "0.10.0.0", "0.10.x", "0.10.+1", "", "0.10.", ".8.0", "0.10.0 ",
+            "0.11", "0.11.0.0", "0.11.x", "0.11.+1", "", "0.11.", ".8.0", "0.11.0 ",
         ] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             assert!(
@@ -1293,7 +1343,7 @@ mod tests {
             );
         }
         // PATCH never refuses, and a leading zero is a legal spelling.
-        for text in ["0.10.99", "0.10.4294967296", "00.010.0000", "0.10.0"] {
+        for text in ["0.11.99", "0.11.4294967296", "00.011.0000", "0.11.0"] {
             let document = format!(r#"{{"vnx": "{text}"}}"#);
             let reading = read(&document);
             assert_eq!(
@@ -1317,7 +1367,7 @@ mod tests {
     #[test]
     fn an_unknown_key_is_diagnosed_and_the_item_kept() {
         let reading = read(
-            r#"{"vnx":"0.10.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
+            r#"{"vnx":"0.11.0","points":[{"nmae":"typo","name":"Car park","at":[-3.675,57.1201]}]}"#,
         );
         assert_eq!(reading.diagnostics.len(), 1);
         assert_eq!(reading.diagnostics[0].path, "/points/0/nmae");
@@ -1327,7 +1377,7 @@ mod tests {
 
     #[test]
     fn a_top_level_waypoints_key_is_an_unrecognised_key() {
-        let reading = read(r#"{"vnx":"0.10.0","waypoints":[{"at":[-3.675,57.1201]}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","waypoints":[{"at":[-3.675,57.1201]}]}"#);
         assert_eq!(reading.diagnostics.len(), 1);
         assert_eq!(reading.diagnostics[0].path, "/waypoints");
         assert_eq!(reading.diagnostics[0].cause, Cause::UnknownKey);
@@ -1336,28 +1386,28 @@ mod tests {
 
     #[test]
     fn a_wrong_type_drops_an_optional_field_and_takes_a_required_one() {
-        let reading = read(r#"{"vnx":"0.10.0","points":[{"name":7,"at":[-3.6,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","points":[{"name":7,"at":[-3.6,57.1]}]}"#);
         assert_eq!(reading.document.points.as_ref().expect("kept").len(), 1);
         assert_eq!(reading.document.points.expect("kept")[0].name, None);
         assert_eq!(reading.diagnostics.len(), 1);
 
-        let reading = read(r#"{"vnx":"0.10.0","points":[{"name":"x","at":"here"}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","points":[{"name":"x","at":"here"}]}"#);
         assert_eq!(reading.document.points.expect("kept").len(), 0);
         assert_eq!(reading.diagnostics.len(), 1);
     }
 
     #[test]
     fn an_absent_collection_is_not_an_empty_one() {
-        assert_eq!(read(r#"{"vnx":"0.10.0"}"#).document.points, None);
+        assert_eq!(read(r#"{"vnx":"0.11.0"}"#).document.points, None);
         assert_eq!(
-            read(r#"{"vnx":"0.10.0","points":[]}"#).document.points,
+            read(r#"{"vnx":"0.11.0","points":[]}"#).document.points,
             Some(vec![])
         );
     }
 
     #[test]
     fn a_position_keeps_every_channel_it_was_given() {
-        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1,null,5,99]}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","points":[{"at":[-3.6,57.1,null,5,99]}]}"#);
         let at = &reading.document.points.expect("kept")[0].at;
         assert_eq!(at.arity(), 5, "an unknown channel is kept, not truncated");
         assert_eq!(at.ele(), None);
@@ -1366,7 +1416,7 @@ mod tests {
 
     #[test]
     fn longitude_and_latitude_are_never_null() {
-        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[null,57.1]}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","points":[{"at":[null,57.1]}]}"#);
         assert_eq!(reading.document.points.expect("kept").len(), 0);
         assert!(matches!(
             reading.diagnostics[0].cause,
@@ -1411,18 +1461,35 @@ mod tests {
         }
     }
 
+    /// VNX 0.11 defines no `style`: on any object it is an unrecognised key,
+    /// skipped, and the object kept. An empty one is reported too.
     #[test]
-    fn an_out_of_range_importance_is_dropped_and_the_rest_of_the_style_kept() {
+    fn a_style_is_an_unrecognised_key_on_every_host() {
         let reading = read(
-            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"style":{"importance":9,"color":"x"}}]}"#,
+            r#"{"vnx":"0.11.0",
+                "folders":[{"id":"f","style":{}}],
+                "points":[{"at":[-3.6,57.1],"style":{"color":"x"}}],
+                "areas":[{"polygon":[[0,0],[1,0],[1,1]],"style":{}}],
+                "tracks":[{"segments":[],"style":3}],
+                "plans":[{"walk":[],"style":{"importance":9}}]}"#,
         );
-        let style = reading.document.points.expect("kept")[0]
-            .style
-            .clone()
-            .expect("a style");
-        assert!(style.get("importance").is_none());
-        assert!(style.get("color").is_some(), "other style keys are opaque");
-        assert_eq!(reading.diagnostics[0].cause, Cause::ImportanceOutOfRange);
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/areas/0/style".into(), "unknown-key"),
+                ("/folders/0/style".into(), "unknown-key"),
+                ("/plans/0/style".into(), "unknown-key"),
+                ("/points/0/style".into(), "unknown-key"),
+                ("/tracks/0/style".into(), "unknown-key"),
+            ]
+        );
+        let document = reading.document;
+        assert_eq!(document.points.as_ref().expect("kept").len(), 1);
+        assert_eq!(document.areas.as_ref().expect("kept").len(), 1);
+        assert_eq!(document.tracks.as_ref().expect("kept").len(), 1);
+        assert_eq!(document.plans.as_ref().expect("kept").len(), 1);
+        let written = crate::encode::encode(&document).expect("encodes");
+        assert!(!written.contains("style"), "{written}");
     }
 
     /// SPEC 5.1 rules 2 and 3: a record body is opaque and an unrecognised
@@ -1431,7 +1498,7 @@ mod tests {
     #[test]
     fn a_record_body_is_never_inspected() {
         let reading = read(
-            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"data":[
+            r#"{"vnx":"0.11.0","points":[{"at":[-3.6,57.1],"data":[
                  {"@type":"app.viatrail.settlement","size":"metropolis"},
                  {"@type":"com.example.x","nmae":1,"deep":{"a":[1,2,{"b":null}]}}]}]}"#,
         );
@@ -1447,7 +1514,7 @@ mod tests {
     #[test]
     fn a_record_with_no_type_is_dropped_and_the_bag_survives() {
         let reading = read(
-            r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
+            r#"{"vnx":"0.11.0","points":[{"at":[-3.6,57.1],"data":[{"value":1},{"@type":"a.b"}]}]}"#,
         );
         assert_eq!(reading.diagnostics[0].cause, Cause::RecordTypeMissing);
         assert_eq!(
@@ -1462,7 +1529,7 @@ mod tests {
 
     #[test]
     fn an_absent_folder_leaves_the_item_at_the_top_level() {
-        let reading = read(r#"{"vnx":"0.10.0","points":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
+        let reading = read(r#"{"vnx":"0.11.0","points":[{"at":[-3.6,57.1],"folder":"ghost"}]}"#);
         assert_eq!(
             reading.diagnostics[0].cause,
             Cause::FolderAbsent { id: "ghost".into() }
@@ -1473,7 +1540,7 @@ mod tests {
     #[test]
     fn an_absent_parent_puts_the_folder_at_the_root_with_the_same_code() {
         let reading = read(
-            r#"{"vnx":"0.10.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"at":[-3.6,57.1],"folder":"lakes"}]}"#,
+            r#"{"vnx":"0.11.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"at":[-3.6,57.1],"folder":"lakes"}]}"#,
         );
         assert_eq!(
             pairs(&reading),
@@ -1493,7 +1560,7 @@ mod tests {
         // The first folder and the first point are dropped, so each survivor
         // is model index 0; the diagnostic names where the key was written.
         let reading = read(
-            r#"{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"f","parent":"ghost"}],"points":[{},{"at":[-3.6,57.1],"folder":"ghost"}]}"#,
+            r#"{"vnx":"0.11.0","folders":[{"name":"No id"},{"id":"f","parent":"ghost"}],"points":[{},{"at":[-3.6,57.1],"folder":"ghost"}]}"#,
         );
         let got = pairs(&reading);
         assert!(
@@ -1509,15 +1576,171 @@ mod tests {
     #[test]
     fn a_folder_with_no_id_is_dropped_and_its_contents_survive() {
         let reading = read(
-            r#"{"vnx":"0.10.0","folders":[{"name":"Nameless"}],"points":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
+            r#"{"vnx":"0.11.0","folders":[{"name":"Nameless"}],"points":[{"at":[-3.6,57.1],"folder":"gone"}]}"#,
         );
         assert_eq!(reading.document.folders.as_ref().expect("kept").len(), 0);
         assert_eq!(reading.document.points.as_ref().expect("kept").len(), 1);
         assert_eq!(
             pairs(&reading),
             vec![
-                ("/folders/0/id".into(), "wrong-type-required"),
+                ("/folders/0".into(), "wrong-type-required"),
                 ("/points/0/folder".into(), "folder-absent"),
+            ]
+        );
+    }
+
+    fn parents(reading: &Reading) -> Vec<(String, Option<String>)> {
+        reading
+            .document
+            .folders
+            .iter()
+            .flatten()
+            .map(|f| (f.id.clone(), f.parent.clone()))
+            .collect()
+    }
+
+    fn owned(pairs: &[(&str, Option<&str>)]) -> Vec<(String, Option<String>)> {
+        pairs
+            .iter()
+            .map(|(id, parent)| (id.to_string(), parent.map(str::to_string)))
+            .collect()
+    }
+
+    #[test]
+    fn a_folder_whose_id_an_earlier_folder_carries_is_dropped() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":"a","name":"First"},{"id":"b"},{"id":"a","name":"Second"},{"id":"a"}],
+                "points":[{"at":[-3.6,57.1],"folder":"a"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/folders/2/id".into(), "folder-duplicate-id"),
+                ("/folders/3/id".into(), "folder-duplicate-id"),
+            ]
+        );
+        let folders = reading.document.folders.as_ref().expect("kept");
+        assert_eq!(folders.len(), 2);
+        assert_eq!(folders[0].name.as_deref(), Some("First"));
+        assert_eq!(folders[1].id, "b");
+        assert_eq!(
+            reading.document.points.as_ref().expect("kept")[0]
+                .folder
+                .as_deref(),
+            Some("a")
+        );
+    }
+
+    #[test]
+    fn a_dropped_duplicate_folder_s_parent_is_never_checked() {
+        let reading =
+            read(r#"{"vnx":"0.11.0","folders":[{"id":"a"},{"id":"a","parent":"ghost"}]}"#);
+        assert_eq!(
+            pairs(&reading),
+            vec![("/folders/1/id".into(), "folder-duplicate-id")]
+        );
+    }
+
+    #[test]
+    fn a_folder_that_is_its_own_parent_sits_at_the_root() {
+        let reading = read(r#"{"vnx":"0.11.0","folders":[{"id":"a","parent":"a"}]}"#);
+        assert_eq!(
+            pairs(&reading),
+            vec![("/folders/0/parent".into(), "folder-parent-loop")]
+        );
+        assert_eq!(parents(&reading), owned(&[("a", None)]));
+    }
+
+    #[test]
+    fn the_first_folder_of_a_loop_goes_to_the_root_and_the_rest_keep_their_parents() {
+        // The loop is a -> b -> c -> a, and c is written first.
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":"c","parent":"a"},{"id":"a","parent":"b"},{"id":"b","parent":"c"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![("/folders/0/parent".into(), "folder-parent-loop")]
+        );
+        assert_eq!(
+            parents(&reading),
+            owned(&[("c", None), ("a", Some("b")), ("b", Some("c"))])
+        );
+    }
+
+    #[test]
+    fn a_folder_that_only_leads_into_a_loop_is_not_reported() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":"in","parent":"x"},{"id":"x","parent":"y"},
+                {"id":"y","parent":"x"},{"id":"deeper","parent":"in"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![("/folders/1/parent".into(), "folder-parent-loop")]
+        );
+        assert_eq!(
+            parents(&reading),
+            owned(&[
+                ("in", Some("x")),
+                ("x", None),
+                ("y", Some("x")),
+                ("deeper", Some("in"))
+            ])
+        );
+    }
+
+    #[test]
+    fn two_loops_are_each_broken_once_and_a_plain_chain_raises_nothing() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":"a","parent":"b"},{"id":"p","parent":"p"},{"id":"b","parent":"a"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/folders/0/parent".into(), "folder-parent-loop"),
+                ("/folders/1/parent".into(), "folder-parent-loop"),
+            ]
+        );
+        let chain = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":"a","parent":"b"},{"id":"b","parent":"c"},{"id":"c"}]}"#,
+        );
+        assert_eq!(chain.diagnostics, vec![]);
+    }
+
+    /// SPEC 6.3: a REQUIRED key present with the wrong type is named at the
+    /// key; only an ABSENT one names the object that lacks it.
+    #[test]
+    fn a_wrong_typed_required_key_is_named_at_the_key_an_absent_one_at_the_object() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"id":7},{}],
+                "tracks":[{"segments":3},{"segments":[{"pips":3}]},{}],
+                "areas":[{"polygon":3}],"points":[{"at":3},{}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/areas/0/polygon".into(), "wrong-type-required"),
+                ("/folders/0/id".into(), "wrong-type-required"),
+                ("/folders/1".into(), "wrong-type-required"),
+                ("/points/0/at".into(), "wrong-type-required"),
+                ("/points/1".into(), "wrong-type-required"),
+                ("/tracks/0/segments".into(), "wrong-type-required"),
+                ("/tracks/1/segments/0/pips".into(), "wrong-type-required"),
+                ("/tracks/2".into(), "wrong-type-required"),
+            ]
+        );
+    }
+
+    #[test]
+    fn folder_paths_are_the_index_in_the_file() {
+        let reading = read(
+            r#"{"vnx":"0.11.0","folders":[{"name":"no id"},{"id":"a"},{"id":"a","parent":"a"},{"id":"s","parent":"s"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![
+                ("/folders/0".into(), "wrong-type-required"),
+                ("/folders/2/id".into(), "folder-duplicate-id"),
+                ("/folders/3/parent".into(), "folder-parent-loop"),
             ]
         );
     }
@@ -1539,7 +1762,7 @@ mod tests {
     #[test]
     fn a_closed_ring_loses_its_repeat_and_keeps_its_area() {
         let reading = read(
-            r#"{"vnx":"0.10.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
+            r#"{"vnx":"0.11.0","areas":[{"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0],[-3.7,57.09]]}]}"#,
         );
         assert_eq!(
             pairs(&reading),
@@ -1555,7 +1778,7 @@ mod tests {
     #[test]
     fn a_ring_of_fewer_than_three_distinct_positions_drops_its_area() {
         let reading = read(
-            r#"{"vnx":"0.10.0","areas":[
+            r#"{"vnx":"0.11.0","areas":[
                  {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.7,57.09]]},
                  {"polygon":[[-3.7,57.09,1],[-3.7,57.09,2],[-3.6,57.09]]},
                  {"polygon":[[-3.7,57.09],[-3.6,57.09],[-3.6,57.0]]}]}"#,
@@ -1573,7 +1796,7 @@ mod tests {
 
     fn network_with(highlights: &str) -> String {
         format!(
-            r#"{{"vnx":"0.10.0","networks":[{{
+            r#"{{"vnx":"0.11.0","networks":[{{
                  "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10],"c":[-3.58,57.10],"d":[-3.57,57.10]}},
                  "arcs":{{"ab":{{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                           "cb":{{"from":"c","to":"b","pips":[]}},
@@ -1748,7 +1971,7 @@ mod tests {
     fn a_plan_walk_carries_no_position_turn_or_pin() {
         let plan = |walk: &str| {
             read(&format!(
-                r#"{{"vnx":"0.10.0","plans":[{{
+                r#"{{"vnx":"0.11.0","plans":[{{
                      "nodes":{{"a":[-3.60,57.10],"b":[-3.59,57.10]}},
                      "arcs":{{"ab":{{"from":"a","to":"b","pips":[]}}}},
                      "walk":{walk}}}]}}"#
@@ -1785,7 +2008,7 @@ mod tests {
     #[test]
     fn a_time_on_a_node_or_an_arc_pip_is_dropped_and_reported_once() {
         let reading = read(
-            r#"{"vnx":"0.10.0","networks":[{
+            r#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,1778914991000],"b":[-3.59,57.10,null,5]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.597,57.1,1,2],[-3.595,57.1,null,3]]}}}]}"#,
         );
@@ -1815,7 +2038,7 @@ mod tests {
     #[test]
     fn a_dropped_arc_takes_the_highlights_that_walk_it() {
         let reading = read(
-            r#"{"vnx":"0.10.0","networks":[{
+            r#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"a":[-3.60,57.10],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]},
                          "loop":{"from":"a","to":"a","pips":[[-3.6,57.2]]},
@@ -1848,7 +2071,7 @@ mod tests {
     #[test]
     fn a_dropped_node_takes_the_arcs_that_name_it() {
         let reading = read(
-            r#"{"vnx":"0.10.0","networks":[{
+            r#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"a":[-3.60,57.10],"b":"here"},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[]}}}]}"#,
         );
@@ -1862,19 +2085,17 @@ mod tests {
     }
 
     /// SPEC 6.2's table puts an absent REQUIRED key in the row of a wrong-typed
-    /// one, and the diagnostic names the key.
+    /// one. The key has no element of its own, so the diagnostic names the
+    /// object that lacks it (SPEC 6.3; the corpus case `required-key-absent`).
     #[test]
-    fn an_absent_required_key_is_reported_at_the_key() {
+    fn an_absent_required_key_is_reported_at_the_object() {
         let reading =
-            read(r#"{"vnx":"0.10.0","points":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
+            read(r#"{"vnx":"0.11.0","points":[{"name":"x"}],"networks":[{"highlights":[{}]}]}"#);
         assert_eq!(
             pairs(&reading),
             vec![
-                (
-                    "/networks/0/highlights/0/walk".into(),
-                    "wrong-type-required"
-                ),
-                ("/points/0/at".into(), "wrong-type-required"),
+                ("/networks/0/highlights/0".into(), "wrong-type-required"),
+                ("/points/0".into(), "wrong-type-required"),
             ]
         );
     }
@@ -1889,7 +2110,7 @@ mod tests {
     #[test]
     fn one_unusable_pip_drops_the_segment_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.10.0","tracks":[{"segments":[
+            r#"{"vnx":"0.11.0","tracks":[{"segments":[
                  {"pips":[[-3.6,57.1],["x",1],[-3.5,57.2]]},
                  {"pips":[[-3.4,57.3],[-3.3,57.4]]}]}]}"#,
         );
@@ -1911,7 +2132,7 @@ mod tests {
     #[test]
     fn one_unusable_pip_drops_the_arc_that_holds_it() {
         let reading = read(
-            r#"{"vnx":"0.10.0","networks":[{
+            r#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
                  "arcs":{"bad":{"from":"n1","to":"n2","pips":[[-3.67,57.11],[null,57.11]]},
                          "good":{"from":"n1","to":"n2","pips":[[-3.67,57.11]]}}}]}"#,
@@ -1934,7 +2155,7 @@ mod tests {
     #[test]
     fn one_unusable_ring_vertex_drops_the_area() {
         let reading = read(
-            r#"{"vnx":"0.10.0","areas":[
+            r#"{"vnx":"0.11.0","areas":[
                  {"polygon":[[-3.7,57.09],[-3.6],[-3.6,57.0]]},
                  {"polygon":[[-3.5,57.09],[-3.4,57.09],[-3.4,57.0]]}]}"#,
         );

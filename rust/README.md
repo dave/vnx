@@ -4,7 +4,7 @@
 diagnostics.
 
 Rust 1.77 or later. Two dependencies, resolved by cargo: `serde_json` and
-`flate2`. Implements VNX 0.10.0, and reads the 0.10 series only —
+`flate2`. Implements VNX 0.11.0, and reads the 0.11 series only —
 [`SPEC.md`](../SPEC.md) is the format definition.
 
 ## Install
@@ -76,7 +76,7 @@ root.
 | `AppKey` | `key: String`, `value: Json`: one application key (SPEC §3.9), `Json::Null` for a `null`; `Document::app_keys` is sorted by key on decode |
 | `Network`, `Plan` | `nodes: Option<Vec<(String, Vertex)>>`, `arcs: Option<Vec<(String, Arc)>>`, and `node(key)` / `arc(key)`; a network holds `highlights`, a plan its own `walk` |
 | `Arc` | `from`, `to`, `pips: Vec<Vertex>` (the interior points only), `data` |
-| `Highlight` | `walk: Vec<Pass>`, and `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes or style of its own |
+| `Highlight` | `walk: Vec<Pass>`, and `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk of its network's arcs, with an optional name and no notes of its own |
 | `Pass` | `arc`, `from` and `to` (`Option<Endpoint>`), `turn: Option<LonLat>`, `pin: Option<LonLat>` |
 | `Endpoint` | `Node(String)` or `At(LonLat)` |
 | `Vertex` | `lon`, `lat`, `ele: Option<f64>`: a node or an arc pip, which carries no time |

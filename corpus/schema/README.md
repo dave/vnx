@@ -1,6 +1,6 @@
 # The VNX JSON Schema
 
-`vnx-0.10.schema.json`, draft 2020-12. It lets a tool validate a document with no
+`vnx-0.11.schema.json`, draft 2020-12. It lets a tool validate a document with no
 VNX implementation present, which is useful from a script or an agent.
 
 It lives inside the corpus because every corpus case records a `schema` verdict
@@ -28,12 +28,6 @@ schema can only check shape.
   GeoJSON-shaped polygon with nested rings is caught here.
 - A record-level timestamp is UTC with a `Z` suffix, and nothing else.
 - Every `data` record carries an `@type`.
-- `importance`, inside a style object, is an integer from 1 to 5. It is the ONLY
-  style value checked, because it is the only one `SPEC.md` gives a normative
-  range (section 3.6). `icon-size` is deliberately not typed: section 3.6 states
-  that no range is stated for it and that `"icon-size": "large"` passes
-  unremarked, so a schema typing it would refuse a document every conforming
-  reader accepts.
 
 ## What it cannot check
 
@@ -51,7 +45,7 @@ red and this list gets corrected rather than quietly going stale.
 | A `from` on a pass after the first | Where `from` and `to` may appear depends on a pass's place in its walk. |
 | A self-loop arc | `from` and `to` must differ, which is a relationship between two values. |
 | Container-scoped ids | A plan's `node-1` and a network's `node-1` are different nodes. That is about scope, not shape. |
-| A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.1.9` and `9.9.9` satisfy the version pattern exactly as `0.10.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read an older-series document. `reject/version-too-old.vnx` is what catches it. |
+| A version outside the reader's series, in EITHER direction | Reader-relative. The schema does not know what any reader implements. `0.1.9` and `9.9.9` satisfy the version pattern exactly as `0.11.0` does. The low side is the half that bit: through 0.x each minor is its own series (`SPEC.md` section 2.2), and five of the six implementations compared with "greater than" rather than "not equal" and read an older-series document. `reject/version-too-old.vnx` is what catches it. |
 | A duplicate object key | Resolved last-wins by the parser before the schema runs (`SPEC.md` section 6.4). |
 | `NaN` and `Infinity` | Not JSON. No validator ever sees the document. |
 | Everything about `.vnz` | An archive is not a JSON document. |

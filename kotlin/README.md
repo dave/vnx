@@ -8,15 +8,15 @@ itself, not a JDK. One dependency,
 [`kotlinx-serialization-json`](https://github.com/Kotlin/kotlinx.serialization)
 1.8.0, which this library's POM declares, so it arrives on a consumer's runtime
 classpath without the consumer naming it.
-Implements VNX 0.10.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
-0.x the MINOR component is a breaking axis, so this reader reads the 0.10 series
+Implements VNX 0.11.0; [`SPEC.md`](../SPEC.md) is the format definition. Through
+0.x the MINOR component is a breaking axis, so this reader reads the 0.11 series
 and refuses every other, in both directions (SPEC §2.2).
 
 ## Install
 
 ```kotlin
 dependencies {
-    implementation("app.viatrail:vnx:0.10.0")
+    implementation("app.viatrail:vnx:0.11.0")
 }
 ```
 
@@ -49,7 +49,7 @@ republishing — take it in as a composite build instead. In the consuming
 includeBuild("../vnx/kotlin")
 ```
 
-and the same `implementation("app.viatrail:vnx:0.10.0")` line. Gradle substitutes
+and the same `implementation("app.viatrail:vnx:0.11.0")` line. Gradle substitutes
 the included build for the coordinate because the two agree on `group` and name;
 no `dependencySubstitution` block, and no `mavenLocal()`.
 
@@ -116,7 +116,7 @@ This library has none. The reference command-line tool is Go's; see
 | `LonLat` | `lon`, `lat`: a position in a walk |
 | `Network` | `nodes: Map<String, Vertex>?`, `arcs: Map<String, Arc>?`, `highlights`, `points`, `areas`, and the item fields |
 | `Arc` | `from: String`, `to: String`, `pips: List<Vertex>` (interior points only), `data` |
-| `Highlight` | `walk: List<Pass>`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk, with an optional name and no notes or style |
+| `Highlight` | `walk: List<Pass>`, `name`, `hidden`, `pinned`, `data`: a lightweight container for data objects along a walk, with an optional name and no notes |
 | `Plan` | `walk: List<Pass>`, `nodes`, `arcs`, and the item fields |
 | `Pass` | `arc: String`, `from: Endpoint?`, `to: Endpoint?`, `turn: LonLat?`, `pin: LonLat?` |
 | `Endpoint` | `Endpoint.Node(key)` or `Endpoint.At(position: LonLat)` |
@@ -149,9 +149,9 @@ that is a thrown exception against the list returned beside the document.
 - **A refusal is a thrown `VnxRefusal`.** `refusal` is a `RefusalCause`, a closed
   enum, so the whole set is reachable from code; `Errors.kt` documents each one.
 - **Through 0.x a version refusal is about the SERIES, not about being newer.**
-  Each MINOR is its own series (SPEC §2.2), so this 0.10 reader refuses `0.1.9`
-  for the same reason it refuses `0.11.0`, and both raise
-  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.10.5` reads.
+  Each MINOR is its own series (SPEC §2.2), so this 0.11 reader refuses `0.1.9`
+  for the same reason it refuses `0.12.0`, and both raise
+  `VERSION_SERIES_UNSUPPORTED`. Only `PATCH` is free: `0.11.5` reads.
 - **Damage to one attachment is reported, not thrown.** SPEC §7 rules refusing a
   whole trail library over one damaged photograph disproportionate, so a
   corrupt or unreadable attachment leaves the document intact and raises an

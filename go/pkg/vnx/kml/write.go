@@ -8,8 +8,7 @@
 //
 // ⚠ THIS PACKAGE IS STDLIB-ONLY APART FROM pkg/vnx, like pkg/vnx itself. No
 // locerr, no db, no vtlog, and — the one that catches people —
-// no pkg/core/importer either, which is why [Color] re-derives a conversion
-// that already exists there.
+// no pkg/core/importer either.
 //
 // ⚠ .kmz IS WRITTEN, AND IT IS THIS WRITER'S BYTES IN A ZIP — NOT A SECOND
 // WRITER. An earlier version of this comment said there was no .kmz "for the
@@ -209,15 +208,6 @@ func (x *writer) feature(name, notes string, hidden bool) {
 func (x *writer) point(p vnx.Point) {
 	x.open("Placemark", "")
 	x.feature(p.Name, p.Notes, p.Hidden)
-	// A point carries no opacity in the model, so the alpha byte is opaque.
-	pointColour, _ := p.Style.String("color")
-	if c, ok := Color(pointColour, nil); ok {
-		x.open("Style", "")
-		x.open("IconStyle", "")
-		x.leaf("color", c)
-		x.close("IconStyle")
-		x.close("Style")
-	}
 	x.open("Point", "")
 	x.coordinates([]vnx.Position{p.At})
 	x.close("Point")
@@ -247,12 +237,11 @@ func ringProblem(ring []vnx.Position) string {
 
 // areaPlacemark writes an area whose ring has already been checked. It is
 // shared by the top-level areas and the in-network ones, so the two cannot
-// drift apart on style or visibility — the in-network ones only started
-// carrying either when §2.6's redesign gave them a Placemark of their own.
+// drift apart on visibility — the in-network ones only started carrying it
+// when §2.6's redesign gave them a Placemark of their own.
 func (x *writer) areaPlacemark(a vnx.Area, ring []vnx.Position) {
 	x.open("Placemark", "")
 	x.feature(a.Name, a.Notes, a.Hidden)
-	x.areaStyle(a.Style)
 	x.polygon(ring)
 	x.close("Placemark")
 	x.report.Emitted++
@@ -266,73 +255,6 @@ func (x *writer) polygon(ring []vnx.Position) {
 	x.close("LinearRing")
 	x.close("outerBoundaryIs")
 	x.close("Polygon")
-}
-
-// areaStyle writes the fill and the stroke, each only if its own colour is
-// usable. ⚠ THE TWO ARE INDEPENDENT: an area with a fill colour and no stroke
-// colour gets a PolyStyle and no LineStyle, rather than one default-coloured
-// outline invented to keep the pair symmetrical.
-//
-// ⚠ IT READS A STYLE BY KEY RATHER THAN BY FIELD, because a style is opaque
-// (spec §3.10). A key that is absent, or present with the wrong type, reads as
-// absent here — this is a lossy conversion asking whether it has something it
-// can use, not a reader diagnosing a document.
-func (x *writer) areaStyle(s vnx.Style) {
-	fillColor, _ := s.String("fill-color")
-	fillOpacity, hasFillOpacity := s.Float("fill-opacity")
-	var fo *float64
-	if hasFillOpacity {
-		fo = &fillOpacity
-	}
-	fill, hasFill := Color(fillColor, fo)
-	// The format carries no stroke opacity, so a stroke is opaque.
-	strokeColor, _ := s.String("stroke-color")
-	stroke, hasStroke := Color(strokeColor, nil)
-	if !hasFill && !hasStroke {
-		return
-	}
-	x.open("Style", "")
-	if hasStroke {
-		x.open("LineStyle", "")
-		x.leaf("color", stroke)
-		if w, ok := s.Float("stroke-width"); ok {
-			x.leaf("width", num(w))
-		}
-		x.close("LineStyle")
-	}
-	if hasFill {
-		x.open("PolyStyle", "")
-		x.leaf("color", fill)
-		x.close("PolyStyle")
-	}
-	x.close("Style")
-}
-
-// lineStyle writes the <Style> for a track or a plan, drawn as a line. A
-// highlight has no style of its own (§3.3.3), so it takes none. Width without a usable colour still gets a LineStyle: a width
-// is not a colour and carrying it invents nothing.
-func (x *writer) lineStyle(s vnx.Style) {
-	colour, _ := s.String("color")
-	opacity, hasOpacity := s.Float("opacity")
-	var op *float64
-	if hasOpacity {
-		op = &opacity
-	}
-	c, ok := Color(colour, op)
-	width, hasWidth := s.Float("width")
-	if !ok && !hasWidth {
-		return
-	}
-	x.open("Style", "")
-	x.open("LineStyle", "")
-	if ok {
-		x.leaf("color", c)
-	}
-	if hasWidth {
-		x.leaf("width", num(width))
-	}
-	x.close("LineStyle")
-	x.close("Style")
 }
 
 // track writes a recorded hike: one <LineString> per segment inside one
@@ -373,7 +295,6 @@ func (x *writer) track(t vnx.Track, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(t.Name, t.Notes, t.Hidden)
-	x.lineStyle(t.Style)
 	x.open("MultiGeometry", "")
 	for _, line := range lines {
 		x.lineString(line)
@@ -395,7 +316,6 @@ func (x *writer) plan(r vnx.Plan, path string) {
 	}
 	x.open("Placemark", "")
 	x.feature(r.Name, r.Notes, r.Hidden)
-	x.lineStyle(r.Style)
 	x.lineString(line)
 	x.close("Placemark")
 	x.report.Emitted++
@@ -412,10 +332,10 @@ func (x *writer) plan(r vnx.Plan, path string) {
 // a user can neither identify nor search for.
 //
 // ⚠ POINTS, AREAS AND HIGHLIGHTS ARE PLACEMARKS OF THEIR OWN BECAUSE A PLACEMARK HAS
-// ONE NAME, ONE STYLE AND ONE VISIBILITY. vnx.Arc carries none of those — it is
-// pure geometry — while Network.Points are full vnx.Points and Network.Areas
-// full vnx.Areas, each with Name, Notes, Hidden AND Style (item.go:34-55). Until
-// this redesign all four fields were destroyed on every one of them: they rode as
+// ONE NAME AND ONE VISIBILITY. vnx.Arc carries neither — it is pure geometry —
+// while Network.Points are full vnx.Points and Network.Areas full vnx.Areas,
+// each with Name, Notes AND Hidden. Until this redesign all three fields were
+// destroyed on every one of them: they rode as
 // bare geometry inside the network's shared MultiGeometry. Folding any of them
 // back in would destroy them again, silently.
 //
@@ -518,7 +438,7 @@ func (x *writer) network(n vnx.Network, index int, path string) {
 
 // highlight writes one Placemark for a highlight, named by label: its name, or
 // its integer within the network ([vnx.LabelNetwork]). A highlight has no notes
-// or style of its own (§3.3.3), so the Placemark carries neither.
+// of its own (§3.3.3), so the Placemark carries none.
 //
 // ⚠ THE LABEL IS BARE. Before the 2026-09-03 redesign it was
 // "Network / Highlight", because the network was a Placemark and nesting could not
@@ -567,8 +487,7 @@ func (x *writer) lineString(ps []vnx.Position) {
 // the exact failure vnx's pipEle exists to prevent on the VNX side. KML has no
 // way to say "unknown", which is why the matrix marks this cell as a loss.
 // ⚠ THIS IS WHERE KML ROUNDS, and it is the only place: every Point, LineString
-// and LinearRing goes through here. `num` itself must NOT round, because it also
-// spells a style's stroke width, which is not a coordinate (vnx/round.go).
+// and LinearRing goes through here.
 func (x *writer) coordinates(ps []vnx.Position) {
 	x.indent()
 	x.w.WriteString("<coordinates>")
@@ -603,11 +522,9 @@ func (x *writer) diag(code, path, name, message string) {
 	x.report.Diagnostics = append(x.report.Diagnostics, d)
 }
 
-// num formats a coordinate or a width. 'f' with -1 precision is the shortest
-// string that reads back as the same float64, so the golden is stable and no
-// digit is invented. Coordinates arrive already rounded from [writer.coordinates];
-// widths arrive full precision and stay that way — a stroke width is not a
-// measurement of the ground.
+// num formats a coordinate. 'f' with -1 precision is the shortest string that
+// reads back as the same float64, so the golden is stable and no digit is
+// invented. Coordinates arrive already rounded from [writer.coordinates].
 func num(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 
 func (x *writer) indent() {

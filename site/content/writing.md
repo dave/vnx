@@ -29,14 +29,14 @@ becomes an arc.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "generator": "Example Trails 2.4.1",
   "created": "2026-11-17T09:00:00Z"
 }
 ```
 
-- `vnx` is required: `MAJOR.MINOR.PATCH`, three numbers. Use `0.10.0` or a later
-  `0.10.x`.
+- `vnx` is required: `MAJOR.MINOR.PATCH`, three numbers. Use `0.11.0` or a later
+  `0.11.x`.
 - `generator` is your software's name and version. A command-line tool names
   itself, not the application whose data it converts.
 - `created` is optional, in UTC, ending in `Z`.
@@ -48,7 +48,7 @@ its interior points as `pips`. Then write the highlights.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "networks": [
     {
       "name": "Glen Feshie paths",
@@ -164,7 +164,7 @@ every reader finds the same point.
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "folders": [{ "id": "feshie", "name": "Glen Feshie" }],
   "plans": [
     {
@@ -186,7 +186,7 @@ every reader finds the same point.
     }
   ],
   "points": [
-    { "folder": "feshie", "name": "Car park", "at": [-3.8571, 57.0623, 330], "style": { "icon": "parking", "importance": 2 } }
+    { "folder": "feshie", "name": "Car park", "at": [-3.8571, 57.0623, 330], "notes": "Pay and display." }
   ],
   "areas": [
     { "folder": "feshie", "name": "Estate ground", "polygon": [[-3.87, 57.03], [-3.82, 57.03], [-3.82, 57.07], [-3.87, 57.07]] }
@@ -235,7 +235,10 @@ If your records refer to files, write a `.vnz` ZIP archive:
 | A closed area ring | The reader drops the last position and reports a diagnostic. |
 | `NaN` or `Infinity` | The whole document is refused. |
 | An unknown key, such as `description` on a point | The reader drops the key and reports it. Use `notes`, or a data record. |
-| `notes` or `style` on a highlight | Highlights have neither. Use a data record. |
+| `notes` on a highlight | Highlights have no notes. Use a data record. |
+| A `style` key on any item | VNX has no style. The reader drops the key and reports it. Put your look in a data record of your own type. |
+| HTML in `notes` | `notes` is Markdown (CommonMark). Readers render HTML differently. |
+| Two folders with the same `id`, or a parent loop | The reader drops the second folder, or breaks the loop at its first folder, and reports it. |
 | A cached length or bounds | VNX has no key for them. Readers derive them. |
 | Numbers rounded by the reader | Readers must not round. You may round when you write: six decimal places is about 10 cm. |
 
@@ -255,6 +258,6 @@ Each code names one problem and what the reader did about it (§6.2):
 
 <!-- spec:diagnostic-codes -->
 
-The [JSON Schema](schema/vnx-0.10.schema.json) checks the shape of a document.
+The [JSON Schema](schema/vnx-0.11.schema.json) checks the shape of a document.
 It cannot check the graph rules, such as walk connectivity, so use the tool as
 well.

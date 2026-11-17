@@ -1,0 +1,20 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "Folder parents never form a loop (SPEC 3.2). A folder is in a loop when following `parent` from it comes back to it. A reader takes the folders in document order, and the first folder of each loop has its `parent` treated as absent, reported with `folder-parent-loop` at that `parent`; that breaks the loop. Here `a` and `b` form a loop and `a` comes first, so `a` sits at the root and `b` stays under `a`. `outside` leads INTO the loop but is not in it, and must raise nothing: a reader that reports every folder whose chain reaches a loop fails. `self` names itself, a loop of one. Every folder survives, which `counts` pins.",
+  "counts": {
+    "folders": 4
+  },
+  "diagnostics": [
+    {
+      "path": "/folders/1/parent",
+      "code": "folder-parent-loop",
+      "message_advisory": "folder \"a\" is in a parent loop; it sits at the root"
+    },
+    {
+      "path": "/folders/3/parent",
+      "code": "folder-parent-loop",
+      "message_advisory": "folder \"self\" is in a parent loop; it sits at the root"
+    }
+  ]
+}

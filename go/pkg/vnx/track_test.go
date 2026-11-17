@@ -2,10 +2,9 @@ package vnx
 
 import "testing"
 
-const twoSegmentTrack = `{"vnx":"0.10.0","folders":[{"id":"cairngorms"}],"tracks":[{
+const twoSegmentTrack = `{"vnx":"0.11.0","folders":[{"id":"cairngorms"}],"tracks":[{
   "folder":"cairngorms","name":"Lairig Ghru, 12 May",
   "started":"2026-05-12T07:03:11Z","ended":"2026-05-12T16:41:02Z",
-  "style":{"color":"#6a4c93","width":3},
   "segments":[
     {"pips":[[-3.6712,57.1180,341,1778569391000],
              [-3.6699,57.1158,352.4,1778569442000],
@@ -68,7 +67,7 @@ func TestMovingTimeExcludesThePause(t *testing.T) {
 // an explicit UNKNOWN, never zero. Zero moving time is a plausible-looking
 // wrong answer, which is worse than an absent one.
 func TestTimelessTrackReportsUnknownNotZero(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","tracks":[{"name":"imported",
+	doc, _, err := Decode([]byte(`{"vnx":"0.11.0","tracks":[{"name":"imported",
 	  "segments":[{"pips":[[-3.67,57.11,340],[-3.66,57.10,350]]}]}]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +84,7 @@ func TestTimelessTrackReportsUnknownNotZero(t *testing.T) {
 // A single-pip segment has no span. It contributes nothing rather than being an
 // error — a recording can legitimately hold one fix before a pause.
 func TestSinglePipSegmentContributesNothing(t *testing.T) {
-	doc, _, err := Decode([]byte(`{"vnx":"0.10.0","tracks":[{"name":"t","segments":[
+	doc, _, err := Decode([]byte(`{"vnx":"0.11.0","tracks":[{"name":"t","segments":[
 	  {"pips":[[-3.67,57.11,340,1000]]},
 	  {"pips":[[-3.66,57.10,350,5000],[-3.65,57.09,360,9000]]}]}]}`))
 	if err != nil {
@@ -110,7 +109,7 @@ func TestSegmentsAreNotConcatenated(t *testing.T) {
 }
 
 func TestTrackWithBadTimestampIsDiagnosedNotDropped(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","tracks":[{"name":"t",
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","tracks":[{"name":"t",
 	  "started":"2026-05-12T07:03:11+01:00",
 	  "segments":[{"pips":[[-3.67,57.11]]}]}]}`))
 	if err != nil {

@@ -68,7 +68,13 @@ func decodeRecords(arr []any, path string, diags []Diagnostic) ([]Record, []Diag
 		if !ok || typ == "" {
 			// Without a discriminator nothing can dispatch on the record, so it
 			// is an unusable element: dropped, reported, read continues (§6.2).
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+			// §6.3 rule 1: an absent `@type` names the record, a present but
+			// unusable one names the key.
+			where := at
+			if _, present := obj[TypeKey]; present {
+				where = at + "/" + TypeKey
+			}
+			diags = append(diags, Diagnostic{Severity: Warning, Path: where, Code: CodeWrongTypeRequired,
 				Message: fmt.Sprintf("data record has no usable %q — dropped", TypeKey)})
 			continue
 		}

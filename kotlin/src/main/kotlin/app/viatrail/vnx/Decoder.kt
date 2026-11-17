@@ -58,20 +58,20 @@ internal class Decoder(
         val PASS_REQUIRED = setOf("arc")
         val PASS_OPTIONAL = setOf("from", "to", "turn", "pin")
         val PLAN_REQUIRED = setOf("walk")
-        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "nodes", "arcs", "data")
+        val PLAN_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "nodes", "arcs", "data")
         val TRACK_REQUIRED = setOf("segments")
-        val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "started", "ended", "data")
+        val TRACK_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "started", "ended", "data")
         val SEGMENT_REQUIRED = setOf("pips")
         val SEGMENT_OPTIONAL = emptySet<String>()
         val POINT_REQUIRED = setOf("at")
-        val POINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
+        val POINT_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "data")
 
         // A network's point is a top-level point without `folder`: its network already
         // contains it (section 3.10).
-        val NETWORK_POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
+        val NETWORK_POINT_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "data")
         val AREA_REQUIRED = setOf("polygon")
-        val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "style", "data")
-        val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "style", "data")
+        val AREA_OPTIONAL = setOf("name", "notes", "folder", "hidden", "pinned", "data")
+        val NETWORK_AREA_OPTIONAL = setOf("name", "notes", "hidden", "pinned", "data")
     }
 
     // ------------------------------------------------------------ entry point
@@ -126,9 +126,16 @@ internal class Decoder(
         // a parent may be written after its child (4.4), and at the folder's own
         // wire path, because a dropped folder shifts every later model index.
         val folderPaths = ArrayList<Pointer>()
-        val decodedFolders = optionalItems(doc, "folders", at) { o, p -> folder(o, p)?.also { folderPaths.add(p) } }
+        val seenFolderIds = HashSet<String>()
+        val decodedFolders =
+            optionalItems(doc, "folders", at) { o, p ->
+                folder(o, p)?.let { folder -> withUniqueId(folder, p, seenFolderIds) }?.also { folderPaths.add(p) }
+            }
         folderIds = decodedFolders?.map { it.id }?.toSet() ?: emptySet()
-        val folders = decodedFolders?.mapIndexed { i, folder -> withKnownParent(folder, folderPaths[i]) }
+        val folders =
+            decodedFolders
+                ?.mapIndexed { i, folder -> withKnownParent(folder, folderPaths[i]) }
+                ?.let { withoutParentLoops(it, folderPaths) }
 
         val document =
             VnxDocument(
@@ -223,45 +230,6 @@ internal class Decoder(
         return v.value
     }
 
-    private fun optionalStyle(
-        obj: JsonObject,
-        at: Pointer,
-    ): JsonObject? {
-        val v = obj["style"] ?: return null
-        if (v !is JsonObject) {
-            wrongType(at, "style", "an object", "the field is dropped and the item kept")
-            return null
-        }
-        // Section 3.10: a style object is opaque. A reader carries any key in it
-        // through a read-modify-write without reporting it, because style
-        // vocabulary grows faster than structural vocabulary.
-        //
-        // `importance` is the one exception, and the two rules are in tension.
-        // Section 3.6 states its range of 1 to 5 and says in as many words that
-        // the range is normative and that a value outside it is handled under
-        // section 6.2; section 6.2 in turn names `importance` as its worked
-        // example of a range this document states normatively. Section 3.10's
-        // opacity is about the UNRECOGNISED-key rule, which is a different rule,
-        // so the narrow reading — check the one key the format gives a normative
-        // range, carry every other key untouched — is the one that satisfies
-        // both. Reported to Dave; no corpus case decides it.
-        val importance = v["importance"]
-        if (importance != null && !isImportanceInRange(importance)) {
-            report(
-                at.child("style").child("importance"),
-                "`importance` is an integer from 1 to 5; the field is dropped and the item kept",
-                if (importance is JsonNumber) DiagnosticCause.OUT_OF_RANGE else DiagnosticCause.WRONG_TYPE_OPTIONAL,
-            )
-            return JsonObject(v.entries().filter { it.first != "importance" })
-        }
-        return v
-    }
-
-    private fun isImportanceInRange(value: JsonValue): Boolean {
-        val n = (value as? JsonNumber)?.value ?: return false
-        return n >= 1.0 && n <= 5.0 && n == Math.floor(n)
-    }
-
     /**
      * Section 4.3: a record-level timestamp is ISO 8601 in UTC with a literal `Z`
      * and OPTIONAL fractional seconds. An offset other than `Z` is an unusable
@@ -306,6 +274,69 @@ internal class Decoder(
             return null
         }
         return id
+    }
+
+    /**
+     * Section 3.2: folder ids are unique within a document. A folder whose `id`
+     * an earlier folder already carries is dropped (6.2), so an item naming the
+     * id sits in the first folder. Reported at the dropped folder's `id`.
+     */
+    private fun withUniqueId(
+        folder: Folder,
+        at: Pointer,
+        seen: MutableSet<String>,
+    ): Folder? {
+        if (seen.add(folder.id)) return folder
+        report(
+            at.child("id"),
+            "folder id \"${folder.id}\" is already used by an earlier folder; this folder is dropped",
+            DiagnosticCause.FOLDER_DUPLICATE_ID,
+        )
+        return null
+    }
+
+    /**
+     * Section 3.2: folder parents never form a loop. Taking the folders in
+     * document order, a folder is in a loop when following `parent` from it
+     * comes back to it. The first folder of each loop has its `parent` treated
+     * as absent (6.2), which breaks that loop, so the later folders of the same
+     * loop no longer come back to themselves and keep their parents. A folder
+     * whose chain only leads INTO a loop never comes back to itself, so it is
+     * not reported. Runs after [withKnownParent], so every parent named here is
+     * a folder that is present.
+     */
+    private fun withoutParentLoops(
+        folders: List<Folder>,
+        paths: List<Pointer>,
+    ): List<Folder> {
+        val parents = HashMap<String, String?>()
+        for (folder in folders) parents[folder.id] = folder.parent
+        return folders.mapIndexed { i, folder ->
+            if (!comesBack(folder.id, parents)) return@mapIndexed folder
+            parents[folder.id] = null
+            report(
+                paths[i].child("parent"),
+                "folder \"${folder.id}\" is in a parent loop; its `parent` is dropped and it sits at the root",
+                DiagnosticCause.FOLDER_PARENT_LOOP,
+            )
+            folder.copy(parent = null)
+        }
+    }
+
+    /** Whether following `parent` from [start] comes back to [start]. */
+    private fun comesBack(
+        start: String,
+        parents: Map<String, String?>,
+    ): Boolean {
+        val visited = HashSet<String>()
+        var current = parents[start]
+        while (current != null) {
+            if (current == start) return true
+            // A folder seen twice is a loop that [start] leads into but is not in.
+            if (!visited.add(current)) return false
+            current = parents[current]
+        }
+        return false
     }
 
     /**
@@ -512,7 +543,7 @@ internal class Decoder(
         val here = at.child("pips")
         val v = obj["pips"]
         if (v == null) {
-            report(here, "$owner requires `pips`; the $owner is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(at, "$owner requires `pips`; the $owner is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
         if (v !is JsonArray) {
@@ -534,12 +565,24 @@ internal class Decoder(
     ): Folder? {
         recogniseKeys(obj, at, Keys.FOLDER_REQUIRED, Keys.FOLDER_OPTIONAL)
         val id = obj["id"]
+        if (id is JsonString && id.value.isEmpty()) {
+            // Section 3.2: an `id` is a non-empty string, so "" is a wrong-typed
+            // value in a REQUIRED key, named at the key.
+            report(
+                at.child("id"),
+                "a folder's `id` must be a non-empty string; the folder is dropped and its items sit at the top level",
+                DiagnosticCause.WRONG_TYPE_REQUIRED,
+            )
+            return null
+        }
         if (id !is JsonString) {
             // Section 6.2: a folder with no `id` is dropped, and the items that
             // named it are then covered by the missing-folder rule and sit at the
             // top level, so a folder's contents survive the loss of the folder.
+            // Section 6.3 rule 1: an absent REQUIRED key is named at the object
+            // that lacks it, a wrong-typed one at the key.
             report(
-                at,
+                if (id == null) at else at.child("id"),
                 "a folder requires an `id` string; the folder is dropped and its items sit at the top level",
                 if (obj["id"] == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
@@ -600,10 +643,9 @@ internal class Decoder(
         val folder = optionalFolderRef(obj, at)
         val hidden = optionalBool(obj, "hidden", at)
         val pinned = optionalTimestamp(obj, "pinned", at)
-        val style = optionalStyle(obj, at)
         val data = optionalData(obj, at)
         val walk = walk(obj, at, arcs ?: emptyMap(), plan = true) ?: return null
-        return Plan(walk, nodes, arcs, name, notes, folder, hidden, pinned, style, data)
+        return Plan(walk, nodes, arcs, name, notes, folder, hidden, pinned, data)
     }
 
     /**
@@ -679,7 +721,7 @@ internal class Decoder(
             val v = obj[end]
             if (v !is JsonString) {
                 report(
-                    at.child(end),
+                    if (v == null) at else at.child(end),
                     "an arc requires `$end` naming a node; the arc is dropped",
                     if (v == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
                 )
@@ -764,7 +806,7 @@ internal class Decoder(
         val raw = obj["walk"]
         if (raw !is JsonArray) {
             report(
-                here,
+                if (raw == null) owner else here,
                 "`walk` must be an array of passes; the ${if (plan) "plan" else "highlight"} is dropped",
                 if (raw == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
@@ -855,7 +897,7 @@ internal class Decoder(
         val rawSegments = obj["segments"]
         if (rawSegments !is JsonArray) {
             report(
-                at.child("segments"),
+                if (rawSegments == null) at else at.child("segments"),
                 "a track requires a `segments` array; the track is dropped",
                 if (rawSegments == null) DiagnosticCause.MISSING_REQUIRED_KEY else DiagnosticCause.WRONG_TYPE_REQUIRED,
             )
@@ -883,7 +925,6 @@ internal class Decoder(
             folder = optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
-            style = optionalStyle(obj, at),
             started = optionalTimestamp(obj, "started", at),
             ended = optionalTimestamp(obj, "ended", at),
             data = optionalData(obj, at),
@@ -905,7 +946,7 @@ internal class Decoder(
         )
         val rawAt = obj["at"]
         if (rawAt == null) {
-            report(at.child("at"), "a point requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(at, "a point requires `at`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
         val position = requiredPosition(rawAt, at.child("at")) ?: return null
@@ -916,7 +957,6 @@ internal class Decoder(
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
-            style = optionalStyle(obj, at),
             data = optionalData(obj, at),
         )
     }
@@ -942,7 +982,6 @@ internal class Decoder(
             folder = if (inNetwork) null else optionalFolderRef(obj, at),
             hidden = optionalBool(obj, "hidden", at),
             pinned = optionalTimestamp(obj, "pinned", at),
-            style = optionalStyle(obj, at),
             data = optionalData(obj, at),
         )
     }
@@ -969,7 +1008,7 @@ internal class Decoder(
         val here = at.child("polygon")
         val v = obj["polygon"]
         if (v == null) {
-            report(here, "an area requires `polygon`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
+            report(at, "an area requires `polygon`; the item is dropped", DiagnosticCause.MISSING_REQUIRED_KEY)
             return null
         }
         if (v !is JsonArray) {

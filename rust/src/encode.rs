@@ -204,7 +204,6 @@ fn plan(r: &Plan, path: &Path) -> Built {
     o.str("folder", r.folder.as_deref());
     o.hidden(r.hidden);
     o.str("pinned", r.pinned.as_deref());
-    o.opaque("style", r.style.as_ref());
     graph(&mut o, &r.nodes, &r.arcs, path)?;
     let owner = format!("plan {}", json_quoted(r.name.as_deref()));
     check_walk(&r.walk, &r.arcs, true, &path.key("walk"), &owner)?;
@@ -222,7 +221,6 @@ fn track(t: &Track, _path: &Path) -> Built {
     o.str("pinned", t.pinned.as_deref());
     o.str("started", t.started.as_deref());
     o.str("ended", t.ended.as_deref());
-    o.opaque("style", t.style.as_ref());
     o.raw(
         "segments",
         Json::Array(
@@ -247,7 +245,6 @@ fn point(w: &Point, _path: &Path) -> Built {
     o.str("folder", w.folder.as_deref());
     o.hidden(w.hidden);
     o.str("pinned", w.pinned.as_deref());
-    o.opaque("style", w.style.as_ref());
     o.raw("at", position(&w.at));
     o.records(&w.data);
     Ok(o.done())
@@ -261,7 +258,6 @@ fn area(a: &Area, path: &Path) -> Built {
     o.str("folder", a.folder.as_deref());
     o.hidden(a.hidden);
     o.str("pinned", a.pinned.as_deref());
-    o.opaque("style", a.style.as_ref());
     o.raw("polygon", pips(&a.polygon));
     o.records(&a.data);
     Ok(o.done())
@@ -380,14 +376,6 @@ impl Obj {
         }
     }
 
-    /// A style object, or anything else this format carries
-    /// through untouched.
-    fn opaque(&mut self, key: &str, value: Option<&Json>) {
-        if let Some(v) = value {
-            self.raw(key, v.clone());
-        }
-    }
-
     fn records(&mut self, records: &Option<Vec<Record>>) {
         if let Some(list) = records {
             self.raw(
@@ -438,14 +426,14 @@ mod tests {
 
     #[test]
     fn a_writer_emits_the_shortest_spelling_of_a_position() {
-        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[-3.6712,57.118,null]}]}"#);
+        let out = encode_text(r#"{"vnx":"0.11.0","points":[{"at":[-3.6712,57.118,null]}]}"#);
         assert!(out.contains("[-3.6712,57.118]"), "{out}");
     }
 
     #[test]
     fn an_interior_null_is_never_dropped() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
+            r#"{"vnx":"0.11.0","tracks":[{"segments":[{"pips":[[-3.6,57.1,null,1778914991000]]}]}]}"#,
         );
         assert!(out.contains("[-3.6,57.1,null,1778914991000]"), "{out}");
     }
@@ -460,7 +448,7 @@ mod tests {
     #[test]
     fn a_writer_changes_no_value_it_was_handed() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
+            r#"{"vnx":"0.11.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#,
         );
         assert!(
             out.contains("[-3.6712345678901235,57.11812345678901,340.06]"),
@@ -475,7 +463,7 @@ mod tests {
     #[test]
     fn the_values_that_used_to_need_a_tie_rule_pass_through() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","points":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
+            r#"{"vnx":"0.11.0","points":[{"at":[-0.00000004,0.15,340.25]},{"at":[1.85,-0.04,340.75]}]}"#,
         );
         assert!(out.contains("[-4e-8,0.15,340.25]"), "{out}");
         assert!(out.contains("[1.85,-0.04,340.75]"), "{out}");
@@ -487,7 +475,7 @@ mod tests {
     #[test]
     fn a_reader_keeps_the_precision_the_document_carried() {
         let text =
-            r#"{"vnx":"0.10.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
+            r#"{"vnx":"0.11.0","points":[{"at":[-3.6712345678901235,57.11812345678901,340.06]}]}"#;
         let document = decode(text.as_bytes()).expect("accepted").document;
         let at = &document.points.as_ref().expect("points")[0].at;
         assert_eq!(
@@ -501,9 +489,9 @@ mod tests {
     /// writer emits neither. `corpus/write/emit-boundary` pins it.
     #[test]
     fn a_false_hidden_is_not_written() {
-        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"hidden":false}]}"#);
+        let out = encode_text(r#"{"vnx":"0.11.0","points":[{"at":[1,2],"hidden":false}]}"#);
         assert!(!out.contains("hidden"), "{out}");
-        let shown = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"hidden":true}]}"#);
+        let shown = encode_text(r#"{"vnx":"0.11.0","points":[{"at":[1,2],"hidden":true}]}"#);
         assert!(shown.contains(r#""hidden":true"#), "{shown}");
     }
 
@@ -512,7 +500,7 @@ mod tests {
     /// (SPEC 4.3), and written only when the item is pinned.
     #[test]
     fn pinned_round_trips_on_every_item_kind() {
-        let text = r#"{"vnx":"0.10.0",
+        let text = r#"{"vnx":"0.11.0",
             "networks":[{"pinned":"2026-10-20T08:15:00Z",
               "nodes":{"a":[1,1],"b":[1,2]},
               "arcs":{"ab":{"from":"a","to":"b","pips":[]}},
@@ -565,21 +553,21 @@ mod tests {
 
     #[test]
     fn the_declared_version_is_written_back_not_the_readers() {
-        assert!(encode_text(r#"{"vnx":"0.10.99"}"#).contains("0.10.99"));
-        assert!(encode_text(r#"{"vnx":"00.010.0000"}"#).contains("00.010.0000"));
+        assert!(encode_text(r#"{"vnx":"0.11.99"}"#).contains("0.11.99"));
+        assert!(encode_text(r#"{"vnx":"00.011.0000"}"#).contains("00.011.0000"));
     }
 
     /// The output is compact. Nothing constrains a document's whitespace
     /// (SPEC 8.1), and this pins the decision rather than the rule.
     #[test]
     fn the_output_carries_no_whitespace() {
-        let out = encode_text(r#"{"vnx":"0.10.0","points":[{"at":[1,2],"name":"Spring"}]}"#);
+        let out = encode_text(r#"{"vnx":"0.11.0","points":[{"at":[1,2],"name":"Spring"}]}"#);
         assert!(!out.contains('\n') && !out.contains("  "), "{out}");
     }
 
     fn network_document() -> Document {
         decode(
-            br#"{"vnx":"0.10.0","networks":[{
+            br#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101]]}},
                  "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005],"to":"b"}]}]}],
@@ -696,7 +684,7 @@ mod tests {
     #[test]
     fn a_walk_is_written_in_its_one_spelling() {
         let out = encode_text(
-            r#"{"vnx":"0.10.0","networks":[{
+            r#"{"vnx":"0.11.0","networks":[{
                  "nodes":{"a":[-3.60,57.10,410,5],"b":[-3.59,57.10]},
                  "arcs":{"ab":{"from":"a","to":"b","pips":[[-3.595,57.101,null,9]]}},
                  "highlights":[{"walk":[{"arc":"ab","from":[-3.597,57.1005,3],"to":"b","pin":[-3.596,57.1003,4]}]}]}]}"#,

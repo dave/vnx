@@ -3,10 +3,10 @@
 //! with an error naming where it is, rather than panicking.
 
 use vnx::json::Json;
-use vnx::model::{AppKey, Position};
+use vnx::model::{AppKey, Position, Record};
 use vnx::{decode, encode, EncodeError};
 
-const SRC: &str = r#"{"vnx":"0.10.0","points":[{"at":[1,2],"style":{"importance":3}}]}"#;
+const SRC: &str = r#"{"vnx":"0.11.0","points":[{"at":[1,2],"data":[{"@type":"x.y","width":3}]}]}"#;
 
 fn refused_at(doc: &vnx::Document, want: &str) {
     match encode(doc) {
@@ -33,11 +33,13 @@ fn a_non_finite_number_anywhere_is_an_encode_error() {
         doc.points.as_mut().expect("points")[0].at = Position::new(vec![Some(value), Some(2.0)]);
         refused_at(&doc, "/points/0/at/0");
 
-        // A style value.
+        // A data record body.
         let mut doc = base.clone();
-        doc.points.as_mut().expect("points")[0].style =
-            Some(Json::Object(vec![("width".into(), Json::Number(value))]));
-        refused_at(&doc, "/points/0/style/width");
+        doc.points.as_mut().expect("points")[0].data = Some(vec![Record::new(vec![
+            ("@type".into(), Json::String("x.y".into())),
+            ("width".into(), Json::Number(value)),
+        ])]);
+        refused_at(&doc, "/points/0/data/0/width");
 
         // An application key's value, nested.
         let mut doc = base.clone();

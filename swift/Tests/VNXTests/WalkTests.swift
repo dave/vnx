@@ -12,7 +12,7 @@ import XCTest
 final class WalkTests: XCTestCase {
 
   private func read(_ body: String) throws -> VNX.ReadResult {
-    try VNX.read(Data("{\"vnx\":\"0.10.0\",\(body)}".utf8))
+    try VNX.read(Data("{\"vnx\":\"0.11.0\",\(body)}".utf8))
   }
 
   /// The pairs a runner compares (SPEC 6.3), sorted so a failure reads as a
@@ -385,8 +385,9 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(reported(result), ["plan-pin-or-position /plans/0/walk/0/turn"])
   }
 
-  /// A missing or wrong-typed `walk` is a REQUIRED key gone, named at the
-  /// key, and the owner goes.
+  /// A missing or wrong-typed `walk` is a REQUIRED key gone, and the owner
+  /// goes. A missing one is named at the owner, a wrong-typed one at the key
+  /// (SPEC 6.3 rule 1).
   func testAMissingOrWrongTypedWalkDropsItsOwner() throws {
     let result = try read(
       """
@@ -396,9 +397,9 @@ final class WalkTests: XCTestCase {
     XCTAssertEqual(
       reported(result),
       [
-        "wrong-type-required /networks/0/highlights/0/walk",
+        "wrong-type-required /networks/0/highlights/0",
         "wrong-type-required /networks/0/highlights/1/walk",
-        "wrong-type-required /plans/0/walk",
+        "wrong-type-required /plans/0",
         "wrong-type-required /plans/1/walk",
       ])
   }
@@ -439,20 +440,22 @@ final class WalkTests: XCTestCase {
 
   // MARK: - A required key that is absent (SPEC 6.2)
 
-  /// One code for absent and wrong-typed, named at the key in both cases,
-  /// because the remedy and the outcome are the same.
-  func testAnAbsentRequiredKeyIsNamedAtTheKey() throws {
+  /// One code for absent and wrong-typed. SPEC 6.3 rule 1: an absent key has
+  /// no element of its own, so the path names the object that lacks it; a
+  /// wrong-typed one is named at the key.
+  func testAnAbsentRequiredKeyIsNamedAtTheObject() throws {
     let result = try read(
       """
-      "points":[{"name":"w"}],
+      "points":[{"name":"w"},{"at":7}],
       "networks":[{"nodes":{"a":[0,0],"b":[1,1]},"arcs":{"x":{"to":"b","pips":[]},"y":{"from":"a","to":"b"}}}]
       """)
     XCTAssertEqual(
       reported(result),
       [
-        "wrong-type-required /networks/0/arcs/x/from",
-        "wrong-type-required /networks/0/arcs/y/pips",
-        "wrong-type-required /points/0/at",
+        "wrong-type-required /networks/0/arcs/x",
+        "wrong-type-required /networks/0/arcs/y",
+        "wrong-type-required /points/0",
+        "wrong-type-required /points/1/at",
       ])
   }
 

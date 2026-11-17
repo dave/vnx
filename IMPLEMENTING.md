@@ -64,7 +64,7 @@ Two properties of that order:
 
 `accept/` is the hardest tier and the one to build first. Its comparison is
 against the tree parsed from the original file, never against a second model. A
-reader that discarded every data record, every application key, every style and
+reader that discarded every data record, every application key and
 every `notes` produces a model equal to itself and passes a model-versus-model tier
 green: the whole extensibility mechanism, all styling and all user prose,
 dropped by an implementation that reports itself conforming. *(Frozen as a
@@ -135,8 +135,8 @@ These are decisions made in the first hour and discovered in the last.
 
 ### 4.1 Absence, and the places it means something different
 
-`SPEC §3.1`: absence means "not known" and is not a default value, with three
-stated exceptions: `label-visible`, `hidden` and `pinned`.
+`SPEC §3.1`: absence means "not known" and is not a default value, with two
+stated exceptions: `hidden` and `pinned`.
 
 For an OPTIONAL collection, absent and empty carry the same content and
 `SPEC §3.1` requires a reader to treat them alike. `SPEC §8.1` normalises the
@@ -151,10 +151,6 @@ object to exist.
 A `hidden` written as `false` is a third case: `SPEC §3.8` gives absence the
 meaning visible, and a writer emits the key only when it is true.
 
-`label-visible` is where getting this wrong is invisible. Absence means Auto, and
-a reader that treats it as `false` flattens Auto to hidden with nothing to report
-(`SPEC §3.6`).
-
 The language pulls here. A plain list for every collection, where absent and
 empty are one value, is more idiomatic in Rust than an optional list, and every
 reviewer would suggest the change. For the six document collections that
@@ -162,17 +158,16 @@ change is safe: `SPEC §3.1` puts the two shapes on the same footing. It is not
 safe for a required key. A model that cannot tell an absent `walk` from an
 empty one cannot report the object as malformed.
 
-Those three absences, Auto, visible and not pinned, are the only ones
-`SPEC §3.1` gives a meaning. Every other absence is "not known" and stays that way through a
+Those two absences, visible and not pinned, are the only ones `SPEC §3.1`
+gives a meaning. Every other absence is "not known" and stays that way through a
 read-modify-write.
 
 ### 4.2 Opaque bodies survive at value level
 
-Data records (`SPEC §5.1`), application keys (`SPEC §3.9`) and style objects
-(`SPEC §3.10`) are opaque: no key inside them is ever unrecognised, and each has
+Data records (`SPEC §5.1`) and application keys (`SPEC §3.9`) are opaque: no key inside them is ever unrecognised, and each has
 to survive a read-modify-write untouched.
 
-An application key differs from the other two in three ways, and each is a
+An application key differs from a data record in three ways, and each is a
 place to go wrong:
 
 - The rule is about position, not about the key. A key containing a full stop
@@ -181,7 +176,7 @@ place to go wrong:
   inside the opaque objects of `SPEC §3.10`, where it is carried. A decoder
   that tests every object's keys for a full stop skips diagnostics the corpus
   expects, and `corpus/diagnose/dotted-key-on-item.vnx` is what catches it.
-  One that reports a dotted key inside a record body, a style or an
+  One that reports a dotted key inside a record body or an
   application key's value fails `corpus/accept/application-keys.vnx`.
 - The value is any JSON value, not only an array or an object. A `null` has to
   come back as `null`, and an empty array as an empty array. The absent-equals-
@@ -200,13 +195,9 @@ in a sidecar is about a construct the format names.
 Keep such a body as whatever your JSON layer produced. It is the one place where
 holding an untyped value is the correct model.
 
-An opaque body can hold a normative *value* without ceasing to be opaque. A
-style body is opaque by ruling, and `SPEC §3.6` puts a normative range on its
-`importance`. A normative range is a rule about a value, not about a key set.
-
 A highlight is a lightweight container for data objects along a walk of its
 network's arcs (`SPEC §3.3.3`). It carries `walk`, an optional `name`,
-`hidden`, `pinned` and `data`, and no notes or style of its own. A decoder that
+`hidden`, `pinned` and `data`, and no notes of its own. A decoder that
 shares one key set across every item, or a model that gives a highlight a
 `notes` field because every other item has one, accepts a `notes` on a
 highlight without a word. `corpus/diagnose/highlight-notes-unknown.vnx` expects
@@ -394,7 +385,7 @@ returning zero where the answer is unknown is the worked example. Unknown is not
 zero, and `corpus/accept/track-without-times.vnx` and
 `corpus/accept/track-partly-timed.vnx` are where it shows.
 
-The three absences that legitimately carry a meaning are in section 4.1, and they
+The two absences that legitimately carry a meaning are in section 4.1, and they
 are absences in a conforming document, not malformed values.
 
 ### 8.3 A position drops its owner, and a walk drops its highlight
@@ -740,7 +731,7 @@ existed only because the rule did. That is the arithmetic of a rule: it does not
 only cost the words that state it.
 
 **The branch is unreachable.** A mutation of the version rule for 1.0 and above
-is a provable no-op in a 0.10 reader, which can never take that branch
+is a provable no-op in a 0.11 reader, which can never take that branch
 (`SPEC §2.2`), so it comes back green for a reason that is neither a weak guard
 nor a bad mutation. Record the proof in the code, so the next person does not run
 the same mutation, see green, and conclude the guard is weak.

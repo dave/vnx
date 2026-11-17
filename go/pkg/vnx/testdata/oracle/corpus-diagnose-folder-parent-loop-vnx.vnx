@@ -1,0 +1,1 @@
+{"vnx":"0.11.0","folders":[{"id":"outside","name":"Outside","parent":"a"},{"id":"a","name":"A"},{"id":"b","name":"B","parent":"a"},{"id":"self","name":"Self"}]}

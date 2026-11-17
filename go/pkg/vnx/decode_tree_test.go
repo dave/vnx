@@ -37,7 +37,7 @@ func decodeTree(data []byte) (*Document, []Diagnostic, error) {
 
 	var diags []Diagnostic
 	doc := &Document{Version: declared}
-	doc.Generator, diags = stringField(obj, "generator", diags)
+	doc.Generator, diags = stringField(obj, "generator", "", diags)
 	doc.Created, diags = timeField(obj, "created", "", diags)
 	if v, present := obj["folders"]; present {
 		if arr, ok := v.([]any); ok {
@@ -117,43 +117,15 @@ func treeDecodeFolders(arr []any, diags []Diagnostic) ([]Folder, []Diagnostic) {
 	out := make([]Folder, 0, len(arr))
 	seen := make(map[string]bool, len(arr))
 	var kept []string
-
 	for i, item := range arr {
 		at := fmt.Sprintf("/folders/%d", i)
-		obj, ok := item.(map[string]any)
-		if !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("folder is %s, expected an object — dropped", jsonKind(item))})
-			continue
+		f, ok, d := folderFromValue(item, at, seen, diags)
+		diags = d
+		if ok {
+			out = append(out, f)
+			kept = append(kept, at)
 		}
-		id, _ := obj["id"].(string)
-		if id == "" {
-			// Without an id nothing can reference it, so the folder cannot hold
-			// anything. Unlike a dangling parent, dropping it loses nothing that
-			// was reachable.
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: "folder has no `id` — dropped, nothing could reference it"})
-			continue
-		}
-		if seen[id] {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("duplicate folder id %q — dropped, the first one wins", id)})
-			continue
-		}
-		seen[id] = true
-
-		var f Folder
-		f.ID = id
-		f.Name, diags = stringField(obj, "name", diags)
-		f.Notes, diags = stringField(obj, "notes", diags)
-		f.Parent, diags = stringField(obj, "parent", diags)
-		f.Hidden, diags = boolField(obj, "hidden", at, diags)
-		f.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, folderKeys, diags)
-		out = append(out, f)
-		kept = append(kept, at)
 	}
-
 	return resolveParents(out, kept, diags)
 }
 
@@ -173,11 +145,13 @@ func treeDecodePoints(arr []any, path string, kept *[]string, diags []Diagnostic
 			// FACT. §3.10 makes `at` required, so both drop the item, but a
 			// reader told "missing or malformed" learns neither. Distinguished
 			// here; the code is the same because the outcome is.
-			what := "is missing"
+			// §6.3 rule 1: an absent key has no element of its own, so the point
+			// is named; a present one of the wrong type is named at the key.
+			what, where := "is missing", at
 			if _, present := obj["at"]; present {
-				what = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"]))
+				what, where = fmt.Sprintf("is %s, expected a position array", jsonKind(obj["at"])), at+"/at"
 			}
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/at",
+			diags = append(diags, Diagnostic{Severity: Warning, Path: where,
 				Code:    CodeWrongTypeRequired,
 				Message: fmt.Sprintf("`at` %s — item dropped", what)})
 			continue
@@ -191,14 +165,17 @@ func treeDecodePoints(arr []any, path string, kept *[]string, diags []Diagnostic
 		}
 		var w Point
 		w.At = pos
-		w.Folder, diags = stringField(obj, "folder", diags)
-		w.Name, diags = stringField(obj, "name", diags)
-		w.Notes, diags = stringField(obj, "notes", diags)
+		keys := networkPointKeys
+		if kept != nil {
+			keys = pointKeys
+			w.Folder, diags = stringField(obj, "folder", at, diags)
+		}
+		w.Name, diags = stringField(obj, "name", at, diags)
+		w.Notes, diags = stringField(obj, "notes", at, diags)
 		w.Hidden, diags = boolField(obj, "hidden", at, diags)
 		w.Pinned, diags = timeField(obj, "pinned", at, diags)
-		w.Style, diags = decodeStyle(obj, at, diags)
 		w.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, pointKeys, diags)
+		diags = reportUnknownKeys(obj, at, keys, diags)
 		out = append(out, w)
 		if kept != nil {
 			*kept = append(*kept, at)
@@ -217,6 +194,11 @@ func treeDecodeAreas(arr []any, path string, kept *[]string, diags []Diagnostic)
 				Message: fmt.Sprintf("item is %s, expected an object — dropped", jsonKind(item))})
 			continue
 		}
+		if _, present := obj["polygon"]; !present {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+				Message: "polygon is missing — area dropped"})
+			continue
+		}
 		ring, ok, diags2 := treeDecodeRing(obj["polygon"], at+"/polygon", diags)
 		diags = diags2
 		if !ok {
@@ -224,14 +206,17 @@ func treeDecodeAreas(arr []any, path string, kept *[]string, diags []Diagnostic)
 		}
 		var a Area
 		a.Polygon = ring
-		a.Folder, diags = stringField(obj, "folder", diags)
-		a.Name, diags = stringField(obj, "name", diags)
-		a.Notes, diags = stringField(obj, "notes", diags)
+		keys := networkAreaKeys
+		if kept != nil {
+			keys = areaKeys
+			a.Folder, diags = stringField(obj, "folder", at, diags)
+		}
+		a.Name, diags = stringField(obj, "name", at, diags)
+		a.Notes, diags = stringField(obj, "notes", at, diags)
 		a.Hidden, diags = boolField(obj, "hidden", at, diags)
 		a.Pinned, diags = timeField(obj, "pinned", at, diags)
-		a.Style, diags = decodeStyle(obj, at, diags)
 		a.Data, diags = dataField(obj, at, diags)
-		diags = reportUnknownKeys(obj, at, areaKeys, diags)
+		diags = reportUnknownKeys(obj, at, keys, diags)
 		out = append(out, a)
 		if kept != nil {
 			*kept = append(*kept, at)
@@ -243,10 +228,7 @@ func treeDecodeAreas(arr []any, path string, kept *[]string, diags []Diagnostic)
 func treeDecodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, []Diagnostic) {
 	arr, ok := v.([]any)
 	if !ok {
-		what := "is missing"
-		if v != nil {
-			what = fmt.Sprintf("is %s, expected an array of positions", jsonKind(v))
-		}
+		what := fmt.Sprintf("is %s, expected an array of positions", jsonKind(v))
 		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
 			Message: fmt.Sprintf("polygon %s — area dropped", what)})
 	}
@@ -296,15 +278,24 @@ func treeDecodeTracks(arr []any, path string, kept *[]string, diags []Diagnostic
 			continue
 		}
 		var tr Track
-		tr.Folder, diags = stringField(obj, "folder", diags)
-		tr.Name, diags = stringField(obj, "name", diags)
-		tr.Notes, diags = stringField(obj, "notes", diags)
+		tr.Folder, diags = stringField(obj, "folder", at, diags)
+		tr.Name, diags = stringField(obj, "name", at, diags)
+		tr.Notes, diags = stringField(obj, "notes", at, diags)
 		tr.Hidden, diags = boolField(obj, "hidden", at, diags)
 		tr.Pinned, diags = timeField(obj, "pinned", at, diags)
 		tr.Started, diags = timeField(obj, "started", at, diags)
 		tr.Ended, diags = timeField(obj, "ended", at, diags)
-		tr.Style, diags = decodeStyle(obj, at, diags)
-		tr.Segments, diags = treeDecodeSegments(obj["segments"], at+"/segments", diags)
+		segV, segPresent := obj["segments"]
+		if !segPresent {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+				Message: "`segments` is missing — track dropped"})
+			continue
+		}
+		var segOK bool
+		tr.Segments, segOK, diags = treeDecodeSegments(segV, at+"/segments", diags)
+		if !segOK {
+			continue
+		}
 		tr.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, trackKeys, diags)
 		out = append(out, tr)
@@ -315,14 +306,11 @@ func treeDecodeTracks(arr []any, path string, kept *[]string, diags []Diagnostic
 	return out, diags
 }
 
-func treeDecodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Diagnostic) {
-	if v == nil {
-		return nil, diags
-	}
+func treeDecodeSegments(v any, path string, diags []Diagnostic) ([]Segment, bool, []Diagnostic) {
 	arr, ok := v.([]any)
 	if !ok {
-		return nil, append(diags, Diagnostic{Severity: Warning, Path: path,
-			Message: fmt.Sprintf("`segments` is %s, expected an array — ignored", jsonKind(v))})
+		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path, Code: CodeWrongTypeRequired,
+			Message: fmt.Sprintf("`segments` is %s, expected an array — track dropped", jsonKind(v))})
 	}
 	out := make([]Segment, 0, len(arr))
 	for i, item := range arr {
@@ -334,9 +322,20 @@ func treeDecodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Di
 			continue
 		}
 		diags = reportUnknownKeys(obj, at, segmentKeys, diags)
-		pips, diags2 := treeDecodePips(obj["pips"], at+"/pips", diags)
+		pipsV, pipsPresent := obj["pips"]
+		if !pipsPresent {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeWrongTypeRequired,
+				Message: "`pips` is missing — segment dropped"})
+			continue
+		}
+		if _, isArr := pipsV.([]any); !isArr {
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at + "/pips", Code: CodeWrongTypeRequired,
+				Message: fmt.Sprintf("`pips` is %s, expected an array — segment dropped", jsonKind(pipsV))})
+			continue
+		}
+		pips, diags2 := treeDecodePips(pipsV, at+"/pips", diags)
 		diags = diags2
-		if pips == nil && obj["pips"] != nil {
+		if pips == nil {
 			// decodePips reported an unusable position and returned nil to say
 			// "drop the owner". For a track that owner is the SEGMENT: spec
 			// §3.5 already makes the interval between two segments a pause
@@ -347,7 +346,7 @@ func treeDecodeSegments(v any, path string, diags []Diagnostic) ([]Segment, []Di
 		}
 		out = append(out, Segment{Pips: pips})
 	}
-	return out, diags
+	return out, true, diags
 }
 
 func treeDecodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagnostic) {
@@ -389,12 +388,11 @@ func treeDecodePlans(arr []any, path string, kept *[]string, diags []Diagnostic)
 			continue
 		}
 		var r Plan
-		r.Folder, diags = stringField(obj, "folder", diags)
-		r.Name, diags = stringField(obj, "name", diags)
-		r.Notes, diags = stringField(obj, "notes", diags)
+		r.Folder, diags = stringField(obj, "folder", at, diags)
+		r.Name, diags = stringField(obj, "name", at, diags)
+		r.Notes, diags = stringField(obj, "notes", at, diags)
 		r.Hidden, diags = boolField(obj, "hidden", at, diags)
 		r.Pinned, diags = timeField(obj, "pinned", at, diags)
-		r.Style, diags = decodeStyle(obj, at, diags)
 		r.Nodes, diags = treeDecodeNodes(obj["nodes"], at+"/nodes", diags)
 		r.Arcs, diags = treeDecodeArcs(obj["arcs"], at+"/arcs", r.Nodes, diags)
 		r.Data, diags = dataField(obj, at, diags)
@@ -424,9 +422,9 @@ func treeDecodeNetworks(arr []any, path string, kept *[]string, diags []Diagnost
 			continue
 		}
 		var n Network
-		n.Folder, diags = stringField(obj, "folder", diags)
-		n.Name, diags = stringField(obj, "name", diags)
-		n.Notes, diags = stringField(obj, "notes", diags)
+		n.Folder, diags = stringField(obj, "folder", at, diags)
+		n.Name, diags = stringField(obj, "name", at, diags)
+		n.Notes, diags = stringField(obj, "notes", at, diags)
 		n.Hidden, diags = boolField(obj, "hidden", at, diags)
 		n.Pinned, diags = timeField(obj, "pinned", at, diags)
 		n.Nodes, diags = treeDecodeNodes(obj["nodes"], at+"/nodes", diags)
@@ -518,21 +516,21 @@ func treeDecodeArc(obj map[string]any, at string, nodes map[string]Vertex, diags
 	}{{"from", &a.From}, {"to", &a.To}} {
 		*end.dst, ok = obj[end.key].(string)
 		if !ok {
-			what := "is missing"
+			what, where := "is missing", at
 			if _, present := obj[end.key]; present {
-				what = fmt.Sprintf("is %s, expected a node key", jsonKind(obj[end.key]))
+				what, where = fmt.Sprintf("is %s, expected a node key", jsonKind(obj[end.key])), at+"/"+end.key
 			}
-			return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/" + end.key,
+			return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 				Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `%s` %s — arc dropped", end.key, what)})
 		}
 	}
 	pipsArr, isArr := obj["pips"].([]any)
 	if !isArr {
-		what := "is missing"
+		what, where := "is missing", at
 		if _, present := obj["pips"]; present {
-			what = fmt.Sprintf("is %s, expected an array", jsonKind(obj["pips"]))
+			what, where = fmt.Sprintf("is %s, expected an array", jsonKind(obj["pips"])), at+"/pips"
 		}
-		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: at + "/pips",
+		return Arc{}, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("arc `pips` %s — arc dropped", what)})
 	}
 	pips, diags := treeDecodePips(pipsArr, at+"/pips", diags)

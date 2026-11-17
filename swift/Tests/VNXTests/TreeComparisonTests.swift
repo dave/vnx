@@ -10,7 +10,7 @@ import XCTest
 /// to, and the liveness that stops the blindness becoming blanket agreement.
 final class TreeComparisonTests: XCTestCase {
 
-  private func doc(_ body: String) -> Data { Data("{\"vnx\":\"0.10.0\",\(body)}".utf8) }
+  private func doc(_ body: String) -> Data { Data("{\"vnx\":\"0.11.0\",\(body)}".utf8) }
 
   /// ⚠ A NUMBER COMPARES BY VALUE, NEVER BY ITS SPELLING. SPEC 4.2 defines the
   /// round trip at value level and the rewritten specification states no rule
@@ -52,26 +52,26 @@ final class TreeComparisonTests: XCTestCase {
   /// what keeps a writer that omits an empty collection conforming.
   func testAnAbsentCollectionAndAnEmptyOneCompareEqual() throws {
     XCTAssertNil(
-      try Tree.difference(got: doc("\"points\":[]"), want: Data("{\"vnx\":\"0.10.0\"}".utf8)))
+      try Tree.difference(got: doc("\"points\":[]"), want: Data("{\"vnx\":\"0.11.0\"}".utf8)))
     XCTAssertNil(
       try Tree.difference(
         got: doc("\"points\":[{\"at\":[1,2],\"data\":[]}]"),
         want: doc("\"points\":[{\"at\":[1,2]}]")))
   }
 
-  /// And the two normalisations SPEC 8.1 permits are the ONLY two. A style is
-  /// opaque, so an empty container inside one is content a third party meant
-  /// to keep, and a trailing `null` inside one is not a position's channel to
-  /// be dropped.
+  /// And the two normalisations SPEC 8.1 permits are the ONLY two. A data
+  /// record body is opaque, so an empty container inside one is content a
+  /// third party meant to keep, and a trailing `null` inside one is not a
+  /// position's channel to be dropped.
   func testNothingIsNormalisedInsideAnOpaqueRegion() throws {
     XCTAssertNotNil(
       try Tree.difference(
-        got: doc("\"points\":[{\"at\":[1,2],\"style\":{\"x\":[]}}]"),
-        want: doc("\"points\":[{\"at\":[1,2],\"style\":{}}]")))
+        got: doc("\"points\":[{\"at\":[1,2],\"data\":[{\"@type\":\"t\",\"x\":[]}]}]"),
+        want: doc("\"points\":[{\"at\":[1,2],\"data\":[{\"@type\":\"t\"}]}]")))
     XCTAssertNotNil(
       try Tree.difference(
-        got: doc("\"points\":[{\"at\":[1,2],\"style\":{\"v\":[1,2,null]}}]"),
-        want: doc("\"points\":[{\"at\":[1,2],\"style\":{\"v\":[1,2]}}]"),
+        got: doc("\"points\":[{\"at\":[1,2],\"data\":[{\"@type\":\"t\",\"v\":[1,2,null]}]}]"),
+        want: doc("\"points\":[{\"at\":[1,2],\"data\":[{\"@type\":\"t\",\"v\":[1,2]}]}]"),
         Tree.Options(emitBoundary: true)))
   }
 

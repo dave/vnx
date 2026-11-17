@@ -25,7 +25,7 @@ type entry struct {
 // The document inside the archives is a plain accept-tier document,
 // like every other accept file in the corpus.
 const doc = `{
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "points": [
     {
       "name": "In a container",
@@ -59,7 +59,7 @@ func main() {
 	})
 	write("reject/container-duplicate-entries.vnz", []entry{
 		{name: "doc.vnx", body: doc, method: zip.Deflate},
-		{name: "doc.vnx", body: `{"vnx":"0.10.0"}`, method: zip.Deflate},
+		{name: "doc.vnx", body: `{"vnx":"0.11.0"}`, method: zip.Deflate},
 	})
 	// The two names differ only in case. §7 compares entry names
 	// case-insensitively, so this is a duplicate exactly as the identical pair
@@ -360,7 +360,7 @@ func writeUnusableMethod(path string) {
 // return. Its CRC and the attachment's CRC (that of the UNDAMAGED body) are
 // computed, not written in.
 func writeCorruptAttachment(path string) {
-	const docBody = "{\n  \"vnx\":\"0.10.0\",\n  \"points\": [{\"name\":\"w\",\"at\":[-3.6712,57.118]}]\n}\n"
+	const docBody = "{\n  \"vnx\":\"0.11.0\",\n  \"points\": [{\"name\":\"w\",\"at\":[-3.6712,57.118]}]\n}\n"
 	const photo = "not really a photo\n"
 	damaged := []byte{0xcb, 0xcb, 0x2f, 0xae, 0xd7, 0x4a, 0x4d, 0xcc, 0xc9, 0xa9,
 		0x54, 0x48, 0x54, 0x28, 0xc8, 0xc8, 0x2f, 0xc9, 0xe7, 0x02, 0x00}

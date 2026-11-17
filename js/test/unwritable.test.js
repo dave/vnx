@@ -11,11 +11,10 @@ import { encode } from '../src/index.js';
 const base = () =>
   decodeText(
     JSON.stringify({
-      vnx: '0.10.0',
+      vnx: '0.11.0',
       points: [
         {
           at: [1, 2],
-          style: { color: '#123456' },
           data: [{ '@type': 'com.example.t', value: 1 }],
         },
       ],
@@ -24,8 +23,7 @@ const base = () =>
   ).document;
 
 // Each place a caller-built value can reach the writer: an application key's
-// value (top level, nested in an object, nested in an array), a record body,
-// and a style.
+// value (top level, nested in an object, nested in an array) and a record body.
 const sites = {
   'an application key value': (d, v) => {
     d.appKeys[0].value = v;
@@ -38,9 +36,6 @@ const sites = {
   },
   'a record body': (d, v) => {
     d.points[0].data[0].value = v;
-  },
-  'a style': (d, v) => {
-    d.points[0].style.color = v;
   },
 };
 

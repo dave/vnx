@@ -25,7 +25,7 @@ final class WriterArchiveRulesTests: XCTestCase {
       Point(
         at: Position(lon: -3.675, lat: 57.1201),
         name: "In a container", notes: nil, folder: nil,
-        hidden: nil, style: nil, data: nil)
+        hidden: nil, data: nil)
     ]
     return document
   }
@@ -154,7 +154,7 @@ final class WriterArchiveRulesTests: XCTestCase {
       Point(
         at: Position(lon: -3.675, lat: 57.1201 + Double($0) / 10000),
         name: "Bothy", notes: "the same note over and over", folder: nil,
-        hidden: nil, style: nil, data: nil)
+        hidden: nil, data: nil)
     }
     let plain = try VNX.write(document)
     let archive = try VNX.writeContainer(document: document)

@@ -24,13 +24,13 @@
 //!
 //! A malformed value never becomes a default. It is dropped, and a diagnostic
 //! names what it was and where it was. The only exception is where the format
-//! itself defines a meaning for an absence: an absent `label-visible` is Auto
-//! (SPEC 3.6) and an absent `hidden` is visible (SPEC 3.8).
+//! itself defines a meaning for an absence: an absent `hidden` is visible and
+//! an absent `pinned` is not pinned (SPEC 3.8).
 //!
 //! # Example
 //!
 //! ```
-//! let bytes = br#"{"points":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.10.0"}"#;
+//! let bytes = br#"{"points":[{"name":"Spring","at":[-3.6521,57.1,940]}],"vnx":"0.11.0"}"#;
 //! let reading = vnx::decode(bytes).expect("a VNX document");
 //! assert!(reading.diagnostics.is_empty());
 //! assert_eq!(reading.document.points.as_ref().unwrap().len(), 1);

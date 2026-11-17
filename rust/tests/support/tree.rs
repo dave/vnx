@@ -2,10 +2,10 @@
 //! of a document are not constrained (SPEC 8.1).
 //!
 //! ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier
-//! rests on. A reader that discarded every data record, every application key, every
-//! style and every `notes` produces a model that compares equal to itself, and
+//! rests on. A reader that discarded every data record, every application key
+//! and every `notes` produces a model that compares equal to itself, and
 //! passes an accept tier built that way GREEN — that is the whole extensibility
-//! mechanism, all styling and all user prose. Comparing the tree parsed from
+//! mechanism and all user prose. Comparing the tree parsed from
 //! the ORIGINAL FILE against the tree parsed from `encode(decode(file))` is what
 //! proves a reader kept what it read. `a_reader_that_discards_what_it_read_is_caught`
 //! in `corpus.rs` freezes the proof.
@@ -52,9 +52,8 @@ pub fn compare(got: &[u8], want: &[u8], emit: EmitBoundary) -> Option<String> {
 
 /// Walk a document and apply the permitted normalisations.
 ///
-/// It is SCHEMA-AWARE rather than a heuristic over shapes, because the two
-/// regions the format declares opaque — a data record's body and a style — may
-/// hold arrays of numbers that are not positions and must not be rounded, and
+/// It is SCHEMA-AWARE rather than a heuristic over shapes, because the region
+/// the format declares opaque — a data record's body — may hold arrays of numbers that are not positions and must not be rounded, and
 /// may hold empty containers that a third party means to keep.
 fn document(value: &Json, emit: EmitBoundary) -> Json {
     let Json::Object(entries) = value else {
@@ -81,13 +80,11 @@ fn folder(o: &mut Entries, _emit: EmitBoundary) {
 
 fn point(o: &mut Entries, emit: EmitBoundary) {
     map_value(o, "at", |v| position(v, emit));
-    drop_empty(o, "style");
     drop_empty(o, "data");
 }
 
 fn area(o: &mut Entries, emit: EmitBoundary) {
     position_list(o, "polygon", emit);
-    drop_empty(o, "style");
     drop_empty(o, "data");
 }
 
@@ -95,14 +92,12 @@ fn track(o: &mut Entries, emit: EmitBoundary) {
     items(o, "segments", emit, |s, emit| {
         position_list(s, "pips", emit)
     });
-    drop_empty(o, "style");
     drop_empty(o, "data");
 }
 
 fn plan(o: &mut Entries, emit: EmitBoundary) {
     graph(o, emit);
     walk(o, emit);
-    drop_empty(o, "style");
     drop_empty(o, "data");
 }
 
@@ -152,7 +147,6 @@ fn graph(o: &mut Entries, emit: EmitBoundary) {
 
 fn highlight(o: &mut Entries, emit: EmitBoundary) {
     walk(o, emit);
-    drop_empty(o, "style");
     drop_empty(o, "data");
 }
 

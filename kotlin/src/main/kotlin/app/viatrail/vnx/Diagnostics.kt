@@ -65,14 +65,6 @@ enum class DiagnosticCause(
     WRONG_TYPE_REQUIRED("wrong-type-required", null),
 
     /**
-     * A value outside a range or enumeration this format states, which section
-     * 6.2 makes an unusable value in an optional key: the field is dropped and
-     * the item kept. It takes the code of [WRONG_TYPE_OPTIONAL] because the
-     * outcome is the same; the English says which fact it was. (6.2)
-     */
-    OUT_OF_RANGE("wrong-type-optional", null),
-
-    /**
      * A position that will not parse. (4.1, 6.2)
      *
      * The remedy drops the OWNER rather than the position: a node, an arc, a
@@ -149,6 +141,21 @@ enum class DiagnosticCause(
      * the top level, the folder at the root. The path says which key. (6.2)
      */
     FOLDER_ABSENT("folder-absent", null),
+
+    /**
+     * A folder whose `id` an earlier folder in the document already carries.
+     * The later folder is dropped; items naming the id sit in the first one.
+     * The path is the dropped folder's `id`, at its index in the file. (3.2, 6.2)
+     */
+    FOLDER_DUPLICATE_ID("folder-duplicate-id", null),
+
+    /**
+     * The first folder, in document order, of a parent loop. Its `parent` is
+     * treated as absent, so it sits at the root, which breaks the loop; the
+     * other folders of the loop keep their parents. A folder whose parents only
+     * lead into a loop is not reported. (3.2, 6.2)
+     */
+    FOLDER_PARENT_LOOP("folder-parent-loop", null),
 
     /**
      * A data record with no `@type`, or one that is not a string. The record is

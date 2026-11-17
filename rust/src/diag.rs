@@ -93,10 +93,12 @@ pub enum Cause {
     /// SPEC 5: a data record with no `@type`, or one that is not a string.
     /// SPEC 6.2's table gives it the code of [`Cause::WrongTypeRequired`].
     RecordTypeMissing,
-    /// SPEC 3.6: an `importance` outside the range 1 to 5, or not an integer.
-    /// SPEC 6.2 makes it an unusable value in an optional key, so it takes the
-    /// code of [`Cause::WrongTypeOptional`].
-    ImportanceOutOfRange,
+    /// SPEC 3.2 and 6.2: a folder whose `id` an earlier folder already
+    /// carries. The folder is dropped; the first one with the id stays.
+    FolderDuplicateId { id: String },
+    /// SPEC 3.2 and 6.2: the first folder, in document order, of a parent
+    /// loop. Its `parent` is treated as absent, so it sits at the root.
+    FolderParentLoop { id: String },
     /// SPEC 7: an ATTACHMENT this reader could not produce bytes for. The
     /// attachment is dropped and the document is returned; refusing a whole
     /// library over one photograph would be disproportionate.
@@ -135,7 +137,7 @@ impl Cause {
     pub fn code(&self) -> &'static str {
         match self {
             Cause::UnknownKey => "unknown-key",
-            Cause::WrongTypeOptional { .. } | Cause::ImportanceOutOfRange => "wrong-type-optional",
+            Cause::WrongTypeOptional { .. } => "wrong-type-optional",
             Cause::WrongTypeRequired { .. }
             | Cause::MissingRequiredKey { .. }
             | Cause::RecordTypeMissing => "wrong-type-required",
@@ -155,6 +157,8 @@ impl Cause {
             Cause::TimestampNotUtc => "timestamp-not-utc",
             Cause::AttachmentUnreadable { .. } => "attachment-unreadable",
             Cause::FolderAbsent { .. } => "folder-absent",
+            Cause::FolderDuplicateId { .. } => "folder-duplicate-id",
+            Cause::FolderParentLoop { .. } => "folder-parent-loop",
         }
     }
 }
@@ -238,9 +242,13 @@ impl std::fmt::Display for Cause {
                 f,
                 "a data record needs a string `@type`, so the record is dropped"
             ),
-            Cause::ImportanceOutOfRange => write!(
+            Cause::FolderDuplicateId { id } => write!(
                 f,
-                "`importance` is an integer from 1 to 5, so the field is dropped"
+                "an earlier folder already carries the id `{id}`, so this folder is dropped"
+            ),
+            Cause::FolderParentLoop { id } => write!(
+                f,
+                "the folder `{id}` is in a parent loop, so it sits at the root"
             ),
             Cause::AttachmentUnreadable { fault } => match fault {
                 AttachmentFault::UnusableMethod(method) => write!(
@@ -391,7 +399,8 @@ mod tests {
             Cause::TimestampNotUtc,
             Cause::FolderAbsent { id: text() },
             Cause::RecordTypeMissing,
-            Cause::ImportanceOutOfRange,
+            Cause::FolderDuplicateId { id: text() },
+            Cause::FolderParentLoop { id: text() },
             Cause::AttachmentUnreadable {
                 fault: AttachmentFault::UnusableMethod(99),
             },
@@ -420,6 +429,8 @@ mod tests {
         "ring-too-few-points",
         "attachment-unreadable",
         "folder-absent",
+        "folder-duplicate-id",
+        "folder-parent-loop",
     ];
 
     /// Every row of the table has a cause that carries its code, and every
@@ -444,20 +455,14 @@ mod tests {
     /// wrong diagnostic.
     #[test]
     fn only_the_table_s_own_rows_share_a_code() {
-        let shared: &[(&str, &[&str])] = &[
-            (
-                "wrong-type-optional",
-                &["WrongTypeOptional", "ImportanceOutOfRange"],
-            ),
-            (
-                "wrong-type-required",
-                &[
-                    "WrongTypeRequired",
-                    "MissingRequiredKey",
-                    "RecordTypeMissing",
-                ],
-            ),
-        ];
+        let shared: &[(&str, &[&str])] = &[(
+            "wrong-type-required",
+            &[
+                "WrongTypeRequired",
+                "MissingRequiredKey",
+                "RecordTypeMissing",
+            ],
+        )];
         let mut by_code: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
         for cause in every_cause() {
             let name = format!("{cause:?}");

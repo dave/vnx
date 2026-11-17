@@ -44,7 +44,7 @@ import (
 const oracleDir = "testdata/oracle"
 
 // oracleVersion is the version a generated case declares when it names none.
-const oracleVersion = "0.10.0"
+const oracleVersion = "0.11.0"
 
 func ip(v int) *int             { return &v }
 func bp(v bool) *bool           { return &v }
@@ -235,10 +235,6 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 
 	var (
 		timedPip        bool // Position.Time — *int64
-		iconSize        bool // PointStyle.IconSize — *int
-		importance      bool // PointStyle.Importance — *int
-		bothIntStyle    bool // icon-size AND importance on one style
-		labelVisible    bool // PointStyle.LabelVisible — *bool, tristate
 		nilEle          bool
 		nilTime         bool
 		mixedTiming     bool // timed and untimed pips in ONE track
@@ -318,22 +314,6 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 				signedZero = true
 			}
 		})
-		eachPointStyle(d, func(s Style) {
-			if _, ok := s["icon-size"]; ok {
-				iconSize = true
-			}
-			_, hasSize := s["icon-size"]
-			_, hasImportance := s["importance"]
-			if hasImportance {
-				importance = true
-			}
-			if hasSize && hasImportance {
-				bothIntStyle = true
-			}
-			if _, ok := s["label-visible"]; ok {
-				labelVisible = true
-			}
-		})
 		eachData(d, func(r Record) { dataRecord = true })
 		for _, tr := range d.Tracks {
 			if len(tr.Segments) == 0 {
@@ -406,10 +386,6 @@ func TestOracleCorpusCoversTheCasesTheGoldensMiss(t *testing.T) {
 		what string
 	}{
 		{timedPip, "a timed pip (Position.Time, *int64)"},
-		{iconSize, "a point style carrying icon-size (*int)"},
-		{importance, "a point style carrying importance (*int)"},
-		{bothIntStyle, "one point style carrying icon-size AND importance"},
-		{labelVisible, "a point style carrying label-visible (*bool tristate)"},
 		{nilEle, "a position with nil Ele"},
 		{nilTime, "a position with nil Time"},
 		{mixedTiming, "timed and untimed pips in one track"},
@@ -527,7 +503,7 @@ func generatedOracleCases() []oracleCase {
 	return []oracleCase{
 		{"empty-document", &Document{}},
 		{"scalars-only", &Document{
-			Version:   "0.10.0",
+			Version:   "0.11.0",
 			Generator: "viatrail/oracle",
 			Created:   "2026-09-02T10:00:00Z",
 		}},
@@ -542,7 +518,7 @@ func generatedOracleCases() []oracleCase {
 			AppKeys:   []AppKey{},
 		}},
 		{"folders-deeply-nested", oracleFolders()},
-		{"point-styles", oraclePointStyles()},
+		{"points", oraclePoints()},
 		{"unicode-and-escapes", oracleUnicode()},
 		{"negative-zero", oracleNegativeZero()},
 		{"extreme-numbers", oracleExtremeNumbers()},
@@ -585,22 +561,12 @@ func oracleFolders() *Document {
 	return d
 }
 
-func oraclePointStyles() *Document {
+func oraclePoints() *Document {
 	at := Position{Lon: -3.6712, Lat: 57.1180}
 	return &Document{
-		Generator: "point-styles",
+		Generator: "points",
 		Points: []Point{
-			// ⚠ icon-size AND importance together, both *int (item.go:17,21),
-			// written natively into the tree at encode.go:404,407. This is the
-			// case the earlier type-coverage probe missed entirely.
-			{Name: "every style field", At: at, Style: Style{"color": "#ff0000", "icon": "summit", "icon-size": 35, "pin-shape": "teardrop", "label-position": "above", "label-visible": true, "importance": 5}},
-			{Name: "label hidden", At: at, Style: Style{"label-visible": false}},
-			{Name: "icon size only", At: at, Style: Style{"icon-size": 16}},
-			{Name: "importance only", At: at, Style: Style{"importance": 1}},
-			// Absent LabelVisible is Auto, and Auto is spelled by the key being
-			// gone (item.go:9-13). A rewrite that wrote false here would flatten
-			// Auto to always-hidden.
-			{Name: "no style at all", At: at},
+			{Name: "plain point", At: at},
 			{Name: "hidden point", At: at, Hidden: true, Folder: "somewhere", Notes: "note"},
 		},
 	}
@@ -641,7 +607,6 @@ func oracleNegativeZero() *Document {
 				{Lon: 1, Lat: nz},
 				{Lon: 1, Lat: 1},
 			},
-			Style: Style{"fill-opacity": nz, "stroke-width": nz},
 		}},
 		// Verbatim blocks recurse through the same writer, so the rule must
 		// hold inside them too.
@@ -673,11 +638,8 @@ func oracleExtremeNumbers() *Document {
 			At:   Position{Lon: 0.1, Lat: 0.2, Ele: &ele},
 		})
 	}
-	op := 1e-7
-	w := 1e21
 	d.Plans = []Plan{{
-		Name:  "extreme style",
-		Style: Style{"opacity": op, "width": w},
+		Name:  "extreme numbers",
 		Nodes: map[string]Vertex{"node-1": {Lon: 1, Lat: 2}, "node-2": {Lon: 3, Lat: 4}},
 		Arcs:  map[string]Arc{"arc-1": {From: "node-1", To: "node-2", Pips: []Vertex{}}},
 		Walk:  []Pass{{Arc: "arc-1", From: &Endpoint{Node: "node-1"}, To: &Endpoint{Node: "node-2"}}},
@@ -892,11 +854,10 @@ func oracleNetwork() Network {
 		},
 	}
 	n.Points = []Point{
-		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}, Style: Style{"icon-size": 21, "importance": 3}},
+		{Name: "in-network point", At: Position{Lon: -3.5, Lat: 57.5}},
 	}
 	n.Areas = []Area{
-		{Name: "in-network area", Polygon: []Position{{Lon: -3.6, Lat: 57.6}, {Lon: -3.5, Lat: 57.6}, {Lon: -3.5, Lat: 57.5}},
-			Style: Style{"fill-color": "#abcdef", "fill-opacity": float64(0.25), "stroke-color": "#000000", "stroke-width": float64(1.5)}},
+		{Name: "in-network area", Polygon: []Position{{Lon: -3.6, Lat: 57.6}, {Lon: -3.5, Lat: 57.6}, {Lon: -3.5, Lat: 57.5}}},
 	}
 	n.Data = []Record{{Type: "app.viatrail.test/net", Body: map[string]any{"value": "n"}}}
 	return n
@@ -913,10 +874,7 @@ func oracleAreas() *Document {
 	return &Document{
 		Generator: "areas",
 		Areas: []Area{
-			{Name: "full style", Polygon: ring, Style: Style{"fill-color": "#112233", "fill-opacity": float64(0.4), "stroke-color": "#445566", "stroke-width": float64(2)}},
-			{Name: "no style", Polygon: ring},
-			{Name: "fill only", Polygon: ring, Style: Style{"fill-color": "#778899"}},
-			{Name: "opacity only", Polygon: ring, Style: Style{"fill-opacity": float64(1)}},
+			{Name: "plain ring", Polygon: ring},
 			// An area ring whose positions carry elevation and time: the
 			// position writer does not care which collection it is in.
 			{Name: "timed ring", Notes: "ملاحظات", Hidden: true, Folder: "f", Polygon: timed},
@@ -948,12 +906,12 @@ func oracleTrackTimestamps() *Document {
 // The one case where every top-level collection is non-empty at once.
 func oracleEverything() *Document {
 	d := &Document{
-		Version:   "0.10.0",
+		Version:   "0.11.0",
 		Generator: "viatrail/oracle everything",
 		Created:   "2026-09-02T12:00:00Z",
 	}
 	d.Folders = oracleFolders().Folders
-	d.Points = oraclePointStyles().Points
+	d.Points = oraclePoints().Points
 	d.Areas = oracleAreas().Areas
 	d.Tracks = oracleTiming().Tracks
 	d.Plans = oracleExtremeNumbers().Plans
@@ -1020,17 +978,6 @@ func eachPosition(d *Document, fn func(Position)) {
 			for _, p := range a.Polygon {
 				fn(p)
 			}
-		}
-	}
-}
-
-func eachPointStyle(d *Document, fn func(Style)) {
-	for _, w := range d.Points {
-		fn(w.Style)
-	}
-	for _, n := range d.Networks {
-		for _, w := range n.Points {
-			fn(w.Style)
 		}
 	}
 }

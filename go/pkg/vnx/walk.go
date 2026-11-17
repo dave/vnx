@@ -195,11 +195,12 @@ func decodeWalk(obj map[string]any, owner string, arcs map[string]Arc, plan bool
 	path := owner + "/walk"
 	arr, isArr := obj["walk"].([]any)
 	if !isArr {
-		what := "is missing"
+		// §6.3 rule 1: an absent `walk` names its owner, a wrong-typed one the key.
+		what, where := "is missing", owner
 		if _, present := obj["walk"]; present {
-			what = fmt.Sprintf("is %s, expected an array", jsonKind(obj["walk"]))
+			what, where = fmt.Sprintf("is %s, expected an array", jsonKind(obj["walk"])), path
 		}
-		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: path,
+		return nil, false, append(diags, Diagnostic{Severity: Warning, Path: where,
 			Code: CodeWrongTypeRequired, Message: fmt.Sprintf("`walk` %s — dropped", what)})
 	}
 	walk := make([]Pass, 0, len(arr))

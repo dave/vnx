@@ -6,10 +6,10 @@ import Foundation
 /// of a document are not constrained (SPEC 8.1).
 ///
 /// ⚠ IT IS NEVER MODEL-VERSUS-MODEL, and that is the finding the accept tier
-/// rests on. A reader that discarded every data record, every application key,
-/// every style and every `notes` produces a model that compares equal to itself and
+/// rests on. A reader that discarded every data record, every application key
+/// and every `notes` produces a model that compares equal to itself and
 /// passes an accept tier built that way green — that is the whole extensibility
-/// mechanism, all styling and all user prose. Comparing the tree parsed from the
+/// mechanism and all user prose. Comparing the tree parsed from the
 /// ORIGINAL FILE against the tree parsed from `write(read(file))` is what proves
 /// a reader kept what it read. `AcceptTierProofTests` freezes the proof.
 enum Tree {
@@ -62,8 +62,8 @@ enum Tree {
   /// Walks a decoded VNX document and applies the two normalisations SPEC 8.1
   /// permits, and no others.
   ///
-  /// SCHEMA-AWARE rather than a heuristic over shapes, because the two regions
-  /// the format declares opaque — a data record's body and a style — may hold
+  /// SCHEMA-AWARE rather than a heuristic over shapes, because the region the
+  /// format declares opaque — a data record's body — may hold
   /// arrays of numbers that are not positions and must not be rounded, and may
   /// hold empty containers that a third party means to keep.
   static func normaliseDocument(_ v: JSONValue, _ o: Options) -> JSONValue {
@@ -86,19 +86,16 @@ enum Tree {
 
   private static func normPoint(_ o: inout OpaqueObject, _ opt: Options) {
     if let at = o["at"] { o["at"] = normPosition(at, opt) }
-    dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
   }
 
   private static func normArea(_ o: inout OpaqueObject, _ opt: Options) {
     normPositionList(&o, "polygon", opt)
-    dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
   }
 
   private static func normTrack(_ o: inout OpaqueObject, _ opt: Options) {
     normItems(&o, "segments", opt) { s, opt in normPositionList(&s, "pips", opt) }
-    dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
   }
 
@@ -160,7 +157,6 @@ enum Tree {
 
   private static func normHighlight(_ o: inout OpaqueObject, _ opt: Options) {
     normWalk(&o, opt)
-    dropEmptyContainer(&o, "style")
     dropEmptyContainer(&o, "data")
   }
 

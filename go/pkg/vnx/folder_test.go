@@ -3,7 +3,7 @@ package vnx
 import "testing"
 
 func TestFoldersRoundTrip(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[
 	  {"id":"cairngorms","name":"Cairngorms"},
 	  {"id":"approaches","name":"Approaches","parent":"cairngorms"}
 	]}`))
@@ -25,7 +25,7 @@ func TestFoldersRoundTrip(t *testing.T) {
 // element — the reference, not the folder. Dropping the folder would take its
 // contents with it; keeping it at root loses only its position.
 func TestDanglingParentIsDiagnosedAndFolderKeptAtRoot(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[
 	  {"id":"orphan","name":"Orphan","parent":"nowhere"}
 	]}`))
 	if err != nil {
@@ -47,10 +47,11 @@ func TestDanglingParentIsDiagnosedAndFolderKeptAtRoot(t *testing.T) {
 // that still carries one of the two relationships the document asserted.
 // Clearing both would be over-correction, discarding a fact that was true.
 //
-// So the test asserts the INVARIANT (no chain cycles, nothing dropped, the
-// repair is reported) rather than one particular repair.
+// The test asserts the INVARIANT (no chain cycles, nothing dropped, the repair
+// is reported), and then the repair §3.2 names: the first folder of the loop in
+// document order loses its `parent`.
 func TestCycleIsBrokenMinimallyAndDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[
 	  {"id":"a","name":"A","parent":"b"},
 	  {"id":"b","name":"B","parent":"a"}
 	]}`))
@@ -88,13 +89,16 @@ func TestCycleIsBrokenMinimallyAndDiagnosed(t *testing.T) {
 	if cleared != 1 {
 		t.Fatalf("want exactly one parent cleared (minimal repair), got %d", cleared)
 	}
-	if len(diags) != 1 {
-		t.Fatalf("want one diagnostic, got %v", diags)
+	if len(diags) != 1 || diags[0].Path != "/folders/0/parent" || diags[0].Code != CodeFolderParentLoop {
+		t.Fatalf("want one %s at /folders/0/parent, got %v", CodeFolderParentLoop, diags)
+	}
+	if doc.Folders[0].Parent != "" || doc.Folders[1].Parent != "a" {
+		t.Fatalf("the first folder of the loop must sit at the root and the second stay under it, got %+v", doc.Folders)
 	}
 }
 
 func TestDuplicateFolderIDIsDiagnosed(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[
 	  {"id":"same","name":"First"},{"id":"same","name":"Second"}
 	]}`))
 	if err != nil {
@@ -103,20 +107,20 @@ func TestDuplicateFolderIDIsDiagnosed(t *testing.T) {
 	if len(doc.Folders) != 1 || doc.Folders[0].Name != "First" {
 		t.Fatalf("the first wins and the second is dropped, got %+v", doc.Folders)
 	}
-	if len(diags) != 1 || diags[0].Path != "/folders/1" {
+	if len(diags) != 1 || diags[0].Path != "/folders/1/id" || diags[0].Code != CodeFolderDuplicateID {
 		t.Fatalf("got %v", diags)
 	}
 }
 
 func TestFolderWithoutIDIsDropped(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"ok","name":"Fine"}]}`))
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0","folders":[{"name":"No id"},{"id":"ok","name":"Fine"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(doc.Folders) != 1 || doc.Folders[0].ID != "ok" {
 		t.Fatalf("got %+v", doc.Folders)
 	}
-	if len(diags) != 1 || diags[0].Path != "/folders/0" {
+	if len(diags) != 1 || diags[0].Path != "/folders/0" || diags[0].Code != CodeWrongTypeRequired {
 		t.Fatalf("got %v", diags)
 	}
 }
@@ -136,7 +140,7 @@ func TestFolderWithoutIDIsDropped(t *testing.T) {
 //   - the first point is dropped (no `at`), so the bad point's path must be
 //     its index in the FILE, /points/2, not its index among the kept points.
 func TestItemFolderNamingNoFolderIsDiagnosedAndItemKeptAtTopLevel(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0",
+	doc, diags, err := Decode([]byte(`{"vnx":"0.11.0",
 	  "points":[{"name":"dropped"},{"at":[1,2],"folder":"real"},{"at":[1,2],"folder":"ghost"}],
 	  "networks":[{"folder":"ghost"}],
 	  "plans":[{"walk":[],"folder":"ghost"}],

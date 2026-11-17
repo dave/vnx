@@ -157,28 +157,25 @@ func TestCyclicFolderParentsDoNotHang(t *testing.T) {
 
 // CELL: attribute losses are matrix facts, NOT per-item diagnostics
 // (writer.go convention 5). properties carries name and description only.
-func TestCellStyleAndHiddenAreDroppedWithoutDiagnostics(t *testing.T) {
-	hidden := true
+func TestCellHiddenIsDroppedWithoutDiagnostics(t *testing.T) {
 	out, report := writeDoc(t, &vnx.Document{
 		Points: []vnx.Point{{
 			Name: "Pinned", Notes: "note", Hidden: true, At: pos(1, 2, nil),
-			Style: vnx.Style{"color": "#ff0000", "icon": "peak", "pin-shape": "round", "label-visible": hidden},
 		}},
-		Areas: []vnx.Area{{Name: "Painted", Hidden: true, Polygon: square(),
-			Style: vnx.Style{"fill-color": "#00ff00", "stroke-color": "#0000ff"}}},
+		Areas: []vnx.Area{{Name: "Painted", Hidden: true, Polygon: square()}},
 	})
-	// CARRIED: the styled, hidden items themselves. A hidden item is EXPORTED
+	// CARRIED: the hidden items themselves. A hidden item is EXPORTED
 	// — GeoJSON has no visibility, so the STATE is lost and the item is not —
 	// and a writer that skipped it would pass every absence assertion below.
 	for _, want := range []string{`"name":"Pinned"`, `"name":"Painted"`} {
 		if !strings.Contains(out, want) {
-			t.Errorf("missing %s; only the style and the hidden state are lost, not the item:\n%s", want, out)
+			t.Errorf("missing %s; only the hidden state is lost, not the item:\n%s", want, out)
 		}
 	}
 	if report.Emitted != 2 {
 		t.Errorf("emitted %d, want 2 — hidden must not mean skipped", report.Emitted)
 	}
-	for _, leaked := range []string{"ff0000", "peak", "round", "hidden", "00ff00", "style", "Style"} {
+	for _, leaked := range []string{"hidden", "visibility"} {
 		if strings.Contains(out, leaked) {
 			t.Errorf("%q reached the file; properties carries name and description ONLY (§2.3):\n%s", leaked, out)
 		}

@@ -19,26 +19,24 @@ type Plan struct {
 	Notes  string
 	Hidden bool
 	Pinned Timestamp // "" is not pinned (§3.8)
-	Style  Style
 	Nodes  map[string]Vertex
 	Arcs   map[string]Arc
 	Walk   []Pass
 	Data   []Record
 }
 
-var planKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true, "style": true,
+var planKeys = map[string]bool{"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
 	"nodes": true, "arcs": true, "walk": true, "data": true}
 
 // planFromObject builds one plan from its object, read with every key but
 // `nodes` and `arcs`, which g holds. ok is false when the plan is dropped.
 func planFromObject(obj map[string]any, at string, g *graphRead, diags []Diagnostic) (Plan, bool, []Diagnostic) {
 	var r Plan
-	r.Folder, diags = stringField(obj, "folder", diags)
-	r.Name, diags = stringField(obj, "name", diags)
-	r.Notes, diags = stringField(obj, "notes", diags)
+	r.Folder, diags = stringField(obj, "folder", at, diags)
+	r.Name, diags = stringField(obj, "name", at, diags)
+	r.Notes, diags = stringField(obj, "notes", at, diags)
 	r.Hidden, diags = boolField(obj, "hidden", at, diags)
 	r.Pinned, diags = timeField(obj, "pinned", at, diags)
-	r.Style, diags = decodeStyle(obj, at, diags)
 	r.Nodes, r.Arcs, diags = g.finish(at, diags)
 	r.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, planKeys, diags)

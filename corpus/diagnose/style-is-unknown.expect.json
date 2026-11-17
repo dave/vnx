@@ -1,0 +1,22 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "VNX defines no `style` key (removed in 0.11). On any object it is an unrecognised key: reported with `unknown-key`, skipped, and the object kept (SPEC 6.2). An empty `style` object is reported too: a reader that skips the key only when it holds something fails. How an item looks is application data and belongs in a data record (SPEC 5).",
+  "counts": {
+    "points": 1,
+    "areas": 1,
+    "/areas/0/polygon": 3
+  },
+  "diagnostics": [
+    {
+      "path": "/points/0/style",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    },
+    {
+      "path": "/areas/0/style",
+      "code": "unknown-key",
+      "message_advisory": "unknown key"
+    }
+  ]
+}

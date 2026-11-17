@@ -1,0 +1,21 @@
+{
+  "kind": "diagnose",
+  "schema": "invalid",
+  "note": "Folder ids are unique within a document (SPEC 3.2). A second folder with an id already used is dropped and reported with `folder-duplicate-id` at its `id`; the first one stays, so the point that names `lakes` sits in the first folder and raises nothing. A folder with no `id` is missing a REQUIRED key, so it is dropped with `wrong-type-required` at the folder (SPEC 3.10, 6.2). `counts` pins that exactly one folder survives: a reader that keeps both duplicates, or drops both, fails.",
+  "counts": {
+    "folders": 1,
+    "points": 1
+  },
+  "diagnostics": [
+    {
+      "path": "/folders/1/id",
+      "code": "folder-duplicate-id",
+      "message_advisory": "folder id \"lakes\" is already used by an earlier folder; this folder is dropped"
+    },
+    {
+      "path": "/folders/2",
+      "code": "wrong-type-required",
+      "message_advisory": "a folder requires `id`; the folder is dropped"
+    }
+  ]
+}

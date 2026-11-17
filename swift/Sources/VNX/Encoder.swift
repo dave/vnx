@@ -5,8 +5,8 @@ import Foundation
 /// This is a reconstruction from the model, not a reformat of the bytes the
 /// reader was handed. SPEC 8.1 rules the second one out and says why: it "never
 /// builds a model, so it cannot observe anything about what a model kept — a
-/// reader that discarded every data record, every application key, every style and
-/// every `notes` passes such a check". Everything below therefore has to come
+/// reader that discarded every data record, every application key and every
+/// `notes` passes such a check". Everything below therefore has to come
 /// out of the model or it is gone.
 ///
 /// There is ONE emit path. The format defines no byte layout, so nothing here
@@ -60,7 +60,6 @@ enum DocumentEncoder {
     if allowsFolder { put(&o, "folder", w.folder) }
     putHidden(&o, w.hidden)
     put(&o, "pinned", w.pinned)
-    putStyle(&o, w.style)
     putData(&o, w.data)
     return .object(o)
   }
@@ -73,7 +72,6 @@ enum DocumentEncoder {
     if allowsFolder { put(&o, "folder", a.folder) }
     putHidden(&o, a.hidden)
     put(&o, "pinned", a.pinned)
-    putStyle(&o, a.style)
     putData(&o, a.data)
     return .object(o)
   }
@@ -226,7 +224,6 @@ enum DocumentEncoder {
     put(&o, "folder", r.folder)
     putHidden(&o, r.hidden)
     put(&o, "pinned", r.pinned)
-    putStyle(&o, r.style)
     putData(&o, r.data)
     return .object(o)
   }
@@ -244,7 +241,6 @@ enum DocumentEncoder {
     put(&o, "folder", t.folder)
     putHidden(&o, t.hidden)
     put(&o, "pinned", t.pinned)
-    putStyle(&o, t.style)
     put(&o, "started", t.started)
     put(&o, "ended", t.ended)
     putData(&o, t.data)
@@ -299,10 +295,6 @@ enum DocumentEncoder {
   private static func putHidden(_ o: inout [JSONKey: JSONValue], _ hidden: Bool?) {
     guard let hidden, hidden else { return }
     o["hidden"] = .bool(true)
-  }
-
-  private static func putStyle(_ o: inout [JSONKey: JSONValue], _ style: OpaqueObject?) {
-    if let style { o["style"] = .object(style) }
   }
 
   private static func putData(_ o: inout [JSONKey: JSONValue], _ data: [DataRecord]?) {

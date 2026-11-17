@@ -269,13 +269,13 @@ func (f *features) plans(d *vnx.Document) {
 // notes, then ONE NAMED FEATURE PER in-network point, area and highlight, each
 // named "{network} / {label}" ([vnx.LabelNetwork]). A highlight is a
 // lightweight container for data along its walk, with an optional name and no
-// notes or style of its own (§3.3.3): its label is its name, or its integer.
+// notes of its own (§3.3.3): its label is its name, or its integer.
 //
 // ⚠ THE GeometryCollection IS GONE. It bent "one Feature per thing" so that the
 // in-network points and areas had somewhere to go, and the price was their Name,
-// Notes, Hidden and Style — vnx.Arc carries none of those, but Network.Points are
-// full vnx.Points and Network.Areas full vnx.Areas (item.go:34-55), and all
-// four fields were destroyed on every one of them. Dave's rule replaces it:
+// Notes and Hidden — vnx.Arc carries none of those, but Network.Points are full
+// vnx.Points and Network.Areas full vnx.Areas, and all three fields were
+// destroyed on every one of them. Dave's rule replaces it:
 // unnamed things merge into one geometry, named things get their own named
 // object. A flat FeatureCollection of simple geometries is also what QGIS,
 // Mapbox GL and Leaflet handle reliably; a nested GeometryCollection is not.

@@ -12,7 +12,7 @@
 //!   file against the tree parsed from `encode(decode(file))` (SPEC 8.1). It
 //!   does not compare bytes, because nothing constrains them, and it does not
 //!   compare one model against another, because a reader that discarded every
-//!   data record, application key, style and `notes` produces a model equal to itself
+//!   data record, application key and `notes` produces a model equal to itself
 //!   and would pass green. See `tests/support/tree.rs`.
 //! * `positions` is resolved against the DECODED MODEL, never against the raw
 //!   JSON. Resolving it against the file compares the file to itself and
@@ -763,9 +763,9 @@ fn write_tier() {
 ///
 /// ⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE AND NOT AGAINST
 /// ANOTHER MODEL. A reader that discarded every data record, every application
-/// key, every style or every `notes` produces a model that compares equal to itself
-/// and passes a model-versus-model tier GREEN. That is the entire extensibility
-/// mechanism, all styling and all user prose, silently droppable by a
+/// key or every `notes` produces a model that compares equal to itself and
+/// passes a model-versus-model tier GREEN. That is the entire extensibility
+/// mechanism and all user prose, silently droppable by a
 /// "conforming" implementation.
 ///
 /// Each case below is one of those readers, made by spoiling a decoded document
@@ -779,7 +779,7 @@ fn a_reader_that_discards_what_it_read_is_caught() {
     /// One reader that drops something it read.
     type Spoiler = (&'static str, fn(&mut Document));
 
-    let spoilers: [Spoiler; 4] = [
+    let spoilers: [Spoiler; 3] = [
         ("drops every data record", |d| {
             for w in d.points.iter_mut().flatten() {
                 w.data = None;
@@ -798,13 +798,6 @@ fn a_reader_that_discards_what_it_read_is_caught() {
             }
         }),
         ("drops every application key", |d| d.app_keys.clear()),
-        ("drops every style", |d| {
-            for n in d.networks.iter_mut().flatten() {
-                for p in n.points.iter_mut().flatten() {
-                    p.style = None;
-                }
-            }
-        }),
         ("drops every notes", |d| {
             for n in d.networks.iter_mut().flatten() {
                 n.notes = None;
@@ -856,8 +849,8 @@ fn a_reader_that_discards_what_it_read_is_caught() {
 /// task that has each of them read every other's output.
 #[test]
 fn a_number_compares_by_value_and_not_by_spelling() {
-    let integers = br#"{"vnx":"0.10.0","points":[{"at":[1,2,340],"name":"a"}]}"#;
-    let floats = br#"{"vnx":"0.10.0","points":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
+    let integers = br#"{"vnx":"0.11.0","points":[{"at":[1,2,340],"name":"a"}]}"#;
+    let floats = br#"{"vnx":"0.11.0","points":[{"at":[1.0,2.0,340.0],"name":"a"}]}"#;
     for emit in [EmitBoundary::Normalise, EmitBoundary::Keep] {
         assert_eq!(
             tree::compare(integers, floats, emit),
@@ -867,7 +860,7 @@ fn a_number_compares_by_value_and_not_by_spelling() {
     }
 
     // And a real difference is still seen, or the above passes vacuously.
-    let different = br#"{"vnx":"0.10.0","points":[{"at":[1,2,341],"name":"a"}]}"#;
+    let different = br#"{"vnx":"0.11.0","points":[{"at":[1,2,341],"name":"a"}]}"#;
     assert!(tree::compare(integers, different, EmitBoundary::Keep).is_some());
 }
 

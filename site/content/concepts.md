@@ -18,7 +18,7 @@ version, and up to six collections:
 
 ```json
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "generator": "Example Trails 2.4.1",
   "created": "2026-08-31T06:45:12Z",
   "folders":   [],
@@ -140,7 +140,7 @@ arc, so a highlight can cover part of a trail.
 ### Highlights
 
 A **highlight** is a light container for data along a walk. It has a `walk`, an
-optional `name`, and `data`. It has no notes and no style of its own. What a
+optional `name`, and `data`. It has no notes of its own. What a
 highlight is, other than its name, is what its data records say: a rating, a
 warning, a surface type, a tag (§3.3.3).
 
@@ -191,7 +191,7 @@ A **track** is a recording: what a GPS device logged (§3.5).
 
 ## Points
 
-A **point** is one position, `at`, with a name, notes, style and data
+A **point** is one position, `at`, with a name, notes and data
 (§3.6). It is the same shape at the top level and in a network. A GPX
 `<wpt>` is a point.
 
@@ -199,7 +199,7 @@ A **point** is one position, `at`, with a name, notes, style and data
 {
   "name": "Spring",
   "at": [-3.6521, 57.1, 940],
-  "style": { "color": "#1e6091", "icon": "water", "importance": 3 }
+  "notes": "Reliable after rain. **Treat before drinking.**"
 }
 ```
 
@@ -224,7 +224,8 @@ A **folder** groups top-level items. It is the only top-level object with an
 ```
 
 An item goes in a folder with `"folder": "approaches"`. A folder goes in
-another folder with `parent`. Folders can hold networks, plans, tracks,
+another folder with `parent`. Folder ids are unique in a document, and parents
+never form a loop (§3.2). Folders can hold networks, plans, tracks,
 top-level points, top-level areas, and other folders.
 
 ## Data records
@@ -243,11 +244,13 @@ VNX defines no record types. Applications define them, each under its own
 reverse-DNS name. A reader keeps a record of a type it does not know, and does
 not report an error for it. See [Extensions](extensions.html).
 
-## Style, hidden and pinned
+## Notes, look, hidden and pinned
 
-- `style` is an object on points, areas, plans and tracks: colour,
-  icon, line width, fill and so on. A reader keeps every key in it. The only
-  checked value is `importance`, an integer from 1 to 5 (§3.6, §3.10).
+- `notes` is Markdown, as CommonMark defines it. Do not put HTML in it
+  (§3.10).
+- VNX defines no style: no colours, icons or line widths. An application that
+  wants to carry how its items look writes data records of its own types
+  (§3.6). A `style` key is an unknown key.
 - `hidden: true` means the user hid the item. If `hidden` is not there, the
   item is visible (§3.8).
 - `pinned` is the time when the user pinned the item (§3.8).
@@ -255,7 +258,8 @@ not report an error for it. See [Extensions](extensions.html).
 ## Positions and values
 
 - A position is `[lon, lat, ele, time_ms]`. Longitude is first, as in GeoJSON.
-  Elevation is in metres. Time is Unix milliseconds (§4.1).
+  Longitude and latitude are decimal degrees on WGS 84. Elevation is in metres
+  above mean sea level. Time is Unix milliseconds (§4.1).
 - Write the shortest form: `[lon, lat]` when there is no elevation and no time.
   Use `null` in the middle only: `[lon, lat, null, 1778569391000]`.
 - Nodes and arc pips have no time. Positions in a walk and in an area ring have
@@ -278,8 +282,8 @@ A reader is tolerant of damage, and reports all of it (§6.2):
   object or has no `vnx` key; `vnx` is not `MAJOR.MINOR.PATCH`; the version
   series is not supported; or a number is not finite.
 
-Through version 0.x, each minor version is its own series. A 0.10 reader
-accepts any 0.10.x file and refuses every other minor series, such as 0.11 (§2.2).
+Through version 0.x, each minor version is its own series. A 0.11 reader
+accepts any 0.11.x file and refuses every other minor series, such as 0.12 (§2.2).
 
 ## VNZ archives and attachments
 

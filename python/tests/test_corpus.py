@@ -173,7 +173,7 @@ class CorpusStructure(unittest.TestCase):
         # `diagnostics` list which IS checked.
         "cannot_detect",
         # The verdict the JSON Schema reaches on this case.  It is about
-        # `corpus/schema/vnx-0.10.schema.json`, not about any reader, so no
+        # `corpus/schema/vnx-0.11.schema.json`, not about any reader, so no
         # implementation runner compares it; `go/internal/vnxschema` is the one
         # thing that does, and it fails if a sidecar records no verdict.
         "schema",
@@ -414,9 +414,9 @@ class AcceptTier(_CorpusCase):
         two JSON TREES equal.
 
         ⚠ IT IS NOT A COMPARISON OF ONE MODEL AGAINST ANOTHER.  A reader that
-        discarded every data record, every application key, every style and every
+        discarded every data record, every application key and every
         `notes` produces a model that compares equal to itself and passes such a
-        tier green -- that is the whole extensibility mechanism, all styling and
+        tier green -- that is the whole extensibility mechanism and
         all user prose.  Comparing against the tree parsed from the ORIGINAL
         FILE is what proves a reader kept what it read, and
         `test_red_proof.py` freezes the proof.

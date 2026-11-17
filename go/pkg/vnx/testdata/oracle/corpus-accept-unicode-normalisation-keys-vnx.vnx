@@ -1,17 +1,17 @@
 {
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "points": [
     {
       "name": "Café",
       "at": [-3.675, 57.1201],
-      "style": {
-        "é": 2,
-        "é": 1
-      },
       "data": [
         {
           "@type": "com.example.note",
           "é": "decomposed",
+          "nested": {
+            "é": 2,
+            "é": 1
+          },
           "é": "precomposed"
         }
       ]

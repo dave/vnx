@@ -1,6 +1,6 @@
 {
   "generator": "cross-language check",
-  "vnx": "0.10.0",
+  "vnx": "0.11.0",
   "points": [
     {
       "name": "Ben Macdui",

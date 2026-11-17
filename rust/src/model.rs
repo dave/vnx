@@ -8,9 +8,8 @@
 //!   time into the elevation channel (SPEC 4.1). An `Option<f64>` elevation
 //!   field — the first shape most implementations reach for — cannot express
 //!   that.
-//! * A [`Record`] body, a `style` object and an application key's value are
-//!   kept as raw [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and
-//!   must survive a read-modify-write at value level.
+//! * A [`Record`] body and an application key's value are kept as raw
+//!   [`Json`]. They are opaque by ruling (SPEC 5.1, 3.10, 3.9) and must survive a read-modify-write at value level.
 
 use crate::json::Json;
 
@@ -18,7 +17,7 @@ use crate::json::Json;
 ///
 /// The declared text is kept because SPEC 2.2 requires a reader that
 /// re-encodes a document to write the version the document declared, not its
-/// own: `00.010.0000` is a legal spelling of 0.10.0 and is written back as it
+/// own: `00.011.0000` is a legal spelling of 0.11.0 and is written back as it
 /// was read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
@@ -29,7 +28,7 @@ pub struct Version {
 }
 
 /// The version this crate implements.
-pub const SUPPORTED: (u64, u64) = (0, 10);
+pub const SUPPORTED: (u64, u64) = (0, 11);
 
 /// A position: `[lon, lat, ele, time_ms]`, longitude first (SPEC 4.1).
 ///
@@ -260,7 +259,7 @@ pub struct Arc {
 
 /// A highlight is a lightweight container for data objects along a walk of
 /// arcs its network owns (SPEC 3.3.3). It has an optional name, and no notes
-/// or style of its own. Its geometry is by reference: two highlights on one
+/// of its own. Its geometry is by reference: two highlights on one
 /// trail name the same arc.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Highlight {
@@ -327,7 +326,6 @@ pub struct Plan {
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.
     pub pinned: Option<String>,
-    pub style: Option<Json>,
     pub nodes: Option<Vec<(String, Vertex)>>,
     pub arcs: Option<Vec<(String, Arc)>>,
     pub walk: Vec<Pass>,
@@ -353,7 +351,6 @@ pub struct Track {
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.
     pub pinned: Option<String>,
-    pub style: Option<Json>,
     pub started: Option<String>,
     pub ended: Option<String>,
     pub segments: Vec<Segment>,
@@ -415,7 +412,6 @@ pub struct Point {
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.
     pub pinned: Option<String>,
-    pub style: Option<Json>,
     pub at: Position,
     pub data: Option<Vec<Record>>,
 }
@@ -431,7 +427,6 @@ pub struct Area {
     /// SPEC 3.8: the time the item was pinned, a record-level timestamp
     /// (SPEC 4.3) kept verbatim. `None` is not pinned.
     pub pinned: Option<String>,
-    pub style: Option<Json>,
     /// One OPEN ring of at least three distinct positions (SPEC 3.7): the last
     /// position does not repeat the first, and the boundary runs from the last
     /// back to the first. Holes and multiple rings are not expressible.

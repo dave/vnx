@@ -35,7 +35,7 @@ from . import test_corpus, zipbytes
 # nothing to do with what these tests are about.
 _NOTES = "x" * 400
 _DOCUMENT = (
-    b'{\n  "vnx": "0.10.0",\n  "points": [\n    {\n      "at": [-3.6, 57.1],\n'
+    b'{\n  "vnx": "0.11.0",\n  "points": [\n    {\n      "at": [-3.6, 57.1],\n'
     b'      "notes": "' + _NOTES.encode() + b'"\n    }\n  ]\n}\n'
 )
 

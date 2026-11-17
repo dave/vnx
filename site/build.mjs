@@ -314,9 +314,9 @@ write(
 // Static files
 write('style.css', css);
 fs.copyFileSync(path.join(here, 'static/favicon.svg'), path.join(out, 'favicon.svg'));
-const schemaSrc = path.join(repo, 'corpus/schema/vnx-0.10.schema.json');
+const schemaSrc = path.join(repo, 'corpus/schema/vnx-0.11.schema.json');
 JSON.parse(read(schemaSrc));
-fs.copyFileSync(schemaSrc, path.join(out, 'schema/vnx-0.10.schema.json'));
+fs.copyFileSync(schemaSrc, path.join(out, 'schema/vnx-0.11.schema.json'));
 
 // llms.txt (https://llmstxt.org)
 const byslug = Object.fromEntries(pages.map((p) => [p.slug, p]));
@@ -340,7 +340,7 @@ ${line('extensions')}
 ## Reference
 
 ${line('spec')}
-- [JSON Schema](${SITE}/schema/vnx-0.10.schema.json): the shape of a VNX ${specVersion.split('.').slice(0, 2).join('.')} document. It cannot check graph rules such as walk connectivity.
+- [JSON Schema](${SITE}/schema/vnx-0.11.schema.json): the shape of a VNX ${specVersion.split('.').slice(0, 2).join('.')} document. It cannot check graph rules such as walk connectivity.
 - [Source repository](${GITHUB}): six libraries (Go, Python, JavaScript, Rust, Kotlin, Swift), the vnx command-line tool, and the conformance corpus.
 
 ## Optional
@@ -405,7 +405,7 @@ if (preview) {
       .replace(/href="([a-z]+)\.html"/g, 'href="#$1"')
       .replace(
         /href="schema\/vnx-0\.10\.schema\.json"/g,
-        `href="${GITHUB}/blob/main/corpus/schema/vnx-0.10.schema.json"`,
+        `href="${GITHUB}/blob/main/corpus/schema/vnx-0.11.schema.json"`,
       );
   const sections = pages
     .map((page) => {

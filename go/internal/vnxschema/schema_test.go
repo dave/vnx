@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	schemaPath = "../../../corpus/schema/vnx-0.10.schema.json"
+	schemaPath = "../../../corpus/schema/vnx-0.11.schema.json"
 	corpusDir  = "../../../corpus"
 )
 
@@ -120,7 +120,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			// trail name the SAME arc. A pass naming an arc that does not exist
 			// is a broken reference, and JSON Schema has no cross-references.
 			"a pass naming an arc that is not in the document",
-			`{"vnx":"0.10.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
+			`{"vnx":"0.11.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]}},
 			  "highlights":[{"walk":[{"arc":"ghost","from":"n1","to":"n2"}]}]}]}`,
 		},
@@ -129,18 +129,18 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			// first. That is a relationship between two values, and no
 			// keyword states it.
 			"a polygon whose last position repeats its first",
-			`{"vnx":"0.10.0","areas":[{"polygon":[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075],[-3.74,57.09]]}]}`,
+			`{"vnx":"0.11.0","areas":[{"polygon":[[-3.74,57.09],[-3.72,57.09],[-3.72,57.075],[-3.74,57.09]]}]}`,
 		},
 		{
 			// 8000 km wrong, every number in range.
 			"a transposed lon/lat pair",
-			`{"vnx":"0.10.0","points":[{"name":"x","at":[57.1169,-3.6423]}]}`,
+			`{"vnx":"0.11.0","points":[{"name":"x","at":[57.1169,-3.6423]}]}`,
 		},
 		{
 			// A walk must join: each pass enters its arc at the node the
 			// previous one left by. That is a relationship between passes.
 			"a walk that does not join",
-			`{"vnx":"0.10.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
+			`{"vnx":"0.11.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]},"a2":{"from":"n2","to":"n3","pips":[]}},
 			  "highlights":[{"walk":[{"arc":"a1","from":"n2"},{"arc":"a2","to":"n3"}]}]}]}`,
 		},
@@ -148,7 +148,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			// `from` and `to` appear only where the walk's one spelling puts
 			// them, and where that is depends on each pass's place in the walk.
 			"a from on a pass after the first",
-			`{"vnx":"0.10.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
+			`{"vnx":"0.11.0","networks":[{"nodes":{"n1":[-3.68,57.12],"n2":[-3.66,57.1],"n3":[-3.64,57.08]},
 			  "arcs":{"a1":{"from":"n1","to":"n2","pips":[]},"a2":{"from":"n2","to":"n3","pips":[]}},
 			  "highlights":[{"walk":[{"arc":"a1","from":"n1"},{"arc":"a2","from":"n2","to":"n3"}]}]}]}`,
 		},
@@ -156,7 +156,7 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 			// An arc must run between two DIFFERENT nodes. Two string values
 			// being unequal is beyond the keywords a schema has.
 			"a self-loop arc",
-			`{"vnx":"0.10.0","networks":[{"nodes":{"n1":[-3.68,57.12]},
+			`{"vnx":"0.11.0","networks":[{"nodes":{"n1":[-3.68,57.12]},
 			  "arcs":{"a1":{"from":"n1","to":"n1","pips":[[-3.67,57.11]]}}}]}`,
 		},
 		{
@@ -168,9 +168,9 @@ func TestSchemaCannotCatchTheseAndSaysSo(t *testing.T) {
 		{
 			// And it cannot refuse one from the past either, which is the half
 			// that actually bit. Through 0.x each MINOR is its own series
-			// (spec 2.2), so 0.1 is not an older spelling of 0.10 and a 0.10
+			// (spec 2.2), so 0.1 is not an older spelling of 0.11 and a 0.11
 			// reader must refuse it — but `0.1.9` satisfies the version
-			// pattern exactly as `0.10.0` does. Five of the six implementations
+			// pattern exactly as `0.11.0` does. Five of the six implementations
 			// once compared with "greater than" rather than "not equal";
 			// corpus/reject/version-too-old.vnx is what catches it, and it is
 			// recorded schema-VALID for the reason asserted here.

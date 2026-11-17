@@ -35,11 +35,11 @@ final class VersionRuleTests: XCTestCase {
   /// "The rules a reader applies are selected by the DOCUMENT's MAJOR
   /// component, not by the reader's."
   ///
-  /// A 1.0 reader handed a 0.10 document does NOT get to read it under 1.x's
+  /// A 1.0 reader handed a 0.11 document does NOT get to read it under 1.x's
   /// rule that a reader ignores what it does not recognise. That would be a
   /// guess about guarantees the document never carried.
   func testANewerReaderMayNotApplyItsOwnRulesToAnOlderSeries() {
-    let r = refusal("0.10.0", asReader: "1.0.0")
+    let r = refusal("0.11.0", asReader: "1.0.0")
     XCTAssertEqual(r?.cause, .versionUnsupportedSeries)
     XCTAssertTrue(
       r?.message.contains("MUST NOT read another one under its own rules") ?? false,
@@ -71,7 +71,7 @@ final class VersionRuleTests: XCTestCase {
       "the identical minor gap is fine once the document's major is 1")
   }
 
-  /// SPEC 2.2, of a 0.10.0 reader: "It refuses 0.10.0, and it refuses 0.1.9
+  /// SPEC 2.2, of a 0.11.0 reader: "It refuses 0.11.0, and it refuses 0.1.9
   /// unless it declares support for the 0.1 series. A lower minor is refused
   /// for the same reason as a higher one." This test applies the same rule to
   /// a 0.1.0 reader, one series down.
@@ -104,7 +104,7 @@ final class VersionRuleTests: XCTestCase {
   /// reader that will never exist.
   func testTheRefusalDoesNotTellTheHolderOfAnOlderDocumentToUpgrade() {
     XCTAssertFalse(refusal("0.0.9", asReader: "0.1.0")?.message.contains("newer reader") ?? true)
-    XCTAssertFalse(refusal("0.10.0", asReader: "1.0.0")?.message.contains("newer reader") ?? true)
+    XCTAssertFalse(refusal("0.11.0", asReader: "1.0.0")?.message.contains("newer reader") ?? true)
     XCTAssertTrue(
       refusal("9.9.9", asReader: "0.1.0")?.message.contains("a newer reader is needed") ?? false)
   }
@@ -118,12 +118,12 @@ final class VersionRuleTests: XCTestCase {
     }
   }
 
-  /// The shipped reader is a 0.10 reader, and that is not an accident of
+  /// The shipped reader is a 0.11 reader, and that is not an accident of
   /// configuration. PATCH is not pinned here: scripts/check-spec.py compares
   /// the whole of `VNX.version` with SPEC.md, and a PATCH release changes it.
   func testTheShippedReaderIsTheOneTheLibraryDeclares() {
     let reader = DocumentDecoder().readerVersion
     XCTAssertEqual(reader.display, VNX.version)
-    XCTAssertEqual("\(reader.major).\(reader.minor)", "0.10")
+    XCTAssertEqual("\(reader.major).\(reader.minor)", "0.11")
   }
 }

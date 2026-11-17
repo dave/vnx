@@ -140,7 +140,6 @@ internal class Encoder {
             .putString("folder", r.folder)
             .putBool("hidden", hidden(r.hidden))
             .putString("pinned", r.pinned)
-            .put("style", r.style)
             .put("nodes", r.nodes?.let(::nodes))
             .put("arcs", r.arcs?.let(::arcs))
             .put("walk", walk(r.walk))
@@ -243,7 +242,6 @@ internal class Encoder {
             .putString("pinned", t.pinned)
             .putString("started", t.started)
             .putString("ended", t.ended)
-            .put("style", t.style)
             .put("segments", JsonArray(t.segments.map { JsonObject(listOf("pips" to positions(it.pips))) }))
             .put("data", data(t.data))
             .build()
@@ -259,7 +257,6 @@ internal class Encoder {
         .putBool("hidden", hidden(w.hidden))
         .putString("pinned", w.pinned)
         .put("at", position(w.at))
-        .put("style", w.style)
         .put("data", data(w.data))
         .build()
 
@@ -291,7 +288,6 @@ internal class Encoder {
             .putBool("hidden", hidden(a.hidden))
             .putString("pinned", a.pinned)
             .put("polygon", positions(a.polygon))
-            .put("style", a.style)
             .put("data", data(a.data))
             .build()
     }

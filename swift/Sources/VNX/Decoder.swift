@@ -60,8 +60,10 @@ final class DocumentDecoder {
     document.created = optionalTimestamp(top, "created", at: "")
 
     var wire = WirePaths()
-    document.folders = optionalItems(
-      top, "folders", at: "", keptAt: &wire.folders, decode: decodeFolder)
+    var folderIDs = Set<String>()
+    document.folders = optionalItems(top, "folders", at: "", keptAt: &wire.folders) { v, p in
+      self.decodeFolder(v, at: p).flatMap { self.unique($0, at: p, seen: &folderIDs) }
+    }
     document.networks = optionalItems(
       top, "networks", at: "", keptAt: &wire.networks, decode: decodeNetwork)
     document.plans = optionalItems(top, "plans", at: "", keptAt: &wire.plans, decode: decodePlan)
@@ -83,6 +85,7 @@ final class DocumentDecoder {
       .map { ApplicationKey(key: $0.string, value: top[$0]!) }
 
     resolveFolderReferences(in: &document, wire: wire)
+    breakParentLoops(in: &document, wire: wire)
     return document
   }
 
@@ -115,10 +118,10 @@ final class DocumentDecoder {
 
     // Within the document's own major series. Through 0.x EACH MINOR IS ITS
     // OWN SERIES, so the test is "not the same series" rather than "greater
-    // than": SPEC 2.2 says a 0.10.0 reader "refuses 0.11.0, and it refuses
+    // than": SPEC 2.2 says a 0.11.0 reader "refuses 0.12.0, and it refuses
     // 0.1.9 unless it declares support for the 0.1 series. A lower minor is
     // refused for the same reason as a higher one." A reader comparing with
-    // `> 0` reads a 0.1.9 document under 0.10's rules, which is a guess about
+    // `> 0` reads a 0.1.9 document under 0.11's rules, which is a guess about
     // guarantees that document never carried — and it is the shape this
     // library had until `corpus/reject/version-too-old.vnx` existed to
     // catch it.
@@ -168,6 +171,14 @@ final class DocumentDecoder {
     // SPEC 6.2: a folder with no `id` is dropped. Items that named it then
     // sit at the top level, so a folder's contents survive its loss.
     guard let id = requiredString(o, "id", at: path) else { return nil }
+    // SPEC 3.2: an `id` is a non-empty string, so "" is a wrong-typed value in
+    // a REQUIRED key, named at the key.
+    guard !id.isEmpty else {
+      diagnose(
+        .wrongTypeRequired, at: pointer(path, "id"),
+        "a folder's `id` must be a non-empty string, so the folder was dropped")
+      return nil
+    }
     var folder = Folder(id: id)
     folder.parent = optionalString(o, "parent", at: path)
     folder.name = optionalString(o, "name", at: path)
@@ -184,7 +195,7 @@ final class DocumentDecoder {
     report(unknownKeysIn: o, against: shape, at: path)
     guard let atValue = o["at"] else {
       diagnose(
-        .wrongTypeRequired, at: pointer(path, "at"),
+        .wrongTypeRequired, at: path,
         "a point with no `at` cannot exist and was dropped")
       return nil
     }
@@ -197,7 +208,6 @@ final class DocumentDecoder {
     if allowsFolder { w.folder = optionalString(o, "folder", at: path) }
     w.hidden = optionalBool(o, "hidden", at: path)
     w.pinned = optionalTimestamp(o, "pinned", at: path)
-    w.style = style(o, at: path)
     w.data = dataRecords(o, at: path)
     return w
   }
@@ -214,7 +224,6 @@ final class DocumentDecoder {
     if allowsFolder { a.folder = optionalString(o, "folder", at: path) }
     a.hidden = optionalBool(o, "hidden", at: path)
     a.pinned = optionalTimestamp(o, "pinned", at: path)
-    a.style = style(o, at: path)
     a.data = dataRecords(o, at: path)
     return a
   }
@@ -233,7 +242,7 @@ final class DocumentDecoder {
     let polygonPath = pointer(path, "polygon")
     guard let raw = o["polygon"] else {
       diagnose(
-        .wrongTypeRequired, at: polygonPath,
+        .wrongTypeRequired, at: path,
         "an area with no `polygon` cannot exist and was dropped")
       return nil
     }
@@ -294,7 +303,6 @@ final class DocumentDecoder {
     plan.folder = optionalString(o, "folder", at: path)
     plan.hidden = optionalBool(o, "hidden", at: path)
     plan.pinned = optionalTimestamp(o, "pinned", at: path)
-    plan.style = style(o, at: path)
     plan.data = dataRecords(o, at: path)
     // SPEC 3.4: where a highlight would be dropped, the plan is. It IS the
     // highlight.
@@ -310,7 +318,7 @@ final class DocumentDecoder {
     report(unknownKeysIn: o, against: Keys.track, at: path)
     guard let rawSegments = o["segments"] else {
       diagnose(
-        .wrongTypeRequired, at: pointer(path, "segments"),
+        .wrongTypeRequired, at: path,
         "a track with no `segments` cannot exist and was dropped")
       return nil
     }
@@ -334,7 +342,6 @@ final class DocumentDecoder {
     track.folder = optionalString(o, "folder", at: path)
     track.hidden = optionalBool(o, "hidden", at: path)
     track.pinned = optionalTimestamp(o, "pinned", at: path)
-    track.style = style(o, at: path)
     track.started = optionalTimestamp(o, "started", at: path)
     track.ended = optionalTimestamp(o, "ended", at: path)
     track.data = dataRecords(o, at: path)
@@ -490,7 +497,7 @@ final class DocumentDecoder {
     let ownerName = plan ? "plan" : "highlight"
     guard let raw = o["walk"] else {
       diagnose(
-        .wrongTypeRequired, at: walkPath,
+        .wrongTypeRequired, at: owner,
         "no `walk`; the \(ownerName) cannot exist without it and was dropped")
       return nil
     }
@@ -632,6 +639,53 @@ final class DocumentDecoder {
     }
   }
 
+  /// SPEC 3.2: folder ids are unique within a document. A folder whose `id`
+  /// an earlier folder already carries is dropped (SPEC 6.2), so an item
+  /// naming the id sits in the first folder. Reported at the dropped folder's
+  /// `id`.
+  private func unique(_ folder: Folder, at path: String, seen: inout Set<String>) -> Folder? {
+    if seen.insert(folder.id).inserted { return folder }
+    diagnose(
+      .folderDuplicateID, at: pointer(path, "id"),
+      "folder id \"\(folder.id)\" is already used by an earlier folder; this folder is dropped")
+    return nil
+  }
+
+  /// SPEC 3.2: folder parents never form a loop. Taking the folders in
+  /// document order, a folder is in a loop when following `parent` from it
+  /// comes back to it. The first folder of each loop has its `parent` treated
+  /// as absent (SPEC 6.2), which breaks that loop, so the later folders of the
+  /// same loop no longer come back to themselves and keep their parents. A
+  /// folder whose chain only leads INTO a loop never comes back to itself, so
+  /// it is not reported. Runs after `resolveFolderReferences`, so every parent
+  /// named here is a folder that is present.
+  private func breakParentLoops(in document: inout Document, wire: WirePaths) {
+    guard let folders = document.folders else { return }
+    var parents: [String: String] = [:]
+    for folder in folders { parents[folder.id] = folder.parent }
+
+    func comesBack(_ start: String) -> Bool {
+      var visited = Set<String>()
+      var current = parents[start]
+      while let id = current {
+        if id == start { return true }
+        // A folder seen twice is a loop `start` leads into but is not in.
+        if !visited.insert(id).inserted { return false }
+        current = parents[id]
+      }
+      return false
+    }
+
+    for i in folders.indices where comesBack(folders[i].id) {
+      parents[folders[i].id] = nil
+      document.folders![i].parent = nil
+      diagnose(
+        .folderParentLoop, at: pointer(wire.folders[i], "parent"),
+        "folder \"\(folders[i].id)\" is in a parent loop; its `parent` is dropped and it sits at the root"
+      )
+    }
+  }
+
   // MARK: - Field helpers
 
   private func diagnose(_ cause: Cause, at path: String, _ message: String) {
@@ -690,8 +744,10 @@ final class DocumentDecoder {
   private func requiredString(_ o: [JSONKey: JSONValue], _ key: String, at path: String) -> String?
   {
     guard let raw = o[JSONKey(key)] else {
+      // SPEC 6.3 rule 1: an absent REQUIRED key has no element of its own, so
+      // the path names the object that lacks it.
       diagnose(
-        .wrongTypeRequired, at: pointer(path, key),
+        .wrongTypeRequired, at: path,
         "no `\(key)`; the item cannot exist without it and was dropped")
       return nil
     }
@@ -800,37 +856,6 @@ final class DocumentDecoder {
     return digits(20..<(c.count - 1)) && c.count > 21
   }
 
-  /// SPEC 3.10 and 5.1: a style object is opaque, and a reader must carry any
-  /// key it does not know through a read-modify-write without reporting it.
-  ///
-  /// The one exception is `importance`. SPEC 3.6 states a normative range for
-  /// it — "an integer from 1 to 5, and that is normative" — and SPEC 6.2
-  /// names it as the worked example of a value outside a stated range, so it
-  /// is checked even though it lives inside an otherwise opaque object.
-  /// Nothing else in a style is checked, and no key in a data record body is
-  /// checked at all.
-  private func style(_ o: [JSONKey: JSONValue], at path: String) -> OpaqueObject? {
-    guard let raw = o["style"] else { return nil }
-    guard var s = raw.objectValue else {
-      diagnose(
-        .wrongTypeOptional, at: pointer(path, "style"),
-        "`style` is \(raw.typeName); expected an object, so the field was dropped and the item kept"
-      )
-      return nil
-    }
-    if let importance = s["importance"] {
-      let d = importance.numberValue
-      let usable = d != nil && d! >= 1 && d! <= 5 && d! == d!.rounded()
-      if !usable {
-        diagnose(
-          .importanceOutOfRange, at: pointer(pointer(path, "style"), "importance"),
-          "`importance` must be an integer from 1 to 5, so the field was dropped and the item kept")
-        s.removeValue(forKey: "importance")
-      }
-    }
-    return s
-  }
-
   /// SPEC 5: a record body is opaque apart from `@type`. SPEC 6.2 is explicit
   /// that a reader MUST NOT check the type, range or enumeration of a field
   /// inside one — doing so would break the mechanism by which a record of an
@@ -869,7 +894,7 @@ final class DocumentDecoder {
     let pipsPath = pointer(path, "pips")
     guard let raw = o["pips"] else {
       diagnose(
-        .wrongTypeRequired, at: pipsPath,
+        .wrongTypeRequired, at: path,
         "no `pips`; the item cannot exist without geometry and was dropped")
       return nil
     }

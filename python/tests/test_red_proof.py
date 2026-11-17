@@ -128,7 +128,7 @@ class RedProof(unittest.TestCase):
             return dataclasses.replace(got, lon=got.lat, lat=got.lon)
 
         with mock.patch.object(decode._Reader, "_position", transposing):
-            swapped = vnx.read_bytes(b'{"vnx": "0.10.0", "points": [{"at": [1, 2]}]}')
+            swapped = vnx.read_bytes(b'{"vnx": "0.11.0", "points": [{"at": [1, 2]}]}')
         self.assertEqual(swapped.document.points, [model.Point(at=Position(2.0, 1.0))])
 
         self.assertGoesRed(
@@ -475,9 +475,9 @@ class RedProof(unittest.TestCase):
     ) -> None:
         """⚠ THIS IS WHY THE TIER COMPARES AGAINST THE ORIGINAL FILE.
 
-        A reader that discarded every data record, every application key, every style or
+        A reader that discarded every data record, every application key or
         every `notes` produces a model that compares equal to itself.  That is
-        the whole extensibility mechanism, all styling and all user prose,
+        the whole extensibility mechanism and all user prose,
         silently droppable by a "conforming" implementation.
 
         Each case below is one of those readers.  If any of them stops being
@@ -595,8 +595,52 @@ class RedProof(unittest.TestCase):
                 decode._Reader, "_check_folder_references", lambda self, document: None
             ),
             "DiagnoseTier.test_diagnose",
-            {"folder-absent.vnx"},
+            {
+                "folder-absent.vnx",
+                "folder-duplicate-id.vnx",
+                "folder-parent-loop.vnx",
+                "folder-parent-names-duplicate.vnx",
+            },
             "folder reference check",
+        )
+
+    def test_a_reader_that_names_an_absent_required_key_is_caught(self) -> None:
+        """SPEC 6.3: an absent REQUIRED key is named at the object, not the key."""
+
+        def at_the_key(self: Any, obj: Any, path: str, what: str, fields: Any) -> Any:
+            missing = [key for key, value in fields.items() if value is None]
+            for key in missing:
+                if key not in obj:
+                    self.note(f"{path}/{key}", "absent", "wrong-type-required")
+            return not missing
+
+        self.assertRedCases(
+            mock.patch.object(decode._Reader, "_complete", at_the_key),
+            "DiagnoseTier.test_diagnose",
+            {"required-key-absent.vnx", "folder-duplicate-id.vnx"},
+            "absent required key path",
+        )
+
+    def test_a_reader_that_keeps_a_duplicate_folder_id_is_caught(self) -> None:
+        """SPEC 6.2's `folder-duplicate-id`: the later folder must go."""
+        self.assertRedCases(
+            mock.patch.object(
+                decode._Reader, "_drop_duplicate_folders", lambda self, document: None
+            ),
+            "DiagnoseTier.test_diagnose",
+            {"folder-duplicate-id.vnx", "folder-parent-names-duplicate.vnx"},
+            "duplicate folder id check",
+        )
+
+    def test_a_reader_that_breaks_no_parent_loop_is_caught(self) -> None:
+        """SPEC 6.2's `folder-parent-loop`."""
+        self.assertRedCases(
+            mock.patch.object(
+                decode._Reader, "_break_parent_loops", lambda self, folders: None
+            ),
+            "DiagnoseTier.test_diagnose",
+            {"folder-parent-loop.vnx"},
+            "parent loop check",
         )
 
     def test_a_reader_that_reports_nothing_is_caught(self) -> None:
@@ -1116,11 +1160,6 @@ def _drops_app_keys() -> Any:
     return mock.patch.object(decode._Reader, "document", forgetful)
 
 
-def _drops_styles() -> Any:
-    """A reader that discards every style (SPEC 3.6)."""
-    return mock.patch.object(decode._Reader, "_style", lambda self, obj, path: None)
-
-
 def _drops_notes() -> Any:
     """A reader that discards every `notes` field (SPEC 3.2)."""
     original = decode._Reader._string
@@ -1136,7 +1175,6 @@ def _drops_notes() -> Any:
 _SPOILED_READERS = (
     ("discards every data record", _drops_data),
     ("discards every application key", _drops_app_keys),
-    ("discards every style", _drops_styles),
     ("discards every `notes`", _drops_notes),
 )
 

@@ -291,9 +291,20 @@ var (
 	// the `folder` or `parent` key, which tells the two cases apart.
 	//
 	// "Not held" means not among the folders KEPT. A folder dropped for any
-	// reason (no `id`, a repeated `id`, not an object) cannot be named, so an
-	// item that named it takes this code too.
+	// reason (no `id`, not an object) cannot be named, so an item that named
+	// it takes this code too. A folder dropped for a repeated `id` leaves the
+	// id held by the first folder, so a reference to it still resolves.
 	CodeFolderAbsent = decodeCode("folder-absent")
+	// CodeFolderDuplicateID: a folder whose `id` an earlier folder already
+	// carries (§3.2). The later folder is dropped and the first one kept, so a
+	// reference to the id names the folder a reader met first. Its path is the
+	// dropped folder's `id`.
+	CodeFolderDuplicateID = decodeCode("folder-duplicate-id")
+	// CodeFolderParentLoop: the first folder, in document order, of a parent
+	// loop (§3.2). Its `parent` is treated as absent, which puts it at the root
+	// and breaks the loop. Its path is that `parent`. A folder whose chain only
+	// leads into a loop is not in it and is not reported.
+	CodeFolderParentLoop = decodeCode("folder-parent-loop")
 	// CodeAttachmentUnreadable: a VNZ attachment this reader cannot recover
 	// (§7) — either compressed by a method that is neither stored nor deflate,
 	// or carried in a stored/deflate entry whose bytes will not come back (a

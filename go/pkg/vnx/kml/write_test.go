@@ -165,20 +165,18 @@ func TestNetworkCarriesArcsPointsAreasAndHighlights(t *testing.T) {
 	}
 }
 
-// ⚠ THE FOUR FIELDS THE OLD SHAPE DESTROYED. An in-network point and an
-// in-network area are full vnx.Point / vnx.Area values with Name, Notes,
-// Hidden and Style (item.go:34-55), and until 2026-09-03 every one of those
-// four was thrown away: they rode as bare <Point> and <Polygon> geometry inside
-// the network's shared Placemark, which has one name, one style and one
-// visibility. This asserts each field arrives.
-func TestInNetworkPointAndAreaKeepTheirOwnNameNotesVisibilityAndStyle(t *testing.T) {
+// ⚠ THE FIELDS THE OLD SHAPE DESTROYED. An in-network point and an in-network
+// area are full vnx.Point / vnx.Area values with Name, Notes and Hidden, and
+// until 2026-09-03 every one of those was thrown away: they rode as bare
+// <Point> and <Polygon> geometry inside the network's shared Placemark, which
+// has one name and one visibility. This asserts each field arrives.
+func TestInNetworkPointAndAreaKeepTheirOwnNameNotesAndVisibility(t *testing.T) {
 	out, _ := writeDoc(t, fixture())
 	folder := networkFolder(t, out)
 
 	for _, want := range []string{
 		"<name>Pools of Dee</name>",
 		"<description>in-network</description>",
-		"<color>ffab862e</color>", // the point's own IconStyle colour, #2E86AB
 	} {
 		if !strings.Contains(folder, want) {
 			t.Errorf("the in-network point lost %s\n%s", want, folder)
@@ -186,7 +184,6 @@ func TestInNetworkPointAndAreaKeepTheirOwnNameNotesVisibilityAndStyle(t *testing
 	}
 	for _, want := range []string{
 		"<name>Boulder Field</name>",
-		"<color>ff888888</color>", // the area's own fill, #888888
 	} {
 		if !strings.Contains(folder, want) {
 			t.Errorf("the in-network area lost %s\n%s", want, folder)

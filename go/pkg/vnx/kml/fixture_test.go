@@ -44,8 +44,7 @@ func fixture() *vnx.Document {
 		Points: []vnx.Point{
 			{
 				Folder: "f-day1", Name: "Corrour Bothy", Notes: "locked in winter",
-				At:    posEle(-3.6512, 57.0421, 720),
-				Style: vnx.Style{"color": "#E04535", "icon": "hut", "pin-shape": "pin", "importance": 4},
+				At: posEle(-3.6512, 57.0421, 720),
 			},
 			{
 				// The ampersand proves the escaping, and the missing elevation
@@ -58,11 +57,9 @@ func fixture() *vnx.Document {
 			Polygon: []vnx.Position{
 				pos(-3.66, 57.07), pos(-3.64, 57.07), pos(-3.64, 57.08),
 			},
-			Style: vnx.Style{"fill-color": "#1E9C45", "fill-opacity": 0.5, "stroke-color": "#123456", "stroke-width": 2.0},
 		}},
 		Tracks: []vnx.Track{{
 			Folder: "f-day1", Name: "Walk In", Notes: "stopped for lunch",
-			Style: vnx.Style{"color": "#E08A1A", "width": 3.0},
 			Segments: []vnx.Segment{
 				// Pip times are carried in the Document and are a ❌ cell in KML:
 				// they must not appear anywhere in the output.
@@ -71,7 +68,7 @@ func fixture() *vnx.Document {
 			},
 		}},
 		Plans: []vnx.Plan{plan(vnx.Plan{
-			Name: "Ridge Line", Style: vnx.Style{"color": "#3A6FB0", "opacity": 0.75}},
+			Name: "Ridge Line"},
 			// Two arcs meeting at a shared node: the boundary between them is
 			// what KML loses.
 			lineArc{Pips: []vnx.Position{pos(-3.60, 57.10), pos(-3.59, 57.11)}},
@@ -113,14 +110,12 @@ func fixture() *vnx.Document {
 			},
 			Points: []vnx.Point{{
 				Name: "Pools of Dee", Notes: "in-network", At: posEle(-3.675, 57.05, 830),
-				Style: vnx.Style{"color": "#2E86AB"},
 			}},
 			Areas: []vnx.Area{{
 				Name: "Boulder Field", Hidden: true,
 				Polygon: []vnx.Position{
 					pos(-3.685, 57.03), pos(-3.675, 57.03), pos(-3.675, 57.04),
 				},
-				Style: vnx.Style{"fill-color": "#888888"},
 			}},
 		}},
 		AppKeys: []vnx.AppKey{{Key: "app.viatrail.rulesets",

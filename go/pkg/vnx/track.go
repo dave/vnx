@@ -43,7 +43,6 @@ type Track struct {
 	Pinned   Timestamp // "" is not pinned (§3.8)
 	Started  Timestamp // "" is absent
 	Ended    Timestamp // "" is absent
-	Style    Style
 	Segments []Segment
 	Data     []Record
 }
@@ -117,7 +116,7 @@ func (s Segment) timedSpan() (time.Duration, bool) {
 
 var trackKeys = map[string]bool{
 	"folder": true, "name": true, "notes": true, "hidden": true, "pinned": true,
-	"started": true, "ended": true, "style": true, "segments": true, "data": true,
+	"started": true, "ended": true, "segments": true, "data": true,
 }
 
 // trackFromObject builds one track from its object, read with every key but
@@ -125,14 +124,13 @@ var trackKeys = map[string]bool{
 // are its result, and segDiags take `segments`' place in the order.
 func trackFromObject(obj map[string]any, at string, segs []Segment, segDiags, diags []Diagnostic) (Track, []Diagnostic) {
 	var tr Track
-	tr.Folder, diags = stringField(obj, "folder", diags)
-	tr.Name, diags = stringField(obj, "name", diags)
-	tr.Notes, diags = stringField(obj, "notes", diags)
+	tr.Folder, diags = stringField(obj, "folder", at, diags)
+	tr.Name, diags = stringField(obj, "name", at, diags)
+	tr.Notes, diags = stringField(obj, "notes", at, diags)
 	tr.Hidden, diags = boolField(obj, "hidden", at, diags)
 	tr.Pinned, diags = timeField(obj, "pinned", at, diags)
 	tr.Started, diags = timeField(obj, "started", at, diags)
 	tr.Ended, diags = timeField(obj, "ended", at, diags)
-	tr.Style, diags = decodeStyle(obj, at, diags)
 	tr.Segments, diags = segs, append(diags, segDiags...)
 	tr.Data, diags = dataField(obj, at, diags)
 	diags = reportUnknownKeys(obj, at, trackKeys, diags)

@@ -1,0 +1,23 @@
+{
+  "vnx": "0.11.0",
+  "folders": [
+    {
+      "id": "hills",
+      "name": "Hills"
+    },
+    {
+      "id": "tops",
+      "name": "Tops",
+      "parent": "hills"
+    },
+    {
+      "id": "x",
+      "name": "X",
+      "parent": "y"
+    },
+    {
+      "id": "y",
+      "name": "Y"
+    }
+  ]
+}

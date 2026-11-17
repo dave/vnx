@@ -141,7 +141,7 @@
               "name": "inspected"
             }
           ],
-          "hosts": ["library-area", "network-area"],
+          "hosts": ["area"],
           "label": {
             "en": "Rapid",
             "fr": "Rapide"

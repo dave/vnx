@@ -145,8 +145,7 @@
             "fr": "Rapide"
           }
         }
-      ],
-      "version": 1
+      ]
     }
   ],
   "app.viatrail.rulesets": [
@@ -176,8 +175,7 @@
             }
           }
         }
-      ],
-      "version": 1
+      ]
     }
   ]
 }

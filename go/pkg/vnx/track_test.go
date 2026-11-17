@@ -2,7 +2,7 @@ package vnx
 
 import "testing"
 
-const twoSegmentTrack = `{"vnx":"0.10.0","tracks":[{
+const twoSegmentTrack = `{"vnx":"0.10.0","folders":[{"id":"cairngorms"}],"tracks":[{
   "folder":"cairngorms","name":"Lairig Ghru, 12 May",
   "started":"2026-05-12T07:03:11Z","ended":"2026-05-12T16:41:02Z",
   "style":{"color":"#6a4c93","width":3},

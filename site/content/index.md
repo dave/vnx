@@ -77,7 +77,7 @@ Swift. The Go module also has the `vnx` command-line tool:
 |---|---|
 | `vnx validate <file>` | Reads a `.vnx` or `.vnz` file and prints its diagnostics. `--json` for a machine-readable report. |
 | `vnx outline <file>` | Prints the structure: names, and the counts of nodes, arcs, highlights, points and areas in each network. |
-| `vnx convert <file> --to gpx\|kml\|geojson` | Writes the document as GPX, KML or GeoJSON. Those formats cannot hold a network, so the conversion loses the structure. |
+| `vnx convert --to gpx\|kml\|geojson [--out <out-file>] <file>` | Writes the document as GPX, KML or GeoJSON, to `--out` or to standard output. Put the flags before the file. Those formats cannot hold a network, so the conversion loses the structure, and the tool reports what it could not write. |
 
 A library conforms when it passes the **conformance corpus** in
 [`corpus/`](https://github.com/dave/vnx/tree/main/corpus): files that a reader

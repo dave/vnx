@@ -149,6 +149,11 @@ class WordingTest {
                    "highlights":[{"walk":[{"arc":"ab","from":"a","turn":[-3.595,57.1],"pin":[-3.596,57.1],"to":"a"}]}]}]}""",
                         DiagnosticCause.PINNED_TURN,
                     ),
+                DiagnosticCause.FOLDER_ABSENT to
+                    causeOf(
+                        """{"vnx":"0.10.0","points":[{"at":[-3,57],"folder":"ghost"}]}""",
+                        DiagnosticCause.FOLDER_ABSENT,
+                    ),
                 DiagnosticCause.PLAN_PIN_OR_POSITION to
                     causeOf(
                         """{"vnx":"0.10.0","plans":[{"nodes":{"a":[-3,57],"b":[-2,57]},"arcs":{"ab":{"from":"a","to":"b","pips":[]}},"walk":[{"arc":"ab","from":"a","to":[-2.5,57]}]}]}""",
@@ -271,9 +276,10 @@ class WordingTest {
             "these causes claim a reason code the corpus no longer pins, so they look checked and are not: $orphaned",
         )
         assertEquals(
-            18,
+            19,
             corpusCodes.size,
-            "the corpus pinned eighteen codes for format 0.2 on 2026-09-29; it now pins ${corpusCodes.size}. " +
+            "the corpus pinned nineteen codes once `folder-absent` joined section 6.2's table on 2026-11-17; " +
+                "it now pins ${corpusCodes.size}. " +
                 "A new one is a deliberate edit here, not a silent widening.",
         )
     }

@@ -588,6 +588,17 @@ class RedProof(unittest.TestCase):
 
     # -- diagnostics ----------------------------------------------------
 
+    def test_a_reader_that_checks_no_folder_reference_is_caught(self) -> None:
+        """SPEC 6.2's `folder-absent`, for `folder` and `parent` alike."""
+        self.assertRedCases(
+            mock.patch.object(
+                decode._Reader, "_check_folder_references", lambda self, document: None
+            ),
+            "DiagnoseTier.test_diagnose",
+            {"folder-absent.vnx"},
+            "folder reference check",
+        )
+
     def test_a_reader_that_reports_nothing_is_caught(self) -> None:
         self.assertGoesRed(
             # `*args`: a defect with the wrong signature raises on every call,

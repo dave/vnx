@@ -71,6 +71,21 @@ const pages = [
 ];
 for (const p of pages) p.toc ??= 2;
 
+// The writing page shows SPEC §6.2's table of diagnostic codes, taken from the
+// spec at build time so the two cannot disagree. A missing table is an error.
+const codeTable = (() => {
+  const m = specText.match(/^\| Construct \| Remedy \| Code \|\n(?:\|.*\|\n)+/m);
+  if (!m) fail('SPEC.md has no "| Construct | Remedy | Code |" table');
+  // Section numbers in the table are bare ("(3.10)"); make them §-references so they link.
+  return m[0].replace(/\((\d+(?:\.\d+)*)\)/g, '(§$1)');
+})();
+for (const p of pages) {
+  if (p.body.includes('<!-- spec:diagnostic-codes -->'))
+    p.body = p.body.replace('<!-- spec:diagnostic-codes -->', codeTable);
+}
+if (!pages.some((p) => p.body.includes('| Construct | Remedy | Code |')))
+  fail('no page carries the diagnostic code table');
+
 // ---- links -----------------------------------------------------------------
 
 // A section number such as 3.3.1 becomes the anchor sec-3-3-1, on the spec page.

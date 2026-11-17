@@ -719,6 +719,28 @@ test('a reader that keeps a pass naming an absent arc is caught', async () => {
   ]);
 });
 
+test('a reader that checks only items and not a folder parent is caught by folder-absent', async () => {
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: "    ...(doc.folders ?? []).map((f) => [f, 'parent']),\n",
+      to: '',
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-absent.vnx']);
+});
+
+test('a reader that does not check an item folder is caught by folder-absent', async () => {
+  const cases = await runMutated([
+    {
+      file: 'decode.js',
+      from: "    ...(doc.points ?? []).map((w) => [w, 'folder']),\n",
+      to: '',
+    },
+  ]);
+  assert.deepEqual(await failingDelta(cases), ['diagnose/folder-absent.vnx']);
+});
+
 test('a reader with no rule for `from` and `to` is caught by walk-spelling', async () => {
   const cases = await runMutated([
     {

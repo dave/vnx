@@ -131,8 +131,8 @@ Every `Diagnostic` carries a `code`, a short stable token, beside its English
 `message`, which is advisory and is never compared. Branch on `code`.
 `DIAGNOSTIC_CODES` and `PINNED_CODES` in `src/errors.js` are the registers.
 Every problem [SPEC §6.2](../SPEC.md)'s remedy table names carries that table's
-code. Four codes are this library's own, for shapes the table does not name:
-`item-unusable`, `record-unusable`, `folder-absent` and `parent-folder-absent`.
+code. Two codes are this library's own, for shapes the table does not name:
+`item-unusable` and `record-unusable`.
 
 A `VnxRefusal` carries English only, matched as a substring, so a caller cannot
 branch on a refusal cause. `REFUSAL_SUBSTRINGS` is the migration map for when

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const simpleNetwork = `{"vnx":"0.10.0","networks":[{
+const simpleNetwork = `{"vnx":"0.10.0","folders":[{"id":"approaches"}],"networks":[{
   "folder":"approaches","name":"Lairig Ghru approaches",
   "nodes":{"node-1":[-3.6712,57.1180,340],"node-2":[-3.6605,57.1042,512.5],"node-3":[-3.6488,57.0977,604]},
   "arcs":{

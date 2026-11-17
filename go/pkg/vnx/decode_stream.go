@@ -77,6 +77,11 @@ type streamReader struct {
 // format's order whatever order the keys came in.
 type collected[T any] struct {
 	items []T
+	// paths is the source path of each kept item, parallel to items. An
+	// item's index in items is not its index in the file once an earlier one
+	// was dropped, and a check made after the whole document is read (an
+	// item's `folder`) must still report at the item's own place.
+	paths []string
 	diags []Diagnostic
 }
 
@@ -126,7 +131,7 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 				return f, ok, diags, nil
 			})
 			if err == nil && folders.items != nil {
-				folders.items, folders.diags = resolveParents(folders.items, folders.diags)
+				folders.items, folders.diags = resolveParents(folders.items, folders.paths, folders.diags)
 			}
 		case "points":
 			points, err = readArray(s, "/points", func(at string, diags []Diagnostic) (Point, bool, []Diagnostic, error) {
@@ -175,6 +180,16 @@ func (s *streamReader) document() (doc *Document, diags []Diagnostic, refusal, e
 		return nil, nil, err, nil
 	}
 
+	// ⚠ AN ITEM'S `folder` IS CHECKED HERE, AFTER EVERY KEY IS READ, because
+	// `folders` may come after the collections that name them. The parents
+	// were resolved when `folders` was read; that check needs nothing else.
+	held := folderIDs(folders.items)
+	points.diags = clearAbsentFolders(points.items, points.paths, "point", held, func(p *Point) *string { return &p.Folder }, points.diags)
+	networks.diags = clearAbsentFolders(networks.items, networks.paths, "network", held, func(n *Network) *string { return &n.Folder }, networks.diags)
+	plans.diags = clearAbsentFolders(plans.items, plans.paths, "plan", held, func(r *Plan) *string { return &r.Folder }, plans.diags)
+	tracks.diags = clearAbsentFolders(tracks.items, tracks.paths, "track", held, func(t *Track) *string { return &t.Folder }, tracks.diags)
+	areas.diags = clearAbsentFolders(areas.items, areas.paths, "area", held, func(a *Area) *string { return &a.Folder }, areas.diags)
+
 	doc = &Document{Version: declared}
 	doc.Generator, diags = stringField(top, "generator", diags)
 	doc.Created, diags = timeField(top, "created", "", diags)
@@ -212,6 +227,7 @@ func readArray[T any](s *streamReader, path string, elem func(at string, diags [
 		}
 		if ok {
 			c.items = append(c.items, item)
+			c.paths = append(c.paths, fmt.Sprintf("%s/%d", path, i))
 		}
 	}
 	_, err = s.dec.Token() // the closing bracket

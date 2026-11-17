@@ -143,8 +143,12 @@ enum class DiagnosticCause(
     /** A position, a `turn` or a `pin` in a plan's walk. The plan is dropped. (3.4, 6.2) */
     PLAN_PIN_OR_POSITION("plan-pin-or-position", null),
 
-    /** A `folder` naming a folder that is not present in the document. (6.2) */
-    FOLDER_ABSENT(null, null),
+    /**
+     * An item's `folder`, or a folder's `parent`, naming a folder that is not
+     * present in the document. The key is treated as absent: the item sits at
+     * the top level, the folder at the root. The path says which key. (6.2)
+     */
+    FOLDER_ABSENT("folder-absent", null),
 
     /**
      * A data record with no `@type`, or one that is not a string. The record is

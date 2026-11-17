@@ -1,6 +1,7 @@
 package app.viatrail.vnx
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -67,15 +68,13 @@ class DiagnosticMatcherTest {
     }
 
     @Test
-    fun `a cause carrying no code can never satisfy a coded expectation`() {
-        // Section 6.3 lets a reader leave `code` absent where no case pins one.
-        // A matcher comparing null to null would then pass everything.
-        assertNotNull(
-            DiagnosticMatcher.mismatch(
-                expect("/a" to "unknown-key"),
-                report("/a" to DiagnosticCause.FOLDER_ABSENT),
-            ),
-        )
+    fun `every cause carries a code, so the matcher's null guard is never what passes`() {
+        // Section 6.3 lets a reader leave `code` absent where no case pins one,
+        // and a matcher comparing null to null would then pass everything. Since
+        // `folder-absent` joined section 6.2's table no cause of this library
+        // lacks a code; a new one that does must come with a test that its null
+        // cannot satisfy a coded expectation.
+        assertEquals(emptyList(), DiagnosticCause.entries.filter { it.corpusCode == null })
     }
 
     @Test

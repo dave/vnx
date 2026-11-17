@@ -37,8 +37,8 @@ func TestDanglingParentIsDiagnosedAndFolderKeptAtRoot(t *testing.T) {
 	if doc.Folders[0].Parent != "" {
 		t.Fatalf("dangling parent must be cleared, got %q", doc.Folders[0].Parent)
 	}
-	if len(diags) != 1 || diags[0].Path != "/folders/0/parent" {
-		t.Fatalf("want one diagnostic at /folders/0/parent, got %v", diags)
+	if len(diags) != 1 || diags[0].Path != "/folders/0/parent" || diags[0].Code != CodeFolderAbsent {
+		t.Fatalf("want one %s diagnostic at /folders/0/parent, got %+v", CodeFolderAbsent, diags)
 	}
 }
 
@@ -118,5 +118,77 @@ func TestFolderWithoutIDIsDropped(t *testing.T) {
 	}
 	if len(diags) != 1 || diags[0].Path != "/folders/0" {
 		t.Fatalf("got %v", diags)
+	}
+}
+
+// An item's `folder` naming no folder the document holds takes §6.2's remedy:
+// the key is treated as absent, the item is KEPT at the top level, and
+// `folder-absent` is reported at the item's own `folder` key. Every kind of
+// top-level item that carries `folder` is covered, and so are the cases where
+// "holds" is not "the file mentions":
+//
+//   - `nokey` is a folder with no `id`, and `twice` is the second of two
+//     folders with one id — both dropped. A folder with no id cannot be named,
+//     so the item naming `twice`'s survivor is fine; a parent naming a folder
+//     that was dropped for another reason is folder-absent.
+//   - `folders` comes LAST, so a reader that checks items as it reads them
+//     would see no folders at all and report the good item too.
+//   - the first point is dropped (no `at`), so the bad point's path must be
+//     its index in the FILE, /points/2, not its index among the kept points.
+func TestItemFolderNamingNoFolderIsDiagnosedAndItemKeptAtTopLevel(t *testing.T) {
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0",
+	  "points":[{"name":"dropped"},{"at":[1,2],"folder":"real"},{"at":[1,2],"folder":"ghost"}],
+	  "networks":[{"folder":"ghost"}],
+	  "plans":[{"walk":[],"folder":"ghost"}],
+	  "tracks":[{"segments":[],"folder":"ghost"}],
+	  "areas":[{"polygon":[[0,0],[1,0],[1,1]],"folder":"ghost"}],
+	  "folders":[
+	    {"id":"real"},
+	    {"id":"real","name":"twice"},
+	    {"name":"nokey","parent":"real"},
+	    {"id":"child","parent":"ghost"}
+	  ]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"/folders/3/parent":  true,
+		"/points/2/folder":   true,
+		"/networks/0/folder": true,
+		"/plans/0/folder":    true,
+		"/tracks/0/folder":   true,
+		"/areas/0/folder":    true,
+	}
+	for _, d := range diags {
+		if d.Code != CodeFolderAbsent {
+			continue
+		}
+		if !want[d.Path] {
+			t.Errorf("unexpected %s at %s: %s", CodeFolderAbsent, d.Path, d.Message)
+		}
+		delete(want, d.Path)
+	}
+	for path := range want {
+		t.Errorf("no %s at %s; diagnostics: %+v", CodeFolderAbsent, path, diags)
+	}
+
+	// Every item is kept, and only the bad references are cleared.
+	if len(doc.Points) != 2 || len(doc.Networks) != 1 || len(doc.Plans) != 1 || len(doc.Tracks) != 1 || len(doc.Areas) != 1 {
+		t.Fatalf("an item was dropped over a lost grouping: %d points, %d networks, %d plans, %d tracks, %d areas",
+			len(doc.Points), len(doc.Networks), len(doc.Plans), len(doc.Tracks), len(doc.Areas))
+	}
+	if doc.Points[0].Folder != "real" {
+		t.Errorf("a folder the document holds was cleared: %q", doc.Points[0].Folder)
+	}
+	for what, got := range map[string]string{
+		"point": doc.Points[1].Folder, "network": doc.Networks[0].Folder, "plan": doc.Plans[0].Folder,
+		"track": doc.Tracks[0].Folder, "area": doc.Areas[0].Folder,
+	} {
+		if got != "" {
+			t.Errorf("the %s's absent folder was kept: %q", what, got)
+		}
+	}
+	if len(doc.Folders) != 2 || doc.Folders[1].ID != "child" || doc.Folders[1].Parent != "" {
+		t.Errorf("want `real` and `child` kept, `child` at the root; got %+v", doc.Folders)
 	}
 }

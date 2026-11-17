@@ -57,6 +57,7 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'arc-pip-time',
   'attachment-unreadable',
   'extra-channel',
+  'folder-absent',
   'pass-arc-absent',
   'pinned-turn',
   'polygon-nested-rings',
@@ -73,9 +74,7 @@ export const DIAGNOSTIC_CODES = Object.freeze([
   'wrong-type-required',
   // not pinned: this library's own tokens for shapes the table does not name,
   // and not wire commitments
-  'folder-absent',
   'item-unusable',
-  'parent-folder-absent',
   'record-unusable',
 ]);
 
@@ -91,6 +90,7 @@ export const PINNED_CODES = Object.freeze([
   'arc-pip-time',
   'attachment-unreadable',
   'extra-channel',
+  'folder-absent',
   'pass-arc-absent',
   'pinned-turn',
   'polygon-nested-rings',

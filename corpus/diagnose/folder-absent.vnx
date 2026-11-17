@@ -1,0 +1,10 @@
+{
+  "vnx": "0.10.0",
+  "folders": [
+    { "id": "lakes", "name": "Lakes", "parent": "no-such-parent" }
+  ],
+  "points": [
+    { "name": "Boathouse", "at": [-3.6712, 57.118], "folder": "lakes" },
+    { "name": "Car park", "at": [-3.675, 57.1201], "folder": "no-such-folder" }
+  ]
+}

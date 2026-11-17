@@ -120,10 +120,15 @@ internal class Decoder(
         // key set, so a dotted key on an item is still reported.
         recogniseKeys(doc, at, Keys.DOCUMENT_REQUIRED, Keys.DOCUMENT_OPTIONAL, AppKey::isAppKey)
 
-        // Folders first: every other item's `folder` is checked against these ids,
-        // and a folder that was itself dropped must not resolve.
-        val folders = optionalItems(doc, "folders", at) { o, p -> folder(o, p) }
-        folderIds = folders?.map { it.id }?.toSet() ?: emptySet()
+        // Folders first: every other item's `folder`, and every folder's `parent`,
+        // is checked against these ids, and a folder that was itself dropped must
+        // not resolve. A `parent` is checked once all the ids are known, because
+        // a parent may be written after its child (4.4), and at the folder's own
+        // wire path, because a dropped folder shifts every later model index.
+        val folderPaths = ArrayList<Pointer>()
+        val decodedFolders = optionalItems(doc, "folders", at) { o, p -> folder(o, p)?.also { folderPaths.add(p) } }
+        folderIds = decodedFolders?.map { it.id }?.toSet() ?: emptySet()
+        val folders = decodedFolders?.mapIndexed { i, folder -> withKnownParent(folder, folderPaths[i]) }
 
         val document =
             VnxDocument(
@@ -301,6 +306,26 @@ internal class Decoder(
             return null
         }
         return id
+    }
+
+    /**
+     * A folder's `parent`, under the same section 6.2 rule as [optionalFolderRef]:
+     * a parent naming a folder that is not present is treated as absent, so the
+     * folder sits at the root, and the diagnostic carries the same code.
+     */
+    private fun withKnownParent(
+        folder: Folder,
+        at: Pointer,
+    ): Folder {
+        val id = folder.parent ?: return folder
+        if (id in folderIds) return folder
+        report(
+            at.child("parent"),
+            "`parent` names \"$id\", which is not a folder in this document; " +
+                "the folder sits at the root",
+            DiagnosticCause.FOLDER_ABSENT,
+        )
+        return folder.copy(parent = null)
     }
 
     // -------------------------------------------------------- collections

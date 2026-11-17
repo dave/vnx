@@ -86,8 +86,9 @@ pub enum Cause {
     RingTooFewPoints { distinct: usize },
     /// SPEC 4.3: a record-level timestamp carrying an offset other than `Z`.
     TimestampNotUtc,
-    /// SPEC 6.2: a `folder` naming a folder absent from the document. The key
-    /// is treated as absent and the item sits at the top level.
+    /// SPEC 6.2: an item's `folder`, or a folder's `parent`, naming a folder
+    /// absent from the document. The key is treated as absent, so the item sits
+    /// at the top level or the folder at the root.
     FolderAbsent { id: String },
     /// SPEC 5: a data record with no `@type`, or one that is not a string.
     /// SPEC 6.2's table gives it the code of [`Cause::WrongTypeRequired`].
@@ -130,9 +131,7 @@ impl Cause {
     /// The stable token SPEC 6.3 requires, and which is what a corpus case
     /// compares. The English is never compared.
     ///
-    /// Every code but one is a row of SPEC 6.2's remedy table. `folder-absent`
-    /// is this crate's own: SPEC 6.2 states that remedy outside the table, and
-    /// SPEC 6.3 permits a code on any diagnostic.
+    /// Every code is a row of SPEC 6.2's remedy table.
     pub fn code(&self) -> &'static str {
         match self {
             Cause::UnknownKey => "unknown-key",
@@ -233,7 +232,7 @@ impl std::fmt::Display for Cause {
             ),
             Cause::FolderAbsent { id } => write!(
                 f,
-                "the folder `{id}` is not in this document, so the item sits at the top level"
+                "the folder `{id}` is not in this document, so the key is treated as absent"
             ),
             Cause::RecordTypeMissing => write!(
                 f,
@@ -420,10 +419,11 @@ mod tests {
         "ring-closed",
         "ring-too-few-points",
         "attachment-unreadable",
+        "folder-absent",
     ];
 
     /// Every row of the table has a cause that carries its code, and every
-    /// code a cause carries is a row of the table or this crate's one own code.
+    /// code a cause carries is a row of the table.
     #[test]
     fn the_codes_are_the_rows_of_the_remedy_table() {
         let codes: std::collections::BTreeSet<&str> =
@@ -433,8 +433,8 @@ mod tests {
         }
         for code in &codes {
             assert!(
-                TABLE.contains(code) || *code == "folder-absent",
-                "{code:?} is neither a row of SPEC 6.2's table nor this crate's own code"
+                TABLE.contains(code),
+                "{code:?} is not a row of SPEC 6.2's table"
             );
         }
     }

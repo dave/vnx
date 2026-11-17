@@ -985,6 +985,7 @@ The remedies for the constructs this document constrains:
 | a `polygon` carrying a ring beyond the first (3.7) | drop the area | `polygon-nested-rings` |
 | a ring whose last position repeats its first (3.7) | drop the last position | `ring-closed` |
 | a ring with fewer than three distinct positions (3.7) | drop the area | `ring-too-few-points` |
+| an item's `folder`, or a folder's `parent`, naming a folder that is not present (6.2) | treat the key as absent | `folder-absent` |
 | an attachment that cannot be recovered (7) | drop the attachment | `attachment-unreadable` |
 
 In a plan, "the highlight" in this table is the plan itself (Section 3.4).

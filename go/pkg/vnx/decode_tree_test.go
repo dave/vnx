@@ -4,7 +4,9 @@ package vnx
 // verbatim as the oracle that TestDecodeReaderMatchesTreeDecode compares the
 // streaming reader against. It unmarshals the whole document into a generic
 // JSON tree first. Only the functions the streaming reader replaced are copied
-// here; the helpers both readers share stay in the package.
+// here; the helpers both readers share stay in the package. Since then it has
+// gained one rule, §6.2's `folder-absent` check on an item's `folder`, which
+// the streaming reader can make only once the whole document is read.
 
 import (
 	"encoding/json"
@@ -45,24 +47,56 @@ func decodeTree(data []byte) (*Document, []Diagnostic, error) {
 				Message: fmt.Sprintf("`folders` is %s, expected an array — ignored", jsonKind(v))})
 		}
 	}
+	// The folders are read first whatever order the keys came in, so an item's
+	// `folder` can be checked as its collection is read.
+	held := map[string]bool{}
+	for _, f := range doc.Folders {
+		held[f.ID] = true
+	}
 	if arr, ok := treeCollection(obj, "points", &diags); ok {
-		doc.Points, diags = treeDecodePoints(arr, "/points", diags)
+		var kept []string
+		doc.Points, diags = treeDecodePoints(arr, "/points", &kept, diags)
+		diags = treeClearAbsentFolders(len(doc.Points), kept, "point", held, func(i int) *string { return &doc.Points[i].Folder }, diags)
 	}
 	if arr, ok := treeCollection(obj, "networks", &diags); ok {
-		doc.Networks, diags = treeDecodeNetworks(arr, "/networks", diags)
+		var kept []string
+		doc.Networks, diags = treeDecodeNetworks(arr, "/networks", &kept, diags)
+		diags = treeClearAbsentFolders(len(doc.Networks), kept, "network", held, func(i int) *string { return &doc.Networks[i].Folder }, diags)
 	}
 	if arr, ok := treeCollection(obj, "plans", &diags); ok {
-		doc.Plans, diags = treeDecodePlans(arr, "/plans", diags)
+		var kept []string
+		doc.Plans, diags = treeDecodePlans(arr, "/plans", &kept, diags)
+		diags = treeClearAbsentFolders(len(doc.Plans), kept, "plan", held, func(i int) *string { return &doc.Plans[i].Folder }, diags)
 	}
 	if arr, ok := treeCollection(obj, "tracks", &diags); ok {
-		doc.Tracks, diags = treeDecodeTracks(arr, "/tracks", diags)
+		var kept []string
+		doc.Tracks, diags = treeDecodeTracks(arr, "/tracks", &kept, diags)
+		diags = treeClearAbsentFolders(len(doc.Tracks), kept, "track", held, func(i int) *string { return &doc.Tracks[i].Folder }, diags)
 	}
 	if arr, ok := treeCollection(obj, "areas", &diags); ok {
-		doc.Areas, diags = treeDecodeAreas(arr, "/areas", diags)
+		var kept []string
+		doc.Areas, diags = treeDecodeAreas(arr, "/areas", &kept, diags)
+		diags = treeClearAbsentFolders(len(doc.Areas), kept, "area", held, func(i int) *string { return &doc.Areas[i].Folder }, diags)
 	}
 	doc.AppKeys = decodeAppKeys(obj)
 	diags = reportUnknownKeysBy(obj, "", isDocumentKey, diags)
 	return doc, diags, nil
+}
+
+// treeClearAbsentFolders is the oracle's §6.2 `folder-absent` check: each kept
+// item whose `folder` names no held folder loses it, and is reported at its
+// `folder` key after the rest of its collection's diagnostics.
+func treeClearAbsentFolders(n int, kept []string, kind string, held map[string]bool, folder func(int) *string, diags []Diagnostic) []Diagnostic {
+	for i := 0; i < n; i++ {
+		f := folder(i)
+		if *f == "" || held[*f] {
+			continue
+		}
+		diags = append(diags, Diagnostic{Severity: Warning, Path: kept[i] + "/folder", Code: CodeFolderAbsent,
+			Message: fmt.Sprintf("folder %q is not in this document — the %s sits at the top level", *f, kind)})
+		*f = ""
+	}
+	return diags
 }
 
 func treeCollection(obj map[string]any, key string, diags *[]Diagnostic) ([]any, bool) {
@@ -82,6 +116,7 @@ func treeCollection(obj map[string]any, key string, diags *[]Diagnostic) ([]any,
 func treeDecodeFolders(arr []any, diags []Diagnostic) ([]Folder, []Diagnostic) {
 	out := make([]Folder, 0, len(arr))
 	seen := make(map[string]bool, len(arr))
+	var kept []string
 
 	for i, item := range arr {
 		at := fmt.Sprintf("/folders/%d", i)
@@ -116,12 +151,13 @@ func treeDecodeFolders(arr []any, diags []Diagnostic) ([]Folder, []Diagnostic) {
 		f.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, folderKeys, diags)
 		out = append(out, f)
+		kept = append(kept, at)
 	}
 
-	return resolveParents(out, diags)
+	return resolveParents(out, kept, diags)
 }
 
-func treeDecodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Diagnostic) {
+func treeDecodePoints(arr []any, path string, kept *[]string, diags []Diagnostic) ([]Point, []Diagnostic) {
 	out := make([]Point, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
@@ -164,11 +200,14 @@ func treeDecodePoints(arr []any, path string, diags []Diagnostic) ([]Point, []Di
 		w.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, pointKeys, diags)
 		out = append(out, w)
+		if kept != nil {
+			*kept = append(*kept, at)
+		}
 	}
 	return out, diags
 }
 
-func treeDecodeAreas(arr []any, path string, diags []Diagnostic) ([]Area, []Diagnostic) {
+func treeDecodeAreas(arr []any, path string, kept *[]string, diags []Diagnostic) ([]Area, []Diagnostic) {
 	out := make([]Area, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
@@ -194,6 +233,9 @@ func treeDecodeAreas(arr []any, path string, diags []Diagnostic) ([]Area, []Diag
 		a.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, areaKeys, diags)
 		out = append(out, a)
+		if kept != nil {
+			*kept = append(*kept, at)
+		}
 	}
 	return out, diags
 }
@@ -243,7 +285,7 @@ func treeDecodeRing(v any, path string, diags []Diagnostic) ([]Position, bool, [
 	return ring, true, diags
 }
 
-func treeDecodeTracks(arr []any, path string, diags []Diagnostic) ([]Track, []Diagnostic) {
+func treeDecodeTracks(arr []any, path string, kept *[]string, diags []Diagnostic) ([]Track, []Diagnostic) {
 	out := make([]Track, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
@@ -266,6 +308,9 @@ func treeDecodeTracks(arr []any, path string, diags []Diagnostic) ([]Track, []Di
 		tr.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, trackKeys, diags)
 		out = append(out, tr)
+		if kept != nil {
+			*kept = append(*kept, at)
+		}
 	}
 	return out, diags
 }
@@ -333,7 +378,7 @@ func treeDecodePips(v any, path string, diags []Diagnostic) ([]Position, []Diagn
 	return out, diags
 }
 
-func treeDecodePlans(arr []any, path string, diags []Diagnostic) ([]Plan, []Diagnostic) {
+func treeDecodePlans(arr []any, path string, kept *[]string, diags []Diagnostic) ([]Plan, []Diagnostic) {
 	out := make([]Plan, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
@@ -361,11 +406,14 @@ func treeDecodePlans(arr []any, path string, diags []Diagnostic) ([]Plan, []Diag
 			continue
 		}
 		out = append(out, r)
+		if kept != nil {
+			*kept = append(*kept, at)
+		}
 	}
 	return out, diags
 }
 
-func treeDecodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, []Diagnostic) {
+func treeDecodeNetworks(arr []any, path string, kept *[]string, diags []Diagnostic) ([]Network, []Diagnostic) {
 	out := make([]Network, 0, len(arr))
 	for i, item := range arr {
 		at := fmt.Sprintf("%s/%d", path, i)
@@ -385,14 +433,17 @@ func treeDecodeNetworks(arr []any, path string, diags []Diagnostic) ([]Network, 
 		n.Arcs, diags = treeDecodeArcs(obj["arcs"], at+"/arcs", n.Nodes, diags)
 		n.Highlights, diags = decodeHighlights(obj["highlights"], at+"/highlights", n.Arcs, diags)
 		if sub, ok := obj["points"].([]any); ok {
-			n.Points, diags = treeDecodePoints(sub, at+"/points", diags)
+			n.Points, diags = treeDecodePoints(sub, at+"/points", nil, diags)
 		}
 		if sub, ok := obj["areas"].([]any); ok {
-			n.Areas, diags = treeDecodeAreas(sub, at+"/areas", diags)
+			n.Areas, diags = treeDecodeAreas(sub, at+"/areas", nil, diags)
 		}
 		n.Data, diags = dataField(obj, at, diags)
 		diags = reportUnknownKeys(obj, at, networkKeys, diags)
 		out = append(out, n)
+		if kept != nil {
+			*kept = append(*kept, at)
+		}
 	}
 	return out, diags
 }

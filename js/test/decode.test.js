@@ -304,6 +304,36 @@ test('a folder naming an absent folder puts the item at the top level', () => {
   assert.equal(diagnostics[0].code, 'folder-absent');
 });
 
+test('a parent naming an absent folder puts the folder at the root, with the same code', () => {
+  const { document, diagnostics } = decodeText(
+    doc({
+      folders: [{ id: 'lakes', parent: 'ghost' }],
+      points: [{ at: [1, 2], folder: 'lakes' }],
+    }),
+  );
+  assert.equal(document.folders.length, 1);
+  assert.equal(document.folders[0].parent, undefined);
+  assert.equal(document.points[0].folder, 'lakes');
+  assert.deepEqual(
+    diagnostics.map((d) => [d.path, d.code]),
+    [['/folders/0/parent', 'folder-absent']],
+  );
+});
+
+test('a parent naming a folder dropped for having no id is folder-absent', () => {
+  const { document, diagnostics } = decodeText(
+    doc({
+      folders: [{ name: 'No id' }, { id: 'lakes', parent: 'anything' }],
+    }),
+  );
+  assert.equal(document.folders.length, 1);
+  assert.equal(document.folders[0].parent, undefined);
+  assert.deepEqual(diagnostics.map((d) => [d.path, d.code]).sort(), [
+    ['/folders/0/id', 'wrong-type-required'],
+    ['/folders/1/parent', 'folder-absent'],
+  ]);
+});
+
 test('a folder with no id is dropped and its contents survive at the top level', () => {
   const { document, diagnostics } = decodeText(
     doc({

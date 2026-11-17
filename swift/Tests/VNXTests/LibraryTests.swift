@@ -440,6 +440,35 @@ final class LibraryTests: XCTestCase {
     XCTAssertNil(result.document.points?[0].folder)
   }
 
+  /// SPEC 6.2: a folder's `parent` naming a folder that is not present takes
+  /// the same remedy and the same code, at the `parent` key.
+  func testParentThatDoesNotResolvePutsTheFolderAtTheRoot() throws {
+    let result = try read(
+      minimal(
+        """
+        "folders":[{"id":"lakes","parent":"nowhere"}],"points":[{"at":[1,2],"folder":"lakes"}]
+        """))
+    XCTAssertEqual(result.diagnostics.map(\.code), ["folder-absent"])
+    XCTAssertEqual(result.diagnostics.map(\.path), ["/folders/0/parent"])
+    XCTAssertEqual(result.document.folders?.count, 1)
+    XCTAssertNil(result.document.folders?[0].parent)
+    XCTAssertEqual(result.document.points?[0].folder, "lakes")
+  }
+
+  /// The diagnostic names the key where it was written: a dropped folder and a
+  /// dropped point shift every later model index, and the path must not.
+  func testFolderAbsentPathIsTheWireIndexAfterADrop() throws {
+    let result = try read(
+      minimal(
+        """
+        "folders":[{"name":"no id"},{"id":"f","parent":"gone"}],\
+        "points":[{},{"at":[1,2],"folder":"gone"}]
+        """))
+    let absent = result.diagnostics.filter { $0.code == "folder-absent" }.map(\.path)
+    XCTAssertEqual(Set(absent), ["/folders/1/parent", "/points/1/folder"])
+    XCTAssertNil(result.document.folders?[0].parent)
+  }
+
   /// "A folder with no `id` is dropped under the rule above. Items that named
   /// it are then covered by the previous paragraph and sit at the top level,
   /// so a folder's contents survive the loss of the folder."

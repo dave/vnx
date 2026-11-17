@@ -1,0 +1,21 @@
+{
+  "kind": "diagnose",
+  "schema": "valid",
+  "note": "A `folder` or a `parent` naming a folder that the document does not hold (SPEC 6.2). It is not an unusable value: the reader treats the key as absent, keeps the object, and reports `folder-absent` at the key. The folder `lakes` therefore sits at the root, and the second point sits at the top level. The first point names a folder that IS present and must raise nothing, so a reader that reports every `folder` key, and one that checks only items or only parents, each fail. Both objects survive, which `counts` pins: a reader that drops an item over a lost grouping fails.",
+  "counts": {
+    "folders": 1,
+    "points": 2
+  },
+  "diagnostics": [
+    {
+      "path": "/folders/0/parent",
+      "code": "folder-absent",
+      "message_advisory": "parent folder \"no-such-parent\" is not in the document; the folder sits at the root"
+    },
+    {
+      "path": "/points/1/folder",
+      "code": "folder-absent",
+      "message_advisory": "folder \"no-such-folder\" is not in the document; the point sits at the top level"
+    }
+  ]
+}

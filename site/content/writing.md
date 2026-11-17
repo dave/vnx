@@ -251,6 +251,10 @@ Exit code 0 means the file was read. Read the `diagnostics` array: every entry
 has a `code`, a JSON Pointer `path`, and a `message`. A good file has no
 diagnostics. Exit code 1 means the file was refused.
 
+Each code names one problem and what the reader did about it (§6.2):
+
+<!-- spec:diagnostic-codes -->
+
 The [JSON Schema](schema/vnx-0.10.schema.json) checks the shape of a document.
 It cannot check the graph rules, such as walk connectivity, so use the tool as
 well.

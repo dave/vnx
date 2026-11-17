@@ -796,10 +796,11 @@ export function distinctLonLat(ring) {
 function resolveReferences(doc, ctx) {
   const folders = new Set((doc.folders ?? []).map((f) => f.id));
 
-  // SPEC.md 6.2: a `folder` naming a folder that is not present is not an
-  // unusable value. The key is treated as absent, the item sits at the top
-  // level, and the loss is diagnosed. Dropping the item would lose content over
-  // a lost grouping.
+  // SPEC.md 6.2: a `folder`, or a folder's `parent`, naming a folder that is
+  // not present is not an unusable value. The key is treated as absent, the
+  // item sits at the top level or the folder at the root, and the loss is
+  // diagnosed as `folder-absent` at the key; the path tells the two keys apart.
+  // Dropping the object would lose content over a lost grouping.
   const placed = [
     ...(doc.folders ?? []).map((f) => [f, 'parent']),
     ...(doc.networks ?? []).map((n) => [n, 'folder']),
@@ -814,7 +815,7 @@ function resolveReferences(doc, ctx) {
     ctx.diag(
       `${ctx.paths.get(item)}/${key}`,
       `"${key}" names ${JSON.stringify(ref)}, which is not a folder in this document`,
-      key === 'parent' ? 'parent-folder-absent' : 'folder-absent',
+      'folder-absent',
     );
     item[key] = undefined;
   }

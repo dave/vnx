@@ -115,7 +115,9 @@ public enum Cause: String, Sendable, CaseIterable {
   /// A position, a `turn` or a `pin` in a plan's walk (SPEC 3.4). The plan
   /// goes.
   case planPinOrPosition
-  /// A `folder` or `parent` naming a folder that is not in the document.
+  /// An item's `folder`, or a folder's `parent`, naming a folder that is not
+  /// in the document. The key is treated as absent: the item sits at the top
+  /// level, the folder at the root (SPEC 6.2).
   case folderNotPresent
   /// An attachment that cannot be recovered. The attachment goes and the
   /// document is returned (SPEC 7).
@@ -157,6 +159,7 @@ public enum Cause: String, Sendable, CaseIterable {
     .ringClosed: "ring-closed",
     .ringTooFewPoints: "ring-too-few-points",
     .attachmentUnreadable: "attachment-unreadable",
+    .folderNotPresent: "folder-absent",
   ]
 
   /// Codes for the causes SPEC 6.2's table does not name. Kept separate from
@@ -174,7 +177,6 @@ public enum Cause: String, Sendable, CaseIterable {
     .containerNoDocument: "container-no-document",
     .containerRootCompressionUnsupported: "container-root-compression-unsupported",
     .importanceOutOfRange: "importance-out-of-range",
-    .folderNotPresent: "folder-absent",
   ]
 
   /// The English substrings the corpus expects for this cause today, for

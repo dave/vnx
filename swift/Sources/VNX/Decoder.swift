@@ -59,14 +59,18 @@ final class DocumentDecoder {
     document.generator = optionalString(top, "generator", at: "")
     document.created = optionalTimestamp(top, "created", at: "")
 
-    document.folders = optionalItems(top, "folders", at: "", decode: decodeFolder)
-    document.networks = optionalItems(top, "networks", at: "", decode: decodeNetwork)
-    document.plans = optionalItems(top, "plans", at: "", decode: decodePlan)
-    document.tracks = optionalItems(top, "tracks", at: "", decode: decodeTrack)
-    document.points = optionalItems(top, "points", at: "") { v, p in
+    var wire = WirePaths()
+    document.folders = optionalItems(
+      top, "folders", at: "", keptAt: &wire.folders, decode: decodeFolder)
+    document.networks = optionalItems(
+      top, "networks", at: "", keptAt: &wire.networks, decode: decodeNetwork)
+    document.plans = optionalItems(top, "plans", at: "", keptAt: &wire.plans, decode: decodePlan)
+    document.tracks = optionalItems(
+      top, "tracks", at: "", keptAt: &wire.tracks, decode: decodeTrack)
+    document.points = optionalItems(top, "points", at: "", keptAt: &wire.points) { v, p in
       self.decodePoint(v, at: p, shape: Keys.topLevelPoint, allowsFolder: true)
     }
-    document.areas = optionalItems(top, "areas", at: "") { v, p in
+    document.areas = optionalItems(top, "areas", at: "", keptAt: &wire.areas) { v, p in
       self.decodeArea(v, at: p, shape: Keys.topLevelArea, allowsFolder: true)
     }
     // SPEC 3.9: every top-level key containing a full stop is an
@@ -78,7 +82,7 @@ final class DocumentDecoder {
       .sorted { codePointLess($0.string, $1.string) }
       .map { ApplicationKey(key: $0.string, value: top[$0]!) }
 
-    resolveFolderReferences(in: &document)
+    resolveFolderReferences(in: &document, wire: wire)
     return document
   }
 
@@ -568,45 +572,63 @@ final class DocumentDecoder {
 
   // MARK: - Folder references
 
-  /// SPEC 6.2: a `folder` naming a folder that is not present is not an
-  /// unusable value. The key is treated as absent, so the item sits at the
-  /// top level, and a diagnostic is recorded. Dropping the item would lose
-  /// content over a lost grouping.
-  private func resolveFolderReferences(in document: inout Document) {
+  /// The wire path of each top-level element the decoder kept, per
+  /// collection, in model order. A check that runs after decoding reports
+  /// against the document as it was written, and a dropped element shifts
+  /// every later model index.
+  private struct WirePaths {
+    var folders: [String] = []
+    var networks: [String] = []
+    var plans: [String] = []
+    var tracks: [String] = []
+    var points: [String] = []
+    var areas: [String] = []
+  }
+
+  /// SPEC 6.2: an item's `folder`, or a folder's `parent`, naming a folder
+  /// that is not present is not an unusable value. The key is treated as
+  /// absent, so the item sits at the top level or the folder at the root,
+  /// and `folder-absent` is recorded at the key; the path tells the two keys
+  /// apart. Dropping the object would lose content over a lost grouping. A
+  /// folder dropped for having no `id` is not present, so what named it is
+  /// caught here too.
+  private func resolveFolderReferences(in document: inout Document, wire: WirePaths) {
     let ids = Set((document.folders ?? []).map(\.id))
 
     func check(_ value: String?, at path: String, key: String) -> String? {
       guard let value else { return nil }
       if ids.contains(value) { return value }
+      let outcome =
+        key == "parent" ? "the folder sits at the root" : "the item sits at the top level"
       diagnose(
         .folderNotPresent, at: pointer(path, key),
-        "`\(key)` names the folder \"\(value)\", which is not in this document; the item was kept at the top level"
+        "`\(key)` names the folder \"\(value)\", which is not in this document; \(outcome)"
       )
       return nil
     }
 
     for i in document.folders?.indices ?? [].indices {
       document.folders![i].parent = check(
-        document.folders![i].parent, at: "/folders/\(i)", key: "parent")
+        document.folders![i].parent, at: wire.folders[i], key: "parent")
     }
     for i in document.networks?.indices ?? [].indices {
       document.networks![i].folder = check(
-        document.networks![i].folder, at: "/networks/\(i)", key: "folder")
+        document.networks![i].folder, at: wire.networks[i], key: "folder")
     }
     for i in document.plans?.indices ?? [].indices {
       document.plans![i].folder = check(
-        document.plans![i].folder, at: "/plans/\(i)", key: "folder")
+        document.plans![i].folder, at: wire.plans[i], key: "folder")
     }
     for i in document.tracks?.indices ?? [].indices {
       document.tracks![i].folder = check(
-        document.tracks![i].folder, at: "/tracks/\(i)", key: "folder")
+        document.tracks![i].folder, at: wire.tracks[i], key: "folder")
     }
     for i in document.points?.indices ?? [].indices {
       document.points![i].folder = check(
-        document.points![i].folder, at: "/points/\(i)", key: "folder")
+        document.points![i].folder, at: wire.points[i], key: "folder")
     }
     for i in document.areas?.indices ?? [].indices {
-      document.areas![i].folder = check(document.areas![i].folder, at: "/areas/\(i)", key: "folder")
+      document.areas![i].folder = check(document.areas![i].folder, at: wire.areas[i], key: "folder")
     }
   }
 
@@ -698,6 +720,16 @@ final class DocumentDecoder {
     _ o: [JSONKey: JSONValue], _ key: String, at path: String,
     decode: (JSONValue, String) -> T?
   ) -> [T]? {
+    var discarded: [String] = []
+    return optionalItems(o, key, at: path, keptAt: &discarded, decode: decode)
+  }
+
+  /// `optionalItems`, also appending the wire path of each element kept to
+  /// `kept`, in model order.
+  private func optionalItems<T>(
+    _ o: [JSONKey: JSONValue], _ key: String, at path: String, keptAt kept: inout [String],
+    decode: (JSONValue, String) -> T?
+  ) -> [T]? {
     guard let raw = o[JSONKey(key)] else { return nil }
     guard let array = raw.arrayValue else {
       diagnose(
@@ -708,7 +740,11 @@ final class DocumentDecoder {
     }
     var out: [T] = []
     for (i, v) in array.enumerated() {
-      if let item = decode(v, "\(pointer(path, key))/\(i)") { out.append(item) }
+      let itemPath = "\(pointer(path, key))/\(i)"
+      if let item = decode(v, itemPath) {
+        out.append(item)
+        kept.append(itemPath)
+      }
     }
     return out
   }

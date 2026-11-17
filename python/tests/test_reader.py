@@ -1260,9 +1260,43 @@ class DanglingFolder(unittest.TestCase):
             messages(result),
             [("/points/0/folder", "no folder `ghost` in this document")],
         )
+        self.assertEqual(codes(result), [("/points/0/folder", "folder-absent")])
         assert result.document.points is not None
         self.assertEqual(len(result.document.points), 1)
         self.assertIsNone(result.document.points[0].folder)
+
+    def test_a_parent_naming_an_absent_folder_puts_the_folder_at_the_root(
+        self,
+    ) -> None:
+        result = read(
+            '{"vnx": "0.10.0", "folders": [{"id": "lakes", "parent": "ghost"}],'
+            ' "points": [{"at": [0,0], "folder": "lakes"}]}'
+        )
+        self.assertEqual(codes(result), [("/folders/0/parent", "folder-absent")])
+        assert result.document.folders is not None
+        self.assertEqual(len(result.document.folders), 1)
+        self.assertIsNone(result.document.folders[0].parent)
+        assert result.document.points is not None
+        self.assertEqual(result.document.points[0].folder, "lakes")
+
+    def test_a_present_parent_raises_nothing(self) -> None:
+        result = read(
+            '{"vnx": "0.10.0", "folders": [{"id": "b", "parent": "a"}, {"id": "a"}]}'
+        )
+        self.assertEqual(codes(result), [])
+        assert result.document.folders is not None
+        self.assertEqual(result.document.folders[0].parent, "a")
+
+    def test_the_path_is_the_wire_index_after_a_drop(self) -> None:
+        # The first folder and the first point are dropped, so each survivor is
+        # model index 0; the diagnostic names where it was written.
+        result = read(
+            '{"vnx": "0.10.0", "folders": [{"name": "No id"},'
+            ' {"id": "f", "parent": "ghost"}],'
+            ' "points": [{}, {"at": [0,0], "folder": "ghost"}]}'
+        )
+        self.assertIn(("/folders/1/parent", "folder-absent"), codes(result))
+        self.assertIn(("/points/1/folder", "folder-absent"), codes(result))
 
     def test_a_folder_written_after_the_item_that_names_it_is_found(self) -> None:
         # SPEC 4.4: element order carries no meaning, so the check is a second
@@ -1280,7 +1314,13 @@ class DanglingFolder(unittest.TestCase):
             '{"vnx": "0.10.0", "folders": [{"name": "No id"}],'
             ' "tracks": [{"segments": [], "folder": "whatever"}]}'
         )
-        self.assertEqual(len(result.diagnostics), 2, messages(result))
+        self.assertEqual(
+            codes(result),
+            [
+                ("/folders/0/id", "wrong-type-required"),
+                ("/tracks/0/folder", "folder-absent"),
+            ],
+        )
         assert result.document.tracks is not None
         self.assertEqual(len(result.document.tracks), 1)
         self.assertIsNone(result.document.tracks[0].folder)

@@ -8,7 +8,7 @@ import (
 
 // twoArcPlan is half hand-drawn, half routed, and walks its second arc
 // BACKWARDS: arc "routed" runs from col to top, and the walk goes top to col.
-const twoArcPlan = `{"vnx":"0.10.0","plans":[{
+const twoArcPlan = `{"vnx":"0.10.0","folders":[{"id":"cairngorms"}],"plans":[{
   "folder":"cairngorms","name":"Braeriach direct",
   "style":{"color":"#0b7a75","width":4,"opacity":1,"line-style":"dashed"},
   "nodes":{"start":[-3.7280,57.0782,1296],"top":[-3.7101,57.0699,1150],"col":[-3.7020,57.0655,1044]},

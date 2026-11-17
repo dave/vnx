@@ -3,7 +3,7 @@ package vnx
 import "testing"
 
 func TestPointCarriesEveryStyleField(t *testing.T) {
-	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","points":[{
+	doc, diags, err := Decode([]byte(`{"vnx":"0.10.0","folders":[{"id":"cairngorms"}],"points":[{
 	  "folder":"cairngorms","name":"Car park","notes":"Pay and display.",
 	  "at":[-3.6750,57.1201,320],
 	  "style":{"color":"#444444","icon":"parking","icon-size":16,

@@ -89,6 +89,10 @@ def off_the_globe(lon: float, lat: float) -> Union[str, None]:
 class _Reader:
     def __init__(self) -> None:
         self.diagnostics: list[Diagnostic] = []
+        # The wire path of each top-level element kept, by object identity.  A
+        # check that runs after decoding reports against the document as it was
+        # written, and a dropped element shifts every later model index.
+        self._wire_paths: dict[int, str] = {}
 
     # -- diagnostics ---------------------------------------------------
 
@@ -399,11 +403,15 @@ class _Reader:
         return document
 
     def _check_folder_references(self, document: Document) -> None:
-        """SPEC 6.2: a `folder` naming a folder that is not present.
+        """SPEC 6.2: a `folder`, or a folder's `parent`, naming a folder that
+        is not present.
 
         Not an unusable value: the reader treats the key as absent, so the item
-        sits at the top level, and records a diagnostic.  Dropping the item
-        would lose content over a lost grouping.
+        sits at the top level or the folder at the root, and records
+        `folder-absent` at the key.  The path tells the two keys apart.
+        Dropping the object would lose content over a lost grouping.  A folder
+        dropped for having no `id` is not present, so what named it is caught
+        here too.
 
         This runs after every collection is decoded, because a folder may be
         written after the items that name it -- key and element order carry no
@@ -412,19 +420,28 @@ class _Reader:
         known = {
             folder.id for folder in (document.folders or []) if folder.id is not None
         }
-        hosts: list[tuple[str, list[Any]]] = [
-            ("networks", list(document.networks or [])),
-            ("plans", list(document.plans or [])),
-            ("tracks", list(document.tracks or [])),
-            ("points", list(document.points or [])),
-            ("areas", list(document.areas or [])),
+        for folder in document.folders or []:
+            if folder.parent is not None and folder.parent not in known:
+                self.note(
+                    join(self._wire_paths[id(folder)], "parent"),
+                    f"no parent folder `{folder.parent}` in this document",
+                    "folder-absent",
+                )
+                folder.parent = None
+        hosts: list[list[Any]] = [
+            list(document.networks or []),
+            list(document.plans or []),
+            list(document.tracks or []),
+            list(document.points or []),
+            list(document.areas or []),
         ]
-        for collection, items in hosts:
-            for index, item in enumerate(items):
+        for items in hosts:
+            for item in items:
                 if item.folder is not None and item.folder not in known:
                     self.note(
-                        join("", collection, index, "folder"),
+                        join(self._wire_paths[id(item)], "folder"),
                         f"no folder `{item.folder}` in this document",
+                        "folder-absent",
                     )
                     item.folder = None
 
@@ -464,8 +481,10 @@ class _Reader:
             return None
         out = []
         for index, item in enumerate(items):
-            decoded = decode(item, join("", key, index))
+            path = join("", key, index)
+            decoded = decode(item, path)
             if decoded is not None:
+                self._wire_paths[id(decoded)] = path
                 out.append(decoded)
         return out
 

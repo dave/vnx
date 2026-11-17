@@ -88,7 +88,41 @@ class ReaderRulesTest {
         assertEquals(0, r.document.folders!!.size)
         assertEquals(1, r.document.points!!.size)
         assertNull(r.document.points!![0].folder)
-        assertEquals(2, r.diagnostics.size, "the folder going and the reference failing are two facts")
+        assertEquals(
+            setOf("/folders/0" to "wrong-type-required", "/points/0/folder" to "folder-absent"),
+            r.diagnostics.map { it.path to it.code }.toSet(),
+            "the folder going and the reference failing are two facts",
+        )
+    }
+
+    @Test
+    fun `a parent naming a folder that is not present puts the folder at the root, with the same code`() {
+        val r =
+            read(
+                """{"vnx":"0.10.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"folder":"lakes","at":[-3,57]}]}""",
+            )
+        assertEquals(listOf("/folders/0/parent" to "folder-absent"), r.diagnostics.map { it.path to it.code })
+        assertEquals(1, r.document.folders!!.size)
+        assertNull(r.document.folders!![0].parent)
+        assertEquals("lakes", r.document.points!![0].folder)
+    }
+
+    @Test
+    fun `a parent written before the folder it names resolves`() {
+        val r = read("""{"vnx":"0.10.0","folders":[{"id":"b","parent":"a"},{"id":"a"}]}""")
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals("a", r.document.folders!![0].parent)
+    }
+
+    @Test
+    fun `a parent naming a folder dropped for having no id is folder-absent at its wire path`() {
+        val r = read("""{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"f","parent":"gone"}]}""")
+        assertEquals(1, r.document.folders!!.size)
+        assertNull(r.document.folders!![0].parent)
+        assertEquals(
+            setOf("/folders/0" to "wrong-type-required", "/folders/1/parent" to "folder-absent"),
+            r.diagnostics.map { it.path to it.code }.toSet(),
+        )
     }
 
     @Test

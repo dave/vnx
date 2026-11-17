@@ -39,6 +39,19 @@ pub fn decode_json(value: &Json) -> Result<Reading, Refusal> {
     })
 }
 
+/// The wire index of each top-level element the decoder kept, per collection,
+/// in model order. A check that runs after decoding reports against the
+/// document as it was written.
+#[derive(Default)]
+struct WireIndices {
+    folders: Vec<usize>,
+    networks: Vec<usize>,
+    plans: Vec<usize>,
+    tracks: Vec<usize>,
+    points: Vec<usize>,
+    areas: Vec<usize>,
+}
+
 struct Decoder {
     diagnostics: Vec<Diagnostic>,
 }
@@ -455,6 +468,7 @@ impl Decoder {
 
         self.check_document_keys(entries, &root);
 
+        let mut wire = WireIndices::default();
         let mut document = Document {
             vnx: Some(version),
             generator: self.opt_string(entries, "generator", &root),
@@ -464,63 +478,38 @@ impl Decoder {
 
         if let Some(items) = self.opt_array(entries, "folders", &root) {
             let path = root.key("folders");
-            document.folders = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.folder(item, &path.index(i)))
-                    .collect(),
-            );
+            document.folders = Some(self.kept(items, &path, &mut wire.folders, |r, item, p| {
+                r.folder(item, p)
+            }));
         }
         if let Some(items) = self.opt_array(entries, "networks", &root) {
             let path = root.key("networks");
-            document.networks = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.network(item, &path.index(i)))
-                    .collect(),
-            );
+            document.networks = Some(self.kept(items, &path, &mut wire.networks, |r, item, p| {
+                r.network(item, p)
+            }));
         }
         if let Some(items) = self.opt_array(entries, "plans", &root) {
             let path = root.key("plans");
-            document.plans = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.plan(item, &path.index(i)))
-                    .collect(),
-            );
+            document.plans =
+                Some(self.kept(items, &path, &mut wire.plans, |r, item, p| r.plan(item, p)));
         }
         if let Some(items) = self.opt_array(entries, "tracks", &root) {
             let path = root.key("tracks");
-            document.tracks = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.track(item, &path.index(i)))
-                    .collect(),
-            );
+            document.tracks = Some(self.kept(items, &path, &mut wire.tracks, |r, item, p| {
+                r.track(item, p)
+            }));
         }
         if let Some(items) = self.opt_array(entries, "points", &root) {
             let path = root.key("points");
-            document.points = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.point(item, &path.index(i), TOP_LEVEL_POINT_KEYS))
-                    .collect(),
-            );
+            document.points = Some(self.kept(items, &path, &mut wire.points, |r, item, p| {
+                r.point(item, p, TOP_LEVEL_POINT_KEYS)
+            }));
         }
         if let Some(items) = self.opt_array(entries, "areas", &root) {
             let path = root.key("areas");
-            document.areas = Some(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, item)| self.area(item, &path.index(i), AREA_KEYS))
-                    .collect(),
-            );
+            document.areas = Some(self.kept(items, &path, &mut wire.areas, |r, item, p| {
+                r.area(item, p, AREA_KEYS)
+            }));
         }
         // SPEC 3.9: every application key, whatever its value — `null` and
         // empty included — preserved verbatim and interpreted not at all.
@@ -535,8 +524,27 @@ impl Decoder {
         app_keys.sort_by(|a, b| a.key.cmp(&b.key));
         document.app_keys = app_keys;
 
-        self.resolve_folder_references(&mut document);
+        self.resolve_folder_references(&mut document, &wire);
         Ok(document)
+    }
+
+    /// Decode each element of a top-level collection, keeping the ones that
+    /// survive and recording the wire index of each in `wire`.
+    fn kept<T>(
+        &mut self,
+        items: &[Json],
+        path: &Path,
+        wire: &mut Vec<usize>,
+        mut decode: impl FnMut(&mut Self, &Json, &Path) -> Option<T>,
+    ) -> Vec<T> {
+        let mut out = Vec::new();
+        for (i, item) in items.iter().enumerate() {
+            if let Some(value) = decode(self, item, &path.index(i)) {
+                wire.push(i);
+                out.push(value);
+            }
+        }
+        out
     }
 
     fn folder(&mut self, value: &Json, path: &Path) -> Option<Folder> {
@@ -1032,14 +1040,17 @@ impl Decoder {
         }
     }
 
-    /// SPEC 6.2: a `folder` naming a folder absent from the document is not an
-    /// unusable value. The key is treated as absent, so the item sits at the
-    /// top level, and a diagnostic is recorded. Dropping the item would lose
-    /// content over a lost grouping.
+    /// SPEC 6.2: a `folder`, or a folder's `parent`, naming a folder absent
+    /// from the document is not an unusable value. The key is treated as
+    /// absent, so the item sits at the top level or the folder at the root,
+    /// and `folder-absent` is recorded at the key; the path tells the two keys
+    /// apart. Dropping the object would lose content over a lost grouping. A
+    /// folder dropped for having no `id` is absent, so what named it is caught
+    /// here too.
     ///
-    /// The same treatment is applied to a folder's own `parent`, which SPEC
-    /// 6.2 does not name. That is this crate's reading, reported as such.
-    fn resolve_folder_references(&mut self, document: &mut Document) {
+    /// The path is the wire index, where the key was written: an element
+    /// dropped earlier in its collection shifts every later model index.
+    fn resolve_folder_references(&mut self, document: &mut Document, wire: &WireIndices) {
         let known: Vec<String> = document
             .folders
             .iter()
@@ -1059,22 +1070,22 @@ impl Decoder {
                 *slot = None;
             };
 
-            for (i, folder) in document.folders.iter_mut().flatten().enumerate() {
+            for (folder, &i) in document.folders.iter_mut().flatten().zip(&wire.folders) {
                 sweep(&mut folder.parent, root.key("folders").index(i), "parent");
             }
-            for (i, item) in document.networks.iter_mut().flatten().enumerate() {
+            for (item, &i) in document.networks.iter_mut().flatten().zip(&wire.networks) {
                 sweep(&mut item.folder, root.key("networks").index(i), "folder");
             }
-            for (i, item) in document.plans.iter_mut().flatten().enumerate() {
+            for (item, &i) in document.plans.iter_mut().flatten().zip(&wire.plans) {
                 sweep(&mut item.folder, root.key("plans").index(i), "folder");
             }
-            for (i, item) in document.tracks.iter_mut().flatten().enumerate() {
+            for (item, &i) in document.tracks.iter_mut().flatten().zip(&wire.tracks) {
                 sweep(&mut item.folder, root.key("tracks").index(i), "folder");
             }
-            for (i, item) in document.points.iter_mut().flatten().enumerate() {
+            for (item, &i) in document.points.iter_mut().flatten().zip(&wire.points) {
                 sweep(&mut item.folder, root.key("points").index(i), "folder");
             }
-            for (i, item) in document.areas.iter_mut().flatten().enumerate() {
+            for (item, &i) in document.areas.iter_mut().flatten().zip(&wire.areas) {
                 sweep(&mut item.folder, root.key("areas").index(i), "folder");
             }
         }
@@ -1457,6 +1468,42 @@ mod tests {
             Cause::FolderAbsent { id: "ghost".into() }
         );
         assert_eq!(reading.document.points.expect("kept")[0].folder, None);
+    }
+
+    #[test]
+    fn an_absent_parent_puts_the_folder_at_the_root_with_the_same_code() {
+        let reading = read(
+            r#"{"vnx":"0.10.0","folders":[{"id":"lakes","parent":"ghost"}],"points":[{"at":[-3.6,57.1],"folder":"lakes"}]}"#,
+        );
+        assert_eq!(
+            pairs(&reading),
+            vec![("/folders/0/parent".into(), "folder-absent")]
+        );
+        let folders = reading.document.folders.expect("kept");
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].parent, None);
+        assert_eq!(
+            reading.document.points.expect("kept")[0].folder.as_deref(),
+            Some("lakes")
+        );
+    }
+
+    #[test]
+    fn a_folder_absent_path_is_the_wire_index_after_a_drop() {
+        // The first folder and the first point are dropped, so each survivor
+        // is model index 0; the diagnostic names where the key was written.
+        let reading = read(
+            r#"{"vnx":"0.10.0","folders":[{"name":"No id"},{"id":"f","parent":"ghost"}],"points":[{},{"at":[-3.6,57.1],"folder":"ghost"}]}"#,
+        );
+        let got = pairs(&reading);
+        assert!(
+            got.contains(&("/folders/1/parent".into(), "folder-absent")),
+            "{got:?}"
+        );
+        assert!(
+            got.contains(&("/points/1/folder".into(), "folder-absent")),
+            "{got:?}"
+        );
     }
 
     #[test]

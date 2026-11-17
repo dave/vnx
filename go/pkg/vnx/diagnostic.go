@@ -284,6 +284,16 @@ var (
 	// CodeRingTooFewPoints: a ring with fewer than three distinct positions
 	// (§3.7). The area is dropped.
 	CodeRingTooFewPoints = decodeCode("ring-too-few-points")
+	// CodeFolderAbsent: an item's `folder`, or a folder's `parent`, naming a
+	// folder the document does not hold (§6.2). The key is treated as absent:
+	// the item sits at the top level, the folder at the root. Nothing is
+	// dropped — a lost grouping is not worth losing content over. Its path is
+	// the `folder` or `parent` key, which tells the two cases apart.
+	//
+	// "Not held" means not among the folders KEPT. A folder dropped for any
+	// reason (no `id`, a repeated `id`, not an object) cannot be named, so an
+	// item that named it takes this code too.
+	CodeFolderAbsent = decodeCode("folder-absent")
 	// CodeAttachmentUnreadable: a VNZ attachment this reader cannot recover
 	// (§7) — either compressed by a method that is neither stored nor deflate,
 	// or carried in a stored/deflate entry whose bytes will not come back (a

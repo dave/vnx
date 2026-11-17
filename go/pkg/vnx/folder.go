@@ -54,12 +54,17 @@ func folderFromValue(item any, at string, seen map[string]bool, diags []Diagnost
 
 // resolveParents clears any parent that cannot be walked, and says so.
 //
-// The choice of WHAT to drop matters. A dangling or circular parent is an
-// unusable value, and §6.2 drops the offending element — which is the
-// REFERENCE, not the folder. Dropping the folder would take everything filed
-// under it with it; clearing the parent loses only the folder's position in the
-// tree. Losing a position is recoverable by hand; losing content is not.
-func resolveParents(folders []Folder, diags []Diagnostic) ([]Folder, []Diagnostic) {
+// The choice of WHAT to drop matters. §6.2 treats a parent naming a folder
+// the document does not hold as absent ([CodeFolderAbsent]), and a circular
+// one is cleared the same way: the REFERENCE goes, not the folder. Dropping
+// the folder would take everything filed under it with it; clearing the parent
+// loses only the folder's position in the tree. Losing a position is
+// recoverable by hand; losing content is not.
+//
+// paths is the source path of each folder, parallel to folders. A folder's
+// index in folders is not its index in the file once an earlier one was
+// dropped, and the diagnostic must name the `parent` key the file holds.
+func resolveParents(folders []Folder, paths []string, diags []Diagnostic) ([]Folder, []Diagnostic) {
 	index := make(map[string]int, len(folders))
 	for i, f := range folders {
 		index[f.ID] = i
@@ -68,10 +73,10 @@ func resolveParents(folders []Folder, diags []Diagnostic) ([]Folder, []Diagnosti
 		if folders[i].Parent == "" {
 			continue
 		}
-		at := fmt.Sprintf("/folders/%d/parent", i)
+		at := paths[i] + "/parent"
 		if _, ok := index[folders[i].Parent]; !ok {
-			diags = append(diags, Diagnostic{Severity: Warning, Path: at,
-				Message: fmt.Sprintf("parent %q is not in this document — folder kept at the root", folders[i].Parent)})
+			diags = append(diags, Diagnostic{Severity: Warning, Path: at, Code: CodeFolderAbsent,
+				Message: fmt.Sprintf("parent folder %q is not in this document — the folder sits at the root", folders[i].Parent)})
 			folders[i].Parent = ""
 			continue
 		}
@@ -82,6 +87,35 @@ func resolveParents(folders []Folder, diags []Diagnostic) ([]Folder, []Diagnosti
 		}
 	}
 	return folders, diags
+}
+
+// folderIDs is the set of ids of the folders kept.
+func folderIDs(folders []Folder) map[string]bool {
+	held := make(map[string]bool, len(folders))
+	for _, f := range folders {
+		held[f.ID] = true
+	}
+	return held
+}
+
+// clearAbsentFolders treats as absent every item `folder` that names a folder
+// not in held, and reports each with [CodeFolderAbsent] at the item's
+// `folder` key (§6.2). paths is the source path of each item, parallel to
+// items; kind names the item in the message.
+//
+// The item is kept. Like a dangling parent, the reference is the unusable
+// part, not the item: dropping it would lose content over a lost grouping.
+func clearAbsentFolders[T any](items []T, paths []string, kind string, held map[string]bool, folder func(*T) *string, diags []Diagnostic) []Diagnostic {
+	for i := range items {
+		f := folder(&items[i])
+		if *f == "" || held[*f] {
+			continue
+		}
+		diags = append(diags, Diagnostic{Severity: Warning, Path: paths[i] + "/folder", Code: CodeFolderAbsent,
+			Message: fmt.Sprintf("folder %q is not in this document — the %s sits at the top level", *f, kind)})
+		*f = ""
+	}
+	return diags
 }
 
 // walkToRoot reports whether following parents from start revisits a folder.

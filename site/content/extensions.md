@@ -110,8 +110,10 @@ adds a kind of content that VNX does not define (§3.9).
   `null` stays `null`, and an empty array stays empty.
 - A reader does not report an application key.
 - Write each application key once only.
-- Application keys exist at the top level only. On any other object, a key with
-  a full stop is an unknown key, and the reader drops it and reports it.
+- Application keys exist at the top level only. On any other object that VNX
+  defines, a key with a full stop is an unknown key, and the reader drops it and
+  reports it. Inside a style object, a record body or an application key's
+  value, a key with a full stop is ordinary data and is kept.
 
 Choose a record when the information is about one item. Choose an application
 key when it is a new kind of thing, such as a catalogue of your data types or a
@@ -152,7 +154,7 @@ Then the record names its file by the full entry name:
 | a record with no usable `@type` | drops that record and reports a diagnostic |
 | an application key it knows | uses it |
 | an application key it does not know | keeps it, writes it back unchanged, reports nothing |
-| a dotted key on any other object | drops the key and reports a diagnostic |
+| a dotted key on any other object that VNX defines (not inside a style, a record body or an application key's value) | drops the key and reports a diagnostic |
 | a file in a `.vnz` that no record names | returns it as an attachment, reports nothing |
 
 An application can be stricter about its **own** namespace. For example, it

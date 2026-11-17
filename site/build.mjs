@@ -69,7 +69,7 @@ const pages = [
     toc: 3,
   },
 ];
-for (const p of pages) p.toc ??= 2;
+for (const p of pages) p.toc ??= p.slug === 'index' ? 0 : 2;
 
 // The writing page shows SPEC §6.2's table of diagnostic codes, taken from the
 // spec at build time so the two cannot disagree. A missing table is an error.
@@ -203,10 +203,39 @@ function navHtml(current) {
     .join('');
 }
 
+// The section list: a sidebar on wide screens, and a closed "On this page"
+// disclosure under the page title on narrow ones, so a phone sees the title
+// and the first paragraph before any list.
+function tocItems(headings) {
+  return headings.map((h) => `<li class="l${h.level}"><a href="#${h.id}">${h.text}</a></li>`).join('');
+}
 function tocHtml(headings) {
   if (headings.length < 3) return '';
-  const items = headings.map((h) => `<li class="l${h.level}"><a href="#${h.id}">${h.text}</a></li>`).join('');
-  return `<nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ol>${items}</ol></nav>`;
+  return `<nav class="toc toc-side" aria-label="On this page"><p class="toc-title">On this page</p><ol>${tocItems(headings)}</ol></nav>`;
+}
+function tocInline(headings) {
+  if (headings.length < 3) return '';
+  return `<details class="toc toc-inline"><summary>On this page</summary><ol>${tocItems(headings)}</ol></details>`;
+}
+// Put the inline list after the page's title (and the spec's version line).
+function withInlineToc(html, headings) {
+  const inline = tocInline(headings);
+  if (!inline) return html;
+  const m = html.match(/<\/h1>\s*(<p class="lede">[\s\S]*?<\/p>)?/);
+  if (!m) return inline + html;
+  const at = m.index + m[0].length;
+  return html.slice(0, at) + inline + html.slice(at);
+}
+
+// One compact header for every page: a one-line pre-release notice, the site
+// name, and the menu (inline on wide screens, a disclosure on phones).
+function headerHtml(homeHref, links) {
+  return `<div class="prerelease" role="note"><div class="wrap"><strong>Pre-release</strong> VNX ${specVersion} may change at any time.</div></div>
+<header class="site"><div class="wrap">
+<a class="brand" href="${homeHref}"><svg viewBox="0 0 40 24" aria-hidden="true"><path d="M4 18 C 12 6, 18 6, 20 12 S 30 20, 36 6"/><circle cx="4" cy="18" r="3"/><circle cx="20" cy="12" r="3"/><circle cx="36" cy="6" r="3"/></svg><span>VNX</span></a>
+<nav class="primary" aria-label="Site">${links}</nav>
+<details class="menu"><summary>Menu</summary><nav aria-label="Site">${links}</nav></details>
+</div></header>`;
 }
 
 function esc(s) {
@@ -236,16 +265,11 @@ ${
 ${style}
 </head>
 <body>
-<div class="prerelease" role="note"><div class="wrap"><strong>Pre-release.</strong> VNX ${specVersion} is a draft. The format may change at any time, with no compatibility guarantee.</div></div>
-<header class="site"><div class="wrap">
-<a class="brand" href="./"><svg viewBox="0 0 40 24" aria-hidden="true"><path d="M4 18 C 12 6, 18 6, 20 12 S 30 20, 36 6"/><circle cx="4" cy="18" r="3"/><circle cx="20" cy="12" r="3"/><circle cx="36" cy="6" r="3"/></svg><span>VNX</span></a>
-<nav class="primary" aria-label="Site">${navHtml(page.slug)}<a href="${GITHUB}" rel="noopener">GitHub</a></nav>
-</div></header>
+${headerHtml('./', `${navHtml(page.slug)}<a href="${GITHUB}" rel="noopener">GitHub</a>`)}
 <div class="wrap layout${toc ? ' has-toc' : ''}">
 ${toc}
 <main id="main" class="prose">
-${page.slug === 'spec' ? `<h1 id="top">VNX Wire Format Specification</h1>\n<p class="lede">Version ${specVersion}. Made from <a href="${GITHUB}/blob/main/SPEC.md" rel="noopener">SPEC.md</a>. Also available as <a href="spec.md">plain Markdown</a>.</p>` : ''}
-${html}
+${withInlineToc((page.slug === 'spec' ? `<h1 id="top">VNX Wire Format Specification</h1>\n<p class="lede">Version ${specVersion}. Made from <a href="${GITHUB}/blob/main/SPEC.md" rel="noopener">SPEC.md</a>. Also available as <a href="spec.md">plain Markdown</a>.</p>` : '') + html, headings)}
 </main>
 </div>
 <footer class="site"><div class="wrap">
@@ -403,10 +427,7 @@ if (preview) {
       .replace(/href="\.\/"/g, 'href="#index"')
       .replace(/href="([a-z]+)\.html#([^"]+)"/g, 'href="#$1--$2"')
       .replace(/href="([a-z]+)\.html"/g, 'href="#$1"')
-      .replace(
-        /href="schema\/vnx-0\.10\.schema\.json"/g,
-        `href="${GITHUB}/blob/main/corpus/schema/vnx-0.11.schema.json"`,
-      );
+      .replace(/href="schema\/(vnx-\d+\.\d+\.schema\.json)"/g, `href="${GITHUB}/blob/main/corpus/schema/$1"`);
   const sections = pages
     .map((page) => {
       const { html, headings } = renderPage(page);
@@ -415,7 +436,7 @@ if (preview) {
         page.slug === 'spec'
           ? `<h1 id="top">VNX Wire Format Specification</h1>\n<p class="lede">Version ${specVersion}. Made from SPEC.md.</p>`
           : '';
-      return `<section class="page" id="${page.slug}"><div class="wrap layout${toc ? ' has-toc' : ''}">${prefixed(toc, page.slug)}<main class="prose">${prefixed(lede + html, page.slug)}</main></div></section>`;
+      return `<section class="page" id="${page.slug}"><div class="wrap layout${toc ? ' has-toc' : ''}">${prefixed(toc, page.slug)}<main class="prose">${prefixed(withInlineToc(lede + html, headings), page.slug)}</main></div></section>`;
     })
     .join('\n');
   const nav =
@@ -428,22 +449,14 @@ if (preview) {
 <style>
 ${css}
 .page { display: none; }
-.page#index { display: block; }
-.pages:has(:target) .page { display: none; }
-.pages .page:target, .pages .page:has(:target) { display: block; }
-.preview-note { font: 0.85rem/1.4 var(--f-ui); color: var(--ink-2); background: var(--paper-2); border-bottom: 1px solid var(--rule); }
-.preview-note .wrap { padding-block: 0.5rem; }
+.pages:not(:has(:target)) > #index { display: block; }
+.pages > .page:target, .pages > .page:has(:target) { display: block; }
 </style>
-<div class="prerelease" role="note"><div class="wrap"><strong>Pre-release.</strong> VNX ${specVersion} is a draft. The format may change at any time, with no compatibility guarantee.</div></div>
-<div class="preview-note"><div class="wrap">Preview of vnx.tools: all pages in one file. The agent files (llms.txt, llms-full.txt, the .md copy of each page) exist on the real site only.</div></div>
-<header class="site"><div class="wrap">
-<a class="brand" href="#index"><svg viewBox="0 0 40 24" aria-hidden="true"><path d="M4 18 C 12 6, 18 6, 20 12 S 30 20, 36 6"/><circle cx="4" cy="18" r="3"/><circle cx="20" cy="12" r="3"/><circle cx="36" cy="6" r="3"/></svg><span>VNX</span></a>
-<nav class="primary" aria-label="Site">${nav}</nav>
-</div></header>
+${headerHtml('#index', nav)}
 <div class="pages">
 ${sections}
 </div>
-<footer class="site"><div class="wrap"><p>VNX ${specVersion} · Source: <a href="${GITHUB}" rel="noopener">github.com/dave/vnx</a> · MIT licence</p></div></footer>
+<footer class="site"><div class="wrap"><p>VNX ${specVersion} · Source: <a href="${GITHUB}" rel="noopener">github.com/dave/vnx</a> · MIT licence · Preview: all pages in one file; llms.txt, llms-full.txt and the .md copy of each page exist on the real site only.</p></div></footer>
 `;
   write('_artifact.html', single);
 }

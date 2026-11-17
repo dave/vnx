@@ -149,7 +149,7 @@ rule. The document below is complete and is read with no diagnostics.
             { "arc": "arc-1", "from": "node-1", "to": "node-2" }
           ],
           "data": [
-            { "@type": "app.viatrail.tag", "value": "scramble" }
+            { "@type": "com.example.tag", "value": "scramble" }
           ]
         }
       ]
@@ -161,7 +161,7 @@ rule. The document below is complete and is read with no diagnostics.
       "name": "Car park",
       "at": [-3.675, 57.1201, 320],
       "data": [
-        { "@type": "app.viatrail.tag", "value": "parking" }
+        { "@type": "com.example.tag", "value": "parking" }
       ]
     }
   ]
@@ -174,7 +174,7 @@ informational (Section 3.1). The one folder, `cairngorms`, is named by the
 holds two nodes, one arc from `node-1` to `node-2` with one interior pip, and
 one highlight whose walk is a single pass over that arc from `node-1` to `node-2`,
 carrying one data record along that walk (Section 3.3). The waypoint carries its position in
-`at` and one data record of type `app.viatrail.tag` (Sections 3.6 and 5).
+`at` and one data record of type `com.example.tag` (Sections 3.6 and 5).
 
 ## 2. Document identification
 
@@ -259,7 +259,7 @@ A VNX document is a JSON object.
 ```json
 {
   "vnx": "0.10.0",
-  "generator": "Viatrail 0.1.93",
+  "generator": "Example Trails 2.4.1",
   "created": "2026-08-31T06:45:12Z",
 
   "folders":   [ ],
@@ -269,7 +269,7 @@ A VNX document is a JSON object.
   "waypoints": [ ],
   "areas":     [ ],
 
-  "app.viatrail.rulesets": [ ]
+  "com.example.routes": [ ]
 }
 ```
 
@@ -294,7 +294,7 @@ absent.
 `generator` names the software that wrote the document.
 
 - An application writes its own name and version, for example
-  `"Viatrail 0.1.1498"`. The version is supplied by the caller requesting the
+  `"Example Trails 2.4.1"`. The version is supplied by the caller requesting the
   export. An export request that carries no version is refused rather than
   written with a placeholder version. That is a requirement on an application's
   export path, not on a library: a library has no export request.
@@ -636,7 +636,7 @@ No key this format defines contains a full stop, so an application key can
 never collide with one.
 
 A name SHOULD be in reverse-DNS form, chosen by the owner of the domain:
-`app.viatrail.rulesets` belongs to whoever owns `viatrail.app`. That is
+`com.example.routes` belongs to whoever owns `example.com`. That is
 guidance for whoever names a key. A reader MUST NOT validate it, so `.` and
 `waypoints.` are application keys.
 
@@ -852,7 +852,7 @@ compared exactly, including case.
 
 ```json
 "data": [
-  { "@type": "app.viatrail.tag", "value": "day-walk" },
+  { "@type": "com.example.tag", "value": "day-walk" },
   { "@type": "com.example.checked", "value": true }
 ]
 ```

@@ -25,7 +25,7 @@ container for data objects along a walk of that arc.
     },
     "highlights": [{
       "walk": [{ "arc": "arc-1", "from": "node-1", "to": "node-2" }],
-      "data": [{ "@type": "app.viatrail.tag", "value": "scramble" }]
+      "data": [{ "@type": "com.example.tag", "value": "scramble" }]
     }]
   }]
 }

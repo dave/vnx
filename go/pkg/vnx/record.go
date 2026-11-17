@@ -16,15 +16,9 @@ import "fmt"
 // misbehaving.
 const TypeKey = "@type"
 
-// ValueKey is the conventional name for a type's single primary payload
-// (format-spec §5 rule 6). A multi-field type keeps its own names; a type may
-// carry `value` plus modifiers, and a payload-less type carries none at all.
-//
-// It is a CONVENTION, not a structural key — it has no sigil, the format
-// places no requirement on it, and a reader that does not know a type does
-// not know whether `value` means anything for it. Named here because the
-// facet index (network/annotation_facets.go) matches on it, and one spelling
-// in one place beats a "value" literal in each.
+// ValueKey is the field name "value". VNX gives it no meaning: a record body
+// is opaque apart from `@type` (SPEC §5.1), and each type chooses its own
+// field names. It is kept for callers that spell the name in one place.
 const ValueKey = "value"
 
 // Record is one data record: a reverse-DNS type plus an opaque body.
@@ -40,9 +34,8 @@ type Record struct {
 	Body map[string]any
 }
 
-// Value reads the conventional single payload field. A type with one primary
-// payload names it `value` (spec §5 rule 6); multi-field types keep their own
-// names, and a type may carry `value` plus modifiers.
+// Value reads the body's "value" field, if the record has one. VNX gives that
+// name no meaning; a type chooses its own field names.
 func (r Record) Value() (any, bool) {
 	v, ok := r.Body["value"]
 	return v, ok

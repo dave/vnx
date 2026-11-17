@@ -50,9 +50,6 @@ every arc can have a `data` array. Each entry is a record: a JSON object with a
    type.
 4. **Meaning is type plus host.** One type can mean one thing on a highlight and
    another on an area. Say in your documentation which hosts your type is for.
-5. **One main value is called `value`.** A type with a single main field names
-   it `value`. A type with several fields uses its own names, and can also have
-   `value`.
 
 Why `@type`: the `@` marks the key as structure, not data. VNX borrows the
 spelling from JSON-LD, but a VNX document is not JSON-LD and has no `@context`.

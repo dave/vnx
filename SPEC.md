@@ -873,8 +873,6 @@ misreading a VNX document.
    level.
 5. The meaning of a record is the pair of its type and its host, not the type
    alone. One type can mean one thing on a highlight and another on an area.
-6. A type with a single primary payload names it `value`. A type with several
-   fields keeps its own names, and MAY carry `value` alongside modifiers.
 
 ## 6. Reading
 

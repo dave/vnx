@@ -208,9 +208,8 @@ Put information about an item in that item's `data` array, as records with a
 "data": [{ "@type": "com.example.grade", "value": "easy" }]
 ```
 
-Use a reverse-DNS name from a domain you control. Put a single main value in a
-field named `value`. Read [Extensions](extensions.html) before you design a
-record type.
+Use a reverse-DNS name from a domain you control, and choose your own field
+names. Read [Extensions](extensions.html) before you design a record type.
 
 ## 8. Package attachments as a VNZ
 

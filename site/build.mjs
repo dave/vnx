@@ -352,7 +352,7 @@ write(
 
 > VNX is a JSON interchange format for trail data. It keeps the topology of a trail network: shared nodes and arcs, with named walks (highlights) drawn over them, and not only polylines. Plain documents are .vnx; ZIP archives with attachments are .vnz. Version ${specVersion}, pre-release: the format may change at any time.
 
-Key facts: a position is [lon, lat, ele, time_ms], longitude first. A network owns nodes and arcs keyed by ID; highlights walk those arcs by reference. VNX defines no data types: applications add data records with reverse-DNS @type IDs. Validate with \`go run ./cmd/vnx validate --json <file>\` in the go/ directory of ${GITHUB}.
+Key facts: a position is [lon, lat, ele, time_ms], longitude first. A network owns nodes and arcs keyed by ID; highlights walk those arcs by reference. VNX defines no data types: applications add data records with globally unique @type IDs (reverse DNS, or a UUID). Validate with \`go run ./cmd/vnx validate --json <file>\` in the go/ directory of ${GITHUB}.
 
 ## Docs
 

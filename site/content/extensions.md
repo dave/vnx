@@ -1,7 +1,7 @@
 ---
 title: Extensions
 nav: Extensions
-description: How to extend VNX with your own data. Data records, reverse-DNS type IDs, application keys, attachment folders, and what readers do with types they do not know.
+description: How to extend VNX with your own data. Data records, globally unique type IDs, application keys, attachment folders, and what readers do with types they do not know.
 ---
 
 # Extensions
@@ -66,8 +66,10 @@ spelling from JSON-LD, but a VNX document is not JSON-LD and has no `@context`.
 
 ## Type IDs
 
-A record's `@type` is a **reverse-DNS identifier**: a domain you control,
-written backwards, then a name for the type.
+A record's `@type` is a **globally unique identifier: reverse DNS, or a
+UUID**. A reverse-DNS ID is a domain you control, written backwards, then a
+name for the type. A UUID (`3f2b8c1e-7a4d-4e9b-9c2a-5d6e7f8a9b0c`) suits a type
+that a user or an app makes with no domain behind it.
 
 | You own | Your type IDs could be |
 |---|---|
@@ -75,7 +77,7 @@ written backwards, then a name for the type.
 | `trails.example.org` | `org.example.trails.grade` |
 | `example.app` | `app.example.surface` |
 
-- **Use a domain you own.** The owner of the domain decides what names under
+- **Use a domain you own, or a new random UUID** (version 4). The owner of the domain decides what names under
   it mean, so two organisations cannot choose the same ID by accident.
 - **IDs are compared exactly, letter case included.** `com.example.Tag` and
   `com.example.tag` are two different types. Use lower case.
@@ -103,7 +105,8 @@ adds a kind of content that VNX does not define (§3.9).
 }
 ```
 
-- Name it with reverse DNS, the same as a record type.
+- Name it with reverse DNS. A UUID cannot name an application key, because the
+  name must contain a full stop.
 - The value can be any JSON value. It is opaque: a reader applies no VNX rule
   inside it.
 - A reader keeps the key and its value unchanged through a read and a write. A

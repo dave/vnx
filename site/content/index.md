@@ -47,7 +47,7 @@ wrong part of the world.
 
 <a class="card" href="writing.html"><strong>Write a VNX file</strong><span>Step by step, with the rules that catch most writers and a checklist.</span></a>
 
-<a class="card" href="extensions.html"><strong>Extensions</strong><span>Add your own data with reverse-DNS type IDs, application keys and attachment folders.</span></a>
+<a class="card" href="extensions.html"><strong>Extensions</strong><span>Add your own data with globally unique type IDs, application keys and attachment folders.</span></a>
 
 <a class="card" href="spec.html"><strong>Specification</strong><span>The full format definition. Every rule is stated here.</span></a>
 

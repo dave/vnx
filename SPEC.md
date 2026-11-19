@@ -798,7 +798,10 @@ of a track. The order of positions in a line is the shape of the line.
 
 Every item, and every arc, MAY carry a `data` key holding an array of records.
 Each record is a JSON object carrying an `@type` key whose value is a
-reverse-DNS identifier, plus arbitrary sibling fields. A record holds whatever
+globally unique identifier: reverse DNS (`com.example.tag`), or a UUID
+(`3f2b8c1e-7a4d-4e9b-9c2a-5d6e7f8a9b0c`). The form is guidance for whoever
+names a type. A reader MUST NOT validate it. The record also carries arbitrary
+sibling fields. A record holds whatever
 an application attaches to an item or arc, such as a tag, a note, a rating or a
 routing preference. This format defines no record type. `@type` values are
 compared exactly, including case.
@@ -1217,8 +1220,9 @@ record (Section 5) or from inside the value of an application key
 An application that writes the files of a data type SHOULD put them in a folder
 at the archive root whose name is that type's `@type` identifier, exactly as
 written. The files of an application key SHOULD go in a folder named after the
-key in the same way. Each identifier is chosen by the owner of a domain, so two
-applications that write into one archive cannot write the same entry name.
+key in the same way. Each identifier is globally unique (reverse DNS chosen by
+the owner of a domain, or a UUID), so two applications that write into one
+archive cannot write the same entry name.
 
 ```
 doc.vnx

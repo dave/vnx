@@ -238,7 +238,7 @@ JSON object with a `@type` and any other fields (§5):
 ```
 
 VNX defines no record types. Applications define them, each under its own
-reverse-DNS name. A reader keeps a record of a type it does not know, and does
+globally unique ID (reverse DNS, or a UUID). A reader keeps a record of a type it does not know, and does
 not report an error for it. See [Extensions](extensions.html).
 
 ## Descriptions, look, hidden and pinned

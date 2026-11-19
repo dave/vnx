@@ -105,8 +105,13 @@ adds a kind of content that VNX does not define (§3.9).
 }
 ```
 
-- Name it with reverse DNS. A UUID cannot name an application key, because the
-  name must contain a full stop.
+- An application key names an **application's** extension block, such as
+  `app.viatrail.datatypes` or `com.example.routes`. The app's author chooses
+  it, in reverse DNS: the full stop is how a reader tells it from a core key.
+- A data **type** ID (a record's `@type`) is a different thing. It may be
+  reverse DNS or a UUID. A type never needs its own application key: if an
+  application defines its types in a file, the definitions go inside that
+  application's own block.
 - The value can be any JSON value. It is opaque: a reader applies no VNX rule
   inside it.
 - A reader keeps the key and its value unchanged through a read and a write. A

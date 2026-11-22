@@ -9,7 +9,7 @@ agents who read or write VNX.
 | `build.mjs` | Builds `dist/`. The spec page is made from `../SPEC.md`, so it always matches the repository. It also writes each page as Markdown, `llms.txt`, `llms-full.txt`, the JSON Schema copy and `_headers`. |
 | `check-examples.mjs` | Checks that every complete example document in `content/` is read by the `vnx` tool with no diagnostics. |
 | `style.css`, `static/` | The stylesheet and favicon. |
-| `wrangler.jsonc` | The Cloudflare Worker `vnx-tools` that serves `dist/` as static assets. |
+| `wrangler.jsonc`, `worker.js` | The Cloudflare Worker `vnx-tools`. It serves `dist/` as static assets on vnx.tools, and redirects www.vnx.tools to vnx.tools. |
 
 ```sh
 npm install

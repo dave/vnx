@@ -106,7 +106,7 @@ adds a kind of content that VNX does not define (§3.9).
 ```
 
 - An application key names an **application's** extension block, such as
-  `app.viatrail.datatypes` or `com.example.routes`. The app's author chooses
+  `com.example.datatypes` or `com.example.routes`. The app's author chooses
   it, in reverse DNS: the full stop is how a reader tells it from a core key.
 - A data **type** ID (a record's `@type`) is a different thing. It may be
   reverse DNS or a UUID. A type never needs its own application key: if an

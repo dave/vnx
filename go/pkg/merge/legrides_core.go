@@ -661,32 +661,6 @@ var LegRideSuppressForTests func() bool
 // writer sees it. nil in production. See ResolveLegRides' call site.
 var LegRideFaultForTests func(*LegRide)
 
-// CheckRidesIndexSpace fails when the leg about to commit is no longer the
-// length its rides were resolved against.
-//
-// A ride is a range of POINT INDICES. RemapAfterSnapInsertions is the one
-// stage allowed to move that space, and it updates [LegRides.PointCount] as it
-// goes, so by commit time the two counts agree — or a stage nobody accounted
-// for has changed the leg and every ride now names different vertices.
-//
-// ⚠ ERROR, NOT FALLBACK, AND THAT IS THE POINT OF IT. Returning nil per piece
-// instead would read as a guard and behave as a fallback: a stale index space
-// would turn every ON piece of the leg into a created copy of canon, the
-// parallel strands ride resolution exists to remove, and the import would
-// still report success. Raised once, for the leg, where it can name both
-// counts.
-//
-// nil rides is not a mismatch: a leg the matcher resolved nothing for offers
-// no ranges and has no index space to invalidate.
-func CheckRidesIndexSpace(rides *LegRides, pointCount int, shimType, name string, itemIndex int) error {
-	if rides == nil || pointCount == rides.PointCount {
-		return nil
-	}
-	return fmt.Errorf(
-		"leg %s %q (item %d) commits %d point(s) but its canon rides were resolved against %d — some stage between resolveLegRides and the commit changed the point count, so every ride's index range now names different vertices",
-		shimType, name, itemIndex, pointCount, rides.PointCount)
-}
-
 func AbsInt(x int) int {
 	if x < 0 {
 		return -x

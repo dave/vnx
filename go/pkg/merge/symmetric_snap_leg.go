@@ -1,0 +1,364 @@
+package merge
+
+// The symmetric snap: the leg-side adoption of nearby canon nodes.
+//
+// ── THE QUESTION NOBODY ASKED ───────────────────────────────────────────────
+//
+// The merge asks two proximity questions and both are asked FROM the incoming
+// geometry: "is my TERMINAL near an existing node or arc?" (the endpoint warp
+// and the T-junction split) and "does my BODY run along a canon arc?" (the
+// follow). Neither can see an existing NODE that falls on the geometry being
+// committed: it is not my terminal, and we touch at a point rather than
+// running together. Nothing looks, at any distance.
+//
+// Measured on real data, that omission leaves nodes sitting on or beside arcs
+// that do not end at them. Most are the mechanism this file closes: the node
+// predates the arc, so had the leg that committed the arc adopted the node,
+// the arc would have been cut there and both halves would terminate on it.
+//
+// ── WHAT THIS DOES, AND THE ONE THING IT DOES NOT ───────────────────────────
+//
+// This is the SECOND producer of [LegSeam]s, beside [LegSeamsFromAlign]. A leg
+// about to commit asks which canon nodes its own path passes within
+// [EndpointWarpRadiusM], and adopts each one as an interior seam: a vertex is
+// inserted at the projection, the seam claims the node, and the boundary warp
+// then moves that vertex onto the node so the committed line actually touches
+// the junction it claims.
+//
+// ⚠ **CANON IS NEVER TOUCHED.** Canon is only ever modified to split arcs to
+// add nodes, and this step does not even do that: no arc is split, no arc's
+// polyline changes, no node is minted or moved. The whole step happens on the
+// incoming leg, which is why it needs no new primitive and no accounting term;
+// see [LegSeamsFromNearbyNodes]'s own notes on the node identity.
+//
+// ── THE RULE INHERITS THE T-JUNCTION SPLIT'S DECLINES, OR IT IS NOT THE SAME RULE
+//
+// Without this the snap would silently repeal an existing rule. The T-junction
+// split declines any split leaving a stub under `MinRunM` (25 m), because a
+// sub-MinRun stub is effectively unfollowable (a run shorter than the band
+// reverts to OFF) and compounds on re-import.
+//
+// "Adopt every node in range" performs, from the LEG side, exactly the splits
+// the T-junction split refuses from the CANON side. So [SymmetricSnapDeclineFor]
+// is a deliberate mirror of [TjunctionDeclineFor]: same two rules, same
+// constants, read from the same `DefaultFollowBands()`, applied to the LEG's
+// walk instead of the arc's:
+//
+//	TjDeclineTerminalVertex  → SnapDeclineTerminalVertex  (Fraction 0 or 1)
+//	tjDeclineShortStub       → SnapDeclineShortStub       (a piece under MinRunM)
+//
+// ⚠ THE STUB IS MEASURED AGAINST EVERY BOUNDARY THE LEG ALREADY HAS, not just
+// its two ends, and that is where the mirror has to GENERALISE rather than
+// copy. The T-junction split cuts an arc that is whole, so its two halves are
+// bounded by the arc's own endpoints and `min(PriorLenM, NextLenM)` is the
+// answer. A leg arriving here may already carry align seams, and each of those
+// is a piece boundary too: a new seam 3 m from an existing one leaves a 3 m
+// piece exactly as surely as one 3 m from the leg's end. Accepted candidates
+// join the boundary set as they are accepted, so two new seams cannot land
+// within MinRunM of each other either.
+//
+// ⚠ THE ONE-NODE RULE IS SATISFIED STRUCTURALLY, NOT CHECKED. The rule is "no
+// two nodes within the radius", and it constrains node CREATION. This file
+// creates no node (it adopts one that already exists), so there is nothing for
+// the rule to judge. The leg-side hazard it would otherwise guard (one leg
+// claiming two different nodes at nearly the same point) is subsumed by the
+// stub rule at a far wider margin: 25 m against the rule's 15 m.
+//
+// ⚠ THE CANON-SIDE STUB CLAUSE IS VACUOUS HERE. The rule as stated also bounds
+// a stub on the arc being split. This step splits no arc, so there is no canon
+// stub to measure and the clause has nothing to bind. Any future variant that
+// also cuts canon must bring the clause back. Stated because a reader finding
+// only the leg-side test here should know it is scope, not an omission.
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+)
+
+// LegSeamsFromNearbyNodes is the producer. It asks which canon nodes the
+// leg's own path passes within `EndpointWarpRadiusM`, adopts the ones the
+// decline rules admit, and returns the leg's points with a vertex inserted at each adopted
+// projection plus the merged seam list in ascending point order.
+//
+// `pts` is the leg AFTER the follow and AFTER [LegSeamsFromAlign] — the same
+// array those seams' Idx values index. `seams` is that align seam list. Both
+// are returned REPLACED rather than mutated, matching the convention
+// [ApplyLegBoundaryWarp] and [WarpUnresolvedLegTerminals] already use at this
+// call site: inserting a vertex renumbers every index after it, and a caller
+// holding the old slice would be holding indices into a different array.
+//
+// ── WHAT EACH ADOPTED SEAM CARRIES, AND WHY Absorbed IS NOT OPTIONAL ────────
+//
+// `Absorbed`, `AbsorbedM`, `NodeLat`, `NodeLon` are all set, not just
+// `Adopted`. [ApplyLegBoundaryWarp] targets a seam's NODE
+// coordinates ONLY when `Absorbed`; every other seam gets a zero-displacement
+// anchor at its own current point. A seam marked only `Adopted` would therefore
+// never move the leg to reach its node, and the leg would commit geometry that
+// does not touch the junction it claims — an arc whose endpoint node is up to
+// 15 m off the end of its own polyline.
+//
+// `Adopted` is unconditionally TRUE, and unlike [LegSeamsFromAlign] this needs
+// no mintedThisLeg correction. That function has to make one because the align step cuts a
+// leg's own boundaries in its own order and a later boundary can resolve onto a
+// node an earlier one of the SAME pass just minted. Nothing here mints
+// anything, and the search explicitly excludes every node this leg already
+// claims, so every node adopted here existed in canon before this leg's commit
+// began — which is exactly what `Adopted` means.
+//
+// `AbsorbedM` is the candidate's own DistM: how far the leg has to reach to
+// touch the node, which is the same quantity the align step records when a boundary is
+// moved onto a node it did not compute. Taken from the search result, never
+// recomputed.
+//
+// ── THE NODE IDENTITY IS UNCHANGED, AND THAT IS THE WHOLE REASON THIS IS
+// CHEAP ─────────────────────────────────────────────────────────────────────
+//
+//	Nodes == 2×SourceLegs − AdoptedTerminals + AlignCuts + TJunctionCuts
+//	         + LegMintedSeamNodes + RingSplits − RingMergedTerminals
+//
+// Every term counts a node CREATED or a creation SUPPRESSED. This producer
+// creates nothing: it adopts a node that already exists in the canon. Concretely, the one
+// term that could have moved is `LegMintedSeamNodes`, and [LegMintedSeamNodes]
+// counts only seams with `!HasNode` — every seam here has `HasNode: true`, so
+// it contributes zero by construction rather than by arithmetic luck.
+// `AdoptedTerminals` is untouched because this produces INTERIOR seams and
+// never a terminal (a leg's ends are anchors, enforced by
+// SnapDeclineTerminalVertex).
+//
+// The identity is pinned by a test that adopts a seam.
+//
+// ── THE SENTINEL ────────────────────────────────────────────────────────────
+//
+// [NodesNearPath] ERRORS on a walk of identical points, wrapping
+// [ErrWalkHasNoLength]. That is an EXPECTED absence here rather than a
+// fault: a GPX route of two or more identical points is legal input that
+// imports today, and such a leg has no path for a node to fall on. It is
+// SKIPPED — the leg commits exactly as it does now — and the skip is recorded
+// on the report so a caller can tell "asked and found nothing" from "never
+// asked". Because the absence is expected, a fallback is correct here; every
+// other error aborts the import. A test fails the import outright if the
+// sentinel is propagated.
+func LegSeamsFromNearbyNodes(
+	ctx context.Context,
+	canon Canon,
+	pts []Point,
+	seams []LegSeam,
+	onRanges []OnPieceRange,
+	startTerminal, endTerminal *NodeID,
+) ([]Point, []LegSeam, SymmetricSnapReport, error) {
+	var rep SymmetricSnapReport
+
+	if len(pts) < 2 {
+		// Not a walk. NodesNearPath would call this invalid input and abort
+		// the import; a leg this short has no interior to seam either way, and
+		// the piece writer is the layer that judges whether it is legal
+		// geometry at all. Left exactly as it arrived.
+		return pts, seams, rep, nil
+	}
+
+	// EXCLUSION IS A REQUIRED PARAMETER AND THIS IS WHAT GOES IN IT. Two
+	// populations, both of which would be wrong to adopt:
+	//
+	//   - every node an align seam already claims. Adopting it again would put
+	//     two seams on one node, which is the "added twice" the acceptance
+	//     forbids. The exclusion is applied inside the search, BEFORE the
+	//     radius test, rather than as a post-hoc discard: a nearest-style
+	//     filter applied after the fact is how an exclusion gets defeated.
+	//   - this leg's own two terminals, where the endpoint warp has already
+	//     resolved one. A terminal is a lat-lon anchor; re-adopting it as an
+	//     INTERIOR seam would node the leg's own end.
+	exclude := make([]NodeID, 0, len(seams)+2)
+	for _, s := range seams {
+		if s.HasNode {
+			exclude = append(exclude, s.Node)
+		}
+	}
+	if startTerminal != nil {
+		exclude = append(exclude, *startTerminal)
+	}
+	if endTerminal != nil {
+		exclude = append(exclude, *endTerminal)
+	}
+
+	found, err := NodesNearPath(ctx, canon, pts, EndpointWarpRadiusM, exclude)
+	if err != nil {
+		if errors.Is(err, ErrWalkHasNoLength) {
+			rep.Skipped = true
+			return pts, seams, rep, nil
+		}
+		return nil, nil, rep, fmt.Errorf("legSeamsFromNearbyNodesTx: %w", err)
+	}
+	if len(found) == 0 {
+		return pts, seams, rep, nil
+	}
+
+	// ── THE BOUNDARY SET THE STUB RULE MEASURES AGAINST ─────────────────────
+	//
+	// The leg's two ends, plus every align seam. All measured on the SAME
+	// ruler the search's own PriorLenM came off — see [LegMeasureToVertex].
+	total := LegMeasureLengthM(pts)
+	boundaries := make([]float64, 0, len(seams)+2+len(found))
+	boundaries = append(boundaries, 0, total)
+	for _, s := range seams {
+		if s.Idx < 0 || s.Idx >= len(pts) {
+			return nil, nil, rep, fmt.Errorf(
+				"legSeamsFromNearbyNodesTx: align seam at point %d is outside the leg's %d points",
+				s.Idx, len(pts))
+		}
+		boundaries = append(boundaries, LegMeasureToVertex(pts, s.Idx))
+	}
+
+	// Along-leg order, so the stub rule sees the leg as the commit will walk
+	// it and an accepted candidate bounds the next one. The search's own order
+	// is ascending PointIdx (the nearest VERTEX), which is not the same
+	// question as where the foot of the perpendicular fell; node id makes this
+	// order TOTAL, so two nodes projecting to one point still come out in one
+	// fixed sequence.
+	cands := make([]NodeNearPath, len(found))
+	copy(cands, found)
+	if SnapReverseSearchOrderForTests {
+		for i, j := 0, len(cands)-1; i < j; i, j = i+1, j-1 {
+			cands[i], cands[j] = cands[j], cands[i]
+		}
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].PriorLenM != cands[j].PriorLenM {
+			return cands[i].PriorLenM < cands[j].PriorLenM
+		}
+		return cands[i].ID < cands[j].ID
+	})
+
+	// ── THE POINT SET [SnapDeclineVertexAlreadySeamed] MEASURES AGAINST ─────
+	//
+	// Every place on this leg that a seam already claims: each align seam's own
+	// vertex, plus each accepted candidate's projection as it is accepted. A
+	// candidate landing at ZERO DISTANCE from one of them is declined.
+	//
+	// Node identity is NOT the question here and `exclude` above already
+	// answers that one. This is POINT identity: the colliding nodes are
+	// different nodes, which is exactly why a node-identity exclusion cannot
+	// see them.
+	//
+	// ⚠ ZERO DISTANCE, NOT AN EQUAL INDEX, AND NOT A TOLERANCE. Two candidates
+	// can project onto the SAME point without either landing on an existing
+	// vertex — [InsertSymmetricSnapSeams] then inserts two coincident vertices,
+	// and WarpLegAtBoundaries is asked to move that one place onto two nodes.
+	// Comparing indices misses it (the vertices have different indices);
+	// comparing coordinates bitwise nearly catches it, but the property that
+	// actually breaks the taper is zero ARC distance, so that is what is
+	// measured. A tolerance would start merging seams that are genuinely
+	// different points and is a different decision.
+	//
+	// ⚠ WHICH ONE SURVIVES IS DECIDED BY THE SORT ABOVE, NOT HERE, and that is
+	// deliberate. `cands` is ordered by PriorLenM then by NODE ID, which is a
+	// TOTAL order — so coincident candidates are considered lowest id first and
+	// the lowest id is the one that gets accepted. A genuine tie is broken by
+	// the lower node ID: deterministic, not better. Node ids are assigned by
+	// the store and immutable once minted, so the survivor does not depend on
+	// map iteration order, on the order the search returned its results, or on
+	// which candidate the loop happened to reach first.
+	claimed := make([]Point, 0, len(seams)+len(cands))
+	for _, s := range seams {
+		claimed = append(claimed, pts[s.Idx])
+	}
+	pointAlreadySeamed := func(lat, lon float64) bool {
+		for _, c := range claimed {
+			if HaversineMetres(c.Lat, c.Lon, lat, lon) == 0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	minRun := DefaultFollowBands().MinRunM
+	var takes []NodeNearPath
+	var ords []int // takes[i]'s slot in rep.Candidates, so the report can be completed
+
+	for _, c := range cands {
+		out := SymmetricSnapCandidate{
+			Node: c.ID, Lat: c.Lat, Lon: c.Lon,
+			DistM: c.DistM, PriorLenM: c.PriorLenM, Fraction: c.Fraction, SegIdx: c.SegIdx,
+			ProjLat: c.ProjLat, ProjLon: c.ProjLon,
+			StubM: NearestBoundaryGapM(boundaries, c.PriorLenM),
+		}
+		out.Decline = SymmetricSnapDeclineFor(c.Fraction, out.StubM, minRun, pointAlreadySeamed(c.ProjLat, c.ProjLon), SegmentIsOnCanon(onRanges, c.SegIdx))
+		rep.Candidates = append(rep.Candidates, out)
+		if out.Decline != SnapNoDecline {
+			continue
+		}
+		// An accepted candidate is a boundary for every later one, so two new
+		// seams can never land within MinRunM of each other.
+		boundaries = append(boundaries, c.PriorLenM)
+		claimed = append(claimed, Point{Lat: c.ProjLat, Lon: c.ProjLon})
+		takes = append(takes, c)
+		ords = append(ords, len(rep.Candidates)-1)
+	}
+	if len(takes) == 0 {
+		if SymmetricSnapObserverForTests != nil {
+			SymmetricSnapObserverForTests(CurrentLegForTests, rep)
+		}
+		if SymmetricSnapOnCanonObserverForTests != nil {
+			SymmetricSnapOnCanonObserverForTests(CurrentLegForTests, rep, onRanges)
+		}
+		return pts, seams, rep, nil
+	}
+
+	outPts, outSeams, err := InsertSymmetricSnapSeams(pts, seams, takes, &rep, ords)
+	if err != nil {
+		return nil, nil, rep, err
+	}
+	if SymmetricSnapObserverForTests != nil {
+		SymmetricSnapObserverForTests(CurrentLegForTests, rep)
+	}
+	if SymmetricSnapOnCanonObserverForTests != nil {
+		SymmetricSnapOnCanonObserverForTests(CurrentLegForTests, rep, onRanges)
+	}
+	return outPts, outSeams, rep, nil
+}
+
+// SymmetricSnapObserverForTests reports EVERY leg's whole candidate set —
+// adopted and declined alike — with the same [CurrentLegForTests] convention
+// every other *ObserverForTests in this package uses. nil on a real import.
+//
+// It exists because the snap's DECLINES are the half of this rule that leaves no
+// trace. An adoption is visible in the committed topology; a decline is
+// visible in nothing at all — the leg commits exactly as it would have — so
+// "the rule declined here, for this reason" is otherwise unfalsifiable at
+// scale, and "this node is still not on the arc" is equally consistent with
+// the rule having declined correctly and with it never having fired.
+//
+// NOT a production counter: this is a diagnostic over a rule that fires a
+// handful of times per network, not a term in the node-count identity, and
+// such counts get a production consumer only when something needs one.
+var SymmetricSnapObserverForTests func(leg string, rep SymmetricSnapReport)
+
+// SnapReverseSearchOrderForTests reverses the SEARCH's raw result order before
+// the sort below, for the duration of one measurement.
+//
+// ⚠ A FALSIFICATION SEAM, NOT A FEATURE FLAG: what separates an instrument
+// from a kill switch in production source is a stated condition for removal.
+//
+// WHAT IT IS FOR. Coincident candidates are resolved by picking one
+// deterministically, and a determinism test that cannot FAIL proves nothing.
+// The hazard is a resolution that depends on the order results happened to
+// come back in, so the only honest test injects exactly that:
+// run the same import twice, once with the search's order reversed, and require
+// the committed network to be identical. It reverses BEFORE the sort on purpose
+// — reversing after would grade the sort against itself and could not detect an
+// incomplete sort key, which is the actual defect it exists to catch.
+//
+// ⚠ REMOVE IT WHEN: the tie-break's deciding key stops being the candidate
+// sort — if a future change resolves coincident candidates by an explicit
+// comparison instead of by acceptance order, that comparison can be pinned
+// directly and this seam has nothing left to falsify. It is NOT a switch for
+// production, has no plumbing to reach one, and must never acquire any.
+// The determinism test is its only reader.
+var SnapReverseSearchOrderForTests bool
+
+// SymmetricSnapOnCanonObserverForTests, when non-nil, is called once per leg
+// with the snap's own report and the ON ranges it was judged against. nil in
+// production. It lets a test count adoptions inside an ON stretch from the
+// producer's OWN record rather than from the rule under test.
+var SymmetricSnapOnCanonObserverForTests func(leg string, rep SymmetricSnapReport, onRanges []OnPieceRange)

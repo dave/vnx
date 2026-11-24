@@ -31,7 +31,7 @@ func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (nearbyCa
 		found bool
 	)
 	for _, cand := range candidates {
-		proj, err := ProjectProbeOntoWalk(cand.Vertices, lat, lon)
+		proj, err := projectProbeOntoWalk(cand.Vertices, lat, lon)
 		if errors.Is(err, ErrWalkHasNoLength) {
 			// NOT a candidate, and NOT an error. An arc whose vertices are
 			// all coincident is a POINT: it has no interior for a terminal to
@@ -181,7 +181,16 @@ type CanonWalkProjection struct {
 // geometry, it contributes no length, and it is handled below without
 // dividing by zero.
 func ProjectProbeOntoWalk(verts []Point, probeLat, probeLon float64) (CanonWalkProjection, error) {
-	return ProjectProbeOntoWalkRange(verts, probeLat, probeLon, 0, len(verts)-2)
+	p, err := projectProbeOntoWalk(verts, probeLat, probeLon)
+	if err != nil {
+		return p, apiError("project onto walk", err)
+	}
+	return p, nil
+}
+
+// projectProbeOntoWalk is [ProjectProbeOntoWalk] without the error prefix the API adds; the merge calls it.
+func projectProbeOntoWalk(verts []Point, probeLat, probeLon float64) (CanonWalkProjection, error) {
+	return projectProbeOntoWalkRange(verts, probeLat, probeLon, 0, len(verts)-2)
 }
 
 // WalkProjector is a walk checked, and its cumulative distances built, once,
@@ -200,6 +209,15 @@ type WalkProjector struct {
 // [ErrWalkHasNoLength]. verts is kept, not copied: the caller must not change
 // it.
 func NewWalkProjector(verts []Point) (*WalkProjector, error) {
+	w, err := newWalkProjector(verts)
+	if err != nil {
+		return nil, apiError("project onto walk", err)
+	}
+	return w, nil
+}
+
+// newWalkProjector is [NewWalkProjector] without the error prefix the API adds; the merge calls it.
+func newWalkProjector(verts []Point) (*WalkProjector, error) {
 	if len(verts) < 2 {
 		return nil, fmt.Errorf(
 			"canon vertex walk has %d vertices, want at least 2", len(verts),
@@ -246,7 +264,11 @@ func (w *WalkProjector) Length() float64 {
 
 // Project is [ProjectProbeOntoWalk] on the projector's walk.
 func (w *WalkProjector) Project(probeLat, probeLon float64) (CanonWalkProjection, error) {
-	return w.projectRange(probeLat, probeLon, 0, len(w.verts)-2)
+	p, err := w.projectRange(probeLat, probeLon, 0, len(w.verts)-2)
+	if err != nil {
+		return p, apiError("project onto walk", err)
+	}
+	return p, nil
 }
 
 // projectRange is [ProjectProbeOntoWalk] with the SEARCH — and
@@ -357,10 +379,19 @@ func (w *WalkProjector) projectRange(
 
 // ProjectProbeOntoWalkRange is [WalkProjector.projectRange] on a walk
 // checked and summed for this one call.
-func ProjectProbeOntoWalkRange(
+func ProjectProbeOntoWalkRange(verts []Point, probeLat, probeLon float64, loSeg, hiSeg int) (CanonWalkProjection, error) {
+	p, err := projectProbeOntoWalkRange(verts, probeLat, probeLon, loSeg, hiSeg)
+	if err != nil {
+		return p, apiError("project onto walk", err)
+	}
+	return p, nil
+}
+
+// projectProbeOntoWalkRange is [ProjectProbeOntoWalkRange] without the error prefix the API adds; the merge calls it.
+func projectProbeOntoWalkRange(
 	verts []Point, probeLat, probeLon float64, loSeg, hiSeg int,
 ) (CanonWalkProjection, error) {
-	w, err := NewWalkProjector(verts)
+	w, err := newWalkProjector(verts)
 	if err != nil {
 		return CanonWalkProjection{}, err
 	}

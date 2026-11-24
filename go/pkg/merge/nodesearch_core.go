@@ -155,7 +155,7 @@ func measureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id No
 	if slices.Contains(exclude, id) {
 		return nodeNearPath{}, false, nil
 	}
-	proj, err := ProjectProbeOntoWalk(verts, nLat, nLon)
+	proj, err := projectProbeOntoWalk(verts, nLat, nLon)
 	if err != nil {
 		return nodeNearPath{}, false, err
 	}

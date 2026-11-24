@@ -159,6 +159,15 @@ const memStretchVerts = 32
 // repeated id, an id at or above its counter, an id below 1, an arc end that
 // names no node, or an arc whose ends are one node, is an error.
 func NewMemCanon(s MemCanonSnapshot) (*MemCanon, error) {
+	c, err := newMemCanon(s)
+	if err != nil {
+		return nil, apiError("new memory canon", err)
+	}
+	return c, nil
+}
+
+// newMemCanon is [NewMemCanon] without the error prefix the API adds; the merge calls it.
+func newMemCanon(s MemCanonSnapshot) (*MemCanon, error) {
 	if s.NextNodeID < 1 || s.NextArcID < 1 {
 		return nil, fmt.Errorf("next node id %d and next arc id %d must be at least 1", s.NextNodeID, s.NextArcID)
 	}
@@ -223,7 +232,7 @@ func (c *MemCanon) fail(err error) error {
 // storedReal is v as a NOT NULL REAL column stores it.
 func storedReal(v float64, what string) (float64, error) {
 	if math.IsNaN(v) {
-		return 0, fmt.Errorf("%s is NaN, which a NOT NULL column refuses", what)
+		return 0, fmt.Errorf("%s is NaN", what)
 	}
 	if v == 0 {
 		return 0, nil // -0.0 is stored as +0.0
@@ -672,7 +681,7 @@ func (c *MemCanon) SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (Spl
 		} else {
 			walk = append(walk, join)
 		}
-		bounds, err := BoundsFromPips(walk)
+		bounds, err := boundsFromPips(walk)
 		if err != nil {
 			return 0, err
 		}

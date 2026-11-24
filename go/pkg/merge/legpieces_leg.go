@@ -181,13 +181,13 @@ func commitLegPieces(
 	hooks := &stateOf(ctx).hooks
 	suppressRides := hooks.LegRideSuppress != nil && hooks.LegRideSuppress()
 	if len(points) < 2 {
-		return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("CommitLegPieces: a leg of %d point(s) cannot be committed", len(points))
+		return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("commit leg pieces: a leg of %d point(s) cannot be committed", len(points))
 	}
 	last := len(points) - 1
 	for i, s := range seams {
 		if s.Idx <= 0 || s.Idx >= last {
 			return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf(
-				"CommitLegPieces: seam %d is at point %d of %d — a seam is interior, and a leg's own ends are lat-lon anchors that mint no node",
+				"commit leg pieces: seam %d is at point %d of %d — a seam is interior, and a leg's own ends are lat-lon anchors that mint no node",
 				i, s.Idx, last)
 		}
 	}
@@ -264,7 +264,7 @@ func commitLegPieces(
 			// write walk have drifted out of step.
 			if prevEnd != nil && *prevEnd != n {
 				return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf(
-					"CommitLegPieces: seam %d names canon node %d but the previous piece ended on node %d — the two sides of a seam must be one node",
+					"commit leg pieces: seam %d names canon node %d but the previous piece ended on node %d — the two sides of a seam must be one node",
 					k-1, n, *prevEnd)
 			}
 			startNode = &n
@@ -665,7 +665,7 @@ func addFrozenArcToNetwork(
 	pts []Point,
 	startNodeID, endNodeID *NodeID,
 ) (LegArc, error) {
-	a, err := PrepareArc(ctx, canon, pts, startNodeID, endNodeID)
+	a, err := prepareArc(ctx, canon, pts, startNodeID, endNodeID)
 	if err != nil {
 		return LegArc{}, fmt.Errorf("add frozen arc: %w", err)
 	}

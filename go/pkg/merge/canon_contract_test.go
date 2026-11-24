@@ -28,7 +28,7 @@ func TestMemCanon_Poisoning(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c, err := NewMemCanon(MemCanonSnapshot{NextNodeID: 1, NextArcID: 1})
+			c, err := newMemCanon(MemCanonSnapshot{NextNodeID: 1, NextArcID: 1})
 			if err != nil {
 				t.Fatal(err)
 			}

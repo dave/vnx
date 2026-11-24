@@ -155,7 +155,7 @@ func legSeamsAtInteriorNodes(
 	// search should be blind to.
 	found, err := nodesAtWalkVertices(ctx, canon, pts, []NodeID{})
 	if err != nil {
-		return nil, rep, fmt.Errorf("LegSeamsAtInteriorNodes: %w", err)
+		return nil, rep, fmt.Errorf("interior-node seams: %w", err)
 	}
 	if len(found) == 0 {
 		if st.hooks.InteriorNodeSeam != nil {

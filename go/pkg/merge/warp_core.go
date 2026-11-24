@@ -122,7 +122,7 @@ type WarpReport struct {
 func warpLegEndpoints(pts []Point, start, end *warpTarget) ([]Point, WarpReport, error) {
 	var rep WarpReport
 	if len(pts) < 2 {
-		return nil, rep, fmt.Errorf("WarpLegEndpoints: leg has %d points, need at least 2", len(pts))
+		return nil, rep, fmt.Errorf("endpoint warp: leg has %d points, need at least 2", len(pts))
 	}
 
 	out := make([]Point, len(pts))
@@ -146,7 +146,7 @@ func warpLegEndpoints(pts []Point, start, end *warpTarget) ([]Point, WarpReport,
 	legLen := cum[len(cum)-1]
 	if math.IsNaN(legLen) || math.IsInf(legLen, 0) {
 		return nil, rep, fmt.Errorf(
-			"WarpLegEndpoints: leg measure length is %v — the source geometry is not finite", legLen)
+			"endpoint warp: leg measure length is %v — the source geometry is not finite", legLen)
 	}
 
 	// zoneFor computes ONE end's own taper zone: zone =
@@ -290,7 +290,7 @@ func checkTerminalsExact(out []Point, start, end *warpTarget) error {
 		if math.Float64bits(out[0].Lat) != math.Float64bits(start.Lat) ||
 			math.Float64bits(out[0].Lon) != math.Float64bits(start.Lon) {
 			return fmt.Errorf(
-				"CheckTerminalsExact: start terminal (%v,%v) is not bit-exact on its target (%v,%v) — the join invariant is violated",
+				"endpoint warp: start terminal (%v,%v) is not bit-exact on its target (%v,%v) — the join invariant is violated",
 				out[0].Lat, out[0].Lon, start.Lat, start.Lon)
 		}
 	}
@@ -299,7 +299,7 @@ func checkTerminalsExact(out []Point, start, end *warpTarget) error {
 		if math.Float64bits(out[last].Lat) != math.Float64bits(end.Lat) ||
 			math.Float64bits(out[last].Lon) != math.Float64bits(end.Lon) {
 			return fmt.Errorf(
-				"CheckTerminalsExact: end terminal (%v,%v) is not bit-exact on its target (%v,%v) — the join invariant is violated",
+				"endpoint warp: end terminal (%v,%v) is not bit-exact on its target (%v,%v) — the join invariant is violated",
 				out[last].Lat, out[last].Lon, end.Lat, end.Lon)
 		}
 	}
@@ -332,7 +332,7 @@ func applyWarpAtEnd(
 	}
 	if !finiteLatLon(target.Lat, target.Lon) {
 		return false, fmt.Errorf(
-			"WarpLegEndpoints: target (%v, %v) is not finite", target.Lat, target.Lon)
+			"endpoint warp: target (%v, %v) is not finite", target.Lat, target.Lon)
 	}
 
 	ti := 0
@@ -354,7 +354,7 @@ func applyWarpAtEnd(
 	// but no test pins it individually, and none can while the caller is total.
 	if !finiteLatLon(src[ti].Lat, src[ti].Lon) {
 		return false, fmt.Errorf(
-			"WarpLegEndpoints: source terminal (%v, %v) is not finite", src[ti].Lat, src[ti].Lon)
+			"endpoint warp: source terminal (%v, %v) is not finite", src[ti].Lat, src[ti].Lon)
 	}
 
 	vLat := target.Lat - src[ti].Lat

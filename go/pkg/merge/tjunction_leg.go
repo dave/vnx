@@ -54,7 +54,7 @@ func splitCanonAtLegTerminals(
 	var rep TjunctionReport
 	if len(pts) < 2 {
 		return rep, fmt.Errorf(
-			"SplitCanonAtLegTerminals: leg has %d points, need at least 2", len(pts))
+			"T-junction split: leg has %d points, need at least 2", len(pts))
 	}
 
 	// FIRST terminal, then LAST, sequentially, each against a FRESH query.

@@ -157,7 +157,7 @@ const backtrackWeightPerM = 1.0
 // it.
 func validateEvenK(k int) error {
 	if k <= 0 || k%2 != 0 {
-		return fmt.Errorf("corridorcost: k must be a positive even integer (odd k has no closed-form antiderivative over these quadratic regimes — see validateEvenK), got %d", k)
+		return fmt.Errorf("corridor cost: k must be a positive even integer, got %d", k)
 	}
 	return nil
 }
@@ -241,14 +241,14 @@ var gaussLegendreRules = func() [gaussLegendreMaxPoints + 1]struct{ X, W []float
 // the same cancellation one level down.
 func integrateDistSqPow(bp BandPiece, m int) (float64, error) {
 	if bp.Hi < bp.Lo {
-		return 0, fmt.Errorf("corridorcost: piece has hi %.17g < lo %.17g", bp.Hi, bp.Lo)
+		return 0, fmt.Errorf("corridor cost: piece has hi %.17g < lo %.17g", bp.Hi, bp.Lo)
 	}
 	if bp.Hi == bp.Lo {
 		return 0, nil // zero-measure piece (a tangency point): no contribution
 	}
 	n := m + 1
 	if m < 1 || n > gaussLegendreMaxPoints {
-		return 0, fmt.Errorf("corridorcost: power m=%d needs a %d-point Gauss–Legendre rule; this file carries rules of 2..%d points", m, n, gaussLegendreMaxPoints)
+		return 0, fmt.Errorf("corridor cost: power m=%d needs a %d-point Gauss–Legendre rule; this file carries rules of 2..%d points", m, n, gaussLegendreMaxPoints)
 	}
 	rule := gaussLegendreRules[n]
 	half := (bp.Hi - bp.Lo) / 2
@@ -256,7 +256,7 @@ func integrateDistSqPow(bp BandPiece, m int) (float64, error) {
 	for i, x := range rule.X {
 		v, err := bp.distSqSquares(bp.Lo + (1+x)*half)
 		if err != nil {
-			return 0, fmt.Errorf("corridorcost: %w", err)
+			return 0, fmt.Errorf("corridor cost: %w", err)
 		}
 		p := v
 		for j := 1; j < m; j++ {
@@ -268,7 +268,7 @@ func integrateDistSqPow(bp BandPiece, m int) (float64, error) {
 	if !(out >= 0) || math.IsInf(out, 0) {
 		// Unreachable for finite input — every factor above is ≥ 0. A NaN or an
 		// infinity here means the piece's coefficients were not finite.
-		return 0, fmt.Errorf("corridorcost: integral over [%.17g,%.17g] is %v — the piece's coefficients are not finite", bp.Lo, bp.Hi, out)
+		return 0, fmt.Errorf("corridor cost: integral over [%.17g,%.17g] is %v — the piece's coefficients are not finite", bp.Lo, bp.Hi, out)
 	}
 	return out, nil
 }
@@ -288,7 +288,7 @@ func emissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 		return 0, err
 	}
 	if !(r > 0) || !allFinite(r) {
-		return 0, fmt.Errorf("corridorcost: emission radius must be finite and positive, got %v", r)
+		return 0, fmt.Errorf("corridor cost: emission radius must be finite and positive, got %v", r)
 	}
 	bp := cp.Regime
 	if bp.Hi == bp.Lo {
@@ -296,7 +296,7 @@ func emissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 	}
 	rate := (cp.ImportMeasureAtHi - cp.ImportMeasureAtLo) / (bp.Hi - bp.Lo)
 	if !allFinite(rate) {
-		return 0, fmt.Errorf("corridorcost: piece import-measure rate not finite (ImportMeasureAtLo=%v ImportMeasureAtHi=%v lo=%v hi=%v)",
+		return 0, fmt.Errorf("corridor cost: piece import-measure rate not finite (ImportMeasureAtLo=%v ImportMeasureAtHi=%v lo=%v hi=%v)",
 			cp.ImportMeasureAtLo, cp.ImportMeasureAtHi, bp.Lo, bp.Hi)
 	}
 	integral, err := integrateDistSqPow(bp, k/2)
@@ -311,7 +311,7 @@ func emissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 	// (a popped state can be improved again), which is how the old integral's
 	// cancellation was found.
 	if !(e >= 0) {
-		return 0, fmt.Errorf("corridorcost: emission cost %v is negative or NaN (rate %v, integral %v, import measure [%v,%v] over t [%v,%v])",
+		return 0, fmt.Errorf("corridor cost: emission cost %v is negative or NaN (rate %v, integral %v, import measure [%v,%v] over t [%v,%v])",
 			e, rate, integral, cp.ImportMeasureAtLo, cp.ImportMeasureAtHi, bp.Lo, bp.Hi)
 	}
 	return e, nil
@@ -430,7 +430,7 @@ func noBridgeCost(offImportMetres float64, pOverride ...float64) float64 {
 // definite integral regardless of which regime "claims" it.
 func canonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err error) {
 	if !allFinite(a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon, q.Lat, q.Lon) {
-		return pieces, 0, fmt.Errorf("corridorcost: non-finite canon/source edge [A=(%v,%v) B=(%v,%v) P=(%v,%v) Q=(%v,%v)]",
+		return pieces, 0, fmt.Errorf("corridor cost: non-finite canon/source edge [A=(%v,%v) B=(%v,%v) P=(%v,%v) Q=(%v,%v)]",
 			a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon, q.Lat, q.Lon)
 	}
 
@@ -456,7 +456,7 @@ func canonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err e
 	s0 := (ax*f.Bx + ay*f.By) / f.LenSq
 	s1 := (dx*f.Bx + dy*f.By) / f.LenSq
 	if !allFinite(s0, s1) {
-		return pieces, 0, fmt.Errorf("corridorcost: projection parameter not finite (s0=%v s1=%v)", s0, s1)
+		return pieces, 0, fmt.Errorf("corridor cost: projection parameter not finite (s0=%v s1=%v)", s0, s1)
 	}
 
 	// ⚠ THIS SOLVE IS TRANSPOSED — the canon edge moves and the SOURCE arc is
@@ -591,7 +591,7 @@ func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 		return 0, err
 	}
 	if !(r > 0) || !allFinite(r) {
-		return 0, fmt.Errorf("corridorcost: gap radius must be finite and positive, got %v", r)
+		return 0, fmt.Errorf("corridor cost: gap radius must be finite and positive, got %v", r)
 	}
 	if len(pieces) == 0 || globalHi <= globalLo {
 		return 0, nil
@@ -640,7 +640,7 @@ func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 	var roots [2]float64
 	for i := 0; i < len(pieces); i++ {
 		if err := ctx.Err(); err != nil {
-			return 0, fmt.Errorf("corridorcost: gap integral cancelled at piece %d of %d: %w", i, len(pieces), err)
+			return 0, fmt.Errorf("corridor cost: gap integral cancelled at piece %d of %d: %w", i, len(pieces), err)
 		}
 		for j := i + 1; j < len(pieces); j++ {
 			lo := max(pieces[i].Lo, pieces[j].Lo, globalLo)
@@ -665,7 +665,7 @@ func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 	for i := 0; i+1 < len(sorted); i++ {
 		if i%envelopeCancelStride == 0 {
 			if err := ctx.Err(); err != nil {
-				return 0, fmt.Errorf("corridorcost: gap integral cancelled at sub-interval %d of %d: %w", i, len(sorted)-1, err)
+				return 0, fmt.Errorf("corridor cost: gap integral cancelled at sub-interval %d of %d: %w", i, len(sorted)-1, err)
 			}
 		}
 		lo, hi := sorted[i], sorted[i+1]
@@ -690,7 +690,7 @@ func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 			}
 		}
 		if best < 0 {
-			return 0, fmt.Errorf("corridorcost: no candidate piece covers t=%.17g in [%.17g,%.17g] — the gap's candidate set is incomplete", mid, lo, hi)
+			return 0, fmt.Errorf("corridor cost: no candidate piece covers t=%.17g in [%.17g,%.17g] — the gap's candidate set is incomplete", mid, lo, hi)
 		}
 		win := pieces[best]
 		win.Lo, win.Hi = lo, hi
@@ -771,10 +771,10 @@ func crossingsInto(x, y [3]float64, lo, hi float64, out *[2]float64) int {
 // established there was a bridge to price.
 func importGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLenM, r float64, k int) (float64, error) {
 	if len(canonArcs) == 0 {
-		return 0, fmt.Errorf("corridorcost: import gap arc has no claimed canon arcs")
+		return 0, fmt.Errorf("corridor cost: import gap arc has no claimed canon arcs")
 	}
 	if !allFinite(arcLenM) || arcLenM < 0 {
-		return 0, fmt.Errorf("corridorcost: import gap arc length must be finite and non-negative, got %v", arcLenM)
+		return 0, fmt.Errorf("corridor cost: import gap arc length must be finite and non-negative, got %v", arcLenM)
 	}
 	if arcLenM == 0 {
 		return 0, nil
@@ -817,10 +817,10 @@ func importGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLen
 // established there was a gap to price in the first place.
 func canonGapCost(ctx context.Context, a, b Point, srcArcs [][2]Point, edgeLenM, uLo, uHi, r float64, k int) (float64, error) {
 	if len(srcArcs) == 0 {
-		return 0, fmt.Errorf("corridorcost: canon gap edge has no competing source arcs")
+		return 0, fmt.Errorf("corridor cost: canon gap edge has no competing source arcs")
 	}
 	if !allFinite(uLo, uHi) || uLo < 0 || uHi > 1 || uLo > uHi {
-		return 0, fmt.Errorf("corridorcost: canon gap sub-range [%v,%v] must be within [0,1] and non-inverted", uLo, uHi)
+		return 0, fmt.Errorf("corridor cost: canon gap sub-range [%v,%v] must be within [0,1] and non-inverted", uLo, uHi)
 	}
 	var pieces []BandPiece
 	for _, arc := range srcArcs {

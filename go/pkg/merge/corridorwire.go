@@ -195,11 +195,11 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 			}
 			start, err := sa.PosAtMeasure(run.ImportMeasureLo)
 			if err != nil {
-				return nil, fmt.Errorf("CorridorFollowRuns: OFF run start: %w", err)
+				return nil, fmt.Errorf("corridor runs: OFF run start: %w", err)
 			}
 			end, err := sa.PosAtMeasure(run.ImportMeasureHi)
 			if err != nil {
-				return nil, fmt.Errorf("CorridorFollowRuns: OFF run end: %w", err)
+				return nil, fmt.Errorf("corridor runs: OFF run end: %w", err)
 			}
 			out = append(out, followRun{Kind: runOff, Start: start, End: end})
 			continue
@@ -217,7 +217,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 		// bridging, and its canon measure arrives on the run exactly as a
 		// non-bridged one's now does.
 		if run.CandIdx < 0 || run.CandIdx >= len(prepped) || prepped[run.CandIdx] == nil {
-			return nil, fmt.Errorf("CorridorFollowRuns: ON run [%.6g,%.6g] names candidate %d, which is absent or degenerate — internal inconsistency",
+			return nil, fmt.Errorf("corridor runs: ON run [%.6g,%.6g] names candidate %d, which is absent or degenerate — internal inconsistency",
 				run.ImportMeasureLo, run.ImportMeasureHi, run.CandIdx)
 		}
 		if run.ImportMeasureHi-run.ImportMeasureLo <= solverEps && !run.ChainHop {
@@ -232,7 +232,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 		}
 		fr, err := corridorFollowRunFromMeasure(sa, prepped[run.CandIdx], run.CandIdx, run.ImportMeasureLo, run.ImportMeasureHi, run.CanonMeasureLo, run.CanonMeasureHi)
 		if err != nil {
-			return nil, fmt.Errorf("CorridorFollowRuns: run: %w", err)
+			return nil, fmt.Errorf("corridor runs: run: %w", err)
 		}
 		fr.ChainHop = run.ChainHop
 		out = append(out, fr)

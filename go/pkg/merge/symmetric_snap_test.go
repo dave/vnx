@@ -68,7 +68,7 @@ func TestSymmetricSnapDeclineFor(t *testing.T) {
 func TestSymmetricSnap_LegMeasureIsTheSameRulerAsTheProjection(t *testing.T) {
 	pts := snapStraightLeg()
 	for i := 1; i < len(pts)-1; i++ {
-		proj, err := ProjectProbeOntoWalk(pts, pts[i].Lat, pts[i].Lon)
+		proj, err := projectProbeOntoWalk(pts, pts[i].Lat, pts[i].Lon)
 		if err != nil {
 			t.Fatalf("project vertex %d: %v", i, err)
 		}

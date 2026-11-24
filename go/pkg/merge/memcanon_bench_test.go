@@ -78,7 +78,7 @@ func benchSnapshot() MemCanonSnapshot {
 func benchCanon(b *testing.B) *MemCanon {
 	b.Helper()
 	snap := benchSnapshot()
-	c, err := NewMemCanon(snap)
+	c, err := newMemCanon(snap)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func BenchmarkMemCanon_Load(b *testing.B) {
 	snap := benchSnapshot()
 	b.ResetTimer()
 	for range b.N {
-		if _, err := NewMemCanon(snap); err != nil {
+		if _, err := newMemCanon(snap); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -186,7 +186,7 @@ func BenchmarkMemCanon_AddArc50(b *testing.B) {
 		for k := range pts {
 			pts[k] = Point{Lat: lat + 0.00003*float64(k), Lon: lon + 0.00002*float64(k)}
 		}
-		a, err := PrepareArc(ctx, c, pts, nil, nil)
+		a, err := prepareArc(ctx, c, pts, nil, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

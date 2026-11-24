@@ -74,15 +74,15 @@ func (a assembledLeg) checkOnPieceRanges() error {
 	prevHi := -1
 	for i, p := range a.OnPieces {
 		if p.Lo < 0 || p.Hi < p.Lo || p.Hi >= len(a.Points) {
-			return fmt.Errorf("checkOnPieceRanges: ON piece %d spans points [%d,%d] of %d — not a range of the assembled leg",
+			return fmt.Errorf("ON pieces: ON piece %d spans points [%d,%d] of %d — not a range of the assembled leg",
 				i, p.Lo, p.Hi, len(a.Points))
 		}
 		if p.Lo < prevHi {
-			return fmt.Errorf("checkOnPieceRanges: ON piece %d starts at point %d, before piece %d ended at %d — pieces run in leg order and may share only their seam point",
+			return fmt.Errorf("ON pieces: ON piece %d starts at point %d, before piece %d ended at %d",
 				i, p.Lo, i-1, prevHi)
 		}
 		if p.Run < 0 || p.Run >= len(a.Runs) || a.Runs[p.Run].Kind != runOn {
-			return fmt.Errorf("checkOnPieceRanges: ON piece %d names run %d, which is not an ON run of this leg", i, p.Run)
+			return fmt.Errorf("ON pieces: ON piece %d names run %d, which is not an ON run of this leg", i, p.Run)
 		}
 		prevHi = p.Hi
 	}
@@ -99,19 +99,19 @@ func (a assembledLeg) checkOnPieceRanges() error {
 func assembleDegenerateLeg(pts []Point, runs []followRun) (assembledLeg, error) {
 	if len(pts) == 0 {
 		if len(runs) != 0 {
-			return assembledLeg{}, fmt.Errorf("assembleDegenerateLeg: %d run(s) on an empty leg", len(runs))
+			return assembledLeg{}, fmt.Errorf("degenerate leg: %d run(s) on an empty leg", len(runs))
 		}
-		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
+		return assembledLeg{}, errors.New("degenerate leg: empty output")
 	}
 	for r := range runs {
 		if runs[r].Kind != runOff || runs[r].Start != (sourcePos{}) || runs[r].End != (sourcePos{}) {
 			return assembledLeg{}, fmt.Errorf(
-				"assembleDegenerateLeg: single-point leg carries run %d %+v — the only legal partition is one OFF run [0,0]",
+				"degenerate leg: single-point leg carries run %d %+v — the only legal partition is one OFF run [0,0]",
 				r, runBrief(runs[r]))
 		}
 	}
 	if len(runs) == 0 {
-		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
+		return assembledLeg{}, errors.New("degenerate leg: empty output")
 	}
 	return assembledLeg{Points: []Point{pts[0]}, Runs: append([]followRun(nil), runs...)}, nil
 }

@@ -61,7 +61,7 @@ const (
 // truncation.
 func newCorridorHeap(dist [][]float64, capacity int) (*corridorHeap, error) {
 	if capacity < 0 || capacity > math.MaxInt32 {
-		return nil, fmt.Errorf("corridorheap: capacity %d does not fit the int32 position table", capacity)
+		return nil, fmt.Errorf("corridor heap: capacity %d does not fit the int32 position table", capacity)
 	}
 	pos := make([][]int32, len(dist))
 	for l := range dist {
@@ -145,11 +145,11 @@ func (q *corridorHeap) Insert(key int64) error {
 	case p == corridorHeapPopped:
 		return q.poppedErr(key)
 	case p >= 0:
-		return fmt.Errorf("corridorheap: insert of (layer %d, slot %d), which is already in the heap at %d — use decrease", l, s, p)
+		return fmt.Errorf("corridor heap: insert of (layer %d, slot %d), which is already in the heap at %d — use decrease", l, s, p)
 	}
 	n := len(q.H)
 	if n == cap(q.H) {
-		return fmt.Errorf("corridorheap: insert of (layer %d, slot %d) would exceed the heap's fixed capacity of %d entries — the capacity projection under-counted the reachable states", l, s, cap(q.H))
+		return fmt.Errorf("corridor heap: insert of (layer %d, slot %d) would exceed the heap's fixed capacity of %d entries", l, s, cap(q.H))
 	}
 	q.H = q.H[:n+1]
 	q.H[n] = key
@@ -167,7 +167,7 @@ func (q *corridorHeap) Decrease(key int64) error {
 	case p == corridorHeapPopped:
 		return q.poppedErr(key)
 	case p == corridorHeapNever:
-		return fmt.Errorf("corridorheap: decrease of (layer %d, slot %d), which was never inserted — use insert", l, s)
+		return fmt.Errorf("corridor heap: decrease of (layer %d, slot %d), which was never inserted — use insert", l, s)
 	default:
 		q.up(int(p))
 		return nil
@@ -219,5 +219,5 @@ func (q *corridorHeap) Pop() int64 {
 
 func (q *corridorHeap) poppedErr(key int64) error {
 	l, s := unpackLayerSlot(key)
-	return fmt.Errorf("corridorheap: (layer %d, slot %d) was improved to %v after it was popped — its dist was final, so an edge cost is negative", l, s, q.dist[l][s])
+	return fmt.Errorf("corridor heap: (layer %d, slot %d) was improved to %v after it was popped — its dist was final, so an edge cost is negative", l, s, q.dist[l][s])
 }

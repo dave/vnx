@@ -92,7 +92,7 @@ type sourceMeasure struct {
 // and rejecting it would reject pinned duplicate-preservation behaviour.
 func newSourceMeasure(pts []Point) (*sourceMeasure, error) {
 	if len(pts) < 2 {
-		return nil, fmt.Errorf("NewSourceMeasure: need at least 2 points, got %d", len(pts))
+		return nil, fmt.Errorf("source measure: need at least 2 points, got %d", len(pts))
 	}
 	cum := make([]float64, len(pts))
 	for i := 1; i < len(pts); i++ {
@@ -127,7 +127,7 @@ func (sa *sourceMeasure) End() sourcePos   { return sourcePos{Edge: sa.Edges() -
 // leaving each caller to remember that the last one is (edges-1, 1).
 func (sa *sourceMeasure) VertexPos(i int) (sourcePos, error) {
 	if i < 0 || i >= len(sa.Pts) {
-		return sourcePos{}, fmt.Errorf("sourceMeasure.vertexPos: vertex %d out of range [0,%d]", i, len(sa.Pts)-1)
+		return sourcePos{}, fmt.Errorf("source measure: vertex %d out of range [0,%d]", i, len(sa.Pts)-1)
 	}
 	if i == sa.Edges() {
 		return sourcePos{Edge: i - 1, Frac: 1}, nil
@@ -141,10 +141,10 @@ func (sa *sourceMeasure) VertexPos(i int) (sourcePos, error) {
 // solve, and hiding it here would be a silent fallback.
 func (sa *sourceMeasure) Validate(p sourcePos) error {
 	if p.Edge < 0 || p.Edge >= sa.Edges() {
-		return fmt.Errorf("SourceMeasure.Validate: edge %d out of range [0,%d]", p.Edge, sa.Edges()-1)
+		return fmt.Errorf("source measure: edge %d out of range [0,%d]", p.Edge, sa.Edges()-1)
 	}
 	if !(p.Frac >= 0 && p.Frac <= 1) {
-		return fmt.Errorf("SourceMeasure.Validate: frac %v out of range [0,1] on edge %d", p.Frac, p.Edge)
+		return fmt.Errorf("source measure: frac %v out of range [0,1] on edge %d", p.Frac, p.Edge)
 	}
 	return nil
 }
@@ -268,10 +268,10 @@ func (sa *sourceMeasure) MeasureBetween(a, b sourcePos) (float64, error) {
 // canonical form is wanted, and compare treats them all as equal either way.
 func (sa *sourceMeasure) PosAtMeasure(at float64) (sourcePos, error) {
 	if math.IsNaN(at) {
-		return sourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure is NaN")
+		return sourcePos{}, fmt.Errorf("source measure: measure is NaN")
 	}
 	if at < 0 || at > sa.Total() {
-		return sourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure %.6g outside [0,%.6g]", at, sa.Total())
+		return sourcePos{}, fmt.Errorf("source measure: measure %.6g outside [0,%.6g]", at, sa.Total())
 	}
 	// The last edge whose cumulative start is at or below `at`. sort.Search
 	// finds the first cumulative value ≥ `at`; stepping back one lands on the
@@ -309,7 +309,7 @@ func (sa *sourceMeasure) PosAtMeasure(at float64) (sourcePos, error) {
 // the undecided join epsilon (see compare), so it is not decided here.
 func (sa *sourceMeasure) Advance(p sourcePos, distM float64) (sourcePos, error) {
 	if math.IsNaN(distM) || math.IsInf(distM, 0) {
-		return sourcePos{}, fmt.Errorf("sourceMeasure.advance: distance %v is not finite", distM)
+		return sourcePos{}, fmt.Errorf("source measure: distance %v is not finite", distM)
 	}
 	if distM == 0 {
 		// Exact, not a shortcut for speed: moving nothing cannot change the
@@ -329,7 +329,7 @@ func (sa *sourceMeasure) Advance(p sourcePos, distM float64) (sourcePos, error) 
 	target := at + distM
 	if target < 0 || target > sa.Total() {
 		return sourcePos{}, fmt.Errorf(
-			"sourceMeasure.advance: %.6g m from measure %.6g reaches %.6g, outside [0,%.6g]",
+			"source measure: %.6g m from measure %.6g reaches %.6g, outside [0,%.6g]",
 			distM, at, target, sa.Total())
 	}
 	return sa.PosAtMeasure(target)

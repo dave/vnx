@@ -46,12 +46,21 @@ type splitResult struct {
 // point's. A named node that c does not own is refused, as is the same node
 // named for both ends (an arc may not start and end on one node).
 func PrepareArc(ctx context.Context, c Canon, points []Point, startID, endID *NodeID) (NewArc, error) {
+	a, err := prepareArc(ctx, c, points, startID, endID)
+	if err != nil {
+		return a, apiError("prepare arc", err)
+	}
+	return a, nil
+}
+
+// prepareArc is [PrepareArc] without the error prefix the API adds; the merge calls it.
+func prepareArc(ctx context.Context, c Canon, points []Point, startID, endID *NodeID) (NewArc, error) {
 	if len(points) < 2 {
 		return NewArc{}, fmt.Errorf("an arc needs at least 2 points, got %d", len(points))
 	}
 	if startID != nil && endID != nil && *startID == *endID {
 		return NewArc{}, fmt.Errorf(
-			"both endpoints name node %d: a piece whose two ends resolve to one node must be split before it is stored, not stored as a self-loop",
+			"both endpoints name node %d: an arc may not start and end on one node",
 			*startID)
 	}
 	start, mintStart, err := resolveArcEnd(ctx, c, points[0], startID)

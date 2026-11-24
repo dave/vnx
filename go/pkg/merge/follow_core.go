@@ -399,12 +399,12 @@ type nodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id 
 // for being off it, with nothing yet said about Stay.
 func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, error) {
 	if lookup == nil {
-		return 0, errors.New("snapMeasureAnyNode: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
+		return 0, errors.New("node snap: node lookup is nil")
 	}
 	p := boundaryPoint(pc, measure)
 	nlat, nlon, _, found, err := lookup(p.Lat, p.Lon, EndpointWarpRadiusM)
 	if err != nil {
-		return 0, fmt.Errorf("snapMeasureAnyNode: node lookup at (%.9f,%.9f): %w", p.Lat, p.Lon, err)
+		return 0, fmt.Errorf("node snap: node lookup at (%.9f,%.9f): %w", p.Lat, p.Lon, err)
 	}
 	if !found {
 		return measure, nil
@@ -652,7 +652,7 @@ func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run followRun,
 		var d float64
 		d, hint = pcPoly.NearestDist(p.Lat, p.Lon, hint)
 		if d > onLineEps {
-			return nil, fmt.Errorf("assembleOnRun: run [%+v,%+v] arc %d point %d lies %.6g m off canon (>%.0e)",
+			return nil, fmt.Errorf("ON run: run [%+v,%+v] arc %d point %d lies %.6g m off canon (>%.0e)",
 				run.Start, run.End, run.CanonID, i, d, onLineEps)
 		}
 	}
@@ -664,11 +664,11 @@ func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run followRun,
 	measureSeq = append(measureSeq, run.MeasureEnd)
 	for i := 1; i < len(measureSeq); i++ {
 		if run.Reversed && measureSeq[i] > measureSeq[i-1]+measureEps {
-			return nil, fmt.Errorf("assembleOnRun: run [%+v,%+v] arc %d reverse measures not descending: %v",
+			return nil, fmt.Errorf("ON run: run [%+v,%+v] arc %d reverse measures not descending: %v",
 				run.Start, run.End, run.CanonID, measureSeq)
 		}
 		if !run.Reversed && measureSeq[i] < measureSeq[i-1]-measureEps {
-			return nil, fmt.Errorf("assembleOnRun: run [%+v,%+v] arc %d forward measures not ascending: %v",
+			return nil, fmt.Errorf("ON run: run [%+v,%+v] arc %d forward measures not ascending: %v",
 				run.Start, run.End, run.CanonID, measureSeq)
 		}
 	}

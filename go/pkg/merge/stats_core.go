@@ -117,7 +117,7 @@ type PipReader interface {
 func (p Pip) LatLonEle() (lat, lon, ele float64) { return p.Lat, p.Lon, p.Ele }
 
 // ErrNoPips is BoundsFromPips's error for an empty list.
-var ErrNoPips = errors.New("no pips: an empty point list has no bounding box, and the zero box is a real place in the Atlantic")
+var ErrNoPips = errors.New("no pips: an empty point list has no bounding box")
 
 // BoundsFromPips returns the axis-aligned lat/lon bounding box containing
 // every pip.
@@ -132,6 +132,15 @@ var ErrNoPips = errors.New("no pips: an empty point list has no bounding box, an
 //
 // Like [StatsFromPips], it reads any pip type through [PipReader].
 func BoundsFromPips[P PipReader](pips []P) (Bounds, error) {
+	b, err := boundsFromPips(pips)
+	if err != nil {
+		return b, apiError("bounds", err)
+	}
+	return b, nil
+}
+
+// boundsFromPips is [BoundsFromPips] without the error prefix the API adds; the merge calls it.
+func boundsFromPips[P PipReader](pips []P) (Bounds, error) {
 	if len(pips) == 0 {
 		return Bounds{}, ErrNoPips
 	}

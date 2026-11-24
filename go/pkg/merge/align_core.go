@@ -312,7 +312,7 @@ func nearestLineageNode(l AlignLineage, measure, lat, lon float64, hooks *TestHo
 	consider := func(id NodeID, nlat, nlon float64) {
 		if id == 0 {
 			if bad == nil {
-				bad = fmt.Errorf("lineage of canon arc %d carries a leaf end with node id 0 at (%.7f,%.7f) — node ids start at 1, so this end was never resolved and the existing-node search cannot say whether a node is already there",
+				bad = fmt.Errorf("lineage of canon arc %d carries a leaf end with node id 0 at (%.7f,%.7f), which was never resolved",
 					l.Canon, nlat, nlon)
 			}
 			return

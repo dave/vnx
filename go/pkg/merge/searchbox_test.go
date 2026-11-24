@@ -203,7 +203,7 @@ func TestWalkSearchBox_NeverExcludesAcceptedPoint(t *testing.T) {
 			midLat, midLon := (a.Lat+b.Lat)/2, (a.Lon+b.Lon)/2
 			for bearing := 0.0; bearing < 360; bearing += 45 {
 				pLat, pLon := destPoint(midLat, midLon, bearing, probeM)
-				proj, err := ProjectProbeOntoWalk(walk, pLat, pLon)
+				proj, err := projectProbeOntoWalk(walk, pLat, pLon)
 				if err != nil {
 					t.Fatalf("lat %v leg %d bearing %v: ProjectProbeOntoWalk: %v", lat0, leg, bearing, err)
 				}

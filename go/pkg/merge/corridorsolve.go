@@ -333,7 +333,7 @@ func resolveTunables(overrides []CorridorTunables) (CorridorTunables, error) {
 	case 1:
 		return overrides[0], nil
 	default:
-		return CorridorTunables{}, fmt.Errorf("corridorsolve: resolveTunables: got %d overrides, want at most 1", len(overrides))
+		return CorridorTunables{}, fmt.Errorf("corridor solve: tunables: got %d overrides, want at most 1", len(overrides))
 	}
 }
 
@@ -432,7 +432,7 @@ func ArcCost(sp *SolvePiece, dir CorridorDir, x0, x1, r float64, k int, backtrac
 	// solve is a Dijkstra, which is wrong on a negative edge: it can improve a
 	// state it has already popped. A negative here is a broken cost term.
 	if !(c >= 0) {
-		return 0, fmt.Errorf("corridorsolve: arc cost %v over import measure [%v,%v] is negative or NaN (emission %v) — a cost term is broken", c, x0, x1, e)
+		return 0, fmt.Errorf("corridor solve: arc cost %v over import measure [%v,%v] is negative or NaN (emission %v) — a cost term is broken", c, x0, x1, e)
 	}
 	return c, nil
 }
@@ -784,7 +784,7 @@ func buildCorridorBridges(ctx context.Context, sa *sourceMeasure, ivs []corridor
 	var out []CorridorBridge
 	for _, candIdx := range candIdxs {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("corridorsolve: bridges cancelled at candidate %d: %w", candIdx, err)
+			return nil, fmt.Errorf("corridor solve: bridges cancelled at candidate %d: %w", candIdx, err)
 		}
 		idxs := byCand[candIdx]
 		// Tie-break on the interval's own index, not left to sort.Slice's
@@ -836,11 +836,11 @@ func buildCorridorBridges(ctx context.Context, sa *sourceMeasure, ivs []corridor
 			// above cost nothing, and [candidateBridgeCost] below is where the
 			// gap integral is actually walked.
 			if err := ctx.Err(); err != nil {
-				return nil, fmt.Errorf("corridorsolve: bridges cancelled at candidate %d ivs %d->%d: %w", candIdx, fromIdx, toIdx, err)
+				return nil, fmt.Errorf("corridor solve: bridges cancelled at candidate %d ivs %d->%d: %w", candIdx, fromIdx, toIdx, err)
 			}
 			cost, canonLo, canonHi, err := candidateBridgeCost(ctx, sa, cands[candIdx], ivA, ivB, r, k, pOverride...)
 			if err != nil {
-				return nil, fmt.Errorf("corridorsolve: bridge candidate %d ivs %d->%d: %w", candIdx, fromIdx, toIdx, err)
+				return nil, fmt.Errorf("corridor solve: bridge candidate %d ivs %d->%d: %w", candIdx, fromIdx, toIdx, err)
 			}
 			out = append(out, CorridorBridge{FromIv: fromIdx, ToIv: toIdx, Cost: cost, CanonLo: canonLo, CanonHi: canonHi})
 		}
@@ -875,11 +875,11 @@ func buildCorridorBridges(ctx context.Context, sa *sourceMeasure, ivs []corridor
 func candidateBridgeCost(ctx context.Context, sa *sourceMeasure, pc *PreppedCandidate, ivA, ivB corridorInterval, r float64, k int, pOverride ...float64) (cost, canonLo, canonHi float64, err error) {
 	measureA, ok := canonMeasureAtImportMeasure(ivA, ivA.ImportMeasureHi)
 	if !ok {
-		return 0, 0, 0, fmt.Errorf("corridorsolve: interval end %.6g not on its own interval", ivA.ImportMeasureHi)
+		return 0, 0, 0, fmt.Errorf("corridor solve: interval end %.6g not on its own interval", ivA.ImportMeasureHi)
 	}
 	measureB, ok := canonMeasureAtImportMeasure(ivB, ivB.ImportMeasureLo)
 	if !ok {
-		return 0, 0, 0, fmt.Errorf("corridorsolve: interval start %.6g not on its own interval", ivB.ImportMeasureLo)
+		return 0, 0, 0, fmt.Errorf("corridor solve: interval start %.6g not on its own interval", ivB.ImportMeasureLo)
 	}
 	lo, hi := math.Min(measureA, measureB), math.Max(measureA, measureB)
 
@@ -968,10 +968,10 @@ func importGapCostBetween(ctx context.Context, srcArcs, canonArcs [][2]Point, r 
 // against it is the whole point; an empty set would be silently free.
 func candidateArcsBetween(pc *PreppedCandidate, loMeasure, hiMeasure float64) ([][2]Point, error) {
 	if pc == nil {
-		return nil, fmt.Errorf("corridorsolve: nil candidate")
+		return nil, fmt.Errorf("corridor solve: nil candidate")
 	}
 	if !allFinite(loMeasure, hiMeasure) {
-		return nil, fmt.Errorf("corridorsolve: canon window [%v,%v] is not finite", loMeasure, hiMeasure)
+		return nil, fmt.Errorf("corridor solve: canon window [%v,%v] is not finite", loMeasure, hiMeasure)
 	}
 	lo := math.Max(0, math.Min(loMeasure, hiMeasure))
 	hi := math.Min(pc.Total, math.Max(loMeasure, hiMeasure))
@@ -1007,18 +1007,18 @@ func candidateArcsBetween(pc *PreppedCandidate, loMeasure, hiMeasure float64) ([
 // cost, making a bridge look cheaper than the truth).
 func sourceArcsBetween(sa *sourceMeasure, loMeasure, hiMeasure float64) ([][2]Point, error) {
 	if sa == nil {
-		return nil, fmt.Errorf("corridorsolve: nil source measure")
+		return nil, fmt.Errorf("corridor solve: nil source measure")
 	}
 	if !(hiMeasure > loMeasure) {
-		return nil, fmt.Errorf("corridorsolve: source window [%.6g,%.6g] is empty or inverted", loMeasure, hiMeasure)
+		return nil, fmt.Errorf("corridor solve: source window [%.6g,%.6g] is empty or inverted", loMeasure, hiMeasure)
 	}
 	loPos, err := sa.PosAtMeasure(loMeasure)
 	if err != nil {
-		return nil, fmt.Errorf("corridorsolve: source window lo: %w", err)
+		return nil, fmt.Errorf("corridor solve: source window lo: %w", err)
 	}
 	hiPos, err := sa.PosAtMeasure(hiMeasure)
 	if err != nil {
-		return nil, fmt.Errorf("corridorsolve: source window hi: %w", err)
+		return nil, fmt.Errorf("corridor solve: source window hi: %w", err)
 	}
 	loLat, loLon, err := sa.LatLonAt(loPos)
 	if err != nil {
@@ -1062,7 +1062,7 @@ func candidateCanonEdgeAt(pc *PreppedCandidate, at float64) int {
 // common case, not a rare one.
 func canonGapCostBetween(ctx context.Context, pc *PreppedCandidate, canonLo, canonHi float64, srcArcs [][2]Point, r float64, k int) (float64, error) {
 	if pc == nil {
-		return 0, fmt.Errorf("corridorsolve: nil candidate")
+		return 0, fmt.Errorf("corridor solve: nil candidate")
 	}
 	lo, hi := math.Max(0, canonLo), math.Min(pc.Total, canonHi)
 	if hi <= lo {
@@ -1087,7 +1087,7 @@ func canonGapCostBetween(ctx context.Context, pc *PreppedCandidate, canonLo, can
 		}
 		c, err := canonGapCost(ctx, pc.Verts[e], pc.Verts[e+1], srcArcs, elen, uLo, uHi, r, k)
 		if err != nil {
-			return 0, fmt.Errorf("corridorsolve: canon edge %d: %w", e, err)
+			return 0, fmt.Errorf("corridor solve: canon edge %d: %w", e, err)
 		}
 		total += c
 	}
@@ -1303,7 +1303,7 @@ const corridorSolveCancelRelaxations = 4096
 func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, ivs []corridorInterval, cands []*PreppedCandidate, r float64, k int, tunables ...CorridorTunables) (*corridorSolveResult, error) {
 	hooks := &stateOf(ctx).hooks
 	if total < 0 || !allFinite(total) {
-		return nil, fmt.Errorf("corridorsolve: total import measure must be finite and non-negative, got %v", total)
+		return nil, fmt.Errorf("corridor solve: total import measure must be finite and non-negative, got %v", total)
 	}
 	if total == 0 {
 		return nil, nil
@@ -1312,7 +1312,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 		return nil, err
 	}
 	if !(r > 0) || !allFinite(r) {
-		return nil, fmt.Errorf("corridorsolve: radius must be finite and positive, got %v", r)
+		return nil, fmt.Errorf("corridor solve: radius must be finite and positive, got %v", r)
 	}
 	t, err := resolveTunables(tunables)
 	if err != nil {
@@ -1320,7 +1320,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	}
 	for i, iv := range ivs {
 		if iv.CandIdx < 0 || iv.CandIdx >= len(cands) || cands[iv.CandIdx] == nil {
-			return nil, fmt.Errorf("corridorsolve: interval %d has invalid CandIdx %d", i, iv.CandIdx)
+			return nil, fmt.Errorf("corridor solve: interval %d has invalid candidate index %d", i, iv.CandIdx)
 		}
 	}
 
@@ -1408,7 +1408,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	// See [CorridorPackedState]'s headroom note: 958x on the full bundle's worst
 	// leg, 158,767x on the small bundle's.
 	if len(sps) >= corridorMaxSolvePieces {
-		return nil, fmt.Errorf("corridorsolve: %d solve pieces exceeds the packed state's SpIdx range (%d)", len(sps), corridorMaxSolvePieces)
+		return nil, fmt.Errorf("corridor solve: %d solve pieces exceeds the packed state's piece-index range (%d)", len(sps), corridorMaxSolvePieces)
 	}
 
 	bps := make([]float64, 0, len(brk))
@@ -1455,7 +1455,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 		l := lo
 		for ; l < len(bps) && bps[l] <= sp.P.ImportMeasureAtHi; l++ {
 			if bps[l] < sp.P.ImportMeasureAtLo {
-				return nil, fmt.Errorf("corridorsolve: piece %d covers layer %d (measure %v) below its own ImportMeasureAtLo %v — the layers a piece covers must be contiguous", i, l, bps[l], sp.P.ImportMeasureAtLo)
+				return nil, fmt.Errorf("corridor solve: piece %d covers layer %d (measure %v) below its own ImportMeasureAtLo %v — the layers a piece covers must be contiguous", i, l, bps[l], sp.P.ImportMeasureAtLo)
 			}
 			statesAt[l] += 2
 		}
@@ -1487,8 +1487,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	}
 	if budget := hooks.SolveSlotTableBudgetBytes; budget > 0 {
 		if projected := corridorProjectedSlotBytes(len(bps), projectedSlots, len(sps)); projected > budget {
-			return nil, fmt.Errorf("corridorsolve: this leg's state tables and search heap need %d bytes (%.1f MB) for %d slots over %d layers from a %d-piece alphabet, above the %d byte (%.1f MB) budget — refused before allocating. "+
-				"⚠ THIS BOUNDS THE PROJECTABLE TABLES ONLY (statesBy, dist, prev, pieceSlots, and the search heap with its position table): it does NOT cover the lazily built switchIdx maps, the piece alphabet or the bookkeeping. It is not the solve's total footprint and must not be scaled into one",
+			return nil, fmt.Errorf("corridor solve: the leg's state tables and search heap need %d bytes (%.1f MB) for %d slots over %d layers from a %d-piece alphabet, above the %d byte (%.1f MB) budget — refused before allocating",
 				projected, float64(projected)/(1<<20), projectedSlots, len(bps), len(sps),
 				budget, float64(budget)/(1<<20))
 		}
@@ -1709,7 +1708,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 		relaxations++
 		if relaxations%corridorSolveCancelRelaxations == 0 {
 			if err := ctx.Err(); err != nil {
-				stopErr = fmt.Errorf("corridorsolve: cancelled after %d relaxations: %w", relaxations, err)
+				stopErr = fmt.Errorf("corridor solve: cancelled after %d relaxations: %w", relaxations, err)
 				return
 			}
 		}
@@ -1720,7 +1719,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 			// dist is written FIRST: the heap orders by reading it.
 			inserted, err := pq.Improve(packLayerSlot(layer, slot))
 			if err != nil {
-				stopErr = fmt.Errorf("corridorsolve: %w (after %d relaxations over %d layers)", err, relaxations, len(bps))
+				stopErr = fmt.Errorf("corridor solve: %w (after %d relaxations over %d layers)", err, relaxations, len(bps))
 				return
 			}
 			if inserted {
@@ -1839,7 +1838,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 			for _, br := range bridgesFrom[sps[u.state.SpIdx].IvIdx] {
 				toLayer, ok := layerOf[ivBounds[br.ToIv].ImportMeasureLo]
 				if !ok {
-					return nil, fmt.Errorf("corridorsolve: bridge target iv %d's ImportMeasureLo is not a breakpoint — internal inconsistency", br.ToIv)
+					return nil, fmt.Errorf("corridor solve: bridge target iv %d's ImportMeasureLo is not a breakpoint — internal inconsistency", br.ToIv)
 				}
 				// The bridge lands on the target INTERVAL; which of its pieces
 				// carries the line from there is a choice, so every piece
@@ -1859,7 +1858,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 						// two tests were reconciled deliberately (7fa634c69);
 						// a disagreement is a real inconsistency, not a case
 						// to skip past.
-						return nil, fmt.Errorf("corridorsolve: bridge target piece %d is active at measure %v but has no state at layer %d", j, ivBounds[br.ToIv].ImportMeasureLo, toLayer)
+						return nil, fmt.Errorf("corridor solve: bridge target piece %d is active at measure %v but has no state at layer %d", j, ivBounds[br.ToIv].ImportMeasureLo, toLayer)
 					}
 					relax(toLayer, toSlot, du+br.Cost)
 				}
@@ -1902,7 +1901,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 					// Same reconciliation as the bridge case above:
 					// ActiveOverArc says the state spans this whole
 					// arc, so it must exist at the far end of it.
-					return nil, fmt.Errorf("corridorsolve: state %v is active over [%v,%v] but has no state at layer %d", u.state, x0, x1, u.layer+1)
+					return nil, fmt.Errorf("corridor solve: state %v is active over [%v,%v] but has no state at layer %d", u.state, x0, x1, u.layer+1)
 				}
 				relax(u.layer+1, vSlot, du+arcC)
 			}
@@ -1959,7 +1958,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	last := len(bps) - 1
 	bestState, bestCost, found := corridorFinalPick(statesBy[last], dist[last])
 	if !found {
-		return nil, fmt.Errorf("corridorsolve: no path reached the final layer — this should be unreachable, OFF is always available")
+		return nil, fmt.Errorf("corridor solve: no path reached the final layer")
 	}
 
 	// Reconstruct the path by walking prev[] back from (last,bestState), then
@@ -1971,7 +1970,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	var path []step
 	bestSlot := slotAt(last, bestState)
 	if bestSlot < 0 {
-		return nil, fmt.Errorf("corridorsolve: winning state %v has no slot at the final layer %d", bestState, last)
+		return nil, fmt.Errorf("corridor solve: winning state %v has no slot at the final layer %d", bestState, last)
 	}
 	curKey := packLayerSlot(last, bestSlot)
 	for {
@@ -2148,7 +2147,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 		if !from.Off && !st.Off && sps[from.SpIdx].IvIdx != sps[st.SpIdx].IvIdx {
 			br, ok := bridgeByPair[[2]int{sps[from.SpIdx].IvIdx, sps[st.SpIdx].IvIdx}]
 			if !ok {
-				return nil, fmt.Errorf("corridorsolve: interval jump %d->%d at layer %d has no matching bridge — internal inconsistency", sps[from.SpIdx].IvIdx, sps[st.SpIdx].IvIdx, path[i].layer)
+				return nil, fmt.Errorf("corridor solve: interval jump %d->%d at layer %d has no matching bridge — internal inconsistency", sps[from.SpIdx].IvIdx, sps[st.SpIdx].IvIdx, path[i].layer)
 			}
 			bridged = true
 			canonLo, canonHi = br.CanonLo, br.CanonHi
@@ -2373,7 +2372,7 @@ func mergeCorridorRuns(runs []corridorRun) []corridorRun {
 // was charged for.
 func checkCarrySend(last *corridorRun, runIdx int, fromDir CorridorDir, ia int, x float64, cands []*PreppedCandidate) error {
 	if last.State.Dir != fromDir || !carryEndIsExtreme(fromDir, ia, len(cands[last.CandIdx].Verts)) {
-		return fmt.Errorf("corridorsolve: carry-through at import measure %v pairs run %d (declared direction %v, canon end %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
+		return fmt.Errorf("corridor solve: carry-through at import measure %v pairs run %d (declared direction %v, canon end %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
 			x, runIdx, last.State.Dir, last.CanonMeasureHi, ia, len(cands[last.CandIdx].Verts), last.CandIdx, fromDir)
 	}
 	return nil
@@ -2393,7 +2392,7 @@ func checkCarrySend(last *corridorRun, runIdx int, fromDir CorridorDir, ia int, 
 // drawing it anyway would put canon where the solve did not pay for it.
 func checkCarryReceive(stDir CorridorDir, canonLo float64, candIdx int, cands []*PreppedCandidate, pendingDir CorridorDir, pendingIB int) error {
 	if stDir != pendingDir || !carryEndIsExtreme(!pendingDir, pendingIB, len(cands[candIdx].Verts)) {
-		return fmt.Errorf("corridorsolve: carry-through pairs a run (declared direction %v, canon start %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
+		return fmt.Errorf("corridor solve: carry-through pairs a run (declared direction %v, canon start %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
 			stDir, canonLo, pendingIB, len(cands[candIdx].Verts), candIdx, pendingDir)
 	}
 	return nil

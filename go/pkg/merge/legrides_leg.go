@@ -24,7 +24,7 @@ func referenceRideArcs(ctx context.Context, canon Canon, ride *LegRide, startNod
 		arc, err := canon.Arc(ctx, id)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"ResolveLegRides: canon arc %d (%d of %d on run %d's ride from node %d to node %d) could not be read — the align step recorded it as a leaf of the arc the run rode, so it was there when this leg's own pass ended: %w",
+				"resolve rides: canon arc %d (%d of %d on run %d's ride from node %d to node %d) could not be read: %w",
 				id, i+1, len(ride.Arcs), ride.Run, startNode, endNode, err)
 		}
 		var dir Direction
@@ -35,7 +35,7 @@ func referenceRideArcs(ctx context.Context, canon Canon, ride *LegRide, startNod
 			dir, cur = DirReverse, arc.StartNodeID
 		default:
 			return nil, fmt.Errorf(
-				"ResolveLegRides: run %d's ride does not chain — arc %d (%d of %d) runs %d..%d and the walk had reached node %d, going from node %d to node %d over %v",
+				"resolve rides: run %d's ride does not chain — arc %d (%d of %d) runs %d..%d and the walk had reached node %d, going from node %d to node %d over %v",
 				ride.Run, id, i+1, len(ride.Arcs), arc.StartNodeID, arc.EndNodeID, cur, startNode, endNode, ride.Arcs)
 		}
 		refs = append(refs, LegArcRef{Arc: LegArc{
@@ -68,12 +68,12 @@ func referenceRideArcs(ctx context.Context, canon Canon, ride *LegRide, startNod
 	// defect in place. No new constant: both terms are already in the record.
 	if allow := ride.RunM + ride.AbsorbM + 2*EndpointWarpRadiusM; chainM > allow {
 		return nil, fmt.Errorf(
-			"ResolveLegRides: run %d's ride over %v on canon arc %d is %.1f m of chain for a run that measured %.1f m of that arc (nodes %d..%d) — a referenced piece may cover the run's own interval plus the %.1f m the align step absorbed at its ends plus the %.1f m radius, and this is %.1f m beyond that, so the ride names leaves the run never rode",
+			"resolve rides: run %d's ride over %v on canon arc %d is %.1f m of chain for a run that measured %.1f m of that arc (nodes %d..%d), %.1f m beyond the run plus the %.1f m absorbed at its ends plus the %.1f m radius: the ride names leaves the run never rode",
 			ride.Run, ride.Arcs, ride.Canon, chainM, ride.RunM, startNode, endNode, ride.AbsorbM, 2*EndpointWarpRadiusM, chainM-allow)
 	}
 	if cur != endNode {
 		return nil, fmt.Errorf(
-			"ResolveLegRides: run %d's ride over %v starts at node %d and ends at node %d, but the piece ends on node %d — the align record and the nodes threaded to the writer describe different stretches",
+			"resolve rides: run %d's ride over %v starts at node %d and ends at node %d, but the piece ends on node %d — the align record and the nodes threaded to the writer describe different stretches",
 			ride.Run, ride.Arcs, startNode, cur, endNode)
 	}
 	return refs, nil

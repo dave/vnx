@@ -150,8 +150,7 @@ func pruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]Corri
 		}
 		if winners == 0 {
 			return nil, fmt.Errorf(
-				"corridornearest: prune found no nearest canon edge anywhere in a run of %d piece(s) over canon edges %d..%d — "+
-					"every piece is active at its own midpoint by construction, so this is unreachable",
+				"nearest-edge prune found no nearest canon edge anywhere in a run of %d piece(s) over canon edges %d..%d",
 				len(run), loEdge, hiEdge)
 		}
 		i = j + 1

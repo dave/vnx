@@ -251,21 +251,21 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 	for _, p := range asm.OnPieces {
 		if p.Run < 0 || p.Run >= len(asm.Runs) {
 			return nil, fmt.Errorf(
-				"ResolveLegRides: ON piece at points %d..%d names run %d, and the leg has %d run(s)",
+				"resolve rides: ON piece at points %d..%d names run %d, and the leg has %d run(s)",
 				p.Lo, p.Hi, p.Run, len(asm.Runs))
 		}
 		r := asm.Runs[p.Run]
 		lineage, ok := rep.lineageFor(r.CanonID)
 		if !ok {
 			return nil, fmt.Errorf(
-				"ResolveLegRides: run %d rode canon arc %d, and the align step recorded no cut lineage for it — every ON run's arc is cut or declined against, so a missing lineage means the align report and the runs describe different legs",
+				"resolve rides: run %d rode canon arc %d, and the align step recorded no cut lineage for it",
 				p.Run, r.CanonID)
 		}
 		start, sOK := byRunEnd[boundaryKey{Run: p.Run, AtEnd: false}]
 		end, eOK := byRunEnd[boundaryKey{Run: p.Run, AtEnd: true}]
 		if !sOK || !eOK {
 			return nil, fmt.Errorf(
-				"ResolveLegRides: the align step reports no boundary for run %d's %s — one boundary per end of every ON run",
+				"resolve rides: the align step reports no boundary for run %d's %s — one boundary per end of every ON run",
 				p.Run, runEndName(!sOK))
 		}
 		sNode, sHas := start.SeamNode()
@@ -286,7 +286,7 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 			// what a boundary is. No fallback: a piece created here is a parallel copy nobody
 			// counted.
 			return nil, fmt.Errorf(
-				"ResolveLegRides: run %d on canon arc %d has a boundary with no node (start %s, end %s) — every align outcome names a node",
+				"resolve rides: run %d on canon arc %d has a boundary with no node (start %s, end %s) — every align outcome names a node",
 				p.Run, r.CanonID, alignDeclineName(start.Decline), alignDeclineName(end.Decline))
 		}
 		if sNode == eNode {
@@ -326,7 +326,7 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 			case AlignDeclineAbsorbedToNode, AlignDeclineAtExistingNode:
 			default:
 				return nil, fmt.Errorf(
-					"ResolveLegRides: run %d's %s boundary on canon arc %d resolved to node %d by %s, and that node is not on the arc's own cut lineage (%d leaf/leaves, nodes %v) — a cut mints its node on the lineage and a decline reads the row's own end, so neither can land off it",
+					"resolve rides: run %d's %s boundary on canon arc %d resolved to node %d by %s, and that node is not on the arc's own cut lineage (%d leaf/leaves, nodes %v)",
 					p.Run, kind, r.CanonID, missing.Node, alignDeclineName(missing.Decline), len(lineage.Leaves), lineageNodes(lineage))
 			}
 			if sCount == 0 {

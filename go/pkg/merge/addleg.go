@@ -80,8 +80,17 @@ type LegResult struct {
 // AddLeg is safe for concurrent use on separate canons: it keeps no package
 // state, and everything a call needs travels in its opts and ctx.
 func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (LegResult, error) {
+	res, err := addLeg(ctx, canon, pts, opts)
+	if err != nil {
+		return res, apiError("add leg", err)
+	}
+	return res, nil
+}
+
+// addLeg is [AddLeg] without the error prefix the API adds; the merge calls it.
+func addLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (LegResult, error) {
 	if opts.FillElevation == nil {
-		return LegResult{}, fmt.Errorf("AddLeg: FillElevation is nil; pass NoFill for a leg with nothing to fill")
+		return LegResult{}, fmt.Errorf("FillElevation is nil; pass NoFill for a leg with nothing to fill")
 	}
 	ctx = withLeg(ctx, opts.Label, opts.Logf)
 	var res LegResult
@@ -329,7 +338,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// fails loud here instead of going quietly wrong in the caller.
 	if len(symmetricSnapInserted) > 0 && len(followed) != pointsAfterSnap {
 		return LegResult{}, fmt.Errorf(
-			"symmetric snap recorded %d inserted vertex/vertices at a %d-point leg, but the leg is %d points by the time it commits — some later stage changed the point count and the recorded indices no longer name the vertices they were taken from",
+			"symmetric snap recorded %d inserted vertex/vertices at a %d-point leg, but the leg is %d points by the time it commits — a later stage changed the point count",
 			len(symmetricSnapInserted), pointsAfterSnap, len(followed))
 	}
 	res.Warp = warpRep
@@ -360,6 +369,6 @@ func checkRidesIndexSpace(rides *LegRides, pointCount int, leg string) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"leg %s commits %d point(s) but its canon rides were resolved against %d — some stage between resolveLegRides and the commit changed the point count, so every ride's index range now names different vertices",
+		"leg %s commits %d point(s) but its canon rides were resolved against %d — a stage between ride resolution and the commit changed the point count",
 		leg, pointCount, rides.PointCount)
 }

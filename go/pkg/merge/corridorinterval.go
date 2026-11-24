@@ -107,13 +107,13 @@ func corridorIntervals(ctx context.Context, sa *sourceMeasure, cands []*PreppedC
 // candidateCorridorIntervals is [corridorIntervals] against ONE candidate.
 func candidateCorridorIntervals(ctx context.Context, sa *sourceMeasure, pc *PreppedCandidate, candIdx int, d float64) ([]corridorInterval, error) {
 	if sa == nil {
-		return nil, fmt.Errorf("CorridorIntervals: nil source measure")
+		return nil, fmt.Errorf("corridor intervals: nil source measure")
 	}
 	if pc == nil {
-		return nil, fmt.Errorf("CorridorIntervals: nil candidate — prepCandidates leaves degenerate candidates nil and the caller must skip them")
+		return nil, fmt.Errorf("corridor intervals: nil candidate")
 	}
 	if !allFinite(d) || d < 0 {
-		return nil, fmt.Errorf("CorridorIntervals: band must be finite and non-negative, got %v m", d)
+		return nil, fmt.Errorf("corridor intervals: band must be finite and non-negative, got %v m", d)
 	}
 
 	bySrcEdge := make([][]CorridorPiece, sa.Edges())
@@ -130,7 +130,7 @@ func candidateCorridorIntervals(ctx context.Context, sa *sourceMeasure, pc *Prep
 		// more edge's pieces. Checked before the edge, not after, so a cancel
 		// that arrives before the first edge mints nothing at all.
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("CorridorIntervals: cancelled at source edge %d of %d: %w", e, sa.Edges(), err)
+			return nil, fmt.Errorf("corridor intervals: cancelled at source edge %d of %d: %w", e, sa.Edges(), err)
 		}
 		edgeLen := sa.EdgeLen(e)
 		// A source edge with no measure length carries no import measure, so it can
@@ -225,13 +225,13 @@ func candidateCorridorIntervals(ctx context.Context, sa *sourceMeasure, pc *Prep
 // computed here, by [orientedFootMeasure].
 func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune bool) ([]CorridorPiece, error) {
 	if pc == nil {
-		return nil, fmt.Errorf("CorridorIntervals: nil candidate — prepCandidates leaves degenerate candidates nil and the caller must skip them")
+		return nil, fmt.Errorf("corridor intervals: nil candidate")
 	}
 	if !allFinite(p.Lat, p.Lon, q.Lat, q.Lon, d) {
-		return nil, fmt.Errorf("CorridorIntervals: non-finite source edge or band [P=(%v,%v) Q=(%v,%v) d=%v]", p.Lat, p.Lon, q.Lat, q.Lon, d)
+		return nil, fmt.Errorf("corridor intervals: non-finite source edge or band [P=(%v,%v) Q=(%v,%v) d=%v]", p.Lat, p.Lon, q.Lat, q.Lon, d)
 	}
 	if d < 0 {
-		return nil, fmt.Errorf("CorridorIntervals: band must be non-negative, got %g m", d)
+		return nil, fmt.Errorf("corridor intervals: band must be non-negative, got %g m", d)
 	}
 
 	sMinLat, sMaxLat := math.Min(p.Lat, q.Lat), math.Max(p.Lat, q.Lat)
@@ -255,7 +255,7 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 		a, b := pc.Verts[e], pc.Verts[e+1]
 		pieces, n, joins, nj, err := bandPieces(p, q, a, b, d)
 		if err != nil {
-			return nil, fmt.Errorf("CorridorIntervals: canon arc %d edge %d: %w", pc.arcID, e, err)
+			return nil, fmt.Errorf("corridor intervals: canon arc %d edge %d: %w", pc.arcID, e, err)
 		}
 		if n == 0 {
 			continue
@@ -267,7 +267,7 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 		// interval — is exactly what this function's own guarantee (Pieces
 		// arrive gap-free within one canon edge) rests on.
 		if _, _, _, err := unionOneInterval(pieces[:n]); err != nil {
-			return nil, fmt.Errorf("CorridorIntervals: %w %s%s", err, bandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
+			return nil, fmt.Errorf("corridor intervals: %w %s%s", err, bandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
 		}
 		for i := 0; i < n; i++ {
 			bp := pieces[i]
@@ -312,7 +312,7 @@ func orientedFootMeasure(p, q, a, b Point, pc *PreppedCandidate, e int, t0, t1 f
 		}
 		_, s := ClosestPointOnSeg(a.Lat, a.Lon, b.Lat, b.Lon, lat, lon)
 		if !allFinite(s) {
-			return 0, fmt.Errorf("CorridorIntervals: canon arc %d edge %d: foot parameter %v at t=%v is not finite", pc.arcID, e, s, t)
+			return 0, fmt.Errorf("corridor intervals: canon arc %d edge %d: foot parameter %v at t=%v is not finite", pc.arcID, e, s, t)
 		}
 		return pc.cumMeasure[e] + s*(pc.cumMeasure[e+1]-pc.cumMeasure[e]), nil
 	}

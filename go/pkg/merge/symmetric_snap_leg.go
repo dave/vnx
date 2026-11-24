@@ -171,7 +171,7 @@ func legSeamsFromNearbyNodes(
 			rep.Skipped = true
 			return pts, seams, rep, nil
 		}
-		return nil, nil, rep, fmt.Errorf("LegSeamsFromNearbyNodes: %w", err)
+		return nil, nil, rep, fmt.Errorf("nearby-node seams: %w", err)
 	}
 	if len(found) == 0 {
 		return pts, seams, rep, nil
@@ -187,7 +187,7 @@ func legSeamsFromNearbyNodes(
 	for _, s := range seams {
 		if s.Idx < 0 || s.Idx >= len(pts) {
 			return nil, nil, rep, fmt.Errorf(
-				"LegSeamsFromNearbyNodes: align seam at point %d is outside the leg's %d points",
+				"nearby-node seams: align seam at point %d is outside the leg's %d points",
 				s.Idx, len(pts))
 		}
 		boundaries = append(boundaries, legMeasureToVertex(pts, s.Idx))

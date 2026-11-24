@@ -8,7 +8,7 @@ import (
 // emptyCanon is an empty canon.
 func emptyCanon(t *testing.T) *MemCanon {
 	t.Helper()
-	c, err := NewMemCanon(MemCanonSnapshot{NextNodeID: 1, NextArcID: 1})
+	c, err := newMemCanon(MemCanonSnapshot{NextNodeID: 1, NextArcID: 1})
 	if err != nil {
 		t.Fatalf("NewMemCanon: %v", err)
 	}
@@ -21,7 +21,7 @@ func emptyCanon(t *testing.T) *MemCanon {
 // error.
 func addTestLeg(t *testing.T, ctx context.Context, c *MemCanon, label string, pts []Point) LegResult {
 	t.Helper()
-	res, err := AddLeg(ctx, c, DropCoincidentPoints(pts), LegOptions{FillElevation: NoFill, Label: label})
+	res, err := addLeg(ctx, c, DropCoincidentPoints(pts), LegOptions{FillElevation: NoFill, Label: label})
 	if err != nil {
 		t.Fatalf("%s: AddLeg: %v", label, err)
 	}

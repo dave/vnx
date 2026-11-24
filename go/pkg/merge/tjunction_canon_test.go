@@ -15,7 +15,7 @@ func inCanonCopy(t *testing.T, d *MemCanon, fn func(c *MemCanon) error) error {
 	if err != nil {
 		t.Fatalf("Snapshot: %v", err)
 	}
-	c, err := NewMemCanon(snap)
+	c, err := newMemCanon(snap)
 	if err != nil {
 		t.Fatalf("NewMemCanon: %v", err)
 	}

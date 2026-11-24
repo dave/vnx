@@ -30,7 +30,7 @@ func mustAddNodeOffset(t *testing.T, ctx context.Context, c *MemCanon, lat, lon,
 // addArc stores one arc through PrepareArc and AddArc, minting both end
 // nodes, as an import's new arc is stored.
 func addArc(ctx context.Context, c *MemCanon, points []Point) (AddedArc, error) {
-	a, err := PrepareArc(ctx, c, points, nil, nil)
+	a, err := prepareArc(ctx, c, points, nil, nil)
 	if err != nil {
 		return AddedArc{}, err
 	}
@@ -757,7 +757,7 @@ func TestCanonNodesNearPath_RadiusBoundaryInclusive(t *testing.T) {
 	// The exact distance the refine will measure — taken from the refine
 	// itself, so the bracket is around the rule's own number and not around
 	// a second computation of it.
-	proj, err := ProjectProbeOntoWalk(walk, nLat, nLon)
+	proj, err := projectProbeOntoWalk(walk, nLat, nLon)
 	if err != nil {
 		t.Fatalf("ProjectProbeOntoWalk: %v", err)
 	}

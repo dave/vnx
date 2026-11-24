@@ -12,7 +12,10 @@ package merge
 // with the same move the merge makes.
 func WarpLineEnds(pts []Point, start, end *LatLon) ([]Point, error) {
 	out, _, err := warpLegEndpoints(pts, warpTargetAt(start), warpTargetAt(end))
-	return out, err
+	if err != nil {
+		return nil, apiError("warp line ends", err)
+	}
+	return out, nil
 }
 
 // warpTargetAt is p as a warp target with no node identity: WarpLineEnds

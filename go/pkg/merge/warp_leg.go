@@ -91,7 +91,7 @@ func warpLegEndpointsToNodes(
 ) ([]Point, WarpReport, error) {
 	if len(pts) < 2 {
 		return nil, WarpReport{}, fmt.Errorf(
-			"AddLeg: terminal warp: leg has %d points, need at least 2", len(pts))
+			"endpoint warp: leg has %d points, need at least 2", len(pts))
 	}
 
 	// Both terminals are resolved against the canon as it stands BEFORE
@@ -234,7 +234,7 @@ func warpUnresolvedLegTerminals(
 ) ([]Point, WarpReport, bool, error) {
 	st := stateOf(ctx)
 	if len(pts) < 2 {
-		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: leg has %d point(s), need at least 2", len(pts))
+		return nil, rep, false, fmt.Errorf("unresolved terminals: leg has %d point(s), need at least 2", len(pts))
 	}
 	if rep.StartNode != nil && rep.EndNode != nil {
 		return pts, rep, false, nil // both terminals already resolved — nothing for this step to do
@@ -243,7 +243,7 @@ func warpUnresolvedLegTerminals(
 	lookup := func(p Point, side string) (*warpTarget, error) {
 		target, err := resolveWarpTarget(ctx, canon, p)
 		if err != nil {
-			return nil, fmt.Errorf("WarpUnresolvedLegTerminals: %s terminal lookup: %w", side, err)
+			return nil, fmt.Errorf("unresolved terminals: %s terminal lookup: %w", side, err)
 		}
 		if st.hooks.LegTerminalGap != nil {
 			var id NodeID
@@ -331,7 +331,7 @@ func warpUnresolvedLegTerminals(
 		if chord <= EndpointWarpRadiusM && legDepartsRadius(pts, 0, last, EndpointWarpRadiusM) {
 			mintedID, err := canon.AddNode(ctx, pts[0].Lat, pts[0].Lon, pts[0].Ele)
 			if err != nil {
-				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: mint the multi-piece leg's own shared terminal node: %w", err)
+				return nil, rep, false, fmt.Errorf("unresolved terminals: mint the multi-piece leg's own shared terminal node: %w", err)
 			}
 			// pts[0] IS ALREADY the minted node's own coordinate (copied
 			// verbatim above): ZERO displacement there, not a jump, so the
@@ -340,7 +340,7 @@ func warpUnresolvedLegTerminals(
 			shared := &warpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon, NodeID: mintedID}
 			out, blendRep, err := warpLegEndpoints(pts, nil, shared)
 			if err != nil {
-				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: taper the far end onto the shared terminal: %w", err)
+				return nil, rep, false, fmt.Errorf("unresolved terminals: taper the far end onto the shared terminal: %w", err)
 			}
 			final := rep
 			final.StartNode = &mintedID
@@ -356,7 +356,7 @@ func warpUnresolvedLegTerminals(
 
 	out, blendRep, err := warpLegEndpoints(pts, newStart, newEnd)
 	if err != nil {
-		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: %w", err)
+		return nil, rep, false, fmt.Errorf("unresolved terminals: %w", err)
 	}
 	// warpLegEndpoints itself only reports StartWarped/EndWarped. Setting
 	// StartNode/EndNode from the TARGET's own id, unconditionally whenever

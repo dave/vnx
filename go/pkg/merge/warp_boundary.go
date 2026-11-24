@@ -56,7 +56,7 @@ func warpLegAtBoundaries(pts []Point, boundaries []warpBoundaryTarget) ([]Point,
 		return out, nil
 	}
 	if len(pts) < 2 {
-		return nil, fmt.Errorf("WarpLegAtBoundaries: leg has %d points, need at least 2", len(pts))
+		return nil, fmt.Errorf("boundary warp: leg has %d points, need at least 2", len(pts))
 	}
 
 	// Cumulative measure along the ORIGINAL leg, exactly as warpLegEndpoints
@@ -70,7 +70,7 @@ func warpLegAtBoundaries(pts []Point, boundaries []warpBoundaryTarget) ([]Point,
 	legLen := cum[len(cum)-1]
 	if math.IsNaN(legLen) || math.IsInf(legLen, 0) {
 		return nil, fmt.Errorf(
-			"WarpLegAtBoundaries: leg measure length is %v — the source geometry is not finite", legLen)
+			"boundary warp: leg measure length is %v — the source geometry is not finite", legLen)
 	}
 	last := len(pts) - 1
 
@@ -81,16 +81,16 @@ func warpLegAtBoundaries(pts []Point, boundaries []warpBoundaryTarget) ([]Point,
 	for _, b := range boundaries {
 		if b.Idx <= 0 || b.Idx >= last {
 			return nil, fmt.Errorf(
-				"WarpLegAtBoundaries: boundary at index %d is not interior — a leg's own terminals (0 and %d) are warped by the terminal step, not by this function",
+				"boundary warp: boundary at index %d is not interior (the leg's terminals are 0 and %d)",
 				b.Idx, last)
 		}
 		if !finiteLatLon(b.Target.Lat, b.Target.Lon) {
 			return nil, fmt.Errorf(
-				"WarpLegAtBoundaries: target (%v,%v) at index %d is not finite", b.Target.Lat, b.Target.Lon, b.Idx)
+				"boundary warp: target (%v,%v) at index %d is not finite", b.Target.Lat, b.Target.Lon, b.Idx)
 		}
 		if !finiteLatLon(pts[b.Idx].Lat, pts[b.Idx].Lon) {
 			return nil, fmt.Errorf(
-				"WarpLegAtBoundaries: source point (%v,%v) at index %d is not finite", pts[b.Idx].Lat, pts[b.Idx].Lon, b.Idx)
+				"boundary warp: source point (%v,%v) at index %d is not finite", pts[b.Idx].Lat, pts[b.Idx].Lon, b.Idx)
 		}
 
 		vLat := b.Target.Lat - pts[b.Idx].Lat
@@ -250,7 +250,7 @@ func warpLegAtBoundaries(pts []Point, boundaries []warpBoundaryTarget) ([]Point,
 			}
 		}
 		return nil, fmt.Errorf(
-			"WarpLegAtBoundaries: boundary at index %d (%v,%v) is not bit-exact on its target (%v,%v)%s — the join invariant is violated",
+			"boundary warp: boundary at index %d (%v,%v) is not bit-exact on its target (%v,%v)%s — the join invariant is violated",
 			b.Idx, out[b.Idx].Lat, out[b.Idx].Lon, b.Target.Lat, b.Target.Lon, culprit)
 	}
 	return out, nil
@@ -306,7 +306,7 @@ func applyLegBoundaryWarp(pts []Point, seams []legSeam) ([]Point, []legSeam, err
 
 	warpedPts, err := warpLegAtBoundaries(pts, targets)
 	if err != nil {
-		return nil, nil, fmt.Errorf("ApplyLegBoundaryWarp: %w", err)
+		return nil, nil, fmt.Errorf("boundary warp: %w", err)
 	}
 	return warpedPts, seams, nil
 }

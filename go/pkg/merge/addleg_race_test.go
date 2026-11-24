@@ -19,7 +19,7 @@ func raceLeg() []Point {
 // raceCanon is a canon holding one lone node about 2 m north of raceLeg's
 // middle, so the symmetric snap has a candidate and its observer fires.
 func raceCanon() (*MemCanon, error) {
-	return NewMemCanon(MemCanonSnapshot{
+	return newMemCanon(MemCanonSnapshot{
 		Nodes:      []Node{{ID: 1, Lat: 51.50002, Lon: -0.1 + 9.5*0.0001}},
 		NextNodeID: 2,
 		NextArcID:  1,
@@ -51,7 +51,7 @@ func TestAddLeg_ConcurrentCallsSeeTheirOwnLabel(t *testing.T) {
 					errs[g] = err
 					return
 				}
-				_, err = AddLeg(ctx, canon, raceLeg(), LegOptions{FillElevation: NoFill, Label: label})
+				_, err = addLeg(ctx, canon, raceLeg(), LegOptions{FillElevation: NoFill, Label: label})
 				if err != nil {
 					errs[g] = fmt.Errorf("%s leg %d: %w", label, i, err)
 					return

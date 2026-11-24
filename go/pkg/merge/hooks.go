@@ -24,7 +24,7 @@ var NearestPruneObserverForTests func(before, after int)
 // field would silently read nil.
 //
 // ⚠ statesBy is [][]CorridorPackedState — THE SOLVE'S OWN LISTS, not a decoded
-// copy (A6). Handing over a decoded copy would keep this signature, but
+// copy. Handing over a decoded copy would keep this signature, but
 // TestCorridorSolve_StateListBytes asserts cap == len on what it is given, and
 // a copy built at its own length is exact-fit whatever the solve allocated: that
 // guard would pass for the wrong reason and could never fail again. (The

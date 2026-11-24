@@ -36,7 +36,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 			if i := strings.Index(path, "/"); i >= 0 {
 				first = path[:i]
 			}
-			if strings.Contains(first, ".") {
+			if path == "C" || strings.Contains(first, ".") {
 				t.Errorf("%s imports %q — pkg/detmath may import the standard library only", name, path)
 			}
 		}

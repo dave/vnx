@@ -5,8 +5,9 @@
 // The API is not stable yet. Names and signatures will change while the core
 // settles; depend on it only at a pinned version.
 //
-// The package imports the standard library and pkg/detmath only, and its
-// floating-point results are the same bits on every architecture.
+// The package imports the standard library and pkg/detmath only.
+// HaversineMetres and every detmath call give the same float64 bits on every
+// architecture; the rest of the package does not promise that.
 package merge
 
 import (

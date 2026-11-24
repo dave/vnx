@@ -40,7 +40,7 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 			if i := strings.Index(path, "/"); i >= 0 {
 				first = path[:i]
 			}
-			if strings.Contains(first, ".") && path != allowedImport {
+			if (path == "C" || strings.Contains(first, ".")) && path != allowedImport {
 				t.Errorf("%s imports %q — pkg/merge may import the standard library and %s only", name, path, allowedImport)
 			}
 		}

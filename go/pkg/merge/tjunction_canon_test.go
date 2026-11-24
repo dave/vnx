@@ -53,7 +53,7 @@ func warpFixtureA() []Point {
 // found a node within the radius and declined before the search ran. The two
 // checks use the same radius, so the shielding is total.
 //
-// Below: a terminal placed 8 m beyond A's end node. NearestArc
+// Below: a terminal placed 8 m beyond A's end node. nearestArc
 // really does answer Fraction == 1 for it — so the guard is not guarding
 // against nothing — and the T-junction split really does decline at step 1, so
 // the fraction check
@@ -73,14 +73,14 @@ func TestTJunction_TerminalVertexFractionIsShieldedByTheNodeProbe(t *testing.T) 
 		declined TjunctionDecline
 	)
 	if err := inCanonCopy(t, d, func(c *MemCanon) error {
-		cand, ok, err := NearestArc(
+		cand, ok, err := nearestArc(
 			ctx, c, beyond.Lat, beyond.Lon, EndpointWarpRadiusM)
 		if err != nil {
 			return err
 		}
 		frac, found = cand.Fraction, ok
 
-		rep, err := SplitCanonAtLegTerminals(ctx, c,
+		rep, err := splitCanonAtLegTerminals(ctx, c,
 			append([]Point{beyond}, tjLegNS(1008, -10, 100)...))
 		if err != nil {
 			return err
@@ -197,7 +197,7 @@ func TestTJunction_FractionRoundTripStaysWithinTheGatesBudget(t *testing.T) {
 			)
 			errRollback := fmt.Errorf("rollback")
 			err := inCanonCopy(t, d, func(c *MemCanon) error {
-				cand, ok, err := NearestArc(
+				cand, ok, err := nearestArc(
 					ctx, c, probe.Lat, probe.Lon, EndpointWarpRadiusM)
 				if err != nil {
 					return err
@@ -212,7 +212,7 @@ func TestTJunction_FractionRoundTripStaysWithinTheGatesBudget(t *testing.T) {
 					onTerminal = true
 					return errRollback
 				}
-				res, err := SplitArcAt(ctx, c, cand.ID, cand.Fraction)
+				res, err := splitArcAt(ctx, c, cand.ID, cand.Fraction)
 				if err != nil {
 					return err
 				}
@@ -426,7 +426,7 @@ type tjWalk struct {
 func tjRoundTripProbes(verts []Point, focus []int) []Point {
 	var out []Point
 	// A probe beside a walk that already sits on the seam can be pushed past
-	// ±180 by the offset. Wrap it rather than clamping: NearestArc
+	// ±180 by the offset. Wrap it rather than clamping: nearestArc
 	// rejects an out-of-range probe outright (correctly — R4 guarantees no
 	// parsed coordinate reaches it out of range), so an unwrapped fixture would
 	// test the input guard instead of the round trip.
@@ -492,7 +492,7 @@ func TestTJunctionReport_RecordsEachTerminalsOutcome(t *testing.T) {
 			var rep TjunctionReport
 			if err := inCanonCopy(t, d, func(c *MemCanon) error {
 				var err error
-				rep, err = SplitCanonAtLegTerminals(ctx, c, tc.leg)
+				rep, err = splitCanonAtLegTerminals(ctx, c, tc.leg)
 				return err
 			}); err != nil {
 				t.Fatalf("transaction failed: %v", err)
@@ -565,7 +565,7 @@ func TestTJunction_DeclinesWhenANodeSitsBesideTheProjection(t *testing.T) {
 
 	before := censusNetwork(t, ctx, d)
 
-	got, err := SplitCanonAtTerminal(ctx, d, term)
+	got, err := splitCanonAtTerminal(ctx, d, term)
 	if err != nil {
 		t.Fatalf("splitCanonAtTerminalTx: %v", err)
 	}
@@ -598,7 +598,7 @@ func TestTJunction_DeclinesWhenANodeSitsBesideTheProjection(t *testing.T) {
 // TestWarpUnresolvedLegTerminalsTx_AdoptsAndTapers is the direct unit
 // Prove-It: given an existing node within radius of an unresolved leg
 // terminal, the function adopts it (bit-exact join, same postcondition
-// WarpLegEndpoints itself enforces) and TAPERS the approach — not a jump.
+// warpLegEndpoints itself enforces) and TAPERS the approach — not a jump.
 // Asserts two things: pips behind the
 // adopted terminal move PROGRESSIVELY LESS, and a pip far enough back does
 // not move AT ALL (bit-identical to its source coordinate).
@@ -632,7 +632,7 @@ func TestWarpUnresolvedLegTerminalsTx_AdoptsAndTapers(t *testing.T) {
 		mPt(1200, 1000), // far end, nothing nearby
 	}
 
-	out, rep, _, err := WarpUnresolvedLegTerminals(ctx, d, pts, WarpReport{}, false)
+	out, rep, _, err := warpUnresolvedLegTerminals(ctx, d, pts, WarpReport{}, false)
 	if err != nil {
 		t.Fatalf("warpUnresolvedLegTerminalsTx: %v", err)
 	}
@@ -700,7 +700,7 @@ func TestWarpUnresolvedLegTerminalsTx_LeavesResolvedSidesAlone(t *testing.T) {
 		},
 	})
 
-	out, gotRep, _, err := WarpUnresolvedLegTerminals(hctx, d, pts, rep, false)
+	out, gotRep, _, err := warpUnresolvedLegTerminals(hctx, d, pts, rep, false)
 	if err != nil {
 		t.Fatalf("warpUnresolvedLegTerminalsTx: %v", err)
 	}
@@ -728,8 +728,8 @@ func TestWarpUnresolvedLegTerminalsTx_LeavesResolvedSidesAlone(t *testing.T) {
 // This is a real leg's measured shape reduced to a fixture: a single 28-arc
 // leg whose own start and end sit 5.98 m apart. Confirmed RED against this
 // exact shape before the multi-piece case was added: calling
-// WarpUnresolvedLegTerminals with multiPiece=true on this fixture left BOTH
-// ends nil, and CommitLegPieces then minted two SEPARATE nodes 7.07 m apart.
+// warpUnresolvedLegTerminals with multiPiece=true on this fixture left BOTH
+// ends nil, and commitLegPieces then minted two SEPARATE nodes 7.07 m apart.
 func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 	ctx := context.Background()
 	d := emptyCanon(t)
@@ -738,7 +738,7 @@ func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 	// start/end -- far outside EndpointWarpRadiusM, so it plays no part in
 	// the close-ends question below (same fixture shape as
 	// TestA2_MultiPieceLegWithCloseEndsClosesACycleWithNoBisection).
-	anchor, seamNode, _, _, _, _, _, _, _, _, err := CommitPiece(ctx, d, []Point{mPt(-50, 0), mPt(0, 50)}, nil, nil, nil)
+	anchor, seamNode, _, _, _, _, _, _, _, _, err := commitPiece(ctx, d, []Point{mPt(-50, 0), mPt(0, 50)}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("anchor piece (interior seam node): %v", err)
 	}
@@ -756,9 +756,9 @@ func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 		mPt(0, 50), // idx1: interior seam, HasNode, at seamNode
 		mPt(5, 5),  // idx2: leg end terminal, 7.07m from idx0
 	}
-	seams := []LegSeam{{Idx: 1, HasNode: true, Node: seamNode}}
+	seams := []legSeam{{Idx: 1, HasNode: true, Node: seamNode}}
 
-	out, rep, ringMerged, err := WarpUnresolvedLegTerminals(ctx, d, pts, WarpReport{}, true)
+	out, rep, ringMerged, err := warpUnresolvedLegTerminals(ctx, d, pts, WarpReport{}, true)
 	if err != nil {
 		t.Fatalf("warpUnresolvedLegTerminalsTx: %v", err)
 	}
@@ -783,16 +783,16 @@ func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 		t.Errorf("minted node (%v,%v) != pts[0] (%v,%v) -- must be bit-exact", n.Lat, n.Lon, pts[0].Lat, pts[0].Lon)
 	}
 	// The end terminal must land bit-exact on the shared node (the same
-	// postcondition WarpLegEndpoints enforces for every other adoption).
+	// postcondition warpLegEndpoints enforces for every other adoption).
 	if math.Float64bits(out[2].Lat) != math.Float64bits(n.Lat) || math.Float64bits(out[2].Lon) != math.Float64bits(n.Lon) {
 		t.Errorf("out[2] = (%v,%v), want bit-exact on the shared node (%v,%v)", out[2].Lat, out[2].Lon, n.Lat, n.Lon)
 	}
 
-	// Feed this through CommitLegPieces exactly as production would and
+	// Feed this through commitLegPieces exactly as production would and
 	// confirm the SAME outcome the reverted commit's own test proved at
 	// the writer: a closed CYCLE across two arcs, no self-loop in
 	// either one.
-	pieces, _, ringSplits, ringMergedTerminals, _, _, _, _, _, err := CommitLegPieces(ctx, d, out, seams, nil, rep.StartNode, rep.EndNode)
+	pieces, _, ringSplits, ringMergedTerminals, _, _, _, _, _, err := commitLegPieces(ctx, d, out, seams, nil, rep.StartNode, rep.EndNode)
 	if err != nil {
 		t.Fatalf("commitLegPiecesTx: %v", err)
 	}

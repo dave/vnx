@@ -55,7 +55,7 @@ func TestA2_TwoSeamsOnOneNodeAtAdjacentPointsAreOneSeam(t *testing.T) {
 
 	// Six points on a straight 500 m line. Runs 0 and 1 are ON; the single point
 	// between them (index 3) is the one-point OFF excursion at the junction.
-	asm := AssembledLeg{
+	asm := assembledLeg{
 		Points: []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), mPt(300, 0), mPt(400, 0), mPt(500, 0)},
 		OnPieces: []OnPieceRange{
 			{Run: 0, Lo: 0, Hi: 2, TerminalStart: true},
@@ -122,7 +122,7 @@ func TestA2_SeamConflictPicksTheCloserCandidate(t *testing.T) {
 	// assembler dedups it to one idx, and legSeamsFromAlign sees two
 	// boundary records both claiming it.
 	pts := []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), mPt(300, 0), mPt(400, 0), mPt(500, 0)}
-	asm := AssembledLeg{
+	asm := assembledLeg{
 		Points: pts,
 		OnPieces: []OnPieceRange{
 			{Run: 0, Lo: 0, Hi: 3, TerminalStart: true},
@@ -197,7 +197,7 @@ func TestA2_TwoSeamsOnOneNodeWithCoincidentInteriorAreOneSeam(t *testing.T) {
 	// bound the middle of that run, so the piece between the seams is points 2..4:
 	// three points, one interior vertex, and zero measure.
 	dup := mPt(200, 0)
-	asm := AssembledLeg{
+	asm := assembledLeg{
 		Points:   []Point{mPt(0, 0), mPt(100, 0), dup, dup, dup, mPt(500, 0)},
 		OnPieces: []OnPieceRange{{Run: 0, Lo: 0, Hi: 2, TerminalStart: true}, {Run: 1, Lo: 4, Hi: 5, TerminalEnd: true}},
 	}
@@ -249,7 +249,7 @@ func TestA2_TerminalSeamOnOneNodeWithCoincidentInteriorCollapses(t *testing.T) {
 	pts := []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), dup, dup, dup}
 	last := len(pts) - 1
 	end := j
-	seams := []LegSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}
+	seams := []legSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}
 
 	got := collapseTerminalSameNodeSeams(seams, pts, last, nil, &end)
 	if len(got) != 1 {
@@ -260,7 +260,7 @@ func TestA2_TerminalSeamOnOneNodeWithCoincidentInteriorCollapses(t *testing.T) {
 	// LIVENESS. A terminal piece with REAL extent is a genuine ring and must keep
 	// both claims — the same-node split splits it because that geometry exists.
 	realPts := []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), mPt(300, 0), mPt(350, 0), mPt(300, 0)}
-	ring := collapseTerminalSameNodeSeams([]LegSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}, realPts, last, nil, &end)
+	ring := collapseTerminalSameNodeSeams([]legSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}, realPts, last, nil, &end)
 	if len(ring) != 2 {
 		t.Fatalf("a terminal piece with real extent produced %d seam(s), want 2 — it is a ring and the same-node split owns it", len(ring))
 	}
@@ -275,60 +275,60 @@ func TestA2_TerminalSeamOnOneNodeWithCoincidentInteriorCollapses(t *testing.T) {
 // rule that broke rather than the seed that noticed.
 func TestCollapseTerminalSameNodeSeams(t *testing.T) {
 	node := func(n NodeID) *NodeID { return &n }
-	seam := func(idx int, n NodeID) LegSeam { return LegSeam{Idx: idx, Node: n, HasNode: true} }
-	declined := func(idx int) LegSeam { return LegSeam{Idx: idx} }
+	seam := func(idx int, n NodeID) legSeam { return legSeam{Idx: idx, Node: n, HasNode: true} }
+	declined := func(idx int) legSeam { return legSeam{Idx: idx} }
 
 	cases := []struct {
 		name       string
-		seams      []LegSeam
+		seams      []legSeam
 		last       int
 		start, end *NodeID
-		want       []LegSeam
+		want       []legSeam
 	}{{
 		// The measured defect: leg rejoins canon at J at the second-to-last point,
 		// then ends within the warp radius of J. Final piece would be two points
 		// both ending on J — zero-length, and the same-node split has no interior vertex to cut.
 		name:  "end terminal adopts the node the last seam named",
-		seams: []LegSeam{seam(3, 7), seam(9, 4)},
+		seams: []legSeam{seam(3, 7), seam(9, 4)},
 		last:  10, end: node(4),
-		want: []LegSeam{seam(3, 7)},
+		want: []legSeam{seam(3, 7)},
 	}, {
 		name:  "start terminal adopts the node the first seam named (seed 63)",
-		seams: []LegSeam{seam(1, 4), seam(6, 9)},
+		seams: []legSeam{seam(1, 4), seam(6, 9)},
 		last:  10, start: node(4),
-		want: []LegSeam{seam(6, 9)},
+		want: []legSeam{seam(6, 9)},
 	}, {
 		name:  "both ends collapse",
-		seams: []LegSeam{seam(1, 4), seam(5, 8), seam(9, 6)},
+		seams: []legSeam{seam(1, 4), seam(5, 8), seam(9, 6)},
 		last:  10, start: node(4), end: node(6),
-		want: []LegSeam{seam(5, 8)},
+		want: []legSeam{seam(5, 8)},
 	}, {
 		// NOT adjacent: the piece from the seam to the terminal has interior
 		// vertices, so it is a real ring and the same-node split commits it as two arcs.
 		name:  "same node but a gap — a genuine ring, left alone",
-		seams: []LegSeam{seam(3, 7), seam(8, 4)},
+		seams: []legSeam{seam(3, 7), seam(8, 4)},
 		last:  10, end: node(4),
-		want: []LegSeam{seam(3, 7), seam(8, 4)},
+		want: []legSeam{seam(3, 7), seam(8, 4)},
 	}, {
 		name:  "adjacent but a DIFFERENT node — nothing to collapse",
-		seams: []LegSeam{seam(3, 7), seam(9, 5)},
+		seams: []legSeam{seam(3, 7), seam(9, 5)},
 		last:  10, end: node(4),
-		want: []LegSeam{seam(3, 7), seam(9, 5)},
+		want: []legSeam{seam(3, 7), seam(9, 5)},
 	}, {
 		// A declined seam mints the leg's own node and names none, so it cannot be
 		// the terminal's node and must never be dropped by this rule.
 		name:  "adjacent declined seam is not a same-node collapse",
-		seams: []LegSeam{seam(3, 7), declined(9)},
+		seams: []legSeam{seam(3, 7), declined(9)},
 		last:  10, end: node(4),
-		want: []LegSeam{seam(3, 7), declined(9)},
+		want: []legSeam{seam(3, 7), declined(9)},
 	}, {
 		name:  "no warp at either terminal leaves every seam standing",
-		seams: []LegSeam{seam(1, 4), seam(9, 6)},
+		seams: []legSeam{seam(1, 4), seam(9, 6)},
 		last:  10,
-		want:  []LegSeam{seam(1, 4), seam(9, 6)},
+		want:  []legSeam{seam(1, 4), seam(9, 6)},
 	}, {
 		name:  "a single seam that both terminals would claim collapses once and stays empty",
-		seams: []LegSeam{seam(1, 4)},
+		seams: []legSeam{seam(1, 4)},
 		last:  2, start: node(4), end: node(4),
 		want: nil,
 	}}
@@ -345,7 +345,7 @@ func TestCollapseTerminalSameNodeSeams(t *testing.T) {
 			for i := range pts {
 				pts[i] = mPt(float64(i)*100, 0)
 			}
-			got := collapseTerminalSameNodeSeams(append([]LegSeam(nil), tc.seams...), pts, tc.last, tc.start, tc.end)
+			got := collapseTerminalSameNodeSeams(append([]legSeam(nil), tc.seams...), pts, tc.last, tc.start, tc.end)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d seam(s) %+v, want %d %+v", len(got), got, len(tc.want), tc.want)
 			}

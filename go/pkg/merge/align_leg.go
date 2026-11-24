@@ -65,12 +65,12 @@ package merge
 //
 // ── NO NEW TOLERANCE, NO NEW BAND ───────────────────────────────────────────
 //
-// [MeasureEps] qualifies "is this boundary already at an end", in the same
+// [measureEps] qualifies "is this boundary already at an end", in the same
 // measure role [assembleOnRun] uses it. Without it, `t == 1` arithmetic writes a
 // half-arc of order 1e-14 m that a self-loop check does NOT catch, because the
 // two node ids are distinct.
 //
-// MeasureEps also decides the DECLINE the boundary is reported under, and that
+// measureEps also decides the DECLINE the boundary is reported under, and that
 // is not cosmetic: "already at a node" is the state this step exists to reach,
 // and the leg cut consumes this report.
 //
@@ -216,7 +216,7 @@ func SplitCanonAtRunBoundaries(
 				"SplitCanonAtRunBoundaries: canon arc %d has measure length %v — it cannot carry a boundary", canonID, origTotal)
 		}
 		for _, a := range measures {
-			if a.Measure < -MeasureEps || a.Measure > origTotal+MeasureEps {
+			if a.Measure < -measureEps || a.Measure > origTotal+measureEps {
 				return AlignReport{}, fmt.Errorf(
 					"SplitCanonAtRunBoundaries: boundary at measure %.9f m is outside canon arc %d, which is %.9f m long",
 					a.Measure, canonID, origTotal)
@@ -374,7 +374,7 @@ func reresolveAbsorbsAgainstThisPass(ctx context.Context, canon Canon, rep *Alig
 		if b.Decline != AlignDeclineAbsorbedToNode {
 			continue
 		}
-		existing, found, err := NearestNode(ctx, canon, b.Lat, b.Lon, EndpointWarpRadiusM, nil)
+		existing, found, err := nearestNode(ctx, canon, b.Lat, b.Lon, EndpointWarpRadiusM, nil)
 		if err != nil {
 			return fmt.Errorf(
 				"re-resolve an absorbed boundary against its own coordinate (%.9f,%.9f): %w", b.Lat, b.Lon, err)
@@ -453,7 +453,7 @@ func cutCanonAtMeasure(
 	// DECLINE 1: the boundary is AT AN END OF THIS ARC, so the node it wants is
 	// already there.
 	//
-	// ⚠ THE COMPARISON IS `>= total - MeasureEps`, WITH NO UPPER RANGE CHECK ABOVE
+	// ⚠ THE COMPARISON IS `>= total - measureEps`, WITH NO UPPER RANGE CHECK ABOVE
 	// IT. A measure at or PAST this arc's end is at its end node; that is the
 	// correct classification of the geometry, not a tolerance for an unknown. It has
 	// to be, because a half's recomputed length is NOT the measure it was cut at:
@@ -469,7 +469,7 @@ func cutCanonAtMeasure(
 	// escapes THERE fails loudly; a boundary that merely overshoots a half it
 	// helped create is at that half's end.
 	//
-	// MeasureEps stays in its measure role at the low end too: without it the
+	// measureEps stays in its measure role at the low end too: without it the
 	// fraction below can reach (total-1ulp)/total, which passes the split's strict
 	// (0,1) fraction check and writes a half of order 1e-14 m that a self-loop
 	// check cannot see (the two node ids are distinct).
@@ -480,14 +480,14 @@ func cutCanonAtMeasure(
 	// already has the topology the leg needs. The id is not derivable afterwards
 	// ([CanonArc] carries vertices and no node ids), so it is read here, at the one
 	// moment the parent arc is known.
-	if measure <= MeasureEps || measure >= total-MeasureEps {
+	if measure <= measureEps || measure >= total-measureEps {
 		startNode, endNode, err := canon.ArcEnds(ctx, parent)
 		if err != nil {
 			return AlignBoundary{}, fmt.Errorf(
 				"read endpoint nodes of canon arc %d for a boundary already at its end: %w", parent, err)
 		}
 		out.Decline = AlignDeclineAtNode
-		if measure <= MeasureEps {
+		if measure <= measureEps {
 			out.Node = startNode
 		} else {
 			out.Node = endNode
@@ -511,7 +511,7 @@ func cutCanonAtMeasure(
 	//
 	// ⚠ REPOINTING A BOUNDARY REQUIRES WARPING THE LEG TO IT. This step only
 	// decides WHICH node; it does not move canon (canon is not cut at all when this
-	// fires). The leg cut ([WarpLegAtBoundaries]) is what makes the LEG's own
+	// fires). The leg cut ([warpLegAtBoundaries]) is what makes the LEG's own
 	// geometry actually reach Node, so this boundary's NodeLat/NodeLon and
 	// AbsorbedM are recorded here: identity is recorded, never re-derived.
 	//
@@ -527,12 +527,12 @@ func cutCanonAtMeasure(
 	// double back over itself there; that is accepted.
 	//
 	// `claim` is therefore not subtracted from the candidate set. exclude stays
-	// empty, not nil, so this call keeps [NearestNode]'s excluding shape: if a
+	// empty, not nil, so this call keeps [nearestNode]'s excluding shape: if a
 	// future case needs a real exclusion, the site already has it.
 	lat, lon := interpolateMeasurePointM(arc.Vertices, measure)
 	out.Lat, out.Lon = lat, lon
 	exclude := []NodeID{}
-	nearby, foundNearby, err := NearestNode(ctx, canon, lat, lon, EndpointWarpRadiusM, exclude)
+	nearby, foundNearby, err := nearestNode(ctx, canon, lat, lon, EndpointWarpRadiusM, exclude)
 	if err != nil {
 		return AlignBoundary{}, fmt.Errorf(
 			"SplitCanonAtRunBoundaries: search for a node within %v m of the boundary's own coordinate (%.9f,%.9f): %w",
@@ -601,11 +601,11 @@ func cutCanonAtMeasure(
 		return out, nil
 	}
 
-	// [SplitArcAt] on the canon: it checks the fraction is in (0, 1), computes
+	// [splitArcAt] on the canon: it checks the fraction is in (0, 1), computes
 	// the split and stores it with Canon.SplitArc, which rewrites only the walks
 	// that ride the parent.
 	fraction := measure / total
-	res, err := SplitArcAt(ctx, canon, parent, fraction)
+	res, err := splitArcAt(ctx, canon, parent, fraction)
 	if err != nil {
 		return AlignBoundary{}, fmt.Errorf(
 			"split canon arc %d at fraction %v (measure %.6f m of %.6f m) for a followed run boundary: %w",
@@ -650,7 +650,7 @@ func cutCanonAtMeasure(
 	// foreign nodes inside the radius makes two violating pairs, so recording only
 	// the nearest would exempt one and leave its twin looking like a genuine
 	// violation. Same search, same box, same exclude ([nearbyNodes] and
-	// [NearestNode] share one body), reduced to nearest here for the message
+	// [nearestNode] share one body), reduced to nearest here for the message
 	// and kept whole for the record.
 	nearbyAll, err := nearbyNodes(ctx, canon, res.Node.Lat, res.Node.Lon, EndpointWarpRadiusM, []NodeID{res.Node.ID})
 	if err != nil {
@@ -658,7 +658,7 @@ func cutCanonAtMeasure(
 			"SplitCanonAtRunBoundaries: invariant check after minting node %d: %w", res.Node.ID, err)
 	}
 	var found bool
-	nearby = NearbyNode{}
+	nearby = nearbyNode{}
 	for _, n := range nearbyAll {
 		if !found || n.DistM < nearby.DistM {
 			nearby, found = n, true

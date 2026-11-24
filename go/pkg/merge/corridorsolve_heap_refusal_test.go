@@ -1,6 +1,6 @@
 package merge
 
-// A refusal inside the search must reach the caller of [SolveCorridorPath] as
+// A refusal inside the search must reach the caller of [solveCorridorPath] as
 // an error, with no partial result. corridorheap_test.go proves the heap
 // refuses; these tests prove the solve does not swallow the refusal.
 //
@@ -18,17 +18,17 @@ import (
 
 // solveWithHeapHook runs one real solve (a single candidate under a straight
 // source) with hook applied to its heap, and returns what the caller sees.
-func solveWithHeapHook(t *testing.T, hook func(q *corridorHeap)) (*CorridorSolveResult, error) {
+func solveWithHeapHook(t *testing.T, hook func(q *corridorHeap)) (*corridorSolveResult, error) {
 	t.Helper()
 	pc := prepOne(t, mPt(-20, 0), mPt(120, 0))
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{pc}
 	ivs := buildIvs(t, sa, cands, CorridorRadiusM)
 	ctx := WithTestHooks(t.Context(), TestHooks{corridorSolveHeap: hook})
-	return SolveCorridorPath(ctx, sa.Total(), sa, ivs, cands, CorridorRadiusM, EmissionK)
+	return solveCorridorPath(ctx, sa.Total(), sa, ivs, cands, CorridorRadiusM, emissionK)
 }
 
 // TestCorridorSolve_HeapRefusalOnDecreaseIsAnError marks layer 1's OFF state
@@ -93,7 +93,7 @@ func TestArcCost_NegativeCostIsAnError(t *testing.T) {
 	// A real piece: the candidate runs WEST under a source that runs east, so
 	// its canon measure falls as import measure rises.
 	pc := prepOne(t, mPt(120, 0), mPt(-20, 0))
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestArcCost_NegativeCostIsAnError(t *testing.T) {
 	x0, x1 := sp.P.ImportMeasureAtLo, sp.P.ImportMeasureAtHi
 	// Liveness: with the production weight the same piece prices cleanly and
 	// the backtrack term is what makes it non-zero.
-	c, err := ArcCost(&sp, CorridorFWD, x0, x1, CorridorRadiusM, EmissionK)
+	c, err := ArcCost(&sp, CorridorFWD, x0, x1, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("arcCost with the production weight: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestArcCost_NegativeCostIsAnError(t *testing.T) {
 		t.Fatalf("arcCost with the production weight = %v, want > 0 — the fixture has no backtrack, so the override below cannot make it negative", c)
 	}
 	for _, w := range []float64{-1, math.NaN()} {
-		c, err := ArcCost(&sp, CorridorFWD, x0, x1, CorridorRadiusM, EmissionK, w)
+		c, err := ArcCost(&sp, CorridorFWD, x0, x1, CorridorRadiusM, emissionK, w)
 		if err == nil {
 			t.Errorf("backtrack weight %v: arcCost returned %v with no error — a negative or NaN edge cost reached the solve", w, c)
 			continue

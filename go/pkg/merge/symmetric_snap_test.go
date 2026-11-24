@@ -57,7 +57,7 @@ func TestSymmetricSnapDeclineFor(t *testing.T) {
 // ── ONE RULER ───────────────────────────────────────────────────────────────
 
 // TestSymmetricSnap_LegMeasureIsTheSameRulerAsTheProjection. The stub rule
-// compares legMeasureToVertex against NodeNearPath.PriorLenM, which
+// compares legMeasureToVertex against nodeNearPath.PriorLenM, which
 // ProjectProbeOntoWalk produced by summing HaversineMetres over consecutive
 // vertices of the SAME array in ascending order. Same primitive, same operands,
 // same order — so these are bit-identical, not merely close.
@@ -79,7 +79,7 @@ func TestSymmetricSnap_LegMeasureIsTheSameRulerAsTheProjection(t *testing.T) {
 		}
 	}
 	// And the whole-leg sum agrees with the one the T-junction split already depends on.
-	if math.Float64bits(legMeasureToVertex(pts, len(pts)-1)) != math.Float64bits(LegMeasureLengthM(pts)) {
+	if math.Float64bits(legMeasureToVertex(pts, len(pts)-1)) != math.Float64bits(legMeasureLengthM(pts)) {
 		t.Errorf("legMeasureToVertex to the last vertex disagrees with legMeasureLengthM")
 	}
 }

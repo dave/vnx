@@ -13,7 +13,7 @@ import (
 // hand-drawn plans almost every source edge is long enough to hide an arc that
 // way at a 10 m radius.
 //
-// SOUNDNESS comes from RectsBeyond: a box CONTAINS its geometry, so the
+// SOUNDNESS comes from rectsBeyond: a box CONTAINS its geometry, so the
 // distance between two boxes lower-bounds the distance between what is inside
 // them, and a pair the test calls "beyond" cannot hold a qualifying pair. The
 // corridor's own edge pruning rests on the same argument, which is why this
@@ -43,7 +43,7 @@ func arcBBoxNearAnyEdge(verts, pts []Point, stayM float64) bool {
 		bMaxLat := math.Max(pts[i].Lat, pts[i+1].Lat)
 		bMinLon := math.Min(pts[i].Lon, pts[i+1].Lon)
 		bMaxLon := math.Max(pts[i].Lon, pts[i+1].Lon)
-		if !RectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, bMaxLon, stayM) {
+		if !rectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, bMaxLon, stayM) {
 			return true
 		}
 	}

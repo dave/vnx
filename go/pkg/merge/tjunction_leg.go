@@ -33,7 +33,7 @@ import (
 	"math"
 )
 
-// SplitCanonAtLegTerminals is the T-junction split's entry point: for each
+// splitCanonAtLegTerminals is the T-junction split's entry point: for each
 // of the leg's two terminals it decides whether a canon arc should be split
 // so that the endpoint warp has a node to warp onto, and performs the split.
 //
@@ -46,9 +46,7 @@ import (
 // no path that commits the leg after a failed split: a split we could not
 // complete or could not verify means we do not know what shape canon is now
 // in, and continuing would be exactly the guess this step avoids.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func SplitCanonAtLegTerminals(
+func splitCanonAtLegTerminals(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
@@ -73,13 +71,13 @@ func SplitCanonAtLegTerminals(
 	// tjunctionDeclineFor's doc). A non-finite leg is still caught, just one
 	// function later: warpLegEndpointsToNodes errors on the same condition
 	// over the same array.
-	start, err := SplitCanonAtTerminal(ctx, canon, pts[0])
+	start, err := splitCanonAtTerminal(ctx, canon, pts[0])
 	if err != nil {
 		return rep, err
 	}
 	rep.Start = start
 
-	end, err := SplitCanonAtTerminal(ctx, canon, pts[len(pts)-1])
+	end, err := splitCanonAtTerminal(ctx, canon, pts[len(pts)-1])
 	if err != nil {
 		return rep, err
 	}
@@ -88,11 +86,9 @@ func SplitCanonAtLegTerminals(
 	return rep, nil
 }
 
-// SplitCanonAtTerminal runs the whole rule for ONE terminal: probe, search,
+// splitCanonAtTerminal runs the whole rule for ONE terminal: probe, search,
 // decide, split, verify.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func SplitCanonAtTerminal(
+func splitCanonAtTerminal(
 	ctx context.Context,
 	canon Canon,
 	p Point,
@@ -102,7 +98,7 @@ func SplitCanonAtTerminal(
 	//    mint a second node beside it. This is also what makes the split
 	//    IDEMPOTENT: the node a previous import minted at this T is found
 	//    here, so re-importing the same file splits nothing.
-	if _, ok, err := NearestNode(
+	if _, ok, err := nearestNode(
 		ctx, canon, p.Lat, p.Lon, EndpointWarpRadiusM, nil,
 	); err != nil {
 		return TjunctionTerminal{}, err
@@ -113,7 +109,7 @@ func SplitCanonAtTerminal(
 	// 2. Otherwise: which canon arc's INTERIOR passes nearest? Candidates
 	//    include geometry written earlier in this same merge, as the follow
 	//    and the endpoint warp also allow. There is no exclusion set.
-	cand, ok, err := NearestArc(
+	cand, ok, err := nearestArc(
 		ctx, canon, p.Lat, p.Lon, EndpointWarpRadiusM)
 	if err != nil {
 		return TjunctionTerminal{}, err
@@ -129,7 +125,7 @@ func SplitCanonAtTerminal(
 	}
 
 	// 3-4. The two declines.
-	if d := tjunctionDeclineFor(NearbyCanonArc(cand)); d != TjNoDecline {
+	if d := tjunctionDeclineFor(nearbyCanonArc(cand)); d != TjNoDecline {
 		out.Decline = d
 		return out, nil
 	}
@@ -157,7 +153,7 @@ func SplitCanonAtTerminal(
 	//    place, and a node 13 m away on different geometry is not that node.
 	//    Declining leaves the terminal to the endpoint warp, which is where it
 	//    already goes whenever this step declines for any other reason.
-	if _, ok, err := NearestNode(
+	if _, ok, err := nearestNode(
 		ctx, canon, cand.Lat, cand.Lon, EndpointWarpRadiusM, nil,
 	); err != nil {
 		return TjunctionTerminal{}, err
@@ -166,11 +162,11 @@ func SplitCanonAtTerminal(
 		return out, nil
 	}
 
-	// 6. Split, through the canon: [SplitArcAt] checks the fraction, computes
+	// 6. Split, through the canon: [splitArcAt] checks the fraction, computes
 	//    the split and stores it with Canon.SplitArc, which mints the node,
 	//    writes both halves, repairs anything the host keeps riding the
 	//    parent, and deletes the parent.
-	res, err := SplitArcAt(ctx, canon, cand.ID, cand.Fraction)
+	res, err := splitArcAt(ctx, canon, cand.ID, cand.Fraction)
 	if err != nil {
 		return TjunctionTerminal{}, fmt.Errorf(
 			"split canon arc %d at fraction %v for a terminal %.3f m away: %w",

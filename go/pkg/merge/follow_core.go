@@ -9,13 +9,11 @@ import (
 	"github.com/dave/vnx/go/pkg/detmath"
 )
 
-// FollowBands are the matcher tolerances. Each value is justified by a
+// followBands are the matcher tolerances. Each value is justified by a
 // discrimination sweep; do not change one without repeating it. The
 // matcher takes them by value so tests can exercise band edges; there is
 // no production override path.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type FollowBands struct {
+type followBands struct {
 	EnterM  float64 // read only by densifyStep
 	StayM   float64 // read only by tests
 	MinRunM float64 // read by no decline rule; tests and diagnostics compare against it
@@ -56,11 +54,11 @@ type RunProj struct {
 // high-measure→low-measure), the measure interval on that candidate, and one RunProj per
 // source point in [Start, End].
 //
-// ⚠ RAW, NOT CANONICAL. [SourceMeasure.normalise] would collapse a position on
+// ⚠ RAW, NOT CANONICAL. [sourceMeasure.normalise] would collapse a position on
 // a duplicate-vertex run forward onto the run's last vertex, and an OFF run's
 // verbatim walk would then skip every duplicate before it. Start/End are never
 // passed through it. Safe to hold this way because nothing compares them with
-// `==`; readers convert them to a measure (SourceMeasure.measureAt) or read
+// `==`; readers convert them to a measure (sourceMeasure.measureAt) or read
 // the measure fields instead.
 //
 // Exported for the reference application's tests; not part of the stable API.
@@ -78,18 +76,16 @@ type FollowRun struct {
 	Proj         []RunProj
 
 	// ChainHop marks a run that draws an intermediate candidate of a
-	// same-layer switch chain — see [CorridorRun.ChainHop]. Its Start and End
+	// same-layer switch chain — see [corridorRun.ChainHop]. Its Start and End
 	// are one source position, so it lies within one source edge by
 	// construction, and its direction is the one the chain's switches paid
 	// for, not a projection read off the source.
 	ChainHop bool
 }
 
-// MeasureEps guards measure comparisons against floating-point noise; it is not a
+// measureEps guards measure comparisons against floating-point noise; it is not a
 // tolerance in the band sense.
-//
-// Exported for the reference application's tests; not part of the stable API.
-const MeasureEps = 1e-9
+const measureEps = 1e-9
 
 // PreppedCandidate is a candidate with its cumulative measure lengths
 // precomputed. Degenerate candidates (fewer than two vertices, or zero
@@ -136,8 +132,7 @@ type PreppedCandidate struct {
 // correct, it only trades pruning tightness against bookkeeping.
 const chunkEdges = 32
 
-// Exported for the reference application's tests; not part of the stable API.
-func PrepCandidates(canon []CanonArc) []*PreppedCandidate {
+func prepCandidates(canon []CanonArc) []*PreppedCandidate {
 	out := make([]*PreppedCandidate, len(canon))
 	for i, c := range canon {
 		if len(c.Vertices) < 2 {
@@ -257,11 +252,11 @@ func ClosestPointOnSeg(aLat, aLon, bLat, bLon, probeLat, probeLon float64) (dist
 // far below MinRun/2 = 12.5 m, so every in-band feature able to survive MinRun
 // spans many samples. Convergence is pinned by the dense-limit fixture
 // (sparse == densified) and its halving no-op check.
-func densifyStep(b FollowBands) float64 { return b.EnterM / 8 }
+func densifyStep(b followBands) float64 { return b.EnterM / 8 }
 
 // densifySource resamples the leg to the given step: every original vertex is
 // kept (orig true) and interior points are inserted along each edge at the
-// step (orig false). Deterministic and pure. [AssembleFollowedLegRunsCorridor]
+// step (orig false). Deterministic and pure. [assembleFollowedLegRunsCorridor]
 // uses it to build the source path its node-snap corridor gate measures
 // against. Elevation is linearly interpolated for inserted points; they are never
 // committed verbatim (OFF emits only original vertices, ON emits canon), so
@@ -331,7 +326,7 @@ const onLineEps = 1e-6
 // and has no bearing on how far a join is allowed to move.
 //
 // ⚠ NOT [EndpointWarpRadiusM] SHRUNK OR REPURPOSED — it is the SAME budget
-// applied to a DIFFERENT boundary. [WarpLegEndpoints]' callers use it to
+// applied to a DIFFERENT boundary. [warpLegEndpoints]' callers use it to
 // resolve a LEG'S OWN TERMINAL against a nearby node; this resolves an
 // INTERIOR ON-run boundary, between two runs of the same leg, against the
 // node they share. Neither subsumes the other: a leg terminal has no
@@ -349,7 +344,7 @@ func snapMeasureToCandidateEnd(measure, total float64) float64 {
 	return measure
 }
 
-// NodeLookup answers "is there an existing committed node within radiusM of
+// nodeLookup answers "is there an existing committed node within radiusM of
 // (lat, lon)" and, if so, WHERE it actually is — the ONLY way the otherwise
 // pure assembler (no storage access, no clock, no globals and no package
 // state) can ask about network state beyond the candidate geometry it was
@@ -363,9 +358,7 @@ func snapMeasureToCandidateEnd(measure, total float64) float64 {
 // disables a feature when nil invites a fix that production never reaches:
 // every caller must say, in code that compiles, whether it has node access
 // or not.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type NodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id NodeID, found bool, err error)
+type nodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id NodeID, found bool, err error)
 
 // snapMeasureAnyNode "rides canon" onto ANY existing node within
 // EndpointWarpRadiusM of a boundary's on-line position, not only a
@@ -413,7 +406,7 @@ type NodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id 
 // returns the raw candidate: snapped or not, on-line or declined for being
 // off it, with nothing yet said about Stay.
 // for being off it, with nothing yet said about Stay.
-func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup NodeLookup) (float64, error) {
+func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, error) {
 	if lookup == nil {
 		return 0, errors.New("snapMeasureAnyNode: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
 	}
@@ -440,7 +433,7 @@ func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup NodeLookup
 // reports which mechanism produced the change: "own-end", "any-node", or
 // "none". The mechanism string is for measurement only; the live assembler
 // discards it.
-func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup NodeLookup) (float64, string, error) {
+func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, string, error) {
 	if snapped := snapMeasureToCandidateEnd(measure, pc.Total); snapped != measure {
 		return snapped, "own-end", nil
 	}
@@ -471,14 +464,14 @@ func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup
 //
 // If applying BOTH tentative snaps keeps the interval correctly ordered for
 // `reversed` (forward: start <= end; reversed: start >= end, both with
-// MeasureEps slack), they are kept. Otherwise BOTH are declined — reverting to
+// measureEps slack), they are kept. Otherwise BOTH are declined — reverting to
 // origStart/origEnd — rather than guessing which one "should" win: nothing in
 // either snap's own computation says which end more deserves the boundary,
 // and reverting both is the pre-fix, already-valid behaviour.
 func reconcileSnappedMeasures(origStart, origEnd, snapStart, snapEnd float64, reversed bool) (float64, float64) {
-	ordered := snapStart <= snapEnd+MeasureEps
+	ordered := snapStart <= snapEnd+measureEps
 	if reversed {
-		ordered = snapStart >= snapEnd-MeasureEps
+		ordered = snapStart >= snapEnd-measureEps
 	}
 	if ordered {
 		return snapStart, snapEnd
@@ -529,7 +522,7 @@ func checkCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStar
 	var interior []Point
 	for i := range pc.Verts {
 		a := pc.cumMeasure[i]
-		if a > lo+MeasureEps && a < hi-MeasureEps {
+		if a > lo+measureEps && a < hi-measureEps {
 			interior = append(interior, cloneImportPoint(pc.Verts[i]))
 		}
 	}
@@ -626,9 +619,9 @@ func checkCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStar
 // reads the comb rather than a whole densified array can call it too.
 //
 // atLegStart/atLegEnd say whether this run's Start/End sits at the LEG's own
-// first/last position; the caller ([AssembleFollowedLegRunsCorridor]) computes
+// first/last position; the caller ([assembleFollowedLegRunsCorridor]) computes
 // them.
-func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun, b FollowBands, entryCross, exitCross *Point, atLegStart, atLegEnd bool) ([]Point, error) {
+func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun, b followBands, entryCross, exitCross *Point, atLegStart, atLegEnd bool) ([]Point, error) {
 	lo, hi := run.MeasureStart, run.MeasureEnd
 	if lo > hi {
 		lo, hi = hi, lo
@@ -640,7 +633,7 @@ func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun,
 	var interiorMeasures []float64
 	for i := range pc.Verts {
 		a := pc.cumMeasure[i]
-		if a > lo+MeasureEps && a < hi-MeasureEps {
+		if a > lo+measureEps && a < hi-measureEps {
 			interior = append(interior, cloneImportPoint(pc.Verts[i]))
 			interiorMeasures = append(interiorMeasures, a)
 		}
@@ -679,11 +672,11 @@ func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun,
 	measureSeq = append(measureSeq, interiorMeasures...)
 	measureSeq = append(measureSeq, run.MeasureEnd)
 	for i := 1; i < len(measureSeq); i++ {
-		if run.Reversed && measureSeq[i] > measureSeq[i-1]+MeasureEps {
+		if run.Reversed && measureSeq[i] > measureSeq[i-1]+measureEps {
 			return nil, fmt.Errorf("assembleOnRun: run [%+v,%+v] arc %d reverse measures not descending: %v",
 				run.Start, run.End, run.CanonID, measureSeq)
 		}
-		if !run.Reversed && measureSeq[i] < measureSeq[i-1]-MeasureEps {
+		if !run.Reversed && measureSeq[i] < measureSeq[i-1]-measureEps {
 			return nil, fmt.Errorf("assembleOnRun: run [%+v,%+v] arc %d forward measures not ascending: %v",
 				run.Start, run.End, run.CanonID, measureSeq)
 		}
@@ -853,9 +846,9 @@ func reverseFloats(s []float64) {
 //
 // Caching is byte-identical, not merely close: a [hintPoly] is a pure function
 // of `verts` (prefix/suffix boxes and cosMin, all derived), nothing mutates
-// `verts` after [PrepCandidates] builds it, and [hintPoly.nearestDist] only
+// `verts` after [prepCandidates] builds it, and [hintPoly.nearestDist] only
 // reads — it takes its hint as an argument and stores nothing. Each
-// [PrepCandidates] call builds fresh candidates that never outlive their one
+// [prepCandidates] call builds fresh candidates that never outlive their one
 // leg, so there is no sharing across legs and no lock is needed.
 func (pc *PreppedCandidate) hintPoly() *hintPoly {
 	if pc.poly == nil {
@@ -897,12 +890,12 @@ func (pc *PreppedCandidate) projectRangeCeil(lat, lon, minMeasure, maxMeasure, c
 	// cumMeasure is monotone, so a binary search finds the first in-window edge; a
 	// narrow window (the common continuation case) then scans only a few edges
 	// instead of the whole candidate. Result-identical to a full scan.
-	lo := sort.Search(nedges, func(i int) bool { return pc.cumMeasure[i+1] >= minMeasure-MeasureEps })
+	lo := sort.Search(nedges, func(i int) bool { return pc.cumMeasure[i+1] >= minMeasure-measureEps })
 	// hasCeil is hoisted: testing it per edge showed up as ~5% of total CPU in
 	// its own right on long-candidate inputs.
 	hasCeil := !math.IsInf(ceilM, 1)
 	for i := lo; i < nedges; i++ {
-		if pc.cumMeasure[i] > maxMeasure+MeasureEps {
+		if pc.cumMeasure[i] > maxMeasure+measureEps {
 			break // this edge and all after it start past the window
 		}
 		// Suffix-box lower bound: vertices [i..end] all lie in the precomputed
@@ -949,7 +942,7 @@ func (pc *PreppedCandidate) projectRangeCeil(lat, lon, minMeasure, maxMeasure, c
 		a0, a1 := pc.Verts[i], pc.Verts[i+1]
 		d, t := ClosestPointOnSeg(a0.Lat, a0.Lon, a1.Lat, a1.Lon, lat, lon)
 		a := pc.cumMeasure[i] + t*(pc.cumMeasure[i+1]-pc.cumMeasure[i])
-		if a < minMeasure-MeasureEps || a > maxMeasure+MeasureEps {
+		if a < minMeasure-measureEps || a > maxMeasure+measureEps {
 			continue
 		}
 		if d < best {
@@ -1059,7 +1052,7 @@ func (hp *hintPoly) NearestDist(lat, lon float64, hint int) (float64, int) {
 }
 
 // chunkBeyond reports whether every edge in chunk c is provably farther than
-// marginM from (lat, lon). Same lower-bound contract as [RectsBeyond]: cosMin
+// marginM from (lat, lon). Same lower-bound contract as [rectsBeyond]: cosMin
 // never overstates the longitude metres, so a true result is always safe.
 func (pc *PreppedCandidate) chunkBeyond(c int, lat, lon, marginM float64) bool {
 	dLatM := 0.0

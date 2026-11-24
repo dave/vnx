@@ -73,7 +73,7 @@ func TestCorridorCancel_BridgesStopWithinOneBridge(t *testing.T) {
 	// envelopeCancelStride sub-intervals, so a cancel stops within one gap
 	// integral rather than after it).
 	count := &stagedCancelCtx{Context: t.Context(), cancelAfter: math.MaxInt}
-	bridges, err := BuildCorridorBridges(count, sa, ivs, cands, R, EmissionK)
+	bridges, err := buildCorridorBridges(count, sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestCorridorCancel_BridgesStopWithinOneBridge(t *testing.T) {
 
 	t.Run("at the candidate check", func(t *testing.T) {
 		sc := &stagedCancelCtx{Context: t.Context(), cancelAfter: 0}
-		got, err := BuildCorridorBridges(sc, sa, ivs, cands, R, EmissionK)
+		got, err := buildCorridorBridges(sc, sa, ivs, cands, R, emissionK)
 		// "candidate 0:" and not "candidate 0 ivs" — the per-candidate message
 		// ends at the candidate, the per-bridge one names the interval pair. The
 		// two must be told apart, or removing the per-candidate check would leave
@@ -105,7 +105,7 @@ func TestCorridorCancel_BridgesStopWithinOneBridge(t *testing.T) {
 
 	t.Run("at the first bridge", func(t *testing.T) {
 		sc := &stagedCancelCtx{Context: t.Context(), cancelAfter: 1}
-		got, err := BuildCorridorBridges(sc, sa, ivs, cands, R, EmissionK)
+		got, err := buildCorridorBridges(sc, sa, ivs, cands, R, emissionK)
 		// The per-bridge check's own message, in full. The pricing's checks
 		// fail with "bridge candidate 0 ivs 0->1: … gap integral cancelled",
 		// which also names the pair, so matching only "ivs 0->1" would pass

@@ -56,7 +56,7 @@ type boundaryKey struct {
 	AtEnd bool
 }
 
-func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]LegSeam, error) {
+func legSeamsFromAlign(ctx context.Context, asm assembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]legSeam, error) {
 	st := stateOf(ctx)
 	if len(asm.OnPieces) == 0 {
 		return nil, nil
@@ -75,7 +75,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 
 	// mintedThisLeg is every node THIS LEG's OWN align pass minted, across ALL
 	// of its boundaries, not just the one a given seam is about to read. See
-	// [LegSeam.Adopted]: the align step cuts a leg's boundaries in its OWN
+	// [legSeam.Adopted]: the align step cuts a leg's boundaries in its OWN
 	// order (descending measure, tied by run/end), which is not leg-walk order,
 	// so a LATER boundary of the same pass can decline against a node an
 	// EARLIER boundary of the same pass just minted ("the second of the pair
@@ -94,7 +94,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 	last := len(asm.Points) - 1
 	// Seams accumulate in ascending point order because OnPieces are in leg order
 	// and each contributes Lo before Hi; the merge below relies on that.
-	var seams []LegSeam
+	var seams []legSeam
 	add := func(idx int, runIdx int, atEnd bool) error {
 		b, ok := byRunEnd[boundaryKey{Run: runIdx, AtEnd: atEnd}]
 		if !ok {
@@ -132,7 +132,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 			return nil
 		}
 		// A node THIS LEG'S OWN align pass minted is never adopted, whichever
-		// boundary record says so; see [LegSeam.Adopted] and mintedThisLeg above.
+		// boundary record says so; see [legSeam.Adopted] and mintedThisLeg above.
 		adopted := b.Decline != AlignCutMade && !mintedThisLeg[node]
 		absorbed := b.Decline == AlignDeclineAbsorbedToNode
 		absorbedM := 0.0
@@ -173,7 +173,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 				// two. RESOLUTION: whichever candidate sits closer, by TRUE
 				// straight-line distance, to the leg's own raw point at this
 				// index (asm.Points[idx], the leg's followed-but-not-yet-warped
-				// coordinate, exactly what [LegSeam.Idx] already means) is the
+				// coordinate, exactly what [legSeam.Idx] already means) is the
 				// better answer for that point. This generalises the align
 				// step's "an exact match beats an absorb" to "closer beats
 				// farther" rather than adding a new rule, and it is the SAME
@@ -244,7 +244,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 				"LegSeamsFromAlign: seam at point %d follows a seam at point %d — seams run in leg order",
 				idx, seams[n-1].Idx)
 		}
-		seams = append(seams, LegSeam{
+		seams = append(seams, legSeam{
 			Idx: idx, Node: node, HasNode: hasNode, Adopted: adopted,
 			Absorbed: absorbed, AbsorbedM: absorbedM,
 			NodeLat: b.NodeLat, NodeLon: b.NodeLon,
@@ -307,7 +307,7 @@ func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 // Idempotent on a leg the warp did not touch: pieceHasExtent's verdict cannot
 // become MORE true by shrinking a gap, only less, so a second pass over
 // geometry the warp left alone finds nothing new to collapse.
-func collapseSameNodeSeams(seams []LegSeam, pts []Point, startTerminal, endTerminal *NodeID) []LegSeam {
+func collapseSameNodeSeams(seams []legSeam, pts []Point, startTerminal, endTerminal *NodeID) []legSeam {
 	last := len(pts) - 1
 	return collapseTerminalSameNodeSeams(
 		collapseFoldedSameNodeSeams(collapseEmptySameNodeSeams(seams, pts), pts, last, startTerminal, endTerminal),
@@ -402,7 +402,7 @@ func collapseSameNodeSeams(seams []LegSeam, pts []Point, startTerminal, endTermi
 // since the whole leg lies between them, and the fold would go uncollapsed.
 // Two independent `if`s cost one extra comparison per seam and cannot lose
 // either terminal's claim to the other.
-func collapseFoldedSameNodeSeams(seams []LegSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []LegSeam {
+func collapseFoldedSameNodeSeams(seams []legSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []legSeam {
 	out := seams[:0:0]
 	lastKept := map[NodeID]int{} // node -> its index into out, most recent surviving claim
 	for _, s := range seams {
@@ -523,9 +523,9 @@ func legDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
 // abort returns. This is correct on its own merits.
 //
 // The accounting is unchanged by construction: a collapsed seam is one that NAMED
-// a canon node, so it was never counted by [LegMintedSeamNodes], and the leg
+// a canon node, so it was never counted by [legMintedSeamNodes], and the leg
 // loses one seam and one piece together, which keeps `Arcs == legs + seams`.
-func collapseTerminalSameNodeSeams(seams []LegSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []LegSeam {
+func collapseTerminalSameNodeSeams(seams []legSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []legSeam {
 	if len(seams) == 0 {
 		return seams
 	}
@@ -597,7 +597,7 @@ func collapseTerminalSameNodeSeams(seams []LegSeam, pts []Point, last int, start
 // commits as two arcs. This function removes only the pieces that rule cannot
 // handle and hands everything else to it unchanged; collapsing a claim with
 // geometry behind it would discard a junction touch on no evidence.
-func collapseEmptySameNodeSeams(seams []LegSeam, pts []Point) []LegSeam {
+func collapseEmptySameNodeSeams(seams []legSeam, pts []Point) []legSeam {
 	out := seams[:0:0]
 	for _, s := range seams {
 		if n := len(out); n > 0 {
@@ -644,7 +644,7 @@ func runEndName(atEnd bool) string {
 	return "start"
 }
 
-// LegMintedSeamNodes counts the seams at which the LEG mints a node of its own
+// legMintedSeamNodes counts the seams at which the LEG mints a node of its own
 // rather than terminating on one canon already has: the seams whose HasNode is
 // false, which the commit step writes with a nil end node so the store mints
 // one and threads its ID into the next piece.
@@ -668,9 +668,7 @@ func runEndName(atEnd bool) string {
 // more than once), and the commit step mints the first and reuses it for the
 // rest, so this must count coordinates, not occurrences, or the two disagree
 // and the node-count identity stops reconciling.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func LegMintedSeamNodes(points []Point, seams []LegSeam) int {
+func legMintedSeamNodes(points []Point, seams []legSeam) int {
 	seen := map[[2]float64]bool{}
 	n := 0
 	for _, s := range seams {
@@ -691,7 +689,7 @@ func LegMintedSeamNodes(points []Point, seams []LegSeam) int {
 // canon's own node, a node this leg minted at an earlier seam, or the leg's own
 // terminal anchor (no node at all). A message naming only the node id cannot
 // tell the first two apart, and they have different causes.
-func seamSideName(seams []LegSeam, k int, threaded *NodeID) string {
+func seamSideName(seams []legSeam, k int, threaded *NodeID) string {
 	switch {
 	case k < 0 || k >= len(seams):
 		if threaded != nil {

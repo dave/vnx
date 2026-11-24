@@ -23,12 +23,10 @@ import (
 // computes a bearing. Re-introducing an angle would be a new band, not a
 // retune.
 
-// DefaultFollowBands returns the default follow bands: Enter 8 m, Stay 15 m,
+// defaultFollowBands returns the default follow bands: Enter 8 m, Stay 15 m,
 // MinRun 25 m.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func DefaultFollowBands() FollowBands {
-	return FollowBands{
+func defaultFollowBands() followBands {
+	return followBands{
 		EnterM:  8,
 		StayM:   15,
 		MinRunM: 25,
@@ -66,7 +64,7 @@ func DefaultFollowBands() FollowBands {
 // noNodeLookup is the explicit "this caller has no node access" value.
 //
 // ⚠ NOT nil. A nil func value here would be indistinguishable from a
-// caller that forgot to pass one, so [AssembleFollowedLegRunsCorridor]
+// caller that forgot to pass one, so [assembleFollowedLegRunsCorridor]
 // and the any-node snap both ERROR on a literal nil rather than
 // silently skip the any-node branch. A compiler won't catch a nil argument,
 // but the very first call does.
@@ -79,7 +77,7 @@ func noNodeLookup(lat, lon, radiusM float64) (float64, float64, NodeID, bool, er
 // never go stale within the leg. Decoding each candidate once per leg (rather
 // than once per window it appears in) is what keeps GPS-outlier legs, whose
 // area-sized arcs fall inside every window, off an O(windows) polyline-decode
-// blowup. It is deliberately per-leg, not per-batch: CanonCandidatesForLeg owns
+// blowup. It is deliberately per-leg, not per-batch: canonCandidatesForLeg owns
 // and discards it each call, keeping its signature a pure (leg → candidates)
 // function, and the residual cross-leg re-decode is bounded and cheap.
 type canonCache struct {
@@ -90,15 +88,13 @@ func newCanonCache() *canonCache {
 	return &canonCache{byID: make(map[ArcID]CanonArc)}
 }
 
-// CanonWindowPts is the number of consecutive leg points per candidate-lookup
+// canonWindowPts is the number of consecutive leg points per candidate-lookup
 // window. It is a COUNT, not a geometric tolerance (the windowing introduces
 // none): a small window keeps each window's bbox tight, so a GPS-outlier point
 // that jumps kilometres pulls in only nearby canon, never the whole network; a
 // single whole-leg bbox degenerates to a network scan on those legs. 32 trades
 // per-window query count against bbox tightness.
-//
-// Exported for the reference application's tests; not part of the stable API.
-const CanonWindowPts = 32
+const canonWindowPts = 32
 
 // followLegAgainstCanon runs the follow for one leg. It looks up the canon
 // candidates near the leg, partitions the leg into OFF (verbatim) / ON
@@ -124,7 +120,7 @@ const CanonWindowPts = 32
 // ([MeasureStart, MeasureEnd]). The align step splits canon at those measure
 // boundaries, so they are the positions where a shared node must be minted.
 //
-// ⚠ THEY MUST COME FROM THE ASSEMBLER, NOT FROM [CorridorFollowRuns]. The
+// ⚠ THEY MUST COME FROM THE ASSEMBLER, NOT FROM [corridorFollowRuns]. The
 // assembler can move a boundary measure (node snapping), and the moved
 // interval is the one the committed points were built from. Splitting canon
 // at the matcher's measure instead could put the shared node away from where
@@ -133,23 +129,23 @@ func followLegAgainstCanon(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
-) (AssembledLeg, error) {
-	bands := DefaultFollowBands()
+) (assembledLeg, error) {
+	bands := defaultFollowBands()
 	// ⚠ CorridorRadiusM, NOT bands.StayM. The candidate set has to be a
 	// superset of what the MATCHER can bind, and the matcher is the corridor
 	// solve, whose radius is R. Reading the Stay band here would tie two
 	// constants together that must be free to move independently.
 	//
-	// `bands` is still threaded onward: CorridorFollowRuns takes it for its
+	// `bands` is still threaded onward: corridorFollowRuns takes it for its
 	// degenerate-leg contract, and the solve itself is band-free.
-	cands, err := CanonCandidatesForLeg(ctx, canon, pts, CorridorRadiusM)
+	cands, err := canonCandidatesForLeg(ctx, canon, pts, CorridorRadiusM)
 	if err != nil {
-		return AssembledLeg{}, err
+		return assembledLeg{}, err
 	}
 	// The partition is the corridor solve.
-	runs, err := CorridorFollowRuns(ctx, pts, cands, bands)
+	runs, err := corridorFollowRuns(ctx, pts, cands, bands)
 	if err != nil {
-		return AssembledLeg{}, err
+		return assembledLeg{}, err
 	}
 	// The partition and the assembler MUST see the SAME candidate slice:
 	// FollowRun.CanonIdx indexes into it.
@@ -163,19 +159,19 @@ func followLegAgainstCanon(
 	// terminals do). Enabling it should come with such a recorded field, set
 	// when the leg is committed, rather than a derivation: node creation times
 	// tie within a batch and node-ID magnitude is not a reliable signal.
-	// [CorridorFollowRuns]'s runs carry exact analytic SourcePos, which
-	// [AssembleFollowedLegRunsCorridor] assembles directly.
-	asm, err := AssembleFollowedLegRunsCorridor(pts, cands, runs, bands, noNodeLookup)
+	// [corridorFollowRuns]'s runs carry exact analytic SourcePos, which
+	// [assembleFollowedLegRunsCorridor] assembles directly.
+	asm, err := assembleFollowedLegRunsCorridor(pts, cands, runs, bands, noNodeLookup)
 	if err != nil {
-		return AssembledLeg{}, err
+		return assembledLeg{}, err
 	}
 	return asm, nil
 }
 
-// CanonCandidatesForLeg returns the deduped, id-sorted set of canon arcs the
+// canonCandidatesForLeg returns the deduped, id-sorted set of canon arcs the
 // leg could follow, in two phases:
 //
-//   - PHASE 1 (cheap, few queries): scan the leg in windows of CanonWindowPts
+//   - PHASE 1 (cheap, few queries): scan the leg in windows of canonWindowPts
 //     points. Per window, an ID-ONLY spatial prefilter (Canon.ArcIDsInRect,
 //     no polyline decode) names the window's candidates, and the expensive decode
 //     (Canon.ArcsInRect) runs only when the window holds a candidate
@@ -199,13 +195,11 @@ func followLegAgainstCanon(
 // the windowed prefilter nor the bbox tighten can drop a bindable candidate.
 //
 // ⚠ The binding radius belongs to the live matcher (the corridor solve), not
-// to FollowBands.StayM; the two happen to be equal, but must stay free to move
+// to followBands.StayM; the two happen to be equal, but must stay free to move
 // independently. Sorting by arc id ascending (the rect reader's own order)
 // makes the candidate slice, and every CanonIdx and id tie-break inside the
 // matcher, deterministic regardless of window iteration order.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CanonCandidatesForLeg(
+func canonCandidatesForLeg(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
@@ -213,15 +207,15 @@ func CanonCandidatesForLeg(
 ) ([]CanonArc, error) {
 	cache := newCanonCache()
 	hit := make(map[ArcID]struct{})
-	for start := 0; start < len(pts); start += CanonWindowPts {
-		end := start + CanonWindowPts
+	for start := 0; start < len(pts); start += canonWindowPts {
+		end := start + canonWindowPts
 		if end > len(pts) {
 			end = len(pts)
 		}
 		// ⚠ end+1: CONSECUTIVE WINDOWS MUST OVERLAP BY ONE POINT, or the edge
 		// that straddles the seam belongs to no window at all.
 		//
-		// The windows advance by CanonWindowPts and each rect is the bbox of
+		// The windows advance by canonWindowPts and each rect is the bbox of
 		// the window's POINTS padded by radiusM, so with half-open slices
 		// pts[0:32] and pts[32:64] the EDGE pts[31]-pts[32] is in neither. An
 		// arc lying beside that edge's midpoint sits outside both padded rects,

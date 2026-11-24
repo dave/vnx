@@ -1,6 +1,6 @@
 package merge
 
-// Prove-It: WarpLegAtBoundaries' RIGHT walk had no s==0 guard, unlike its
+// Prove-It: warpLegAtBoundaries' RIGHT walk had no s==0 guard, unlike its
 // LEFT walk, so a boundary with zero measure length after it divided by zero.
 //
 // CRIPPLE: delete the `if s == 0` branch in the RIGHT walk and this goes red
@@ -37,8 +37,8 @@ func TestWarpLegAtBoundaries_AWhollyStationaryLegDoesNotWarpToNaN(t *testing.T) 
 		t.Fatalf("fixture measure length is %v m, want exactly 0 — this no longer exercises a zero-width taper zone", legLen)
 	}
 
-	out, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{
-		{Idx: 1, Target: WarpTarget{Lat: 56.798015, Lon: -5.019949, NodeID: 1}},
+	out, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{
+		{Idx: 1, Target: warpTarget{Lat: 56.798015, Lon: -5.019949, NodeID: 1}},
 	})
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)

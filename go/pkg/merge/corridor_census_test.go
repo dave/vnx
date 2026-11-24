@@ -282,7 +282,7 @@ func censusCanonNorth() CanonArc {
 //
 //	STATES = 2 × (1 + 18) = 38.
 //
-// Write P = 50 ([StateChangeCostP]), L ≈ 0.4994 m for the leg's measure length,
+// Write P = 50 ([stateChangeCostP]), L ≈ 0.4994 m for the leg's measure length,
 // and a_i for piece i's forward arc cost — the emission integral ∫(d/10)² over
 // the arc, which is 0.0199 for the span piece and rises from 0.021 to 0.301 for
 // the clamped ones. Piece 0 REVERSED also pays its backtrack, 1.0 × the 0.4994 m
@@ -334,7 +334,7 @@ func TestCorridorCostCensus_HandBuiltLeg(t *testing.T) {
 	c, ctx := censusContext(t, t.Context())
 
 	leg := []Point{mPt(2, 0.25), mPt(2, 0.75)}
-	if _, err := CorridorFollowRuns(ctx, leg, []CanonArc{censusCanonNorth()}, DefaultFollowBands()); err != nil {
+	if _, err := corridorFollowRuns(ctx, leg, []CanonArc{censusCanonNorth()}, defaultFollowBands()); err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
 	c.check(t)
@@ -366,26 +366,26 @@ func TestCorridorCostCensus_HandBuiltLeg(t *testing.T) {
 // legs that never reach a solve. Both shapes are ordinary production input, so
 // the answer has to be stated rather than left to whatever falls out.
 //
-//   - 0 or 1 points: [CorridorFollowRuns] returns on its degenerate-leg
+//   - 0 or 1 points: [corridorFollowRuns] returns on its degenerate-leg
 //     contract before it prepares a candidate, so there is NO record at all —
 //     no LegStart, and no phase event.
 //   - 2 or more points that all coincide: the leg is real, so it opens a record
 //     and mints (nothing: every source edge has zero measure length). It
 //     reaches the mint→solve boundary and the phase event fires there. Then
-//     total == 0 and [SolveCorridorPath] returns nil before doing any work, so
+//     total == 0 and [solveCorridorPath] returns nil before doing any work, so
 //     the record closes with Solved false — NOT with zeroed solve counts, which
 //     would be indistinguishable from a solve that ran and found nothing.
 //
 // That is why the phase event's contract is "once per leg that reaches the
 // boundary" and not "once per solve": a memory probe has to split its
-// reading before SolveCorridorPath is entered, which is upstream of the point
+// reading before solveCorridorPath is entered, which is upstream of the point
 // where the solve decides it has nothing to do.
 func TestCorridorCostCensus_DegenerateLegs(t *testing.T) {
 	canon := []CanonArc{censusCanonNorth()}
 
 	t.Run("no points", func(t *testing.T) {
 		c, ctx := censusContext(t, t.Context())
-		if _, err := CorridorFollowRuns(ctx, nil, canon, DefaultFollowBands()); err != nil {
+		if _, err := corridorFollowRuns(ctx, nil, canon, defaultFollowBands()); err != nil {
 			t.Fatalf("corridorFollowRuns: %v", err)
 		}
 		c.check(t)
@@ -396,7 +396,7 @@ func TestCorridorCostCensus_DegenerateLegs(t *testing.T) {
 
 	t.Run("one point", func(t *testing.T) {
 		c, ctx := censusContext(t, t.Context())
-		if _, err := CorridorFollowRuns(ctx, []Point{mPt(2, 0.25)}, canon, DefaultFollowBands()); err != nil {
+		if _, err := corridorFollowRuns(ctx, []Point{mPt(2, 0.25)}, canon, defaultFollowBands()); err != nil {
 			t.Fatalf("corridorFollowRuns: %v", err)
 		}
 		c.check(t)
@@ -408,7 +408,7 @@ func TestCorridorCostCensus_DegenerateLegs(t *testing.T) {
 	t.Run("all points coincide", func(t *testing.T) {
 		c, ctx := censusContext(t, t.Context())
 		p := mPt(2, 0.25)
-		if _, err := CorridorFollowRuns(ctx, []Point{p, p, p}, canon, DefaultFollowBands()); err != nil {
+		if _, err := corridorFollowRuns(ctx, []Point{p, p, p}, canon, defaultFollowBands()); err != nil {
 			t.Fatalf("corridorFollowRuns: %v", err)
 		}
 		c.check(t)

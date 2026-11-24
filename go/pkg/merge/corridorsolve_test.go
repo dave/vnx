@@ -17,7 +17,7 @@ import (
 // ---- case 8: empty network and all-OFF leg ------------------------------
 
 func TestSolveCorridorPath_EmptyCandidatesIsAllOff(t *testing.T) {
-	res, err := SolveCorridorPath(t.Context(), 100, nil, nil, nil, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(t.Context(), 100, nil, nil, nil, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestSolveCorridorPath_EmptyCandidatesIsAllOff(t *testing.T) {
 }
 
 func TestSolveCorridorPath_ZeroLengthLegIsNilNotError(t *testing.T) {
-	res, err := SolveCorridorPath(t.Context(), 0, nil, nil, nil, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(t.Context(), 0, nil, nil, nil, CorridorRadiusM, emissionK)
 	if err != nil || res != nil {
 		t.Fatalf("zero-length leg: want nil,nil, got %v,%v", res, err)
 	}
@@ -50,9 +50,9 @@ func TestSolveCorridorPath_ZeroLengthLegIsNilNotError(t *testing.T) {
 
 // buildIvs is a small helper: corridor intervals for a straight source
 // against one or more candidates, at R.
-func buildIvs(t *testing.T, sa *SourceMeasure, cands []*PreppedCandidate, r float64) []CorridorInterval {
+func buildIvs(t *testing.T, sa *sourceMeasure, cands []*PreppedCandidate, r float64) []corridorInterval {
 	t.Helper()
-	ivs, err := CorridorIntervals(t.Context(), sa, cands, r)
+	ivs, err := corridorIntervals(t.Context(), sa, cands, r)
 	if err != nil {
 		t.Fatalf("corridorIntervals: %v", err)
 	}
@@ -60,13 +60,13 @@ func buildIvs(t *testing.T, sa *SourceMeasure, cands []*PreppedCandidate, r floa
 }
 
 // cloneCorridorIntervals copies the interval list and each interval's Pieces
-// slice. [SolveCorridorPath] takes ownership of the intervals it is given and
+// slice. [solveCorridorPath] takes ownership of the intervals it is given and
 // releases their Pieces, so a test that
 // solves twice over one interval list, or reads the pieces after solving, must
 // hand it a copy. The pieces themselves are values, so a shallow copy of each
 // Pieces slice is a full copy of the alphabet.
-func cloneCorridorIntervals(ivs []CorridorInterval) []CorridorInterval {
-	out := make([]CorridorInterval, len(ivs))
+func cloneCorridorIntervals(ivs []corridorInterval) []corridorInterval {
+	out := make([]corridorInterval, len(ivs))
 	for i, iv := range ivs {
 		out[i] = iv
 		out[i].Pieces = append([]CorridorPiece(nil), iv.Pieces...)
@@ -77,12 +77,12 @@ func cloneCorridorIntervals(ivs []CorridorInterval) []CorridorInterval {
 func TestSolveCorridorPath_SingleCandidateAdoptedNotOff(t *testing.T) {
 	const R = CorridorRadiusM
 	pc := prepOne(t, mPt(-20, 0), mPt(120, 0)) // candidate runs well past the source at both ends
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	ivs := buildIvs(t, sa, []*PreppedCandidate{pc}, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, []*PreppedCandidate{pc}, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, []*PreppedCandidate{pc}, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -104,13 +104,13 @@ func TestSolveCorridorPath_ParallelTrailsOneChosenNoSwaps(t *testing.T) {
 	const R = CorridorRadiusM
 	near := prepOne(t, mPt(-20, 5), mPt(120, 5))
 	far := prepOne(t, mPt(-20, 10), mPt(120, 10))
-	sa, err := NewSourceMeasure(straightLegX(5, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(5, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{near, far}
 	ivs := buildIvs(t, sa, cands, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -153,13 +153,13 @@ func TestSolveCorridorPath_CrossingTrailsNoChatterWithP(t *testing.T) {
 	const R = CorridorRadiusM
 	a := prepOne(t, mPt(-20, 5), mPt(50, 5), mPt(120, 10))
 	b := prepOne(t, mPt(-20, 10), mPt(50, 10), mPt(120, 5))
-	sa, err := NewSourceMeasure(straightLegX(9, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(9, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{a, b}
 	ivs := buildIvs(t, sa, cands, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestSolveCorridorPath_ShortDeviationAbsorbed(t *testing.T) {
 	// TestSolveCorridorPath_ArmJumpCostsMeasureGap below): this fixture exists
 	// to isolate "never leaves R" from "the candidate approaches itself".
 	pc := prepOne(t, mPt(-20, 5), mPt(50, 7), mPt(120, 5))
-	sa, err := NewSourceMeasure(straightLegX(9, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(9, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestSolveCorridorPath_ShortDeviationAbsorbed(t *testing.T) {
 	if len(ivs) != 1 {
 		t.Fatalf("fixture sanity: want ONE corridor interval for a wobble that never crosses itself, got %d: %+v", len(ivs), ivs)
 	}
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestSolveCorridorPath_ShortSpuriousMatchNeverSelected(t *testing.T) {
 	// A short candidate sitting just inside R of the source only around
 	// x=50, nowhere else near it.
 	pc := prepOne(t, mPt(48, R-1), mPt(52, R-1))
-	sa, err := NewSourceMeasure(straightLegX(11, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(11, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestSolveCorridorPath_ShortSpuriousMatchNeverSelected(t *testing.T) {
 	if len(ivs) == 0 {
 		t.Fatalf("fixture sanity: expected a short corridor interval to exist")
 	}
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestSolveCorridorPath_OutAndBackTwoStrokes(t *testing.T) {
 	for i, x := range xs {
 		pts[i] = mPt(x, 0)
 	}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestSolveCorridorPath_OutAndBackTwoStrokes(t *testing.T) {
 		t.Fatalf("fixture sanity: want ONE interval for the whole out-and-back, got %d: %+v", len(ivs), ivs)
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -352,7 +352,7 @@ func lollipopLerp(a, b Point, n int) []Point {
 // piece-boundary-breakpoint fix (the exact defect OutAndBackTwoStrokes
 // exists to catch) leaves THIS test green. The loop in between breaks the
 // interval continuity, so the outbound stem and the return stem land in two
-// DIFFERENT CorridorIntervals (not one interval whose direction flips
+// DIFFERENT corridorIntervals (not one interval whose direction flips
 // mid-way) — the two-visit property here rests on interval-level
 // breakpoints, which predate this task's fix, not the piece-level ones this
 // task added. Kept as its own case because "does the return leg get
@@ -381,7 +381,7 @@ func TestSolveCorridorPath_LollipopTwoVisits(t *testing.T) {
 	pts = append(pts, lollipopLerp(mPt(240, -20), mPt(200, 0), 5)[1:]...)
 	pts = append(pts, lollipopLerp(mPt(200, 0), mPt(0, 0), 9)[1:]...)
 
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestSolveCorridorPath_LollipopTwoVisits(t *testing.T) {
 		t.Fatalf("fixture sanity: expected at least one corridor interval")
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestSolveCorridorPath_LollipopTwoVisits(t *testing.T) {
 // relative to P — a short leg makes "never adopt anything" look like the
 // arm-jump guard when it's really just the short-leg-vs-P economics every
 // other test in this file also has to scale around.
-func selfApproachFixture(t *testing.T) (*SourceMeasure, []*PreppedCandidate, []CorridorInterval) {
+func selfApproachFixture(t *testing.T) (*sourceMeasure, []*PreppedCandidate, []corridorInterval) {
 	t.Helper()
 	const R = CorridorRadiusM
 	pc := prepOne(t,
@@ -445,7 +445,7 @@ func selfApproachFixture(t *testing.T) (*SourceMeasure, []*PreppedCandidate, []C
 		mPt(500, 1000), mPt(0, 1000), mPt(0, -5), // edges 1-3: a detour far away
 		mPt(500, -5), // edge 4: far arm, y=-5
 	)
-	sa, err := NewSourceMeasure(straightLegX(5, 500, 0))
+	sa, err := newSourceMeasure(straightLegX(5, 500, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestTransitionCost_ArmJumpCostsFullMeasureGapRegardlessOfDirection(t *testi
 // strictly nothing to gain and hundreds of metres to lose by jumping).
 func TestSolveCorridorPath_ArmJumpCostsMeasureGap(t *testing.T) {
 	sa, cands, ivs := selfApproachFixture(t)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -546,13 +546,13 @@ func TestSolveCorridorPath_SharedNodeNotChargedP(t *testing.T) {
 	const R = CorridorRadiusM
 	a := prepOne(t, mPt(0, 0), mPt(50, 0))
 	b := prepOne(t, mPt(50, 0), mPt(300, 0)) // shares vertex (50,0) with a
-	sa, err := NewSourceMeasure(straightLegX(7, 300, 0))
+	sa, err := newSourceMeasure(straightLegX(7, 300, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{a, b}
 	ivs := buildIvs(t, sa, cands, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -579,13 +579,13 @@ func TestSolveCorridorPath_UnconnectedCandidatesChargedTwiceP(t *testing.T) {
 	const R = CorridorRadiusM
 	a := prepOne(t, mPt(0, 0), mPt(140, 0))
 	b := prepOne(t, mPt(145, 0), mPt(300, 0)) // 5m short of a — no shared node
-	sa, err := NewSourceMeasure(straightLegX(7, 300, 0))
+	sa, err := newSourceMeasure(straightLegX(7, 300, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{a, b}
 	ivs := buildIvs(t, sa, cands, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -611,7 +611,7 @@ func TestSolveCorridorPath_UnconnectedCandidatesChargedTwiceP(t *testing.T) {
 
 // TestSolveCorridorPath_DuplicateCandidatesBrokenByID builds two
 // byte-identical candidates (the same geometry twice, corresponding to
-// CanonCandidatesForLeg's own id-sorted duplicate rows — arcs 104/115's
+// canonCandidatesForLeg's own id-sorted duplicate rows — arcs 104/115's
 // shape). They score identically in every state,
 // so the winning path must deterministically settle on the LOWER CandIdx —
 // ascending id, since ivs is built from an id-sorted candidate list.
@@ -619,13 +619,13 @@ func TestSolveCorridorPath_DuplicateCandidatesBrokenByID(t *testing.T) {
 	const R = CorridorRadiusM
 	dup1 := prepOne(t, mPt(-20, 0), mPt(120, 0))
 	dup2 := prepOne(t, mPt(-20, 0), mPt(120, 0)) // byte-identical geometry
-	sa, err := NewSourceMeasure(straightLegX(5, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(5, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{dup1, dup2}
 	ivs := buildIvs(t, sa, cands, R)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -652,21 +652,21 @@ func TestSolveCorridorPath_DeterministicAtBandEdge(t *testing.T) {
 	// every point of it sits precisely on the band edge, the most sensitive
 	// case for a boundary tiebreak.
 	pc := prepOne(t, mPt(-20, R), mPt(120, R))
-	sa, err := NewSourceMeasure(straightLegX(9, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(9, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{pc}
 	ivs := buildIvs(t, sa, cands, R)
 
-	var first *CorridorSolveResult
+	var first *corridorSolveResult
 	for i := 0; i < 20; i++ {
 		// A clone per run: the solve releases the intervals' pieces
-		// ([SolveCorridorPath]'s ownership note), so every run must be given
+		// ([solveCorridorPath]'s ownership note), so every run must be given
 		// the same INPUT, not the leftovers of the previous one. Cloning keeps
 		// this a test of the solve's determinism over one fixed alphabet —
 		// rebuilding the intervals instead would also re-measure the mint.
-		res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, cloneCorridorIntervals(ivs), cands, R, EmissionK)
+		res, err := solveCorridorPath(t.Context(), sa.Total(), sa, cloneCorridorIntervals(ivs), cands, R, emissionK)
 		if err != nil {
 			t.Fatalf("run %d: solveCorridorPath: %v", i, err)
 		}
@@ -691,7 +691,7 @@ func TestSolveCorridorPath_DeterministicAtBandEdge(t *testing.T) {
 // ---- sourceArcsBetween -----------------------------------------------
 
 // TestSourceArcsBetween_TrimsExactlyToTheWindow is the soundness
-// argument's other half (corridorsolve.go's BuildCorridorBridges doc
+// argument's other half (corridorsolve.go's buildCorridorBridges doc
 // comment): padding the competitor set OUTWARD past the true import-measure
 // window would be the UNSAFE direction (more competitors can only make a
 // bridge look cheaper), so this pins that the first and last returned
@@ -699,7 +699,7 @@ func TestSolveCorridorPath_DeterministicAtBandEdge(t *testing.T) {
 // nearest original vertex either side of it.
 func TestSourceArcsBetween_TrimsExactlyToTheWindow(t *testing.T) {
 	pts := []Point{mPt(0, 0), mPt(10, 0), mPt(20, 0), mPt(30, 0)}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -716,7 +716,7 @@ func TestSourceArcsBetween_TrimsExactlyToTheWindow(t *testing.T) {
 	// noise floor (~0.026 m on an 880 m edge), not a sign that the trim is inexact.
 	wantLo, wantHi := mPt(3, 0), mPt(23, 0)
 	// mPt's x->Lon conversion is a flat equirectangular approximation;
-	// NewSourceMeasure's cumMeasure is built from HaversineMetres (a true
+	// newSourceMeasure's cumMeasure is built from HaversineMetres (a true
 	// great-circle distance) — the two do not need to agree to sub-cm
 	// precision even over a few tens of metres, so this tolerance checks
 	// "trimmed to the right place", not "bit-identical to mPt's own
@@ -743,7 +743,7 @@ func TestSourceArcsBetween_TrimsExactlyToTheWindow(t *testing.T) {
 // same edge collapses to a single arc, neither end a full-edge vertex.
 func TestSourceArcsBetween_SameEdgeIsOneTrimmedArc(t *testing.T) {
 	pts := []Point{mPt(0, 0), mPt(100, 0)}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -756,7 +756,7 @@ func TestSourceArcsBetween_SameEdgeIsOneTrimmedArc(t *testing.T) {
 	}
 	wantLo, wantHi := mPt(40, 0), mPt(60, 0)
 	// mPt's x->Lon conversion is a flat equirectangular approximation;
-	// NewSourceMeasure's cumMeasure is built from HaversineMetres (a true
+	// newSourceMeasure's cumMeasure is built from HaversineMetres (a true
 	// great-circle distance) — the two do not need to agree to sub-cm
 	// precision even over a few tens of metres, so this tolerance checks
 	// "trimmed to the right place", not "bit-identical to mPt's own
@@ -771,11 +771,11 @@ func TestSourceArcsBetween_SameEdgeIsOneTrimmedArc(t *testing.T) {
 }
 
 // TestSourceArcsBetween_InvertedWindowIsError: hiMeasure <= loMeasure is a caller
-// bug (BuildCorridorBridges only ever calls this with a strict import-measure
+// bug (buildCorridorBridges only ever calls this with a strict import-measure
 // gap already established) — not an expected absence.
 func TestSourceArcsBetween_InvertedWindowIsError(t *testing.T) {
 	pts := []Point{mPt(0, 0), mPt(100, 0)}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}

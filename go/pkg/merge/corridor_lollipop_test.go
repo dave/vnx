@@ -67,13 +67,13 @@ func newLollipopChainFixture() lollipopChainFixture {
 // sees them (arc id order: B, C1, C2, A).
 func TestCorridorHighlight_LollipopSolveDrawsThePaidWalk(t *testing.T) {
 	f := newLollipopChainFixture()
-	cands := PrepCandidates([]CanonArc{mCanon(1, f.B...), mCanon(2, f.C1...), mCanon(3, f.C2...), mCanon(4, f.A...)})
+	cands := prepCandidates([]CanonArc{mCanon(1, f.B...), mCanon(2, f.C1...), mCanon(3, f.C2...), mCanon(4, f.A...)})
 	const iB, iC1, iC2, iA = 0, 1, 2, 3
-	sa, err := NewSourceMeasure(f.src)
+	sa, err := newSourceMeasure(f.src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, buildIvs(t, sa, cands, CorridorRadiusM), cands, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, buildIvs(t, sa, cands, CorridorRadiusM), cands, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}

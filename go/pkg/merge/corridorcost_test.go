@@ -101,7 +101,7 @@ func TestIntegrateDistSqPow_ZeroMeasurePieceIsZero(t *testing.T) {
 func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 	const R = 15.0
 	pc := prepOne(t, mPt(30, 5), mPt(70, 5))
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 
 func TestEmissionCost_RejectsOddK(t *testing.T) {
 	pc := prepOne(t, mPt(30, 5), mPt(70, 5))
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}

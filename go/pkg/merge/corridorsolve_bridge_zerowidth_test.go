@@ -2,10 +2,10 @@ package merge
 
 // A bridge whose target has no import-measure extent has nowhere to land.
 //
-// [SolveCorridorPath] creates a layer only for `lo < hi`, at both the interval
+// [solveCorridorPath] creates a layer only for `lo < hi`, at both the interval
 // and the piece level, so an interval made entirely of tangency pieces — a
 // source edge grazing the d-band at exactly one t — contributes no layer at
-// all. BuildCorridorBridges used to build a bridge to such an interval anyway;
+// all. buildCorridorBridges used to build a bridge to such an interval anyway;
 // the solve then looked its ImportMeasureLo up in layerOf, missed, and failed the
 // WHOLE import with "not a breakpoint — internal inconsistency".
 //
@@ -19,7 +19,7 @@ import (
 )
 
 func TestBuildCorridorBridges_SkipsIntervalsWithNoExtent(t *testing.T) {
-	sa, err := NewSourceMeasure(straightLegX(41, 400, 0))
+	sa, err := newSourceMeasure(straightLegX(41, 400, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -33,13 +33,13 @@ func TestBuildCorridorBridges_SkipsIntervalsWithNoExtent(t *testing.T) {
 	}
 	// Three intervals of ONE candidate, ascending, separated by real gaps.
 	// The third has zero extent — a graze-only component.
-	ivs := []CorridorInterval{
+	ivs := []corridorInterval{
 		{CandIdx: 0, ImportMeasureLo: 0, ImportMeasureHi: 50, Pieces: []CorridorPiece{mkPiece(0, 50)}},
 		{CandIdx: 0, ImportMeasureLo: 120, ImportMeasureHi: 170, Pieces: []CorridorPiece{mkPiece(120, 170)}},
 		{CandIdx: 0, ImportMeasureLo: 300, ImportMeasureHi: 300, Pieces: []CorridorPiece{mkPiece(300, 300)}},
 	}
 
-	bridges, err := BuildCorridorBridges(t.Context(), sa, ivs, []*PreppedCandidate{pc}, CorridorRadiusM, EmissionK)
+	bridges, err := buildCorridorBridges(t.Context(), sa, ivs, []*PreppedCandidate{pc}, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}

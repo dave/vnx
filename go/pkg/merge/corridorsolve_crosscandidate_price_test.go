@@ -24,8 +24,8 @@ import (
 // line, positive puts the source yV metres inside the corner.
 type crossCandidatePriceFixture struct {
 	cands []*PreppedCandidate
-	sa    *SourceMeasure
-	ivs   []CorridorInterval
+	sa    *sourceMeasure
+	ivs   []corridorInterval
 	sps   []SolvePiece
 	idxA  int
 	idxB  int
@@ -39,7 +39,7 @@ func newCrossCandidatePriceFixture(t *testing.T, yV float64) crossCandidatePrice
 	if a.Verts[len(a.Verts)-1].Lat != b.Verts[0].Lat || a.Verts[len(a.Verts)-1].Lon != b.Verts[0].Lon {
 		t.Fatalf("fixture: the shared vertex is not bitwise equal, so this test measures nothing")
 	}
-	sa, err := NewSourceMeasure(straightLegX(41, 200, 0))
+	sa, err := newSourceMeasure(straightLegX(41, 200, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -68,7 +68,7 @@ func (f crossCandidatePriceFixture) graphDistance(spA, spB SolvePiece, x float64
 // agree at the minimum and diverge elsewhere would still fail.
 func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 	f := newCrossCandidatePriceFixture(t, 3)
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
+	tun := CorridorTunables{P: stateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	best := math.Inf(1)
 	samples := 0
@@ -91,7 +91,7 @@ func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 					CorridorStateID{SpIdx: i, Dir: CorridorFWD},
 					CorridorStateID{SpIdx: j, Dir: CorridorFWD},
 					x, f.sps, f.cands, tun)
-				want := math.Min(StateChangeCostP, backtrackWeightPerM*f.graphDistance(spA, spB, x))
+				want := math.Min(stateChangeCostP, backtrackWeightPerM*f.graphDistance(spA, spB, x))
 				if got != want {
 					t.Fatalf("price at x=%v between sp%d (cand A) and sp%d (cand B) = %v, want %v — "+
 						"the cross-candidate price must be the canon-graph distance through the shared "+
@@ -109,12 +109,12 @@ func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 	if samples == 0 {
 		t.Fatalf("no piece of A ever overlaps a piece of B in import measure, so this test measured nothing")
 	}
-	if !(best < StateChangeCostP) {
+	if !(best < stateChangeCostP) {
 		t.Fatalf("the cheapest cross-candidate switch on a fixture whose two candidates SHARE a node "+
 			"costs %v, which is not below P=%v — the shared node bought nothing and the price is "+
-			"still the flat cliff", best, StateChangeCostP)
+			"still the flat cliff", best, stateChangeCostP)
 	}
-	t.Logf("cheapest cross-candidate switch = %.6g over %d sampled positions (P = %v)", best, samples, StateChangeCostP)
+	t.Logf("cheapest cross-candidate switch = %.6g over %d sampled positions (P = %v)", best, samples, stateChangeCostP)
 }
 
 // TestCrossCandidateSwitchCost_ThroughTheNodeIsFree is the special case the
@@ -130,7 +130,7 @@ func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 // is zero, so the price must be zero to float noise rather than P.
 func TestCrossCandidateSwitchCost_ThroughTheNodeIsFree(t *testing.T) {
 	f := newCrossCandidatePriceFixture(t, 0)
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
+	tun := CorridorTunables{P: stateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	best := math.Inf(1)
 	samples := 0
@@ -186,7 +186,7 @@ func TestCrossCandidateSwitchCost_ThroughTheNodeIsFree(t *testing.T) {
 func TestCrossCandidateSwitchCost_SolveRidesBothWithNoOffBetween(t *testing.T) {
 	for _, yV := range []float64{0, 3} {
 		f := newCrossCandidatePriceFixture(t, yV)
-		res, err := SolveCorridorPath(t.Context(), f.sa.Total(), f.sa, f.ivs, f.cands, CorridorRadiusM, EmissionK)
+		res, err := solveCorridorPath(t.Context(), f.sa.Total(), f.sa, f.ivs, f.cands, CorridorRadiusM, emissionK)
 		if err != nil {
 			t.Fatalf("yV=%v: solveCorridorPath: %v", yV, err)
 		}
@@ -256,13 +256,13 @@ func TestCrossCandidateSwitchCost_MarginalLegRidesRatherThanGoingOff(t *testing.
 	v := mPt(100, 7.5)
 	a := prepOne(t, mPt(0, 7.5), v)
 	b := prepOne(t, v, mPt(200, 7.5))
-	sa, err := NewSourceMeasure(straightLegX(41, 200, 0))
+	sa, err := newSourceMeasure(straightLegX(41, 200, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	cands := []*PreppedCandidate{a, b}
 	ivs := buildIvs(t, sa, cands, CorridorRadiusM)
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, CorridorRadiusM, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}

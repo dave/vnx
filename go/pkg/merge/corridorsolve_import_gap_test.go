@@ -38,7 +38,7 @@ import (
 //
 // This is deliberately NOT bridgeLoopFixture's shape: that one is short and
 // shallow, where the two gaps roughly agree.
-func importGapFixture(t *testing.T, approachX, returnX, depthY float64) (*SourceMeasure, []*PreppedCandidate, []CorridorInterval) {
+func importGapFixture(t *testing.T, approachX, returnX, depthY float64) (*sourceMeasure, []*PreppedCandidate, []corridorInterval) {
 	t.Helper()
 	const R = CorridorRadiusM
 	pc := prepOne(t, mPt(0, 0), mPt(1000, 0))
@@ -53,7 +53,7 @@ func importGapFixture(t *testing.T, approachX, returnX, depthY float64) (*Source
 	}
 	pts = append(pts, mPt(1000, 5))
 
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestCandidateBridgeCost_ChargesForTheSourceItSkips(t *testing.T) {
 		t.Fatalf("fixture sanity: want at least 2 corridor intervals on the one candidate, got %d", len(ivs))
 	}
 
-	bridges, err := BuildCorridorBridges(t.Context(), sa, ivs, cands, R, EmissionK)
+	bridges, err := buildCorridorBridges(t.Context(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestCandidateBridgeCost_ChargesForTheSourceItSkips(t *testing.T) {
 		t.Fatalf("fixture sanity: no bridge candidate spanned the long excursion, so nothing was measured")
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestImportGapCost_ShortNearGapStaysCheap(t *testing.T) {
 	if len(ivs) < 2 {
 		t.Fatalf("fixture sanity: want at least 2 corridor intervals, got %d", len(ivs))
 	}
-	bridges, err := BuildCorridorBridges(t.Context(), sa, ivs, cands, R, EmissionK)
+	bridges, err := buildCorridorBridges(t.Context(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}

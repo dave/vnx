@@ -34,10 +34,10 @@ func snapMarker(t *testing.T, ctx context.Context, d *MemCanon, name string, xM,
 // test on an error.
 func runSnapProducer(
 	t *testing.T, ctx context.Context, d *MemCanon,
-	pts []Point, seams []LegSeam, startT, endT *NodeID,
-) ([]Point, []LegSeam, SymmetricSnapReport) {
+	pts []Point, seams []legSeam, startT, endT *NodeID,
+) ([]Point, []legSeam, SymmetricSnapReport) {
 	t.Helper()
-	outPts, outSeams, rep, err := LegSeamsFromNearbyNodes(ctx, d, pts, seams, nil, startT, endT)
+	outPts, outSeams, rep, err := legSeamsFromNearbyNodes(ctx, d, pts, seams, nil, startT, endT)
 	if err != nil {
 		t.Fatalf("LegSeamsFromNearbyNodes: %v", err)
 	}
@@ -48,10 +48,10 @@ func runSnapProducer(
 // the test on an error.
 func runInteriorNodeProducer(
 	t *testing.T, ctx context.Context, d *MemCanon,
-	pts []Point, seams []LegSeam, startT, endT *NodeID,
-) ([]LegSeam, InteriorNodeSeamReport) {
+	pts []Point, seams []legSeam, startT, endT *NodeID,
+) ([]legSeam, InteriorNodeSeamReport) {
 	t.Helper()
-	outSeams, rep, err := LegSeamsAtInteriorNodes(ctx, d, pts, seams, startT, endT)
+	outSeams, rep, err := legSeamsAtInteriorNodes(ctx, d, pts, seams, startT, endT)
 	if err != nil {
 		t.Fatalf("LegSeamsAtInteriorNodes: %v", err)
 	}
@@ -123,10 +123,10 @@ func TestSymmetricSnap_AdoptsANodeOnTheLegsPath(t *testing.T) {
 	outPts, outSeams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 
 	if rep.Adopted() != 1 {
-		t.Fatalf("adopted %d node(s), want 1\n%s", rep.Adopted(), DescribeSymmetricSnap(rep))
+		t.Fatalf("adopted %d node(s), want 1\n%s", rep.Adopted(), describeSymmetricSnap(rep))
 	}
 	if len(outSeams) != 1 {
-		t.Fatalf("produced %d seam(s), want 1\n%s", len(outSeams), DescribeSymmetricSnap(rep))
+		t.Fatalf("produced %d seam(s), want 1\n%s", len(outSeams), describeSymmetricSnap(rep))
 	}
 	s := outSeams[0]
 
@@ -139,7 +139,7 @@ func TestSymmetricSnap_AdoptsANodeOnTheLegsPath(t *testing.T) {
 	if !s.Adopted {
 		t.Errorf("seam has Adopted=false, but the node existed in canon before this leg — nothing here mints")
 	}
-	// ⚠ THE AUDIT FINDING. ApplyLegBoundaryWarp (warp_boundary.go) targets a
+	// ⚠ THE AUDIT FINDING. applyLegBoundaryWarp (warp_boundary.go) targets a
 	// seam's NODE coordinates ONLY when Absorbed; a seam marked merely Adopted
 	// gets a zero-displacement anchor at its own point and the leg never
 	// reaches the junction it claims.
@@ -217,7 +217,7 @@ func TestSymmetricSnap_ProjectionOnAnExistingVertexInsertsNothing(t *testing.T) 
 	outPts, outSeams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 
 	if rep.Adopted() != 1 || len(outSeams) != 1 {
-		t.Fatalf("adopted %d, %d seam(s), want 1 and 1\n%s", rep.Adopted(), len(outSeams), DescribeSymmetricSnap(rep))
+		t.Fatalf("adopted %d, %d seam(s), want 1 and 1\n%s", rep.Adopted(), len(outSeams), describeSymmetricSnap(rep))
 	}
 	if len(outPts) != len(pts) {
 		t.Fatalf("leg has %d point(s), want %d unchanged — the projection lands on a vertex the leg already had", len(outPts), len(pts))
@@ -248,7 +248,7 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	minRun := DefaultFollowBands().MinRunM
+	minRun := defaultFollowBands().MinRunM
 	// 10 m along the leg — well inside MinRunM (25 m) of the leg's start, so
 	// adopting would leave a 10 m piece that no import can ever follow.
 	snapMarker(t, ctx, d, "marker", minRun*0.4, EndpointWarpRadiusM*0.5)
@@ -258,10 +258,10 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 
 	if len(rep.Candidates) != 1 {
 		t.Fatalf("search found %d candidate(s), want 1 — the fixture must put the node IN range so the DECLINE is what is being tested, not the radius\n%s",
-			len(rep.Candidates), DescribeSymmetricSnap(rep))
+			len(rep.Candidates), describeSymmetricSnap(rep))
 	}
 	if got := rep.Candidates[0].Decline; got != SnapNoDecline {
-		t.Fatalf("decline = %v, want snapNoDecline — the stub rule is lifted\n%s", got, DescribeSymmetricSnap(rep))
+		t.Fatalf("decline = %v, want snapNoDecline — the stub rule is lifted\n%s", got, describeSymmetricSnap(rep))
 	}
 	if len(outSeams) != 1 {
 		t.Errorf("produced %d seam(s), want 1 — the candidate is adopted now", len(outSeams))
@@ -280,7 +280,7 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 // 42ceb0651 rather than inverted, because the bug it catches is untouched by
 // the lift.
 //
-// What it catches, then and now: `boundaries` in [LegSeamsFromNearbyNodes]
+// What it catches, then and now: `boundaries` in [legSeamsFromNearbyNodes]
 // must include every align seam the leg already carries, not just its two ends.
 // S3 splits an arc that is whole, so its two halves are bounded by the arc's
 // own ends; a leg arriving here may already carry align seams, and a piece 10 m
@@ -303,25 +303,25 @@ func TestSymmetricSnap_StubIsMeasuredAgainstAnAlignSeamNotJustTheEnds(t *testing
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	minRun := DefaultFollowBands().MinRunM
+	minRun := defaultFollowBands().MinRunM
 	// The leg's x=500 vertex is an existing align seam. The marker projects
 	// 10 m further along, inside MinRunM of it.
 	other := snapMarker(t, ctx, d, "seamnode", 500, 300)
 	snapMarker(t, ctx, d, "marker", 500+minRun*0.4, EndpointWarpRadiusM*0.5)
 
 	pts := snapStraightLeg()
-	align := []LegSeam{{Idx: 2, Node: other, HasNode: true, Adopted: true,
+	align := []legSeam{{Idx: 2, Node: other, HasNode: true, Adopted: true,
 		NodeLat: pts[2].Lat, NodeLon: pts[2].Lon}}
 
 	outPts, outSeams, rep := runSnapProducer(t, ctx, d, pts, align, nil, nil)
 
 	if len(rep.Candidates) != 1 {
-		t.Fatalf("search found %d candidate(s), want 1\n%s", len(rep.Candidates), DescribeSymmetricSnap(rep))
+		t.Fatalf("search found %d candidate(s), want 1\n%s", len(rep.Candidates), describeSymmetricSnap(rep))
 	}
 	c := rep.Candidates[0]
-	if c.PriorLenM < minRun || c.PriorLenM > LegMeasureLengthM(pts)-minRun {
+	if c.PriorLenM < minRun || c.PriorLenM > legMeasureLengthM(pts)-minRun {
 		t.Fatalf("candidate sits at measure %.1f m on a %.1f m leg — the fixture must put it far from BOTH ends, or an ends-only stub rule would decline it for the wrong reason",
-			c.PriorLenM, LegMeasureLengthM(pts))
+			c.PriorLenM, legMeasureLengthM(pts))
 	}
 	// THE ASSERTION THIS TEST EXISTS FOR. The align seam sits at the leg's
 	// x=500 vertex and the candidate projects minRun*0.4 further along, so a
@@ -332,13 +332,13 @@ func TestSymmetricSnap_StubIsMeasuredAgainstAnAlignSeamNotJustTheEnds(t *testing
 	if math.Abs(c.StubM-wantStub) > 1 {
 		t.Fatalf("StubM = %.3f m, want ~%.1f m — the stub is being measured against the leg's two ends (~%.0f m away) "+
 			"instead of against every boundary the leg already carries\n%s",
-			c.StubM, wantStub, c.PriorLenM, DescribeSymmetricSnap(rep))
+			c.StubM, wantStub, c.PriorLenM, describeSymmetricSnap(rep))
 	}
 	// The stub rule is lifted, so a short piece no longer declines: the leg
 	// keeps its align seam AND takes the new one. Asserted so this test also
 	// fails if the lift is reverted without revisiting it.
 	if c.Decline != SnapNoDecline {
-		t.Fatalf("decline = %v, want snapNoDecline — the stub rule is lifted\n%s", c.Decline, DescribeSymmetricSnap(rep))
+		t.Fatalf("decline = %v, want snapNoDecline — the stub rule is lifted\n%s", c.Decline, describeSymmetricSnap(rep))
 	}
 	if len(outSeams) != 2 {
 		t.Errorf("produced %d seam(s), want 2 — the pre-existing align seam plus the newly adopted one", len(outSeams))
@@ -364,11 +364,11 @@ func TestSymmetricSnap_DeclinesAtALegTerminalVertex(t *testing.T) {
 	_, outSeams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 
 	if len(rep.Candidates) != 1 {
-		t.Fatalf("search found %d candidate(s), want 1\n%s", len(rep.Candidates), DescribeSymmetricSnap(rep))
+		t.Fatalf("search found %d candidate(s), want 1\n%s", len(rep.Candidates), describeSymmetricSnap(rep))
 	}
 	if rep.Candidates[0].Fraction != 0 {
 		t.Fatalf("candidate Fraction = %v, want exactly 0 — the fixture is not exercising the terminal-vertex rule\n%s",
-			rep.Candidates[0].Fraction, DescribeSymmetricSnap(rep))
+			rep.Candidates[0].Fraction, describeSymmetricSnap(rep))
 	}
 	if got := rep.Candidates[0].Decline; got != SnapDeclineTerminalVertex {
 		t.Errorf("decline = %v, want snapDeclineTerminalVertex", got)
@@ -381,7 +381,7 @@ func TestSymmetricSnap_DeclinesAtALegTerminalVertex(t *testing.T) {
 // ── THE SENTINEL ────────────────────────────────────────────────────────────
 
 // TestSymmetricSnap_ZeroLengthLegIsSkippedNotFatal. A GPX route of two or more
-// identical points is legal input that imports TODAY. NodesNearPath cannot
+// identical points is legal input that imports TODAY. nodesNearPath cannot
 // project onto such a walk and errors, wrapping ErrWalkHasNoLength — so if the
 // producer propagates that, an import that works today starts aborting.
 func TestSymmetricSnap_ZeroLengthLegIsSkippedNotFatal(t *testing.T) {
@@ -406,7 +406,7 @@ func TestSymmetricSnap_ZeroLengthLegIsSkippedNotFatal(t *testing.T) {
 
 	// The sentinel really is what the primitive raises — if this stops being
 	// true the skip above is passing for the wrong reason.
-	if _, err := NodesNearPath(ctx, d, pts, EndpointWarpRadiusM, nil); err == nil {
+	if _, err := nodesNearPath(ctx, d, pts, EndpointWarpRadiusM, nil); err == nil {
 		t.Fatalf("NodesNearPath accepted a zero-length walk — the skip in the producer is now dead code guarding nothing")
 	}
 }
@@ -427,16 +427,16 @@ func TestSymmetricSnap_NodeAlreadyClaimedIsNotAddedTwice(t *testing.T) {
 	// is what suppresses it, not the radius or a decline.
 	_, bare, repBare := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 	if len(bare) != 1 {
-		t.Fatalf("control: produced %d seam(s), want 1\n%s", len(bare), DescribeSymmetricSnap(repBare))
+		t.Fatalf("control: produced %d seam(s), want 1\n%s", len(bare), describeSymmetricSnap(repBare))
 	}
 
-	align := []LegSeam{{Idx: 2, Node: marker, HasNode: true, Adopted: true,
+	align := []legSeam{{Idx: 2, Node: marker, HasNode: true, Adopted: true,
 		NodeLat: pts[2].Lat, NodeLon: pts[2].Lon}}
 	outPts, outSeams, rep := runSnapProducer(t, ctx, d, pts, align, nil, nil)
 
 	if len(rep.Candidates) != 0 {
 		t.Errorf("the search returned %d candidate(s) for a node an align seam already claims\n%s",
-			len(rep.Candidates), DescribeSymmetricSnap(rep))
+			len(rep.Candidates), describeSymmetricSnap(rep))
 	}
 	if len(outSeams) != 1 {
 		t.Fatalf("produced %d seam(s), want 1 — the align seam and nothing else", len(outSeams))
@@ -459,18 +459,18 @@ func TestSymmetricSnap_LegTerminalNodesAreExcluded(t *testing.T) {
 
 	_, outSeams, rep := runSnapProducer(t, ctx, d, pts, nil, &marker, nil)
 	if len(rep.Candidates) != 0 || len(outSeams) != 0 {
-		t.Errorf("a node named as this leg's own start terminal was still offered as an interior seam\n%s", DescribeSymmetricSnap(rep))
+		t.Errorf("a node named as this leg's own start terminal was still offered as an interior seam\n%s", describeSymmetricSnap(rep))
 	}
 
 	_, outSeams, rep = runSnapProducer(t, ctx, d, pts, nil, nil, &marker)
 	if len(rep.Candidates) != 0 || len(outSeams) != 0 {
-		t.Errorf("a node named as this leg's own end terminal was still offered as an interior seam\n%s", DescribeSymmetricSnap(rep))
+		t.Errorf("a node named as this leg's own end terminal was still offered as an interior seam\n%s", describeSymmetricSnap(rep))
 	}
 }
 
-// TestSymmetricSnap_AlignSeamIndicesAreRemapped. LegSeam.Idx is a VERTEX index,
+// TestSymmetricSnap_AlignSeamIndicesAreRemapped. legSeam.Idx is a VERTEX index,
 // so inserting a vertex renumbers everything after it. THIS producer does the
-// remapping — ApplyLegBoundaryWarp no longer remaps anything at all
+// remapping — applyLegBoundaryWarp no longer remaps anything at all
 // (its gap-collapse is gone), so an unremapped align seam would silently
 // point at the wrong vertex all the way to the writer.
 func TestSymmetricSnap_AlignSeamIndicesAreRemapped(t *testing.T) {
@@ -484,19 +484,19 @@ func TestSymmetricSnap_AlignSeamIndicesAreRemapped(t *testing.T) {
 	seamNode := snapMarker(t, ctx, d, "seamnode", 500, 300)
 
 	pts := snapStraightLeg()
-	align := []LegSeam{{Idx: 2, Node: seamNode, HasNode: true, Adopted: true,
+	align := []legSeam{{Idx: 2, Node: seamNode, HasNode: true, Adopted: true,
 		NodeLat: pts[2].Lat, NodeLon: pts[2].Lon}}
 
 	outPts, outSeams, rep := runSnapProducer(t, ctx, d, pts, align, nil, nil)
 
 	if rep.Adopted() != 2 {
-		t.Fatalf("adopted %d, want 2\n%s", rep.Adopted(), DescribeSymmetricSnap(rep))
+		t.Fatalf("adopted %d, want 2\n%s", rep.Adopted(), describeSymmetricSnap(rep))
 	}
 	if len(outPts) != len(pts)+2 {
 		t.Fatalf("leg has %d point(s), want %d", len(outPts), len(pts)+2)
 	}
 	if len(outSeams) != 3 {
-		t.Fatalf("produced %d seam(s), want 3\n%s", len(outSeams), DescribeSymmetricSnap(rep))
+		t.Fatalf("produced %d seam(s), want 3\n%s", len(outSeams), describeSymmetricSnap(rep))
 	}
 
 	// Ascending, strictly.
@@ -506,7 +506,7 @@ func TestSymmetricSnap_AlignSeamIndicesAreRemapped(t *testing.T) {
 		}
 	}
 
-	var alignSeam *LegSeam
+	var alignSeam *legSeam
 	for i := range outSeams {
 		if outSeams[i].Node == seamNode {
 			alignSeam = &outSeams[i]
@@ -543,14 +543,14 @@ func TestSymmetricSnap_AlignSeamIndicesAreRemapped(t *testing.T) {
 // cost of the symmetric snap rests on, red-proofed rather than assumed.
 //
 //	Nodes == 2×SourceLegs − AdoptedTerminals + AlignCuts + TJunctionCuts
-//	         + LegMintedSeamNodes + RingSplits − RingMergedTerminals
+//	         + legMintedSeamNodes + RingSplits − RingMergedTerminals
 //
 // Every term counts a node CREATED or a creation SUPPRESSED. An adopted seam
 // creates nothing, so the identity must hold with every term unchanged. If it
 // does not, the snap costs a node per adoption.
 //
 // The leg is driven through the REST of the real commit path — the producer,
-// then ApplyLegBoundaryWarp, then CommitLegPieces — because the claim is
+// then applyLegBoundaryWarp, then commitLegPieces — because the claim is
 // about what reaches the canon, not about what the producer returns.
 func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 	ctx := context.Background()
@@ -563,25 +563,25 @@ func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 
 	pts := snapStraightLeg()
 
-	outPts, seams, rep, err := LegSeamsFromNearbyNodes(ctx, d, pts, nil, nil, nil, nil)
+	outPts, seams, rep, err := legSeamsFromNearbyNodes(ctx, d, pts, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("legSeamsFromNearbyNodesTx: %v", err)
 	}
 	if rep.Adopted() != 1 {
-		t.Fatalf("adopted %d, want 1 — nothing is being proved otherwise\n%s", rep.Adopted(), DescribeSymmetricSnap(rep))
+		t.Fatalf("adopted %d, want 1 — nothing is being proved otherwise\n%s", rep.Adopted(), describeSymmetricSnap(rep))
 	}
-	// THE TERM THAT COULD HAVE MOVED. LegMintedSeamNodes counts only seams
+	// THE TERM THAT COULD HAVE MOVED. legMintedSeamNodes counts only seams
 	// with !HasNode; every seam this producer makes has HasNode true, so it
 	// contributes zero by construction rather than by arithmetic luck.
-	if got := LegMintedSeamNodes(outPts, seams); got != 0 {
+	if got := legMintedSeamNodes(outPts, seams); got != 0 {
 		t.Fatalf("legMintedSeamNodes = %d, want 0 — an adopted seam must mint nothing, and the identity's own term says so", got)
 	}
 
-	warped, seams, err := ApplyLegBoundaryWarp(outPts, seams)
+	warped, seams, err := applyLegBoundaryWarp(outPts, seams)
 	if err != nil {
 		t.Fatalf("applyLegBoundaryWarp: %v", err)
 	}
-	pieces, _, ringSplits, ringMergedTerminals, _, _, _, _, _, err := CommitLegPieces(ctx, d, warped, seams, nil, nil, nil)
+	pieces, _, ringSplits, ringMergedTerminals, _, _, _, _, _, err := commitLegPieces(ctx, d, warped, seams, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("commitLegPiecesTx: %v", err)
 	}
@@ -617,7 +617,7 @@ func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 	// ── THE CONTROL ARM: A FROZEN WRONG IMPLEMENTATION ──────────────────────
 	//
 	// The subtraction above is only evidence if it can come out DIFFERENTLY.
-	// Crippling the producer to prove that does not reach it: LegMintedSeamNodes
+	// Crippling the producer to prove that does not reach it: legMintedSeamNodes
 	// is checked first and fires before the commit ever runs. So the wrong
 	// implementation is frozen here instead and driven through the SAME commit
 	// path — a seam at the same point that MINTS its own node rather than
@@ -632,7 +632,7 @@ func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 		snapMarker(t, ctx, cd, "marker", 600, EndpointWarpRadiusM*0.7)
 		cBefore := censusNetwork(t, ctx, cd)
 
-		cPts, cSeams, cRep, err := LegSeamsFromNearbyNodes(ctx, cd, snapStraightLeg(), nil, nil, nil, nil)
+		cPts, cSeams, cRep, err := legSeamsFromNearbyNodes(ctx, cd, snapStraightLeg(), nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("legSeamsFromNearbyNodesTx: %v", err)
 		}
@@ -640,16 +640,16 @@ func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 			t.Fatalf("control fixture drifted: adopted %d, want 1", cRep.Adopted())
 		}
 		// THE FREEZE: same index, same geometry, but the seam claims no canon
-		// node — so CommitLegPieces mints one of the leg's own there.
-		wrong := []LegSeam{{Idx: cSeams[0].Idx, HasNode: false}}
-		if got := LegMintedSeamNodes(cPts, wrong); got != 1 {
+		// node — so commitLegPieces mints one of the leg's own there.
+		wrong := []legSeam{{Idx: cSeams[0].Idx, HasNode: false}}
+		if got := legMintedSeamNodes(cPts, wrong); got != 1 {
 			t.Fatalf("the frozen wrong seam does not read as a mint (legMintedSeamNodes = %d) — it is not the implementation this arm exists to contrast with", got)
 		}
-		cWarped, wrong, err := ApplyLegBoundaryWarp(cPts, wrong)
+		cWarped, wrong, err := applyLegBoundaryWarp(cPts, wrong)
 		if err != nil {
 			t.Fatalf("applyLegBoundaryWarp: %v", err)
 		}
-		if _, _, _, _, _, _, _, _, _, err := CommitLegPieces(ctx, cd, cWarped, wrong, nil, nil, nil); err != nil {
+		if _, _, _, _, _, _, _, _, _, err := commitLegPieces(ctx, cd, cWarped, wrong, nil, nil, nil); err != nil {
 			t.Fatalf("commitLegPiecesTx: %v", err)
 		}
 
@@ -664,7 +664,7 @@ func TestSymmetricSnap_NodeIdentityHoldsAcrossAnAdoptedSeam(t *testing.T) {
 // ── THE AUDIT FINDING, RED-PROOFED ──────────────────────────────────────────
 
 // TestSymmetricSnap_AbsorbedIsWhatMakesTheLegReach is the cripple for the audit
-// finding. ApplyLegBoundaryWarp targets a seam's NODE coordinates only when
+// finding. applyLegBoundaryWarp targets a seam's NODE coordinates only when
 // Absorbed; every other seam gets a zero-displacement anchor at its own current
 // point. So a seam marked merely Adopted commits a line that never touches the
 // junction it claims.
@@ -683,12 +683,12 @@ func TestSymmetricSnap_AbsorbedIsWhatMakesTheLegReach(t *testing.T) {
 	pts := snapStraightLeg()
 	outPts, seams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 	if len(seams) != 1 {
-		t.Fatalf("produced %d seam(s), want 1\n%s", len(seams), DescribeSymmetricSnap(rep))
+		t.Fatalf("produced %d seam(s), want 1\n%s", len(seams), describeSymmetricSnap(rep))
 	}
 	idx := seams[0].Idx
 
 	// AS PRODUCED: the leg reaches the node, bit-exact.
-	warped, _, err := ApplyLegBoundaryWarp(outPts, seams)
+	warped, _, err := applyLegBoundaryWarp(outPts, seams)
 	if err != nil {
 		t.Fatalf("applyLegBoundaryWarp: %v", err)
 	}
@@ -698,10 +698,10 @@ func TestSymmetricSnap_AbsorbedIsWhatMakesTheLegReach(t *testing.T) {
 	}
 
 	// CRIPPLED: Absorbed off, everything else identical.
-	crippled := make([]LegSeam, len(seams))
+	crippled := make([]legSeam, len(seams))
 	copy(crippled, seams)
 	crippled[0].Absorbed = false
-	crippledPts, _, err := ApplyLegBoundaryWarp(outPts, crippled)
+	crippledPts, _, err := applyLegBoundaryWarp(outPts, crippled)
 	if err != nil {
 		t.Fatalf("applyLegBoundaryWarp (crippled): %v", err)
 	}
@@ -731,7 +731,7 @@ func TestSymmetricSnap_TwoNodesAdoptedInAlongLegOrder(t *testing.T) {
 	outPts, seams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 
 	if len(seams) != 2 {
-		t.Fatalf("produced %d seam(s), want 2\n%s", len(seams), DescribeSymmetricSnap(rep))
+		t.Fatalf("produced %d seam(s), want 2\n%s", len(seams), describeSymmetricSnap(rep))
 	}
 	if seams[0].Node != west || seams[1].Node != east {
 		t.Errorf("seams are %d then %d, want west(%d) then east(%d) — leg order, not id or discovery order",
@@ -757,7 +757,7 @@ func TestSymmetricSnap_NoNodesInRangeChangesNothing(t *testing.T) {
 	outPts, seams, rep := runSnapProducer(t, ctx, d, pts, nil, nil, nil)
 
 	if len(rep.Candidates) != 0 || len(seams) != 0 {
-		t.Errorf("a node %v m away was offered\n%s", EndpointWarpRadiusM*3, DescribeSymmetricSnap(rep))
+		t.Errorf("a node %v m away was offered\n%s", EndpointWarpRadiusM*3, describeSymmetricSnap(rep))
 	}
 	if len(outPts) != len(pts) {
 		t.Errorf("leg has %d point(s), want %d unchanged", len(outPts), len(pts))
@@ -770,7 +770,7 @@ func TestSymmetricSnap_NoNodesInRangeChangesNothing(t *testing.T) {
 // TestSymmetricSnap_IsWiredBetweenAlignAndTheWarp. AddLeg calls the producer, and
 // WHERE it sits is the claim worth holding: after LegSeamsFromAlign, because
 // the align seams are its exclusion set and its stub-rule boundaries; before
-// ApplyLegBoundaryWarp, because the seams it makes are Absorbed and it is the
+// applyLegBoundaryWarp, because the seams it makes are Absorbed and it is the
 // warp that moves the leg onto their nodes. Either swap is silent — the import
 // still succeeds, it just adopts nothing useful or never reaches what it
 // adopted.
@@ -784,8 +784,8 @@ const addLegSourcePath = "addleg.go"
 func TestSymmetricSnap_IsWiredBetweenAlignAndTheWarp(t *testing.T) {
 	body := snapReadPackageFile(t, addLegSourcePath)
 	align := strings.Index(body, "seams, err := legSeamsFromAlign(")
-	snap := strings.Index(body, "err = LegSeamsFromNearbyNodes(")
-	warp := strings.Index(body, "seams, err = ApplyLegBoundaryWarp(")
+	snap := strings.Index(body, "err = legSeamsFromNearbyNodes(")
+	warp := strings.Index(body, "seams, err = applyLegBoundaryWarp(")
 	if align < 0 || snap < 0 || warp < 0 {
 		t.Fatalf("self-test: one of the three call sites is not in %s (align=%d snap=%d warp=%d) — this scan would pass on a rename", addLegSourcePath, align, snap, warp)
 	}
@@ -841,7 +841,7 @@ func TestInteriorNodeSeam_ABitwiseVertexIsCutAt(t *testing.T) {
 		t.Errorf("Adopted=false, but the node existed before this leg — this rule mints nothing")
 	}
 	// ⚠ ABSORBED MUST BE FALSE, and it is the opposite of the symmetric snap's
-	// requirement for a reason. ApplyLegBoundaryWarp moves the leg onto a
+	// requirement for a reason. applyLegBoundaryWarp moves the leg onto a
 	// seam's node only when Absorbed; here the leg is ALREADY on it, bitwise,
 	// so asking for a taper would move geometry that is already correct.
 	if s.Absorbed || s.AbsorbedM != 0 {
@@ -928,7 +928,7 @@ func TestInteriorNodeSeam_ATerminalVertexIsNotNoded(t *testing.T) {
 
 // TestInteriorNodeSeam_AnAlreadyClaimedNodeIsExcluded pins the exclusion. A
 // node an align seam already names must not get a second seam — the same rule
-// [LegSeamsFromNearbyNodes] applies, and applied BEFORE the search rather
+// [legSeamsFromNearbyNodes] applies, and applied BEFORE the search rather
 // than as a post-hoc discard.
 func TestInteriorNodeSeam_AnAlreadyClaimedNodeIsExcluded(t *testing.T) {
 	ctx := context.Background()
@@ -937,7 +937,7 @@ func TestInteriorNodeSeam_AnAlreadyClaimedNodeIsExcluded(t *testing.T) {
 	marker := snapMarker(t, ctx, d, "marker", 500, 0)
 
 	pts := []Point{mPt(0, 0), mPt(250, 0), mPt(500, 0), mPt(750, 0), mPt(1000, 0)}
-	existing := []LegSeam{{Idx: 3, Node: marker, HasNode: true, Adopted: true}}
+	existing := []legSeam{{Idx: 3, Node: marker, HasNode: true, Adopted: true}}
 	seams, rep := runInteriorNodeProducer(t, ctx, d, pts, existing, nil, nil)
 	if len(seams) != 1 || seams[0].Idx != 3 {
 		t.Errorf("seams %+v, want only the align seam at point 3 — the node it names must not be claimed twice", seams)

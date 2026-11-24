@@ -187,23 +187,23 @@ func TestAlign_EndToEndCutsNothing(t *testing.T) {
 //
 // ⚠ BUT NO CUT HAPPENS EITHER WAY, and asserting the count would therefore be
 // decorative. MinRunM (25 m) already refuses anything within nine orders of
-// magnitude of an end, so removing the MeasureEps branch changes nothing an arc
+// magnitude of an end, so removing the measureEps branch changes nothing an arc
 // count can see — MEASURED, by removing it: `cuts = 0` still, table still green.
 //
 // What moves is the REASON, and the reason is load-bearing: "already at a node"
 // is the state A1 exists to reach and "stub too short" is a compromise it
 // accepted. L2 reconciles against this report and A2 consumes it. So the bar is
-// the decline value, at a boundary inside MeasureEps where the two rules disagree
+// the decline value, at a boundary inside measureEps where the two rules disagree
 // about the name and agree about the outcome.
 func TestAlign_MeasureEpsQualifiesTheEnds(t *testing.T) {
 	ctx := context.Background()
 	f := alignOneCanon(t, ctx, "align-measureeps", 600)
 	before := alignCountArcs(t, ctx, f.d)
 
-	// Strictly inside both ends, and strictly inside MeasureEps of them: a positive
+	// Strictly inside both ends, and strictly inside measureEps of them: a positive
 	// measure that no geometry means anything at, which is exactly what the fraction
 	// round trip produces at a boundary that is really an endpoint.
-	const insideMeasureEps = MeasureEps / 2
+	const insideMeasureEps = measureEps / 2
 	rep := runAlign(t, ctx, f.d, []FollowRun{
 		onRun(f.arcID, insideMeasureEps, f.total-insideMeasureEps, false),
 	})
@@ -330,9 +330,9 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 		t.Errorf("near boundary (measure %.3f of %.3f) resolved as %q, want a cut — DECLINE 3 is lifted",
 			nearB.MeasureM, nearB.TotalM, nearB.Decline)
 	}
-	if !(nearB.MeasureM > EndpointWarpRadiusM && nearB.MeasureM < DefaultFollowBands().MinRunM) {
+	if !(nearB.MeasureM > EndpointWarpRadiusM && nearB.MeasureM < defaultFollowBands().MinRunM) {
 		t.Errorf("near boundary is at measure %.3f, outside the StayM band (%v..%v) — this fixture no longer poses DECLINE 3's question",
-			nearB.MeasureM, EndpointWarpRadiusM, DefaultFollowBands().MinRunM)
+			nearB.MeasureM, EndpointWarpRadiusM, defaultFollowBands().MinRunM)
 	}
 
 	if got := alignCountArcs(t, ctx, f.d); got != before+2 {

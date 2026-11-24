@@ -14,12 +14,12 @@ package merge
 //
 // This file is built from certified primitives — [bandPieces]
 // (bandinterval.go) for the per-(source edge, canon edge) regime solve, and
-// [RectsBeyond] for the box/chunk pruning that decides which canon edges are
+// [rectsBeyond] for the box/chunk pruning that decides which canon edges are
 // worth solving against a given source edge — with a join that keeps each
 // regime's own piece (lo, hi, kind, dist² coefficients, oriented canon measure).
 //
 // CANDIDATE-SET SAFETY. "Which canon edges compete for a given source edge" is
-// decided by [RectsBeyond]: a box CONTAINS its geometry, so the distance
+// decided by [rectsBeyond]: a box CONTAINS its geometry, so the distance
 // between two boxes lower-bounds the distance between the geometries inside
 // them, and a box pair farther apart than d cannot hold a qualifying pair —
 // skipping it cannot drop an interval. That is a source-EDGE-vs-canon-box RANGE
@@ -46,7 +46,7 @@ import (
 )
 
 // CorridorPiece is one (source edge × canon edge × regime) contribution to a
-// CorridorInterval: an exact, ORIENTED import-measure ↔ canon-measure correspondence,
+// corridorInterval: an exact, ORIENTED import-measure ↔ canon-measure correspondence,
 // plus the dist²(t) this regime's band solve computed it from.
 //
 // Regime carries lo/hi in the SOURCE EDGE's own local [0,1] parameter — the
@@ -59,7 +59,7 @@ type CorridorPiece struct {
 
 	// Import measure at Regime.lo and Regime.hi respectively — monotonically
 	// increasing with T, since measure within an edge is affine in T
-	// (SourceMeasure's own header).
+	// (sourceMeasure's own header).
 	ImportMeasureAtLo, ImportMeasureAtHi float64
 
 	// Canon measure at Regime.lo and Regime.hi, ORIENTED (not sorted): may
@@ -68,7 +68,7 @@ type CorridorPiece struct {
 	CanonMeasureAtLo, CanonMeasureAtHi float64
 }
 
-// CorridorInterval is one maximal import-measure stretch, for one candidate,
+// corridorInterval is one maximal import-measure stretch, for one candidate,
 // where the candidate lies within d metres of the source polyline,
 // parameterised on IMPORT measure, and carrying an exact oriented
 // correspondence rather than a hull.
@@ -77,27 +77,23 @@ type CorridorPiece struct {
 // That is self-approach — the source lying within d of two different, distant
 // parts of the candidate at once — and it is exactly the case Pieces exists
 // to represent rather than collapse.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type CorridorInterval struct {
+type corridorInterval struct {
 	CandIdx                          int
 	ImportMeasureLo, ImportMeasureHi float64
 	Pieces                           []CorridorPiece // ascending import measure, contiguous or self-approach-overlapping
 }
 
-// CorridorIntervals returns, per candidate, the import-measure intervals where
+// corridorIntervals returns, per candidate, the import-measure intervals where
 // that candidate lies within d metres of the whole source polyline sa.
 //
 // An empty or all-nil candidate list is not a special case: the loop below
 // simply contributes nothing, so an all-OFF/no-candidate leg yields no
 // intervals.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CorridorIntervals(ctx context.Context, sa *SourceMeasure, cands []*PreppedCandidate, d float64) ([]CorridorInterval, error) {
-	var out []CorridorInterval
+func corridorIntervals(ctx context.Context, sa *sourceMeasure, cands []*PreppedCandidate, d float64) ([]corridorInterval, error) {
+	var out []corridorInterval
 	for i, pc := range cands {
 		if pc == nil {
-			continue // PrepCandidates leaves degenerate candidates nil
+			continue // prepCandidates leaves degenerate candidates nil
 		}
 		ivs, err := candidateCorridorIntervals(ctx, sa, pc, i, d)
 		if err != nil {
@@ -108,8 +104,8 @@ func CorridorIntervals(ctx context.Context, sa *SourceMeasure, cands []*PreppedC
 	return out, nil
 }
 
-// candidateCorridorIntervals is [CorridorIntervals] against ONE candidate.
-func candidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *PreppedCandidate, candIdx int, d float64) ([]CorridorInterval, error) {
+// candidateCorridorIntervals is [corridorIntervals] against ONE candidate.
+func candidateCorridorIntervals(ctx context.Context, sa *sourceMeasure, pc *PreppedCandidate, candIdx int, d float64) ([]corridorInterval, error) {
 	if sa == nil {
 		return nil, fmt.Errorf("CorridorIntervals: nil source measure")
 	}
@@ -242,7 +238,7 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 	sMinLon, sMaxLon := math.Min(p.Lon, q.Lon), math.Max(p.Lon, q.Lon)
 
 	nedges := len(pc.Verts) - 1
-	if prune && RectsBeyond(sMinLat, sMaxLat, sMinLon, sMaxLon, pc.minLat, pc.maxLat, pc.minLon, pc.maxLon, d) {
+	if prune && rectsBeyond(sMinLat, sMaxLat, sMinLon, sMaxLon, pc.minLat, pc.maxLat, pc.minLon, pc.maxLon, d) {
 		return nil, nil
 	}
 
@@ -250,7 +246,7 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 	for e := 0; e < nedges; e++ {
 		if prune && e%chunkEdges == 0 {
 			c := e / chunkEdges
-			if RectsBeyond(sMinLat, sMaxLat, sMinLon, sMaxLon,
+			if rectsBeyond(sMinLat, sMaxLat, sMinLon, sMaxLon,
 				pc.chMinLat[c], pc.chMaxLat[c], pc.chMinLon[c], pc.chMaxLon[c], d) {
 				e = (c+1)*chunkEdges - 1 // the loop's e++ lands on the next chunk
 				continue
@@ -332,11 +328,11 @@ func orientedFootMeasure(p, q, a, b Point, pc *PreppedCandidate, e int, t0, t1 f
 }
 
 // joinCorridorPieces groups the flat, per-source-edge corridor pieces into
-// CorridorIntervals — one interval per CONNECTED COMPONENT of the pieces
+// corridorIntervals — one interval per CONNECTED COMPONENT of the pieces
 // under [piecesAdjacent].
 //
-// WHY A COMPONENT AND NOT A CHAIN. A CorridorInterval is defined (see
-// [CorridorInterval]) as one maximal import-measure stretch where the candidate
+// WHY A COMPONENT AND NOT A CHAIN. A corridorInterval is defined (see
+// [corridorInterval]) as one maximal import-measure stretch where the candidate
 // lies within d of the source. "Maximal stretch of a set of pieces that touch
 // each other" is a connected-component question, and a component is a
 // property of the pieces alone: it does not depend on the order they are
@@ -373,7 +369,7 @@ func orientedFootMeasure(p, q, a, b Point, pc *PreppedCandidate, e int, t0, t1 f
 // construction order (source edge ascending, canon edge ascending within an
 // edge) — the same order the chain form produced, so every consumer that
 // reads Pieces sequentially sees the sequence it always did.
-func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInterval {
+func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []corridorInterval {
 	// Flatten, keeping construction order: source edge ascending, and within
 	// a source edge the canon-edge-ascending order sourceEdgeCorridorPieces
 	// emits. flat[i]'s index IS its construction rank, which is what orders
@@ -448,7 +444,7 @@ func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInte
 	}
 	sort.Ints(order)
 
-	out := make([]CorridorInterval, 0, len(order))
+	out := make([]corridorInterval, 0, len(order))
 	for _, r := range order {
 		pieces := byRoot[r]
 		// min/max over every piece, not just the list's own first/last
@@ -460,7 +456,7 @@ func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInte
 			lo = min(lo, p.ImportMeasureAtLo)
 			hi = max(hi, p.ImportMeasureAtHi)
 		}
-		out = append(out, CorridorInterval{
+		out = append(out, corridorInterval{
 			CandIdx:         candIdx,
 			ImportMeasureLo: lo,
 			ImportMeasureHi: hi,
@@ -488,7 +484,7 @@ func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInte
 //     writing exactly 1 and exactly 0 into the regime bounds at an edge's own
 //     ends. Comparing ImportMeasureAtHi against ImportMeasureAtLo in metres instead
 //     would be asking a structural question with a float, which is the shape
-//     MeasureEps exists to paper over and the reason this function does not use
+//     measureEps exists to paper over and the reason this function does not use
 //     it.
 //
 // Non-consecutive source edges are never adjacent: a corridor that leaves the
@@ -508,7 +504,7 @@ func piecesAdjacent(a, b CorridorPiece) bool {
 	return false
 }
 
-// RectsBeyond reports whether two lat/lon boxes are provably farther apart than
+// rectsBeyond reports whether two lat/lon boxes are provably farther apart than
 // marginM.
 //
 // It is a box-to-box test because the query is an EDGE: an edge can pass close
@@ -521,9 +517,7 @@ func piecesAdjacent(a, b CorridorPiece) bool {
 // which is the direction that keeps the test safe. (pc.cosMin is the same idea
 // over the candidate alone; it is not reused because the source edge may sit
 // outside the candidate's latitude range entirely.)
-//
-// Exported for the reference application's tests; not part of the stable API.
-func RectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, bMaxLon, marginM float64) bool {
+func rectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, bMaxLon, marginM float64) bool {
 	dLatM := 0.0
 	if aMaxLat < bMinLat {
 		dLatM = (bMinLat - aMaxLat) * MetresPerDeg

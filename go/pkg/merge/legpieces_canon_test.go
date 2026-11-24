@@ -68,7 +68,7 @@ func arcVertsEle(a Arc, nodes map[NodeID]Node) ([]Point, bool) {
 // writer itself, and it exists because the behavioural test above did NOT catch
 // the rule being removed.
 //
-// WHY A SECOND TEST FOR ONE RULE. Crippling [CommitPiece] to return a ring
+// WHY A SECOND TEST FOR ONE RULE. Crippling [commitPiece] to return a ring
 // unsplit reddens 200 pieces on the corpus tier and NOTHING in the short suite:
 // whether the bulge fixture's OFF piece resolves both ends to one node depends
 // on the follow's decomposition, and it currently does not. A rule that only a
@@ -80,7 +80,7 @@ func arcVertsEle(a Arc, nodes map[NodeID]Node) ([]Point, bool) {
 // must yield one arc, or "always returns two" would pass this test while
 // splitting every piece in the network.
 //
-// CRIPPLE THAT MUST REDDEN IT: return the piece unsplit from [CommitPiece]
+// CRIPPLE THAT MUST REDDEN IT: return the piece unsplit from [commitPiece]
 // when its two ends resolve to one node.
 func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 	ctx := context.Background()
@@ -90,7 +90,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 	// that leaves canon at a junction and rejoins at the same junction produces.
 	ring := []Point{mPt(0, 0), mPt(50, 0), mPt(50, 50), mPt(0, 50), mPt(0, 0)}
 
-	anchor, j, _, _, _, _, _, _, _, _, err := CommitPiece(ctx, d, []Point{mPt(-100, 0), mPt(-50, 0), mPt(0, 0)}, nil, nil, nil)
+	anchor, j, _, _, _, _, _, _, _, _, err := commitPiece(ctx, d, []Point{mPt(-100, 0), mPt(-50, 0), mPt(0, 0)}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("anchor piece: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 	}
 	ctx = WithTestHooks(ctx, hooks)
 
-	arcs, end, ringSplit, ringSplitMinted, _, tightPair, _, _, _, _, err := CommitPiece(ctx, d, ring, &j, &j, nil)
+	arcs, end, ringSplit, ringSplitMinted, _, tightPair, _, _, _, _, err := commitPiece(ctx, d, ring, &j, &j, nil)
 	if err != nil {
 		t.Fatalf("ring piece: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 	// NO FALLBACK ON THE DEGENERATE. A two-point ring has no interior vertex to
 	// cut at, and inventing a midpoint would write geometry the source never
 	// had — so it is an error, and the error is what the import surfaces.
-	if _, _, _, _, _, _, _, _, _, _, err := CommitPiece(ctx, d, []Point{mPt(0, 0), mPt(0, 0)}, &j, &j, nil); err == nil {
+	if _, _, _, _, _, _, _, _, _, _, err := commitPiece(ctx, d, []Point{mPt(0, 0), mPt(0, 0)}, &j, &j, nil); err == nil {
 		t.Errorf("a two-point ring committed without complaint — it has no interior vertex, and the only ways to write it are a self-loop row or an invented coordinate")
 	} else if !strings.Contains(err.Error(), "no interior vertex") {
 		t.Errorf("a two-point ring failed with %v — it should name the missing interior vertex, since that is what the caller has to fix", err)
@@ -202,7 +202,7 @@ func TestA2_RingSplitLandsAtTheTurnNotMeasureHalfway(t *testing.T) {
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	anchor, j, _, _, _, _, _, _, _, _, err := CommitPiece(ctx, d, []Point{mPt(-100, 0), mPt(-50, 0), mPt(0, 0)}, nil, nil, nil)
+	anchor, j, _, _, _, _, _, _, _, _, err := commitPiece(ctx, d, []Point{mPt(-100, 0), mPt(-50, 0), mPt(0, 0)}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("anchor piece: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestA2_RingSplitLandsAtTheTurnNotMeasureHalfway(t *testing.T) {
 	turn := mPt(30, 0)
 	ring := []Point{mPt(0, 0), turn, mPt(25, 10), mPt(5, 15), mPt(15, 5), mPt(0, 0)}
 
-	arcs, _, ringSplit, _, _, _, _, _, _, _, err := CommitPiece(ctx, d, ring, &j, &j, nil)
+	arcs, _, ringSplit, _, _, _, _, _, _, _, err := commitPiece(ctx, d, ring, &j, &j, nil)
 	if err != nil {
 		t.Fatalf("ring piece: %v", err)
 	}
@@ -242,12 +242,12 @@ func TestA2_RingSplitLandsAtTheTurnNotMeasureHalfway(t *testing.T) {
 
 // TestA2_CloseUnresolvedEndsMergeIntoOneRingNode is the Prove-It for merging
 // a leg's own close ends and bisecting the loop: a leg whose own start and end are BOTH unresolved
-// (neither adopted by anything upstream — CommitPiece's mergeOwnEnds) and
+// (neither adopted by anything upstream — commitPiece's mergeOwnEnds) and
 // sit within EndpointWarpRadiusM of each other commits as TWO arcs
 // sharing ONE freshly-minted node, via the same §4.9 halfway split a
 // pre-resolved ring already uses — not two separate, too-close nodes.
 //
-// CRIPPLE: revert CommitPiece's mergeOwnEnds branch to the ordinary
+// CRIPPLE: revert commitPiece's mergeOwnEnds branch to the ordinary
 // single-arc write and this test goes red with "1 arc(s), want 2"
 // (the pre-decision-2 behaviour: two nodes minted, no shared seam).
 func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
@@ -261,7 +261,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 	// same commit).
 	loop := []Point{mPt(0, 0), mPt(50, 0), mPt(50, 50), mPt(0, 50), mPt(0, 5)}
 
-	arcs, end, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, _, _, _, _, err := CommitPiece(ctx, d, loop, nil, nil, nil)
+	arcs, end, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, _, _, _, _, err := commitPiece(ctx, d, loop, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("commitPieceTx: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 // another. Measured on real data: one leg left 9 nodes at one lat/lon, and
 // other legs more such stacks.
 //
-// The fixture calls [CommitLegPieces] directly with two declined seams
+// The fixture calls [commitLegPieces] directly with two declined seams
 // (HasNode: false) at DIFFERENT indices but the IDENTICAL coordinate, with real
 // interior geometry between them — the shape the corpus measured, not the
 // adjacent-claim case [TestA2_TwoSeamsOnOneNodeAtAdjacentPointsAreOneSeam]
@@ -318,7 +318,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 // coordinate (not two), and the piece between the seams split at its interior
 // halfway vertex (not aborted, not left as a same-node row).
 //
-// CRIPPLE: revert [CommitLegPieces]'s `mintedAt` reuse (always mint on a
+// CRIPPLE: revert [commitLegPieces]'s `mintedAt` reuse (always mint on a
 // declined seam) — reddens node count (2 at the coordinate instead of 1) and
 // arc count (3 instead of 4, no ring split).
 func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
@@ -334,12 +334,12 @@ func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
 		dup,        // idx4: seam B — declined, no canon node, SAME coordinate as idx1
 		mPt(40, 0), // idx5: leg end terminal (anchor, mints its own node)
 	}
-	seams := []LegSeam{
+	seams := []legSeam{
 		{Idx: 1, HasNode: false},
 		{Idx: 4, HasNode: false},
 	}
 
-	pieces, _, _, _, _, _, _, _, _, err := CommitLegPieces(ctx, d, points, seams, nil, nil, nil)
+	pieces, _, _, _, _, _, _, _, _, err := commitLegPieces(ctx, d, points, seams, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("commitLegPiecesTx: %v", err)
 	}
@@ -383,6 +383,6 @@ func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
 		t.Errorf("piece 3 starts on node %d, want %d (seam B's node, threaded from the ring's end)", pieces[3].Arc.StartNodeID, j)
 	}
 	// No assertNetworkSound: it checks network bounds, which the full commit
-	// pipeline recomputes and this direct call to CommitLegPieces does not —
+	// pipeline recomputes and this direct call to commitLegPieces does not —
 	// same reason TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan skips it.
 }

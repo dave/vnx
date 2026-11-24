@@ -45,7 +45,7 @@ type DuplicateArcMatch struct {
 	EleEqual bool
 }
 
-// FindDuplicateCanonArcs answers the detector's question for one piece, and
+// findDuplicateCanonArcs answers the detector's question for one piece, and
 // returns EVERY canon arc that qualifies, ordered by id.
 //
 // An empty result is the ordinary case and not a failure.
@@ -62,9 +62,7 @@ type DuplicateArcMatch struct {
 // to that end, and a node that does not exist yet cannot bound an arc that
 // already exists — so "is there a canon arc between the same two nodes" has the
 // answer "no", definitively, without a query.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func FindDuplicateCanonArcs(
+func findDuplicateCanonArcs(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
@@ -104,7 +102,7 @@ func FindDuplicateCanonArcs(
 		if arc.StartNodeID != *startNode {
 			aStart, aEnd = end, start
 		}
-		v := DupVertexSequenceEqual(mine, arcVertices(arc, aStart, aEnd))
+		v := dupVertexSequenceEqual(mine, arcVertices(arc, aStart, aEnd))
 		if !v.Equal {
 			continue
 		}

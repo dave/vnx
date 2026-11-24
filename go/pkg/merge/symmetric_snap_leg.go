@@ -18,7 +18,7 @@ package merge
 //
 // ── WHAT THIS DOES, AND THE ONE THING IT DOES NOT ───────────────────────────
 //
-// This is the SECOND producer of [LegSeam]s, beside [legSeamsFromAlign]. A leg
+// This is the SECOND producer of [legSeam]s, beside [legSeamsFromAlign]. A leg
 // about to commit asks which canon nodes its own path passes within
 // [EndpointWarpRadiusM], and adopts each one as an interior seam: a vertex is
 // inserted at the projection, the seam claims the node, and the boundary warp
@@ -29,7 +29,7 @@ package merge
 // add nodes, and this step does not even do that: no arc is split, no arc's
 // polyline changes, no node is minted or moved. The whole step happens on the
 // incoming leg, which is why it needs no new primitive and no accounting term;
-// see [LegSeamsFromNearbyNodes]'s own notes on the node identity.
+// see [legSeamsFromNearbyNodes]'s own notes on the node identity.
 //
 // ── THE RULE MIRRORS THE T-JUNCTION SPLIT'S DECLINES
 //
@@ -59,7 +59,7 @@ import (
 	"sort"
 )
 
-// LegSeamsFromNearbyNodes is the producer. It asks which canon nodes the
+// legSeamsFromNearbyNodes is the producer. It asks which canon nodes the
 // leg's own path passes within `EndpointWarpRadiusM`, adopts the ones the
 // decline rules admit, and returns the leg's points with a vertex inserted at each adopted
 // projection plus the merged seam list in ascending point order.
@@ -67,14 +67,14 @@ import (
 // `pts` is the leg AFTER the follow and AFTER [legSeamsFromAlign] — the same
 // array those seams' Idx values index. `seams` is that align seam list. Both
 // are returned REPLACED rather than mutated, matching the convention
-// [ApplyLegBoundaryWarp] and [WarpUnresolvedLegTerminals] already use at this
+// [applyLegBoundaryWarp] and [warpUnresolvedLegTerminals] already use at this
 // call site: inserting a vertex renumbers every index after it, and a caller
 // holding the old slice would be holding indices into a different array.
 //
 // ── WHAT EACH ADOPTED SEAM CARRIES, AND WHY Absorbed IS NOT OPTIONAL ────────
 //
 // `Absorbed`, `AbsorbedM`, `NodeLat`, `NodeLon` are all set, not just
-// `Adopted`. [ApplyLegBoundaryWarp] targets a seam's NODE
+// `Adopted`. [applyLegBoundaryWarp] targets a seam's NODE
 // coordinates ONLY when `Absorbed`; every other seam gets a zero-displacement
 // anchor at its own current point. A seam marked only `Adopted` would therefore
 // never move the leg to reach its node, and the leg would commit geometry that
@@ -98,11 +98,11 @@ import (
 // CHEAP ─────────────────────────────────────────────────────────────────────
 //
 //	Nodes == 2×SourceLegs − AdoptedTerminals + AlignCuts + TJunctionCuts
-//	         + LegMintedSeamNodes + RingSplits − RingMergedTerminals
+//	         + legMintedSeamNodes + RingSplits − RingMergedTerminals
 //
 // Every term counts a node CREATED or a creation SUPPRESSED. This producer
 // creates nothing: it adopts a node that already exists in the canon. Concretely, the one
-// term that could have moved is `LegMintedSeamNodes`, and [LegMintedSeamNodes]
+// term that could have moved is `legMintedSeamNodes`, and [legMintedSeamNodes]
 // counts only seams with `!HasNode` — every seam here has `HasNode: true`, so
 // it contributes zero by construction rather than by arithmetic luck.
 // `AdoptedTerminals` is untouched because this produces INTERIOR seams and
@@ -113,7 +113,7 @@ import (
 //
 // ── THE SENTINEL ────────────────────────────────────────────────────────────
 //
-// [NodesNearPath] ERRORS on a walk of identical points, wrapping
+// [nodesNearPath] ERRORS on a walk of identical points, wrapping
 // [ErrWalkHasNoLength]. That is an EXPECTED absence here rather than a
 // fault: a GPX route of two or more identical points is legal input that
 // imports today, and such a leg has no path for a node to fall on. It is
@@ -122,21 +122,19 @@ import (
 // asked". Because the absence is expected, a fallback is correct here; every
 // other error aborts the import. A test fails the import outright if the
 // sentinel is propagated.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func LegSeamsFromNearbyNodes(
+func legSeamsFromNearbyNodes(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
-	seams []LegSeam,
+	seams []legSeam,
 	onRanges []OnPieceRange,
 	startTerminal, endTerminal *NodeID,
-) ([]Point, []LegSeam, SymmetricSnapReport, error) {
+) ([]Point, []legSeam, SymmetricSnapReport, error) {
 	st := stateOf(ctx)
 	var rep SymmetricSnapReport
 
 	if len(pts) < 2 {
-		// Not a walk. NodesNearPath would call this invalid input and abort
+		// Not a walk. nodesNearPath would call this invalid input and abort
 		// the import; a leg this short has no interior to seam either way, and
 		// the piece writer is the layer that judges whether it is legal
 		// geometry at all. Left exactly as it arrived.
@@ -167,7 +165,7 @@ func LegSeamsFromNearbyNodes(
 		exclude = append(exclude, *endTerminal)
 	}
 
-	found, err := NodesNearPath(ctx, canon, pts, EndpointWarpRadiusM, exclude)
+	found, err := nodesNearPath(ctx, canon, pts, EndpointWarpRadiusM, exclude)
 	if err != nil {
 		if errors.Is(err, ErrWalkHasNoLength) {
 			rep.Skipped = true
@@ -183,7 +181,7 @@ func LegSeamsFromNearbyNodes(
 	//
 	// The leg's two ends, plus every align seam. All measured on the SAME
 	// ruler the search's own PriorLenM came off — see [legMeasureToVertex].
-	total := LegMeasureLengthM(pts)
+	total := legMeasureLengthM(pts)
 	boundaries := make([]float64, 0, len(seams)+2+len(found))
 	boundaries = append(boundaries, 0, total)
 	for _, s := range seams {
@@ -201,7 +199,7 @@ func LegSeamsFromNearbyNodes(
 	// question as where the foot of the perpendicular fell; node id makes this
 	// order TOTAL, so two nodes projecting to one point still come out in one
 	// fixed sequence.
-	cands := make([]NodeNearPath, len(found))
+	cands := make([]nodeNearPath, len(found))
 	copy(cands, found)
 	if st.hooks.SnapReverseSearchOrder {
 		for i, j := 0, len(cands)-1; i < j; i, j = i+1, j-1 {
@@ -229,7 +227,7 @@ func LegSeamsFromNearbyNodes(
 	// ⚠ ZERO DISTANCE, NOT AN EQUAL INDEX, AND NOT A TOLERANCE. Two candidates
 	// can project onto the SAME point without either landing on an existing
 	// vertex — [insertSymmetricSnapSeams] then inserts two coincident vertices,
-	// and WarpLegAtBoundaries is asked to move that one place onto two nodes.
+	// and warpLegAtBoundaries is asked to move that one place onto two nodes.
 	// Comparing indices misses it (the vertices have different indices);
 	// comparing coordinates bitwise nearly catches it, but the property that
 	// actually breaks the taper is zero ARC distance, so that is what is
@@ -257,7 +255,7 @@ func LegSeamsFromNearbyNodes(
 		return false
 	}
 
-	var takes []NodeNearPath
+	var takes []nodeNearPath
 	var ords []int // takes[i]'s slot in rep.Candidates, so the report can be completed
 
 	for _, c := range cands {

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// ---- SourceMeasure.eleAt / pointAt: the elevation contract -------------------
+// ---- sourceMeasure.eleAt / pointAt: the elevation contract -------------------
 
 func TestSourceMeasureEleAt_LerpsBetweenBracketingVertices(t *testing.T) {
 	pts := []Point{mPt(0, 0, 100), mPt(100, 0, 200)}
@@ -78,7 +78,7 @@ func TestSourceMeasurePointAt_CombinesLatLonAndEle(t *testing.T) {
 // crossingFixture is a single source edge that starts 40 m off canon and
 // closes to exactly 0 m — an off→on crossing, chosen so the R = 15 m crossing
 // sits strictly inside the edge (t = 0.625, well clear of both ends).
-func crossingFixture(t *testing.T) (sa *SourceMeasure, pc *PreppedCandidate, off, on Point) {
+func crossingFixture(t *testing.T) (sa *sourceMeasure, pc *PreppedCandidate, off, on Point) {
 	t.Helper()
 	off = mPt(0, 40, 500) // 40 m north of canon, elevation 500
 	on = mPt(100, 0, 700) // on canon, elevation 700
@@ -230,7 +230,7 @@ func TestCorridorBoundaryPoint_DroppingItMovesTheSeam(t *testing.T) {
 // (clean OFF↔ON) boundary.
 //
 // importMeasure is expected to be a corridor interval's own boundary
-// (CorridorInterval.ImportMeasureLo/ImportMeasureHi, or a CorridorRun's), not
+// (corridorInterval.ImportMeasureLo/ImportMeasureHi, or a corridorRun's), not
 // an arbitrary position: those are the values the interval builder certifies as sitting exactly on the R-metre band, which is what makes
 // the position half of this replacement exact rather than merely close.
 //
@@ -238,7 +238,7 @@ func TestCorridorBoundaryPoint_DroppingItMovesTheSeam(t *testing.T) {
 // only tests call). Production does not call it.
 // follow_corridor_assemble.go builds the same point directly from
 // sa.pointAt(run.Start/End), one measure round-trip cheaper.
-func corridorBoundaryPoint(sa *SourceMeasure, importMeasure float64) (Point, error) {
+func corridorBoundaryPoint(sa *sourceMeasure, importMeasure float64) (Point, error) {
 	pos, err := sa.PosAtMeasure(importMeasure)
 	if err != nil {
 		return Point{}, err

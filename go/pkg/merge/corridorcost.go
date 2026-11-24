@@ -3,7 +3,7 @@ package merge
 // The four corridor-matcher cost terms: emission, backtrack, state change,
 // and the canon-side gap integral.
 //
-// Pure functions over CorridorPiece/CorridorInterval (corridorinterval.go)
+// Pure functions over CorridorPiece/corridorInterval (corridorinterval.go)
 // and BandPiece (bandinterval.go). The solver (corridorsolve.go) combines
 // these into a shortest path over (interval, direction) states, layered on
 // import measure.
@@ -24,7 +24,7 @@ import (
 
 // CorridorRadiusM is R: emission and backtrack apply within it; the
 // canon-side gap integral prices departure BEYOND it. ONE definition site.
-// Deliberately NOT aliased to FollowBands.StayM, an older matcher's tunable.
+// Deliberately NOT aliased to followBands.StayM, an older matcher's tunable.
 //
 // It is 10 m while the node snap radius is 15 m, so the two are numerically
 // distinct: when they were equal, reading one in the other's place went
@@ -40,7 +40,7 @@ import (
 //
 // ⚠ THAT 98% MEASURED GEOMETRIC POSSIBILITY, NOT ARCS ACTUALLY HIDDEN, and
 // the two differ by two orders of magnitude. The tighten is
-// [arcBBoxNearAnyEdge], an edge-vs-box test built on [RectsBeyond]; measured
+// [arcBBoxNearAnyEdge], an edge-vs-box test built on [rectsBeyond]; measured
 // across six test corpora, the per-point test was dropping 171 arcs the edge
 // test keeps, of which the solver binds 10 — 229 m of canon across 3 legs of
 // 181. The exposure was real and it was small. "How many edges COULD hide an
@@ -51,9 +51,9 @@ import (
 // DELIBERATE. The per-point test padded the arc's bbox PER AXIS and asked
 // whether a point fell in the padded rectangle, so it accepted a point off a
 // corner at up to R*sqrt(2) — 9 m of latitude plus 9 m of longitude is 12.7 m,
-// kept at R=10. [RectsBeyond] measures the true Euclidean box separation and
+// kept at R=10. [rectsBeyond] measures the true Euclidean box separation and
 // drops that corner. Dropping it is CORRECT, not a second exposure: the
-// solver's own pruning is Euclidean too ([RectsBeyond] is what
+// solver's own pruning is Euclidean too ([rectsBeyond] is what
 // sourceEdgeCorridorPieces already uses), so an arc 12.7 m from the nearest
 // source geometry cannot bind at R=10 whatever the tighten does.
 //
@@ -65,7 +65,7 @@ import (
 // Exported for the reference application's tests; not part of the stable API.
 const CorridorRadiusM = 10.0
 
-// EmissionK is k, the exponent in the emission and canon-side gap terms:
+// emissionK is k, the exponent in the emission and canon-side gap terms:
 // (d/R)^k. MUST be a positive even integer — [validateEvenK] explains why.
 //
 // 2 is a deliberate starting choice, to be raised if needed — not an
@@ -89,11 +89,9 @@ const CorridorRadiusM = 10.0
 // ordering test. That fixture is geometrically impossible and the ordering it
 // asks for does not flip at ANY k — see
 // TestCostOrdering_RealizableGeometryDoesNotFlipWithK.
-//
-// Exported for the reference application's tests; not part of the stable API.
-const EmissionK = 2
+const emissionK = 2
 
-// StateChangeCostP is P: the flat penalty the solver charges at one
+// stateChangeCostP is P: the flat penalty the solver charges at one
 // state transition that is not measure-adjacent across a shared canon node
 // (P is not charged along one trail — deciding WHEN a transition qualifies is
 // the solver's job, not this file's). It replaces a minimum run length, a
@@ -126,9 +124,7 @@ const EmissionK = 2
 // correctly-refused spur from a wrongly-abandoned trail; only looking at the
 // geometry can. Use an offline sweep to catch BREAKAGE ("adopts nothing above
 // P = 1000"), never to pick between 50 and 75.
-//
-// Exported for the reference application's tests; not part of the stable API.
-const StateChangeCostP = 50.0
+const stateChangeCostP = 50.0
 
 // backtrackWeightPerM is the per-metre weight on canon measure travelled against
 // a state's declared direction.
@@ -376,7 +372,7 @@ func stateChangeCost(pOverride ...float64) float64 {
 	if len(pOverride) > 0 {
 		return pOverride[0]
 	}
-	return StateChangeCostP
+	return stateChangeCostP
 }
 
 // bridgeCost is the cost of BRIDGING a gap between two adopted stretches: the

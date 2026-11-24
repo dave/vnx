@@ -43,7 +43,7 @@ func solveOneStraightLeg(t *testing.T) (footprints *[]corridorLegFootprint, solv
 	t.Helper()
 	const R = CorridorRadiusM
 	pc := prepOne(t, mPt(-20, 0), mPt(120, 0))
-	sa, err := NewSourceMeasure(straightLegX(9, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(9, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -53,9 +53,9 @@ func solveOneStraightLeg(t *testing.T) (footprints *[]corridorLegFootprint, solv
 	return fps, func(budget int) error {
 		h := h
 		h.SolveSlotTableBudgetBytes = budget
-		// A fresh clone per solve: SolveCorridorPath takes ownership of the
+		// A fresh clone per solve: solveCorridorPath takes ownership of the
 		// intervals and releases their pieces.
-		_, err := SolveCorridorPath(WithTestHooks(t.Context(), h), sa.Total(), sa, cloneCorridorIntervals(ivs), []*PreppedCandidate{pc}, R, EmissionK)
+		_, err := solveCorridorPath(WithTestHooks(t.Context(), h), sa.Total(), sa, cloneCorridorIntervals(ivs), []*PreppedCandidate{pc}, R, emissionK)
 		return err
 	}
 }
@@ -66,7 +66,7 @@ func solveOneStraightLeg(t *testing.T) (footprints *[]corridorLegFootprint, solv
 //
 // ⚠ THE BOUNDARY IS THE MEASUREMENT, NOT A ROUND NUMBER. Budget == the measured
 // size must PASS and budget == measured − 1 must FAIL, which is only true if
-// [CorridorProjectedSlotBytes] projects the allocation exactly. A gate tested
+// [corridorProjectedSlotBytes] projects the allocation exactly. A gate tested
 // with a budget of 1 against a table of megabytes would pass just as happily
 // while projecting a different quantity entirely.
 func TestCorridorSolve_RefusesAtTheProjectedBoundary(t *testing.T) {
@@ -74,7 +74,7 @@ func TestCorridorSolve_RefusesAtTheProjectedBoundary(t *testing.T) {
 
 	// Control: the shipped budget refuses nothing, and the solve reports what
 	// its tables cost.
-	if err := solve(CorridorSolveBudgetUnset); err != nil {
+	if err := solve(corridorSolveBudgetUnset); err != nil {
 		t.Fatalf("the unbudgeted control leg failed: %v", err)
 	}
 	if len(*fps) != 1 {

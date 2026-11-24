@@ -59,13 +59,13 @@ type PolylineSplit struct {
 // elevation, the interpolated ele is also unknown (nil pointer).
 func SplitPolylineAtFraction[P PipReader](start, end Node, polyline []P, fraction float64) PolylineSplit {
 	// Build the full walk in order so the loop below indexes uniformly.
-	walk := make([]WalkPoint, 0, len(polyline)+2)
-	walk = append(walk, WalkPoint{Lat: start.Lat, Lon: start.Lon, Ele: NodeEle(start)})
+	walk := make([]walkPoint, 0, len(polyline)+2)
+	walk = append(walk, walkPoint{Lat: start.Lat, Lon: start.Lon, Ele: NodeEle(start)})
 	for _, p := range polyline {
 		lat, lon, ele := p.LatLonEle()
-		walk = append(walk, WalkPoint{Lat: lat, Lon: lon, Ele: ele})
+		walk = append(walk, walkPoint{Lat: lat, Lon: lon, Ele: ele})
 	}
-	walk = append(walk, WalkPoint{Lat: end.Lat, Lon: end.Lon, Ele: NodeEle(end)})
+	walk = append(walk, walkPoint{Lat: end.Lat, Lon: end.Lon, Ele: NodeEle(end)})
 
 	// Cumulative distance up to walk[i].
 	cum := make([]float64, len(walk))
@@ -108,7 +108,7 @@ func SplitPolylineAtFraction[P PipReader](start, end Node, polyline []P, fractio
 		t = (target - prevCum) / segLen
 	}
 	a, b := walk[i-1], walk[i]
-	lat, lon, ele := SplitNodeCoord(a, b, t)
+	lat, lon, ele := splitNodeCoord(a, b, t)
 	// ⚠ A STRICT-INTERIOR t THAT ROUNDS ONTO A VERTEX IS AN ON-PIP SPLIT, AND
 	// MUST BE RECORDED AS ONE. The interpolation can land bit-for-bit on
 	// walk[i-1] or walk[i] with 0 < t < 1 (a target within an ulp of a vertex
@@ -133,14 +133,14 @@ func SplitPolylineAtFraction[P PipReader](start, end Node, polyline []P, fractio
 	// ⚠ RE-DERIVE AFTER THE CLAMP, OR THE ELEVATION IS STILL THE INTERPOLATED
 	// ONE. The clamp above rewrites t, but `ele` was already computed from the
 	// PRE-clamp t, so it came back from interpEle rather than from the vertex.
-	// That breaks the rule SplitNodeCoord's doc-comment states outright — AT
+	// That breaks the rule splitNodeCoord's doc-comment states outright — AT
 	// THE ENDPOINTS THE COORDINATE IS COPIED, NEVER RECOMPUTED — and it is
 	// visible, not cosmetic: interpEle returns nil when EITHER end is unknown,
 	// so a node landing bit-exactly on a vertex whose elevation IS known came
 	// back with no elevation whenever the other end of the segment had none.
-	// Re-running SplitNodeCoord at the clamped t is idempotent when t did not
+	// Re-running splitNodeCoord at the clamped t is idempotent when t did not
 	// move, so it is unconditional.
-	lat, lon, ele = SplitNodeCoord(a, b, t)
+	lat, lon, ele = splitNodeCoord(a, b, t)
 
 	// Build the two interior slices.
 	//
@@ -210,15 +210,13 @@ func SplitPolylineAtFraction[P PipReader](start, end Node, polyline []P, fractio
 	}
 }
 
-// WalkPoint is a tiny ad-hoc struct used by SplitPolylineAtFraction so
+// walkPoint is a tiny ad-hoc struct used by SplitPolylineAtFraction so
 // the loop indexes start, every interior pip, and end uniformly.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type WalkPoint struct {
+type walkPoint struct {
 	Lat, Lon, Ele float64
 }
 
-// SplitNodeCoord returns the coordinate of the node a split mints on the
+// splitNodeCoord returns the coordinate of the node a split mints on the
 // walk arc a → b at parameter t.
 //
 // AT THE ENDPOINTS THE COORDINATE IS COPIED, NEVER RECOMPUTED: a value that
@@ -257,9 +255,7 @@ type WalkPoint struct {
 // unknown, so a node sitting exactly on a vertex with a known elevation used
 // to come back unknown if the OTHER end was unknown. It is the vertex's
 // elevation; discarding it was wrong.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func SplitNodeCoord(a, b WalkPoint, t float64) (lat, lon float64, ele *float64) {
+func splitNodeCoord(a, b walkPoint, t float64) (lat, lon float64, ele *float64) {
 	switch t {
 	case 0:
 		return a.Lat, a.Lon, eleAsPtr(a.Ele)

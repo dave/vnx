@@ -66,30 +66,30 @@ func canonArcIDs(arcs []CanonArc) []ArcID {
 	return out
 }
 
-// findNearby runs [NearestNode] and returns the node's ID.
+// findNearby runs [nearestNode] and returns the node's ID.
 func findNearby(t *testing.T, ctx context.Context, c *MemCanon, lat, lon, radiusM float64) (NodeID, bool, error) {
 	t.Helper()
 	n, ok, err := findNearbyNode(t, ctx, c, lat, lon, radiusM)
 	return n.ID, ok, err
 }
 
-// findNearbyNode is the same, returning the whole [NearbyNode] for the
+// findNearbyNode is the same, returning the whole [nearbyNode] for the
 // tests that care about the coordinates and distance rather than just the ID.
-func findNearbyNode(t *testing.T, ctx context.Context, c *MemCanon, lat, lon, radiusM float64) (NearbyNode, bool, error) {
+func findNearbyNode(t *testing.T, ctx context.Context, c *MemCanon, lat, lon, radiusM float64) (nearbyNode, bool, error) {
 	t.Helper()
-	return NearestNode(ctx, c, lat, lon, radiusM, nil)
+	return nearestNode(ctx, c, lat, lon, radiusM, nil)
 }
 
-// findNearbyCanon runs [NearestArc].
-func findNearbyCanon(t *testing.T, ctx context.Context, c *MemCanon, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
+// findNearbyCanon runs [nearestArc].
+func findNearbyCanon(t *testing.T, ctx context.Context, c *MemCanon, lat, lon, radiusM float64) (nearbyCanonArc, bool, error) {
 	t.Helper()
-	return NearestArc(ctx, c, lat, lon, radiusM)
+	return nearestArc(ctx, c, lat, lon, radiusM)
 }
 
-// nodesNearPathIn runs [NodesNearPath].
-func nodesNearPathIn(t *testing.T, ctx context.Context, c *MemCanon, verts []Point, radiusM float64, exclude []NodeID) ([]NodeNearPath, error) {
+// nodesNearPathIn runs [nodesNearPath].
+func nodesNearPathIn(t *testing.T, ctx context.Context, c *MemCanon, verts []Point, radiusM float64, exclude []NodeID) ([]nodeNearPath, error) {
 	t.Helper()
-	return NodesNearPath(ctx, c, verts, radiusM, exclude)
+	return nodesNearPath(ctx, c, verts, radiusM, exclude)
 }
 
 // The coordinates come back EXACTLY as stored. The endpoint warp copies them
@@ -435,7 +435,7 @@ func TestCanonNearestArc_ZeroLengthCandidateIsSkippedNotRaised(t *testing.T) {
 	// Degenerate: every vertex coincident, placed in the BOX CORNER — the only
 	// region where this ever bit.
 	//
-	// NodeSearchBox is a lat/lon RECTANGLE circumscribing the 15 m disc, so at
+	// nodeSearchBox is a lat/lon RECTANGLE circumscribing the 15 m disc, so at
 	// this latitude it spans about ±0.000135 deg lat (15 m) and ±0.000231 deg
 	// lon (15 m / (111320 * cos 54.4)). A point near the corner is inside the
 	// rectangle — so the rtree returns it as a candidate — while its true
@@ -461,7 +461,7 @@ func TestCanonNearestArc_ZeroLengthCandidateIsSkippedNotRaised(t *testing.T) {
 		t.Fatalf("commit good arc: %v", err)
 	}
 
-	got, ok, err := NearestArc(ctx, d, probeLat, probeLon, 15)
+	got, ok, err := nearestArc(ctx, d, probeLat, probeLon, 15)
 	if err != nil {
 		t.Fatalf("NearestArc raised on a zero-length candidate: %v\n"+
 			"An arc that is geometrically a POINT has no interior to T onto, so it is "+
@@ -531,7 +531,7 @@ func TestCanonNearestArc_EmptyNetwork(t *testing.T) {
 }
 
 // TestCanonNearestArc_InvalidInputErrors is the no-fallback rule at
-// the entry point, matching NearestNode case for case: a
+// the entry point, matching nearestNode case for case: a
 // nonsense query must not be reported as "nothing nearby", because the
 // caller cannot tell the two apart.
 func TestCanonNearestArc_InvalidInputErrors(t *testing.T) {
@@ -568,7 +568,7 @@ func TestCanonNearestArc_InvalidInputErrors(t *testing.T) {
 
 // TestCanonNearestArc_AcrossAntimeridian is the seam hazard end to
 // end: the query box must widen to the whole world in longitude (as
-// NodeSearchBox does) or the rtree never offers the candidate, and the
+// nodeSearchBox does) or the rtree never offers the candidate, and the
 // projection must wrap the delta or the candidate is dismissed as 40 000 km
 // away. Either failure reports a clean miss.
 func TestCanonNearestArc_AcrossAntimeridian(t *testing.T) {
@@ -836,7 +836,7 @@ func TestCanonNodesNearPath_DeterministicOrder(t *testing.T) {
 
 // `exclude` removes rows from the CANDIDATE SET, before anything is
 // selected — the precedent and the reasoning are
-// NearestNode's. An empty slice excludes nothing.
+// nearestNode's. An empty slice excludes nothing.
 func TestCanonNodesNearPath_ExcludeRemovesBeforeSelection(t *testing.T) {
 	d := emptyCanon(t)
 	ctx := context.Background()
@@ -900,7 +900,7 @@ func TestCanonNodesNearPath_EmptyIsNotAnError(t *testing.T) {
 }
 
 // Invalid input errors rather than reading as a clean miss, following
-// NearestNode's own validation. The verdict must not depend on
+// nearestNode's own validation. The verdict must not depend on
 // whether any candidate node happened to exist, so these run on an EMPTY
 // network — where a validation done per-candidate would never fire.
 func TestCanonNodesNearPath_InvalidInputErrors(t *testing.T) {

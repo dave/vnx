@@ -7,7 +7,7 @@ import (
 
 // TestCanonCandidates_WindowStraddlingCandidateSurvives is the behavioural pin
 // on the two-phase lookup, and it is the property everything downstream rests
-// on: PHASE 1 scans the leg in windows of CanonWindowPts (32) points and PHASE 2
+// on: PHASE 1 scans the leg in windows of canonWindowPts (32) points and PHASE 2
 // discards candidates whose bbox is beyond Stay of every leg point. Neither may
 // drop a candidate the matcher could bind — if one does, the leg silently
 // commits verbatim instead of following, with no error anywhere.
@@ -46,7 +46,7 @@ func TestCanonCandidates_WindowStraddlingCandidateSurvives(t *testing.T) {
 	// matcher could bind it, so the lookup MUST return it.
 	probe := straightLegX(41, 400, 2)
 
-	cands, err := CanonCandidatesForLeg(ctx, d, probe, DefaultFollowBands().StayM)
+	cands, err := canonCandidatesForLeg(ctx, d, probe, defaultFollowBands().StayM)
 	if err != nil {
 		t.Fatalf("canonCandidatesForLeg: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestCanonCandidates_WindowStraddlingCandidateSurvives(t *testing.T) {
 			"(got %d candidates). The leg spans multiple %d-point windows, so either "+
 			"the windowed prefilter or the phase-2 bbox tighten dropped a candidate "+
 			"the matcher could bind — that leg would silently commit verbatim.",
-			canonArcID, len(cands), CanonWindowPts)
+			canonArcID, len(cands), canonWindowPts)
 	}
 	if gotDecoy {
 		t.Errorf("the 5 km-distant decoy arc %d was returned as a candidate; "+
@@ -91,8 +91,8 @@ func TestCanonCandidates_EmptyNetworkReturnsNone(t *testing.T) {
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	cands, err := CanonCandidatesForLeg(ctx, d, straightLegX(41, 400, 0),
-		DefaultFollowBands().StayM)
+	cands, err := canonCandidatesForLeg(ctx, d, straightLegX(41, 400, 0),
+		defaultFollowBands().StayM)
 	if err != nil {
 		t.Fatalf("canonCandidatesForLeg on an empty network: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestCandidateDiscovery_LongSourceEdgeFindsAnArcNoVertexIsNear(t *testing.T)
 	// The source leg: one long edge, no vertex anywhere near the arc.
 	leg := []Point{mPt(0, 0), mPt(300, 0)}
 
-	cands, err := CanonCandidatesForLeg(ctx, d, leg, CorridorRadiusM)
+	cands, err := canonCandidatesForLeg(ctx, d, leg, CorridorRadiusM)
 	if err != nil {
 		t.Fatalf("canonCandidatesForLeg: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestCandidateDiscovery_LongSourceEdgeFindsAnArcNoVertexIsNear(t *testing.T)
 
 	// Discovery is only half the claim: an arc kept but never bound would be
 	// cost without benefit. The solver must actually ride it.
-	runs, err := CorridorFollowRuns(t.Context(), leg, cands, DefaultFollowBands())
+	runs, err := corridorFollowRuns(t.Context(), leg, cands, defaultFollowBands())
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestCandidateDiscovery_LongSourceEdgeFindsAnArcNoVertexIsNear(t *testing.T)
 // for the PHASE-1 half of the same hole.
 //
 // Candidate lookup has two stages, and closing the per-edge tighten (stage 2)
-// left stage 1 open. Phase 1 scans the leg in windows of CanonWindowPts and
+// left stage 1 open. Phase 1 scans the leg in windows of canonWindowPts and
 // asks the rtree for arcs near each window's rect, and that rect is the bbox of
 // the window's POINTS padded by R. With half-open, non-overlapping windows the
 // EDGE that straddles a seam — pts[31]-pts[32] — is in no window at all, so an
@@ -187,7 +187,7 @@ func TestCandidateDiscovery_LongSourceEdgeFindsAnArcNoVertexIsNear(t *testing.T)
 // that fixture reports the exposure closed while one hole in 32 points remains
 // open — which is exactly what happened, and what a review caught.
 //
-// The leg here is CanonWindowPts+2 points, deliberately shaped so the ONLY long
+// The leg here is canonWindowPts+2 points, deliberately shaped so the ONLY long
 // edge is the one across the seam at index 31-32.
 func TestCandidateDiscovery_ArcBesideTheWindowSeamIsFound(t *testing.T) {
 	ctx := context.Background()
@@ -196,14 +196,14 @@ func TestCandidateDiscovery_ArcBesideTheWindowSeamIsFound(t *testing.T) {
 	// Points 0..31 packed into the first 31 m, then a 400 m jump to point 32,
 	// then one more. So edge 31->32 spans x = 31..431 and straddles the window
 	// boundary; every other edge is 1 m long.
-	leg := make([]Point, 0, CanonWindowPts+2)
-	for i := 0; i < CanonWindowPts; i++ {
+	leg := make([]Point, 0, canonWindowPts+2)
+	for i := 0; i < canonWindowPts; i++ {
 		leg = append(leg, mPt(float64(i), 0))
 	}
 	leg = append(leg, mPt(431, 0))
 	leg = append(leg, mPt(432, 0))
-	if len(leg) != CanonWindowPts+2 {
-		t.Fatalf("fixture: leg has %d points, want %d", len(leg), CanonWindowPts+2)
+	if len(leg) != canonWindowPts+2 {
+		t.Fatalf("fixture: leg has %d points, want %d", len(leg), canonWindowPts+2)
 	}
 
 	// Canon: 200 m of arc, 5 m north, sitting around the seam edge's middle.
@@ -228,7 +228,7 @@ func TestCandidateDiscovery_ArcBesideTheWindowSeamIsFound(t *testing.T) {
 	}
 	wantArc := committed[0].ID
 
-	cands, err := CanonCandidatesForLeg(ctx, d, leg, CorridorRadiusM)
+	cands, err := canonCandidatesForLeg(ctx, d, leg, CorridorRadiusM)
 	if err != nil {
 		t.Fatalf("canonCandidatesForLeg: %v", err)
 	}
@@ -240,12 +240,12 @@ func TestCandidateDiscovery_ArcBesideTheWindowSeamIsFound(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("candidate lookup returned %d arc(s), none of them arc %d — the arc beside the edge straddling the window seam at index %d was never asked for, because consecutive windows share no point and that edge is in neither one's rect",
-			len(cands), wantArc, CanonWindowPts-1)
+			len(cands), wantArc, canonWindowPts-1)
 	}
 
 	// Same second half as the first red-proof: discovered is not enough, the
 	// solve has to ride it, or the arc is cost without benefit.
-	runs, err := CorridorFollowRuns(t.Context(), leg, cands, DefaultFollowBands())
+	runs, err := corridorFollowRuns(t.Context(), leg, cands, defaultFollowBands())
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}

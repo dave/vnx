@@ -1,6 +1,6 @@
 package merge
 
-// LegSeam is one interior cut of an assembled leg: the point it falls on, and
+// legSeam is one interior cut of an assembled leg: the point it falls on, and
 // the canon node both sides must terminate on there.
 //
 // ⚠ HasNode IS NOT "did we find one" — it is which of two DIFFERENT seams this
@@ -9,10 +9,8 @@ package merge
 // naming a node (no align outcome does that today) has no canon node at all, and the leg mints ONE of its own that both
 // pieces share: still a seam, still shared, but private to this leg. Reading a
 // zero NodeID as the first case would thread node 0 into an arc write.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type LegSeam struct {
-	Idx     int // index into AssembledLeg.Points — the shared point
+type legSeam struct {
+	Idx     int // index into assembledLeg.Points — the shared point
 	Node    NodeID
 	HasNode bool
 

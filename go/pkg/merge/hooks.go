@@ -27,9 +27,9 @@ type TestHooks struct {
 
 	// CorridorSolveTable receives the finished Dijkstra table so a test can
 	// check it is actually a shortest-path table.
-	// ivs is [CorridorIvBounds], not [CorridorInterval]: by the time this
+	// ivs is [CorridorIvBounds], not [corridorInterval]: by the time this
 	// fires the pieces have been released (see the release comment in
-	// [SolveCorridorPath]), so the hook is given exactly what still exists
+	// [solveCorridorPath]), so the hook is given exactly what still exists
 	// rather than a struct whose Pieces field would silently read nil.
 	//
 	// ⚠ statesBy is [][]CorridorPackedState — THE SOLVE'S OWN LISTS, not a
@@ -59,7 +59,7 @@ type TestHooks struct {
 
 	// SolveSlotTableBudgetBytes caps what one leg's six slot-sized tables —
 	// the four state tables and the search heap — may allocate. The gate
-	// that reads it is in [SolveCorridorPath], between the count pass and the
+	// that reads it is in [solveCorridorPath], between the count pass and the
 	// allocation; corridorfootprint.go says why it is not yet a real option.
 	// 0 or a negative value is no budget, which is what production runs
 	// with.
@@ -109,7 +109,7 @@ type TestHooks struct {
 	InteriorNodeSeam func(leg string, rep InteriorNodeSeamReport)
 
 	// RingSplitExclusion is called with (leg, mintedNodeID, excludedNodeID,
-	// distM) every time CommitPiece mints a GENUINE tight-ring residual: a
+	// distM) every time commitPiece mints a GENUINE tight-ring residual: a
 	// ring split whose nearby-node lookup excluded the piece's own start/end,
 	// found nothing else within EndpointWarpRadiusM, minted fresh — but the
 	// excluded node itself WAS within radM of the mint. That is the shape a
@@ -182,7 +182,7 @@ type TestHooks struct {
 	SymmetricSnapOnCanon func(leg string, rep SymmetricSnapReport, onRanges []OnPieceRange)
 
 	// LegTerminalGap is called with the RAW RESULT of every lookup
-	// WarpUnresolvedLegTerminals runs (one call per still-unresolved side,
+	// warpUnresolvedLegTerminals runs (one call per still-unresolved side,
 	// whether or not it found anything) so a test can confirm the lookup ran
 	// at all, not only infer it from an adoption.
 	LegTerminalGap func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)

@@ -151,10 +151,8 @@ func (r SymmetricSnapReport) inserted() []SymmetricSnapInsert {
 	return out
 }
 
-// DescribeSymmetricSnap renders the report for a failure message.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func DescribeSymmetricSnap(r SymmetricSnapReport) string {
+// describeSymmetricSnap renders the report for a failure message.
+func describeSymmetricSnap(r SymmetricSnapReport) string {
 	if r.Skipped {
 		return "symmetric snap: SKIPPED (leg walk has no length)"
 	}
@@ -211,11 +209,11 @@ func nearestBoundaryGapM(boundaries []float64, at float64) float64 {
 // legMeasureToVertex is the cumulative along-leg measure at vertex `idx`.
 //
 // ⚠ IT IS THE SAME RULER, NOT A SECOND ONE, AND THAT IS LOAD-BEARING. StubM
-// compares this against `NodeNearPath.PriorLenM`, which the walk
+// compares this against `nodeNearPath.PriorLenM`, which the walk
 // projection produced by summing HaversineMetres over consecutive vertices of
 // THIS SAME ARRAY in ascending order. This is that sum, stopped early: same
 // primitive, same operands, same order, so the values are bit-identical rather
-// than merely close. [LegMeasureLengthM] is the same sum run to the end, and
+// than merely close. [legMeasureLengthM] is the same sum run to the end, and
 // the T-junction split already depends on it agreeing with the warp's own
 // measure for exactly this reason.
 //
@@ -245,7 +243,7 @@ func legMeasureToVertex(pts []Point, idx int) float64 {
 // merge does not use and the merge would collide on a vertex the decline did
 // not check — a guard that silently stops matching its subject. They cannot
 // drift while they are the same function.
-func snapProjectionVertex(pts []Point, c NodeNearPath) (int, bool, error) {
+func snapProjectionVertex(pts []Point, c nodeNearPath) (int, bool, error) {
 	if c.SegIdx < 0 || c.SegIdx >= len(pts)-1 {
 		return 0, false, fmt.Errorf(
 			"node %d reports segment %d, which is not a segment of a %d-point leg",
@@ -267,9 +265,9 @@ func snapProjectionVertex(pts []Point, c NodeNearPath) (int, bool, error) {
 //
 // ── THE REMAPPING ───────────────────────────────────────────────────────────
 //
-// `LegSeam.Idx` is a VERTEX INDEX, so inserting a vertex renumbers everything
+// `legSeam.Idx` is a VERTEX INDEX, so inserting a vertex renumbers everything
 // after it. THIS PRODUCER DOES THE REMAPPING — nothing downstream will. (The
-// boundary warp, ApplyLegBoundaryWarp, remaps nothing and returns seams with
+// boundary warp, applyLegBoundaryWarp, remaps nothing and returns seams with
 // Idx UNCHANGED.)
 //
 // The rebuild is a single ordered merge rather than a sequence of splices, and
@@ -286,11 +284,11 @@ func snapProjectionVertex(pts []Point, c NodeNearPath) (int, bool, error) {
 // duplicate point would put a zero-length edge into the committed geometry.
 func insertSymmetricSnapSeams(
 	pts []Point,
-	seams []LegSeam,
-	takes []NodeNearPath,
+	seams []legSeam,
+	takes []nodeNearPath,
 	rep *SymmetricSnapReport,
 	ords []int,
-) ([]Point, []LegSeam, error) {
+) ([]Point, []legSeam, error) {
 	// insertAfter[k] is the list of adopted candidates whose vertex belongs
 	// immediately after original vertex k; atVertex[k] is the list that landed
 	// bitwise ON original vertex k. Keyed by original index so nothing has to
@@ -344,7 +342,7 @@ func insertSymmetricSnapSeams(
 
 	// The merged seam list, ascending Idx. Align seams keep every field and
 	// take their remapped index; adopted seams are built here.
-	out := make([]LegSeam, 0, len(seams)+len(takes))
+	out := make([]legSeam, 0, len(seams)+len(takes))
 	for _, s := range seams {
 		s.Idx = newIdxOf[s.Idx]
 		out = append(out, s)
@@ -354,7 +352,7 @@ func insertSymmetricSnapSeams(
 			return nil, nil, fmt.Errorf(
 				"InsertSymmetricSnapSeams: node %d was accepted but placed nowhere in the rebuilt leg — the merge lost it", c.ID)
 		}
-		out = append(out, LegSeam{
+		out = append(out, legSeam{
 			Idx:     takeIdx[i],
 			Node:    c.ID,
 			HasNode: true,
@@ -362,7 +360,7 @@ func insertSymmetricSnapSeams(
 			// search excluded everything this leg already claims — so Adopted
 			// is unconditional and needs no mintedThisLeg correction.
 			Adopted: true,
-			// ⚠ Absorbed, NOT merely Adopted. ApplyLegBoundaryWarp moves the
+			// ⚠ Absorbed, NOT merely Adopted. applyLegBoundaryWarp moves the
 			// leg ONLY for Absorbed; see this producer's own doc.
 			Absorbed:  true,
 			AbsorbedM: c.DistM,

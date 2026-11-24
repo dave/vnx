@@ -17,7 +17,7 @@ package merge
 // comparison is bitwise), so the endpoint the warp placed on a node survives
 // to the commit unchanged.
 //
-// ⚠ Read this before touching applyWarpAtEnd or WarpLegEndpoints.
+// ⚠ Read this before touching applyWarpAtEnd or warpLegEndpoints.
 //
 // OVERLAPPING ZONES. The taper zone is 5x the displacement, capped at the
 // leg's own length (see zoneFor's and widenedZoneFactor's docs), so the two
@@ -30,7 +30,7 @@ package merge
 // So the ends accumulate. Each end computes a DISPLACEMENT FIELD from the
 // unwarped src/cum (unchanged) instead of writing `out` directly, and the
 // two fields are SUMMED once, after both ends have run (see
-// WarpLegEndpoints' own comment for why this makes each terminal land
+// warpLegEndpoints' own comment for why this makes each terminal land
 // bit-exact on its target REGARDLESS of how much the two zones overlap, by
 // construction, not by assertion, though the assertion stays too: see
 // checkTerminalsExact). A point inside both zones receives the SUM of both
@@ -149,13 +149,13 @@ func warpLegEndpointsToNodes(
 		}
 	}
 
-	out, rep, err := WarpLegEndpoints(pts, start, end)
+	out, rep, err := warpLegEndpoints(pts, start, end)
 	if err != nil {
 		return nil, WarpReport{}, err
 	}
 	// The one hook into the real warp path, nil unless a test installs
 	// one. `pts` here is the raw leg, unmodified, so an observer sees
-	// exactly what WarpLegEndpoints itself tapered. Folds are accepted;
+	// exactly what warpLegEndpoints itself tapered. Folds are accepted;
 	// the observer counts them, it does not assert zero.
 	// The node identities travel with the report, so the commit can join what
 	// this step chose. Set INDEPENDENTLY of StartWarped/EndWarped: a terminal
@@ -187,7 +187,7 @@ func warpLegEndpointsToNodes(
 // two-point same-node guard into declining an adoption it should take and
 // minting a node beside an existing one, against the one-node rule.
 
-// WarpUnresolvedLegTerminals closes a sequencing gap the endpoint warp
+// warpUnresolvedLegTerminals closes a sequencing gap the endpoint warp
 // (above) cannot see: a node that comes to exist WHILE THIS SAME LEG is being
 // merged (minted by the align step's cut at one of this leg's own followed-run
 // boundaries) did not exist yet when warpLegEndpointsToNodes searched,
@@ -208,7 +208,7 @@ func warpLegEndpointsToNodes(
 // rule that a leg terminal never moves without a taper. Doing the lookup
 // there was measured to change the committed length of many legs, by over
 // 100 m on one track. This function instead reuses the SAME taper primitive
-// the endpoint warp uses (WarpLegEndpoints), so an adoption here is
+// the endpoint warp uses (warpLegEndpoints), so an adoption here is
 // structurally indistinguishable from one the endpoint warp made a moment
 // earlier; the only difference is WHEN the node became visible.
 //
@@ -225,9 +225,7 @@ func warpLegEndpointsToNodes(
 // committed decision this function has no authority to undo. Only a side
 // THIS function newly resolves may be declined, and only when it collides
 // with whichever id the OTHER side already carries (fixed or newly found).
-//
-// Exported for the reference application's tests; not part of the stable API.
-func WarpUnresolvedLegTerminals(
+func warpUnresolvedLegTerminals(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
@@ -242,7 +240,7 @@ func WarpUnresolvedLegTerminals(
 		return pts, rep, false, nil // both terminals already resolved — nothing for this step to do
 	}
 
-	lookup := func(p Point, side string) (*WarpTarget, error) {
+	lookup := func(p Point, side string) (*warpTarget, error) {
 		target, err := resolveWarpTarget(ctx, canon, p)
 		if err != nil {
 			return nil, fmt.Errorf("WarpUnresolvedLegTerminals: %s terminal lookup: %w", side, err)
@@ -258,7 +256,7 @@ func WarpUnresolvedLegTerminals(
 		return target, nil
 	}
 
-	var newStart, newEnd *WarpTarget
+	var newStart, newEnd *warpTarget
 	var err error
 	if rep.StartNode == nil {
 		if newStart, err = lookup(pts[0], "start"); err != nil {
@@ -339,8 +337,8 @@ func WarpUnresolvedLegTerminals(
 			// verbatim above): ZERO displacement there, not a jump, so the
 			// start side needs no target/taper at all. Only the far end
 			// tapers into it.
-			shared := &WarpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon, NodeID: mintedID}
-			out, blendRep, err := WarpLegEndpoints(pts, nil, shared)
+			shared := &warpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon, NodeID: mintedID}
+			out, blendRep, err := warpLegEndpoints(pts, nil, shared)
 			if err != nil {
 				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: taper the far end onto the shared terminal: %w", err)
 			}
@@ -356,11 +354,11 @@ func WarpUnresolvedLegTerminals(
 		return pts, rep, false, nil
 	}
 
-	out, blendRep, err := WarpLegEndpoints(pts, newStart, newEnd)
+	out, blendRep, err := warpLegEndpoints(pts, newStart, newEnd)
 	if err != nil {
 		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: %w", err)
 	}
-	// WarpLegEndpoints itself only reports StartWarped/EndWarped. Setting
+	// warpLegEndpoints itself only reports StartWarped/EndWarped. Setting
 	// StartNode/EndNode from the TARGET's own id, unconditionally whenever
 	// that side had a target, is warpLegEndpointsToNodes's own contract
 	// (see its "UNCONDITIONAL" comment), reproduced here rather than read
@@ -383,8 +381,8 @@ func resolveWarpTarget(
 	ctx context.Context,
 	canon Canon,
 	p Point,
-) (*WarpTarget, error) {
-	n, ok, err := NearestNode(
+) (*warpTarget, error) {
+	n, ok, err := nearestNode(
 		ctx, canon, p.Lat, p.Lon, EndpointWarpRadiusM, nil)
 	if err != nil {
 		return nil, err
@@ -404,6 +402,6 @@ func resolveWarpTarget(
 			"warp target: node search returned id %d for the target at (%v,%v) — a terminal cannot join a node with no identity",
 			int64(n.ID), n.Lat, n.Lon)
 	}
-	target := &WarpTarget{Lat: n.Lat, Lon: n.Lon, NodeID: n.ID}
+	target := &warpTarget{Lat: n.Lat, Lon: n.Lon, NodeID: n.ID}
 	return target, nil
 }

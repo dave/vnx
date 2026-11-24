@@ -24,9 +24,9 @@ var ErrWalkHasNoLength = errors.New("canon vertex walk has zero length")
 // nearestCanonArc projects the probe (lat, lon) onto each candidate's vertex
 // walk and returns the nearest one within radiusM (`<=`), ties to the earlier
 // candidate (strict `<`). A zero-length candidate is skipped, not raised.
-func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
+func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (nearbyCanonArc, bool, error) {
 	var (
-		best  NearbyCanonArc
+		best  nearbyCanonArc
 		bestD = math.MaxFloat64
 		found bool
 	)
@@ -60,13 +60,13 @@ func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (NearbyCa
 			continue
 		}
 		if err != nil {
-			return NearbyCanonArc{}, false, fmt.Errorf(
+			return nearbyCanonArc{}, false, fmt.Errorf(
 				"project probe onto canon arc %d: %w", cand.ID, err,
 			)
 		}
 		if proj.DistM <= radiusM && proj.DistM < bestD {
 			bestD = proj.DistM
-			best = NearbyCanonArc{
+			best = nearbyCanonArc{
 				ID:        cand.ID,
 				DistM:     proj.DistM,
 				Fraction:  proj.Fraction,
@@ -79,13 +79,13 @@ func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (NearbyCa
 		}
 	}
 	if !found {
-		return NearbyCanonArc{}, false, nil
+		return nearbyCanonArc{}, false, nil
 	}
 	return best, true, nil
 }
 
 // CanonWalkProjection is the foot of the perpendicular from a probe onto one
-// candidate's vertex walk. Fields mirror [NearbyCanonArc] minus the id,
+// candidate's vertex walk. Fields mirror [nearbyCanonArc] minus the id,
 // which the caller supplies.
 type CanonWalkProjection struct {
 	DistM     float64
@@ -102,7 +102,7 @@ type CanonWalkProjection struct {
 	// (Lat, Lon) into the walk — and it is a different question from "which
 	// vertex is nearest the probe". On a leg kilometres long the foot can
 	// sit mid-leg while the nearest vertex is at either end; SegIdx answers
-	// the first, [NodeNearPath].PointIdx answers the second, and neither
+	// the first, [nodeNearPath].PointIdx answers the second, and neither
 	// substitutes for the other.
 	//
 	// It is reported HERE, by the projection itself, rather than re-derived

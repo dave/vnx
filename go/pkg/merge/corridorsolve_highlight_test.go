@@ -14,7 +14,7 @@ package merge
 //     Dir check with the wrong run and aborted the whole import.
 //
 // Each intermediate candidate is now drawn as a zero-width run
-// ([chainHopRun], [CorridorRun.ChainHop]). These tests pin both shapes end to
+// ([chainHopRun], [corridorRun.ChainHop]). These tests pin both shapes end to
 // end, and the carry-through checks that construction now keeps unreachable.
 
 import (
@@ -29,8 +29,8 @@ import (
 func TestCheckCarrySend_RefusesTheWrongRun(t *testing.T) {
 	pc := prepOne(t, mPt(0, 0), mPt(10, 0), mPt(20, 0)) // 3 vertices
 	cands := []*PreppedCandidate{pc}
-	run := func(dir CorridorDir) *CorridorRun {
-		return &CorridorRun{State: CorridorStateID{SpIdx: 0, Dir: dir}, CandIdx: 0, CanonMeasureHi: 7}
+	run := func(dir CorridorDir) *corridorRun {
+		return &corridorRun{State: CorridorStateID{SpIdx: 0, Dir: dir}, CandIdx: 0, CanonMeasureHi: 7}
 	}
 	if err := checkCarrySend(run(CorridorFWD), 0, CorridorFWD, 2, 5, cands); err != nil {
 		t.Errorf("a FWD run leaving by its last vertex was refused: %v", err)
@@ -67,10 +67,10 @@ func TestCheckCarryReceive_RefusesTheWrongRun(t *testing.T) {
 // one with canon extent is kept, and an ordinary run is never touched here
 // whatever its extent.
 func TestDropEmptyChainHops(t *testing.T) {
-	on := func(cand int, lo, hi float64, hop bool) CorridorRun {
-		return CorridorRun{State: CorridorStateID{SpIdx: cand}, CandIdx: cand, ImportMeasureLo: 5, ImportMeasureHi: 5, CanonMeasureLo: lo, CanonMeasureHi: hi, ChainHop: hop}
+	on := func(cand int, lo, hi float64, hop bool) corridorRun {
+		return corridorRun{State: CorridorStateID{SpIdx: cand}, CandIdx: cand, ImportMeasureLo: 5, ImportMeasureHi: 5, CanonMeasureLo: lo, CanonMeasureHi: hi, ChainHop: hop}
 	}
-	got := dropEmptyChainHops([]CorridorRun{
+	got := dropEmptyChainHops([]corridorRun{
 		on(0, 3, 3, true), // a hop the chain paid nothing across
 		on(1, 0, 4, true), // a hop with canon extent
 		on(2, 7, 7, false),
@@ -84,7 +84,7 @@ func TestDropEmptyChainHops(t *testing.T) {
 // a sub-eps ordinary run of the same candidate that continues it merges into
 // one run, and that run must still be a chain hop. It is still sub-eps wide,
 // and the wire layer drops a sub-eps run unless it is one
-// ([CorridorFollowRuns]) — so losing the flag would drop the canon the chain
+// ([corridorFollowRuns]) — so losing the flag would drop the canon the chain
 // paid for, without a word.
 //
 // Reachable in a real solve when the chain ends on a second piece of the
@@ -92,7 +92,7 @@ func TestDropEmptyChainHops(t *testing.T) {
 // is a sub-eps sliver away.
 func TestMergeCorridorRuns_AHopKeepsItsFlagThroughAMerge(t *testing.T) {
 	const x = 50.0
-	got := mergeCorridorRuns([]CorridorRun{
+	got := mergeCorridorRuns([]corridorRun{
 		{State: CorridorStateID{SpIdx: 1}, CandIdx: 0, ImportMeasureLo: x, ImportMeasureHi: x, CanonMeasureLo: 0, CanonMeasureHi: 5, ChainHop: true},
 		{State: CorridorStateID{SpIdx: 2}, CandIdx: 0, ImportMeasureLo: x, ImportMeasureHi: x + 1e-9, CanonMeasureLo: 5, CanonMeasureHi: 5.000001},
 	})

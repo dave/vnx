@@ -24,7 +24,7 @@ import (
 // rectangular loop between approachX and returnX: up to loopY, across, and
 // back down — a single, deliberate excursion, not scattered noise, so the
 // resulting corridor gap is attributable to exactly one cause.
-func bridgeLoopFixture(t *testing.T, approachX, returnX, loopY float64) (*SourceMeasure, []*PreppedCandidate, []CorridorInterval) {
+func bridgeLoopFixture(t *testing.T, approachX, returnX, loopY float64) (*sourceMeasure, []*PreppedCandidate, []corridorInterval) {
 	t.Helper()
 	const R = CorridorRadiusM
 	pc := prepOne(t, mPt(0, 0), mPt(1000, 0))
@@ -39,7 +39,7 @@ func bridgeLoopFixture(t *testing.T, approachX, returnX, loopY float64) (*Source
 	}
 	pts = append(pts, mPt(1000, 5)) // always end exactly at the leg's own declared end
 
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -102,12 +102,12 @@ func TestSolveCorridorPath_BridgesShortShallowGapAndFabricationReadsNonZero(t *t
 		t.Fatalf("fixture sanity: want at least 2 corridor intervals on the one candidate, got %d", len(ivs))
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
 
-	var bridgedRuns []CorridorRun
+	var bridgedRuns []corridorRun
 	for _, r := range res.Runs {
 		if r.Bridged {
 			bridgedRuns = append(bridgedRuns, r)
@@ -151,7 +151,7 @@ func TestSolveCorridorPath_RefusesToBridgeAWideDeepGap(t *testing.T) {
 		t.Fatalf("fixture sanity: want at least 2 corridor intervals on the one candidate, got %d", len(ivs))
 	}
 
-	bridges, err := BuildCorridorBridges(t.Context(), sa, ivs, cands, R, EmissionK)
+	bridges, err := buildCorridorBridges(t.Context(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestSolveCorridorPath_RefusesToBridgeAWideDeepGap(t *testing.T) {
 		t.Fatalf("fixture sanity: bridge cost %.6g should be far ABOVE noBridgeCost %.6g for this wide/deep excursion, or the negative control proves nothing", bridges[0].Cost, want)
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestSolveCorridorPath_RefusesToBridgeA40mExcursion(t *testing.T) {
 		t.Fatalf("fixture sanity: want at least 2 corridor intervals on the one candidate, got %d", len(ivs))
 	}
 
-	bridges, err := BuildCorridorBridges(t.Context(), sa, ivs, cands, R, EmissionK)
+	bridges, err := buildCorridorBridges(t.Context(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("buildCorridorBridges: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestSolveCorridorPath_RefusesToBridgeA40mExcursion(t *testing.T) {
 		}
 	}
 
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}

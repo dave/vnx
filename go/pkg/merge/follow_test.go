@@ -134,7 +134,7 @@ func TestFollowHintPolyMatchesBruteForce(t *testing.T) {
 }
 
 // TestPreppedCandidateProjectRangeCeil_SouthernSuffixBox pins the candidate's
-// own cosMin (PrepCandidates), which projectRangeCeil's suffix-box early-out
+// own cosMin (prepCandidates), which projectRangeCeil's suffix-box early-out
 // and chunkBeyond scale longitude spans by. It must be the cosine of the
 // largest-MAGNITUDE latitude, and south of the equator that is the most
 // negative one. The case is the hint-poly test's 56.8°S doubling-back shape:
@@ -144,7 +144,7 @@ func TestFollowHintPolyMatchesBruteForce(t *testing.T) {
 // the scan stops before the west edge.
 //
 // Red proof, 2026-10-05 (detached worktree): with both math.Abs calls removed
-// from PrepCandidates' cosMin, this fails — "projectRangeCeil found
+// from prepCandidates' cosMin, this fails — "projectRangeCeil found
 // 100.000000000251 (ok=true), a full scan finds 99.9973984867598". Before this
 // test, the whole package passed under that change.
 func TestPreppedCandidateProjectRangeCeil_SouthernSuffixBox(t *testing.T) {
@@ -154,7 +154,7 @@ func TestPreppedCandidateProjectRangeCeil_SouthernSuffixBox(t *testing.T) {
 	for i, v := range shape {
 		verts[i] = offsetPt(baseLat, baseLon, v[0], v[1])
 	}
-	pc := PrepCandidates([]CanonArc{{ID: 1, Vertices: verts}})[0]
+	pc := prepCandidates([]CanonArc{{ID: 1, Vertices: verts}})[0]
 	if pc == nil {
 		t.Fatal("prepCandidates dropped the candidate")
 	}

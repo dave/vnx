@@ -280,18 +280,18 @@ func TestIntegrateDistSqPow_RecordedFailingPiecesAreNonNegative(t *testing.T) {
 	for i := range negativeEmissionFixtures {
 		bp := fixturePiece(t, i)
 		regimes[bp.Kind]++
-		old := legacyIntegrateDistSqPow(bp, EmissionK/2)
+		old := legacyIntegrateDistSqPow(bp, emissionK/2)
 		if !(old < 0) {
 			t.Fatalf("fixture %d: the old formula gives %v, not a negative — the fixture no longer witnesses the defect", i, old)
 		}
-		got, err := integrateDistSqPow(bp, EmissionK/2)
+		got, err := integrateDistSqPow(bp, emissionK/2)
 		if err != nil {
 			t.Fatalf("fixture %d: %v", i, err)
 		}
 		if got < 0 {
 			t.Fatalf("fixture %d (regime %d, t [%.17g, %.17g]): integral %v is negative (old formula %v)", i, bp.Kind, bp.Lo, bp.Hi, got, old)
 		}
-		want := bigIntegrateDistSqPow(bp, EmissionK/2)
+		want := bigIntegrateDistSqPow(bp, emissionK/2)
 		// Absolute, scaled by the piece: the reference is itself tiny (a
 		// near-zero width), so a relative error against it is not the question.
 		// The question is whether the new value is as close to the truth as
@@ -320,7 +320,7 @@ func TestIntegrateDistSqPow_RecordedFailingPiecesAreNonNegative(t *testing.T) {
 func TestEmissionCost_NegativeIsAnError(t *testing.T) {
 	bp := nearPieceFromOffset(RegimeNearA, 0.2, 0.6, 3, 1, 2, -1)
 	cp := CorridorPiece{Regime: bp, ImportMeasureAtLo: 10, ImportMeasureAtHi: 6} // backwards
-	_, err := emissionCost(cp, CorridorRadiusM, EmissionK)
+	_, err := emissionCost(cp, CorridorRadiusM, emissionK)
 	if err == nil {
 		t.Fatal("emissionCost accepted a piece whose emission is negative")
 	}

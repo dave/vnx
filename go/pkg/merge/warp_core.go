@@ -27,7 +27,7 @@ import (
 // angle reads 170° while the plans are in fact 7.3 m apart and plainly
 // continuous.
 //
-// A band, like the FollowBands values: revisit it with evidence, not by
+// A band, like the followBands values: revisit it with evidence, not by
 // silent retuning.
 const EndpointWarpRadiusM = 15.0
 
@@ -47,15 +47,13 @@ const EndpointWarpRadiusM = 15.0
 // however wide zoneFor is allowed to ask for.
 const widenedZoneFactor = 5.0
 
-// WarpTarget is a resolved destination for one leg terminal — the coordinates
+// warpTarget is a resolved destination for one leg terminal — the coordinates
 // of the node it should land on, exactly.
 //
 // Coordinates, not just a NodeID: the warp moves the terminal onto the
 // node's position; whether the commit reuses that node is decided by the
 // caller from NodeID below.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type WarpTarget struct {
+type warpTarget struct {
 	Lat float64
 	Lon float64
 
@@ -102,14 +100,14 @@ type WarpReport struct {
 	// duplicate is precisely the defect this carries.
 	//
 	// The other direction holds too: whenever `start`/`end` passed into
-	// WarpLegEndpoints is non-nil, this is set, unconditionally. See
+	// warpLegEndpoints is non-nil, this is set, unconditionally. See
 	// checkTerminalsExact for the assertion that makes this true by
 	// construction, not merely by this comment's say-so.
 	StartNode *NodeID
 	EndNode   *NodeID
 }
 
-// WarpLegEndpoints returns a new point slice with each supplied terminal moved
+// warpLegEndpoints returns a new point slice with each supplied terminal moved
 // onto its target and the translation blended inward. A nil target leaves
 // that end untouched, bitwise. The input slice is never mutated.
 //
@@ -121,9 +119,7 @@ type WarpReport struct {
 // is copied by pointer, so output and input alias the same elevation values.
 // Nothing writes through an Ele pointer today, but the claim is not
 // transitive and should not be read as if it were.)
-//
-// Exported for the reference application's tests; not part of the stable API.
-func WarpLegEndpoints(pts []Point, start, end *WarpTarget) ([]Point, WarpReport, error) {
+func warpLegEndpoints(pts []Point, start, end *warpTarget) ([]Point, WarpReport, error) {
 	var rep WarpReport
 	if len(pts) < 2 {
 		return nil, rep, fmt.Errorf("WarpLegEndpoints: leg has %d points, need at least 2", len(pts))
@@ -169,7 +165,7 @@ func WarpLegEndpoints(pts []Point, start, end *WarpTarget) ([]Point, WarpReport,
 	// Capping guarantees the far end's weight is exactly zero (smoothstep(0) =
 	// 0) whether or not the cap actually binds for a given call — see
 	// TestWarp_FarEndNeverMovesWhenZoneIsCapped.
-	zoneFor := func(target *WarpTarget, ti int) float64 {
+	zoneFor := func(target *warpTarget, ti int) float64 {
 		if target == nil {
 			// The value is provably never read: applyWarpAtEnd's own first
 			// line returns immediately for a nil target, before its `zone`
@@ -266,7 +262,7 @@ func WarpLegEndpoints(pts []Point, start, end *WarpTarget) ([]Point, WarpReport,
 
 // exactAssignment is one point that must land BIT-EXACTLY on a coordinate —
 // a snapped terminal, or a source point coincident with a terminal at measure
-// distance 0 — rather than through WarpLegEndpoints' additive accumulator,
+// distance 0 — rather than through warpLegEndpoints' additive accumulator,
 // which computes a sum and is not guaranteed to round to the target exactly.
 // See the "exactAssignments" comment at its one call site.
 type exactAssignment struct {
@@ -275,7 +271,7 @@ type exactAssignment struct {
 }
 
 // checkTerminalsExact is a POST-CONDITION on top of the construction argument
-// in WarpLegEndpoints' own comment: an invariant being provable is not the
+// in warpLegEndpoints' own comment: an invariant being provable is not the
 // same as it being preserved by whoever edits this next. Whichever end got a
 // target must have its terminal sitting bit-exact on it, because node
 // adoption downstream compares coordinates with `==`, not a tolerance; a
@@ -289,7 +285,7 @@ type exactAssignment struct {
 // TestCheckTerminalsExact_CatchesAViolation, which hands this function a
 // deliberately wrong `out` to prove the failure branch actually fires — a
 // guard that can only be observed passing is not proven to be able to fail.
-func checkTerminalsExact(out []Point, start, end *WarpTarget) error {
+func checkTerminalsExact(out []Point, start, end *warpTarget) error {
 	if start != nil {
 		if math.Float64bits(out[0].Lat) != math.Float64bits(start.Lat) ||
 			math.Float64bits(out[0].Lon) != math.Float64bits(start.Lon) {
@@ -313,7 +309,7 @@ func checkTerminalsExact(out []Point, start, end *WarpTarget) error {
 // applyWarpAtEnd computes one end's contribution into the ACCUMULATORS
 // dispLat/dispLon (or, for a point that must land bit-exact, appends to
 // *exact) — it never writes `out` directly, so a second call for the other
-// end can never clobber this one's work; see WarpLegEndpoints' "THE FIX:
+// end can never clobber this one's work; see warpLegEndpoints' "THE FIX:
 // accumulate" comment for why that matters. All geometry is read from the
 // unwarped src/cum: each end only ever knows about its own target and the
 // untouched source.
@@ -328,7 +324,7 @@ func applyWarpAtEnd(
 	src []Point,
 	cum []float64,
 	legLen, zone float64,
-	target *WarpTarget,
+	target *warpTarget,
 	atEnd bool,
 ) (warped bool, err error) {
 	if target == nil {
@@ -350,7 +346,7 @@ func applyWarpAtEnd(
 	// naming the wrong stage.
 	//
 	// Stated plainly because it would otherwise look better-tested than it is:
-	// via WarpLegEndpoints this check is REDUNDANT. A non-finite terminal also
+	// via warpLegEndpoints this check is REDUNDANT. A non-finite terminal also
 	// poisons the cumulative measure sum, so the caller's measure-length check catches
 	// the same inputs first, and removing either one alone leaves the tests
 	// green. It is kept as a total guard on this helper in its own right — the
@@ -402,7 +398,7 @@ func applyWarpAtEnd(
 			//
 			// This goes on the exact list, NOT
 			// into the accumulator — a later exact-list application always wins
-			// over the additive sum (see WarpLegEndpoints' apply order), so a
+			// over the additive sum (see warpLegEndpoints' apply order), so a
 			// point that is s==0 for THIS end lands exactly on THIS end's target
 			// even if the other end's accumulator also touched it.
 			*exact = append(*exact, exactAssignment{idx, target.Lat, target.Lon})

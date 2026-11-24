@@ -1,11 +1,11 @@
 package merge
 
 // follow_corridor_assemble.go — the assembler for corridor-solve runs
-// ([CorridorFollowRuns], corridorwire.go).
+// ([corridorFollowRuns], corridorwire.go).
 //
 // Corridor-solve runs carry exact analytic boundaries (interval/piece edges
 // from corridorinterval.go, bridge endpoints) with no relationship to any resampling grid, so
-// this assembler walks [pts]/[SourceMeasure] directly. [assembleOnRun] derives
+// this assembler walks [pts]/[sourceMeasure] directly. [assembleOnRun] derives
 // its output entirely from `pc`, `run.MeasureStart/End`,
 // `entryCross/exitCross` and the leg's own terminal points, never from source
 // geometry.
@@ -44,7 +44,7 @@ import (
 
 // sourceRunVertexRange returns the inclusive range of ORIGINAL vertex
 // indices whose own position — vertexPos(i): (i,0), or (edges-1,1) for the
-// final vertex, [SourceMeasure.vertexPos]'s own convention — falls within
+// final vertex, [sourceMeasure.vertexPos]'s own convention — falls within
 // [lo,hi]. first is the smallest such index, last the largest; first > last
 // means no original vertex falls in the range at all, ordinary for a
 // corridor-solve boundary that is not vertex-aligned (a sub-edge stretch).
@@ -60,24 +60,22 @@ func sourceRunVertexRange(lo, hi SourcePos) (first, last int) {
 	return first, last
 }
 
-// AssembleFollowedLegRunsCorridor assembles one leg from its partition into
-// [AssembledLeg]: the committed points, the effective runs, and the OnPieces
-// bookkeeping [AssembledLeg.checkOnPieceRanges] verifies. Runs' Start/End are
+// assembleFollowedLegRunsCorridor assembles one leg from its partition into
+// [assembledLeg]: the committed points, the effective runs, and the OnPieces
+// bookkeeping [assembledLeg.checkOnPieceRanges] verifies. Runs' Start/End are
 // exact analytic SourcePos. See this file's header.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []FollowRun, b FollowBands, lookup NodeLookup) (AssembledLeg, error) {
+func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []FollowRun, b followBands, lookup nodeLookup) (assembledLeg, error) {
 	if lookup == nil {
-		return AssembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
+		return assembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
 	}
 	if len(pts) < 2 {
 		return assembleDegenerateLeg(pts, runs)
 	}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
-		return AssembledLeg{}, err
+		return assembledLeg{}, err
 	}
-	prepped := PrepCandidates(canon)
+	prepped := prepCandidates(canon)
 	legFirst, legLast := pts[0], pts[len(pts)-1]
 
 	var out []Point
@@ -89,17 +87,17 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		run := runs[r]
 		startMeasure, err := sa.MeasureAt(run.Start)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start: %w", r, err)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start: %w", r, err)
 		}
 		endMeasure, err := sa.MeasureAt(run.End)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end: %w", r, err)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end: %w", r, err)
 		}
 		// EXACT: this is an error check on a run the solver built with
 		// End at or after Start, not a measurement. Slack here would only
 		// let a genuinely inverted run through.
 		if endMeasure < startMeasure {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d spans [%.6g,%.6g] on the leg — end precedes start", r, startMeasure, endMeasure)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d spans [%.6g,%.6g] on the leg — end precedes start", r, startMeasure, endMeasure)
 		}
 		// The run's own two boundary points. Hoisted above the OFF branch
 		// because atStart/atEnd below are decided on them; the ON path
@@ -107,11 +105,11 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		// them (see the densifySource block).
 		startPt, err := sa.PointAt(run.Start)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start point: %w", r, err)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start point: %w", r, err)
 		}
 		endPt, err := sa.PointAt(run.End)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end point: %w", r, err)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end point: %w", r, err)
 		}
 
 		// atStart/atEnd feed [assembleOnRun]'s terminal-substitution rule —
@@ -158,7 +156,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		}
 
 		if run.CanonIdx < 0 || run.CanonIdx >= len(prepped) || prepped[run.CanonIdx] == nil {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: ON run %d bound to absent/degenerate candidate idx %d (arc %d)",
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: ON run %d bound to absent/degenerate candidate idx %d (arc %d)",
 				r, run.CanonIdx, run.CanonID)
 		}
 		pc := prepped[run.CanonIdx]
@@ -216,13 +214,13 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 			if r > 0 && entryCross == nil {
 				snapStart, _, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureStart, lookup)
 				if snapErr != nil {
-					return AssembledLeg{}, snapErr
+					return assembledLeg{}, snapErr
 				}
 			}
 			if r+1 < len(runs) && exitCross == nil {
 				snapEnd, _, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureEnd, lookup)
 				if snapErr != nil {
-					return AssembledLeg{}, snapErr
+					return assembledLeg{}, snapErr
 				}
 			}
 			trialStart, trialEnd := reconcileSnappedMeasures(origStart, origEnd, snapStart, snapEnd, run.Reversed)
@@ -233,10 +231,10 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 				// its corridor check is the corridor matcher's own R, whose one
 				// definition site is corridorcost.go. b.StayM is the COMB's
 				// hysteresis band, and corridorcost.go says so directly: R is
-				// deliberately not aliased to FollowBands.StayM.
+				// deliberately not aliased to followBands.StayM.
 				//
 				// The two values differ: CorridorRadiusM is 10 and StayM is
-				// 15, so this check reads nothing from FollowBands.StayM.
+				// 15, so this check reads nothing from followBands.StayM.
 				accepted = checkCorridor(src, 0, pc, trialStart, trialEnd, entryCross, exitCross, run.Reversed, CorridorRadiusM) == nil
 				if accepted {
 					rr.MeasureStart, rr.MeasureEnd = trialStart, trialEnd
@@ -246,7 +244,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 
 		runPts, err := assembleOnRun(legFirst, legLast, pc, rr, b, entryCross, exitCross, atStart, atEnd)
 		if err != nil {
-			return AssembledLeg{}, err
+			return assembledLeg{}, err
 		}
 		runIdx := len(eff)
 		eff = append(eff, rr)
@@ -278,16 +276,16 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 	}
 
 	if len(out) == 0 {
-		return AssembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: empty output")
+		return assembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: empty output")
 	}
 	for i, p := range out {
 		if math.IsNaN(p.Lat) || math.IsNaN(p.Lon) || math.IsInf(p.Lat, 0) || math.IsInf(p.Lon, 0) {
-			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: non-finite output point %d: %+v", i, p)
+			return assembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: non-finite output point %d: %+v", i, p)
 		}
 	}
-	res := AssembledLeg{Points: out, Runs: eff, OnPieces: onPieces}
+	res := assembledLeg{Points: out, Runs: eff, OnPieces: onPieces}
 	if err := res.checkOnPieceRanges(); err != nil {
-		return AssembledLeg{}, err
+		return assembledLeg{}, err
 	}
 	return res, nil
 }

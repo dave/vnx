@@ -10,7 +10,7 @@ package merge
 // trail on the other side of the valley keeps every piece it had. The prune
 // is per contiguous canon-edge RUN, so a candidate that comes back on itself
 // (a hairpin, a lollipop stem) keeps each approach's own nearest — the
-// self-approach case CorridorInterval's header says Pieces exists to
+// self-approach case corridorInterval's header says Pieces exists to
 // represent rather than collapse.
 //
 // WHY IT IS NEEDED, measured on one real 8-file import of a canyon trail:
@@ -29,7 +29,7 @@ package merge
 // travelling along cannot be in the answer". It is false. A piece is also
 // usable as a STEPPING STONE — the path switches onto it and straight off
 // again within one layer, paying a flat P each way and NOTHING for the
-// piece's own distance (SolveCorridorPath's switch-edge block). So no bound
+// piece's own distance (solveCorridorPath's switch-edge block). So no bound
 // on travel cost can license dropping it. That is not theory: an earlier
 // bug was exactly a path hopping to a third candidate and back for 2P rather
 // than making a same-candidate arm-jump of hundreds of metres.

@@ -3,14 +3,14 @@ package merge
 // assembledleg.go — the value the follow assembler returns, and the small
 // helpers shared by every assembly path: the degenerate-leg case, the piece-range
 // post-condition, and run text for error messages. The assembler itself is
-// [AssembleFollowedLegRunsCorridor].
+// [assembleFollowedLegRunsCorridor].
 
 import (
 	"errors"
 	"fmt"
 )
 
-// AssembledLeg is everything the assembler knows about one leg it just built:
+// assembledLeg is everything the assembler knows about one leg it just built:
 // the committed points, the effective runs, and where each ON run's on-canon
 // stretch SITS in those points.
 //
@@ -20,13 +20,11 @@ import (
 // them together (see checkOnPieceRanges).
 //
 // The ranges are deliberately NOT on [FollowRun]. FollowRun is the matcher's
-// vocabulary — [CorridorFollowRuns] and the tests' hand-built runs produce it —
+// vocabulary — [corridorFollowRuns] and the tests' hand-built runs produce it —
 // and a field only the assembler fills would be left ZERO by every other
 // producer. Zero is a valid point index, so such a run would silently claim its
 // piece begins at Points[0]: a wrong value that looks plausible.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type AssembledLeg struct {
+type assembledLeg struct {
 	Points []Point
 	Runs   []FollowRun
 
@@ -35,7 +33,7 @@ type AssembledLeg struct {
 	OnPieces []OnPieceRange
 }
 
-// OnPieceRange locates one ON run's on-canon stretch inside [AssembledLeg.Points].
+// OnPieceRange locates one ON run's on-canon stretch inside [assembledLeg.Points].
 //
 // Lo and Hi are INCLUSIVE indices, and they bound exactly the points
 // [assembleOnRun] produced — NOT the refined band crossings around them.
@@ -51,8 +49,8 @@ type AssembledLeg struct {
 // TerminalStart / TerminalEnd say so, because that
 // end must NOT be given a canon node — a highlight's end is a lat-lon anchor.
 type OnPieceRange struct {
-	Run    int // index into AssembledLeg.Runs
-	Lo, Hi int // inclusive, into AssembledLeg.Points
+	Run    int // index into assembledLeg.Runs
+	Lo, Hi int // inclusive, into assembledLeg.Points
 
 	// The piece's first/last point is the leg's own terminal anchor rather than a
 	// point on canon, so it can never be a shared canon node.
@@ -72,7 +70,7 @@ type OnPieceRange struct {
 // the caller's tests, where every interior ON piece must be byte-identical to
 // the canon stretch it rides. A range off by one takes in entryCross, which is NOT on
 // canon, so byte-identity fails.
-func (a AssembledLeg) checkOnPieceRanges() error {
+func (a assembledLeg) checkOnPieceRanges() error {
 	prevHi := -1
 	for i, p := range a.OnPieces {
 		if p.Lo < 0 || p.Hi < p.Lo || p.Hi >= len(a.Points) {
@@ -98,24 +96,24 @@ func (a AssembledLeg) checkOnPieceRanges() error {
 // has no legal run at all. Both are errors rather than silent empties when the
 // runs disagree, because a caller that gets here with anything else has
 // mis-derived its partition.
-func assembleDegenerateLeg(pts []Point, runs []FollowRun) (AssembledLeg, error) {
+func assembleDegenerateLeg(pts []Point, runs []FollowRun) (assembledLeg, error) {
 	if len(pts) == 0 {
 		if len(runs) != 0 {
-			return AssembledLeg{}, fmt.Errorf("assembleDegenerateLeg: %d run(s) on an empty leg", len(runs))
+			return assembledLeg{}, fmt.Errorf("assembleDegenerateLeg: %d run(s) on an empty leg", len(runs))
 		}
-		return AssembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
+		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
 	}
 	for r := range runs {
 		if runs[r].Kind != RunOff || runs[r].Start != (SourcePos{}) || runs[r].End != (SourcePos{}) {
-			return AssembledLeg{}, fmt.Errorf(
+			return assembledLeg{}, fmt.Errorf(
 				"assembleDegenerateLeg: single-point leg carries run %d %+v — the only legal partition is one OFF run [0,0]",
 				r, runBrief(runs[r]))
 		}
 	}
 	if len(runs) == 0 {
-		return AssembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
+		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
 	}
-	return AssembledLeg{Points: []Point{pts[0]}, Runs: append([]FollowRun(nil), runs...)}, nil
+	return assembledLeg{Points: []Point{pts[0]}, Runs: append([]FollowRun(nil), runs...)}, nil
 }
 
 // runBrief is a FollowRun without its per-point projections, for error text.

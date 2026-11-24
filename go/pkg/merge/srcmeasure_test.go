@@ -10,12 +10,12 @@ import (
 // Fixtures are built with the metric test frame (mPt), but nothing here
 // asserts against the frame's nominal metres: edge lengths are haversine
 // (HaversineMetres), and the tests recompute the expected values with
-// the same call SourceMeasure uses. That keeps the assertions exact rather than
+// the same call sourceMeasure uses. That keeps the assertions exact rather than
 // tolerant of the frame's ~0.1% latitude approximation.
 
-func mustSourceMeasure(t *testing.T, pts []Point) *SourceMeasure {
+func mustSourceMeasure(t *testing.T, pts []Point) *sourceMeasure {
 	t.Helper()
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -39,11 +39,11 @@ func TestSrcMeasureNewRejectsShortPolyline(t *testing.T) {
 	// No edges means no position can exist, so this is a caller bug, not a
 	// degenerate leg to be tolerated.
 	for _, pts := range [][]Point{nil, xLine(0)} {
-		if _, err := NewSourceMeasure(pts); err == nil {
+		if _, err := newSourceMeasure(pts); err == nil {
 			t.Fatalf("newSourceMeasure(%d points): expected an error", len(pts))
 		}
 	}
-	if _, err := NewSourceMeasure(xLine(0, 10)); err != nil {
+	if _, err := newSourceMeasure(xLine(0, 10)); err != nil {
 		t.Fatalf("newSourceMeasure(2 points): %v", err)
 	}
 }
@@ -501,7 +501,7 @@ func TestSrcMeasureMeasureRoundTrip(t *testing.T) {
 	// measure → position → measure at each branch of posAtMeasure. Edges:
 	// 0 = 0→10, 1 = 10→10 (zero length), 2 = 10→40, 3 = 40→100.
 	cum := sa.CumMeasure
-	roundTrip := func(sa *SourceMeasure, want float64) {
+	roundTrip := func(sa *sourceMeasure, want float64) {
 		t.Helper()
 		p, err := sa.PosAtMeasure(want)
 		if err != nil {

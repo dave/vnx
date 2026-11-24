@@ -99,7 +99,7 @@ func TestDupVertexSequenceEqual(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := DupVertexSequenceEqual(c.a, c.b)
+			got := dupVertexSequenceEqual(c.a, c.b)
 			if got.Equal != c.want {
 				t.Errorf("Equal = %v, want %v", got.Equal, c.want)
 			}
@@ -120,23 +120,23 @@ func TestDupVertexSequenceEqual_Elevation(t *testing.T) {
 	diff := []Point{dupPtEle(54.0, -3.0, 100), dupPtEle(54.1, -3.1, 999)}
 	none := []Point{dupPt(54.0, -3.0), dupPt(54.1, -3.1)}
 
-	if v := DupVertexSequenceEqual(a, same); !v.Equal || !v.EleEqual {
+	if v := dupVertexSequenceEqual(a, same); !v.Equal || !v.EleEqual {
 		t.Errorf("matching elevations: %+v, want Equal and EleEqual", v)
 	}
-	if v := DupVertexSequenceEqual(a, diff); !v.Equal || v.EleEqual {
+	if v := dupVertexSequenceEqual(a, diff); !v.Equal || v.EleEqual {
 		t.Errorf("differing elevations: %+v, want Equal without EleEqual — elevation must not decide the match", v)
 	}
-	if v := DupVertexSequenceEqual(a, none); !v.Equal || v.EleEqual {
+	if v := dupVertexSequenceEqual(a, none); !v.Equal || v.EleEqual {
 		t.Errorf("one side without elevation: %+v, want Equal without EleEqual", v)
 	}
 	// Reversed matches must compare elevation in the direction the match
 	// held, not positionally.
 	revSame := []Point{dupPtEle(54.1, -3.1, 200), dupPtEle(54.0, -3.0, 100)}
-	if v := DupVertexSequenceEqual(a, revSame); !v.Equal || !v.Reversed || !v.EleEqual {
+	if v := dupVertexSequenceEqual(a, revSame); !v.Equal || !v.Reversed || !v.EleEqual {
 		t.Errorf("reversed with matching elevations: %+v, want Equal, Reversed and EleEqual", v)
 	}
 	revDiff := []Point{dupPtEle(54.1, -3.1, 100), dupPtEle(54.0, -3.0, 200)}
-	if v := DupVertexSequenceEqual(a, revDiff); !v.Equal || !v.Reversed || v.EleEqual {
+	if v := dupVertexSequenceEqual(a, revDiff); !v.Equal || !v.Reversed || v.EleEqual {
 		t.Errorf("reversed with elevations that only match positionally: %+v, want Equal, Reversed, NOT EleEqual", v)
 	}
 
@@ -147,13 +147,13 @@ func TestDupVertexSequenceEqual_Elevation(t *testing.T) {
 	// not happening.
 	nan := []Point{dupPtEle(54.0, -3.0, math.NaN()), dupPtEle(54.1, -3.1, math.NaN())}
 	nan2 := []Point{dupPtEle(54.0, -3.0, math.NaN()), dupPtEle(54.1, -3.1, math.NaN())}
-	if v := DupVertexSequenceEqual(nan, nan2); !v.Equal || !v.EleEqual {
+	if v := dupVertexSequenceEqual(nan, nan2); !v.Equal || !v.EleEqual {
 		t.Errorf("both sides NaN elevation: %+v, want Equal and EleEqual — NaN means absent, and absent matches absent", v)
 	}
-	if v := DupVertexSequenceEqual(nan, a); !v.Equal || v.EleEqual {
+	if v := dupVertexSequenceEqual(nan, a); !v.Equal || v.EleEqual {
 		t.Errorf("NaN against a real elevation: %+v, want Equal without EleEqual", v)
 	}
-	if v := DupVertexSequenceEqual(nan, none); !v.Equal || !v.EleEqual {
+	if v := dupVertexSequenceEqual(nan, none); !v.Equal || !v.EleEqual {
 		t.Errorf("NaN against nil: %+v, want Equal and EleEqual — both are absent", v)
 	}
 }

@@ -31,12 +31,10 @@ type SplitIDs struct {
 	Prior, Next ArcID
 }
 
-// SplitResult is a split as SplitArcAt made it: the new node (its position is
+// splitResult is a split as splitArcAt made it: the new node (its position is
 // the split's), the two halves, and whether the node took the place of one of
 // the parent's interior pips (PolylineSplit.ConsumedParentVertex).
-//
-// Exported for the reference application's tests; not part of the stable API.
-type SplitResult struct {
+type splitResult struct {
 	Node                 Node
 	Prior, Next          ArcID
 	ConsumedParentVertex bool
@@ -112,33 +110,31 @@ func InteriorPips(points []Point) []Pip {
 	return interior
 }
 
-// SplitArcAt splits arc id of c at fraction (in (0, 1), exclusive) of its
+// splitArcAt splits arc id of c at fraction (in (0, 1), exclusive) of its
 // walk: it reads the arc and its end nodes, computes the split
 // (SplitPolylineAtFraction) and stores it with c.SplitArc.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func SplitArcAt(ctx context.Context, c Canon, id ArcID, fraction float64) (SplitResult, error) {
+func splitArcAt(ctx context.Context, c Canon, id ArcID, fraction float64) (splitResult, error) {
 	if !(fraction > 0 && fraction < 1) {
-		return SplitResult{}, fmt.Errorf("split fraction %v must be in (0, 1) exclusive", fraction)
+		return splitResult{}, fmt.Errorf("split fraction %v must be in (0, 1) exclusive", fraction)
 	}
 	arc, err := c.Arc(ctx, id)
 	if err != nil {
-		return SplitResult{}, err
+		return splitResult{}, err
 	}
 	start, _, err := c.Node(ctx, arc.StartNodeID)
 	if err != nil {
-		return SplitResult{}, fmt.Errorf("read start node %d of arc %d: %w", arc.StartNodeID, id, err)
+		return splitResult{}, fmt.Errorf("read start node %d of arc %d: %w", arc.StartNodeID, id, err)
 	}
 	end, _, err := c.Node(ctx, arc.EndNodeID)
 	if err != nil {
-		return SplitResult{}, fmt.Errorf("read end node %d of arc %d: %w", arc.EndNodeID, id, err)
+		return splitResult{}, fmt.Errorf("read end node %d of arc %d: %w", arc.EndNodeID, id, err)
 	}
 	s := SplitPolylineAtFraction(start, end, arc.Polyline, fraction)
 	ids, err := c.SplitArc(ctx, id, s)
 	if err != nil {
-		return SplitResult{}, err
+		return splitResult{}, err
 	}
-	return SplitResult{
+	return splitResult{
 		Node:                 Node{ID: ids.Node, Lat: s.Lat, Lon: s.Lon, Ele: s.Ele},
 		Prior:                ids.Prior,
 		Next:                 ids.Next,

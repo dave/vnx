@@ -12,13 +12,13 @@ package merge
 // in practice (the distances agreed with AbsorbedM to 6 decimal places).
 //
 // This is the SAME taper the endpoint warp applies at a leg's own terminals
-// ([WarpLegEndpoints]) — same zone formula, same accumulate-then-exact-assign
+// ([warpLegEndpoints]) — same zone formula, same accumulate-then-exact-assign
 // mechanism, same "one method, always tapers" contract — with one structural
 // difference: a terminal has geometry on only ONE side, so its taper only
 // ever needs to decay in one direction. An interior boundary has a leg on
 // BOTH sides and must decay into both.
 //
-// WarpLegEndpoints itself is separate and unchanged; this primitive shares
+// warpLegEndpoints itself is separate and unchanged; this primitive shares
 // its zone/smoothstep/accumulate math rather than the function.
 
 import (
@@ -26,19 +26,17 @@ import (
 	"math"
 )
 
-// WarpBoundaryTarget is one point INTERIOR to a leg (never index 0 or
+// warpBoundaryTarget is one point INTERIOR to a leg (never index 0 or
 // len-1 — those are terminals, the endpoint warp's job) that must
 // land bit-exact on Target.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type WarpBoundaryTarget struct {
+type warpBoundaryTarget struct {
 	Idx    int
-	Target WarpTarget
+	Target warpTarget
 }
 
-// WarpLegAtBoundaries blends a leg's geometry toward every boundary in
+// warpLegAtBoundaries blends a leg's geometry toward every boundary in
 // `boundaries` at once, using the SAME widened+capped zone rule and
-// additive-accumulate mechanism WarpLegEndpoints uses for terminals (see
+// additive-accumulate mechanism warpLegEndpoints uses for terminals (see
 // that function's own comment for why accumulation — not scaling, not an
 // error — is how overlapping zones combine). The two leg terminals
 // (index 0 and len(pts)-1) are byte-for-byte PROTECTED: whatever an
@@ -51,9 +49,7 @@ type WarpBoundaryTarget struct {
 // ordinary case, since most followed runs need no interior boundary at all.
 //
 // The input slice is never mutated.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point, error) {
+func warpLegAtBoundaries(pts []Point, boundaries []warpBoundaryTarget) ([]Point, error) {
 	out := make([]Point, len(pts))
 	copy(out, pts)
 	if len(boundaries) == 0 {
@@ -63,7 +59,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 		return nil, fmt.Errorf("WarpLegAtBoundaries: leg has %d points, need at least 2", len(pts))
 	}
 
-	// Cumulative measure along the ORIGINAL leg, exactly as WarpLegEndpoints
+	// Cumulative measure along the ORIGINAL leg, exactly as warpLegEndpoints
 	// computes it — shared by every boundary, so each one's taper reads only
 	// the unwarped source, never another boundary's motion.
 	cum := make([]float64, len(pts))
@@ -102,7 +98,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 		if vLat == 0 && vLon == 0 {
 			// Already exactly coincident — the boundary's own resolved node IS
 			// where the leg already is (an exact match, or one of
-			// ApplyLegBoundaryWarp's own self-anchor targets for a
+			// applyLegBoundaryWarp's own self-anchor targets for a
 			// non-Absorbed seam). There is nothing to BLEND, but this index
 			// still needs to be PINNED: without registering it as an exact
 			// assignment too, a DIFFERENT, genuinely-displaced boundary whose
@@ -142,7 +138,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 
 		// LEFT: walk from the boundary down to index 0, s increasing as the
 		// distance from the boundary grows. idx==b.Idx itself is s==0 here —
-		// exact-assigned, not computed, for the same reason WarpLegEndpoints'
+		// exact-assigned, not computed, for the same reason warpLegEndpoints'
 		// own s==0 branch is: `pts[i] + (target-pts[i])` is not guaranteed to
 		// round back to target bit-exactly.
 		for idx := b.Idx; idx >= 0; idx-- {
@@ -188,7 +184,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 		}
 	}
 
-	// The additive sum, applied once — see WarpLegEndpoints' own comment for
+	// The additive sum, applied once — see warpLegEndpoints' own comment for
 	// why overlapping zones must SUM rather than one boundary's write
 	// clobbering another's.
 	for i := range out {
@@ -196,7 +192,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 		out[i].Lon = pts[i].Lon + dispLon[i]
 	}
 	// Exact assignments last, overriding the sum — same "assign, don't
-	// compute" requirement WarpLegEndpoints' own exact list exists for.
+	// compute" requirement warpLegEndpoints' own exact list exists for.
 	for _, e := range exact {
 		out[e.idx].Lat = e.lat
 		out[e.idx].Lon = e.lon
@@ -265,7 +261,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // than prevented: a boundary very close to another boundary or a terminal
 // can fold, and that is an expected outcome, not a defect.
 
-// ApplyLegBoundaryWarp is the leg-warp half of repointing a boundary,
+// applyLegBoundaryWarp is the leg-warp half of repointing a boundary,
 // composed for the caller that turns aligned seams into committed leg pieces
 // (it runs between legSeamsFromAlign and the commit). Repointing a seam
 // RECORD onto a node up to EndpointWarpRadiusM away is only half of the job —
@@ -276,10 +272,10 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // vertex 4.118796 m ... any ABSORBED seam 8.064847 m" — the distances this
 // function exists to close.
 //
-// Every [LegSeam] becomes a [WarpBoundaryTarget]: an Absorbed one targets its
+// Every [legSeam] becomes a [warpBoundaryTarget]: an Absorbed one targets its
 // own Node's real, recorded coordinates (NodeLat/NodeLon — never
 // recomputed); every other HasNode seam targets its OWN current point, a
-// zero-displacement target that still ANCHORS its index (WarpLegAtBoundaries'
+// zero-displacement target that still ANCHORS its index (warpLegAtBoundaries'
 // own exact-assignment protection for a zero-displacement target, see that
 // function's doc) while asking it to move nowhere — that function's own
 // "already exactly coincident" branch is exactly this no-op. Seams with
@@ -287,30 +283,28 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // legSeamsFromAlign returns, so there is nothing to filter here.
 //
 // No gap-collapse runs (see the note above): the points are handed to
-// WarpLegAtBoundaries as they are, and a boundary very close to another
+// warpLegAtBoundaries as they are, and a boundary very close to another
 // boundary or a terminal can fold. That is accepted, not prevented.
 //
 // Returns the warped points and the same seams, Idx UNCHANGED (nothing
 // remaps indices any more) — every other field (Node, Adopted, Absorbed,
 // AbsorbedM, NodeLat/NodeLon) was already untouched.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func ApplyLegBoundaryWarp(pts []Point, seams []LegSeam) ([]Point, []LegSeam, error) {
+func applyLegBoundaryWarp(pts []Point, seams []legSeam) ([]Point, []legSeam, error) {
 	if len(seams) == 0 {
 		out := make([]Point, len(pts))
 		copy(out, pts)
 		return out, seams, nil
 	}
-	targets := make([]WarpBoundaryTarget, len(seams))
+	targets := make([]warpBoundaryTarget, len(seams))
 	for i, s := range seams {
 		lat, lon := s.NodeLat, s.NodeLon
 		if !s.Absorbed {
 			lat, lon = pts[s.Idx].Lat, pts[s.Idx].Lon
 		}
-		targets[i] = WarpBoundaryTarget{Idx: s.Idx, Target: WarpTarget{Lat: lat, Lon: lon, NodeID: s.Node}}
+		targets[i] = warpBoundaryTarget{Idx: s.Idx, Target: warpTarget{Lat: lat, Lon: lon, NodeID: s.Node}}
 	}
 
-	warpedPts, err := WarpLegAtBoundaries(pts, targets)
+	warpedPts, err := warpLegAtBoundaries(pts, targets)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ApplyLegBoundaryWarp: %w", err)
 	}

@@ -6,7 +6,7 @@ package merge
 // distance foot_A -> V -> foot_B through a shared node V. That is a purchase,
 // and the runs either side must contain what it bought: the drawn stretch on A
 // runs up to V, and the stretch on B resumes from V. Without it the cost
-// function prices geometry [AssembleFollowedLegRunsCorridor] never commits,
+// function prices geometry [assembleFollowedLegRunsCorridor] never commits,
 // and the boundary lands interior to an arc where the align step has to CUT rather than
 // take DECLINE 1 at the node.
 //
@@ -39,12 +39,12 @@ func TestCarryThrough_PaidTeleportLandsOnTheArcEnd(t *testing.T) {
 		mCanon(2, v, mPt(200, 0)),
 	}
 	pts := straightLegX(41, 200, 0)
-	runs, err := CorridorFollowRuns(t.Context(), pts, canon, DefaultFollowBands())
+	runs, err := corridorFollowRuns(t.Context(), pts, canon, defaultFollowBands())
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
 
-	prepped := PrepCandidates(canon)
+	prepped := prepCandidates(canon)
 	var onA, onB *FollowRun
 	for i := range runs {
 		if runs[i].Kind != RunOn {
@@ -142,7 +142,7 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 		ImportMeasureAtLo: 0, ImportMeasureAtHi: 200,
 		CanonMeasureAtLo: 0, CanonMeasureAtHi: pcB.Total,
 	}}
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
+	tun := CorridorTunables{P: stateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	// FWD -> FWD, TEN metres along: A's forward end is its FAR end, B's
 	// away-end is its NEAR end. Those are different coordinates, so no pairing
@@ -160,9 +160,9 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 			"heading away from V has no continuation through it, and pricing one sells a turnaround "+
 			"for less than the P a turnaround costs inside one arc", sh.EA, sh.EB, sh.Dist)
 	}
-	if got := crossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10, tun); got != StateChangeCostP {
+	if got := crossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10, tun); got != stateChangeCostP {
 		t.Errorf("price %v, want exactly P=%v — turning round onto a parallel copy must cost what "+
-			"turning round in place costs, or the solver takes the copy", got, StateChangeCostP)
+			"turning round in place costs, or the solver takes the copy", got, stateChangeCostP)
 	}
 
 	// REV -> FWD is the continuation that DOES exist: the walker comes back
@@ -214,7 +214,7 @@ func TestCarryThrough_TheGateIsTheCapNotTheSharedNode(t *testing.T) {
 	pcA := prepOne(t, mPt(0, 0), v)
 	pcB := prepOne(t, v, mPt(200, 0))
 	cands := []*PreppedCandidate{pcA, pcB}
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
+	tun := CorridorTunables{P: stateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	// The source runs [0,200] west to east under both arcs, so A's walk maps
 	// import [0,100] onto A's whole measure and B's maps [100,200] onto B's.
@@ -246,19 +246,19 @@ func TestCarryThrough_TheGateIsTheCapNotTheSharedNode(t *testing.T) {
 		if !sh.OK {
 			t.Fatalf("%s: the two candidates share V, so the pair must resolve", tc.name)
 		}
-		gotUnder := backtrackWeightPerM*sh.Dist < StateChangeCostP
+		gotUnder := backtrackWeightPerM*sh.Dist < stateChangeCostP
 		if gotUnder != tc.wantUnder {
 			t.Errorf("%s: canon-graph distance %.4f m gives priced-below-P = %v, want %v",
 				tc.name, sh.Dist, gotUnder, tc.wantUnder)
 		}
 		price := crossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, tc.x, tun)
-		if tc.wantUnder && !(price < StateChangeCostP) {
-			t.Errorf("%s: price %v is not below P=%v", tc.name, price, StateChangeCostP)
+		if tc.wantUnder && !(price < stateChangeCostP) {
+			t.Errorf("%s: price %v is not below P=%v", tc.name, price, stateChangeCostP)
 		}
-		if !tc.wantUnder && price != StateChangeCostP {
+		if !tc.wantUnder && price != stateChangeCostP {
 			t.Errorf("%s: price %v, want exactly P=%v — a shared node beyond the cap buys nothing, "+
 				"so the run reconstruction must carry nothing through it either",
-				tc.name, price, StateChangeCostP)
+				tc.name, price, stateChangeCostP)
 		}
 	}
 }

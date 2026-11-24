@@ -11,7 +11,7 @@ type AlignDecline int
 const (
 	AlignCutMade AlignDecline = iota
 
-	// The boundary is at (or within MeasureEps of) the canon arc's own start or
+	// The boundary is at (or within measureEps of) the canon arc's own start or
 	// end node. The node the align step wants is already there — the whole point of the pass
 	// is satisfied, so there is nothing to do.
 	AlignDeclineAtNode
@@ -224,7 +224,7 @@ type AlignLineage struct {
 // ⚠ IT MUST AGREE WITH TWO OTHER SUMS, and it does so by being the same
 // arithmetic over the same vertices with the same primitive:
 //
-//   - [PrepCandidates], which is where the run's measures came
+//   - [prepCandidates], which is where the run's measures came
 //     from — same vertex list, same [HaversineMetres], same order;
 //   - the store's polyline split, which is what
 //     turns the fraction back into a position — same walk
@@ -234,7 +234,7 @@ type AlignLineage struct {
 //
 // The round trip is therefore measure → measure/total → fraction*total → measure, exact up
 // to float rounding. It is not exact to the bit, which is why the caller
-// qualifies with MeasureEps rather than testing for equality.
+// qualifies with measureEps rather than testing for equality.
 //
 // Exported for the reference application's tests; not part of the stable API.
 func CanonMeasureLengthM(verts []Point) float64 {

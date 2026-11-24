@@ -39,7 +39,7 @@ const solverEps = 1e-6
 //	LegFinished
 type CorridorCostObserver interface {
 	// LegStart opens one leg's record. candidates counts the NON-NIL prepped
-	// candidates, which is exactly the set [CorridorIntervals] mints against.
+	// candidates, which is exactly the set [corridorIntervals] mints against.
 	LegStart(sourceEdges, candidates int)
 
 	// SourceEdgeMinted reports one (source edge × candidate) mint: how many
@@ -62,7 +62,7 @@ type CorridorCostObserver interface {
 	//
 	// It fires once for every leg that reaches the mint→solve boundary, which is
 	// a SUPERSET of the legs that solve: a leg whose points all coincide has
-	// total == 0, and [SolveCorridorPath] returns nil there before doing any
+	// total == 0, and [solveCorridorPath] returns nil there before doing any
 	// work. Such a leg reports a phase event and no SolveFinished.
 	MintFinished()
 
@@ -94,22 +94,20 @@ type CorridorCostObserver interface {
 	LegFinished()
 }
 
-// CorridorFollowRuns runs the corridor solve (intervals, Dijkstra and
+// corridorFollowRuns runs the corridor solve (intervals, Dijkstra and
 // bridges) for one leg and converts its result into [FollowRun]s.
 //
-// R and k are [CorridorRadiusM]/[EmissionK] (corridorcost.go) — NOT
+// R and k are [CorridorRadiusM]/[emissionK] (corridorcost.go) — NOT
 // b.StayM/b.EnterM, the older matcher's bands, which are deliberately not
 // aliased to the new constants. b is threaded through for the
 // degenerate-leg contract only; the solve itself is band-free.
 //
 // ctx stops the leg part-way. It is threaded
 // down to the three places that can run unboundedly long — the mint's source-edge
-// loop, [BuildCorridorBridges] and the Dijkstra loop — and a cancellation comes
+// loop, [buildCorridorBridges] and the Dijkstra loop — and a cancellation comes
 // back as a `%w`-wrapped [context.Canceled], never as a partial or empty result.
 // The caller cancels it, for example on memory pressure or a user's cancel.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b FollowBands) ([]FollowRun, error) {
+func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b followBands) ([]FollowRun, error) {
 	costObs := stateOf(ctx).hooks.CorridorCost
 	// Degenerate-leg contract: an empty leg has no runs, and a one-point leg
 	// is one OFF run that commits that point verbatim.
@@ -120,11 +118,11 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		return []FollowRun{{Kind: RunOff}}, nil
 	}
 
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		return nil, err
 	}
-	prepped := PrepCandidates(canon)
+	prepped := prepCandidates(canon)
 	// Cost census. Nil in production; the counting loop below runs
 	// only when a test has armed the hook.
 	if obs := costObs; obs != nil {
@@ -136,7 +134,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		}
 		obs.LegStart(sa.Edges(), n)
 	}
-	ivs, err := CorridorIntervals(ctx, sa, prepped, CorridorRadiusM)
+	ivs, err := corridorIntervals(ctx, sa, prepped, CorridorRadiusM)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +145,11 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 	if obs := costObs; obs != nil {
 		obs.MintFinished()
 	}
-	// ivs is HANDED OVER here: [SolveCorridorPath] releases every
+	// ivs is HANDED OVER here: [solveCorridorPath] releases every
 	// ivs[i].Pieces once its bridges are priced, so nothing below this line may read them — and nothing does: the
 	// runs loop works from res and prepped only. That is the invariant the
 	// release rests on.
-	res, err := SolveCorridorPath(ctx, sa.Total(), sa, ivs, prepped, CorridorRadiusM, EmissionK)
+	res, err := solveCorridorPath(ctx, sa.Total(), sa, ivs, prepped, CorridorRadiusM, emissionK)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +157,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		obs.LegFinished()
 	}
 	if res == nil {
-		// total <= 0 (every point coincides) — [SolveCorridorPath]'s own
+		// total <= 0 (every point coincides) — [solveCorridorPath]'s own
 		// expected-absence contract (its total==0 branch). Nothing to
 		// follow; the whole leg commits verbatim, as it always would have.
 		return []FollowRun{{Kind: RunOff, Start: sa.Start(), End: sa.End()}}, nil
@@ -183,7 +181,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 			// point survives into the assembled leg's own [Points] even
 			// though the run that produced it carries no real geometry —
 			// pushing the true first ON piece to point index 1 or 2 instead
-			// of 0 while [AssembleFollowedLegRunsCorridor]'s own atStart
+			// of 0 while [assembleFollowedLegRunsCorridor]'s own atStart
 			// still (correctly) reads this as the leg's own measure-0 start,
 			// since sub-eps error only moved WHICH FollowRun claims measure 0,
 			// not whether anything does. legSeamsFromAlign's own assertion
@@ -208,7 +206,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		}
 
 		// The solver's state NAMES the piece this run rides, so its oriented
-		// canon measure at both ends is already exact — see [CorridorRun].
+		// canon measure at both ends is already exact — see [corridorRun].
 		//
 		// This is where coalescePieces used to run, and it is gone. It existed
 		// to resolve an interval's competing pieces into one correspondence by
@@ -229,7 +227,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 			// A CHAIN-HOP run is not one of these, although it has no import
 			// extent either: it carries the canon a same-layer switch chain
 			// paid for across an intermediate candidate, and dropping it is
-			// exactly the defect it exists to fix ([CorridorRun.ChainHop]).
+			// exactly the defect it exists to fix ([corridorRun.ChainHop]).
 			continue
 		}
 		fr, err := corridorFollowRunFromMeasure(sa, prepped[run.CandIdx], run.CandIdx, run.ImportMeasureLo, run.ImportMeasureHi, run.CanonMeasureLo, run.CanonMeasureHi)
@@ -260,11 +258,11 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 // continuation of the identical (interval, direction) state — each pair
 // committing as two followRuns and so two spurious seams, on top of what
 // coalescePieces already fixed. FollowRun itself carries no Bridged field,
-// and AssembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd on the
+// and assembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd on the
 // candidate identically either way, so a bridge's own canon measure touching its
 // continuation's is exactly as mergeable as two pieces coalescePieces
 // already merges within one run — this is that same merge, applied one
-// level up, over CorridorFollowRuns' own output rather than one run's own
+// level up, over corridorFollowRuns' own output rather than one run's own
 // pieces.
 func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 	if len(runs) == 0 {
@@ -371,7 +369,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 		// — after a same-candidate forward run, the merge below would then
 		// clamp its canon away without a word. Its direction is not read off
 		// the source: it is the direction the chain's switches paid for
-		// ([CorridorRun.ChainHop]).
+		// ([corridorRun.ChainHop]).
 		noDirection := func(fr FollowRun) bool {
 			if fr.MeasureEnd == fr.MeasureStart {
 				return true
@@ -497,7 +495,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 // direction: a declared-FWD run CAN move backward within one piece (that is
 // exactly what the backtrack term prices), so only the measure pair's own order
 // tells [assembleOnRun]'s measure-monotone post-condition the truth it needs.
-func corridorFollowRunFromMeasure(sa *SourceMeasure, pc *PreppedCandidate, candIdx int, importLo, importHi, canonLo, canonHi float64) (FollowRun, error) {
+func corridorFollowRunFromMeasure(sa *sourceMeasure, pc *PreppedCandidate, candIdx int, importLo, importHi, canonLo, canonHi float64) (FollowRun, error) {
 	start, err := sa.PosAtMeasure(importLo)
 	if err != nil {
 		return FollowRun{}, fmt.Errorf("start: %w", err)

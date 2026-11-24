@@ -108,7 +108,7 @@ func TestDuplicateArcDetector_RedProof(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			start, end := tc.start, tc.end
-			got, err := FindDuplicateCanonArcs(ctx, d, tc.pts, &start, &end)
+			got, err := findDuplicateCanonArcs(ctx, d, tc.pts, &start, &end)
 			if err != nil {
 				t.Fatalf("detector: %v", err)
 			}
@@ -128,7 +128,7 @@ func TestDuplicateArcDetector_RedProof(t *testing.T) {
 	}
 
 	// An unresolved end is an EXPECTED absence, answered without a query.
-	if got, err := FindDuplicateCanonArcs(ctx, d, interior(mid), nil, &endID); err != nil || len(got) != 0 {
+	if got, err := findDuplicateCanonArcs(ctx, d, interior(mid), nil, &endID); err != nil || len(got) != 0 {
 		t.Errorf("a piece whose start end resolved to no node: got %+v, %v — want no match, because a node that does not exist cannot bound an arc that does", got, err)
 	}
 }

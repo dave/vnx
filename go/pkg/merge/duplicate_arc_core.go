@@ -4,13 +4,11 @@ import (
 	"math"
 )
 
-// DupSeqVerdict is what DupVertexSequenceEqual answers. Reversal and elevation
+// dupSeqVerdict is what dupVertexSequenceEqual answers. Reversal and elevation
 // are reported rather than folded into Equal: both are decisions ride
 // resolution has to make explicitly, and neither may be settled by this
 // function's return type.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type DupSeqVerdict struct {
+type dupSeqVerdict struct {
 	// Equal is lat/lon sequence equality, exact, in one direction or the
 	// other. This is the whole of ride resolution's rule.
 	Equal bool
@@ -25,7 +23,7 @@ type DupSeqVerdict struct {
 	EleEqual bool
 }
 
-// DupVertexSequenceEqual answers ride resolution's question: are these two
+// dupVertexSequenceEqual answers ride resolution's question: are these two
 // vertex sequences the same, exactly?
 //
 // ⚠ NO TOLERANCE, DELIBERATELY, AND IT MUST NEVER ACQUIRE ONE. Near-identical
@@ -39,18 +37,16 @@ type DupSeqVerdict struct {
 // Comparison is on lat/lon only. That is what the rule says; elevation is
 // reported alongside so the substitution question stays visible instead of
 // being answered by omission.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func DupVertexSequenceEqual(a, b []Point) DupSeqVerdict {
+func dupVertexSequenceEqual(a, b []Point) dupSeqVerdict {
 	if len(a) != len(b) {
-		return DupSeqVerdict{}
+		return dupSeqVerdict{}
 	}
 	if len(a) == 0 {
 		// Two empty sequences are equal but say nothing. No arc has zero
 		// vertices — its two endpoint nodes are always present — so this
 		// is unreachable in practice and exists only so the loops
 		// below need no length guard.
-		return DupSeqVerdict{Equal: true, EleEqual: true}
+		return dupSeqVerdict{Equal: true, EleEqual: true}
 	}
 	fwd, fwdEle := true, true
 	for i := range a {
@@ -63,7 +59,7 @@ func DupVertexSequenceEqual(a, b []Point) DupSeqVerdict {
 		}
 	}
 	if fwd {
-		return DupSeqVerdict{Equal: true, Reversed: false, EleEqual: fwdEle}
+		return dupSeqVerdict{Equal: true, Reversed: false, EleEqual: fwdEle}
 	}
 	rev, revEle := true, true
 	for i := range a {
@@ -77,9 +73,9 @@ func DupVertexSequenceEqual(a, b []Point) DupSeqVerdict {
 		}
 	}
 	if rev {
-		return DupSeqVerdict{Equal: true, Reversed: true, EleEqual: revEle}
+		return dupSeqVerdict{Equal: true, Reversed: true, EleEqual: revEle}
 	}
-	return DupSeqVerdict{}
+	return dupSeqVerdict{}
 }
 
 // dupEleEqual compares two optional elevations. Both absent is equal; one

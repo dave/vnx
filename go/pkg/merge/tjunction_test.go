@@ -31,14 +31,14 @@ func TestTJunctionDeclineFor(t *testing.T) {
 	// but it is the value a revert of the lift would restore the rule to, and
 	// the brackets would be wrong against any other. Kept for that reason,
 	// deliberately, not left behind.
-	if DefaultFollowBands().MinRunM != 25 {
+	if defaultFollowBands().MinRunM != 25 {
 		t.Fatalf("MinRun is %v, not the ratified 25 m — this table's stub brackets were derived from 25",
-			DefaultFollowBands().MinRunM)
+			defaultFollowBands().MinRunM)
 	}
-	// A candidate whose three length fields agree, as merge.NearestArc
+	// A candidate whose three length fields agree, as merge.nearestArc
 	// guarantees: Fraction is exactly PriorLenM/(PriorLenM+NextLenM).
-	cand := func(prior, next, dist float64) NearbyCanonArc {
-		return NearbyCanonArc{
+	cand := func(prior, next, dist float64) nearbyCanonArc {
+		return nearbyCanonArc{
 			ID: 1, DistM: dist,
 			PriorLenM: prior, NextLenM: next,
 			Fraction: prior / (prior + next),
@@ -46,7 +46,7 @@ func TestTJunctionDeclineFor(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name string
-		cand NearbyCanonArc
+		cand nearbyCanonArc
 		want TjunctionDecline
 	}{
 		{"an interior projection on a long leg splits", cand(500, 500, 8), TjNoDecline},

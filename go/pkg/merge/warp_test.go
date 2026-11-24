@@ -42,7 +42,7 @@ func assertLegBitwiseIdentical(t *testing.T, got, want []Point, ctx string) {
 // side: an endpoint with no node inside the radius is untouched.
 func TestWarpLeg_NoTargets_Identical(t *testing.T) {
 	pts := warpTestLeg(200, 5)
-	got, _, err := WarpLegEndpoints(pts, nil, nil)
+	got, _, err := warpLegEndpoints(pts, nil, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -53,8 +53,8 @@ func TestWarpLeg_NoTargets_Identical(t *testing.T) {
 // is no translation to blend, so nothing may move.
 func TestWarpLeg_ZeroDisplacement_Identical(t *testing.T) {
 	pts := warpTestLeg(200, 5)
-	tgt := &WarpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon}
-	got, _, err := WarpLegEndpoints(pts, tgt, nil)
+	tgt := &warpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon}
+	got, _, err := warpLegEndpoints(pts, tgt, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -129,8 +129,8 @@ func TestWarpLeg_TerminalAssignedBitwise(t *testing.T) {
 		}
 		last := len(pts) - 1
 		off := func(m float64) float64 { return m / metresPerDeg }
-		startT := &WarpTarget{Lat: pts[0].Lat + off(5), Lon: pts[0].Lon - off(6)}
-		endT := &WarpTarget{Lat: pts[last].Lat - off(7), Lon: pts[last].Lon + off(5)}
+		startT := &warpTarget{Lat: pts[0].Lat + off(5), Lon: pts[0].Lon - off(6)}
+		endT := &warpTarget{Lat: pts[last].Lat - off(7), Lon: pts[last].Lon + off(5)}
 		switch base.name {
 		case "prime meridian":
 			// Longitudes on the Meridian Line at both terminals.
@@ -153,7 +153,7 @@ func TestWarpLeg_TerminalAssignedBitwise(t *testing.T) {
 			}
 		}
 
-		got, _, err := WarpLegEndpoints(pts, startT, endT)
+		got, _, err := warpLegEndpoints(pts, startT, endT)
 		if err != nil {
 			t.Fatalf("%s: %v", base.name, err)
 		}
@@ -238,22 +238,22 @@ func TestWarpLeg_TerminalAssignedBitwise_ZeroLineStrips(t *testing.T) {
 				// A 1000 m leg, so the 100 m zone absorbs the ~9 m displacement
 				// with room to spare under the 1.5x adequacy factor.
 				pts := warpTestLeg(201, 5)
-				var tgt *WarpTarget
+				var tgt *warpTarget
 				if fr.asLon {
 					for k := range pts {
 						pts[k].Lat += fr.otherCoordAt - 50
 						pts[k].Lon = pr.p
 					}
-					tgt = &WarpTarget{Lat: pts[0].Lat, Lon: pr.want}
+					tgt = &warpTarget{Lat: pts[0].Lat, Lon: pr.want}
 				} else {
 					for k := range pts {
 						pts[k].Lat += pr.p - 50
 						pts[k].Lon = fr.otherCoordAt
 					}
-					tgt = &WarpTarget{Lat: pr.want, Lon: pts[0].Lon}
+					tgt = &warpTarget{Lat: pr.want, Lon: pts[0].Lon}
 				}
 
-				got, rep, err := WarpLegEndpoints(pts, tgt, nil)
+				got, rep, err := warpLegEndpoints(pts, tgt, nil)
 				if err != nil {
 					t.Fatalf("%s: %v", pr.name, err)
 				}
@@ -292,8 +292,8 @@ func TestWarpLeg_DuplicateTerminalPointsAreAssignedToo(t *testing.T) {
 	pts[1] = pts[0]
 	pts[2] = pts[0]
 
-	tgt := &WarpTarget{Lat: pts[0].Lat, Lon: 1.0852435376673728e-05}
-	got, rep, err := WarpLegEndpoints(pts, tgt, nil)
+	tgt := &warpTarget{Lat: pts[0].Lat, Lon: 1.0852435376673728e-05}
+	got, rep, err := warpLegEndpoints(pts, tgt, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestWarpLeg_ZeroLengthLegWithCoincidentTarget_IsFine(t *testing.T) {
 	for k := range flat {
 		flat[k] = Point{Lat: 50, Lon: -3}
 	}
-	got, _, err := WarpLegEndpoints(flat, &WarpTarget{Lat: 50, Lon: -3}, nil)
+	got, _, err := warpLegEndpoints(flat, &warpTarget{Lat: 50, Lon: -3}, nil)
 	if err != nil {
 		t.Fatalf("a coincident target on a zero-length leg must be a no-op, got: %v", err)
 	}
@@ -334,11 +334,11 @@ func TestWarpLeg_OutsideZoneUntouched(t *testing.T) {
 	const spacing = 5.0
 	pts := warpTestLeg(201, spacing) // 200 gaps => 1000 m of measure
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
 	last := len(pts) - 1
-	endT := &WarpTarget{Lat: pts[last].Lat - 8/metresPerDeg, Lon: pts[last].Lon}
+	endT := &warpTarget{Lat: pts[last].Lat - 8/metresPerDeg, Lon: pts[last].Lon}
 
-	got, _, err := WarpLegEndpoints(pts, startT, endT)
+	got, _, err := warpLegEndpoints(pts, startT, endT)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -370,9 +370,9 @@ func TestWarpLeg_OutsideZoneUntouched(t *testing.T) {
 func TestWarpLeg_DisplacementDecaysMonotonically(t *testing.T) {
 	pts := warpTestLeg(201, 5)
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon + 3/metresPerDeg}
+	startT := &warpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon + 3/metresPerDeg}
 
-	got, _, err := WarpLegEndpoints(pts, startT, nil)
+	got, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -397,19 +397,19 @@ func TestWarpLeg_DisplacementDecaysMonotonically(t *testing.T) {
 func TestWarpLeg_EndsAreIndependent(t *testing.T) {
 	pts := warpTestLeg(201, 5)
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 6/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 6/metresPerDeg, Lon: pts[0].Lon}
 	last := len(pts) - 1
-	endT := &WarpTarget{Lat: pts[last].Lat - 9/metresPerDeg, Lon: pts[last].Lon}
+	endT := &warpTarget{Lat: pts[last].Lat - 9/metresPerDeg, Lon: pts[last].Lon}
 
-	both, _, err := WarpLegEndpoints(pts, startT, endT)
+	both, _, err := warpLegEndpoints(pts, startT, endT)
 	if err != nil {
 		t.Fatalf("both: %v", err)
 	}
-	onlyStart, _, err := WarpLegEndpoints(pts, startT, nil)
+	onlyStart, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("start only: %v", err)
 	}
-	onlyEnd, _, err := WarpLegEndpoints(pts, nil, endT)
+	onlyEnd, _, err := warpLegEndpoints(pts, nil, endT)
 	if err != nil {
 		t.Fatalf("end only: %v", err)
 	}
@@ -432,13 +432,13 @@ func TestWarpLeg_EndsAreIndependent(t *testing.T) {
 func TestWarpLeg_Idempotent(t *testing.T) {
 	pts := warpTestLeg(201, 5)
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 7/metresPerDeg, Lon: pts[0].Lon + 2/metresPerDeg}
+	startT := &warpTarget{Lat: pts[0].Lat + 7/metresPerDeg, Lon: pts[0].Lon + 2/metresPerDeg}
 
-	once, _, err := WarpLegEndpoints(pts, startT, nil)
+	once, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("first warp: %v", err)
 	}
-	twice, _, err := WarpLegEndpoints(once, startT, nil)
+	twice, _, err := warpLegEndpoints(once, startT, nil)
 	if err != nil {
 		t.Fatalf("second warp: %v", err)
 	}
@@ -454,9 +454,9 @@ func TestWarpLeg_ElevationUntouched(t *testing.T) {
 		pts[k].Ele = &e
 	}
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
 
-	got, _, err := WarpLegEndpoints(pts, startT, nil)
+	got, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -534,13 +534,13 @@ func TestWarpLeg_NeverInvertsAArc(t *testing.T) {
 		for _, spacing := range []float64{1, 5, 25} {
 			for _, dispM := range []float64{0.5, 1, 3, 6, 9, 10} {
 				pts := warpTestLeg(nPts, spacing)
-				tgt := &WarpTarget{
+				tgt := &warpTarget{
 					Lat: pts[0].Lat + dispM*0.6/metresPerDeg,
 					// Push mostly ANTIPARALLEL to the leg's own direction,
 					// which is the orientation that folds.
 					Lon: pts[0].Lon + dispM*0.8/metresPerDeg,
 				}
-				got, rep, err := WarpLegEndpoints(pts, tgt, nil)
+				got, rep, err := warpLegEndpoints(pts, tgt, nil)
 				if err != nil {
 					t.Fatalf("n=%d spacing=%v disp=%v: %v", nPts, spacing, dispM, err)
 				}
@@ -566,13 +566,13 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 
 	t.Run("too few points", func(t *testing.T) {
 		one := []Point{{Lat: 50, Lon: -3}}
-		if _, _, err := WarpLegEndpoints(one, &WarpTarget{Lat: 50, Lon: -3}, nil); err == nil {
+		if _, _, err := warpLegEndpoints(one, &warpTarget{Lat: 50, Lon: -3}, nil); err == nil {
 			t.Fatal("expected an error for a 1-point leg, got nil")
 		}
 	})
 
 	t.Run("zero-length leg with a target moves every point to it", func(t *testing.T) {
-		// RESOLVED 2026-08-14: decline is gone, WarpLegEndpoints always tapers.
+		// RESOLVED 2026-08-14: decline is gone, warpLegEndpoints always tapers.
 		// A zero-length leg's zone is 0 (min(legLen=0, ...) = 0), so every
 		// point's measure distance from the terminal is 0 too — the s==0 exact-
 		// assignment branch fires for all of them, not just the terminal. This
@@ -581,14 +581,14 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 		// to the same target preserves that, just at a new coordinate. A
 		// genuinely production-shaped call goes through
 		// warpLegEndpointsToNodes's collapse first (see warp.go's file
-		// comment, "PROBLEM 2") — this test calls WarpLegEndpoints directly,
+		// comment, "PROBLEM 2") — this test calls warpLegEndpoints directly,
 		// which has no such protection and doesn't need it for this shape.
 		flat := make([]Point, 10)
 		for k := range flat {
 			flat[k] = Point{Lat: 50, Lon: -3}
 		}
-		tgt := &WarpTarget{Lat: 50 + 5/metresPerDeg, Lon: -3}
-		got, rep, err := WarpLegEndpoints(flat, tgt, nil)
+		tgt := &warpTarget{Lat: 50 + 5/metresPerDeg, Lon: -3}
+		got, rep, err := warpLegEndpoints(flat, tgt, nil)
 		if err != nil {
 			t.Fatalf("a zero-length leg has a zero zone, but that's still a valid taper — it must not error: %v", err)
 		}
@@ -614,8 +614,8 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 		} {
 			pts := warpTestLeg(200, 5)
 			pts[0] = bad
-			tgt := &WarpTarget{Lat: 50, Lon: -3}
-			if _, _, err := WarpLegEndpoints(pts, tgt, nil); err == nil {
+			tgt := &warpTarget{Lat: 50, Lon: -3}
+			if _, _, err := warpLegEndpoints(pts, tgt, nil); err == nil {
 				t.Fatalf("expected an error for a non-finite source terminal %v, got nil", bad)
 			}
 		}
@@ -633,20 +633,20 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 		const metresPerDeg = math.Pi * 6371000.0 / 180.0
 		pts := warpTestLeg(200, 5)
 		pts[97].Lat = math.NaN()
-		tgt := &WarpTarget{Lat: pts[0].Lat + 5/metresPerDeg, Lon: pts[0].Lon}
-		if _, _, err := WarpLegEndpoints(pts, tgt, nil); err == nil {
+		tgt := &warpTarget{Lat: pts[0].Lat + 5/metresPerDeg, Lon: pts[0].Lon}
+		if _, _, err := warpLegEndpoints(pts, tgt, nil); err == nil {
 			t.Fatal("expected an error for a non-finite interior point, got nil")
 		}
 	})
 
 	t.Run("non-finite target", func(t *testing.T) {
-		for _, bad := range []WarpTarget{
+		for _, bad := range []warpTarget{
 			{Lat: math.NaN(), Lon: -3},
 			{Lat: 50, Lon: math.NaN()},
 			{Lat: math.Inf(1), Lon: -3},
 		} {
 			bad := bad
-			if _, _, err := WarpLegEndpoints(good, &bad, nil); err == nil {
+			if _, _, err := warpLegEndpoints(good, &bad, nil); err == nil {
 				t.Fatalf("expected an error for target %v, got nil", bad)
 			}
 		}
@@ -672,9 +672,9 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 func TestWarpLeg_BlendIsSmoothstepNotLinear(t *testing.T) {
 	pts := warpTestLeg(201, 5) // 1000 m of measure, 8 m displacement => a 40 m zone => 8 gaps
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
-	startT := &WarpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 8/metresPerDeg, Lon: pts[0].Lon}
 
-	got, _, err := WarpLegEndpoints(pts, startT, nil)
+	got, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -711,7 +711,7 @@ func TestWarpLeg_BlendIsSmoothstepNotLinear(t *testing.T) {
 // TestWarpLegWidened_DoesNotChangeS2 stood here asserting the opposite of
 // what's true now. It was ruled the same day, after this section first landed:
 // "Yeah, all warping should change to this rule." So every test below now
-// exercises WarpLegEndpoints directly — the ONE entry point, used by the
+// exercises warpLegEndpoints directly — the ONE entry point, used by the
 // endpoint warp and by node-in-place moves alike — and the old
 // endpoints-must-not-move test is
 // deleted rather than kept as a stale pin.
@@ -721,7 +721,7 @@ func TestWarpLeg_BlendIsSmoothstepNotLinear(t *testing.T) {
 // TestWarp_TapersAboveFloorFallsBelowIt (RESOLVED 2026-08-14: decline and the
 // plain-snap outcome are deleted — "there is one method for moving a node,"
 // see warp_core.go's file comment). There is
-// no longer a floor WarpLegEndpoints itself respects; given a target, it
+// no longer a floor warpLegEndpoints itself respects; given a target, it
 // always tapers, whether the leg is comfortably above the genuine
 // 1.5x-displacement floor or nowhere near it.
 //
@@ -746,8 +746,8 @@ func TestWarp_AlwaysTapersRegardlessOfFloor(t *testing.T) {
 		100 * displacement, // a long leg, the zone a small part of it
 	} {
 		pts := warpTestLeg(2, legLen)
-		startT := &WarpTarget{Lat: pts[0].Lat + displacement/metresPerDeg, Lon: pts[0].Lon}
-		got, rep, err := WarpLegEndpoints(pts, startT, nil)
+		startT := &warpTarget{Lat: pts[0].Lat + displacement/metresPerDeg, Lon: pts[0].Lon}
+		got, rep, err := warpLegEndpoints(pts, startT, nil)
 		if err != nil {
 			t.Fatalf("legLen=%.3f displacement=%.3f: %v", legLen, displacement, err)
 		}
@@ -762,7 +762,7 @@ func TestWarp_AlwaysTapersRegardlessOfFloor(t *testing.T) {
 }
 
 // TestWarp_MultiPointBelowFloorCanFold is the other half of the contract
-// change: WarpLegEndpoints has no protection against folding a MULTI-point
+// change: warpLegEndpoints has no protection against folding a MULTI-point
 // leg below the floor, and now nothing upstream rescues it either —
 // collapseLegIfBelowTaperFloor, which used to reduce such a leg to its two
 // terminals first, is DELETED (2026-08-14: "get rid of this whole
@@ -775,8 +775,8 @@ func TestWarp_MultiPointBelowFloorCanFold(t *testing.T) {
 	// 21 points, 1 m apart = 20 m of measure; a 30 m displacement is well past
 	// the floor (1.5*30 = 45 m > 20 m).
 	pts := warpTestLeg(21, 1)
-	startT := &WarpTarget{Lat: pts[0].Lat + 30/metresPerDeg, Lon: pts[0].Lon}
-	got, rep, err := WarpLegEndpoints(pts, startT, nil)
+	startT := &warpTarget{Lat: pts[0].Lat + 30/metresPerDeg, Lon: pts[0].Lon}
+	got, rep, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -808,8 +808,8 @@ func TestWarp_FarEndNeverMovesWhenZoneIsCapped(t *testing.T) {
 	// the floor, so it still tapers; the cap alone must not push it into
 	// decline, and the far end must not move.
 	pts := warpTestLeg(2, 20)
-	startT := &WarpTarget{Lat: pts[0].Lat + 5/metresPerDeg, Lon: pts[0].Lon}
-	got, rep, err := WarpLegEndpoints(pts, startT, nil)
+	startT := &warpTarget{Lat: pts[0].Lat + 5/metresPerDeg, Lon: pts[0].Lon}
+	got, rep, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -826,7 +826,7 @@ func TestWarp_FarEndNeverMovesWhenZoneIsCapped(t *testing.T) {
 // TestWarp_AccumulateSumsOverlappingZones replaces
 // TestWarp_DisjointnessScalesDownProportionally now that overlap is handled
 // by SUMMING each end's displacement field rather than by proportionally
-// shrinking the two zones (WarpLegEndpoints' "THE FIX: accumulate" comment).
+// shrinking the two zones (warpLegEndpoints' "THE FIX: accumulate" comment).
 // 100 m leg, 15 m at each end: zoneFor gives each end
 // min(100, max(10, 5*15)) = 75 m — genuinely overlapping (75+75=150 > 100),
 // covering the ENTIRE interior, not just a boundary case.
@@ -847,11 +847,11 @@ func TestWarp_AccumulateSumsOverlappingZones(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	// 11 points at 10 m spacing = 100 m of measure.
 	pts := warpTestLeg(11, 10)
-	startT := &WarpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
 	last := len(pts) - 1
-	endT := &WarpTarget{Lat: pts[last].Lat - 15/metresPerDeg, Lon: pts[last].Lon}
+	endT := &warpTarget{Lat: pts[last].Lat - 15/metresPerDeg, Lon: pts[last].Lon}
 
-	both, rep, err := WarpLegEndpoints(pts, startT, endT)
+	both, rep, err := warpLegEndpoints(pts, startT, endT)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v (must accumulate, not error)", err)
 	}
@@ -859,11 +859,11 @@ func TestWarp_AccumulateSumsOverlappingZones(t *testing.T) {
 		t.Fatalf("expected both ends to taper (75 m zones, above the 22.5 m floor): %+v", rep)
 	}
 
-	startOnly, _, err := WarpLegEndpoints(pts, startT, nil)
+	startOnly, _, err := warpLegEndpoints(pts, startT, nil)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints (start only): %v", err)
 	}
-	endOnly, _, err := WarpLegEndpoints(pts, nil, endT)
+	endOnly, _, err := warpLegEndpoints(pts, nil, endT)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints (end only): %v", err)
 	}
@@ -909,10 +909,10 @@ func TestWarp_AccumulateSumsOverlappingZones(t *testing.T) {
 func TestWarp_DisjointnessAllowsAdequateLeg(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	pts := warpTestLeg(2, 150)
-	startT := &WarpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
-	endT := &WarpTarget{Lat: pts[len(pts)-1].Lat - 15/metresPerDeg, Lon: pts[len(pts)-1].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
+	endT := &warpTarget{Lat: pts[len(pts)-1].Lat - 15/metresPerDeg, Lon: pts[len(pts)-1].Lon}
 
-	_, rep, err := WarpLegEndpoints(pts, startT, endT)
+	_, rep, err := warpLegEndpoints(pts, startT, endT)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -929,7 +929,7 @@ func TestWarp_DisjointnessAllowsAdequateLeg(t *testing.T) {
 // which this would have duplicated.
 
 // TestWarp_TerminalExactRegardlessOfOverlap is the constructive proof
-// WarpLegEndpoints' file comment claims ("WHY THIS IS SAFE AT THE ENDPOINTS
+// warpLegEndpoints' file comment claims ("WHY THIS IS SAFE AT THE ENDPOINTS
 // BY CONSTRUCTION, NOT BY ASSERTION"): even on the heavily-overlapping 100 m
 // leg from TestWarp_AccumulateSumsOverlappingZones, where the interior is
 // touched by BOTH ends' accumulators, each terminal must still land
@@ -940,11 +940,11 @@ func TestWarp_DisjointnessAllowsAdequateLeg(t *testing.T) {
 func TestWarp_TerminalExactRegardlessOfOverlap(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	pts := warpTestLeg(11, 10)
-	startT := &WarpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
+	startT := &warpTarget{Lat: pts[0].Lat + 15/metresPerDeg, Lon: pts[0].Lon}
 	last := len(pts) - 1
-	endT := &WarpTarget{Lat: pts[last].Lat - 15/metresPerDeg, Lon: pts[last].Lon}
+	endT := &warpTarget{Lat: pts[last].Lat - 15/metresPerDeg, Lon: pts[last].Lon}
 
-	got, rep, err := WarpLegEndpoints(pts, startT, endT)
+	got, rep, err := warpLegEndpoints(pts, startT, endT)
 	if err != nil {
 		t.Fatalf("warpLegEndpoints: %v", err)
 	}
@@ -964,11 +964,11 @@ func TestWarp_TerminalExactRegardlessOfOverlap(t *testing.T) {
 // TestCheckTerminalsExact_CatchesAViolation proves checkTerminalsExact's
 // failure branch actually fires — a guard that has only ever been observed
 // passing is not proven able to fail (see its doc comment). Hands it a
-// deliberately wrong `out` directly, bypassing WarpLegEndpoints entirely, so
+// deliberately wrong `out` directly, bypassing warpLegEndpoints entirely, so
 // this is independent of whatever the accumulator currently computes.
 func TestCheckTerminalsExact_CatchesAViolation(t *testing.T) {
-	start := &WarpTarget{Lat: 51.0, Lon: -3.0}
-	end := &WarpTarget{Lat: 51.001, Lon: -3.001}
+	start := &warpTarget{Lat: 51.0, Lon: -3.0}
+	end := &warpTarget{Lat: 51.001, Lon: -3.001}
 	out := []Point{
 		{Lat: start.Lat + 1e-9, Lon: start.Lon}, // wrong: off by a hair
 		{Lat: 51.0005, Lon: -3.0005},

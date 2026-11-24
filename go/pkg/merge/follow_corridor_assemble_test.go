@@ -1,7 +1,7 @@
 package merge
 
-// Assembly properties of the live follow path: [CorridorFollowRuns] partitions
-// the leg and [AssembleFollowedLegRunsCorridor] commits it. The fixtures are
+// Assembly properties of the live follow path: [corridorFollowRuns] partitions
+// the leg and [assembleFollowedLegRunsCorridor] commits it. The fixtures are
 // the assembly rules (terminals verbatim, canon interiors byte-copied,
 // duplicates preserved, seams deduped, no taper at a sparse canon terminal).
 
@@ -13,14 +13,14 @@ import (
 
 // assembleCorridorPoints runs the live assembler with no node access, as
 // production does, and returns only the committed points.
-func assembleCorridorPoints(leg []Point, canon []CanonArc, runs []FollowRun, b FollowBands) ([]Point, error) {
-	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
+func assembleCorridorPoints(leg []Point, canon []CanonArc, runs []FollowRun, b followBands) ([]Point, error) {
+	asm, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, err
 }
 
 // assembleCorridorRuns is [assembleCorridorPoints] plus the effective runs.
-func assembleCorridorRuns(leg []Point, canon []CanonArc, runs []FollowRun, b FollowBands) ([]Point, []FollowRun, error) {
-	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
+func assembleCorridorRuns(leg []Point, canon []CanonArc, runs []FollowRun, b followBands) ([]Point, []FollowRun, error) {
+	asm, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, asm.Runs, err
 }
 
@@ -30,7 +30,7 @@ func legEndPos(leg []Point) SourcePos {
 }
 
 func TestFollowCorridorAssemble_FullDuplicateInteriorByteIdenticalTerminalsVerbatim(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Canon with distinctive interior pips carrying elevation.
 	canonPts := []Point{
 		mPt(0, 0, 100), mPt(25, 0, 110), mPt(50, 0, 120), mPt(75, 0, 130), mPt(100, 0, 140),
@@ -81,14 +81,14 @@ func TestFollowCorridorAssemble_FullDuplicateInteriorByteIdenticalTerminalsVerba
 }
 
 func TestFollowCorridorAssemble_OffOnJunctionLandsOnCanonNoBackwardSpike(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Canon is a single long edge; the leg enters coincidence MID-edge.
 	canon := []CanonArc{mCanon(1, mPt(0, 0), mPt(100, 0))}
 	leg := []Point{
 		mPt(10, 40), mPt(25, 40), // OFF, far north
 		mPt(40, 1), mPt(55, 1), mPt(70, 1), mPt(85, 1), // ON, mid→end
 	}
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestFollowCorridorAssemble_OffOnJunctionLandsOnCanonNoBackwardSpike(t *test
 	//
 	// Compared against the EFFECTIVE run's MeasureStart, not the matcher's:
 	// the emitted geometry is built from the assembler's measure.
-	pc := PrepCandidates(canon)[0]
+	pc := prepCandidates(canon)[0]
 	entryLat, entryLon := pc.interpOnCanon(effOn[0].MeasureStart)
 	// Find the first on-line point in the output (y≈0).
 	var entry Point
@@ -146,7 +146,7 @@ func TestFollowCorridorAssemble_OffOnJunctionLandsOnCanonNoBackwardSpike(t *test
 }
 
 func TestFollowCorridorAssemble_AntiParallelReversedWithEle(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	canonPts := []Point{
 		mPt(0, 0, 100), mPt(25, 0, 125), mPt(50, 0, 150), mPt(75, 0, 175), mPt(100, 0, 200),
 	}
@@ -157,7 +157,7 @@ func TestFollowCorridorAssemble_AntiParallelReversedWithEle(t *testing.T) {
 		x := 100 - 100*float64(i)/20
 		leg[i] = mPt(x, 1)
 	}
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -192,14 +192,14 @@ func TestFollowCorridorAssemble_AntiParallelReversedWithEle(t *testing.T) {
 }
 
 func TestFollowCorridorAssemble_BoundaryEleNilWhenCanonBoundNil(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Canon whose middle vertices lack elevation — a boundary interpolated
 	// between a nil-ele pair must be nil.
 	canon := []CanonArc{mCanon(1,
 		mPt(0, 0, 100), mPt(50, 0), mPt(100, 0), // vertices 2,3 have nil ele
 	)}
 	leg := straightLegX(21, 100, 1)
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestFollowCorridorAssemble_BoundaryEleNilWhenCanonBoundNil(t *testing.T) {
 }
 
 func TestFollowCorridorAssemble_NoZeroLengthStepsAndSeamDedup(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Two abutting canon arcs sharing an endpoint at x=50. A leg
 	// coincident across both yields two ON runs; the ON↔ON seam must dedup
 	// the shared boundary point and emit no zero-length step.
@@ -233,7 +233,7 @@ func TestFollowCorridorAssemble_NoZeroLengthStepsAndSeamDedup(t *testing.T) {
 	canonB := mCanon(2, mPt(50, 0), mPt(75, 0), mPt(100, 0))
 	canon := []CanonArc{canonA, canonB}
 	leg := straightLegX(21, 100, 1)
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestFollowCorridorAssemble_NoZeroLengthStepsAndSeamDedup(t *testing.T) {
 }
 
 func TestFollowCorridorAssemble_RepealedCorridorPostConditionCommitsVerbatim(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// A hand-built ON run claiming coincidence with a canon the source is
 	// nowhere near (40 m off) used to trip the symmetric-corridor
 	// post-condition (assembleOnRun's checkCorridor abort).
@@ -267,7 +267,7 @@ func TestFollowCorridorAssemble_RepealedCorridorPostConditionCommitsVerbatim(t *
 	// silently reintroducing the old bound.
 	canon := []CanonArc{mCanon(1, mPt(0, 0), mPt(100, 0))}
 	leg := straightLegX(11, 100, 40) // 40 m north of canon
-	pc := PrepCandidates(canon)[0]
+	pc := prepCandidates(canon)[0]
 	corrupt := []FollowRun{{
 		Kind:         RunOn,
 		Start:        SourcePos{},
@@ -304,7 +304,7 @@ func TestFollowCorridorAssemble_RepealedCorridorPostConditionCommitsVerbatim(t *
 }
 
 func TestFollowCorridorAssemble_AllOffIsVerbatim(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// No canon → the whole leg is one OFF run → output byte-identical to
 	// source (the empty-network degenerate case).
 	leg := straightLegX(7, 60, 0)
@@ -323,7 +323,7 @@ func TestFollowCorridorAssemble_AllOffIsVerbatim(t *testing.T) {
 }
 
 func TestFollowCorridorAssemble_SpurApexNeverCommitted(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// The source runs straight past a 30 m out-and-back canon spur at x=40
 	// whose base no source sample lands on (samples straddle it at x=37.5
 	// and x=42.5). Whatever partition the solve chooses around the spur, the
@@ -338,7 +338,7 @@ func TestFollowCorridorAssemble_SpurApexNeverCommitted(t *testing.T) {
 	for i := range leg {
 		leg[i] = mPt(2.5+5*float64(i), 1)
 	}
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -372,7 +372,7 @@ func TestFollowCorridorAssemble_SpurApexNeverCommitted(t *testing.T) {
 // re-import seeing the same canon it saw the first time (re-derive stability),
 // which is a separate concern outside the assembler.
 func TestFollowCorridorAssemble_ExactDuplicateByteIdentical(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	check := func(name string, canonPts []Point) {
 		canon := []CanonArc{{ID: 1, Vertices: canonPts}}
 		leg := append([]Point(nil), canonPts...) // exact copy
@@ -404,7 +404,7 @@ func TestFollowCorridorAssemble_ExactDuplicateByteIdentical(t *testing.T) {
 }
 
 func TestFollowCorridorAssemble_OffVerbatimPreservesSourceDuplicates(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Empty network → all-OFF verbatim. A consecutive duplicate source point
 	// (GPS resting jitter) must be PRESERVED byte-for-byte — no silent
 	// shortening (faithful import).
@@ -427,12 +427,12 @@ func TestFollowCorridorAssemble_OffVerbatimPreservesSourceDuplicates(t *testing.
 }
 
 func TestFollowCorridorAssemble_OnInteriorPreservesCanonDuplicates(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Canon with a consecutive DUPLICATE vertex at (60,0). ON interior is a
 	// byte-copy of canon — the duplicate must appear in the committed interior.
 	canon := []CanonArc{mCanon(1, mPt(0, 0), mPt(30, 0), mPt(60, 0), mPt(60, 0), mPt(90, 0), mPt(120, 0))}
 	leg := straightLegX(25, 120, 1)
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -456,7 +456,7 @@ func TestFollowCorridorAssemble_OnInteriorPreservesCanonDuplicates(t *testing.T)
 }
 
 func TestFollowCorridorAssemble_OnOnSeamStillDedups(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Two abutting canon arcs share the exact vertex (50,0). A leg
 	// following both chains across the seam; arc1's minted exit coincides with
 	// arc2's minted entry — the SOLE ratified dedup (keep-first). No consecutive
@@ -465,7 +465,7 @@ func TestFollowCorridorAssemble_OnOnSeamStillDedups(t *testing.T) {
 	arcB := mCanon(2, mPt(50, 0), mPt(75, 0), mPt(100, 0))
 	canon := []CanonArc{arcA, arcB}
 	leg := straightLegX(21, 100, 1)
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestFollowCorridorAssemble_OnOnSeamStillDedups(t *testing.T) {
 // the old assembly the committed line is the source's own chord, up to ~2.4 m
 // off canon along its whole length; the assertion below fails at ~1.9 m.
 func TestFollowCorridorAssemble_SparseCanonTerminalDoesNotTaper(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	// Vertex-less canon: one 300 m straight edge, exactly like the real
 	// 145.7 m tail edge a later file had to reach across.
 	canonPts := []Point{mPt(0, 0), mPt(300, 0)}
@@ -552,9 +552,9 @@ func TestFollowCorridorAssemble_SparseCanonTerminalDoesNotTaper(t *testing.T) {
 }
 
 // assembleOrFail partitions then assembles, failing the test on error.
-func assembleOrFail(t *testing.T, leg []Point, canon []CanonArc, b FollowBands) []Point {
+func assembleOrFail(t *testing.T, leg []Point, canon []CanonArc, b followBands) []Point {
 	t.Helper()
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, b)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -635,7 +635,7 @@ func handoffRunsCorridor(arcA, arcB CanonArc, measureStart float64) []FollowRun 
 // boundary snaps onto the node (the candidate's own end, which needs no node
 // lookup) and canon's own geometry survives.
 func TestFollowCorridorAssemble_OnOnHandoffSnapsToSharedNode(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	arcA := mCanon(1, mPt(0, 0), mPt(25, 0), mPt(50, 0))
 	// arcB carries an interior vertex 3 m from the shared node (53,0) — canon's
 	// own geometry the chord must not skip.
@@ -686,7 +686,7 @@ func TestFollowCorridorAssemble_OnOnHandoffSnapsToSharedNode(t *testing.T) {
 // is outside the corridor. Widening the budget AND opening that gate turns it
 // red (measured).
 func TestFollowCorridorAssemble_OnOnHandoffBeyondBudgetNotSnapped(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	arcA := mCanon(1, mPt(0, 0), mPt(25, 0), mPt(50, 0))
 	arcB := mCanon(2, mPt(50, 0), mPt(75, 0), mPt(100, 0))
 	canon := []CanonArc{arcA, arcB}
@@ -732,14 +732,14 @@ func onRunsBoundTo(runs []FollowRun, canonID ArcID) bool {
 }
 
 func TestFollowCorridorMatch_AntiParallel(t *testing.T) {
-	bands := DefaultFollowBands()
+	bands := defaultFollowBands()
 	a := straightLegX(11, 100, 0)
 	b := make([]Point, 21) // east→west, 1 m north
 	for i := range b {
 		b[i] = mPt(100-100*float64(i)/20, 1)
 	}
 	canon := []CanonArc{{ID: 1, Vertices: a}}
-	runs, err := CorridorFollowRuns(t.Context(), b, canon, bands)
+	runs, err := corridorFollowRuns(t.Context(), b, canon, bands)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -754,7 +754,7 @@ func TestFollowCorridorMatch_AntiParallel(t *testing.T) {
 }
 
 func TestFollowCorridorMatch_CanonAcrossAbuttingArcs(t *testing.T) {
-	bands := DefaultFollowBands()
+	bands := defaultFollowBands()
 	ca := straightLegX(6, 50, 0) // x 0..50
 	cb := make([]Point, 6)
 	for i := range cb {
@@ -762,7 +762,7 @@ func TestFollowCorridorMatch_CanonAcrossAbuttingArcs(t *testing.T) {
 	}
 	leg := straightLegX(21, 100, 1) // spans both, 1 m north
 	canon := []CanonArc{{ID: 1, Vertices: ca}, {ID: 2, Vertices: cb}}
-	runs, err := CorridorFollowRuns(t.Context(), leg, canon, bands)
+	runs, err := corridorFollowRuns(t.Context(), leg, canon, bands)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
@@ -782,7 +782,7 @@ func TestFollowCorridorMatch_CanonAcrossAbuttingArcs(t *testing.T) {
 }
 
 func TestFollowCorridorMatch_HairpinArm(t *testing.T) {
-	bands := DefaultFollowBands()
+	bands := defaultFollowBands()
 	// Canon: out along north 0 (x 0→90), turn, back along north 3 (x 90→0) — a
 	// hairpin whose two arms are 3 m apart (both within Stay of a mid source).
 	hp := []Point{
@@ -796,7 +796,7 @@ func TestFollowCorridorMatch_HairpinArm(t *testing.T) {
 		src[i] = mPt(5*float64(i), 0.5)
 	}
 	canon := []CanonArc{{ID: 1, Vertices: hp}}
-	runs, err := CorridorFollowRuns(t.Context(), src, canon, bands)
+	runs, err := corridorFollowRuns(t.Context(), src, canon, bands)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}

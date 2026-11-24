@@ -1,6 +1,6 @@
 package merge
 
-// The gap-merge branch of [WarpUnresolvedLegTerminals] MINTS a node and
+// The gap-merge branch of [warpUnresolvedLegTerminals] MINTS a node and
 // points both of a leg's terminals at it. Every other way both terminals come
 // back resolved means they JOINED nodes that already existed. The two are
 // bit-identical in the WarpReport — same two non-nil ids — and they need

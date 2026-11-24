@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-// NearbyNode is a node found by a nearby-node search: its id, the
+// nearbyNode is a node found by a nearby-node search: its id, the
 // coordinates as stored, and its measured distance from the probe.
 //
 // The coordinates are returned rather than left for the caller to look up
@@ -14,9 +14,7 @@ import (
 // endpoint. A second lookup to fetch lat/lon would be both wasteful and an
 // invitation to reuse the node, which is the align step's job and not the
 // warp's.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type NearbyNode struct {
+type nearbyNode struct {
 	ID    NodeID
 	Lat   float64
 	Lon   float64
@@ -25,13 +23,13 @@ type NearbyNode struct {
 
 // nearestNearbyNode reduces a candidate list to its nearest node, or
 // (zero, false) for an empty list.
-func nearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
+func nearestNearbyNode(all []nearbyNode) (nearbyNode, bool) {
 	// NEAREST WINS, TIES TO THE ROW THE QUERY YIELDED FIRST — the strict `<`
 	// is what makes that true, and the caller's search preserves row
 	// order for exactly this reason. This reduction IS the whole difference
 	// between the singular and plural forms; nothing about the box, the
 	// exclude rule or the `<= radiusM` boundary is decided here.
-	var best NearbyNode
+	var best nearbyNode
 	bestD := math.MaxFloat64
 	for _, n := range all {
 		if n.DistM < bestD {
@@ -39,7 +37,7 @@ func nearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
 		}
 	}
 	if best.ID == 0 {
-		return NearbyNode{}, false
+		return nearbyNode{}, false
 	}
 	return best, true
 }
@@ -49,7 +47,7 @@ func nearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
 // names it, and whether it is inside the search (not excluded, and
 // `d <= radiusM`). n carries the row's id and coordinates and the distance
 // whether or not it is inside.
-func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float64, exclude []NodeID) (n NearbyNode, excluded, inside bool) {
+func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float64, exclude []NodeID) (n nearbyNode, excluded, inside bool) {
 	d := HaversineMetres(lat, lon, nLat, nLon)
 	isExcluded := slices.Contains(exclude, id)
 	// Coordinates are carried through EXACTLY as stored — never
@@ -57,7 +55,7 @@ func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float
 	// incoming endpoint and the whole point is bitwise coincidence, so a
 	// value that merely round-trips through a formula would
 	// silently defeat the identity test the align step depends on.
-	n = NearbyNode{ID: id, Lat: nLat, Lon: nLon, DistM: d}
+	n = nearbyNode{ID: id, Lat: nLat, Lon: nLon, DistM: d}
 	// EXCLUDED BEFORE "nearest" IS DECIDED, not after: an excluded row
 	// competes for nothing, so a further-but-eligible candidate is what
 	// wins, exactly as if the excluded row were never in the canon at
@@ -70,7 +68,7 @@ func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float
 	return n, false, d <= radiusM
 }
 
-// NodeSearchBox returns the lat/lon window used to pre-filter candidate
+// nodeSearchBox returns the lat/lon window used to pre-filter candidate
 // nodes for a metric disc of radius `radiusM` centred on (lat, lon). The
 // window is a TRUE SUPERSET of that disc — it may admit points the
 // haversine refine then rejects, but it must never exclude one the
@@ -96,9 +94,7 @@ func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float
 // than the 180° such a disc genuinely spans, so it could exclude a node
 // the refine would have accepted. Handling the two seams explicitly
 // removes both the wrong box and the need for any epsilon.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func NodeSearchBox(lat, lon, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
+func nodeSearchBox(lat, lon, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
 	latDelta, lonDelta := metresToDegBox(lat, radiusM)
 	minLat, maxLat = lat-latDelta, lat+latDelta
 	if lonDelta >= 180 || lon-lonDelta < -180 || lon+lonDelta > 180 {
@@ -155,23 +151,23 @@ func metresToDegBox(lat, radiusM float64) (latDelta, lonDelta float64) {
 // measureNodeNearPath measures one candidate node (id, nLat, nLon) against the walk:
 // excluded or beyond radiusM gives (zero, false, nil). The error is the
 // projection's own, unwrapped.
-func measureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id NodeID, nLat, nLon float64) (NodeNearPath, bool, error) {
+func measureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id NodeID, nLat, nLon float64) (nodeNearPath, bool, error) {
 	if slices.Contains(exclude, id) {
-		return NodeNearPath{}, false, nil
+		return nodeNearPath{}, false, nil
 	}
 	proj, err := ProjectProbeOntoWalk(verts, nLat, nLon)
 	if err != nil {
-		return NodeNearPath{}, false, err
+		return nodeNearPath{}, false, err
 	}
 	if proj.DistM > radiusM {
-		return NodeNearPath{}, false, nil
+		return nodeNearPath{}, false, nil
 	}
-	return NodeNearPath{
+	return nodeNearPath{
 		ID:        id,
 		Lat:       nLat,
 		Lon:       nLon,
 		SegIdx:    proj.SegIdx,
-		PointIdx:  NearestVertexIndex(verts, nLat, nLon),
+		PointIdx:  nearestVertexIndex(verts, nLat, nLon),
 		DistM:     proj.DistM,
 		ProjLat:   proj.Lat,
 		ProjLon:   proj.Lon,
@@ -183,8 +179,8 @@ func measureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id No
 
 // sortNodesNearPath puts nodes near a path in walk order: nearest vertex,
 // then distance along the walk, then node id.
-func sortNodesNearPath(out []NodeNearPath) {
-	slices.SortFunc(out, func(a, b NodeNearPath) int {
+func sortNodesNearPath(out []nodeNearPath) {
+	slices.SortFunc(out, func(a, b nodeNearPath) int {
 		if a.PointIdx != b.PointIdx {
 			return a.PointIdx - b.PointIdx
 		}
@@ -206,17 +202,15 @@ func cmpFloat(a, b float64) int {
 	}
 }
 
-// NearestVertexIndex returns the index of the walk vertex closest to
+// nearestVertexIndex returns the index of the walk vertex closest to
 // (lat, lon), measured with [HaversineMetres] — the same distance function
 // the projection's own DistM is measured with. Ties go to the LOWER index,
 // which is what makes the answer independent of vertex order among
 // coincident vertices.
 //
 // This is a distance to VERTICES, a different question from the distance to
-// the walk, and the two have different answers; see [NodeNearPath].
-//
-// Exported for the reference application's tests; not part of the stable API.
-func NearestVertexIndex(verts []Point, lat, lon float64) int {
+// the walk, and the two have different answers; see [nodeNearPath].
+func nearestVertexIndex(verts []Point, lat, lon float64) int {
 	best, bestD := 0, math.MaxFloat64
 	for i, v := range verts {
 		d := HaversineMetres(lat, lon, v.Lat, v.Lon)
@@ -227,7 +221,7 @@ func NearestVertexIndex(verts []Point, lat, lon float64) int {
 	return best
 }
 
-// WalkSearchBox returns the lat/lon window used to pre-filter candidate
+// walkSearchBox returns the lat/lon window used to pre-filter candidate
 // nodes for the metric neighbourhood of `verts` at radius `radiusM`: the
 // walk's own bounding box, grown by the box half-extents [metresToDegBox]
 // gives for that radius.
@@ -238,12 +232,12 @@ func NearestVertexIndex(verts []Point, lat, lon float64) int {
 // node near this leg" and could not tell it from a genuine miss.
 //
 // Growing the WALK'S box is not the same as taking the union of a
-// [NodeSearchBox] per vertex, and the difference is the whole point: a node
+// [nodeSearchBox] per vertex, and the difference is the whole point: a node
 // 15 m from the middle of a 5 km leg is inside the walk's grown box and
 // inside NO vertex's box. That union would have been a silent narrowing.
 //
 // Longitude widens to the whole world in three cases where no finite window
-// is a superset — the two [NodeSearchBox] handles (the neighbourhood reaches
+// is a superset — the two [nodeSearchBox] handles (the neighbourhood reaches
 // a pole, or the window would cross the ±180 seam), plus one that only a
 // walk has: a longitude span wider than 180°, which is what a walk stepping
 // across the seam looks like to a plain min/max. Distinguishing a
@@ -252,9 +246,7 @@ func NearestVertexIndex(verts []Point, lat, lon float64) int {
 // WIDENING, not a fallback: the refine still makes every decision, and the
 // only cost is a larger candidate set in geographies trail data rarely
 // visits.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func WalkSearchBox(verts []Point, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
+func walkSearchBox(verts []Point, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
 	minLat, maxLat = verts[0].Lat, verts[0].Lat
 	minLon, maxLon = verts[0].Lon, verts[0].Lon
 	for _, v := range verts[1:] {

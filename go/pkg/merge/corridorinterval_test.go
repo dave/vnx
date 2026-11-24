@@ -7,7 +7,7 @@ package merge
 // floor (a measured 0.026 m gap on an 880 m edge), never at
 // 1e-6 — the intervals' own acceptance criterion. mPt places
 // fixtures using a fixed linear lat/lon-to-metres approximation
-// (follow_test.go), while NewSourceMeasure/PrepCandidates measure real haversine
+// (follow_test.go), while newSourceMeasure/prepCandidates measure real haversine
 // distance between them, so even an exactly-computed corridor boundary
 // disagrees with a hand-computed planar expectation by a small, real amount —
 // not a bug to chase to 1e-6.
@@ -39,24 +39,24 @@ func TestCorridorIntervals_SinglePointLegIsNilNotError(t *testing.T) {
 }
 
 func TestCorridorIntervals_NoCandidatesIsNilNotError(t *testing.T) {
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	ivs, err := CorridorIntervals(t.Context(), sa, nil, 15)
+	ivs, err := corridorIntervals(t.Context(), sa, nil, 15)
 	if err != nil || ivs != nil {
 		t.Fatalf("no candidates: got ivs=%v err=%v, want nil,nil", ivs, err)
 	}
 }
 
 func TestCorridorIntervals_DegenerateCandidateSkippedAsNil(t *testing.T) {
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	// PrepCandidates itself would leave a <2-vertex or zero-length arc nil;
+	// prepCandidates itself would leave a <2-vertex or zero-length arc nil;
 	// a caller handing this function a nil slot must see it skipped, not error.
-	ivs, err := CorridorIntervals(t.Context(), sa, []*PreppedCandidate{nil}, 15)
+	ivs, err := corridorIntervals(t.Context(), sa, []*PreppedCandidate{nil}, 15)
 	if err != nil || ivs != nil {
 		t.Fatalf("nil candidate slot: got ivs=%v err=%v, want nil,nil", ivs, err)
 	}
@@ -76,7 +76,7 @@ func TestCorridorIntervals_StraightOverlapOneIntervalExactCrossings(t *testing.T
 	// Source: two edges, x=0→50→100 at y=0, so the true corridor
 	// [30-√200, 70+√200] ≈ [15.86, 84.14] straddles the source's own midpoint
 	// vertex at x=50 and must be found by JOINING the two source edges' pieces.
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestCorridorIntervals_StraightOverlapOneIntervalExactCrossings(t *testing.T
 // computed by the exposed regime coefficients, land on the band edge (≈R²) —
 // the load-bearing check that the coefficients are the SAME solve the
 // boundary itself came from, not a lookalike.
-func checkPieceEndpointsOnBand(t *testing.T, iv CorridorInterval, R float64) {
+func checkPieceEndpointsOnBand(t *testing.T, iv corridorInterval, R float64) {
 	t.Helper()
 	n := len(iv.Pieces)
 	for i, p := range iv.Pieces {
@@ -194,7 +194,7 @@ func TestCorridorIntervals_HairpinApexOneInterval(t *testing.T) {
 		y := -40 + 80*float64(i)/float64(n-1)
 		pts[i] = mPt(5, y)
 	}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestCorridorIntervals_SelfApproachTwoIntervals(t *testing.T) {
 		mPt(50, 500), mPt(0, 500), mPt(0, -5), // edges 1-3: a detour far away
 		mPt(50, -5), // edge 4: far arm, y=-5
 	)
-	sa, err := NewSourceMeasure(straightLegX(3, 50, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 50, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestCorridorIntervals_SelfApproachTwoIntervals(t *testing.T) {
 func TestCorridorPieceDistSq_MatchesClosestPointOnSeg(t *testing.T) {
 	const R = 15.0
 	pc := prepOne(t, mPt(30, 5), mPt(70, 5))
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestCorridorPieceDistSq_MatchesClosestPointOnSeg(t *testing.T) {
 func TestCorridorPieceDistSq_SpanRegimeAgreesUnexpanded(t *testing.T) {
 	const R = 15.0
 	pc := prepOne(t, mPt(-500, 5), mPt(500, 5)) // long canon edge, y=5
-	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(3, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -407,39 +407,39 @@ func TestCorridorPieceDistSq_SpanRegimeAgreesUnexpanded(t *testing.T) {
 	// far from either endpoint), so the interval must cover the WHOLE source
 	// — sa.total(), its own haversine-measured length, not the nominal 100 m
 	// the fixture was built from (mPt's fixed lat/lon-to-metres constant
-	// differs slightly from the haversine radius NewSourceMeasure measures with).
+	// differs slightly from the haversine radius newSourceMeasure measures with).
 	if iv.ImportMeasureLo > corridorTol || iv.ImportMeasureHi < sa.Total()-corridorTol {
 		t.Fatalf("interval [%.6g,%.6g], want ≈[0,%.6g]", iv.ImportMeasureLo, iv.ImportMeasureHi, sa.Total())
 	}
 }
 
-// corridorIntervalsForLeg is [CorridorIntervals] taking raw source points
-// instead of a pre-built [SourceMeasure].
+// corridorIntervalsForLeg is [corridorIntervals] taking raw source points
+// instead of a pre-built [sourceMeasure].
 //
 // A leg of fewer than two points has no source EDGES, so it has no corridor
 // to find — this is an EXPECTED absence (a single-point or empty leg is
 // ordinary production input),
-// not the caller bug [NewSourceMeasure] itself refuses with an error, so it is
+// not the caller bug [newSourceMeasure] itself refuses with an error, so it is
 // intercepted here as a fallback rather than allowed to become one.
 //
 // ⚠ TEST-ONLY (moved from corridorinterval.go on 2026-09-26: no production code that
 // only tests call). Production does not call it.
-// Production takes the same absence in CorridorFollowRuns, before it builds
-// a SourceMeasure.
-func corridorIntervalsForLeg(ctx context.Context, pts []Point, cands []*PreppedCandidate, d float64) ([]CorridorInterval, error) {
+// Production takes the same absence in corridorFollowRuns, before it builds
+// a sourceMeasure.
+func corridorIntervalsForLeg(ctx context.Context, pts []Point, cands []*PreppedCandidate, d float64) ([]corridorInterval, error) {
 	if len(pts) < 2 {
 		return nil, nil
 	}
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		return nil, err
 	}
-	return CorridorIntervals(ctx, sa, cands, d)
+	return corridorIntervals(ctx, sa, cands, d)
 }
 
 func prepOne(t *testing.T, verts ...Point) *PreppedCandidate {
 	t.Helper()
-	pcs := PrepCandidates([]CanonArc{mCanon(1, verts...)})
+	pcs := prepCandidates([]CanonArc{mCanon(1, verts...)})
 	if len(pcs) != 1 || pcs[0] == nil {
 		t.Fatalf("prepCandidates rejected the fixture candidate")
 	}

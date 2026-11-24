@@ -12,7 +12,7 @@
 // inside the new arc as an interior vertex instead of being a split point, so
 // hundreds of metres of canon were re-minted as a copy to carry a 4 m tail.
 //
-// ⚠ WHY THE SYMMETRIC SNAP DOES NOT ALREADY CATCH IT. [LegSeamsFromNearbyNodes]
+// ⚠ WHY THE SYMMETRIC SNAP DOES NOT ALREADY CATCH IT. [legSeamsFromNearbyNodes]
 // asks the same question with a 15 m radius, but DECLINES
 // (SnapDeclineOnCanon) every candidate projecting onto a segment inside an ON
 // stretch, on the ground that the ride will reference canon there and a seam
@@ -56,7 +56,7 @@ const (
 	InteriorNodeDeclineRevisited InteriorNodeSeamDecline = "revisited"
 	// A seam of this leg, or one of its own two terminals, already claims this
 	// node. Splitting again would put two seams on one node — the same
-	// exclusion [LegSeamsFromNearbyNodes] applies, and for the same reason.
+	// exclusion [legSeamsFromNearbyNodes] applies, and for the same reason.
 	//
 	// ⚠ REPORTED, NOT FILTERED OUT OF THE SEARCH. This is not the hazard of a
 	// NEAREST reduction taken after a filter: nothing here reduces, and every
@@ -97,7 +97,7 @@ func (r InteriorNodeSeamReport) Accepted() int {
 	return n
 }
 
-// LegSeamsAtInteriorNodes adds one seam per existing node whose coordinate is
+// legSeamsAtInteriorNodes adds one seam per existing node whose coordinate is
 // bitwise equal to an INTERIOR vertex of the leg, and returns the merged seam
 // list in ascending point order.
 //
@@ -110,21 +110,19 @@ func (r InteriorNodeSeamReport) Accepted() int {
 //
 // ⚠ IT MINTS NOTHING, so the node-count identity is untouched by construction
 // rather than by arithmetic: every seam it adds has HasNode true, and
-// [LegMintedSeamNodes] counts only seams with HasNode false.
+// [legMintedSeamNodes] counts only seams with HasNode false.
 //
 // Adopted is unconditionally true and Absorbed unconditionally false. The node
 // existed before this leg's commit (it came out of the canon), and the leg is
-// ALREADY standing on it — there is no displacement for [ApplyLegBoundaryWarp]
+// ALREADY standing on it — there is no displacement for [applyLegBoundaryWarp]
 // to taper, which is exactly what a non-Absorbed seam asks it for.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func LegSeamsAtInteriorNodes(
+func legSeamsAtInteriorNodes(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
-	seams []LegSeam,
+	seams []legSeam,
 	startTerminal, endTerminal *NodeID,
-) ([]LegSeam, InteriorNodeSeamReport, error) {
+) ([]legSeam, InteriorNodeSeamReport, error) {
 	st := stateOf(ctx)
 	var rep InteriorNodeSeamReport
 	if len(pts) < 3 {
@@ -294,10 +292,10 @@ func LegSeamsAtInteriorNodes(
 		return seams, rep, nil
 	}
 
-	out := make([]LegSeam, 0, len(seams)+len(takes))
+	out := make([]legSeam, 0, len(seams)+len(takes))
 	out = append(out, seams...)
 	for _, t := range takes {
-		out = append(out, LegSeam{
+		out = append(out, legSeam{
 			Idx: t.idx, Node: t.node, HasNode: true, Adopted: true,
 			NodeLat: t.lat, NodeLon: t.lon,
 		})

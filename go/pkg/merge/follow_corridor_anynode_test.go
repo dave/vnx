@@ -6,7 +6,7 @@ import (
 
 // TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary is a real chord
 // found in play-testing, hand-built, run through the live assembler
-// [AssembleFollowedLegRunsCorridor]. An ON run's boundary lands a few metres
+// [assembleFollowedLegRunsCorridor]. An ON run's boundary lands a few metres
 // past an existing node that is INTERIOR to its own candidate, nowhere near
 // either of that candidate's own ends, so [snapMeasureToCandidateEnd] cannot
 // reach it (own-end near = 30 m here, far outside the 15 m budget) and only a
@@ -22,7 +22,7 @@ import (
 // a fake lookup that reports the node (asserting the fix). Anything that made
 // the any-node branch a no-op would make BOTH calls produce the chord.
 func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
-	b := DefaultFollowBands()
+	b := defaultFollowBands()
 	node := mPt(50, 0)
 	arcA := mCanon(1, mPt(0, 0), mPt(25, 0), mPt(50, 0))
 	// arcB's own ends are 30 m and 50 m from the node — well outside
@@ -62,7 +62,7 @@ func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
 		return FollowRun{}
 	}
 
-	before, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
+	before, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	if err != nil {
 		t.Fatalf("assembleFollowedLegRunsCorridor (noNodeLookup): %v", err)
 	}
@@ -71,7 +71,7 @@ func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
 	}
 	assertChordSkipsVertex(t, "noNodeLookup", before.Points, node, mPt(51, 0))
 
-	after, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, fakeLookup)
+	after, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, fakeLookup)
 	if err != nil {
 		t.Fatalf("assembleFollowedLegRunsCorridor (fakeLookup): %v", err)
 	}

@@ -80,7 +80,7 @@ func adoptedTerminalCount(rep WarpReport, ringMergedByGap bool) int {
 // one from an earlier resolution if set, otherwise a newly-found target's
 // id — and whether that id came from THIS call's own new lookup (true) or
 // was already fixed beforehand (false). Neither set returns (nil, false).
-func effectiveWarpNodeID(fixed *NodeID, newTarget *WarpTarget) (*NodeID, bool) {
+func effectiveWarpNodeID(fixed *NodeID, newTarget *warpTarget) (*NodeID, bool) {
 	if fixed != nil {
 		return fixed, false
 	}

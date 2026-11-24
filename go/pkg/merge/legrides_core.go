@@ -92,37 +92,27 @@ const (
 	// The boundary was absorbed (the one-node rule, DECLINE 2) onto a node that
 	// is not on the lineage the run rode — a node belonging to a parallel copy
 	// or a crossing arc, up to EndpointWarpRadiusM away.
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideForeignAbsorb = "foreign-absorb"
+	rideForeignAbsorb = "foreign-absorb"
 	// Both ends resolved to ONE node: a stationary or zero-extent run. The ring
 	// rule owns this piece; there is no stretch to reference.
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideSameNode = "same-node"
+	rideSameNode = "same-node"
 	// The canon arc closes on itself, so one node id appears twice in the
 	// lineage and "the leaves between these two nodes" has two answers.
 	rideAmbiguousRingCanon = "ambiguous-ring-canon"
 	// The symmetric snap adopted a node whose projection falls INSIDE the ON
 	// stretch, so the piece the writer will see is half the ride; see
 	// [LegRides.remapAfterSnapInsertions].
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideSnapSeamInsideRide = "snap-seam-inside-ride"
+	rideSnapSeamInsideRide = "snap-seam-inside-ride"
 	// The ON stretch's own boundary is not a seam of the committed leg: the leg
 	// cut dropped it (a stub decline names no node) or merged it into a
 	// neighbouring claim that named a DIFFERENT node. Either way no committed
 	// piece is this ON stretch, so there is nothing to reference.
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideBoundaryNotASeam = "boundary-not-a-seam"
+	rideBoundaryNotASeam = "boundary-not-a-seam"
 	// TWO ON stretches map onto ONE committed piece, because the seams between
 	// them were merged or collapsed away. The piece then covers both rides and
 	// the stretch between, and referencing either would silently drop the rest
 	// of the piece's geometry. Neither is offered.
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideTwoRidesOnePiece = "two-rides-one-piece"
+	rideTwoRidesOnePiece = "two-rides-one-piece"
 	// The ON stretch is committed in more than one piece — the caller's
 	// interior-node seaming cut it at a vertex that is bitwise an existing node — and one of those
 	// divisions is not a single point on the ridden lineage, so "the leaves
@@ -133,9 +123,7 @@ const (
 	// copied — this reason is counted per PIECE and an interior failure
 	// contributes two rows. Only the stretches beyond them, whose own two
 	// divisions both resolve, are still offered.
-	//
-	// Exported for the reference application's tests; not part of the stable API.
-	RideInteriorNodeOffLineage = "interior-node-off-lineage"
+	rideInteriorNodeOffLineage = "interior-node-off-lineage"
 	// The boundary's node IS on the ridden lineage, but at the wrong POSITION —
 	// further along canon than the absorb radius from where the run actually
 	// ended. Taking it would resolve the ride to leaves the run never rode.
@@ -172,7 +160,7 @@ type LegRides struct {
 // inside the run, or a terminal that warped somewhere else all leave the piece
 // spanning something other than the ride, and it is then created.
 //
-// [TestHooks].LegRideSuppress is applied by CommitLegPieces, which then does
+// [TestHooks].LegRideSuppress is applied by commitLegPieces, which then does
 // not ask.
 func (r *LegRides) forPiece(pointCount, lo, hi int, startNode, endNode *NodeID) *LegRide {
 	// ⚠ NO POINT-COUNT TEST HERE. Returning nil on a mismatch would read as
@@ -232,7 +220,7 @@ func (r *LegRides) remapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 		}
 		if split {
 			r.Unresolved = append(r.Unresolved, UnresolvedRide{
-				Run: ride.Run, Reason: RideSnapSeamInsideRide, Lo: lo, Hi: hi,
+				Run: ride.Run, Reason: rideSnapSeamInsideRide, Lo: lo, Hi: hi,
 				StartNode: ride.Start, EndNode: ride.End,
 			})
 			continue
@@ -252,7 +240,7 @@ func (r *LegRides) remapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 // none. The lineage records the node at every division, so the
 // question "where does this boundary sit on the arc the run rode" is answered
 // by looking its node up in that list.
-func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
+func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, seams []legSeam) (*LegRides, error) {
 	st := stateOf(ctx)
 	ignoreMeasure := st.hooks.A1AbsorbIgnoreMeasure != nil && st.hooks.A1AbsorbIgnoreMeasure()
 	out := &LegRides{ByPiece: map[LegRideKey]*LegRide{}, PointCount: len(asm.Points)}
@@ -302,7 +290,7 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 				p.Run, r.CanonID, alignDeclineName(start.Decline), alignDeclineName(end.Decline))
 		}
 		if sNode == eNode {
-			fail(RideSameNode)
+			fail(rideSameNode)
 			continue
 		}
 		si, sCount := lineageNodeIndex(lineage, sNode)
@@ -314,7 +302,7 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 		// reason it always did — the precedence below is the old cascade,
 		// unchanged — but an interior division can make the GOOD end's half a
 		// ride even when the other end's half is not one, and one shared
-		// verdict cannot say that. See [RideInteriorNodeOffLineage] and the
+		// verdict cannot say that. See [rideInteriorNodeOffLineage] and the
 		// division loop below for the case this exists for.
 		sReason, eReason := "", ""
 		if sCount > 1 || eCount > 1 {
@@ -342,10 +330,10 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 					p.Run, kind, r.CanonID, missing.Node, alignDeclineName(missing.Decline), len(lineage.Leaves), lineageNodes(lineage))
 			}
 			if sCount == 0 {
-				sReason = RideForeignAbsorb
+				sReason = rideForeignAbsorb
 			}
 			if eCount == 0 {
-				eReason = RideForeignAbsorb
+				eReason = rideForeignAbsorb
 			}
 		}
 		// ⚠ ON THE LINEAGE IS NOT ENOUGH — IT MUST BE WHERE THE RUN ENDED.
@@ -389,12 +377,12 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 			return fallback
 		}
 		if !loOK || !hiOK {
-			fail(firstReason(RideBoundaryNotASeam))
+			fail(firstReason(rideBoundaryNotASeam))
 			continue
 		}
 		if lo >= hi {
 			// The merge folded the whole ON stretch onto one point.
-			fail(firstReason(RideSameNode))
+			fail(firstReason(rideSameNode))
 			continue
 		}
 		// ── THE DIVISIONS THIS ON STRETCH IS ACTUALLY COMMITTED IN ──────────
@@ -416,7 +404,7 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 			li, cnt := lineageNodeIndex(lineage, s.Node)
 			divs = append(divs, rideDivision{
 				Idx: s.Idx, Node: s.Node, Li: li,
-				OK: cnt == 1, Reason: RideInteriorNodeOffLineage,
+				OK: cnt == 1, Reason: rideInteriorNodeOffLineage,
 			})
 		}
 		divs = append(divs, rideDivision{Idx: hi, Node: eNode, Li: ei, OK: eReason == "", Reason: eReason})
@@ -453,12 +441,12 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 				failPiece(b.Reason)
 				continue
 			case a.Li == b.Li:
-				failPiece(RideSameNode)
+				failPiece(rideSameNode)
 				continue
 			case reversed != (b.Li < a.Li):
 				// The divisions do not walk canon in one direction, so "the
 				// leaves between these two nodes" is not a stretch of this run.
-				failPiece(RideInteriorNodeOffLineage)
+				failPiece(rideInteriorNodeOffLineage)
 				continue
 			}
 			loLi, hiLi := a.Li, b.Li
@@ -481,8 +469,8 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 				// committed piece now covers two rides and whatever lies between.
 				delete(out.ByPiece, key)
 				out.Unresolved = append(out.Unresolved,
-					UnresolvedRide{Run: prev.Run, Reason: RideTwoRidesOnePiece, Lo: key.Lo, Hi: key.Hi, StartNode: prev.Start, EndNode: prev.End})
-				failPiece(RideTwoRidesOnePiece)
+					UnresolvedRide{Run: prev.Run, Reason: rideTwoRidesOnePiece, Lo: key.Lo, Hi: key.Hi, StartNode: prev.Start, EndNode: prev.End})
+				failPiece(rideTwoRidesOnePiece)
 				continue
 			}
 			// ⚠ THE ABSORB REACHES BELONG TO THE OUTER ENDS ONLY. An interior
@@ -542,7 +530,7 @@ func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 // It returns false when no seam carries the node — a boundary the leg cut
 // dropped (a stub decline names none), or a merge that resolved to the OTHER
 // side's node. Both mean no committed piece is this ON stretch.
-func rideSeamIndex(seams []LegSeam, want int, node NodeID, terminal int) (int, bool) {
+func rideSeamIndex(seams []legSeam, want int, node NodeID, terminal int) (int, bool) {
 	if want == terminal {
 		return terminal, true
 	}
@@ -551,7 +539,7 @@ func rideSeamIndex(seams []LegSeam, want int, node NodeID, terminal int) (int, b
 		if !sm.HasNode || sm.Node != node {
 			continue
 		}
-		if !found || AbsInt(sm.Idx-want) < AbsInt(best-want) {
+		if !found || absInt(sm.Idx-want) < absInt(best-want) {
 			best, found = sm.Idx, true
 		}
 	}
@@ -656,8 +644,7 @@ func alignDeclineName(d AlignDecline) string {
 	return fmt.Sprintf("decline-%d", int(d))
 }
 
-// Exported for the reference application's tests; not part of the stable API.
-func AbsInt(x int) int {
+func absInt(x int) int {
 	if x < 0 {
 		return -x
 	}

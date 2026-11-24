@@ -46,7 +46,7 @@ func destPoint(lat, lon, bearingDeg, distM float64) (float64, float64) {
 // reaches its largest longitude offset. The cos(centre latitude) defect
 // shows only at those longitude peaks at extreme latitude.
 //
-// The cases hit each branch of NodeSearchBox and metresToDegBox:
+// The cases hit each branch of nodeSearchBox and metresToDegBox:
 //   - lat 0, 1e-7, 45, 89: a local box (polewardLat < 90).
 //   - lat 89.99999, 90, -89.9999, -90 with r = 5000: polewardLat >= 90,
 //     whole-world longitude.
@@ -79,7 +79,7 @@ func TestNodeSearchBox_NeverExcludesAcceptedPoint(t *testing.T) {
 	for _, lat := range lats {
 		for _, lon := range lons {
 			for _, radiusM := range radii {
-				minLat, maxLat, minLon, maxLon := NodeSearchBox(lat, lon, radiusM)
+				minLat, maxLat, minLon, maxLon := nodeSearchBox(lat, lon, radiusM)
 				peak := lonPeakBearing(lat, radiusM)
 				for _, bearing := range []float64{0, 180, peak, 360 - peak} {
 					cases++
@@ -137,7 +137,7 @@ func TestNodeSearchBox_NeverExcludesAcceptedPoint(t *testing.T) {
 // small local window — otherwise every call degrades into a full scan of
 // the network's nodes and the property test above would be vacuous.
 func TestNodeSearchBox_TightAwayFromTheSeams(t *testing.T) {
-	minLat, maxLat, minLon, maxLon := NodeSearchBox(54.4, -3.0, 10)
+	minLat, maxLat, minLon, maxLon := nodeSearchBox(54.4, -3.0, 10)
 	if maxLat-minLat > 0.001 {
 		t.Errorf("latitude window too wide: [%v, %v]", minLat, maxLat)
 	}
@@ -171,7 +171,7 @@ func walkOf(pts ...[2]float64) []Point {
 // The worst case is known, so the probes go there rather than to random
 // spots that mostly land well inside the box: a full radius out from the
 // middle of a long leg, where no vertex's own box reaches (the narrowing
-// WalkSearchBox's comment warns about). Each walk is an L: a 2 km leg along
+// walkSearchBox's comment warns about). Each walk is an L: a 2 km leg along
 // a parallel, then a 2 km leg poleward along a meridian, so the second leg's
 // middle sits poleward of its first vertex and needs the wider longitude
 // half-width of the poleward-most latitude. Probes go out at 8 bearings from
@@ -195,7 +195,7 @@ func TestWalkSearchBox_NeverExcludesAcceptedPoint(t *testing.T) {
 		// Exactly along a parallel, then exactly along a meridian.
 		walk := []Point{{Lat: lat0, Lon: lon0}, {Lat: lat0, Lon: lon1}, {Lat: lat2, Lon: lon1}}
 
-		minLat, maxLat, minLon, maxLon := WalkSearchBox(walk, radiusM)
+		minLat, maxLat, minLon, maxLon := walkSearchBox(walk, radiusM)
 
 		for leg := 1; leg < len(walk); leg++ {
 			// The middle as ProjectProbeOntoWalk interpolates it.
@@ -229,13 +229,13 @@ func TestWalkSearchBox_NeverExcludesAcceptedPoint(t *testing.T) {
 // refine still decides.
 func TestWalkSearchBox_SeamCrossingWalkWidensToWholeWorld(t *testing.T) {
 	walk := walkOf([2]float64{-16.5, 179.99}, [2]float64{-16.5, -179.99})
-	_, _, minLon, maxLon := WalkSearchBox(walk, 15)
+	_, _, minLon, maxLon := walkSearchBox(walk, 15)
 	if minLon != -180 || maxLon != 180 {
 		t.Fatalf("seam-crossing walk: lon box [%v, %v], want the whole world", minLon, maxLon)
 	}
 }
 
-// NearestVertexIndex answers a DIFFERENT question from the projection, and
+// nearestVertexIndex answers a DIFFERENT question from the projection, and
 // ties go to the lower index — which is what makes PointIdx independent of
 // the order coincident vertices happen to appear in.
 func TestNearestVertexIndex_TiesGoLow(t *testing.T) {
@@ -245,10 +245,10 @@ func TestNearestVertexIndex_TiesGoLow(t *testing.T) {
 		[2]float64{54.41, -3.0},
 		[2]float64{54.4, -3.0},
 	)
-	if got := NearestVertexIndex(walk, 54.4, -3.0); got != 0 {
+	if got := nearestVertexIndex(walk, 54.4, -3.0); got != 0 {
 		t.Fatalf("nearestVertexIndex = %d, want 0", got)
 	}
-	if got := NearestVertexIndex(walk, 54.41, -3.0); got != 1 {
+	if got := nearestVertexIndex(walk, 54.41, -3.0); got != 1 {
 		t.Fatalf("nearestVertexIndex = %d, want 1", got)
 	}
 }

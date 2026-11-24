@@ -70,12 +70,12 @@ import (
 	"fmt"
 )
 
-// LegJoin is what [CommitLegPieces] knows about ONE join between two
+// LegJoin is what [commitLegPieces] knows about ONE join between two
 // consecutive written pieces of a leg, once it has decided which arcs those
 // pieces actually are: the seam's adopted / absorbed / absorbed-distance
 // claims, in the exact walk order the caller's record of the leg needs them
 // in. A struct rather than three parallel slices because a ring split appends
-// one of these mid-loop with no [LegSeam] behind it at all (see the function
+// one of these mid-loop with no [legSeam] behind it at all (see the function
 // doc below): one append site per join, not three that could drift apart.
 type LegJoin struct {
 	Adopted   bool
@@ -83,7 +83,7 @@ type LegJoin struct {
 	AbsorbedM float64
 }
 
-// CommitLegPieces writes the leg as one arc per stretch between seams,
+// commitLegPieces writes the leg as one arc per stretch between seams,
 // each terminating on the shared node, and returns the arc ids in WALK
 // ORDER, together with one [LegJoin] per JOIN those arcs actually form.
 //
@@ -97,8 +97,8 @@ type LegJoin struct {
 // that the two ways of knowing agree.
 //
 // ⚠ THE RETURNED `joins` LIST IS BUILT HERE, NOT FROM len(seams). A piece
-// whose two ends resolve to one node is split in two by [CommitPiece],
-// which makes ONE EXTRA join this piece's own [LegSeam] never described, so
+// whose two ends resolve to one node is split in two by [commitPiece],
+// which makes ONE EXTRA join this piece's own [legSeam] never described, so
 // len(out)-1 can exceed len(seams), and the two lists cannot be zipped
 // positionally by a caller after the fact. This loop is the one place that
 // knows, join by join, whether it is looking at a seam's own claim or a ring
@@ -166,12 +166,11 @@ func (r LegArcRef) WalkEnd() NodeID {
 	return r.Arc.EndNodeID
 }
 
-// Exported for the reference application's tests; not part of the stable API.
-func CommitLegPieces(
+func commitLegPieces(
 	ctx context.Context,
 	canon Canon,
 	points []Point,
-	seams []LegSeam,
+	seams []legSeam,
 	rides *LegRides,
 	startTerminal, endTerminal *NodeID,
 ) ([]LegArcRef, []LegJoin, int, int, [][2]NodeID, *NodeID, []int, int, int, error) {
@@ -206,13 +205,13 @@ func CommitLegPieces(
 	var tightPairs [][2]NodeID
 	// legRingMergedNode is the node a merged-terminal ring formed on, if any.
 	// Can only be non-nil for a single-piece leg (merging the piece's own
-	// ends requires BOTH ends unresolved on the SAME CommitPiece call, which
+	// ends requires BOTH ends unresolved on the SAME commitPiece call, which
 	// for a multi-piece leg never happens: only the outermost piece at each
 	// end can have a nil terminal, and they are different calls unless there
 	// are no interior seams at all).
 	var legRingMergedNode *NodeID
 	// legInteriorWarpedBoundaries records every ring split's own interior
-	// warp (CommitPiece's own, separate call to WarpLegAtBoundaries, distinct
+	// warp (commitPiece's own, separate call to warpLegAtBoundaries, distinct
 	// from the boundary warp the caller applies to the whole leg), in the
 	// LEG's own index space. Can fire on ANY piece, not just a single-piece
 	// leg: unlike legRingMergedNode, a genuine "leaves canon and comes back to
@@ -280,7 +279,7 @@ func CommitLegPieces(
 		if !suppressRides {
 			ride = rides.forPiece(len(points), lo, hi, startNode, endNode)
 		}
-		arcs, endID, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, ringMergedNode, midWarpedIdx, multiple, despiteDup, err := CommitPiece(ctx, canon, points[lo:hi+1], startNode, endNode, ride)
+		arcs, endID, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, ringMergedNode, midWarpedIdx, multiple, despiteDup, err := commitPiece(ctx, canon, points[lo:hi+1], startNode, endNode, ride)
 		if multiple {
 			multiplicities++
 		}
@@ -298,9 +297,9 @@ func CommitLegPieces(
 			legRingMergedNode = ringMergedNode
 		}
 		if midWarpedIdx != nil {
-			// lo + midWarpedIdx converts CommitPiece's own PIECE-relative
+			// lo + midWarpedIdx converts commitPiece's own PIECE-relative
 			// index into the LEG's index space — `points[lo:hi+1]` is
-			// exactly the slice CommitPiece received as `pts`, so its own
+			// exactly the slice commitPiece received as `pts`, so its own
 			// index 0 IS points[lo]. No remapping is needed (a ring split
 			// cuts at an EXISTING vertex, never inserts a new coordinate),
 			// and this holds by construction: `lo` is this loop's own
@@ -352,7 +351,7 @@ func CommitLegPieces(
 		}
 		out = append(out, arcs...)
 		if k < len(seams) {
-			// The join between this piece and the next — the [LegSeam] this piece
+			// The join between this piece and the next — the [legSeam] this piece
 			// was cut FOR, in the same walk order the arcs above were written.
 			joins = append(joins, LegJoin{Adopted: seams[k].Adopted, Absorbed: seams[k].Absorbed, AbsorbedM: seams[k].AbsorbedM})
 		}
@@ -362,7 +361,7 @@ func CommitLegPieces(
 	return out, joins, ringSplits, ringMergedTerminals, tightPairs, legRingMergedNode, legInteriorWarpedBoundaries, multiplicities, createdDespiteDuplicates, nil
 }
 
-// CommitPiece writes ONE piece, splitting it in two when both of its ends
+// commitPiece writes ONE piece, splitting it in two when both of its ends
 // resolve to the same node. It returns the arc ids it wrote and the
 // node the piece ENDED on, which the caller threads into the next piece.
 //
@@ -377,9 +376,7 @@ func CommitLegPieces(
 // tightPair is non-nil only for a genuine mint whose excluded node WAS within
 // EndpointWarpRadiusM: the shape a check of the one-node rule must exempt.
 // Computed from coordinates already in hand (no extra lookup).
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CommitPiece(
+func commitPiece(
 	ctx context.Context,
 	canon Canon,
 	pts []Point,
@@ -420,7 +417,7 @@ func CommitPiece(
 		// two nodes carrying the identical vertex sequence? It is run
 		// unconditionally rather than behind the observer, so its cost is
 		// always part of the measured import.
-		dupMatches, err := FindDuplicateCanonArcs(ctx, canon, pts, startNode, endNode)
+		dupMatches, err := findDuplicateCanonArcs(ctx, canon, pts, startNode, endNode)
 		if err != nil {
 			return nil, 0, false, false, false, nil, nil, nil, false, false, err
 		}
@@ -520,7 +517,7 @@ func CommitPiece(
 		midExclude = []NodeID{*startNode}
 	}
 	var target *Node
-	nearby, found, err := NearestNode(
+	nearby, found, err := nearestNode(
 		ctx, canon, pts[mid].Lat, pts[mid].Lon, EndpointWarpRadiusM, midExclude)
 	if err != nil {
 		return nil, 0, false, false, false, nil, nil, nil, false, false, fmt.Errorf("existing-node lookup for a ring-split's own halfway point: %w", err)
@@ -536,11 +533,11 @@ func CommitPiece(
 	warped := pts
 	var midNode *NodeID
 	// midWarpedIdx records the ring split's own interior warp — a separate
-	// call to WarpLegAtBoundaries this function makes on its own, distinct
+	// call to warpLegAtBoundaries this function makes on its own, distinct
 	// from the boundary warp the caller applies to the whole leg.
 	// PIECE-RELATIVE here (an index into `pts`, this call's own argument);
 	// the caller adds its own `lo` offset to convert to the LEG's index
-	// space — see CommitLegPieces's own comment on why that conversion
+	// space — see commitLegPieces's own comment on why that conversion
 	// is safe with no remapping needed. nil whenever this warp never ran
 	// (target == nil — nothing within radius, mid stays an ordinary fresh
 	// mint).
@@ -549,15 +546,15 @@ func CommitPiece(
 		// The one-node rule's OTHER half: resolving mid to a node up to 15 m
 		// away without also tapering the geometry toward it would leave a
 		// discontinuity right at the split — the same defect the align step's
-		// absorbed interior boundaries would have without WarpLegAtBoundaries.
+		// absorbed interior boundaries would have without warpLegAtBoundaries.
 		// Treat mid as an interior boundary of the WHOLE undivided piece — not
 		// two independently-tapered halves, which could leave a kink exactly
 		// where they meet.
 		//
 		// There is no gap-collapse, so mid stays put — nothing remaps it — and
 		// can fold if the ring is tight enough. Accepted, not prevented.
-		boundaries := []WarpBoundaryTarget{{Idx: mid, Target: WarpTarget{Lat: target.Lat, Lon: target.Lon, NodeID: target.ID}}}
-		warpedPts, err := WarpLegAtBoundaries(pts, boundaries)
+		boundaries := []warpBoundaryTarget{{Idx: mid, Target: warpTarget{Lat: target.Lat, Lon: target.Lon, NodeID: target.ID}}}
+		warpedPts, err := warpLegAtBoundaries(pts, boundaries)
 		if err != nil {
 			return nil, 0, false, false, false, nil, nil, nil, false, false, fmt.Errorf("warp a ring-split piece toward node %d: %w", target.ID, err)
 		}
@@ -657,7 +654,7 @@ func CommitPiece(
 // `startNodeID` / `endNodeID` are PrepareArc's contract, passed straight
 // through: nil MINTS a fresh node at that end, an id makes the arc terminate
 // on that node and adopt its coordinates and elevation. Every caller is
-// [CommitLegPieces], which passes nil at a leg terminal (a leg's end is a
+// [commitLegPieces], which passes nil at a leg terminal (a leg's end is a
 // lat-lon anchor) and a seam node everywhere else. A leg with no seams passes
 // two nils.
 //

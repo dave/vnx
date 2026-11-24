@@ -92,7 +92,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// warp (which needs the node) and therefore also the elevation fill, so
 	// the minted node's elevation is canon's own interpolation rather than a
 	// sample at a position the point has since left.
-	rep, err := SplitCanonAtLegTerminals(ctx, canon, pts)
+	rep, err := splitCanonAtLegTerminals(ctx, canon, pts)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -153,7 +153,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	if err != nil {
 		return LegResult{}, err
 	}
-	// AN ARC MAY NOT RUN THROUGH A NODE (see [LegSeamsAtInteriorNodes] for
+	// AN ARC MAY NOT RUN THROUGH A NODE (see [legSeamsAtInteriorNodes] for
 	// the rule and why there is no radius). Every vertex
 	// of this leg that is BITWISE an existing node's coordinate becomes a
 	// seam, so the piece is cut there instead of drawing over the junction.
@@ -168,7 +168,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// It inserts no vertex (the split point is a vertex the leg already
 	// had), so unlike the symmetric snap below it needs no index remap and
 	// leaves LegRides.PointCount a sufficient witness.
-	seams, _, err = LegSeamsAtInteriorNodes(ctx, canon, followed, seams, warpRep.StartNode, warpRep.EndNode)
+	seams, _, err = legSeamsAtInteriorNodes(ctx, canon, followed, seams, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -179,7 +179,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// arcs now cover it) and BEFORE the symmetric snap and the warp, because
 	// both of those work in a point-index space this leg is about to leave.
 	// LegRides.PointCount is what a stale ride is DETECTED by: the mismatch
-	// is an error raised just before CommitLegPieces, not a quiet refusal of
+	// is an error raised just before commitLegPieces, not a quiet refusal of
 	// the ride.
 	var rides *LegRides
 	rides, err = resolveLegRides(ctx, asm, alignRep, seams)
@@ -195,7 +195,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// EndpointWarpRadiusM of this leg's path becomes an interior seam,
 	// subject to the same declines the align seams apply.
 	//
-	// ⚠ AFTER legSeamsFromAlign AND BEFORE ApplyLegBoundaryWarp, and both
+	// ⚠ AFTER legSeamsFromAlign AND BEFORE applyLegBoundaryWarp, and both
 	// halves of that placement are load-bearing. After the leg cut, because
 	// the align seams are its exclusion set and its stub-rule boundaries;
 	// asked first, it would adopt a node the align step is about to claim and
@@ -206,7 +206,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// use: this INSERTS a vertex at each adopted projection, which renumbers
 	// every later index, and the producer does that remapping itself.
 	var snapRep SymmetricSnapReport
-	followed, seams, snapRep, err = LegSeamsFromNearbyNodes(ctx, canon, followed, seams, asm.OnPieces, warpRep.StartNode, warpRep.EndNode)
+	followed, seams, snapRep, err = legSeamsFromNearbyNodes(ctx, canon, followed, seams, asm.OnPieces, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -225,18 +225,18 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// The boundary warp, the leg half of the one-node rule: an Absorbed
 	// seam's node is up to EndpointWarpRadiusM from where the leg actually
 	// is, so the leg must be warped to reach it before it commits (see
-	// ApplyLegBoundaryWarp). followed/seams are REPLACED, not merely read,
+	// applyLegBoundaryWarp). followed/seams are REPLACED, not merely read,
 	// because a too-short gap next to a boundary can also collapse points
 	// out of the leg (Idx remapped accordingly).
-	followed, seams, err = ApplyLegBoundaryWarp(followed, seams)
+	followed, seams, err = applyLegBoundaryWarp(followed, seams)
 	if err != nil {
 		return LegResult{}, err
 	}
 	// Record every index the warp above actually pinned (returned as
 	// LegResult.WarpedBoundaries). Captured HERE, before
 	// collapseSameNodeSeams can drop or renumber anything below: every
-	// element of seams at this point had a WarpBoundaryTarget built for
-	// it by ApplyLegBoundaryWarp (legSeamsFromAlign never returns a
+	// element of seams at this point had a warpBoundaryTarget built for
+	// it by applyLegBoundaryWarp (legSeamsFromAlign never returns a
 	// !HasNode seam, and that function filters nothing further), so the
 	// full set is simply every Idx still in seams.
 	warpedBoundaries := make([]int, len(seams))
@@ -247,12 +247,12 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// site: never mint a node within EndpointWarpRadiusM of an existing one;
 	// adopt it instead. Only the side(s) warpRep left nil are looked up.
 	// This is done here rather than in the writer (see
-	// WarpUnresolvedLegTerminals for why). followed/warpRep are REPLACED,
-	// matching the ApplyLegBoundaryWarp convention above. multiPiece
+	// warpUnresolvedLegTerminals for why). followed/warpRep are REPLACED,
+	// matching the applyLegBoundaryWarp convention above. multiPiece
 	// (len(seams) > 0 at this point) gates the multi-piece ring merge of the
 	// leg's own two ends; see that function's doc.
 	var ringMergedByGap bool
-	followed, warpRep, ringMergedByGap, err = WarpUnresolvedLegTerminals(ctx, canon, followed, warpRep, len(seams) > 0)
+	followed, warpRep, ringMergedByGap, err = warpUnresolvedLegTerminals(ctx, canon, followed, warpRep, len(seams) > 0)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -264,7 +264,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// for why this MUST run again, against the now-warped points, not just
 	// once inside legSeamsFromAlign.
 	seams = collapseSameNodeSeams(seams, followed, warpRep.StartNode, warpRep.EndNode)
-	res.LegMintedSeamNodes = LegMintedSeamNodes(followed, seams)
+	res.LegMintedSeamNodes = legMintedSeamNodes(followed, seams)
 	res.AdoptedTerminals = adoptedTerminalCount(warpRep, ringMergedByGap)
 	// ⚠ THE RIDES' INDEX SPACE MUST STILL BE THIS LEG'S. LegRides keys are
 	// POINT INDICES, so a ride is only meaningful while the point count it
@@ -286,7 +286,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	if err := checkRidesIndexSpace(rides, len(followed), opts.Label); err != nil {
 		return LegResult{}, err
 	}
-	pieces, seamJoins, ringSplits, ringMergedTerminals, tightPairs, ringMergedNode, interiorWarpedBoundaries, dupMultiplicities, createdDespiteDup, err := CommitLegPieces(ctx, canon, followed, seams, rides, warpRep.StartNode, warpRep.EndNode)
+	pieces, seamJoins, ringSplits, ringMergedTerminals, tightPairs, ringMergedNode, interiorWarpedBoundaries, dupMultiplicities, createdDespiteDup, err := commitLegPieces(ctx, canon, followed, seams, rides, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -311,17 +311,17 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	} else if ringMergedByGap {
 		res.RingMergedEndNode = &Node{ID: *warpRep.StartNode, Lat: followed[0].Lat, Lon: followed[0].Lon}
 	}
-	// interiorWarpedBoundaries is CommitLegPieces's own account of
+	// interiorWarpedBoundaries is commitLegPieces's own account of
 	// every ring split's interior warp: a SECOND call to
-	// WarpLegAtBoundaries that function makes on its own, distinct
-	// from ApplyLegBoundaryWarp above, which warpedBoundaries alone
+	// warpLegAtBoundaries that function makes on its own, distinct
+	// from applyLegBoundaryWarp above, which warpedBoundaries alone
 	// would miss. Same index space, so a plain append is
 	// correct: nothing to remap or de-duplicate against.
 	allWarpedBoundaries := append(append([]int(nil), warpedBoundaries...), interiorWarpedBoundaries...)
 	// ⚠ THE RECORDED INDICES ARE ONLY MEANINGFUL IF NOTHING BETWEEN THE
 	// INSERTION AND HERE CHANGED THE POINT COUNT. Today nothing does:
-	// ApplyLegBoundaryWarp returns the same length with Idx UNCHANGED,
-	// WarpUnresolvedLegTerminals warps in place, and CommitLegPieces's ring
+	// applyLegBoundaryWarp returns the same length with Idx UNCHANGED,
+	// warpUnresolvedLegTerminals warps in place, and commitLegPieces's ring
 	// split adds a PIECE, not a point. That is a property of today's
 	// pipeline, not a guarantee, and a reader stripping by a stale index
 	// would silently compare the wrong vertices. So it is asserted rather

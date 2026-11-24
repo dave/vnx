@@ -50,7 +50,7 @@ func corridorMapEntryBytes(keyBytes, valBytes int) int {
 	return (1 + keyBytes + valBytes) * 8 / 7
 }
 
-// CorridorProjectedSlotBytes is what the six slot-sized tables of a solve with
+// corridorProjectedSlotBytes is what the six slot-sized tables of a solve with
 // this shape will occupy: statesBy, dist, prev and pieceSlots, each counted as
 // its backing array plus its outer slice headers, and the search heap — its
 // entry array at capacity slots, and its per-layer position table.
@@ -62,7 +62,7 @@ func corridorMapEntryBytes(keyBytes, valBytes int) int {
 // here, and this is where they are refused.
 //
 // ⚠ IT IS THE SAME ARITHMETIC THE REFUSAL GATE USES AND THE INSTRUMENT CHECKS.
-// The gate in [SolveCorridorPath] calls it BEFORE those six tables are
+// The gate in [solveCorridorPath] calls it BEFORE those six tables are
 // allocated (statesBy, dist, prev, pieceSlots, and the heap's entries and
 // positions), from the count pass's own totals; [CorridorSolveFootprint]
 // measures the same six afterwards from their real capacities, and
@@ -73,9 +73,7 @@ func corridorMapEntryBytes(keyBytes, valBytes int) int {
 // count is DERIVED, not passed: every layer holds OFF plus two states per piece
 // covering it, so slots = layers + 2 × Σ_i pieceSpan[i] and the pieceSlots
 // entries are exactly (slots − layers) / 2.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CorridorProjectedSlotBytes(layers, slots, pieces int) int {
+func corridorProjectedSlotBytes(layers, slots, pieces int) int {
 	pieceSlotEntries := (slots - layers) / 2
 	return slots*corridorPackedStateBytes + layers*corridorSliceHdrBytes + // statesBy
 		slots*corridorFloat64Bytes + layers*corridorSliceHdrBytes + // dist
@@ -86,7 +84,7 @@ func CorridorProjectedSlotBytes(layers, slots, pieces int) int {
 }
 
 // corridorSwitchIndexUse is the lazily built per-layer switch indexes' size,
-// summed where their type is in scope (it is local to [SolveCorridorPath]) and
+// summed where their type is in scope (it is local to [solveCorridorPath]) and
 // handed over as numbers.
 type corridorSwitchIndexUse struct {
 	Layers  int // layers whose index was built at all — they are built on demand
@@ -108,7 +106,7 @@ type CorridorSolveFootprint struct {
 	ProjectedSlotBytes int
 
 	// The six slot-sized tables, separately. Each includes its own outer
-	// slice headers, so the six sum to [CorridorProjectedSlotBytes].
+	// slice headers, so the six sum to [corridorProjectedSlotBytes].
 	// ⚠ StatesBytes includes the OUTER SLICE HEADERS, so it exceeds the
 	// state-list bytes by exactly layers x 24 B — 9,033,036 against
 	// 8,971,860 on the largest test leg, a difference of 2,549 x 24 =
@@ -236,17 +234,15 @@ func corridorSolveFootprintOf(
 	return f
 }
 
-// CorridorSolveBudgetUnset is the "no budget agreed" value.
-//
-// Exported for the reference application's tests; not part of the stable API.
-const CorridorSolveBudgetUnset = -1
+// corridorSolveBudgetUnset is the "no budget agreed" value.
+const corridorSolveBudgetUnset = -1
 
 // HOW THE BUDGET BELOW IS TO BE SET — written down before the number exists, so
 // that it cannot arrive as a constant with no derivation.
 //
 // It is a function of ONE measured quantity and ONE stated policy factor:
 //
-//	Budget_A = ceil( H x CorridorProjectedSlotBytes(L*, S*, P*) )
+//	Budget_A = ceil( H x corridorProjectedSlotBytes(L*, S*, P*) )
 //
 // where (L*, S*, P*) are the layers, slots and alphabet size of THE LARGEST LEG
 // WE INTEND TO SERVE, measured by [corridorSolveFootprintOf], and H is headroom
@@ -258,7 +254,7 @@ const CorridorSolveBudgetUnset = -1
 // most once and is allocated at full size before the first relax, so a
 // mid-solve check would compare a length against a budget after every byte was
 // already held and could prevent nothing. Its bytes are in
-// [CorridorProjectedSlotBytes] instead, and an overflow is the heap's own
+// [corridorProjectedSlotBytes] instead, and an overflow is the heap's own
 // capacity error.
 //
 // ⚠ H IS DETERMINED BY THE DEVICE, NOT CHOSEN. The budget's job is to refuse what
@@ -299,7 +295,7 @@ const CorridorSolveBudgetUnset = -1
 // Three properties this shape has on purpose:
 //
 //   - Budget_A is expressed in the gate's OWN arithmetic
-//     ([CorridorProjectedSlotBytes]), so the budget cannot drift from the thing
+//     ([corridorProjectedSlotBytes]), so the budget cannot drift from the thing
 //     it guards.
 //   - It carries no multiplier for anything the projection cannot see, and must
 //     never carry one: a factor fitted to our corpus is nearestRunHaloEdges
@@ -342,11 +338,11 @@ const CorridorSolveBudgetUnset = -1
 // budget that silently reads 0 there would refuse every leg.
 
 // THE SLOT-TABLE BUDGET ([TestHooks].SolveSlotTableBudgetBytes) caps what one leg's six slot-sized tables —
-// the four state tables and the search heap — may allocate. The gate that reads it is in [SolveCorridorPath], between the
+// the four state tables and the search heap — may allocate. The gate that reads it is in [solveCorridorPath], between the
 // count pass and the allocation.
 //
 // ⛔⛔ THERE IS NO VALUE YET, AND THAT IS NOT A DECISION. Production runs with
-// NO BUDGET (0, or CorridorSolveBudgetUnset): the gate is wired, measured and red-proofed, and it refuses
+// NO BUDGET (0, or corridorSolveBudgetUnset): the gate is wired, measured and red-proofed, and it refuses
 // nothing until a number is agreed against the same-leg accounting
 // (TestCorridorSolve_Footprint). As shipped it protects nobody — it is here so
 // the mechanism can be reviewed before a number is chosen, and so that no

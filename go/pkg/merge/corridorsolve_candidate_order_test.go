@@ -36,7 +36,7 @@ func candOrderKey(pc *PreppedCandidate) string {
 
 // solveSignature renders a solve result in terms that survive a permutation:
 // each run's candidate named by geometry, plus its import and canon measures.
-func solveSignature(res *CorridorSolveResult, cands []*PreppedCandidate) []string {
+func solveSignature(res *corridorSolveResult, cands []*PreppedCandidate) []string {
 	out := make([]string, 0, len(res.Runs))
 	for _, r := range res.Runs {
 		who := "OFF"
@@ -70,7 +70,7 @@ func TestCorridorSolve_CandidateOrderIndependent(t *testing.T) {
 		}
 	}
 	base := build()
-	sa, err := NewSourceMeasure(straightLegX(41, 200, 0))
+	sa, err := newSourceMeasure(straightLegX(41, 200, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestCorridorSolve_CandidateOrderIndependent(t *testing.T) {
 			cands[i] = base[p]
 		}
 		ivs := buildIvs(t, sa, cands, R)
-		res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+		res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 		if err != nil {
 			t.Fatalf("perm %v: solveCorridorPath: %v", perm, err)
 		}
@@ -145,7 +145,7 @@ func TestCorridorSolve_CandidateOrderIndependent_Junction(t *testing.T) {
 		prepOne(t, v, mPt(200, 4)),
 		prepOne(t, v, mPt(150, 60)), // the third arm at the same node, off the source
 	}
-	sa, err := NewSourceMeasure(straightLegX(41, 200, 0))
+	sa, err := newSourceMeasure(straightLegX(41, 200, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestCorridorSolve_CandidateOrderIndependent_Junction(t *testing.T) {
 			cands[i] = base[p]
 		}
 		ivs := buildIvs(t, sa, cands, R)
-		res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, EmissionK)
+		res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, cands, R, emissionK)
 		if err != nil {
 			t.Fatalf("perm %v: solveCorridorPath: %v", perm, err)
 		}

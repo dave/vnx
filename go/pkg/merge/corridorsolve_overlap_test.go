@@ -3,7 +3,7 @@ package merge
 // Tests for the ArcCost overlapping-pieces defect, found verifying the solve
 // on a real re-import.
 //
-// CorridorInterval.Pieces can legitimately overlap in import measure on a
+// corridorInterval.Pieces can legitimately overlap in import measure on a
 // self-approach (CorridorPiece's own doc comment: "ascending import measure,
 // contiguous OR SELF-APPROACH-OVERLAPPING") — one common case being a
 // straight stretch of canon split into several short consecutive edges
@@ -13,13 +13,13 @@ package merge
 // every piece that clipped the queried range, so a position sitting EXACTLY
 // on canon (true-piece emission 0) was charged for every OTHER, farther-away
 // edge that also happened to be within R — measured on a straight re-import
-// leg: ~0.5/m instead of 0, enough to make SolveCorridorPath choose all-OFF
+// leg: ~0.5/m instead of 0, enough to make solveCorridorPath choose all-OFF
 // over adopting canon it sits exactly on top of.
 //
 // [canonMeasureAtImportMeasure] — the solver's own point lookup for transitions and
 // bridges — already resolves the same overlap by taking the FIRST piece in
 // iv.Pieces' own (source-edge-ascending, then canon-edge-ascending) list
-// order whose range contains the query. [AssembleFollowedLegRunsCorridor]'s
+// order whose range contains the query. [assembleFollowedLegRunsCorridor]'s
 // greedy left-to-right piece consumption (corridorwire.go) reproduces that
 // same rule for a range. ArcCost must price whichever piece those two
 // would draw — summing prices geometry nothing commits.
@@ -34,7 +34,7 @@ import (
 // whose range clips [x0,x1] — used as the oracle both tests below check
 // [ArcCost] and [canonMeasureAtImportMeasure] against. It does not call either
 // function under test.
-func firstClippingPiece(iv CorridorInterval, x0, x1 float64) (CorridorPiece, bool) {
+func firstClippingPiece(iv corridorInterval, x0, x1 float64) (CorridorPiece, bool) {
 	for _, p := range iv.Pieces {
 		if cp, ok := clipCorridorPiece(p, x0, x1); ok {
 			return cp, true
@@ -45,7 +45,7 @@ func firstClippingPiece(iv CorridorInterval, x0, x1 float64) (CorridorPiece, boo
 
 // reimportOverlapFixture builds a candidate and a source that follow the
 // SAME straight 100m line, both split into short (~5m) edges — the shape
-// that produces overlapping pieces within one CorridorInterval: any source
+// that produces overlapping pieces within one corridorInterval: any source
 // position sitting on one edge is also within R=15 of several neighbouring
 // edges' clamped endpoints. Since corridorinterval_join_test.go's join fix,
 // this whole leg is correctly ONE interval (it used to fragment into 20 —
@@ -55,11 +55,11 @@ func firstClippingPiece(iv CorridorInterval, x0, x1 float64) (CorridorPiece, boo
 // documents as legitimate ("ascending import measure, contiguous OR
 // SELF-APPROACH-OVERLAPPING") and which ArcCost must resolve to one
 // piece, not sum.
-func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) {
+func reimportOverlapFixture(t *testing.T) (iv corridorInterval, x0, x1 float64) {
 	t.Helper()
 	const R = CorridorRadiusM
 	pc := prepOne(t, straightLegX(21, 100, 0)...) // 20 edges of 5m
-	sa, err := NewSourceMeasure(straightLegX(21, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(21, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
@@ -70,7 +70,7 @@ func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) 
 	iv = ivs[0]
 
 	// Every distinct piece boundary, sorted — clipping pieces are constant
-	// between consecutive boundaries (the same guarantee SolveCorridorPath's
+	// between consecutive boundaries (the same guarantee solveCorridorPath's
 	// own breakpoint construction relies on), so testing each such
 	// elementary sub-range finds a genuine multi-piece overlap without
 	// guessing coordinates by hand.
@@ -95,7 +95,7 @@ func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) 
 			if !ok {
 				continue
 			}
-			if e, err := emissionCost(cp, R, EmissionK); err == nil && e > 1e-9 {
+			if e, err := emissionCost(cp, R, emissionK); err == nil && e > 1e-9 {
 				nonZero++
 			}
 		}
@@ -104,7 +104,7 @@ func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) 
 		}
 	}
 	t.Fatalf("fixture sanity: found no sub-range with >=2 non-zero-emission overlapping pieces in %+v", iv.Pieces)
-	return CorridorInterval{}, 0, 0
+	return corridorInterval{}, 0, 0
 }
 
 // TestArcCost_OverlappingPiecesPricesOneNotSum is the red-first case:
@@ -127,7 +127,7 @@ func TestArcCost_OverlappingPiecesPricesOneNotSum(t *testing.T) {
 	if !ok {
 		t.Fatalf("fixture sanity: no piece clips [%.6g,%.6g]", x0, x1)
 	}
-	wantE, err := emissionCost(want, R, EmissionK)
+	wantE, err := emissionCost(want, R, emissionK)
 	if err != nil {
 		t.Fatalf("emissionCost: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestArcCost_OverlappingPiecesPricesOneNotSum(t *testing.T) {
 		t.Fatalf("fixture sanity: firstClippingPiece returned a clip no piece of the interval produces")
 	}
 
-	got, err := ArcCost(&sp, CorridorFWD, x0, x1, R, EmissionK)
+	got, err := ArcCost(&sp, CorridorFWD, x0, x1, R, emissionK)
 	if err != nil {
 		t.Fatalf("arcCost: %v", err)
 	}
@@ -184,12 +184,12 @@ func TestArcCost_PricesTheStatesOwnPieceNotAnotherOne(t *testing.T) {
 		if !ok {
 			continue
 		}
-		e, err := emissionCost(cp, R, EmissionK)
+		e, err := emissionCost(cp, R, emissionK)
 		if err != nil {
 			t.Fatalf("emissionCost: %v", err)
 		}
 		want := e + backtrackCost(cp, bool(CorridorFWD))
-		got, err := ArcCost(&SolvePiece{IvIdx: 0, CandIdx: iv.CandIdx, P: pc}, CorridorFWD, x0, x1, R, EmissionK)
+		got, err := ArcCost(&SolvePiece{IvIdx: 0, CandIdx: iv.CandIdx, P: pc}, CorridorFWD, x0, x1, R, emissionK)
 		if err != nil {
 			t.Fatalf("arcCost: %v", err)
 		}

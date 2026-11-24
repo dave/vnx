@@ -120,7 +120,7 @@ func (r TjunctionReport) Cuts() int {
 //
 // Order matters only for what gets REPORTED, never for the outcome: a candidate
 // failing both rules is declined either way.
-func tjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
+func tjunctionDeclineFor(cand nearbyCanonArc) TjunctionDecline {
 	// 3. A fraction of exactly 0 or 1 means the closest approach is a walk
 	//    TERMINAL vertex — there is no interior there to split, and
 	//    ValidateSnapFraction rejects both, so attempting it would abort the
@@ -141,14 +141,12 @@ func tjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
 	return TjNoDecline
 }
 
-// LegMeasureLengthM is the leg's cumulative haversine measure length — the same
+// legMeasureLengthM is the leg's cumulative haversine measure length — the same
 // quantity, summed in the same order with the same primitive, that
-// WarpLegEndpoints derives its taper zone from. Both must see the same number,
+// warpLegEndpoints derives its taper zone from. Both must see the same number,
 // or the T-junction split and the endpoint warp would disagree about the
 // leg's length.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func LegMeasureLengthM(pts []Point) float64 {
+func legMeasureLengthM(pts []Point) float64 {
 	total := 0.0
 	for k := 1; k < len(pts); k++ {
 		total += HaversineMetres(

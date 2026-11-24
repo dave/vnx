@@ -12,7 +12,7 @@ import (
 // defect: pack→unpack→pack catches a lossy decode, and unpack→pack→unpack
 // catches two states packing to one value (which would alias two slots and
 // silently corrupt the winning path, the failure the SpIdx guard in
-// [SolveCorridorPath] exists for).
+// [solveCorridorPath] exists for).
 func TestCorridorPackedState_RoundTrips(t *testing.T) {
 	// OFF first: it is the value 0 and it must not decode as SpIdx 0.
 	off := packCorridorState(CorridorStateID{Off: true})
@@ -25,7 +25,7 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 	if !off.off() {
 		t.Fatal("off() is false for OFF")
 	}
-	if on := PackCorridorOn(0, CorridorFWD); on == CorridorPackedOFF || on.off() {
+	if on := packCorridorOn(0, CorridorFWD); on == CorridorPackedOFF || on.off() {
 		t.Fatalf("SpIdx 0 FWD packed to %#x, which reads as OFF — OFF and SpIdx 0 must differ", on)
 	}
 
@@ -33,8 +33,8 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 	// direction bit (1), a bit above it (2), the top bit next to the ON flag
 	// (1<<29), the all-ones field (max), and two alternating patterns that
 	// catch a shift or mask off by one in either direction.
-	// CorridorMaxSolvePieces is exclusive.
-	idxs := []int{0, 1, 2, 1 << 29, CorridorMaxSolvePieces - 1, 0x15555555, 0x2AAAAAAA}
+	// corridorMaxSolvePieces is exclusive.
+	idxs := []int{0, 1, 2, 1 << 29, corridorMaxSolvePieces - 1, 0x15555555, 0x2AAAAAAA}
 
 	seen := map[CorridorPackedState]CorridorStateID{CorridorPackedOFF: {Off: true}}
 	for _, i := range idxs {
@@ -69,7 +69,7 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 func TestCorridorPackedState_OrderMatchesStateLess(t *testing.T) {
 	var states []CorridorStateID
 	states = append(states, CorridorStateID{Off: true})
-	for _, i := range []int{0, 1, 2, 7, 8, 1023, 1024, 2242965, CorridorMaxSolvePieces - 1} {
+	for _, i := range []int{0, 1, 2, 7, 8, 1023, 1024, 2242965, corridorMaxSolvePieces - 1} {
 		states = append(states,
 			CorridorStateID{SpIdx: i, Dir: CorridorFWD},
 			CorridorStateID{SpIdx: i, Dir: CorridorREV})
@@ -101,5 +101,5 @@ func packCorridorState(s CorridorStateID) CorridorPackedState {
 	if s.Off {
 		return CorridorPackedOFF
 	}
-	return PackCorridorOn(s.SpIdx, s.Dir)
+	return packCorridorOn(s.SpIdx, s.Dir)
 }

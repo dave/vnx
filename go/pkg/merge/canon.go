@@ -16,7 +16,7 @@ import (
 //
 // AddNode and AddArc store what they are given and compute nothing about the
 // geometry: the merge computes node positions, interior pips, stats and
-// bounds first (PrepareArc). SplitArc is told where to split (SplitArcAt
+// bounds first (PrepareArc). SplitArc is told where to split (splitArcAt
 // computes the split point) but computes the stats and bounds of both halves
 // itself; its doc gives the exact rule. Ids are allocated in a fixed order, and the order is part of
 // the contract: AddArc mints its start node (when asked), then its end node
@@ -112,16 +112,16 @@ type Canon interface {
 
 // nearbyNodes returns every node within radiusM (great-circle, `<=`) of
 // (lat, lon) that exclude does not name, in the order NodesInBox yields them.
-func nearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) ([]NearbyNode, error) {
+func nearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) ([]nearbyNode, error) {
 	if err := checkProbe(lat, lon, radiusM); err != nil {
 		return nil, err
 	}
-	minLat, maxLat, minLon, maxLon := NodeSearchBox(lat, lon, radiusM)
+	minLat, maxLat, minLon, maxLon := nodeSearchBox(lat, lon, radiusM)
 	rows, err := c.NodesInBox(ctx, Bounds{MinLat: minLat, MaxLat: maxLat, MinLon: minLon, MaxLon: maxLon})
 	if err != nil {
 		return nil, fmt.Errorf("nearby nodes: %w", err)
 	}
-	var out []NearbyNode
+	var out []nearbyNode
 	for _, r := range rows {
 		n, _, inside := measureNodeCandidate(lat, lon, radiusM, r.ID, r.Lat, r.Lon, exclude)
 		if inside {
@@ -131,37 +131,33 @@ func nearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclud
 	return out, nil
 }
 
-// NearestNode returns the nearest node nearbyNodes finds, ties to the
+// nearestNode returns the nearest node nearbyNodes finds, ties to the
 // earlier row, or false when it finds none.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func NearestNode(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) (NearbyNode, bool, error) {
+func nearestNode(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) (nearbyNode, bool, error) {
 	all, err := nearbyNodes(ctx, c, lat, lon, radiusM, exclude)
 	if err != nil {
-		return NearbyNode{}, false, err
+		return nearbyNode{}, false, err
 	}
 	best, ok := nearestNearbyNode(all)
 	return best, ok, nil
 }
 
-// NodesNearPath returns every node within radiusM of the walk verts that
+// nodesNearPath returns every node within radiusM of the walk verts that
 // exclude does not name, in walk order (see sortNodesNearPath). A walk
 // with no length fails with an error that wraps ErrWalkHasNoLength.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func NodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64, exclude []NodeID) ([]NodeNearPath, error) {
+func nodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64, exclude []NodeID) ([]nodeNearPath, error) {
 	if math.IsNaN(radiusM) || math.IsInf(radiusM, 0) || radiusM <= 0 {
 		return nil, fmt.Errorf("search radius %v m must be finite and positive", radiusM)
 	}
 	if err := checkWalk(verts); err != nil {
 		return nil, err
 	}
-	minLat, maxLat, minLon, maxLon := WalkSearchBox(verts, radiusM)
+	minLat, maxLat, minLon, maxLon := walkSearchBox(verts, radiusM)
 	rows, err := c.NodesInBox(ctx, Bounds{MinLat: minLat, MaxLat: maxLat, MinLon: minLon, MaxLon: maxLon})
 	if err != nil {
 		return nil, fmt.Errorf("nodes near path: %w", err)
 	}
-	var out []NodeNearPath
+	var out []nodeNearPath
 	for _, r := range rows {
 		n, inside, err := measureNodeNearPath(verts, radiusM, exclude, r.ID, r.Lat, r.Lon)
 		if err != nil {
@@ -196,18 +192,16 @@ func nodesAtWalkVertices(ctx context.Context, c Canon, verts []Point, exclude []
 	return out, nil
 }
 
-// NearestArc returns the arc whose vertex walk passes nearest (lat, lon),
+// nearestArc returns the arc whose vertex walk passes nearest (lat, lon),
 // within radiusM, ties to the lower id, or false when none does.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func NearestArc(ctx context.Context, c Canon, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
+func nearestArc(ctx context.Context, c Canon, lat, lon, radiusM float64) (nearbyCanonArc, bool, error) {
 	if err := checkProbe(lat, lon, radiusM); err != nil {
-		return NearbyCanonArc{}, false, err
+		return nearbyCanonArc{}, false, err
 	}
-	minLat, maxLat, minLon, maxLon := NodeSearchBox(lat, lon, radiusM)
+	minLat, maxLat, minLon, maxLon := nodeSearchBox(lat, lon, radiusM)
 	candidates, err := c.ArcsNearPoint(ctx, Bounds{MinLat: minLat, MaxLat: maxLat, MinLon: minLon, MaxLon: maxLon})
 	if err != nil {
-		return NearbyCanonArc{}, false, fmt.Errorf("nearby arcs: %w", err)
+		return nearbyCanonArc{}, false, fmt.Errorf("nearby arcs: %w", err)
 	}
 	return nearestCanonArc(candidates, lat, lon, radiusM)
 }

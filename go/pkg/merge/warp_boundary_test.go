@@ -18,7 +18,7 @@ func warpBoundaryTestLeg(n int, spacingM float64) []Point {
 
 func TestWarpLegAtBoundaries_NoBoundaries_Identical(t *testing.T) {
 	pts := warpBoundaryTestLeg(11, 10)
-	got, err := WarpLegAtBoundaries(pts, nil)
+	got, err := warpLegAtBoundaries(pts, nil)
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)
 	}
@@ -32,8 +32,8 @@ func TestWarpLegAtBoundaries_NoBoundaries_Identical(t *testing.T) {
 func TestWarpLegAtBoundaries_RejectsTerminalIndex(t *testing.T) {
 	pts := warpBoundaryTestLeg(5, 10)
 	for _, idx := range []int{0, 4} {
-		b := []WarpBoundaryTarget{{Idx: idx, Target: WarpTarget{Lat: 50, Lon: -3}}}
-		if _, err := WarpLegAtBoundaries(pts, b); err == nil {
+		b := []warpBoundaryTarget{{Idx: idx, Target: warpTarget{Lat: 50, Lon: -3}}}
+		if _, err := warpLegAtBoundaries(pts, b); err == nil {
 			t.Fatalf("expected an error for a terminal index %d, got nil", idx)
 		}
 	}
@@ -45,8 +45,8 @@ func TestWarpLegAtBoundaries_RejectsTerminalIndex(t *testing.T) {
 func TestWarpLegAtBoundaries_TapersBothDirections(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	pts := warpBoundaryTestLeg(21, 10) // 200 m of measure, boundary at index 10 (100 m in)
-	tgt := WarpTarget{Lat: pts[10].Lat + 3/metresPerDeg, Lon: pts[10].Lon + 3/metresPerDeg}
-	got, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: 10, Target: tgt}})
+	tgt := warpTarget{Lat: pts[10].Lat + 3/metresPerDeg, Lon: pts[10].Lon + 3/metresPerDeg}
+	got, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: 10, Target: tgt}})
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)
 	}
@@ -73,8 +73,8 @@ func TestWarpLegAtBoundaries_TerminalsNeverMove(t *testing.T) {
 	pts := warpBoundaryTestLeg(3, 5) // 10 m of measure, boundary at index 1 (the middle)
 	// A large displacement forces a wide (legLen-capped) zone that reaches
 	// both terminals easily.
-	tgt := WarpTarget{Lat: pts[1].Lat + 20/metresPerDeg, Lon: pts[1].Lon}
-	got, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: 1, Target: tgt}})
+	tgt := warpTarget{Lat: pts[1].Lat + 20/metresPerDeg, Lon: pts[1].Lon}
+	got, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: 1, Target: tgt}})
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)
 	}
@@ -97,19 +97,19 @@ func TestWarpLegAtBoundaries_TerminalsNeverMove(t *testing.T) {
 func TestWarpLegAtBoundaries_TwoBoundariesSumWhereTheyOverlap(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	pts := warpBoundaryTestLeg(11, 10) // 100 m of measure
-	t1 := WarpTarget{Lat: pts[3].Lat + 5/metresPerDeg, Lon: pts[3].Lon}
-	t2 := WarpTarget{Lat: pts[7].Lat - 5/metresPerDeg, Lon: pts[7].Lon}
-	boundaries := []WarpBoundaryTarget{{Idx: 3, Target: t1}, {Idx: 7, Target: t2}}
+	t1 := warpTarget{Lat: pts[3].Lat + 5/metresPerDeg, Lon: pts[3].Lon}
+	t2 := warpTarget{Lat: pts[7].Lat - 5/metresPerDeg, Lon: pts[7].Lon}
+	boundaries := []warpBoundaryTarget{{Idx: 3, Target: t1}, {Idx: 7, Target: t2}}
 
-	both, err := WarpLegAtBoundaries(pts, boundaries)
+	both, err := warpLegAtBoundaries(pts, boundaries)
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries (both): %v", err)
 	}
-	only1, err := WarpLegAtBoundaries(pts, boundaries[:1])
+	only1, err := warpLegAtBoundaries(pts, boundaries[:1])
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries (boundary 1 only): %v", err)
 	}
-	only2, err := WarpLegAtBoundaries(pts, boundaries[1:])
+	only2, err := warpLegAtBoundaries(pts, boundaries[1:])
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries (boundary 2 only): %v", err)
 	}
@@ -150,11 +150,11 @@ func TestWarpLegAtBoundaries_NeverInvertsAArc(t *testing.T) {
 			for _, dispM := range []float64{0.5, 1, 3, 6, 9, 10} {
 				pts := warpBoundaryTestLeg(nPts, spacing)
 				mid := nPts / 2
-				tgt := WarpTarget{
+				tgt := warpTarget{
 					Lat: pts[mid].Lat + dispM*0.6/metresPerDeg,
 					Lon: pts[mid].Lon + dispM*0.8/metresPerDeg,
 				}
-				got, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: mid, Target: tgt}})
+				got, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: mid, Target: tgt}})
 				if err != nil {
 					t.Fatalf("n=%d spacing=%v disp=%v: %v", nPts, spacing, dispM, err)
 				}
@@ -185,21 +185,21 @@ func TestWarpLegAtBoundaries_PostConditionCatchesAViolation(t *testing.T) {
 	pts := warpBoundaryTestLeg(5, 10)
 	// A NaN target cannot be reached by construction — the function must
 	// error rather than return a boundary that silently isn't where it says.
-	bad := []WarpBoundaryTarget{{Idx: 2, Target: WarpTarget{Lat: math.NaN(), Lon: -3}}}
-	if _, err := WarpLegAtBoundaries(pts, bad); err == nil {
+	bad := []warpBoundaryTarget{{Idx: 2, Target: warpTarget{Lat: math.NaN(), Lon: -3}}}
+	if _, err := warpLegAtBoundaries(pts, bad); err == nil {
 		t.Fatal("expected an error for a non-finite target, got nil")
 	}
 }
 
 func TestWarpLegAtBoundaries_RejectsShortLeg(t *testing.T) {
 	pts := []Point{{Lat: 50, Lon: -3}}
-	if _, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: 0, Target: WarpTarget{Lat: 50, Lon: -3}}}); err == nil {
+	if _, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: 0, Target: warpTarget{Lat: 50, Lon: -3}}}); err == nil {
 		t.Fatal("expected an error for a 1-point leg, got nil")
 	}
 }
 
 // TestWarpLegAtBoundaries_CanFoldNearAProtectedTerminal proves
-// WarpLegAtBoundaries really can fold a boundary very close to a leg's own
+// warpLegAtBoundaries really can fold a boundary very close to a leg's own
 // (protected) terminal. A 0.01 m gap needing only a 0.5 m correction is
 // enough: the resulting capped zone on that side is far below the
 // 1.5x-displacement floor regardless of how small the displacement is, the
@@ -215,11 +215,11 @@ func TestWarpLegAtBoundaries_RejectsShortLeg(t *testing.T) {
 func TestWarpLegAtBoundaries_CanFoldNearAProtectedTerminal(t *testing.T) {
 	const metresPerDeg = math.Pi * 6371000.0 / 180.0
 	pts := warpBoundaryTestLeg(41, 0.01)
-	tgt := WarpTarget{
+	tgt := warpTarget{
 		Lat: pts[1].Lat + 0.5*0.6/metresPerDeg,
 		Lon: pts[1].Lon + 0.5*0.8/metresPerDeg,
 	}
-	got, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: 1, Target: tgt}})
+	got, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: 1, Target: tgt}})
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)
 	}
@@ -245,8 +245,8 @@ func TestWarpLegAtBoundaries_CanFoldNearAProtectedTerminal(t *testing.T) {
 // into a tight cluster.
 //
 // collapseShortBoundaryGaps is DELETED (2026-08-14 — see
-// warp_boundary.go), so this now calls WarpLegAtBoundaries directly, and
-// only checks the property that survives that deletion: WarpLegAtBoundaries'
+// warp_boundary.go), so this now calls warpLegAtBoundaries directly, and
+// only checks the property that survives that deletion: warpLegAtBoundaries'
 // OWN independent per-direction zone caps (zoneLeft/zoneRight, capped at the
 // measure distance to whatever's nearest in that direction — see that
 // function's doc) bound the taper's reach in MEASURE-LENGTH terms regardless of
@@ -275,11 +275,11 @@ func TestFullPipeline_NeverInvertsAArc(t *testing.T) {
 					pts[k].Lon = anchor.Lon
 				}
 
-				tgt := WarpTarget{
+				tgt := warpTarget{
 					Lat: pts[boundaryIdx].Lat + dispM*0.6/metresPerDeg,
 					Lon: pts[boundaryIdx].Lon + dispM*0.8/metresPerDeg,
 				}
-				got, err := WarpLegAtBoundaries(pts, []WarpBoundaryTarget{{Idx: boundaryIdx, Target: tgt}})
+				got, err := warpLegAtBoundaries(pts, []warpBoundaryTarget{{Idx: boundaryIdx, Target: tgt}})
 				if err != nil {
 					t.Fatalf("clusterSpacing=%v clusterRadius=%d disp=%v: %v", clusterSpacing, clusterRadius, dispM, err)
 				}
@@ -315,7 +315,7 @@ func TestFullPipeline_NeverInvertsAArc(t *testing.T) {
 // independent ones 30 m apart. An earlier version of this test gave them
 // opposite far-apart targets and found a "fold" — which was real for that
 // input, but that input is not one the align step's dedupe can ever produce, so
-// it belongs to WarpLegAtBoundaries' own property tests
+// it belongs to warpLegAtBoundaries' own property tests
 // (TestWarpLegAtBoundaries_TwoBoundariesSumWhereTheyOverlap already covers
 // two independent, further-apart boundaries) rather than this integration
 // test's job of representing what the real pipeline hands it.
@@ -324,10 +324,10 @@ func TestFullPipeline_TwoAdjacentBoundariesNeverInvert(t *testing.T) {
 	pts := warpBoundaryTestLeg(41, 5) // 200 m of measure, ordinary spacing
 	// Two boundaries one point apart (5 m gap) in the middle of the leg,
 	// both resolving (as the align step's dedupe would produce) onto the SAME node.
-	shared := WarpTarget{Lat: pts[20].Lat + EndpointWarpRadiusM*0.6/metresPerDeg, Lon: pts[20].Lon + EndpointWarpRadiusM*0.8/metresPerDeg}
-	boundaries := []WarpBoundaryTarget{{Idx: 20, Target: shared}, {Idx: 21, Target: shared}}
+	shared := warpTarget{Lat: pts[20].Lat + EndpointWarpRadiusM*0.6/metresPerDeg, Lon: pts[20].Lon + EndpointWarpRadiusM*0.8/metresPerDeg}
+	boundaries := []warpBoundaryTarget{{Idx: 20, Target: shared}, {Idx: 21, Target: shared}}
 
-	got, err := WarpLegAtBoundaries(pts, boundaries)
+	got, err := warpLegAtBoundaries(pts, boundaries)
 	if err != nil {
 		t.Fatalf("warpLegAtBoundaries: %v", err)
 	}

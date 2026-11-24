@@ -42,7 +42,7 @@ package merge
 // float equality and an assignment, not a comparison against a small number. A
 // gap that survives it means BOTH solves put the boundary outside a band they
 // each found on their own side — an arithmetic self-contradiction, reported as
-// an error carrying its magnitude, never absorbed. (MeasureEps is an MEASURE guard and is
+// an error carrying its magnitude, never absorbed. (measureEps is an MEASURE guard and is
 // deliberately not reused here as a distance tolerance.)
 
 import (

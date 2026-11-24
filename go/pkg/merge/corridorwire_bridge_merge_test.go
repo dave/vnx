@@ -10,11 +10,11 @@ package merge
 // solver runs, 18 were Bridged, and ALL 18 were immediately followed by a
 // non-bridged run of the SAME (interval, direction) state — a bridge run
 // and its own continuation, never merged into one FollowRun because
-// CorridorFollowRuns builds a bridged run as its own standalone FollowRun
+// corridorFollowRuns builds a bridged run as its own standalone FollowRun
 // (the `if run.Bridged` branch) with no look-ahead at what follows it. Each
 // such pair therefore commits as TWO followRuns and so two seams, even
 // though nothing downstream needs a boundary there: FollowRun itself has no
-// Bridged field, and AssembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd
+// Bridged field, and assembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd
 // on the candidate identically either way — a bridge's own canon measure and its
 // following run's canon measure are exactly as continuous as two adjacent pieces
 // of one non-bridged run, which coalescePieces already merges.
@@ -28,8 +28,8 @@ import (
 // from x=0 to x=1000, and a source that hugs it (y=5) except for one short,
 // deliberate excursion between approachX and returnX — the same shape
 // corridorsolve_bridge_test.go's bridgeLoopFixture uses, reproduced here
-// against raw points/canon (not PreppedCandidate/SourceMeasure) because this
-// test drives CorridorFollowRuns, not SolveCorridorPath directly.
+// against raw points/canon (not PreppedCandidate/sourceMeasure) because this
+// test drives corridorFollowRuns, not solveCorridorPath directly.
 func bridgeThenContinueFixture(approachX, returnX, loopY float64) ([]Point, []CanonArc) {
 	canon := []CanonArc{mCanon(1, mPt(0, 0), mPt(1000, 0))}
 	var pts []Point
@@ -70,18 +70,18 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 
 	// Fixture sanity: this shape must actually produce a bridge in the raw
 	// solve, or this test proves nothing about merging — cross-check
-	// against SolveCorridorPath directly, the same way
+	// against solveCorridorPath directly, the same way
 	// corridorsolve_bridge_test.go's own red-proofs do.
-	sa, err := NewSourceMeasure(pts)
+	sa, err := newSourceMeasure(pts)
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	prepped := PrepCandidates(canon)
+	prepped := prepCandidates(canon)
 	ivs, err := corridorIntervalsForLeg(t.Context(), pts, prepped, R)
 	if err != nil {
 		t.Fatalf("corridorIntervalsForLeg: %v", err)
 	}
-	res, err := SolveCorridorPath(t.Context(), sa.Total(), sa, ivs, prepped, R, EmissionK)
+	res, err := solveCorridorPath(t.Context(), sa.Total(), sa, ivs, prepped, R, emissionK)
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
@@ -95,15 +95,15 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 		t.Fatalf("fixture sanity: the raw solve produced no bridged run — this fixture no longer exercises bridging")
 	}
 
-	b := DefaultFollowBands()
-	runs, err := CorridorFollowRuns(t.Context(), pts, canon, b)
+	b := defaultFollowBands()
+	runs, err := corridorFollowRuns(t.Context(), pts, canon, b)
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
 
 	// Two adjacent ON followRuns that share a candidate and direction, and
 	// whose canon measure touches across the boundary (MeasureEnd of the first ==
-	// MeasureStart of the second, within MeasureEps), represent geometry that is
+	// MeasureStart of the second, within measureEps), represent geometry that is
 	// exactly as continuous as two pieces coalescePieces would already
 	// merge within one non-bridged run — one of them being a former bridge
 	// changes nothing about whether a seam is needed there.
@@ -115,7 +115,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 		if a.CanonIdx != c.CanonIdx || a.Reversed != c.Reversed {
 			continue
 		}
-		if math.Abs(a.MeasureEnd-c.MeasureStart) <= MeasureEps {
+		if math.Abs(a.MeasureEnd-c.MeasureStart) <= measureEps {
 			t.Fatalf("adjacent ON followRuns %d and %d share candidate %d, direction (reversed=%v), and touch at measure %.6g — "+
 				"should have been merged into one followRun, not left as two: %+v then %+v",
 				i, i+1, a.CanonIdx, a.Reversed, a.MeasureEnd, a, c)
@@ -132,7 +132,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 // degenerate canon measure (MeasureStart==MeasureEnd==209.936562184, measured directly)
 // because the source never actually rides a canon edge's interior, only
 // ever the same nearest vertex. All five "touch" by the letter of the merge
-// test (an equal constant trivially satisfies |MeasureEnd-MeasureStart|<=MeasureEps
+// test (an equal constant trivially satisfies |MeasureEnd-MeasureStart|<=measureEps
 // against itself, repeatedly), so mergeAdjacentSameCandidateRuns collapsed
 // them into ONE FollowRun spanning the leg's own full 298-edge import-measure
 // length at a ZERO-width canon span — committing a "2 point(s), begins and

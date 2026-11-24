@@ -7,7 +7,7 @@ import (
 )
 
 // WarpLineEnds is the import's own end move, nothing else: for every mix of
-// targets its points equal WarpLegEndpoints' bitwise, Ele pointers included,
+// targets its points equal warpLegEndpoints' bitwise, Ele pointers included,
 // and its error is the same (a sample builder calls it directly).
 func TestWarpLineEndsEqualsTheImportWarp(t *testing.T) {
 	ele := func(v float64) *float64 { return &v }
@@ -35,7 +35,7 @@ func TestWarpLineEndsEqualsTheImportWarp(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, _, err := WarpLegEndpoints(leg, warpTargetAt(c.start), warpTargetAt(c.end))
+			want, _, err := warpLegEndpoints(leg, warpTargetAt(c.start), warpTargetAt(c.end))
 			if err != nil {
 				t.Fatal(err)
 			}

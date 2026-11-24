@@ -34,7 +34,7 @@ import (
 func TestCorridorIntervals_ManyShortConsecutiveEdgesStayOneInterval(t *testing.T) {
 	const R = CorridorRadiusM
 	pc := prepOne(t, straightLegX(21, 100, 0)...) // 20 edges of 5m
-	sa, err := NewSourceMeasure(straightLegX(21, 100, 0))
+	sa, err := newSourceMeasure(straightLegX(21, 100, 0))
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}

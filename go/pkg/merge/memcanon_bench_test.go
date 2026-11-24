@@ -88,7 +88,7 @@ func benchCanon(b *testing.B) *MemCanon {
 // benchProbe is a 25 m node-search box at a random point of the area.
 func benchProbe(r *rand.Rand) Bounds {
 	lat, lon := benchLat0+benchSpan*r.Float64(), benchLon0+benchSpan*r.Float64()
-	minLat, maxLat, minLon, maxLon := NodeSearchBox(lat, lon, 25)
+	minLat, maxLat, minLon, maxLon := nodeSearchBox(lat, lon, 25)
 	return Bounds{MinLat: minLat, MaxLat: maxLat, MinLon: minLon, MaxLon: maxLon}
 }
 
@@ -196,7 +196,7 @@ func BenchmarkMemCanon_AddArc50(b *testing.B) {
 	}
 }
 
-// BenchmarkMemCanon_SplitBigArc: SplitArcAt at the middle of the 2.8M-pip
+// BenchmarkMemCanon_SplitBigArc: splitArcAt at the middle of the 2.8M-pip
 // arc, on a fresh canon each time (the load is not timed).
 func BenchmarkMemCanon_SplitBigArc(b *testing.B) {
 	ctx := context.Background()
@@ -204,7 +204,7 @@ func BenchmarkMemCanon_SplitBigArc(b *testing.B) {
 		b.StopTimer()
 		c := benchCanon(b)
 		b.StartTimer()
-		if _, err := SplitArcAt(ctx, c, benchBigID, 0.5); err != nil {
+		if _, err := splitArcAt(ctx, c, benchBigID, 0.5); err != nil {
 			b.Fatal(err)
 		}
 	}

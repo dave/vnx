@@ -4,11 +4,11 @@ import (
 	"math"
 )
 
-// dupSeqVerdict is what DupVertexSequenceEqual answers. Reversal and elevation
+// DupSeqVerdict is what DupVertexSequenceEqual answers. Reversal and elevation
 // are reported rather than folded into Equal: both are decisions ride
 // resolution has to make explicitly, and neither may be settled by this
 // function's return type.
-type dupSeqVerdict struct {
+type DupSeqVerdict struct {
 	// Equal is lat/lon sequence equality, exact, in one direction or the
 	// other. This is the whole of ride resolution's rule.
 	Equal bool
@@ -37,16 +37,16 @@ type dupSeqVerdict struct {
 // Comparison is on lat/lon only. That is what the rule says; elevation is
 // reported alongside so the substitution question stays visible instead of
 // being answered by omission.
-func DupVertexSequenceEqual(a, b []Point) dupSeqVerdict {
+func DupVertexSequenceEqual(a, b []Point) DupSeqVerdict {
 	if len(a) != len(b) {
-		return dupSeqVerdict{}
+		return DupSeqVerdict{}
 	}
 	if len(a) == 0 {
 		// Two empty sequences are equal but say nothing. No arc has zero
 		// vertices — its two endpoint nodes are always present — so this
 		// is unreachable in practice and exists only so the loops
 		// below need no length guard.
-		return dupSeqVerdict{Equal: true, EleEqual: true}
+		return DupSeqVerdict{Equal: true, EleEqual: true}
 	}
 	fwd, fwdEle := true, true
 	for i := range a {
@@ -59,7 +59,7 @@ func DupVertexSequenceEqual(a, b []Point) dupSeqVerdict {
 		}
 	}
 	if fwd {
-		return dupSeqVerdict{Equal: true, Reversed: false, EleEqual: fwdEle}
+		return DupSeqVerdict{Equal: true, Reversed: false, EleEqual: fwdEle}
 	}
 	rev, revEle := true, true
 	for i := range a {
@@ -73,9 +73,9 @@ func DupVertexSequenceEqual(a, b []Point) dupSeqVerdict {
 		}
 	}
 	if rev {
-		return dupSeqVerdict{Equal: true, Reversed: true, EleEqual: revEle}
+		return DupSeqVerdict{Equal: true, Reversed: true, EleEqual: revEle}
 	}
-	return dupSeqVerdict{}
+	return DupSeqVerdict{}
 }
 
 // dupEleEqual compares two optional elevations. Both absent is equal; one

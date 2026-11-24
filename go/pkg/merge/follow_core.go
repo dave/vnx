@@ -19,12 +19,12 @@ type FollowBands struct {
 	MinRunM float64 // read by no decline rule; tests and diagnostics compare against it
 }
 
-// runKind distinguishes verbatim source spans (OFF) from canon-following
+// RunKind distinguishes verbatim source spans (OFF) from canon-following
 // spans (ON).
-type runKind uint8
+type RunKind uint8
 
 const (
-	RunOff runKind = iota
+	RunOff RunKind = iota
 	RunOn
 )
 
@@ -55,7 +55,7 @@ type RunProj struct {
 // `==`; readers convert them to a measure (SourceMeasure.measureAt) or read
 // the measure fields instead.
 type FollowRun struct {
-	Kind  runKind
+	Kind  RunKind
 	Start SourcePos
 	End   SourcePos
 
@@ -333,7 +333,7 @@ func snapMeasureToCandidateEnd(measure, total float64) float64 {
 	return measure
 }
 
-// nodeLookup answers "is there an existing committed node within radiusM of
+// NodeLookup answers "is there an existing committed node within radiusM of
 // (lat, lon)" and, if so, WHERE it actually is — the ONLY way the otherwise
 // pure assembler (no storage access, no clock, no globals and no package
 // state) can ask about network state beyond the candidate geometry it was
@@ -347,7 +347,7 @@ func snapMeasureToCandidateEnd(measure, total float64) float64 {
 // disables a feature when nil invites a fix that production never reaches:
 // every caller must say, in code that compiles, whether it has node access
 // or not.
-type nodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id NodeID, found bool, err error)
+type NodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id NodeID, found bool, err error)
 
 // snapMeasureAnyNode "rides canon" onto ANY existing node within
 // EndpointWarpRadiusM of a boundary's on-line position, not only a
@@ -395,7 +395,7 @@ type nodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id 
 // returns the raw candidate: snapped or not, on-line or declined for being
 // off it, with nothing yet said about Stay.
 // for being off it, with nothing yet said about Stay.
-func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, error) {
+func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup NodeLookup) (float64, error) {
 	if lookup == nil {
 		return 0, errors.New("snapMeasureAnyNode: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
 	}
@@ -422,7 +422,7 @@ func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup nodeLookup
 // reports which mechanism produced the change: "own-end", "any-node", or
 // "none". The mechanism string is for measurement only; the live assembler
 // discards it.
-func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, string, error) {
+func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup NodeLookup) (float64, string, error) {
 	if snapped := snapMeasureToCandidateEnd(measure, pc.Total); snapped != measure {
 		return snapped, "own-end", nil
 	}

@@ -248,7 +248,7 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	minRun := defaultFollowBands().MinRunM
+	minRun := liftedStubMinRunM
 	// 10 m along the leg — well inside MinRunM (25 m) of the leg's start, so
 	// adopting would leave a 10 m piece that no import can ever follow.
 	snapMarker(t, ctx, d, "marker", minRun*0.4, EndpointWarpRadiusM*0.5)
@@ -303,7 +303,7 @@ func TestSymmetricSnap_StubIsMeasuredAgainstAnAlignSeamNotJustTheEnds(t *testing
 	ctx := context.Background()
 	d := emptyCanon(t)
 
-	minRun := defaultFollowBands().MinRunM
+	minRun := liftedStubMinRunM
 	// The leg's x=500 vertex is an existing align seam. The marker projects
 	// 10 m further along, inside MinRunM of it.
 	other := snapMarker(t, ctx, d, "seamnode", 500, 300)

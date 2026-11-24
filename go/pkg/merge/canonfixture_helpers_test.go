@@ -28,6 +28,12 @@ func addTestLeg(t *testing.T, ctx context.Context, c *MemCanon, label string, pt
 	return res
 }
 
+// liftedStubMinRunM is the MinRun (25 m) the lifted short-stub rules declined
+// under: the length a stub had to reach before the old matcher could follow
+// it. No merge rule reads it; the tests that pin the lift measure their stubs
+// against it.
+const liftedStubMinRunM = 25.0
+
 // committedArcs is every arc of c with its full vertex list, in id order.
 func committedArcs(t *testing.T, ctx context.Context, c *MemCanon) []CanonArc {
 	t.Helper()

@@ -330,9 +330,9 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 		t.Errorf("near boundary (measure %.3f of %.3f) resolved as %q, want a cut — DECLINE 3 is lifted",
 			nearB.MeasureM, nearB.TotalM, nearB.Decline)
 	}
-	if !(nearB.MeasureM > EndpointWarpRadiusM && nearB.MeasureM < defaultFollowBands().MinRunM) {
+	if !(nearB.MeasureM > EndpointWarpRadiusM && nearB.MeasureM < liftedStubMinRunM) {
 		t.Errorf("near boundary is at measure %.3f, outside the StayM band (%v..%v) — this fixture no longer poses DECLINE 3's question",
-			nearB.MeasureM, EndpointWarpRadiusM, defaultFollowBands().MinRunM)
+			nearB.MeasureM, EndpointWarpRadiusM, liftedStubMinRunM)
 	}
 
 	if got := alignCountArcs(t, ctx, f.d); got != before+2 {

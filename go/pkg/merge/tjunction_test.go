@@ -26,15 +26,10 @@ import (
 // ALREADY admitted (inside the radius), so this table is only about what the
 // split does with one.
 func TestTJunctionDeclineFor(t *testing.T) {
-	// The stub brackets below were derived from a MinRunM of 25. The rule that
-	// read it is lifted, so today nothing in this table turns on the number —
-	// but it is the value a revert of the lift would restore the rule to, and
-	// the brackets would be wrong against any other. Kept for that reason,
-	// deliberately, not left behind.
-	if defaultFollowBands().MinRunM != 25 {
-		t.Fatalf("MinRun is %v, not the ratified 25 m — this table's stub brackets were derived from 25",
-			defaultFollowBands().MinRunM)
-	}
+	// The stub brackets below were derived from a MinRun of 25 m
+	// (liftedStubMinRunM). The rule that read it is lifted, so nothing in this
+	// table turns on the number; it is the value a revert of the lift would
+	// restore the rule to.
 	// A candidate whose three length fields agree, as merge.nearestArc
 	// guarantees: Fraction is exactly PriorLenM/(PriorLenM+NextLenM).
 	cand := func(prior, next, dist float64) nearbyCanonArc {

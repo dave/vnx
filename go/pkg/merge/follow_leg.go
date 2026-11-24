@@ -23,13 +23,11 @@ import (
 // computes a bearing. Re-introducing an angle would be a new band, not a
 // retune.
 
-// defaultFollowBands returns the default follow bands: Enter 8 m, Stay 15 m,
-// MinRun 25 m.
+// defaultFollowBands returns the default follow bands: Enter 8 m, Stay 15 m.
 func defaultFollowBands() followBands {
 	return followBands{
-		EnterM:  8,
-		StayM:   15,
-		MinRunM: 25,
+		EnterM: 8,
+		StayM:  15,
 	}
 }
 

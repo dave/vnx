@@ -14,9 +14,8 @@ import (
 // matcher takes them by value so tests can exercise band edges; there is
 // no production override path.
 type followBands struct {
-	EnterM  float64 // read only by densifyStep
-	StayM   float64 // read only by tests
-	MinRunM float64 // read by no decline rule; tests and diagnostics compare against it
+	EnterM float64 // read only by densifyStep
+	StayM  float64 // read only by tests
 }
 
 // RunKind distinguishes verbatim source spans (OFF) from canon-following
@@ -249,8 +248,8 @@ func ClosestPointOnSeg(aLat, aLon, bLat, bLon, probeLat, probeLon float64) (dist
 // bisection, so this is a DETECTION resolution, not a matching tolerance — the
 // bands are untouched). DERIVED from the Enter band, not a free constant: eight
 // samples across Enter resolve any crossing, and the step (Enter/8 = 1 m) sits
-// far below MinRun/2 = 12.5 m, so every in-band feature able to survive MinRun
-// spans many samples. Convergence is pinned by the dense-limit fixture
+// far below 12.5 m, half the 25 m shortest coincidence worth believing, so
+// every in-band feature that long spans many samples. Convergence is pinned by the dense-limit fixture
 // (sparse == densified) and its halving no-op check.
 func densifyStep(b followBands) float64 { return b.EnterM / 8 }
 
@@ -319,11 +318,11 @@ const onLineEps = 1e-6
 // between: two lines where there should be one, and no node where they
 // rejoin.
 //
-// ⚠ THIS IS EndpointWarpRadiusM (15 m), NOT MinRunM (25 m): this is a
+// ⚠ THIS IS EndpointWarpRadiusM (15 m), NOT A RUN LENGTH: this is a
 // DISPLACEMENT — the join moves by up to `near` metres — and 15 m is the
 // budget chosen for exactly that question (see [EndpointWarpRadiusM]).
-// MinRunM is a LENGTH threshold (the shortest coincidence worth believing)
-// and has no bearing on how far a join is allowed to move.
+// A run length (the shortest coincidence worth believing) has no bearing on
+// how far a join is allowed to move.
 //
 // ⚠ NOT [EndpointWarpRadiusM] SHRUNK OR REPURPOSED — it is the SAME budget
 // applied to a DIFFERENT boundary. [warpLegEndpoints]' callers use it to

@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"context"
 	"fmt"
 	"math"
 )
@@ -158,14 +159,10 @@ type LegRides struct {
 // align step's boundaries named — a seam merge, a symmetric-snap adoption
 // inside the run, or a terminal that warped somewhere else all leave the piece
 // spanning something other than the ride, and it is then created.
+//
+// [TestHooks].LegRideSuppress is applied by CommitLegPieces, which then does
+// not ask.
 func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) *LegRide {
-	if LegRideSuppressForTests != nil && LegRideSuppressForTests() {
-		// TEST SWITCH, INERT IN PRODUCTION. The claim "referencing the ride is
-		// what removes the parallel copies" is only shown by a run in which it
-		// does not happen; without this a test could pass because the copies
-		// were never there.
-		return nil
-	}
 	// ⚠ NO POINT-COUNT TEST HERE. Returning nil on a mismatch would read as
 	// a guard and behave as a fallback: a stale index space would turn EVERY
 	// ON piece of the leg into a created copy of canon while the import
@@ -243,7 +240,9 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 // none. The lineage records the node at every division, so the
 // question "where does this boundary sit on the arc the run rode" is answered
 // by looking its node up in that list.
-func ResolveLegRides(asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
+func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
+	st := stateOf(ctx)
+	ignoreMeasure := st.hooks.A1AbsorbIgnoreMeasure != nil && st.hooks.A1AbsorbIgnoreMeasure()
 	out := &LegRides{ByPiece: map[legRideKey]*LegRide{}, PointCount: len(asm.Points)}
 	byRunEnd := make(map[boundaryKey]AlignBoundary, len(rep.Boundaries))
 	for _, b := range rep.Boundaries {
@@ -350,10 +349,10 @@ func ResolveLegRides(asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRi
 		// The align step is right to keep that node; the RIDE must not be built on it. The
 		// piece is created instead, and counted. Same radius, measured along
 		// canon — no new tolerance.
-		if sReason == "" && !nodeIsAtMeasure(lineage, si, start.MeasureM) {
+		if sReason == "" && !nodeIsAtMeasure(lineage, si, start.MeasureM, ignoreMeasure) {
 			sReason = rideBoundaryOffPosition
 		}
-		if eReason == "" && !nodeIsAtMeasure(lineage, ei, end.MeasureM) {
+		if eReason == "" && !nodeIsAtMeasure(lineage, ei, end.MeasureM, ignoreMeasure) {
 			eReason = rideBoundaryOffPosition
 		}
 		// THE PIECE'S RANGE IS THE SEAM'S INDEX, NOT THE ON RANGE'S. Two ON runs
@@ -497,18 +496,18 @@ func ResolveLegRides(asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRi
 			}
 			ride := &LegRide{Run: p.Run, Canon: r.CanonID, Arcs: arcs, Start: a.Node, End: b.Node, Reversed: reversed,
 				AbsorbM: absorb, RunM: runM}
-			if LegRideFaultForTests != nil {
+			if st.hooks.LegRideFault != nil {
 				// FAULT INJECTION, INERT IN PRODUCTION. The writer's "the chain
 				// does not close" abort is meant to be unreachable under correct
 				// code, and a guard nobody can fire is a guard
 				// nobody knows works.
-				LegRideFaultForTests(ride)
+				st.hooks.LegRideFault(ride)
 			}
 			out.ByPiece[key] = ride
 		}
 	}
-	if LegRideObserverForTests != nil {
-		LegRideObserverForTests(CurrentLegForTests, out)
+	if st.hooks.LegRide != nil {
+		st.hooks.LegRide(st.leg, out)
 	}
 	return out, nil
 }
@@ -550,9 +549,9 @@ func rideSeamIndex(seams []LegSeam, want int, node NodeID, terminal int) (int, b
 // nodeIsAtMeasure reports whether the lineage node at index `idx` sits within
 // EndpointWarpRadiusM ALONG CANON of `measure` — the place the boundary was
 // actually computed. Index 0 is the original arc's start, index i the high end
-// of leaf i-1.
-func nodeIsAtMeasure(l AlignLineage, idx int, measure float64) bool {
-	if A1AbsorbIgnoreMeasureForTests != nil && A1AbsorbIgnoreMeasureForTests() {
+// of leaf i-1. ignoreMeasure is [TestHooks].A1AbsorbIgnoreMeasure's answer.
+func nodeIsAtMeasure(l AlignLineage, idx int, measure float64, ignoreMeasure bool) bool {
+	if ignoreMeasure {
 		// TEST SWITCH, INERT IN PRODUCTION. One switch drops the
 		// along-canon bound at BOTH places it is applied — DECLINE 2's
 		// candidate set and this check — because that is the single property
@@ -644,19 +643,6 @@ func alignDeclineName(d alignDecline) string {
 	}
 	return fmt.Sprintf("decline-%d", int(d))
 }
-
-// LegRideObserverForTests, when non-nil, receives every leg's resolved rides
-// and the ON pieces that resolved to none. nil in production. Tests use it to
-// measure the resolved fraction and name the remainder.
-var LegRideObserverForTests func(leg string, rides *LegRides)
-
-// LegRideSuppressForTests, when non-nil and true, makes every piece a CREATE.
-// nil in production. See [LegRides.ForPiece].
-var LegRideSuppressForTests func() bool
-
-// LegRideFaultForTests, when non-nil, may corrupt a resolved ride before the
-// writer sees it. nil in production. See ResolveLegRides' call site.
-var LegRideFaultForTests func(*LegRide)
 
 func AbsInt(x int) int {
 	if x < 0 {

@@ -9,8 +9,8 @@
 // Canon method poisons the canon: the caller must discard every write that
 // leg made, for example by rolling back its transaction.
 //
-// AddLeg is not safe for concurrent use: it writes package-level test state
-// ([CurrentLegForTests]).
+// AddLeg is safe for concurrent use on separate canons. Tests observe a
+// call through [WithTestHooks] on its context.
 //
 // The API is not stable yet. Names and signatures will change while the core
 // settles; depend on it only at a pinned version.

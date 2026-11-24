@@ -110,12 +110,3 @@ func FindDuplicateCanonArcs(
 	}
 	return matches, nil
 }
-
-// DuplicateArcObserverForTests is called for EVERY piece the commit path is
-// about to write, with the detector's full result — empty for the ordinary
-// case. Nil in production.
-//
-// ⚠ EVERY PIECE, INCLUDING THE MISSES. An observer that only fired on a hit
-// could report a rate but never a denominator, and "the detector fired 10
-// times" is not a measurement without "out of how many pieces".
-var DuplicateArcObserverForTests func(matches []DuplicateArcMatch, startNode, endNode *NodeID)

@@ -130,6 +130,7 @@ func LegSeamsFromNearbyNodes(
 	onRanges []OnPieceRange,
 	startTerminal, endTerminal *NodeID,
 ) ([]Point, []LegSeam, SymmetricSnapReport, error) {
+	st := stateOf(ctx)
 	var rep SymmetricSnapReport
 
 	if len(pts) < 2 {
@@ -200,7 +201,7 @@ func LegSeamsFromNearbyNodes(
 	// fixed sequence.
 	cands := make([]NodeNearPath, len(found))
 	copy(cands, found)
-	if SnapReverseSearchOrderForTests {
+	if st.hooks.SnapReverseSearchOrder {
 		for i, j := 0, len(cands)-1; i < j; i, j = i+1, j-1 {
 			cands[i], cands[j] = cands[j], cands[i]
 		}
@@ -277,11 +278,11 @@ func LegSeamsFromNearbyNodes(
 		ords = append(ords, len(rep.Candidates)-1)
 	}
 	if len(takes) == 0 {
-		if SymmetricSnapObserverForTests != nil {
-			SymmetricSnapObserverForTests(CurrentLegForTests, rep)
+		if st.hooks.SymmetricSnap != nil {
+			st.hooks.SymmetricSnap(st.leg, rep)
 		}
-		if SymmetricSnapOnCanonObserverForTests != nil {
-			SymmetricSnapOnCanonObserverForTests(CurrentLegForTests, rep, onRanges)
+		if st.hooks.SymmetricSnapOnCanon != nil {
+			st.hooks.SymmetricSnapOnCanon(st.leg, rep, onRanges)
 		}
 		return pts, seams, rep, nil
 	}
@@ -290,56 +291,11 @@ func LegSeamsFromNearbyNodes(
 	if err != nil {
 		return nil, nil, rep, err
 	}
-	if SymmetricSnapObserverForTests != nil {
-		SymmetricSnapObserverForTests(CurrentLegForTests, rep)
+	if st.hooks.SymmetricSnap != nil {
+		st.hooks.SymmetricSnap(st.leg, rep)
 	}
-	if SymmetricSnapOnCanonObserverForTests != nil {
-		SymmetricSnapOnCanonObserverForTests(CurrentLegForTests, rep, onRanges)
+	if st.hooks.SymmetricSnapOnCanon != nil {
+		st.hooks.SymmetricSnapOnCanon(st.leg, rep, onRanges)
 	}
 	return outPts, outSeams, rep, nil
 }
-
-// SymmetricSnapObserverForTests reports EVERY leg's whole candidate set —
-// adopted and declined alike — with the same [CurrentLegForTests] convention
-// every other *ObserverForTests in this package uses. nil on a real import.
-//
-// It exists because the snap's DECLINES are the half of this rule that leaves no
-// trace. An adoption is visible in the committed topology; a decline is
-// visible in nothing at all — the leg commits exactly as it would have — so
-// "the rule declined here, for this reason" is otherwise unfalsifiable at
-// scale, and "this node is still not on the arc" is equally consistent with
-// the rule having declined correctly and with it never having fired.
-//
-// NOT a production counter: this is a diagnostic over a rule that fires a
-// handful of times per network, not a term in the node-count identity, and
-// such counts get a production consumer only when something needs one.
-var SymmetricSnapObserverForTests func(leg string, rep SymmetricSnapReport)
-
-// SnapReverseSearchOrderForTests reverses the SEARCH's raw result order before
-// the sort below, for the duration of one measurement.
-//
-// ⚠ A FALSIFICATION SEAM, NOT A FEATURE FLAG: what separates an instrument
-// from a kill switch in production source is a stated condition for removal.
-//
-// WHAT IT IS FOR. Coincident candidates are resolved by picking one
-// deterministically, and a determinism test that cannot FAIL proves nothing.
-// The hazard is a resolution that depends on the order results happened to
-// come back in, so the only honest test injects exactly that:
-// run the same import twice, once with the search's order reversed, and require
-// the committed network to be identical. It reverses BEFORE the sort on purpose
-// — reversing after would grade the sort against itself and could not detect an
-// incomplete sort key, which is the actual defect it exists to catch.
-//
-// ⚠ REMOVE IT WHEN: the tie-break's deciding key stops being the candidate
-// sort — if a future change resolves coincident candidates by an explicit
-// comparison instead of by acceptance order, that comparison can be pinned
-// directly and this seam has nothing left to falsify. It is NOT a switch for
-// production, has no plumbing to reach one, and must never acquire any.
-// The determinism test is its only reader.
-var SnapReverseSearchOrderForTests bool
-
-// SymmetricSnapOnCanonObserverForTests, when non-nil, is called once per leg
-// with the snap's own report and the ON ranges it was judged against. nil in
-// production. It lets a test count adoptions inside an ON stretch from the
-// producer's OWN record rather than from the rule under test.
-var SymmetricSnapOnCanonObserverForTests func(leg string, rep SymmetricSnapReport, onRanges []OnPieceRange)

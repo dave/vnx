@@ -303,7 +303,10 @@ func InterpolateMeasurePointM(verts []Point, measure float64) (lat, lon float64)
 // searched: the boundary then mints a node where an existing one was supposed
 // to be found, which is exactly the duplicate node the one-node rule
 // exists to prevent. Error, not fallback.
-func NearestLineageNode(l AlignLineage, measure, lat, lon float64) (Node, float64, bool, error) {
+//
+// hooks are the call's test hooks, nil for none (see
+// [TestHooks].A1AbsorbIgnoreMeasure).
+func NearestLineageNode(l AlignLineage, measure, lat, lon float64, hooks *TestHooks) (Node, float64, bool, error) {
 	best, bestD, found := Node{}, 0.0, false
 	var bad error
 	consider := func(id NodeID, nlat, nlon float64) {
@@ -341,7 +344,7 @@ func NearestLineageNode(l AlignLineage, measure, lat, lon float64) (Node, float6
 		// SAME CONSTANT, SECOND METRIC — not a new tolerance. The chord in
 		// AbsorbedM is a proxy for the along-canon reach; this is the proxy's
 		// subject, checked directly.
-		ignoreMeasure := A1AbsorbIgnoreMeasureForTests != nil && A1AbsorbIgnoreMeasureForTests()
+		ignoreMeasure := hooks != nil && hooks.A1AbsorbIgnoreMeasure != nil && hooks.A1AbsorbIgnoreMeasure()
 		if ignoreMeasure {
 			// RED-PROOF SWITCH, INERT IN PRODUCTION: restores the rule this
 			// replaced — any node on the lineage, however far along canon —
@@ -362,8 +365,3 @@ func NearestLineageNode(l AlignLineage, measure, lat, lon float64) (Node, float6
 	}
 	return best, bestD, found, bad
 }
-
-// A1AbsorbIgnoreMeasureForTests, when non-nil and true, drops the along-canon
-// half of the absorb search's candidate rule — see NearestLineageNode. nil in
-// production; a test installs it to prove the ride-resolution guard fires.
-var A1AbsorbIgnoreMeasureForTests func() bool

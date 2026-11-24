@@ -332,12 +332,12 @@ const CorridorSolveBudgetUnset = -1
 // API (ActivityManager's availMem is device-wide), so do not assume symmetry: a
 // budget that silently reads 0 there would refuse every leg.
 
-// CorridorSolveSlotTableBudgetBytes caps what one leg's six slot-sized tables —
+// THE SLOT-TABLE BUDGET ([TestHooks].SolveSlotTableBudgetBytes) caps what one leg's six slot-sized tables —
 // the four state tables and the search heap — may allocate. The gate that reads it is in [SolveCorridorPath], between the
 // count pass and the allocation.
 //
-// ⛔⛔ THE VALUE IS A PLACEHOLDER, NOT A DECISION. CorridorSolveBudgetUnset
-// means NO BUDGET: the gate is wired, measured and red-proofed, and it refuses
+// ⛔⛔ THERE IS NO VALUE YET, AND THAT IS NOT A DECISION. Production runs with
+// NO BUDGET (0, or CorridorSolveBudgetUnset): the gate is wired, measured and red-proofed, and it refuses
 // nothing until a number is agreed against the same-leg accounting
 // (TestCorridorSolve_Footprint). As shipped it protects nobody — it is here so
 // the mechanism can be reviewed before a number is chosen, and so that no
@@ -347,6 +347,5 @@ const CorridorSolveBudgetUnset = -1
 // cover the piece alphabet, the lazily built switchIdx, or the bookkeeping —
 // F_det in the accounting — so it is still not the solve's whole footprint.
 //
-// A var, not a const, so the refusal can be red-proofed by lowering it around
-// one solve. Production never writes it.
-var CorridorSolveSlotTableBudgetBytes = CorridorSolveBudgetUnset
+// A test option, not a constant, so the refusal can be red-proofed by setting
+// it for one solve. Production never sets it.

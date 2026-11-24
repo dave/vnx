@@ -97,17 +97,6 @@ func (r InteriorNodeSeamReport) Accepted() int {
 	return n
 }
 
-// InteriorNodeSeamObserverForTests reports every leg's whole candidate set,
-// accepted and declined alike, under the [CurrentLegForTests] convention every
-// other observer in this package uses. nil on a real import.
-//
-// It exists because a DECLINE leaves no trace whatsoever — the leg commits
-// exactly as it would have — so "the rule looked here and refused" is otherwise
-// unfalsifiable at scale, and a committed arc still running through a
-// node is equally consistent with a correct decline and with the rule never
-// having fired at all.
-var InteriorNodeSeamObserverForTests func(leg string, rep InteriorNodeSeamReport)
-
 // LegSeamsAtInteriorNodes adds one seam per existing node whose coordinate is
 // bitwise equal to an INTERIOR vertex of the leg, and returns the merged seam
 // list in ascending point order.
@@ -134,6 +123,7 @@ func LegSeamsAtInteriorNodes(
 	seams []LegSeam,
 	startTerminal, endTerminal *NodeID,
 ) ([]LegSeam, InteriorNodeSeamReport, error) {
+	st := stateOf(ctx)
 	var rep InteriorNodeSeamReport
 	if len(pts) < 3 {
 		// No interior vertex to split at. Nothing to ask.
@@ -168,8 +158,8 @@ func LegSeamsAtInteriorNodes(
 		return nil, rep, fmt.Errorf("LegSeamsAtInteriorNodes: %w", err)
 	}
 	if len(found) == 0 {
-		if InteriorNodeSeamObserverForTests != nil {
-			InteriorNodeSeamObserverForTests(CurrentLegForTests, rep)
+		if st.hooks.InteriorNodeSeam != nil {
+			st.hooks.InteriorNodeSeam(st.leg, rep)
 		}
 		return seams, rep, nil
 	}
@@ -295,8 +285,8 @@ func LegSeamsAtInteriorNodes(
 		rep.Candidates = append(rep.Candidates, c)
 	}
 
-	if InteriorNodeSeamObserverForTests != nil {
-		InteriorNodeSeamObserverForTests(CurrentLegForTests, rep)
+	if st.hooks.InteriorNodeSeam != nil {
+		st.hooks.InteriorNodeSeam(st.leg, rep)
 	}
 	if len(takes) == 0 {
 		return seams, rep, nil

@@ -187,13 +187,6 @@ func warpLegEndpointsToNodes(
 // two-point same-node guard into declining an adoption it should take and
 // minting a node beside an existing one, against the one-node rule.
 
-// LegTerminalGapObserverForTests, when non-nil, is called with the RAW
-// RESULT of every lookup WarpUnresolvedLegTerminals runs (one call per
-// still-unresolved side, whether or not it found anything) so a test can
-// confirm the lookup ran at all, not only infer it from an adoption. nil in
-// production, zero cost when unset.
-var LegTerminalGapObserverForTests func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)
-
 // WarpUnresolvedLegTerminals closes a sequencing gap the endpoint warp
 // (above) cannot see: a node that comes to exist WHILE THIS SAME LEG is being
 // merged (minted by the align step's cut at one of this leg's own followed-run
@@ -239,6 +232,7 @@ func WarpUnresolvedLegTerminals(
 	rep WarpReport,
 	multiPiece bool,
 ) ([]Point, WarpReport, bool, error) {
+	st := stateOf(ctx)
 	if len(pts) < 2 {
 		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: leg has %d point(s), need at least 2", len(pts))
 	}
@@ -251,13 +245,13 @@ func WarpUnresolvedLegTerminals(
 		if err != nil {
 			return nil, fmt.Errorf("WarpUnresolvedLegTerminals: %s terminal lookup: %w", side, err)
 		}
-		if LegTerminalGapObserverForTests != nil {
+		if st.hooks.LegTerminalGap != nil {
 			var id NodeID
 			var dist float64
 			if target != nil {
 				id, dist = target.NodeID, HaversineMetres(p.Lat, p.Lon, target.Lat, target.Lon)
 			}
-			LegTerminalGapObserverForTests(CurrentLegForTests, side, target != nil, id, dist)
+			st.hooks.LegTerminalGap(st.leg, side, target != nil, id, dist)
 		}
 		return target, nil
 	}

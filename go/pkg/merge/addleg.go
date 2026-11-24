@@ -15,9 +15,14 @@ type LegOptions struct {
 	// FillElevation is an error.
 	FillElevation func(ctx context.Context, pts []Point) error
 
-	// Label names the leg in error messages, and AddLeg stores it in
-	// [CurrentLegForTests] before the first step runs.
+	// Label names the leg in error messages and in diagnostic lines, and is
+	// the leg string handed to [TestHooks] observers.
 	Label string
+
+	// Logf receives the merge's rare diagnostic lines (a tie broken by
+	// distance or by node ID), one call per line, in fmt.Printf form with no
+	// trailing newline. nil means silent: the lines are not formatted at all.
+	Logf func(format string, args ...any)
 }
 
 // NoFill is the FillElevation of a leg whose elevations are not filled.
@@ -68,17 +73,17 @@ type LegResult struct {
 // duplicate arc.
 //
 // opts.FillElevation is required (pass NoFill for none; nil is an error).
-// AddLeg sets [CurrentLegForTests] from opts.Label before the first step.
 //
 // An error poisons the canon: the caller must discard every write the leg
 // made.
 //
-// AddLeg is not safe for concurrent use: it writes package-level test state.
+// AddLeg is safe for concurrent use on separate canons: it keeps no package
+// state, and everything a call needs travels in its opts and ctx.
 func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (LegResult, error) {
 	if opts.FillElevation == nil {
 		return LegResult{}, fmt.Errorf("AddLeg: FillElevation is nil; pass NoFill for a leg with nothing to fill")
 	}
-	CurrentLegForTests = opts.Label
+	ctx = withLeg(ctx, opts.Label, opts.Logf)
 	var res LegResult
 	// The T-junction split: where a terminal lands within
 	// EndpointWarpRadiusM of the INTERIOR of a canon arc, where the endpoint
@@ -144,7 +149,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// terminates on the node the align step found or minted there, so
 	// following canon and being JOINED to it are one fact. A leg with no
 	// followed run has no seam, and commits one arc with two fresh nodes.
-	seams, err := LegSeamsFromAlign(asm, alignRep, warpRep.StartNode, warpRep.EndNode)
+	seams, err := LegSeamsFromAlign(ctx, asm, alignRep, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -177,7 +182,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// is an error raised just before CommitLegPieces, not a quiet refusal of
 	// the ride.
 	var rides *LegRides
-	rides, err = ResolveLegRides(asm, alignRep, seams)
+	rides, err = ResolveLegRides(ctx, asm, alignRep, seams)
 	if err != nil {
 		return LegResult{}, err
 	}

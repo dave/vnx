@@ -18,7 +18,7 @@ import (
 // silent-drop treatment, not two independently chosen thresholds.
 const solverEps = 1e-6
 
-// corridorCostObserver receives the per-leg cost census. It is a TEST INSTRUMENT: [CorridorCostObserverForTests] is nil in
+// corridorCostObserver receives the per-leg cost census. It is a TEST INSTRUMENT: [TestHooks].CorridorCost is nil in
 // production, so the whole census costs one nil compare per leg, one per
 // (source edge × candidate), and one per solve.
 //
@@ -108,6 +108,7 @@ type corridorCostObserver interface {
 // back as a `%w`-wrapped [context.Canceled], never as a partial or empty result.
 // The caller cancels it, for example on memory pressure or a user's cancel.
 func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b FollowBands) ([]FollowRun, error) {
+	costObs := stateOf(ctx).hooks.CorridorCost
 	// Degenerate-leg contract: an empty leg has no runs, and a one-point leg
 	// is one OFF run that commits that point verbatim.
 	if len(pts) == 0 {
@@ -124,7 +125,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 	prepped := PrepCandidates(canon)
 	// Cost census. Nil in production; the counting loop below runs
 	// only when a test has armed the hook.
-	if obs := CorridorCostObserverForTests; obs != nil {
+	if obs := costObs; obs != nil {
 		n := 0
 		for _, pc := range prepped {
 			if pc != nil {
@@ -141,7 +142,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 	// and released, and no solve allocation has been made yet. A leg with
 	// total == 0 still passes this point and then gets no solve — see
 	// [corridorCostObserver.MintFinished].
-	if obs := CorridorCostObserverForTests; obs != nil {
+	if obs := costObs; obs != nil {
 		obs.MintFinished()
 	}
 	// ivs is HANDED OVER here: [SolveCorridorPath] releases every
@@ -152,7 +153,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 	if err != nil {
 		return nil, err
 	}
-	if obs := CorridorCostObserverForTests; obs != nil {
+	if obs := costObs; obs != nil {
 		obs.LegFinished()
 	}
 	if res == nil {

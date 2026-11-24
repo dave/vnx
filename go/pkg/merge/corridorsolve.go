@@ -1295,6 +1295,7 @@ const CorridorSolveCancelRelaxations = 4096
 // dereferenced when ivs is empty (the two degenerate call sites below pass
 // nil safely).
 func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, ivs []CorridorInterval, cands []*PreppedCandidate, r float64, k int, tunables ...CorridorTunables) (*CorridorSolveResult, error) {
+	hooks := &stateOf(ctx).hooks
 	if total < 0 || !AllFinite(total) {
 		return nil, fmt.Errorf("corridorsolve: total import measure must be finite and non-negative, got %v", total)
 	}
@@ -1478,7 +1479,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	for _, n := range statesAt {
 		projectedSlots += int(n)
 	}
-	if budget := CorridorSolveSlotTableBudgetBytes; budget > 0 {
+	if budget := hooks.SolveSlotTableBudgetBytes; budget > 0 {
 		if projected := CorridorProjectedSlotBytes(len(bps), projectedSlots, len(sps)); projected > budget {
 			return nil, fmt.Errorf("corridorsolve: this leg's state tables and search heap need %d bytes (%.1f MB) for %d slots over %d layers from a %d-piece alphabet, above the %d byte (%.1f MB) budget — refused before allocating. "+
 				"⚠ THIS BOUNDS THE PROJECTABLE TABLES ONLY (statesBy, dist, prev, pieceSlots, and the search heap with its position table): it does NOT cover the lazily built switchIdx maps, the piece alphabet or the bookkeeping. It is not the solve's total footprint and must not be scaled into one",
@@ -1659,8 +1660,8 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	if err := pq.Insert(PackLayerSlot(0, 0)); err != nil {
 		return nil, err
 	}
-	if CorridorSolveHeapHookForTests != nil {
-		CorridorSolveHeapHookForTests(pq)
+	if hooks.CorridorSolveHeap != nil {
+		hooks.CorridorSolveHeap(pq)
 	}
 	// The heap's high-water mark, for [CorridorSolveFootprint]. It observes and
 	// cannot change the answer: nothing downstream reads it. The bytes are fixed
@@ -1907,7 +1908,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// delivers no census at all — see [corridorCostObserver.LegFinished]. A
 	// CANCELLED search reaches this line too, deliberately: its relaxation count
 	// is what the stop bound is asserted from, and it is a real cost.
-	if obs := CorridorCostObserverForTests; obs != nil {
+	if obs := hooks.CorridorCost; obs != nil {
 		states := 0
 		for _, ss := range statesBy {
 			states += len(ss)
@@ -1923,7 +1924,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// The switch indexes are summed HERE rather than inside
 	// [corridorSolveFootprintOf] because layerSwitchIndex is local to this
 	// function; only its measured totals cross the boundary.
-	if obs := CorridorSolveFootprintObserverForTests; obs != nil {
+	if obs := hooks.CorridorSolveFootprint; obs != nil {
 		var sw corridorSwitchIndexUse
 		for _, ix := range switchIdx {
 			if ix == nil {
@@ -2230,8 +2231,8 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// It fires after the backtrack. Nothing between the search and this line
 	// writes dist, statesBy or sps, so the table observers see the finished
 	// table.
-	if CorridorSolveTableObserverForTests != nil {
-		CorridorSolveTableObserverForTests(bps, statesBy, sps, cands, dist, t, r, k, ivBounds, layerOf, bridgesFrom)
+	if hooks.CorridorSolveTable != nil {
+		hooks.CorridorSolveTable(bps, statesBy, sps, cands, dist, t, r, k, ivBounds, layerOf, bridgesFrom)
 	}
 
 	return &CorridorSolveResult{Runs: runs, Cost: bestCost}, nil

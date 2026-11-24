@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"context"
 	"fmt"
 	"math"
 )
@@ -55,7 +56,8 @@ type boundaryKey struct {
 	AtEnd bool
 }
 
-func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]LegSeam, error) {
+func LegSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]LegSeam, error) {
+	st := stateOf(ctx)
 	if len(asm.OnPieces) == 0 {
 		return nil, nil
 	}
@@ -181,17 +183,18 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 				pt := asm.Points[idx]
 				prevD := HaversineMetres(pt.Lat, pt.Lon, prev.NodeLat, prev.NodeLon)
 				thisD := HaversineMetres(pt.Lat, pt.Lon, b.NodeLat, b.NodeLon)
-				if LegSeamConflictObserverForTests != nil {
-					LegSeamConflictObserverForTests(CurrentLegForTests, idx, prev.Node, node, prevD, thisD)
+				if st.hooks.LegSeamConflict != nil {
+					st.hooks.LegSeamConflict(st.leg, idx, prev.Node, node, prevD, thisD)
 				}
-				// Logged in production, not only through the test hook above,
-				// which is nil on every real import: the tie-break is expected
+				// Logged in production (through LegOptions.Logf), not only
+				// through the test hook above, which is nil on every real
+				// import: the tie-break is expected
 				// to fire rarely, and that can only be checked if a real import
 				// reports it. A debug line rather than a counter, because this is
 				// a rare diagnostic event, not a term in the node-count identity.
-				DebugLog(fmt.Sprintf(
+				st.debugf(
 					"LegSeamsFromAlign: leg %q point %d resolved between canon node %d (%.3fm) and node %d (%.3fm) by distance, not conflict — %.3fm chosen",
-					CurrentLegForTests, idx, prev.Node, prevD, node, thisD, math.Min(prevD, thisD)))
+					st.leg, idx, prev.Node, prevD, node, thisD, math.Min(prevD, thisD))
 				switch {
 				case thisD < prevD:
 					prev.Node, prev.Adopted = node, adopted
@@ -221,9 +224,9 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 						prev.Absorbed, prev.AbsorbedM = absorbed, absorbedM
 						prev.NodeLat, prev.NodeLon = b.NodeLat, b.NodeLon
 					}
-					DebugLog(fmt.Sprintf(
+					st.debugf(
 						"LegSeamsFromAlign: leg %q point %d is equidistant (%.3fm) from canon nodes %d and %d — kept the lower id %d, dropped %d",
-						CurrentLegForTests, idx, thisD, prevNode, node, kept, lost))
+						st.leg, idx, thisD, prevNode, node, kept, lost)
 				}
 				// else prev is already the closer candidate: prev wins, nothing to do.
 			case hasNode && !prev.HasNode:
@@ -702,14 +705,6 @@ func SeamSideName(seams []LegSeam, k int, threaded *NodeID) string {
 	}
 }
 
-// LegSeamConflictObserverForTests, when set, reports EVERY tie-break
-// LegSeamsFromAlign resolves between two different candidate nodes at one leg
-// point: leg name, point index, the two candidate node IDs, and each one's TRUE
-// chord distance from the leg's own raw point. It lets tests check that the
-// tie-break fires only on genuine rare edge cases rather than masking
-// something systemic. Nil in production.
-var LegSeamConflictObserverForTests func(leg string, idx int, prevNode, node NodeID, prevD, thisD float64)
-
 // FurthestVertex picks the INTERIOR vertex FURTHEST (great-circle distance)
 // from the piece's own shared start/end coordinate — pts[0], which equals
 // pts[len(pts)-1] since this is only ever called on a piece that begins and
@@ -751,8 +746,3 @@ func FurthestVertex(pts []Point) (int, error) {
 	}
 	return best, nil
 }
-
-// DebugLog receives the merge's rare diagnostic lines (a tie broken by
-// distance or by node ID). It discards them by default; the host points it at
-// its own logger.
-var DebugLog = func(msg string) {}

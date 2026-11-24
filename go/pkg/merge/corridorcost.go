@@ -168,12 +168,12 @@ func ValidateEvenK(k int) error {
 // silently inexact rule.
 const GaussLegendreMaxPoints = 16
 
-// GaussLegendreRules[n] holds the n-point Gauss–Legendre nodes and weights on
+// gaussLegendreRules[n] holds the n-point Gauss–Legendre nodes and weights on
 // [−1, 1], computed once at package init by Newton's method on P_n — the
 // textbook construction, deterministic on every platform. Every weight is
 // strictly positive; TestGaussLegendreRules checks them, and checks each rule
 // integrates the monomials up to degree 2n−1 exactly.
-var GaussLegendreRules = func() [GaussLegendreMaxPoints + 1]struct{ X, W []float64 } {
+var gaussLegendreRules = func() [GaussLegendreMaxPoints + 1]struct{ X, W []float64 } {
 	var rules [GaussLegendreMaxPoints + 1]struct{ X, W []float64 }
 	for n := 1; n <= GaussLegendreMaxPoints; n++ {
 		x := make([]float64, n)
@@ -248,7 +248,7 @@ func IntegrateDistSqPow(bp BandPiece, m int) (float64, error) {
 	if m < 1 || n > GaussLegendreMaxPoints {
 		return 0, fmt.Errorf("corridorcost: power m=%d needs a %d-point Gauss–Legendre rule; this file carries rules of 2..%d points", m, n, GaussLegendreMaxPoints)
 	}
-	rule := GaussLegendreRules[n]
+	rule := gaussLegendreRules[n]
 	half := (bp.Hi - bp.Lo) / 2
 	sum := 0.0
 	for i, x := range rule.X {

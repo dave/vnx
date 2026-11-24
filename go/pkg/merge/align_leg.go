@@ -416,6 +416,7 @@ func cutCanonAtMeasure(
 	claim legTerminalClaim,
 	lineage AlignLineage,
 ) (AlignBoundary, error) {
+	st := stateOf(ctx)
 	measure := a.Measure
 
 	// RE-READ, every time. The previous cut deleted an arc and minted two, so the
@@ -565,7 +566,7 @@ func cutCanonAtMeasure(
 	// what the one-node rule exists to prevent, and no amount of parallel-copy
 	// removal is worth reintroducing it. The piece whose ride then cannot be
 	// resolved is created instead (rare in practice).
-	lineageNearby, lineageDistM, lineageFound, err := NearestLineageNode(lineage, measure, lat, lon)
+	lineageNearby, lineageDistM, lineageFound, err := NearestLineageNode(lineage, measure, lat, lon, &st.hooks)
 	if err != nil {
 		return AlignBoundary{}, err
 	}
@@ -575,7 +576,7 @@ func cutCanonAtMeasure(
 	if exactForeign {
 		lineageNearby, lineageDistM = Node{ID: nearby.ID, Lat: nearby.Lat, Lon: nearby.Lon}, nearby.DistM
 	}
-	if A1Decline2SuppressAdoptForTests != nil && A1Decline2SuppressAdoptForTests() {
+	if st.hooks.A1Decline2SuppressAdopt != nil && st.hooks.A1Decline2SuppressAdopt() {
 		// FAULT INJECTION, INERT IN PRODUCTION. The post-mint invariant check
 		// below should be unreachable under correct code: DECLINE 2's own search,
 		// immediately above, would already have found and ADOPTED anything within
@@ -611,12 +612,12 @@ func cutCanonAtMeasure(
 
 	out.Decline = AlignCutMade
 	out.Node = res.Node.ID
-	if preferredOverForeign && A1ForeignAbsorbObserverForTests != nil {
+	if preferredOverForeign && st.hooks.A1ForeignAbsorb != nil {
 		// Every boundary DECLINE 2's lineage preference redirected from an absorb
 		// to a cut: the node it refused, how far away that was, and the node the cut
 		// minted instead, reported AFTER the mint so an observer can classify the new
 		// node by its degree rather than just count it. nil in production.
-		A1ForeignAbsorbObserverForTests(CurrentLegForTests, runCanonID, a.Run, a.AtRunEnd, nearby.ID, nearby.DistM, res.Node.ID)
+		st.hooks.A1ForeignAbsorb(st.leg, runCanonID, a.Run, a.AtRunEnd, nearby.ID, nearby.DistM, res.Node.ID)
 	}
 	out.NodeLat, out.NodeLon = res.Node.Lat, res.Node.Lon
 	out.Prior = res.Prior
@@ -690,5 +691,3 @@ func cutCanonAtMeasure(
 	}
 	return out, nil
 }
-
-var A1ForeignAbsorbObserverForTests func(leg string, runCanonID ArcID, run int, atRunEnd bool, refused NodeID, distM float64, minted NodeID)

@@ -121,7 +121,8 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 	// loop: nil in production, so the mint pays one compare per source edge and
 	// nothing else. See [corridorCostObserver] — reporting must not change what
 	// is minted, pruned or ordered.
-	obs := CorridorCostObserverForTests
+	hooks := &stateOf(ctx).hooks
+	obs := hooks.CorridorCost
 	for e := 0; e < sa.Edges(); e++ {
 		// The mint's cancellation point. One source edge is the
 		// unit of mint work: [sourceEdgeCorridorPieces] allocates per canon edge
@@ -197,7 +198,7 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 			return nil, err
 		}
 		minted := len(pieces)
-		pieces, err = PruneToNearestCanonEdges(pieces)
+		pieces, err = PruneToNearestCanonEdges(pieces, hooks)
 		if err != nil {
 			return nil, err
 		}

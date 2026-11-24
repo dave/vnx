@@ -79,7 +79,10 @@ const NearestRunSamples = 64
 // [sourceEdgeCorridorPieces]' own guarantee. Retained pieces are returned
 // UNCHANGED — not clipped, not recomputed — so this can only ever remove
 // state, never perturb a number.
-func PruneToNearestCanonEdges(pieces []CorridorPiece) ([]CorridorPiece, error) {
+//
+// hooks are the call's test hooks, nil for none; its NearestPrune observer is
+// told each prune's (before, after) piece counts.
+func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]CorridorPiece, error) {
 	if len(pieces) == 0 {
 		return pieces, nil
 	}
@@ -180,8 +183,8 @@ func PruneToNearestCanonEdges(pieces []CorridorPiece) ([]CorridorPiece, error) {
 			out = append(out, p)
 		}
 	}
-	if NearestPruneObserverForTests != nil {
-		NearestPruneObserverForTests(len(pieces), len(out))
+	if hooks != nil && hooks.NearestPrune != nil {
+		hooks.NearestPrune(len(pieces), len(out))
 	}
 	return out, nil
 }

@@ -174,6 +174,12 @@ func CommitLegPieces(
 	rides *LegRides,
 	startTerminal, endTerminal *NodeID,
 ) ([]LegArcRef, []LegJoin, int, int, [][2]NodeID, *NodeID, []int, int, int, error) {
+	// TEST SWITCH, INERT IN PRODUCTION. The claim "referencing the ride is
+	// what removes the parallel copies" is only shown by a run in which it
+	// does not happen; without this a test could pass because the copies were
+	// never there.
+	hooks := &stateOf(ctx).hooks
+	suppressRides := hooks.LegRideSuppress != nil && hooks.LegRideSuppress()
 	if len(points) < 2 {
 		return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("CommitLegPieces: a leg of %d point(s) cannot be committed", len(points))
 	}
@@ -269,7 +275,10 @@ func CommitLegPieces(
 		// point range and the same two nodes — so a seam merge, a symmetric-snap
 		// adoption inside the run or a terminal that warped elsewhere all leave
 		// the piece without one and it is written as its own arc.
-		ride := rides.ForPiece(len(points), lo, hi, startNode, endNode)
+		var ride *LegRide
+		if !suppressRides {
+			ride = rides.ForPiece(len(points), lo, hi, startNode, endNode)
+		}
 		arcs, endID, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, ringMergedNode, midWarpedIdx, multiple, despiteDup, err := CommitPiece(ctx, canon, points[lo:hi+1], startNode, endNode, ride)
 		if multiple {
 			multiplicities++
@@ -352,33 +361,6 @@ func CommitLegPieces(
 	return out, joins, ringSplits, ringMergedTerminals, tightPairs, legRingMergedNode, legInteriorWarpedBoundaries, multiplicities, createdDespiteDuplicates, nil
 }
 
-// RingSplitExclusionObserverForTests, when non-nil, is called with
-// (leg, mintedNodeID, excludedNodeID, distM) every time CommitPiece mints a
-// GENUINE tight-ring residual: a ring split whose nearby-node lookup excluded
-// the piece's own start/end, found nothing else within EndpointWarpRadiusM,
-// minted fresh — but the excluded node itself WAS within radM of the mint.
-// That is the shape a check of the one-node rule needs to exempt. nil in
-// production: the computation itself (one HaversineMetres call against
-// coordinates already in hand) is cheap enough to make unconditionally, but
-// the RESULT only matters to a test, so it is only reported when a test is
-// listening.
-//
-// A test-only need does not extend a production result type; if a production
-// consumer genuinely needs these pairs later, promote this then.
-var RingSplitExclusionObserverForTests func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64)
-
-// A1Decline2SuppressAdoptForTests, when non-nil, is called by the align
-// step's canon cut right after DECLINE-2's own nearby-node search decides
-// whether to adopt — if it returns true, the adopt is forced to false
-// regardless of what the search found. FAULT INJECTION, not a diagnostic: the
-// post-mint one-node-rule invariant check is supposed to be unreachable under
-// correct code (DECLINE-2 would already have adopted anything it could
-// catch), so testing its abort path means simulating DECLINE-2 failing.
-// Called on EVERY DECLINE-2 decision, not only when it returns true, so a
-// test can confirm the injection point was actually reached. Nil in
-// production, zero cost when unset.
-var A1Decline2SuppressAdoptForTests func() bool
-
 // CommitPiece writes ONE piece, splitting it in two when both of its ends
 // resolve to the same node. It returns the arc ids it wrote and the
 // node the piece ENDED on, which the caller threads into the next piece.
@@ -401,6 +383,7 @@ func CommitPiece(
 	startNode, endNode *NodeID,
 	ride *LegRide,
 ) ([]LegArcRef, NodeID, bool, bool, bool, *[2]NodeID, *NodeID, *int, bool, bool, error) {
+	st := stateOf(ctx)
 	// A route whose two ends are close together is a loop: merge its ends
 	// into one node and split the loop as a ring. Without this, a leg's own
 	// two ends could sit within EndpointWarpRadiusM of EACH OTHER and still
@@ -438,8 +421,8 @@ func CommitPiece(
 		if err != nil {
 			return nil, 0, false, false, false, nil, nil, nil, false, false, err
 		}
-		if DuplicateArcObserverForTests != nil {
-			DuplicateArcObserverForTests(dupMatches, startNode, endNode)
+		if st.hooks.DuplicateArc != nil {
+			st.hooks.DuplicateArc(dupMatches, startNode, endNode)
 		}
 		// Whether this piece is written despite an identical arc. Decided HERE,
 		// before the ride branch, because this is where the detector's answer
@@ -618,14 +601,14 @@ func CommitPiece(
 	// happened here" fact visible without re-deriving it. ONE computation
 	// below, TWO reporters: the same `d <= EndpointWarpRadiusM` result is
 	// returned as tightPair for the caller's result AND fired through
-	// RingSplitExclusionObserverForTests for test diagnostics, so there are
+	// [TestHooks].RingSplitExclusion for test diagnostics, so there are
 	// not two sources that could drift apart.
 	var tightPair *[2]NodeID
 	if target == nil {
 		if d := HaversineMetres(warped[mid].Lat, warped[mid].Lon, pts[0].Lat, pts[0].Lon); d <= EndpointWarpRadiusM {
 			tightPair = &[2]NodeID{half, *ringNode}
-			if RingSplitExclusionObserverForTests != nil {
-				RingSplitExclusionObserverForTests(CurrentLegForTests, half, *ringNode, d)
+			if st.hooks.RingSplitExclusion != nil {
+				st.hooks.RingSplitExclusion(st.leg, half, *ringNode, d)
 			}
 		}
 	}

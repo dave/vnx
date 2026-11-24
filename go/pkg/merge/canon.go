@@ -81,8 +81,12 @@ type Canon interface {
 	// Arc and Node read it): the node at (s.Lat, s.Lon, s.Ele), the prior
 	// half from the arc's start node through Polyline[:s.PriorEnd] to the
 	// node, and the next half from the node through Polyline[s.NextStart:]
-	// to the arc's end node. Anything the canon keeps about the parent
-	// beyond its geometry is the canon's to carry over to the halves.
+	// to the arc's end node (0 <= PriorEnd <= NextStart <= len(Polyline);
+	// a zero-length arc gives PriorEnd 0 and NextStart len(Polyline), so
+	// both halves have empty interiors). s holds no pips: the canon slices
+	// the halves from its own copy of the parent. Anything the canon keeps
+	// about the parent beyond its geometry is the canon's to carry over to
+	// the halves.
 	SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (SplitIDs, error)
 }
 

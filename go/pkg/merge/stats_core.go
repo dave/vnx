@@ -91,17 +91,30 @@ func ExpandBounds(b *Bounds, lat, lon float64) {
 // segment with no elevation data at all reports 0 m of gain. That is the
 // intended meaning of 0, not an accident: 0 means "no accountable climb",
 // covering genuinely flat and no-elevation-data alike.
-func StatsFromPips(pips []Pip) ArcStats {
+//
+// It reads any pip type through [PipReader], so a caller holding its own pips
+// computes the stats without copying them into [Pip].
+func StatsFromPips[P PipReader](pips []P) ArcStats {
 	var stats ArcStats
 	for i := 0; i+1 < len(pips); i++ {
-		a, b := pips[i], pips[i+1]
-		stats.DistanceM += HaversineMetres(a.Lat, a.Lon, b.Lat, b.Lon)
-		g, l := ElevDelta(a.Ele, b.Ele)
+		aLat, aLon, aEle := pips[i].LatLonEle()
+		bLat, bLon, bEle := pips[i+1].LatLonEle()
+		stats.DistanceM += HaversineMetres(aLat, aLon, bLat, bLon)
+		g, l := ElevDelta(aEle, bEle)
 		stats.ElevGainM += g
 		stats.ElevLossM += l
 	}
 	return stats
 }
+
+// PipReader is a pip in any type: its latitude, longitude and elevation (NaN
+// for unknown). [StatsFromPips] and [BoundsFromPips] read pips through it.
+type PipReader interface {
+	LatLonEle() (lat, lon, ele float64)
+}
+
+// LatLonEle returns the pip's fields as they are.
+func (p Pip) LatLonEle() (lat, lon, ele float64) { return p.Lat, p.Lon, p.Ele }
 
 // ErrNoPips is BoundsFromPips's error for an empty list.
 var ErrNoPips = errors.New("no pips: an empty point list has no bounding box, and the zero box is a real place in the Atlantic")
@@ -116,16 +129,20 @@ var ErrNoPips = errors.New("no pips: an empty point list has no bounding box, an
 // of Guinea, with no error anywhere to explain why. There is no defensible
 // bounding box for no points, so this returns an error rather than inventing
 // one.
-func BoundsFromPips(pips []Pip) (Bounds, error) {
+//
+// Like [StatsFromPips], it reads any pip type through [PipReader].
+func BoundsFromPips[P PipReader](pips []P) (Bounds, error) {
 	if len(pips) == 0 {
 		return Bounds{}, ErrNoPips
 	}
+	lat0, lon0, _ := pips[0].LatLonEle()
 	b := Bounds{
-		MinLat: pips[0].Lat, MaxLat: pips[0].Lat,
-		MinLon: pips[0].Lon, MaxLon: pips[0].Lon,
+		MinLat: lat0, MaxLat: lat0,
+		MinLon: lon0, MaxLon: lon0,
 	}
 	for _, p := range pips[1:] {
-		ExpandBounds(&b, p.Lat, p.Lon)
+		lat, lon, _ := p.LatLonEle()
+		ExpandBounds(&b, lat, lon)
 	}
 	return b, nil
 }

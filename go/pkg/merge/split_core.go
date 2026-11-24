@@ -5,13 +5,12 @@ import (
 )
 
 // PolylineSplit is the result of SplitPolylineAtFraction: the lat/lon/
-// ele to assign the new node, and the two interior pip slices that
-// become the halves' polylines.
+// ele to assign the new node, and where the two halves' interior pips sit in
+// the parent's polyline. It holds no pips: the caller slices the halves from
+// the parent it already holds, once, in its own pip type.
 type PolylineSplit struct {
 	Lat, Lon float64
 	Ele      *float64 // nil iff both endpoints around the split have unknown elevation
-	Prior    []Pip    // interior pips of the prior half (start-side)
-	Next     []Pip    // interior pips of the next half (end-side)
 
 	// ConsumedParentVertex says the split landed exactly ON an interior pip of
 	// the parent, so that pip BECAME the node and is in neither half — as
@@ -34,11 +33,11 @@ type PolylineSplit struct {
 	// way and then reported a perfectly good committed point as off-canon.
 	ConsumedParentVertex bool
 
-	// PriorEnd and NextStart locate the halves in the parent's polyline:
-	// Prior is polyline[:PriorEnd] and Next is polyline[NextStart:], copied.
-	// A caller holding the parent's pips in another type slices its own
-	// copy with them. Both are 0 when Prior and Next are nil (a zero-length
-	// walk).
+	// PriorEnd and NextStart locate the halves in the parent's polyline: the
+	// prior half's interior is polyline[:PriorEnd] and the next half's is
+	// polyline[NextStart:]. Always 0 <= PriorEnd <= NextStart <= len(polyline).
+	// A zero-length walk gives PriorEnd = 0 and NextStart = len(polyline):
+	// both halves have empty interiors.
 	PriorEnd, NextStart int
 }
 
@@ -51,7 +50,8 @@ type PolylineSplit struct {
 // position become the prior half's interior; pips after become the
 // next half's. If the split lands exactly on a pip (rare in practice
 // but precise floats make it possible), that pip becomes the new node
-// and is excluded from both interior slices.
+// and is in neither half. The halves are returned as indices
+// (PriorEnd, NextStart), not copies.
 //
 // Elevation interpolation uses the same NaN-as-unknown convention as
 // the stats helpers: if either side of the split has unknown
@@ -79,11 +79,11 @@ func SplitPolylineAtFraction(start, end Node, polyline []Pip, fraction float64) 
 	// Place the node exactly at start; both halves have empty interiors.
 	if total == 0 {
 		return PolylineSplit{
-			Lat:   start.Lat,
-			Lon:   start.Lon,
-			Ele:   nodeEleAsPtr(start),
-			Prior: nil,
-			Next:  nil,
+			Lat:       start.Lat,
+			Lon:       start.Lon,
+			Ele:       nodeEleAsPtr(start),
+			PriorEnd:  0,
+			NextStart: len(polyline),
 		}
 	}
 
@@ -198,21 +198,10 @@ func SplitPolylineAtFraction(start, end Node, polyline []Pip, fraction float64) 
 		pNextStart = len(polyline)
 	}
 
-	prior := make([]Pip, 0, pPriorEnd)
-	if pPriorEnd > 0 {
-		prior = append(prior, polyline[:pPriorEnd]...)
-	}
-	next := make([]Pip, 0, len(polyline)-pNextStart)
-	if pNextStart < len(polyline) {
-		next = append(next, polyline[pNextStart:]...)
-	}
-
 	return PolylineSplit{
 		Lat:                  lat,
 		Lon:                  lon,
 		Ele:                  ele,
-		Prior:                prior,
-		Next:                 next,
 		ConsumedParentVertex: consumed,
 		PriorEnd:             pPriorEnd,
 		NextStart:            pNextStart,

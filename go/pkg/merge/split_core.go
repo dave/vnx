@@ -51,17 +51,19 @@ type PolylineSplit struct {
 // next half's. If the split lands exactly on a pip (rare in practice
 // but precise floats make it possible), that pip becomes the new node
 // and is in neither half. The halves are returned as indices
-// (PriorEnd, NextStart), not copies.
+// (PriorEnd, NextStart), not copies, and the polyline is read through
+// [PipReader], so a caller passes its own pips without converting them.
 //
 // Elevation interpolation uses the same NaN-as-unknown convention as
 // the stats helpers: if either side of the split has unknown
 // elevation, the interpolated ele is also unknown (nil pointer).
-func SplitPolylineAtFraction(start, end Node, polyline []Pip, fraction float64) PolylineSplit {
+func SplitPolylineAtFraction[P PipReader](start, end Node, polyline []P, fraction float64) PolylineSplit {
 	// Build the full walk in order so the loop below indexes uniformly.
 	walk := make([]WalkPoint, 0, len(polyline)+2)
 	walk = append(walk, WalkPoint{Lat: start.Lat, Lon: start.Lon, Ele: NodeEle(start)})
 	for _, p := range polyline {
-		walk = append(walk, WalkPoint{Lat: p.Lat, Lon: p.Lon, Ele: p.Ele})
+		lat, lon, ele := p.LatLonEle()
+		walk = append(walk, WalkPoint{Lat: lat, Lon: lon, Ele: ele})
 	}
 	walk = append(walk, WalkPoint{Lat: end.Lat, Lon: end.Lon, Ele: NodeEle(end)})
 

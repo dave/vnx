@@ -37,9 +37,13 @@ type Canon interface {
 	Node(ctx context.Context, id NodeID) (n Node, inCanon bool, err error)
 
 	// ArcIDsInRect returns the id of every arc whose bounding box meets b,
-	// in no stated order. The boxes are stored as float32, the minimum
-	// rounded down and the maximum rounded up, so the set can hold arcs that
-	// a float64 box test would miss by a rounding step, never fewer.
+	// inclusive at both ends, in no stated order. A canon may store the
+	// boxes coarser than float64; SQLite's R*Tree stores each bound as a
+	// float32 moved outward when the nearest float32 would fall inside the
+	// box (see [NewBox32] for the exact rule, which is not always the next
+	// float32), and compares that float32 with the float64 query. So the set
+	// can hold arcs that a float64 box test would miss, never fewer. Two
+	// canons give the same set only when they store the same float32 boxes.
 	ArcIDsInRect(ctx context.Context, b Bounds) ([]ArcID, error)
 
 	// ArcsInRect returns the same arcs as ArcIDsInRect, with their full
@@ -53,7 +57,9 @@ type Canon interface {
 
 	// Arc returns one arc as stored: its end node ids, its interior pips with
 	// their elevation bits unchanged (NaN for an unknown elevation), and its
-	// length. A missing arc is an error.
+	// length. A missing arc is an error. A canon need not check that the
+	// arc is its own: one that reads rows by id alone may return another
+	// owner's arc, while [MemCanon], which holds only its own, errors.
 	Arc(ctx context.Context, id ArcID) (Arc, error)
 
 	// CanonArc returns one arc of this canon with its full vertex list, or
@@ -61,7 +67,7 @@ type Canon interface {
 	CanonArc(ctx context.Context, id ArcID) (CanonArc, bool, error)
 
 	// ArcEnds returns an arc's start and end node ids. A missing arc is an
-	// error.
+	// error. As with Arc, a canon need not check that the arc is its own.
 	ArcEnds(ctx context.Context, id ArcID) (start, end NodeID, err error)
 
 	// ArcsBetween returns every arc of this canon joining nodes a and b, in

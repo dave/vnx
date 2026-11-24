@@ -48,7 +48,7 @@ package merge
 //     LESS than the measure it was cut at (measured up to a few millimetres,
 //     about 1e-6 relative, scaling with arc length). A boundary at the previous
 //     cut's position can therefore lie PAST the end of the half that now holds
-//     it. That is "already at a node" (see DECLINE 1), not an out-of-range
+//     it. That is "already at a node" (see the at-an-end check), not an out-of-range
 //     measure.
 //
 //  3. ⚠ **Two runs of ONE leg can bind the same canon arc** (the follow can
@@ -266,7 +266,7 @@ func splitCanonAtRunBoundaries(
 		for _, a := range measures {
 			// Which node (if any) is claimed by the leg's own terminal, for a boundary
 			// that belongs to some OTHER run of this leg. See cutCanonAtMeasure's
-			// DECLINE 1b / DECLINE 2.
+			// exact-node and nearby-node checks.
 			var claim legTerminalClaim
 			switch {
 			case !a.AtRunEnd && a.Run != firstRun && startTerminal != nil:
@@ -406,7 +406,7 @@ type legTerminalClaim struct {
 // the ORIGINAL arc's start node, which is still the parent's start node
 // because descending order only ever hands us prior halves.
 //
-// `claim` is the leg's own terminal claim; see DECLINE 1b / DECLINE 2 below.
+// `claim` is the leg's own terminal claim; see exact-node and nearby-node checks below.
 func cutCanonAtMeasure(
 	ctx context.Context,
 	canon Canon,
@@ -447,7 +447,7 @@ func cutCanonAtMeasure(
 		MeasureM: measure, TotalM: total,
 	}
 
-	// DECLINE 1: the boundary is AT AN END OF THIS ARC, so the node it wants is
+	// THE AT-AN-END CHECK: the boundary is AT AN END OF THIS ARC, so the node it wants is
 	// already there.
 	//
 	// ⚠ THE COMPARISON IS `>= total - measureEps`, WITH NO UPPER RANGE CHECK ABOVE
@@ -497,7 +497,7 @@ func cutCanonAtMeasure(
 		return out, nil
 	}
 
-	// DECLINE 1b / DECLINE 2: THE ONE-NODE RULE. Before minting any node, if a
+	// THE EXACT-NODE AND NEARBY-NODE CHECKS: THE ONE-NODE RULE. Before minting any node, if a
 	// node already exists within EndpointWarpRadiusM, use that node instead of
 	// creating one. One radius, one condition, every node-creation site.
 	//
@@ -535,7 +535,7 @@ func cutCanonAtMeasure(
 			"align step: search for a node within %v m of the boundary's own coordinate (%.9f,%.9f): %w",
 			EndpointWarpRadiusM, lat, lon, err)
 	}
-	// ⚠ DECLINE 2 PREFERS A NODE ON THE STRETCH THE RUN ACTUALLY RODE.
+	// ⚠ THE NEARBY-NODE CHECK PREFERS A NODE ON THE STRETCH THE RUN ACTUALLY RODE.
 	//
 	// The search above is network-wide, so a meaningful share of the nodes it
 	// would absorb a run boundary onto (measured at several to over thirty percent
@@ -559,7 +559,7 @@ func cutCanonAtMeasure(
 	//
 	// ⚠ AN EXACT COINCIDENCE IS NOT AN ABSORB, AND IT KEEPS THE OLD ANSWER.
 	// The lineage preference applies to the search that MOVES a boundary up to the
-	// radius to reach a node. A node at 0.000 m is DECLINE 1b's case: canon already
+	// radius to reach a node. A node at 0.000 m is the exact-node check's case: canon already
 	// has a node exactly where this boundary is, put there by some other arc's cut,
 	// and cutting again would mint a SECOND node 0.000 m from the first. That is
 	// what the one-node rule exists to prevent, and no amount of parallel-copy
@@ -575,12 +575,12 @@ func cutCanonAtMeasure(
 	if exactForeign {
 		lineageNearby, lineageDistM = Node{ID: nearby.ID, Lat: nearby.Lat, Lon: nearby.Lon}, nearby.DistM
 	}
-	if st.hooks.a1Decline2SuppressAdopt != nil && st.hooks.a1Decline2SuppressAdopt() {
+	if st.hooks.suppressNearbyAdopt != nil && st.hooks.suppressNearbyAdopt() {
 		// FAULT INJECTION, INERT IN PRODUCTION. The post-mint invariant check
-		// below should be unreachable under correct code: DECLINE 2's own search,
+		// below should be unreachable under correct code: the nearby-node check's own search,
 		// immediately above, would already have found and ADOPTED anything within
 		// radius, so the ONLY way the post-mint check can see something is if
-		// DECLINE 2 itself fails to adopt a genuinely-nearby node. This simulates
+		// the nearby-node check itself fails to adopt a genuinely-nearby node. This simulates
 		// exactly that failure (never the geometry, only this one decision) so the
 		// invariant's own abort path can be exercised without engineering a
 		// millimetre-scale placement. Nil by default: no behaviour change when unset.
@@ -612,7 +612,7 @@ func cutCanonAtMeasure(
 	out.Decline = AlignCutMade
 	out.Node = res.Node.ID
 	if preferredOverForeign && st.hooks.A1ForeignAbsorb != nil {
-		// Every boundary DECLINE 2's lineage preference redirected from an absorb
+		// Every boundary the nearby-node check's lineage preference redirected from an absorb
 		// to a cut: the node it refused, how far away that was, and the node the cut
 		// minted instead, reported AFTER the mint so an observer can classify the new
 		// node by its degree rather than just count it. nil in production.
@@ -662,8 +662,8 @@ func cutCanonAtMeasure(
 		}
 	}
 	// ⚠ THE EXEMPTION IS NARROW. This assertion says "nothing else is within
-	// EndpointWarpRadiusM of what I just minted", justified by DECLINE 2 having
-	// already adopted anything that was. But DECLINE 2 adopts only a node on the
+	// EndpointWarpRadiusM of what I just minted", justified by the nearby-node check having
+	// already adopted anything that was. But the nearby-node check adopts only a node on the
 	// ridden lineage, so a FOREIGN node within the radius is a reachable, intended
 	// outcome rather than a resolver defect, and `preferredOverForeign` is true
 	// for exactly those mints and no others. Every other way to reach this mint
@@ -672,7 +672,7 @@ func cutCanonAtMeasure(
 	if preferredOverForeign {
 		// THE RECORD OF THE LINEAGE-PREFERENCE DECISION, WRITTEN WHERE IT IS MADE.
 		// Every node still inside EndpointWarpRadiusM of the node this cut
-		// just minted, because DECLINE 2 chose to cut rather than drag canon
+		// just minted, because the nearby-node check chose to cut rather than drag canon
 		// sideways onto a foreign node. Recorded, not derived: nothing in the
 		// finished network distinguishes these pairs from a resolver defect
 		// (both are "two nodes 4 m apart"), and the fact that this pair is an

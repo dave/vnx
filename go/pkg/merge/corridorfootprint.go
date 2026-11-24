@@ -66,7 +66,7 @@ func corridorMapEntryBytes(keyBytes, valBytes int) int {
 // allocated (statesBy, dist, prev, pieceSlots, and the heap's entries and
 // positions), from the count pass's own totals; [CorridorSolveFootprint]
 // measures the same six afterwards from their real capacities, and
-// TestCorridorSolve_Footprint asserts the two agree exactly. A projection nothing checks against the allocation would be a guess
+// a footprint test asserts the two agree exactly. A projection nothing checks against the allocation would be a guess
 // with a function signature.
 //
 // slots is Σ_l len(statesBy[l]) and pieces is len(sps). The pieceSlots entry
@@ -344,7 +344,7 @@ const corridorSolveBudgetUnset = -1
 // ⛔⛔ THERE IS NO VALUE YET, AND THAT IS NOT A DECISION. Production runs with
 // NO BUDGET (0, or corridorSolveBudgetUnset): the gate is wired, measured and red-proofed, and it refuses
 // nothing until a number is agreed against the same-leg accounting
-// (TestCorridorSolve_Footprint). As shipped it protects nobody — it is here so
+// (the footprint test). As shipped it protects nobody — it is here so
 // the mechanism can be reviewed before a number is chosen, and so that no
 // plausible-looking constant can be read as settled. REPLACE IT.
 //

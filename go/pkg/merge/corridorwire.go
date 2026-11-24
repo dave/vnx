@@ -167,9 +167,8 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 	for _, run := range res.Runs {
 		if run.State.Off {
 			// A degenerate (sub-solverEps) OFF run is dropped, not committed
-			// — the OFF-side twin of the ON-side skip below. Found via
-			// TestChaosImport_Invariants and two tests since deleted (it
-			// regressed with earlier fixes
+			// — the OFF-side twin of the ON-side skip below. Found by
+			// randomised import tests (it regressed with earlier fixes
 			// in this file): a leg's very first
 			// breakpoint arc can be, at the solver's own eps scale
 			// (corridorsolve.go's own layering), a genuine but vanishingly
@@ -185,7 +184,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 			// still (correctly) reads this as the leg's own measure-0 start,
 			// since sub-eps error only moved WHICH followRun claims measure 0,
 			// not whether anything does. legSeamsFromAlign's own assertion
-			// (legpieces.go: "ON piece 0 is flagged terminal at its start
+			// (legpieces_core.go: "ON piece 0 is flagged terminal at its start
 			// but begins at point %d, not 0") is what catches the
 			// resulting mismatch — a real invariant, not an overly strict
 			// check; the fix is not committing the phantom point in the

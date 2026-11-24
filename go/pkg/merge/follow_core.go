@@ -481,9 +481,8 @@ func reconcileSnappedMeasures(origStart, origEnd, snapStart, snapEnd float64, re
 //  1. A single-anchor endpoint check — the snapped position alone against
 //     Stay. Passed every existing test; still let two randomized tests fail
 //     the corridor by about a metre once the any-node fallback widened which
-//     boundaries reach a snap at all (16.80 m and 15.11 m) —
-//     TestFollowIntegration_CrossingExtensionStaysInCorridor and
-//     TestFollowProperty_SelfConsistentRandom. Canon between the old boundary
+//     boundaries reach a snap at all (16.80 m and 15.11 m) 
+//     (a crossing extension and a randomised self-consistency test). Canon between the old boundary
 //     and the node is not a straight line, so a single endpoint check cannot
 //     bound the worst point in between.
 //  2. A check of every point canon newly covers, closing (1), but only

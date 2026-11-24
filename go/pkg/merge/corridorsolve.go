@@ -348,8 +348,8 @@ func resolveTunables(overrides []CorridorTunables) (CorridorTunables, error) {
 //
 // Measured before removing them: this pair previously sat at 0.5 m, and 0.0
 // and 0.5 give the identical result on a 19-file test corpus (60 arcs, 44 nodes,
-// 259.256084 km, hash d1578bb2) with the full test suite green at 0.0,
-// while 15.0 changes the hash. They were inert.
+// 259.256084 km) with the full test suite green at 0.0,
+// while 15.0 changes the output. They were inert.
 
 // clipCorridorPiece restricts cp to the import-measure range [x0,x1] ∩
 // [cp.ImportMeasureAtLo, cp.ImportMeasureAtHi], interpolating Regime.lo/hi and the
@@ -496,7 +496,7 @@ func crossCandidateEndMeasure(pc *PreppedCandidate, vi int) float64 {
 // P edge between every cross-candidate pair at a layer, so P is already the
 // upper bound Dijkstra sees. Stating it here keeps this function the SINGLE
 // definition of the price rather than a term the solver silently improves on —
-// which is what [TestCorridorSolve_TheTableIsFullyRelaxed] checks by comparing
+// which is what a full-relaxation test checks by comparing
 // the solver's own relaxation against this function.
 //
 // ⚠ SHARED ENDPOINTS ONLY, AND BY COORDINATE IDENTITY, NOT PROXIMITY. Two
@@ -959,7 +959,7 @@ func importGapCostBetween(ctx context.Context, srcArcs, canonArcs [][2]Point, r 
 // those two positions rather than padded to an edge boundary.
 //
 // The trim is the same necessity [canonGapCostBetween]'s uLo/uHi is: canon
-// edges are not densified (a real 1,956.8 m Snowdon edge), so handing an
+// edges are not densified (a real 1,956.8 m edge), so handing an
 // untrimmed edge to the import-side integral would let source hundreds of
 // metres away claim to be "on" a canon edge it merely shares a vertex with.
 //
@@ -1128,14 +1128,14 @@ func unpackLayerSlot(key int64) (layer int, slot int32) {
 
 // CorridorPackedState is one [CorridorStateID] in 4 bytes rather than 24: the
 // per-layer state lists hold one entry per (layer, state) and there are a great
-// many of them — 2,242,965 on the bundle fixture's worst leg, where the 24 B
+// many of them — 2,242,965 on the largest test fixture's worst leg, where the 24 B
 // struct costs 53.8 MB of the ~54 MB tables and 4 B says the same thing in
 // 9.0 MB. dist (8 B) and prev (8 B) per slot cannot shrink; this one can.
 //
 // ⚠ THE LISTS ARE NOT THE SOLVE'S DOMINANT LIVE TERM, as this comment used to
 // say. Measured same-leg, the lazy priority queue was, until the indexed heap
-// replaced it (see TestCorridorSolve_Footprint). Now no one term dominates: on the full
-// bundle's leg 32 dist and prev are 17.17 MiB each, the heap's entries 17.11 and
+// replaced it (see the footprint test). Now no one term dominates: on the
+// largest test fixture's leg 32 dist and prev are 17.17 MiB each, the heap's entries 17.11 and
 // the switchIdx slot lists 15.35, of 96.63 accounted. The saving here is real
 // and was measured exactly; what was never measured was the share of the solve
 // it came out of.
@@ -1166,10 +1166,10 @@ func unpackLayerSlot(key int64) (layer int, slot int32) {
 // ⚠ SpIdx HEADROOM, MEASURED NOT ASSUMED. SpIdx indexes the piece ALPHABET, so
 // the bound is the piece count, not the state count, and 30 bits hold
 // 1,073,741,824 of them.
-//   - bundle-small, all nine legs, read off the real lists
-//     (TestCorridorPackedState_FixtureStatesRoundTrip): largest alphabet 6,763
+//   - a nine-leg test fixture, every leg, read off the real lists
+//     (the packed-state round-trip test): largest alphabet 6,763
 //     pieces, largest SpIdx 6,762 — 158,767x of headroom.
-//   - The worst leg in any fixture here is the full bundle fixture's, at
+//   - The worst leg in any fixture here is the largest test fixture's, at
 //     2,242,965 STATES summed over its layers. A layer's list is
 //     1 + 2 x (pieces covering it), so that leg's alphabet is at most
 //     ~1,121,000 pieces even if no piece covered more than one layer — still
@@ -1405,8 +1405,8 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	sps := buildSolvePieces(ivs)
 	// ⚠ The alphabet must fit the packed state's SpIdx field, or two states
 	// would alias onto one slot and the winning path would be silently wrong.
-	// See [CorridorPackedState]'s headroom note: 958x on the full bundle's worst
-	// leg, 158,767x on the small bundle's.
+	// See [CorridorPackedState]'s headroom note: 958x on the largest test fixture's worst
+	// leg, 158,767x on the nine-leg fixture's.
 	if len(sps) >= corridorMaxSolvePieces {
 		return nil, fmt.Errorf("corridor solve: %d solve pieces exceeds the packed state's piece-index range (%d)", len(sps), corridorMaxSolvePieces)
 	}
@@ -1434,7 +1434,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	// ⚠ COUNT, THEN FILL — the lists below set the size of every slot-indexed
 	// table in the solve and they are append-grown no longer. (They are
 	// not the dominant live term: measured same-leg, statesBy is 5% of a
-	// leg's solve bytes — TestCorridorSolve_Footprint. What
+	// leg's solve bytes (the footprint test). What
 	// they DO decide is the slot count, which dist and prev then pay 8 B each
 	// for, so the count is worth getting exactly right whatever its own width.)
 	// Measured at 1.43x their exact fit when grown by append: a
@@ -1855,7 +1855,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 					if toSlot < 0 {
 						// ActiveOverArc said this piece carries the bridge
 						// target, and the layer lists say it is not there. The
-						// two tests were reconciled deliberately (7fa634c69);
+						// two tests were reconciled deliberately;
 						// a disagreement is a real inconsistency, not a case
 						// to skip past.
 						return nil, fmt.Errorf("corridor solve: bridge target piece %d is active at measure %v but has no state at layer %d", j, ivBounds[br.ToIv].ImportMeasureLo, toLayer)
@@ -2203,7 +2203,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 	// candidate, same direction, and canon measure that CONTINUES rather than
 	// doubling back.
 	//
-	// THE TERMS ARE NOT IDENTICAL, since 8bbf1e091. Downstream now refuses on
+	// THE TERMS ARE NOT IDENTICAL. Downstream now refuses on
 	// the MERGED SPAN (merged start == merged end); here we still refuse when
 	// BOTH inputs are degenerate, with degeneracy meaning zero-width only
 	// (CanonMeasureLo == CanonMeasureHi) — there is no second, single-source-edge
@@ -2230,7 +2230,7 @@ func solveCorridorPath(ctx context.Context, total float64, sa *sourceMeasure, iv
 		runs = []corridorRun{{State: CorridorStateID{Off: true}, ImportMeasureLo: 0, ImportMeasureHi: total}}
 	}
 
-	// A hook for [TestCorridorSolve_TheTableIsFullyRelaxed], which re-relaxes
+	// A hook for a full-relaxation test, which re-relaxes
 	// every edge against the finished table and fails if any of them still
 	// improves a distance. nil in production; see the test for why the
 	// question is worth asking at all.

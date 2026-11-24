@@ -12,7 +12,7 @@ import (
 // WHY INDEXED. The lazy queue has no decrease-key: every improvement pushes a
 // new item and leaves the old one to be discarded when it pops, so it grows with
 // the number of improvements, not the number of states — 4,359,193 items for
-// 2,242,965 states on the full bundle's worst leg, 80.84 MiB with append's
+// 2,242,965 states on the largest test fixture's worst leg, 80.84 MiB with append's
 // overshoot. Here each state has at most one entry, and pos records where it is,
 // so an improvement moves the existing entry up instead of adding one. The heap
 // can then never hold more entries than there are states, and it is allocated

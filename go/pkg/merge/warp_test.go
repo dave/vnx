@@ -580,7 +580,7 @@ func TestWarpLeg_RejectsBadInput(t *testing.T) {
 		// (a zero-length leg has no ordering to invert), so moving all of them
 		// to the same target preserves that, just at a new coordinate. A
 		// genuinely production-shaped call goes through
-		// warpLegEndpointsToNodes's collapse first (see warp.go's file
+		// warpLegEndpointsToNodes's collapse first (see warp_core.go's file
 		// comment, "PROBLEM 2") — this test calls warpLegEndpoints directly,
 		// which has no such protection and doesn't need it for this shape.
 		flat := make([]Point, 10)
@@ -699,7 +699,7 @@ func TestWarpLeg_BlendIsSmoothstepNotLinear(t *testing.T) {
 // comment already said this was not a claim about the runtime zone (which
 // could be far wider than 0.1L even before today) — and now the floor term
 // it was testing is gone from the formula entirely (endpointTaperFraction's
-// own doc, warp.go, has the measurement that killed it), so the arithmetic
+// own doc, warp_core.go, has the measurement that killed it), so the arithmetic
 // this test checked no longer exists to overlap or not. The runtime
 // disjointness this test was never actually a proxy for stays covered by
 // TestWarp_DisjointnessRefusesOverlap / TestWarp_DisjointnessAllowsAdequateLeg,

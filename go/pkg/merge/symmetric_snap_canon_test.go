@@ -134,7 +134,7 @@ func TestSymmetricSnap_AdoptsANodeOnTheLegsPath(t *testing.T) {
 		t.Errorf("seam claims node %d, want the marker %d", s.Node, marker)
 	}
 	if !s.HasNode {
-		t.Errorf("seam has HasNode=false — a seam with no node is S4a-N1's private mint, not an adoption")
+		t.Errorf("seam has HasNode=false — a seam with no node is a private mint, not an adoption")
 	}
 	if !s.Adopted {
 		t.Errorf("seam has Adopted=false, but the node existed in canon before this leg — nothing here mints")
@@ -175,7 +175,7 @@ func TestSymmetricSnap_AdoptsANodeOnTheLegsPath(t *testing.T) {
 			s.NodeLat, s.NodeLon, n.Lat, n.Lon)
 	}
 	if outPts[s.Idx].Lat == n.Lat && outPts[s.Idx].Lon == n.Lon {
-		t.Errorf("the inserted vertex is already AT the node — it should sit at the projection, and the §12 warp is what moves it")
+		t.Errorf("the inserted vertex is already AT the node — it should sit at the projection, and the boundary warp is what moves it")
 	}
 
 	// Elevation: the ramp is 300 m at x=500 and 400 m at x=750, so a vertex at
@@ -240,7 +240,7 @@ func TestSymmetricSnap_ProjectionOnAnExistingVertexInsertsNothing(t *testing.T) 
 // leg-side stub decline was lifted, so a candidate 10 m from the leg's start
 // is now adopted rather than left alone.
 //
-// StubM is still asserted to be under MinRunM. That is not decoration — it is
+// StubM is still asserted to be under the lifted 25 m minimum. That is not decoration — it is
 // what keeps this a test of the LIFT rather than of an arbitrary fixture. Both
 // halves only hold in the lifted state: the piece is short AND it was taken
 // anyway. Restore the rule and this goes red at the adoption.
@@ -249,7 +249,7 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 	d := emptyCanon(t)
 
 	minRun := liftedStubMinRunM
-	// 10 m along the leg — well inside MinRunM (25 m) of the leg's start, so
+	// 10 m along the leg — well inside the lifted 25 m minimum of the leg's start, so
 	// adopting would leave a 10 m piece that no import can ever follow.
 	snapMarker(t, ctx, d, "marker", minRun*0.4, EndpointWarpRadiusM*0.5)
 
@@ -270,19 +270,19 @@ func TestSymmetricSnap_AdoptsAShortStubAtTheLegsOwnEnd(t *testing.T) {
 		t.Errorf("leg has %d point(s), want %d — an adoption inserts the projection as a vertex", len(outPts), len(pts)+1)
 	}
 	if rep.Candidates[0].StubM >= minRun {
-		t.Errorf("StubM = %.3f m, want under MinRunM (%v) — the fixture is not exercising the rule it was built for", rep.Candidates[0].StubM, minRun)
+		t.Errorf("StubM = %.3f m, want under the lifted minimum (%v) — the fixture is not exercising the rule it was built for", rep.Candidates[0].StubM, minRun)
 	}
 	t.Logf("adopted a candidate leaving a %.3f m piece against a MinRun of %v m", rep.Candidates[0].StubM, minRun)
 }
 
 // TestSymmetricSnap_StubIsMeasuredAgainstAnAlignSeamNotJustTheEnds. Formerly
-// TestSymmetricSnap_DeclinesAShortStubBesideAnAlignSeam, RE-POINTED at
-// 42ceb0651 rather than inverted, because the bug it catches is untouched by
+// TestSymmetricSnap_DeclinesAShortStubBesideAnAlignSeam, RE-POINTED
+// rather than inverted, because the bug it catches is untouched by
 // the lift.
 //
 // What it catches, then and now: `boundaries` in [legSeamsFromNearbyNodes]
 // must include every align seam the leg already carries, not just its two ends.
-// S3 splits an arc that is whole, so its two halves are bounded by the arc's
+// The T-junction split cuts an arc that is whole, so its two halves are bounded by the arc's
 // own ends; a leg arriving here may already carry align seams, and a piece 10 m
 // from one of those is 10 m long exactly as surely as one 10 m from the end.
 // The node sits 500 m from either terminal — nowhere near one — and 10 m from
@@ -305,7 +305,7 @@ func TestSymmetricSnap_StubIsMeasuredAgainstAnAlignSeamNotJustTheEnds(t *testing
 
 	minRun := liftedStubMinRunM
 	// The leg's x=500 vertex is an existing align seam. The marker projects
-	// 10 m further along, inside MinRunM of it.
+	// 10 m further along, inside the lifted minimum of it.
 	other := snapMarker(t, ctx, d, "seamnode", 500, 300)
 	snapMarker(t, ctx, d, "marker", 500+minRun*0.4, EndpointWarpRadiusM*0.5)
 
@@ -374,7 +374,7 @@ func TestSymmetricSnap_DeclinesAtALegTerminalVertex(t *testing.T) {
 		t.Errorf("decline = %v, want snapDeclineTerminalVertex", got)
 	}
 	if len(outSeams) != 0 {
-		t.Errorf("produced %d seam(s), want 0 — a leg terminal is a lat-lon anchor, never a shared node (§4.8)", len(outSeams))
+		t.Errorf("produced %d seam(s), want 0 — a leg terminal is a lat-lon anchor, never a shared node", len(outSeams))
 	}
 }
 
@@ -446,7 +446,7 @@ func TestSymmetricSnap_NodeAlreadyClaimedIsNotAddedTwice(t *testing.T) {
 	}
 }
 
-// TestSymmetricSnap_LegTerminalNodesAreExcluded. A terminal S2 already resolved
+// TestSymmetricSnap_LegTerminalNodesAreExcluded. A terminal the endpoint warp already resolved
 // is a lat-lon anchor; re-adopting it as an INTERIOR seam would node the
 // highlight's own end.
 func TestSymmetricSnap_LegTerminalNodesAreExcluded(t *testing.T) {

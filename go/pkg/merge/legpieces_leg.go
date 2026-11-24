@@ -227,7 +227,7 @@ func commitLegPieces(
 	// Two DIFFERENT declined seams of THIS SAME LEG can land on the exact
 	// same coordinate — the leg's own followed geometry touches one canon vertex
 	// more than once (a trail crossing revisited), and the align step's
-	// existing-node check (DECLINE 1b) cannot see it, because it runs before
+	// existing-node check (the exact-node check) cannot see it, because it runs before
 	// this leg mints anything. Without this map every revisit mints its OWN
 	// node at a coordinate that already has one (measured: one leg, 9 nodes at
 	// one lat/lon). Keyed by the coordinate THIS LEG mints at, resolved

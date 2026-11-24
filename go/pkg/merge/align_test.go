@@ -155,7 +155,7 @@ func TestAlign_PartOfOneArcCutsTwice(t *testing.T) {
 	}
 }
 
-// TestAlign_EndToEndCutsNothing — the common case, and the one that makes A1
+// TestAlign_EndToEndCutsNothing — the common case, and the one that makes the align step
 // idempotent: a run that rides a whole canon arc already has its nodes.
 func TestAlign_EndToEndCutsNothing(t *testing.T) {
 	ctx := context.Background()
@@ -186,13 +186,13 @@ func TestAlign_EndToEndCutsNothing(t *testing.T) {
 // self-loop CHECK cannot see — the two node ids are distinct.
 //
 // ⚠ BUT NO CUT HAPPENS EITHER WAY, and asserting the count would therefore be
-// decorative. MinRunM (25 m) already refuses anything within nine orders of
+// decorative. The lifted 25 m minimum already refuses anything within nine orders of
 // magnitude of an end, so removing the measureEps branch changes nothing an arc
 // count can see — MEASURED, by removing it: `cuts = 0` still, table still green.
 //
 // What moves is the REASON, and the reason is load-bearing: "already at a node"
-// is the state A1 exists to reach and "stub too short" is a compromise it
-// accepted. L2 reconciles against this report and A2 consumes it. So the bar is
+// is the state the align step exists to reach and "stub too short" is a compromise it
+// accepted. The import reconciles against this report and the leg cut consumes it. So the bar is
 // the decline value, at a boundary inside measureEps where the two rules disagree
 // about the name and agree about the outcome.
 func TestAlign_MeasureEpsQualifiesTheEnds(t *testing.T) {
@@ -221,7 +221,7 @@ func TestAlign_MeasureEpsQualifiesTheEnds(t *testing.T) {
 		if b.Decline != AlignDeclineAtNode {
 			t.Errorf("the boundary at measure %.12g of %.6f was declined as %q, want %q. "+
 				"It is %.12g m from an end — inside measureEps, so it IS that node. Reporting it as a short stub "+
-				"reads a satisfied boundary as a compromise, and L2 reconciles against this report.",
+				"reads a satisfied boundary as a compromise, and the import reconciles against this report.",
 				b.MeasureM, b.TotalM, b.Decline, AlignDeclineAtNode, math.Min(b.MeasureM, b.TotalM-b.MeasureM))
 			_ = i
 		}
@@ -239,7 +239,7 @@ func TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode(t *testing.T) {
 	f := alignOneCanon(t, ctx, "align-absorb", 600)
 	before := alignCountArcs(t, ctx, f.d)
 
-	// The parent's start node, read BEFORE A1 runs: a cut DELETES the parent row
+	// The parent's start node, read BEFORE the align step runs: a cut DELETES the parent row
 	// and mints two halves, so f.arcID is gone by the time the report is back —
 	// but the prior half inherits this id, which is what the boundary absorbs to.
 	startNode, _, err := f.d.ArcEnds(ctx, f.arcID)
@@ -269,7 +269,7 @@ func TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode(t *testing.T) {
 		t.Errorf("absorbed onto node %d, want the parent's start node %d", b.Node, startNode)
 	}
 	if node, ok := b.SeamNode(); !ok || node == 0 {
-		t.Errorf("seamNode() = (%d,%v), want the absorbed node and true — A2 cannot join a seam with no node", node, ok)
+		t.Errorf("seamNode() = (%d,%v), want the absorbed node and true — the leg cut cannot join a seam with no node", node, ok)
 	}
 	if b.AbsorbedM <= 0 || b.AbsorbedM > EndpointWarpRadiusM {
 		t.Errorf("AbsorbedM = %.3f, want the displacement in (0,%.0f]", b.AbsorbedM, EndpointWarpRadiusM)
@@ -279,12 +279,12 @@ func TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode(t *testing.T) {
 	}
 }
 
-// TestAlign_StayBandDeclinesTheFarBoundaryCuts pins DECLINE 3's band, not the
+// TestAlign_StayBandBothBoundariesCut pins the lifted stay-band decline, not the
 // ruling it replaced.
 //
 // Both boundaries here — one 20 m from its end, one 200 m — cut. The StayM
-// band (EndpointWarpRadiusM..MinRunM, 15-25 m) once had a decline of its own
-// (DECLINE 3), because EndpointWarpRadiusM and the follow's StayM are the SAME
+// band (EndpointWarpRadiusM..25 m) once had a decline of its own
+// (the stay-band decline), because EndpointWarpRadiusM and the follow's StayM are the SAME
 // 15 m: an entered run stays classified ON until it has drifted StayM past
 // where it actually left its candidate, so a cut minted in that band nodes the
 // point the matcher NOTICED the leg leave, not where it left. That decline is
@@ -302,19 +302,19 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 	f := alignOneCanon(t, ctx, "align-stayband", 600)
 	before := alignCountArcs(t, ctx, f.d)
 
-	const near = 20.0 // > EndpointWarpRadiusM (15), < MinRunM (25) — the StayM band: declines
-	const far = 400.0 // 200 m from the nearer end — well past MinRunM: cuts
+	const near = 20.0 // > EndpointWarpRadiusM (15), < the lifted 25 m minimum — the StayM band: declines
+	const far = 400.0 // 200 m from the nearer end — well past 25 m: cuts
 	rep := runAlign(t, ctx, f.d, []followRun{onRun(f.arcID, near, far, false)})
 
 	if rep.Cuts != 2 {
-		t.Fatalf("cuts = %d, want 2 — DECLINE 3 is lifted, so the near boundary cuts alongside the far one (%s)",
+		t.Fatalf("cuts = %d, want 2 — the stay-band decline is lifted, so the near boundary cuts alongside the far one (%s)",
 			rep.Cuts, describeAlign(rep))
 	}
 	if len(rep.Boundaries) != 2 {
 		t.Fatalf("boundaries = %d, want 2 (%s)", len(rep.Boundaries), describeAlign(rep))
 	}
 
-	// DESCENDING cut order (align.go point 2, "Cutting the highest measure first"):
+	// DESCENDING cut order (align_leg.go point 2, "Cutting the highest measure first"):
 	// the far boundary (400) is resolved first, against the original 600 m
 	// arc; the near boundary (20) is resolved second, against whichever
 	// half now holds it.
@@ -322,16 +322,16 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 	if farB.Decline != AlignCutMade {
 		t.Errorf("far boundary (measure %.3f of %.3f) resolved as %q, want a cut", farB.MeasureM, farB.TotalM, farB.Decline)
 	}
-	// The boundary that DECLINE 3 used to hold. Asserted as a cut, and its
+	// The boundary that the stay-band decline used to hold. Asserted as a cut, and its
 	// measure asserted to still sit inside the band, so this test keeps naming
-	// the case the rule was about: restore DECLINE 3 and it reddens here, on
+	// the case the rule was about: restore the stay-band decline and it reddens here, on
 	// the boundary that actually changed.
 	if nearB.Decline != AlignCutMade {
-		t.Errorf("near boundary (measure %.3f of %.3f) resolved as %q, want a cut — DECLINE 3 is lifted",
+		t.Errorf("near boundary (measure %.3f of %.3f) resolved as %q, want a cut — the stay-band decline is lifted",
 			nearB.MeasureM, nearB.TotalM, nearB.Decline)
 	}
 	if !(nearB.MeasureM > EndpointWarpRadiusM && nearB.MeasureM < liftedStubMinRunM) {
-		t.Errorf("near boundary is at measure %.3f, outside the StayM band (%v..%v) — this fixture no longer poses DECLINE 3's question",
+		t.Errorf("near boundary is at measure %.3f, outside the StayM band (%v..%v) — this fixture no longer poses the stay-band decline's question",
 			nearB.MeasureM, EndpointWarpRadiusM, liftedStubMinRunM)
 	}
 
@@ -341,7 +341,7 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 }
 
 // TestAlign_ReversedRunCutsTheSamePlaces is AC #1's proof, and the single most
-// likely way A1 silently does the wrong thing.
+// likely way the align step silently does the wrong thing.
 //
 // followRun's measures are DIRECTIONAL: an anti-parallel run has MeasureStart > MeasureEnd.
 // A predicate that does not order the pair first reads the high boundary against
@@ -352,10 +352,10 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 // cuts, same measures, same resulting arc count.
 //
 // ⚠ HONEST ABOUT WHAT IT DOES NOT DO. It is a PROPERTY PIN, not a discriminator:
-// crippling the measure ordering reddened nothing here, because A1 pools both measures
+// crippling the measure ordering reddened nothing here, because the align step pools both measures
 // per canon arc, sorts the pool, and qualifies each boundary symmetrically —
 // so direction cannot reach the outcome. The helper that did the swapping was
-// deleted on that measurement (see align.go's header, point 1). This stays
+// deleted on that measurement (see align_leg.go's header, point 1). This stays
 // because it is the thing that WOULD catch a rewrite back to a per-run predicate,
 // which is the shape M1 uses and the shape the hazard is real in.
 func TestAlign_ReversedRunCutsTheSamePlaces(t *testing.T) {
@@ -391,7 +391,7 @@ func TestAlign_ReversedRunCutsTheSamePlaces(t *testing.T) {
 }
 
 // TestAlign_TwoRunsOnOneCanonArc — one leg, two disjoint ON runs bound to the
-// same canon arc (follow.go's pass-5 re-bind produces exactly this).
+// same canon arc (the follow's pass-5 re-bind produces exactly this).
 //
 // The hazard is that the second run names an id the first run's cut deleted.
 // Boundaries are therefore collected per canon arc across the WHOLE leg
@@ -614,7 +614,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 
 	// A run from arcB's own start (measure 0) to its midpoint (measure totalB/2, the
 	// coincident coordinate) — two boundaries, deliberately DIFFERENT reasons:
-	// the run's start end is at arcB's OWN end (ordinary DECLINE 1), and its
+	// the run's start end is at arcB's OWN end (the ordinary at-an-end check), and its
 	// other end is where this test's claim lives.
 	repB := runAlign(t, ctx, d, []followRun{onRun(arcB, 0, totalB/2, false)})
 	if repB.Cuts != 0 {
@@ -624,7 +624,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 	if len(repB.Boundaries) != 2 {
 		t.Fatalf("arcB boundary count = %d, want 2 (its own start end, and the coincident end)", len(repB.Boundaries))
 	}
-	// DESCENDING measure order (splitCanonAtRunBoundaries, point 2 of align.go's
+	// DESCENDING measure order (splitCanonAtRunBoundaries, point 2 of align_leg.go's
 	// header): the higher measure (the coincident midpoint) resolves first.
 	coincident, own := repB.Boundaries[0], repB.Boundaries[1]
 	if own.Decline != AlignDeclineAtNode {
@@ -651,7 +651,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 // existing-node decline, re-aimed when the one-node rule unified the radii:
 // before, there were two (5 mm exact-coordinate, 15 m parent-scoped), and this
 // test proved a half-metre gap fell between them and still cut. The rule
-// deletes that gap on purpose — DECLINE 1b and DECLINE 2 are now one network-wide
+// deletes that gap on purpose — the exact-node and nearby-node checks are now one network-wide
 // search at EndpointWarpRadiusM (15 m), so a half-metre boundary now
 // correctly ABSORBS onto the existing node (see
 // TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode for that case). What this
@@ -660,8 +660,8 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 // of both the 15 m absorb radius and the 15–25 m StayM band this fixture's
 // geometry keeps it well away from — must still cut and mint its own node. A
 // fix that widened the search past 15 m would satisfy a version of this test
-// with a bigger number and be exactly the mistake
-// terminal_cluster_spread_test.go's finding warns against.
+// with a bigger number, and that is the mistake: nodes of one cluster
+// spread wider than the radius, and a wider search merges them wrongly.
 func TestAlign_StillCutsWhenNotExactlyCoincident(t *testing.T) {
 	ctx := context.Background()
 	d, arcA, arcB, totalA, totalB := alignCrossFixture(t, ctx, "align-near-miss")
@@ -700,7 +700,7 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 		t.Fatalf("cutting arcA's midpoint: cuts = %d, want 1 (%s)", repA.Cuts, describeAlign(repA))
 	}
 	if len(repA.LineageCutConnectorPairs) != 0 {
-		t.Errorf("an ordinary cut with nothing nearby recorded %d T2b pair(s) %v, want none — it refused nothing",
+		t.Errorf("an ordinary cut with nothing nearby recorded %d lineage-cut pair(s) %v, want none — it refused nothing",
 			len(repA.LineageCutConnectorPairs), repA.LineageCutConnectorPairs)
 	}
 	refused := repA.Boundaries[0].Node
@@ -709,12 +709,12 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 	}
 
 	// THE SUBJECT. arcB's boundary at (500,5) is 5 m from the node arcA's cut
-	// just minted — inside EndpointWarpRadiusM (15 m), so the pre-T2b DECLINE 2
+	// just minted — inside EndpointWarpRadiusM (15 m), so the old nearby-node check
 	// would have absorbed onto it. It is on arc A, so it is not on arc B's own
-	// ridden lineage, and T2b cuts instead.
+	// ridden lineage, and the step cuts instead.
 	repB := runAlign(t, ctx, d, []followRun{onRun(arcB, totalB/2+5, totalB/2+5, false)})
 	if repB.Cuts != 1 {
-		t.Fatalf("cutting arcB 5 m from arcA's node: cuts = %d, want 1 — T2b must CUT, not absorb onto a foreign node (%s)", repB.Cuts, describeAlign(repB))
+		t.Fatalf("cutting arcB 5 m from arcA's node: cuts = %d, want 1 — the step must CUT, not absorb onto a foreign node (%s)", repB.Cuts, describeAlign(repB))
 	}
 	if got := repB.Boundaries[0].Decline; got != AlignCutMade {
 		t.Fatalf("arcB's boundary declined with %q, want a cut", got)
@@ -724,7 +724,7 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 	want := [][2]NodeID{{minted, refused}}
 	got := repB.LineageCutConnectorPairs
 	if len(got) != 1 || got[0] != want[0] {
-		t.Fatalf("T2b recorded %v, want %v — the pair (minted node, the foreign node it refused)", got, want)
+		t.Fatalf("the step recorded %v, want %v — the pair (minted node, the foreign node it refused)", got, want)
 	}
 
 	// THE PAIR IS A REAL VIOLATION OF THE INVARIANT IT EXEMPTS, measured, not
@@ -749,7 +749,7 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 	}
 	distM := HaversineMetres(a[0], a[1], b[0], b[1])
 	if distM > EndpointWarpRadiusM {
-		t.Errorf("minted node %d and refused node %d are %.3f m apart, beyond endpointWarpRadiusM (%v m) — this fixture no longer reaches the T2b case it grades",
+		t.Errorf("minted node %d and refused node %d are %.3f m apart, beyond endpointWarpRadiusM (%v m) — this fixture no longer reaches the lineage-cut case it grades",
 			minted, refused, distM, EndpointWarpRadiusM)
 	}
 

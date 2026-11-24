@@ -34,12 +34,12 @@ type TestHooks struct {
 	//
 	// ⚠ statesBy is [][]CorridorPackedState — THE SOLVE'S OWN LISTS, not a
 	// decoded copy. Handing over a decoded copy would keep this signature,
-	// but TestCorridorSolve_StateListBytes asserts cap == len on what it is
+	// but a state-list test asserts cap == len on what it is
 	// given, and a copy built at its own length is exact-fit whatever the
 	// solve allocated: that guard would pass for the wrong reason and could
 	// never fail again. (The capacities are also measured by
-	// TestCorridorSolve_Footprint, through its own observer, and bounded by
-	// TestCorridorSolve_RefusesAtTheProjectedBoundary.) Observers decode per
+	// the footprint test, through its own observer, and bounded by
+	// the budget refusal.) Observers decode per
 	// element with [CorridorPackedState.unpack].
 	CorridorSolveTable func(bps []float64, statesBy [][]CorridorPackedState, sps []SolvePiece, cands []*PreppedCandidate, dist [][]float64, t CorridorTunables, r float64, k int, ivs []CorridorIvBounds, layerOf map[float64]int, bridgesFrom map[int][]CorridorBridge)
 
@@ -71,19 +71,19 @@ type TestHooks struct {
 	// fires.
 	A1AbsorbIgnoreMeasure func() bool
 
-	// a1Decline2SuppressAdopt, when non-nil, is called by the align step's
-	// canon cut right after DECLINE-2's own nearby-node search decides
+	// suppressNearbyAdopt, when non-nil, is called by the align step's
+	// canon cut right after the nearby-node check's own nearby-node search decides
 	// whether to adopt — if it returns true, the adopt is forced to false
 	// regardless of what the search found. FAULT INJECTION, not a diagnostic:
 	// the post-mint one-node-rule invariant check is supposed to be
-	// unreachable under correct code (DECLINE-2 would already have adopted
+	// unreachable under correct code (the nearby-node check would already have adopted
 	// anything it could catch), so testing its abort path means simulating
-	// DECLINE-2 failing. Called on EVERY DECLINE-2 decision, not only when it
+	// the nearby-node check failing. Called on EVERY nearby-node decision, not only when it
 	// returns true, so a test can confirm the injection point was actually
 	// reached.
-	a1Decline2SuppressAdopt func() bool
+	suppressNearbyAdopt func() bool
 
-	// A1ForeignAbsorb is called for every boundary DECLINE 2's lineage
+	// A1ForeignAbsorb is called for every boundary the nearby-node check's lineage
 	// preference redirected from an absorb to a cut: the node it refused, how
 	// far away that was, and the node the cut minted instead, reported AFTER
 	// the mint so an observer can classify the new node by its degree rather

@@ -10,7 +10,7 @@ import (
 // ⚠ IT CALLS THE DETECTOR DIRECTLY AND DOES NOT GO THROUGH AN IMPORT, and the
 // reason is a finding in its own right. Written first as two imports — canon,
 // then a plan with one vertex nudged 1e-6 degrees — every "must not match"
-// case MATCHED. That is not a tolerance in the detector: it is S1 doing its
+// case MATCHED. That is not a tolerance in the detector: it is the follow doing its
 // job. The matcher recognises the second plan as following canon and rewrites
 // its geometry byte-exactly onto canon's before anything commits, which is
 // precisely the mechanism the duplicate-strand census's own header describes.

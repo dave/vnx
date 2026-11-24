@@ -89,7 +89,7 @@ type UnresolvedRide struct {
 // Reasons an ON piece resolves to no ride. Every one of these is a piece the
 // writer will CREATE, and each is a different question.
 const (
-	// The boundary was absorbed (the one-node rule, DECLINE 2) onto a node that
+	// The boundary was absorbed (the one-node rule's nearby-node check) onto a node that
 	// is not on the lineage the run rode — a node belonging to a parallel copy
 	// or a crossing arc, up to EndpointWarpRadiusM away.
 	rideForeignAbsorb = "foreign-absorb"
@@ -308,9 +308,9 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 		if sCount > 1 || eCount > 1 {
 			sReason, eReason = rideAmbiguousRingCanon, rideAmbiguousRingCanon
 		} else if sCount == 0 || eCount == 0 {
-			// A CUT's own node and a DECLINE-1 "already at this row's end" node
+			// A CUT's own node and the at-an-end check's "already at this arc's end" node
 			// are lineage nodes by construction — the lineage is built from the
-			// same cuts, and DECLINE 1 reads the parent row's own ends. So the
+			// same cuts, and the at-an-end check reads the parent arc's own ends. So the
 			// only way a node can be missing is the one-node rule's absorb
 			// reaching a node that is not on the ridden lineage at all: a foreign
 			// absorb. Anything else is an internal inconsistency.
@@ -337,8 +337,8 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 			}
 		}
 		// ⚠ ON THE LINEAGE IS NOT ENOUGH — IT MUST BE WHERE THE RUN ENDED.
-		// DECLINE 2's candidate set is bounded along canon, but one route past
-		// it survives and must: a node at 0.000 m is DECLINE 1b's case and is
+		// the nearby-node check's candidate set is bounded along canon, but one route past
+		// it survives and must: a node at 0.000 m is the exact-node check's case and is
 		// adopted whatever its measure, because cutting there would mint a
 		// second node on top of an existing one. Canon that loops back on
 		// itself then hands a run a boundary node thousands of metres along
@@ -553,7 +553,7 @@ func rideSeamIndex(seams []legSeam, want int, node NodeID, terminal int) (int, b
 func nodeIsAtMeasure(l AlignLineage, idx int, measure float64, ignoreMeasure bool) bool {
 	if ignoreMeasure {
 		// TEST SWITCH, INERT IN PRODUCTION. One switch drops the
-		// along-canon bound at BOTH places it is applied — DECLINE 2's
+		// along-canon bound at BOTH places it is applied — the nearby-node check's
 		// candidate set and this check — because that is the single property
 		// being tested, and leaving either in place hides the guard the test
 		// is about.

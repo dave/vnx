@@ -124,9 +124,8 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 }
 
 // TestMergeAdjacentSameCandidateRuns_DegenerateChainStaysSeparate is the
-// other boundary this file's merge must respect, found on
-// TestA2_Seed6Order012ImportsCleanly (bridge-merge's own regression):
-// walk-2's leg approaches ONE canon vertex repeatedly from several
+// other boundary this file's merge must respect, found on a
+// randomised import (the bridge merge's own regression): one walk's leg approaches ONE canon vertex repeatedly from several
 // unrelated directions along its own length. Each approach is a genuinely
 // separate solver run — five of them, EVERY one clamped to the exact same
 // degenerate canon measure (MeasureStart==MeasureEnd==209.936562184, measured directly)

@@ -8,7 +8,7 @@ package merge
 // runs up to V, and the stretch on B resumes from V. Without it the cost
 // function prices geometry [assembleFollowedLegRunsCorridor] never commits,
 // and the boundary lands interior to an arc where the align step has to CUT rather than
-// take DECLINE 1 at the node.
+// take the at-an-end check at the node.
 //
 // The carry-through is the rule case 2 already states for a same-candidate
 // switch — "a continuation carrying the skipped canon, not a seam" — applied
@@ -64,7 +64,7 @@ func TestCarryThrough_PaidTeleportLandsOnTheArcEnd(t *testing.T) {
 	// ⚠ EXACT, NOT WITHIN A TOLERANCE. The whole point is that the boundary is
 	// the arc's own end measure, written by [crossCandidateSharedPair] as the
 	// same float the candidate's measure table holds — so the align step reads it as
-	// DECLINE 1 (at node) rather than cutting a few centimetres inside.
+	// the at-an-end check rather than cutting a few centimetres inside.
 	if onA.MeasureEnd != prepped[0].Total {
 		t.Errorf("arc A's run ends at canon measure %.17g, want exactly %.17g (its own end). "+
 			"The switch PAID to teleport through the shared node, so the run must be drawn to it — "+

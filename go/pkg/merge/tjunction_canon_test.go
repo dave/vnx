@@ -96,7 +96,7 @@ func TestTJunction_TerminalVertexFractionIsShieldedByTheNodeProbe(t *testing.T) 
 			"supposed to produce the degenerate fraction the guard exists for", found, frac)
 	}
 	if declined != TjDeclineNodeInRadius {
-		t.Fatalf("S3 declined with %q; the node probe is supposed to shield the terminal-vertex case entirely, "+
+		t.Fatalf("the T-junction split declined with %q; the node probe is supposed to shield the terminal-vertex case entirely, "+
 			"so reaching %q would mean ValidateSnapFraction can abort a user's import", declined, TjDeclineTerminalVertex)
 	}
 }
@@ -271,9 +271,9 @@ func TestTJunction_FractionRoundTripStaysWithinTheGatesBudget(t *testing.T) {
 
 	if worst > tjRoundTripBoundM {
 		t.Fatalf("the fraction round trip displaces the minted node by up to %.6e m (walk %q), over the %.0e m "+
-			"this is asserted to stay under. The verify gate's real headroom is %.3f m (S3-2: grand-canyon leg 5's "+
+			"this is asserted to stay under. The verify gate's real headroom is %.3f m (a real leg's "+
 			"last terminal projects at 14.816 m against a 15 m gate), so a round trip approaching that aborts a "+
-			"valid user import. Do NOT raise this bound to go green — take the number to Dave",
+			"valid user import. Do NOT raise this bound to go green",
 			worst, worstWalk, tjRoundTripBoundM, tjRoundTripBudgetM)
 	}
 }
@@ -288,8 +288,8 @@ func TestTJunction_FractionRoundTripStaysWithinTheGatesBudget(t *testing.T) {
 func tjRoundTripWalks() []tjWalk {
 	type walk = tjWalk
 	// tjAt builds a point xM east / yM north of an arbitrary base, so walks can
-	// be placed at any latitude and across the ±180 seam — mPt is pinned to the
-	// Lake District base.
+	// be placed at any latitude and across the ±180 seam — mPt is pinned to one
+	// fixed base.
 	tjAt := func(baseLat, baseLon, xM, yM float64) Point {
 		perDegLon := mPerDegLat * math.Cos(baseLat*math.Pi/180)
 		lon := baseLon + xM/perDegLon
@@ -327,8 +327,7 @@ func tjRoundTripWalks() []tjWalk {
 	// thousands of km away). Averaging that into a round-trip bound would hide
 	// both: the round trip would look catastrophic and the real defect would
 	// look like float noise. It has its own test, which asserts what production
-	// actually does with it —
-	// TestTJunction_VerifyGateFires_OnSeamStraddlingCanon.
+	// actually does with it: the verify gate fires.
 
 	// A 100 km walk with a 10 cm leg in the middle: the cancellation case, where
 	// (target − cum[i-1]) subtracts two numbers agreeing to 6 significant
@@ -483,7 +482,7 @@ func TestTJunctionReport_RecordsEachTerminalsOutcome(t *testing.T) {
 		// reddens the report path too, not only the pure rule.
 		{"the stub would be under MinRun — rule lifted, splits", tjLegNS(20, -8, 101), true, TjNoDecline},
 		// The endpoint warp can no longer decline, so a short leg splits too.
-		{"a short leg still splits — S2 can no longer decline it", tjLegNS(505, -8, 11), true, TjNoDecline},
+		{"a short leg still splits — the endpoint warp can no longer decline it", tjLegNS(505, -8, 11), true, TjNoDecline},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := emptyCanon(t)
@@ -570,8 +569,8 @@ func TestTJunction_DeclinesWhenANodeSitsBesideTheProjection(t *testing.T) {
 		t.Fatalf("splitCanonAtTerminalTx: %v", err)
 	}
 	if got.Split {
-		t.Fatalf("S3 split canon and minted node %d beside N (%d), %.3f m away — "+
-			"that is the §12 violation this rule exists to stop",
+		t.Fatalf("the T-junction split cut canon and minted node %d beside N (%d), %.3f m away — "+
+			"that is the one-node violation this rule exists to stop",
 			got.NodeID, n.ID, HaversineMetres(proj.Lat, proj.Lon, n.Lat, n.Lon))
 	}
 	if got.Decline != TjDeclineNodeNearProjection {
@@ -607,7 +606,7 @@ func TestWarpUnresolvedLegTerminalsTx_AdoptsAndTapers(t *testing.T) {
 	d := emptyCanon(t)
 
 	// Mint a real, committed node to adopt onto — far from everything else
-	// in this test, the same shape a node A1 just minted for this leg has.
+	// in this test, the same shape a node the align step just minted for this leg has.
 	targetAt := mPt(1000, 1000)
 	far := Point{Lat: targetAt.Lat + 1, Lon: targetAt.Lon} // ~111 km away
 	anchorArc, err := addArc(ctx, d, []Point{targetAt, far})
@@ -619,7 +618,7 @@ func TestWarpUnresolvedLegTerminalsTx_AdoptsAndTapers(t *testing.T) {
 	// The leg under test: pts[0] sits ~7.8 m from targetAt (unresolved on
 	// entry — rep is empty), then runs on for well over 39 m of measure (the
 	// zone this displacement produces: 5x * 7.8m ≈ 39m, widenedZoneFactor
-	// from warp.go) so pts[2] sits OUTSIDE the taper zone and must be
+	// from warp_core.go) so pts[2] sits OUTSIDE the taper zone and must be
 	// untouched, while pts[1] sits inside it and must show SOME but LESS
 	// displacement than pts[0]'s full jump-to-target. The far end (pts[5])
 	// stays far from anything, so it must resolve to no adoption at all.
@@ -736,8 +735,8 @@ func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 
 	// Mint the interior seam's own node first, 50m from the leg's own
 	// start/end -- far outside EndpointWarpRadiusM, so it plays no part in
-	// the close-ends question below (same fixture shape as
-	// TestA2_MultiPieceLegWithCloseEndsClosesACycleWithNoBisection).
+	// the close-ends question below (the same fixture shape as the
+	// close-ends cycle test).
 	anchor, seamNode, _, _, _, _, _, _, _, _, err := commitPiece(ctx, d, []Point{mPt(-50, 0), mPt(0, 50)}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("anchor piece (interior seam node): %v", err)
@@ -803,7 +802,7 @@ func TestWarpUnresolvedLegTerminalsTx_MultiPieceGeneralisation(t *testing.T) {
 	if len(pieces) != 2 {
 		t.Fatalf("committed %d piece(s), want 2", len(pieces))
 	}
-	// ⚠ THE WALKED ENDS, NOT THE ROW'S OWN (S4b T3). Every claim below is
+	// ⚠ THE WALKED ENDS, NOT THE ROW'S OWN. Every claim below is
 	// about the LEG'S PATH — where it enters and leaves each piece — and a
 	// piece may now be a canon row this leg rides BACKWARDS, in which case the
 	// row's stored start is the leg's exit. walkStart/walkEnd answer the

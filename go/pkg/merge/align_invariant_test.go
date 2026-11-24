@@ -13,7 +13,7 @@ import (
 // a mint catches a new node inside EndpointWarpRadiusM of a node on the
 // ridden lineage. That check cannot fire under correct code: the search
 // before the mint adopts any such node. So the test forces that adopt to fail
-// (TestHooks.a1Decline2SuppressAdopt) instead of building geometry that no
+// (TestHooks.suppressNearbyAdopt) instead of building geometry that no
 // correct code can produce.
 //
 // Geometry: arcB is cut 20 m past its midpoint, which mints existingNode. A
@@ -66,7 +66,7 @@ func TestAlign_PostMintInvariantFiresWhenAdoptFails(t *testing.T) {
 	// test cannot pass because the boundary never reached the search.
 	suppressCalls := 0
 	var hooks TestHooks
-	hooks.a1Decline2SuppressAdopt = func() bool {
+	hooks.suppressNearbyAdopt = func() bool {
 		suppressCalls++
 		return true
 	}

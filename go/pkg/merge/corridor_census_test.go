@@ -13,9 +13,8 @@ import (
 // SumKeptSq is Σ_e P_e², the quantity the solve's memory grows as, with P_e the
 // pieces KEPT at source edge e summed over ALL candidates — see
 // [corridorCostObserver.SourceEdgeMinted]. SumMintedSq is the same sum over
-// minted pieces, reported beside it only so the handoff's r = +0.903 fit
-// (handoff-from-memory.md §5, which says "minted" where its own research means
-// kept) can be checked against both.
+// minted pieces, reported beside it so an earlier fit (r = +0.903, which said
+// "minted" where it meant kept) can be checked against both.
 type corridorLegCost struct {
 	SourceEdges int
 	Candidates  int

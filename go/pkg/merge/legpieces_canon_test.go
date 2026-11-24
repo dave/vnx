@@ -64,12 +64,12 @@ func arcVertsEle(a Arc, nodes map[NodeID]Node) ([]Point, bool) {
 	return append(out, Point{Lat: end.Lat, Lon: end.Lon, Ele: end.Ele}), true
 }
 
-// TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan is §4.9 stated on the
+// TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan is the ring split stated on the
 // writer itself, and it exists because the behavioural test above did NOT catch
 // the rule being removed.
 //
 // WHY A SECOND TEST FOR ONE RULE. Crippling [commitPiece] to return a ring
-// unsplit reddens 200 pieces on the corpus tier and NOTHING in the short suite:
+// unsplit reddens 200 pieces on a large test corpus and NOTHING in the short suite:
 // whether the bulge fixture's OFF piece resolves both ends to one node depends
 // on the follow's decomposition, and it currently does not. A rule that only a
 // two-minute corpus run can falsify is a rule the next agent will delete by
@@ -95,7 +95,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 		t.Fatalf("anchor piece: %v", err)
 	}
 	if len(anchor) != 1 {
-		t.Fatalf("a piece whose two ends are different nodes committed %d arcs, want 1 — §4.9 splits a RING, not every piece", len(anchor))
+		t.Fatalf("a piece whose two ends are different nodes committed %d arcs, want 1 — the ring split splits a RING, not every piece", len(anchor))
 	}
 
 	// The ring is a 50x50 m square — its halfway vertex is tens of metres from
@@ -113,7 +113,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 		t.Fatalf("ring piece: %v", err)
 	}
 	if !ringSplit {
-		t.Errorf("a piece whose two ends are the same node did not report ringSplit — §4.9 must have taken the split branch here")
+		t.Errorf("a piece whose two ends are the same node did not report ringSplit — the ring split must have taken the split branch here")
 	}
 	if tightPair != nil {
 		t.Errorf("ring piece reported a tight-ring pair %v, want none — the ring's own halfway point is nowhere near node %d", *tightPair, j)
@@ -122,7 +122,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 		t.Errorf("ring split fired the tight-ring observer, want no fire — the ring's own halfway point is nowhere near node %d", j)
 	}
 	// Nothing else in this fresh, single-ring network is within radius of the
-	// ring's own halfway point, so the §12 lookup finds nothing and this must
+	// ring's own halfway point, so the one-node lookup finds nothing and this must
 	// be a genuine mint, not an adoption.
 	if !ringSplitMinted {
 		t.Errorf("ring split reported an adoption, want a genuine mint — nothing else in this network is within endpointWarpRadiusM of the ring's halfway point")
@@ -222,7 +222,7 @@ func TestA2_RingSplitLandsAtTheTurnNotMeasureHalfway(t *testing.T) {
 		t.Fatalf("ring piece: %v", err)
 	}
 	if !ringSplit {
-		t.Fatalf("a piece whose two ends are the same node did not report ringSplit — §4.9 must have taken the split branch here")
+		t.Fatalf("a piece whose two ends are the same node did not report ringSplit — the ring split must have taken the split branch here")
 	}
 	if len(arcs) != 2 {
 		t.Fatalf("committed %d arc(s), want 2", len(arcs))
@@ -244,7 +244,7 @@ func TestA2_RingSplitLandsAtTheTurnNotMeasureHalfway(t *testing.T) {
 // a leg's own close ends and bisecting the loop: a leg whose own start and end are BOTH unresolved
 // (neither adopted by anything upstream — commitPiece's mergeOwnEnds) and
 // sit within EndpointWarpRadiusM of each other commits as TWO arcs
-// sharing ONE freshly-minted node, via the same §4.9 halfway split a
+// sharing ONE freshly-minted node, via the same ring-split halfway split a
 // pre-resolved ring already uses — not two separate, too-close nodes.
 //
 // CRIPPLE: revert commitPiece's mergeOwnEnds branch to the ordinary
@@ -266,7 +266,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 		t.Fatalf("commitPieceTx: %v", err)
 	}
 	if !ringSplit {
-		t.Fatalf("a leg with close unresolved ends did not report ringSplit — mergeOwnEnds must route through §4.9")
+		t.Fatalf("a leg with close unresolved ends did not report ringSplit — mergeOwnEnds must route through the ring split")
 	}
 	if !ringNodeMinted {
 		t.Errorf("ringNodeMinted = false, want true — neither end was resolved upstream, so the shared node must be a genuine fresh mint")
@@ -279,7 +279,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 	}
 
 	if len(arcs) != 2 {
-		t.Fatalf("a leg with close unresolved ends committed %d arc(s), want 2 — its start and end must merge into ONE shared node and bisect via §4.9, not mint two separate nodes 5 m apart", len(arcs))
+		t.Fatalf("a leg with close unresolved ends committed %d arc(s), want 2 — its start and end must merge into ONE shared node and bisect via the ring split, not mint two separate nodes 5 m apart", len(arcs))
 	}
 	if arcs[0].Arc.StartNodeID != arcs[1].Arc.EndNodeID {
 		t.Fatalf("the two halves run %d..%d and %d..%d — the merged terminal must be the SAME node on both ends", arcs[0].Arc.StartNodeID, arcs[0].Arc.EndNodeID, arcs[1].Arc.StartNodeID, arcs[1].Arc.EndNodeID)
@@ -292,13 +292,14 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 	}
 }
 
-// TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode is S4a-N2.
+// TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode: two declined seams at
+// one coordinate share one node.
 //
-// A1's DECLINE 1b (align.go, S4a-N3) checks the network for an existing node at
+// The align step's exact-node check checks the network for an existing node at
 // a boundary's coordinate BEFORE cutting canon — but it runs before this leg has
 // committed anything, so it cannot see a node THIS SAME LEG is about to mint at
 // one of its OWN declined seams. If the leg's followed geometry touches one
-// coordinate at two SEPARATE stub-decline seams (A1 declined to cut canon at
+// coordinate at two SEPARATE stub-decline seams (the align step declined to cut canon at
 // both — too short a run to be worth it), nothing before this fix asked whether
 // the first seam's private mint already sits where the second is about to mint
 // another. Measured on real data: one leg left 9 nodes at one lat/lon, and
@@ -313,7 +314,7 @@ func TestA2_CloseUnresolvedEndsMergeIntoOneRingNode(t *testing.T) {
 // canon node was ever at).
 //
 // Threading the first seam's minted node into the second makes the piece BETWEEN
-// them start and end on the same node — a genuine §4.9 ring, which the writer
+// them start and end on the same node — a genuine ring, which the writer
 // already knows how to split. So the expected shape is: ONE node at the shared
 // coordinate (not two), and the piece between the seams split at its interior
 // halfway vertex (not aborted, not left as a same-node row).
@@ -345,7 +346,7 @@ func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
 	}
 
 	if len(pieces) != 4 {
-		t.Fatalf("committed %d piece(s), want 4 — start-terminal..seamA (1), seamA..seamB split by §4.9 into 2 since "+
+		t.Fatalf("committed %d piece(s), want 4 — start-terminal..seamA (1), seamA..seamB split by the ring split into 2 since "+
 			"both ends now share ONE node, seamB..end-terminal (1)", len(pieces))
 	}
 
@@ -358,7 +359,7 @@ func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
 	}
 	if atDup != 1 {
 		t.Fatalf("%d node row(s) at the shared coordinate %v, want 1 — two declined seams of one leg at one lat/lon "+
-			"must share a node, not mint one each (S4a-N2)", atDup, dup)
+			"must share a node, not mint one each", atDup, dup)
 	}
 
 	// pieces = [start-term..seamA, seamA..half (ring 1st half), half..seamB (ring
@@ -370,7 +371,7 @@ func TestA2_TwoDeclinedSeamsAtOneCoordinateShareOneNode(t *testing.T) {
 		t.Errorf("piece 1 starts on node %d, want %d (seam A's node)", pieces[1].Arc.StartNodeID, j)
 	}
 	if pieces[1].Arc.StartNodeID == pieces[1].Arc.EndNodeID {
-		t.Errorf("piece 1 (%d..%d) is a same-node row — §4.9 exists to make that impossible", pieces[1].Arc.StartNodeID, pieces[1].Arc.EndNodeID)
+		t.Errorf("piece 1 (%d..%d) is a same-node row — the ring split exists to make that impossible", pieces[1].Arc.StartNodeID, pieces[1].Arc.EndNodeID)
 	}
 	if pieces[1].Arc.EndNodeID != pieces[2].Arc.StartNodeID {
 		t.Errorf("the ring's two halves disagree on their shared halfway node: piece 1 ends on %d, piece 2 starts on %d",

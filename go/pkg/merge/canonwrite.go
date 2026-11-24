@@ -121,7 +121,8 @@ func InteriorPips(points []Point) []Pip {
 
 // splitArcAt splits arc id of c at fraction (in (0, 1), exclusive) of its
 // walk: it reads the arc and its end nodes, computes the split
-// (SplitPolylineAtFraction) and stores it with c.SplitArc.
+// (SplitPolylineAtFraction) and stores it with c.SplitArc. A minted node id
+// below 1 is an error: the align cut and the T-junction split both join to it.
 func splitArcAt(ctx context.Context, c Canon, id ArcID, fraction float64) (splitResult, error) {
 	if !(fraction > 0 && fraction < 1) {
 		return splitResult{}, fmt.Errorf("split fraction %v must be in (0, 1) exclusive", fraction)
@@ -142,6 +143,9 @@ func splitArcAt(ctx context.Context, c Canon, id ArcID, fraction float64) (split
 	ids, err := c.SplitArc(ctx, id, s)
 	if err != nil {
 		return splitResult{}, err
+	}
+	if ids.Node <= 0 {
+		return splitResult{}, fmt.Errorf("canon returned node id %d for the node a split of arc %d minted: node ids start at 1", int64(ids.Node), id)
 	}
 	return splitResult{
 		Node:                 Node{ID: ids.Node, Lat: s.Lat, Lon: s.Lon, Ele: s.Ele},

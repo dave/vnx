@@ -249,9 +249,9 @@ func splitCanonAtRunBoundaries(
 			return AlignReport{}, fmt.Errorf(
 				"align step: read endpoint nodes of canon arc %d to record its cut lineage: %w", canonID, err)
 		}
-		if origStartNode == 0 || origEndNode == 0 {
+		if origStartNode <= 0 || origEndNode <= 0 {
 			return AlignReport{}, fmt.Errorf(
-				"canon returned node id 0 for an end of canon arc %d (nodes %d..%d): node ids start at 1",
+				"canon returned node id below 1 for an end of canon arc %d (nodes %d..%d): node ids start at 1",
 				canonID, origStartNode, origEndNode)
 		}
 		origStart, _, err := canon.Node(ctx, origStartNode)
@@ -623,9 +623,6 @@ func cutCanonAtMeasure(
 			parent, fraction, measure, total, err)
 	}
 
-	if err := checkCanonNodeID(res.Node.ID, AlignCutMade); err != nil {
-		return AlignBoundary{}, err
-	}
 	out.Decline = AlignCutMade
 	out.Node = res.Node.ID
 	if preferredOverForeign && st.hooks.A1ForeignAbsorb != nil {

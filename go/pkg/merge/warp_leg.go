@@ -245,13 +245,13 @@ func warpUnresolvedLegTerminals(
 		if err != nil {
 			return nil, fmt.Errorf("unresolved terminals: %s terminal lookup: %w", side, err)
 		}
-		if st.hooks.LegTerminalGap != nil {
+		if st.hooks.legTerminalGap != nil {
 			var id NodeID
 			var dist float64
 			if target != nil {
 				id, dist = target.NodeID, HaversineMetres(p.Lat, p.Lon, target.Lat, target.Lon)
 			}
-			st.hooks.LegTerminalGap(st.leg, side, target != nil, id, dist)
+			st.hooks.legTerminalGap(st.leg, side, target != nil, id, dist)
 		}
 		return target, nil
 	}

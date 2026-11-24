@@ -29,17 +29,18 @@ func nearestNearbyNode(all []nearbyNode) (nearbyNode, bool) {
 	// order for exactly this reason. This reduction IS the whole difference
 	// between the singular and plural forms; nothing about the box, the
 	// exclude rule or the `<= radiusM` boundary is decided here.
+	//
+	// "Found" is a flag, not best.ID != 0: a node id of 0 is a broken canon,
+	// and the callers' id checks must see it rather than read it as no node.
 	var best nearbyNode
+	found := false
 	bestD := math.MaxFloat64
 	for _, n := range all {
 		if n.DistM < bestD {
-			bestD, best = n.DistM, n
+			bestD, best, found = n.DistM, n, true
 		}
 	}
-	if best.ID == 0 {
-		return nearbyNode{}, false
-	}
-	return best, true
+	return best, found
 }
 
 // measureNodeCandidate measures one candidate row of a node box query

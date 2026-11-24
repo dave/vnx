@@ -211,7 +211,7 @@ type WalkProjector struct {
 func NewWalkProjector(verts []Point) (*WalkProjector, error) {
 	w, err := newWalkProjector(verts)
 	if err != nil {
-		return nil, apiError("project onto walk", err)
+		return nil, apiError("new walk projector", err)
 	}
 	return w, nil
 }

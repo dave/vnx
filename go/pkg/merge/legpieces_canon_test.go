@@ -72,7 +72,7 @@ func arcVertsEle(a Arc, nodes map[NodeID]Node) ([]Point, bool) {
 // unsplit reddens 200 pieces on a large test corpus and NOTHING in the short suite:
 // whether the bulge fixture's OFF piece resolves both ends to one node depends
 // on the follow's decomposition, and it currently does not. A rule that only a
-// two-minute corpus run can falsify is a rule the next agent will delete by
+// two-minute corpus run can falsify is a rule that is easy to delete by
 // accident. This one calls the writer directly, so the fixture cannot drift out
 // from under it.
 //
@@ -103,7 +103,7 @@ func TestA2_CommitPieceSplitsAPieceThatEndsWhereItBegan(t *testing.T) {
 	// tight-ring shape, in either of the two places it's reported.
 	tightRingFired := false
 	var hooks TestHooks
-	hooks.RingSplitExclusion = func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64) {
+	hooks.ringSplitExclusion = func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64) {
 		tightRingFired = true
 	}
 	ctx = WithTestHooks(ctx, hooks)

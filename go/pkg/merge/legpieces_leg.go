@@ -601,14 +601,14 @@ func commitPiece(
 	// happened here" fact visible without re-deriving it. ONE computation
 	// below, TWO reporters: the same `d <= EndpointWarpRadiusM` result is
 	// returned as tightPair for the caller's result AND fired through
-	// [TestHooks].RingSplitExclusion for test diagnostics, so there are
+	// the ringSplitExclusion test hook for test diagnostics, so there are
 	// not two sources that could drift apart.
 	var tightPair *[2]NodeID
 	if target == nil {
 		if d := HaversineMetres(warped[mid].Lat, warped[mid].Lon, pts[0].Lat, pts[0].Lon); d <= EndpointWarpRadiusM {
 			tightPair = &[2]NodeID{half, *ringNode}
-			if st.hooks.RingSplitExclusion != nil {
-				st.hooks.RingSplitExclusion(st.leg, half, *ringNode, d)
+			if st.hooks.ringSplitExclusion != nil {
+				st.hooks.ringSplitExclusion(st.leg, half, *ringNode, d)
 			}
 		}
 	}

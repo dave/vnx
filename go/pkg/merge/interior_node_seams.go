@@ -28,6 +28,7 @@
 // pieceHasExtent and [zeroArcGap] make for their own exact zeroes. There is
 // no number in this file. If a case needs "close enough", it belongs to the
 // symmetric snap, which owns proximity and has a fixed radius for it.
+
 package merge
 
 import (

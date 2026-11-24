@@ -263,7 +263,7 @@ func censusCanonNorth() CanonArc {
 // everywhere; the nearest any clamped foot gets is vertex 1 at
 // √(0.25² + 2²) = 2.0156 m. So canon edge 0 wins at every sample and every
 // midpoint, and [PruneToNearestCanonEdges] keeps its halo of
-// [NearestRunHaloEdges] = 8 either side, clipped to the run:
+// nearestRunHaloEdges = 8 either side, clipped to the run:
 //
 //	KEPT = canon edges 0..8 = 9 pieces.
 //

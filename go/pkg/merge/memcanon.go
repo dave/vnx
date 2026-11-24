@@ -50,9 +50,14 @@ import (
 // error, build a new canon from it with [NewMemCanon]:
 //
 //	before, err := canon.Snapshot()
-//	if err != nil { ... }
+//	if err != nil {
+//		return err
+//	}
 //	if _, err := merge.AddLeg(ctx, canon, pts, opts); err != nil {
-//		canon, _ = merge.NewMemCanon(before) // the leg is undone
+//		// The leg is undone: build a new canon from the snapshot.
+//		if canon, err = merge.NewMemCanon(before); err != nil {
+//			return err
+//		}
 //	}
 //
 // A MemCanon is not safe for concurrent use.

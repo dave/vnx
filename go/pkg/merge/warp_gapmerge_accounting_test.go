@@ -7,12 +7,9 @@ package merge
 // opposite accounting, which is why the flag is a required parameter rather
 // than something [adoptedTerminalCount] could work out for itself.
 //
-// END-TO-END RED PROOF: chaos seed 11. Before this fix it reported
-// "SILENT CORRUPTION … Residual +2" — three legs, one gap merge, corrected by
-// −3 where the truth is −1. It is in the standard suite, so the real guard is
-// there; this test pins the contract that makes it hold, because a future
-// reader looking at `if ringMergedByGap { return 0 }` in isolation has no way
-// to see why.
+// Without the flag, a leg set with one gap merge is corrected by −3 where the
+// truth is −1. This test pins the contract, because a reader looking at
+// `if ringMergedByGap { return 0 }` in isolation has no way to see why.
 
 import (
 	"testing"

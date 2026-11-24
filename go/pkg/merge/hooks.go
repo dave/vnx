@@ -108,7 +108,7 @@ type TestHooks struct {
 	// rule never having fired at all.
 	InteriorNodeSeam func(leg string, rep InteriorNodeSeamReport)
 
-	// RingSplitExclusion is called with (leg, mintedNodeID, excludedNodeID,
+	// ringSplitExclusion is called with (leg, mintedNodeID, excludedNodeID,
 	// distM) every time commitPiece mints a GENUINE tight-ring residual: a
 	// ring split whose nearby-node lookup excluded the piece's own start/end,
 	// found nothing else within EndpointWarpRadiusM, minted fresh — but the
@@ -120,8 +120,8 @@ type TestHooks struct {
 	//
 	// A test-only need does not extend a production result type; if a
 	// production consumer genuinely needs these pairs later, promote this
-	// then.
-	RingSplitExclusion func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64)
+	// then. Unexported: only this package's own tests set it.
+	ringSplitExclusion func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64)
 
 	// LegSeamConflict reports EVERY tie-break legSeamsFromAlign resolves
 	// between two different candidate nodes at one leg point: leg name, point
@@ -181,11 +181,12 @@ type TestHooks struct {
 	// rather than from the rule under test.
 	SymmetricSnapOnCanon func(leg string, rep SymmetricSnapReport, onRanges []OnPieceRange)
 
-	// LegTerminalGap is called with the RAW RESULT of every lookup
+	// legTerminalGap is called with the RAW RESULT of every lookup
 	// warpUnresolvedLegTerminals runs (one call per still-unresolved side,
 	// whether or not it found anything) so a test can confirm the lookup ran
-	// at all, not only infer it from an adoption.
-	LegTerminalGap func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)
+	// at all, not only infer it from an adoption. Unexported: only this
+	// package's own tests set it.
+	legTerminalGap func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)
 }
 
 // WithTestHooks returns a copy of ctx that carries h: every merge step

@@ -75,9 +75,9 @@ func TestPruneToNearestCanonEdges_KeepsTheNearestAndItsHalo(t *testing.T) {
 	if len(got) == 0 || len(got) == n {
 		t.Fatalf("kept %d of %d edges — the prune did nothing, or dropped everything", len(got), n)
 	}
-	// vnx merge's nearestRunHaloEdges. Restated rather than read, because it is
-	// unexported; a change there turns this red, which is wanted: a halo change
-	// needs the byte comparison above, not just this test.
+	// nearestRunHaloEdges, restated on purpose rather than read: a change there
+	// turns this red, which is wanted, because a halo change needs the byte
+	// comparison above, not just this test.
 	const haloEdges = 8
 	lo, hi := nearest-haloEdges, nearest+haloEdges
 	for _, e := range got {

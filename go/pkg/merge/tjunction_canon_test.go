@@ -694,7 +694,7 @@ func TestWarpUnresolvedLegTerminalsTx_LeavesResolvedSidesAlone(t *testing.T) {
 
 	var calls []string
 	hctx := WithTestHooks(ctx, TestHooks{
-		LegTerminalGap: func(leg, side string, found bool, nearbyID NodeID, nearbyDistM float64) {
+		legTerminalGap: func(leg, side string, found bool, nearbyID NodeID, nearbyDistM float64) {
 			calls = append(calls, side)
 		},
 	})

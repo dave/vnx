@@ -23,6 +23,12 @@ import (
 // (when asked), then the arc; SplitArc mints the node, then the prior half,
 // then the next half, then deletes the parent.
 //
+// Node ids are 1 or more, never 0 or negative: every id a method returns for
+// a node (AddNode, AddArc, SplitArc, ArcEnds, NodesInBox, Arc) must be at
+// least 1. The merge checks the node ids it joins to (align boundaries, the
+// ends of a canon arc it cuts, the node a split mints and a warp target) and
+// fails the leg on an id below 1.
+//
 // An error from any method during a merge poisons the canon: what has been
 // written so far is unknown, and the caller must discard every write the merge
 // made. A canon kept in a database transaction does this by rolling the
@@ -76,7 +82,8 @@ type Canon interface {
 	ArcsBetween(ctx context.Context, a, b NodeID) ([]Arc, error)
 
 	// AddNode stores a node of this canon at (lat, lon) with elevation ele
-	// (nil when unknown) and returns its id.
+	// (nil when unknown) and returns its id, which is 1 or more and is never
+	// 0.
 	AddNode(ctx context.Context, lat, lon float64, ele *float64) (NodeID, error)
 
 	// AddArc stores a new arc, minting the ends a.MintStart and a.MintEnd ask

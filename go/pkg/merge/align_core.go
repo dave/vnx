@@ -72,7 +72,7 @@ type AlignBoundary struct {
 	// Node is the canon node AT this boundary — the one a cut minted, the one
 	// already there when the boundary declined at an end, or the one it was
 	// ABSORBED onto. Every outcome names a node, and the align step refuses a
-	// node id of 0 from the canon, so Node is never 0 in a returned report.
+	// node id below 1 from the canon, so Node is never 0 in a returned report.
 	Node NodeID
 
 	// AbsorbedM is how far the boundary moved to reach Node — a straight-line
@@ -125,15 +125,15 @@ type AlignBoundary struct {
 	LineageCutConnectorPairs [][2]NodeID
 }
 
-// checkCanonNodeID refuses a boundary node id of 0. Node ids start at 1, and
+// checkCanonNodeID refuses a boundary node id below 1. Node ids start at 1, and
 // every align outcome names a node, so a 0 can only come from a Canon that
 // broke its contract. The error fails the leg, which poisons the canon.
 //
 // Checked once, where each boundary is recorded, so the steps after the align
 // step can read [AlignBoundary.Node] directly.
 func checkCanonNodeID(id NodeID, d AlignDecline) error {
-	if id == 0 {
-		return fmt.Errorf("canon returned node id 0 for an align boundary (%s): node ids start at 1", alignDeclineName(d))
+	if id <= 0 {
+		return fmt.Errorf("canon returned node id %d for an align boundary (%s): node ids start at 1", int64(id), alignDeclineName(d))
 	}
 	return nil
 }

@@ -79,7 +79,8 @@ type LegResult struct {
 //   - opts.FillElevation is not nil (pass NoFill for none).
 //
 // The canon must keep the [Canon] contract. In particular node ids start at
-// 1: a node id of 0 from the canon is an error.
+// 1: a node id below 1 from the canon, at any place the [Canon] doc lists as
+// checked, is an error.
 //
 // An error poisons the canon: the leg may have written part of its changes,
 // and the caller must discard every write the leg made. [MemCanon] has no

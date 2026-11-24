@@ -231,6 +231,7 @@ so it does not see a change to `corpus/`.
 |---|---|
 | `pkg/vnx` | The document model, the reader, the writer and the VNZ container. |
 | `pkg/vnx/gpx`, `pkg/vnx/kml`, `pkg/vnx/geojson` | One conversion writer each. |
+| `pkg/detmath` | Sin, Cos, Atan, Atan2 and Hypot with the same bits on every architecture (from Go's `math`, BSD licence in its `LICENSE`). |
 | `cmd/vnx` | The command-line tool. |
 
 ## Notes for porters

@@ -9,7 +9,8 @@
 // ⚠ THE SHIPPED LIBRARY HAS NO DEPENDENCIES, and it must not gain one. pkg/vnx
 // and its three writer packages import the standard library and nothing else —
 // four TestImportsAreStdlibOnly guards read every source and test file to keep
-// it that way.
+// it that way. pkg/detmath (math functions that give the same bits on every
+// architecture) is stdlib-only too, under its own guard.
 //
 // The require block below is ONE package's, and that package is internal/. A
 // JSON Schema validator is third-party, and internal/vnxschema is the only

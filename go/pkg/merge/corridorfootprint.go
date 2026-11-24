@@ -102,6 +102,11 @@ type CorridorSolveFootprint struct {
 	SlotsLen  int // Σ_l len(statesBy[l]) — the census's States for this leg
 	SlotsCap  int // Σ_l cap(statesBy[l]) — the memory
 
+	// ProjectedSlotBytes is what the refusal gate projected for this leg's
+	// six slot tables, from the count pass, before they were allocated. A
+	// test compares it with SlotTableBytes, what they measure afterwards.
+	ProjectedSlotBytes int
+
 	// The six slot-sized tables, separately. Each includes its own outer
 	// slice headers, so the six sum to [CorridorProjectedSlotBytes].
 	// ⚠ StatesBytes includes the OUTER SLICE HEADERS, so it exceeds the

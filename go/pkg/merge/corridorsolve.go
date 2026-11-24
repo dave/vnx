@@ -1956,7 +1956,9 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 				sw.SlotCap += cap(slots)
 			}
 		}
-		obs(corridorSolveFootprintOf(bps, statesBy, sps, dist, prev, pieceSlots, ivBounds, sw, pq, pqPeakLen))
+		f := corridorSolveFootprintOf(bps, statesBy, sps, dist, prev, pieceSlots, ivBounds, sw, pq, pqPeakLen)
+		f.ProjectedSlotBytes = CorridorProjectedSlotBytes(len(bps), projectedSlots, len(sps))
+		obs(f)
 	}
 	if stopErr != nil {
 		// A stop is an error, never a partial result: dist/prev are half-relaxed

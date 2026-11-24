@@ -7,7 +7,7 @@ package merge
 // Neither refusal can be built from geometry: the capacity comes from the
 // count pass, which counts the states exactly, and every edge cost is
 // non-negative by construction. So the heap is put into the refusing state
-// through the [TestHooks] CorridorSolveHeap hook before the first pop, and the solve
+// through the [TestHooks] corridorSolveHeap hook before the first pop, and the solve
 // is otherwise real.
 
 import (
@@ -27,7 +27,7 @@ func solveWithHeapHook(t *testing.T, hook func(q *CorridorHeap)) (*CorridorSolve
 	}
 	cands := []*PreppedCandidate{pc}
 	ivs := buildIvs(t, sa, cands, CorridorRadiusM)
-	ctx := WithTestHooks(t.Context(), TestHooks{CorridorSolveHeap: hook})
+	ctx := WithTestHooks(t.Context(), TestHooks{corridorSolveHeap: hook})
 	return SolveCorridorPath(ctx, sa.Total(), sa, ivs, cands, CorridorRadiusM, EmissionK)
 }
 

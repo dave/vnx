@@ -173,7 +173,7 @@ func TestPruneToNearestCanonEdges_ReturnsARightSizedSlice(t *testing.T) {
 func TestPruneToNearestCanonEdges_ObserverFires(t *testing.T) {
 	var before, after int
 	var fired int
-	hooks := &TestHooks{NearestPrune: func(b, a int) { fired++; before, after = b, a }}
+	hooks := &TestHooks{nearestPrune: func(b, a int) { fired++; before, after = b, a }}
 
 	var pieces []CorridorPiece
 	for e := 0; e < 40; e++ {

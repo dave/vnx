@@ -80,7 +80,7 @@ const NearestRunSamples = 64
 // UNCHANGED — not clipped, not recomputed — so this can only ever remove
 // state, never perturb a number.
 //
-// hooks are the call's test hooks, nil for none; its NearestPrune observer is
+// hooks are the call's test hooks, nil for none; its nearestPrune observer is
 // told each prune's (before, after) piece counts.
 func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]CorridorPiece, error) {
 	if len(pieces) == 0 {
@@ -183,8 +183,8 @@ func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]Corri
 			out = append(out, p)
 		}
 	}
-	if hooks != nil && hooks.NearestPrune != nil {
-		hooks.NearestPrune(len(pieces), len(out))
+	if hooks != nil && hooks.nearestPrune != nil {
+		hooks.nearestPrune(len(pieces), len(out))
 	}
 	return out, nil
 }

@@ -1660,8 +1660,8 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	if err := pq.Insert(PackLayerSlot(0, 0)); err != nil {
 		return nil, err
 	}
-	if hooks.CorridorSolveHeap != nil {
-		hooks.CorridorSolveHeap(pq)
+	if hooks.corridorSolveHeap != nil {
+		hooks.corridorSolveHeap(pq)
 	}
 	// The heap's high-water mark, for [CorridorSolveFootprint]. It observes and
 	// cannot change the answer: nothing downstream reads it. The bytes are fixed
@@ -1905,7 +1905,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 
 	// Cost census. Reported here, where the search has finished and
 	// nothing after this point relaxes an edge. A leg that errors below
-	// delivers no census at all — see [corridorCostObserver.LegFinished]. A
+	// delivers no census at all — see [CorridorCostObserver.LegFinished]. A
 	// CANCELLED search reaches this line too, deliberately: its relaxation count
 	// is what the stop bound is asserted from, and it is a real cost.
 	if obs := hooks.CorridorCost; obs != nil {

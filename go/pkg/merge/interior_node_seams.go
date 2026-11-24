@@ -70,8 +70,8 @@ const (
 	interiorNodeDeclineNoExtent InteriorNodeSeamDecline = "no-extent"
 )
 
-// interiorNodeSeamCandidate is one bitwise coincidence and what became of it.
-type interiorNodeSeamCandidate struct {
+// InteriorNodeSeamCandidate is one bitwise coincidence and what became of it.
+type InteriorNodeSeamCandidate struct {
 	Idx      int
 	Node     NodeID
 	Lat, Lon float64
@@ -84,7 +84,7 @@ type interiorNodeSeamCandidate struct {
 
 // InteriorNodeSeamReport is every candidate this leg considered.
 type InteriorNodeSeamReport struct {
-	Candidates []interiorNodeSeamCandidate
+	Candidates []InteriorNodeSeamCandidate
 }
 
 func (r InteriorNodeSeamReport) Accepted() int {
@@ -200,7 +200,7 @@ func LegSeamsAtInteriorNodes(
 
 	for _, id := range order {
 		idxs := byNode[id]
-		c := interiorNodeSeamCandidate{
+		c := InteriorNodeSeamCandidate{
 			Idx: idxs[0], Node: id,
 			Lat: coord[id][0], Lon: coord[id][1],
 			Visits: len(idxs),

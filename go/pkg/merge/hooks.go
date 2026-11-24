@@ -18,12 +18,12 @@ type TestHooks struct {
 	// Production leaves it nil, so a solve pays one nil check per leg.
 	CorridorSolveFootprint func(CorridorSolveFootprint)
 
-	// NearestPrune receives (before, after) piece counts for every source
+	// nearestPrune receives (before, after) piece counts for every source
 	// edge the prune runs on. LIVENESS, and it is not optional: a prune that
 	// silently became a no-op would leave every corpus lock green and every
 	// test passing, and the only symptom would be an import that got slow
 	// again.
-	NearestPrune func(before, after int)
+	nearestPrune func(before, after int)
 
 	// CorridorSolveTable receives the finished Dijkstra table so a test can
 	// check it is actually a shortest-path table.
@@ -43,7 +43,7 @@ type TestHooks struct {
 	// element with [CorridorPackedState.unpack].
 	CorridorSolveTable func(bps []float64, statesBy [][]CorridorPackedState, sps []SolvePiece, cands []*PreppedCandidate, dist [][]float64, t CorridorTunables, r float64, k int, ivs []CorridorIvBounds, layerOf map[float64]int, bridgesFrom map[int][]CorridorBridge)
 
-	// CorridorSolveHeap is handed the solve's search heap once, after the
+	// corridorSolveHeap is handed the solve's search heap once, after the
 	// start state is seeded and before the first pop. It exists so a test
 	// can put the heap in a state that makes it refuse an operation — a full
 	// capacity, or a state marked popped — and prove the refusal leaves the
@@ -52,10 +52,10 @@ type TestHooks struct {
 	// TestCorridorSolve_HeapRefusalOnDecreaseIsAnError). A real refusal needs a
 	// capacity projection that under-counts or a negative edge cost, and
 	// neither can be built from geometry.
-	CorridorSolveHeap func(q *CorridorHeap)
+	corridorSolveHeap func(q *CorridorHeap)
 
-	// CorridorCost is the cost census; see [corridorCostObserver].
-	CorridorCost corridorCostObserver
+	// CorridorCost is the cost census; see [CorridorCostObserver].
+	CorridorCost CorridorCostObserver
 
 	// SolveSlotTableBudgetBytes caps what one leg's six slot-sized tables —
 	// the four state tables and the search heap — may allocate. The gate

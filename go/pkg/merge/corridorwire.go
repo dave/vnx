@@ -18,7 +18,7 @@ import (
 // silent-drop treatment, not two independently chosen thresholds.
 const solverEps = 1e-6
 
-// corridorCostObserver receives the per-leg cost census. It is a TEST INSTRUMENT: [TestHooks].CorridorCost is nil in
+// CorridorCostObserver receives the per-leg cost census. It is a TEST INSTRUMENT: [TestHooks].CorridorCost is nil in
 // production, so the whole census costs one nil compare per leg, one per
 // (source edge × candidate), and one per solve.
 //
@@ -37,7 +37,7 @@ const solverEps = 1e-6
 //	MintFinished                        ← the phase event
 //	  SolveFinished                     ← ONLY when the solve actually ran
 //	LegFinished
-type corridorCostObserver interface {
+type CorridorCostObserver interface {
 	// LegStart opens one leg's record. candidates counts the NON-NIL prepped
 	// candidates, which is exactly the set [CorridorIntervals] mints against.
 	LegStart(sourceEdges, candidates int)
@@ -141,7 +141,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 	// The phase event, placed EXACTLY here: every mint allocation has been made
 	// and released, and no solve allocation has been made yet. A leg with
 	// total == 0 still passes this point and then gets no solve — see
-	// [corridorCostObserver.MintFinished].
+	// [CorridorCostObserver.MintFinished].
 	if obs := costObs; obs != nil {
 		obs.MintFinished()
 	}

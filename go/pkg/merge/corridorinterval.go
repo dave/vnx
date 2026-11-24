@@ -119,7 +119,7 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 	bySrcEdge := make([][]CorridorPiece, sa.Edges())
 	// Cost census. Read ONCE, outside the
 	// loop: nil in production, so the mint pays one compare per source edge and
-	// nothing else. See [corridorCostObserver] — reporting must not change what
+	// nothing else. See [CorridorCostObserver] — reporting must not change what
 	// is minted, pruned or ordered.
 	hooks := &stateOf(ctx).hooks
 	obs := hooks.CorridorCost

@@ -52,7 +52,7 @@ type LegRide struct {
 	Reversed bool
 }
 
-// legRideKey is the piece a ride belongs to, as the INCLUSIVE point range the
+// LegRideKey is the piece a ride belongs to, as the INCLUSIVE point range the
 // assembler gave its ON stretch ([OnPieceRange].Lo/Hi).
 //
 // ⚠ THE RANGE, NOT THE NODE PAIR, AND THE DIFFERENCE IS A MERGED ALTERNATE.
@@ -65,7 +65,7 @@ type LegRide struct {
 //
 // The range is only comparable while the leg's index space is intact; see
 // [LegRides.PointCount].
-type legRideKey struct{ Lo, Hi int }
+type LegRideKey struct{ Lo, Hi int }
 
 // UnresolvedRide is one ON piece whose ride could NOT be resolved, and why.
 // Recorded rather than discarded: the whole point of the verdict design is that
@@ -133,7 +133,7 @@ const (
 // LegRides is every ride one leg resolved, indexed by the directed node pair
 // the claiming piece must present.
 type LegRides struct {
-	ByPiece    map[legRideKey]*LegRide
+	ByPiece    map[LegRideKey]*LegRide
 	Unresolved []UnresolvedRide
 	// PointCount is len(asm.Points) at the moment the rides were resolved.
 	//
@@ -173,7 +173,7 @@ func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) 
 	if r == nil || startNode == nil || endNode == nil {
 		return nil
 	}
-	ride := r.ByPiece[legRideKey{Lo: lo, Hi: hi}]
+	ride := r.ByPiece[LegRideKey{Lo: lo, Hi: hi}]
 	if ride == nil || ride.Start != *startNode || ride.End != *endNode {
 		return nil
 	}
@@ -209,7 +209,7 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 		}
 		return i
 	}
-	moved := make(map[legRideKey]*LegRide, len(r.ByPiece))
+	moved := make(map[LegRideKey]*LegRide, len(r.ByPiece))
 	for k, ride := range r.ByPiece {
 		lo, hi := shift(k.Lo), shift(k.Hi)
 		split := false
@@ -225,7 +225,7 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 			})
 			continue
 		}
-		moved[legRideKey{Lo: lo, Hi: hi}] = ride
+		moved[LegRideKey{Lo: lo, Hi: hi}] = ride
 	}
 	r.ByPiece = moved
 }
@@ -243,7 +243,7 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
 	st := stateOf(ctx)
 	ignoreMeasure := st.hooks.A1AbsorbIgnoreMeasure != nil && st.hooks.A1AbsorbIgnoreMeasure()
-	out := &LegRides{ByPiece: map[legRideKey]*LegRide{}, PointCount: len(asm.Points)}
+	out := &LegRides{ByPiece: map[LegRideKey]*LegRide{}, PointCount: len(asm.Points)}
 	byRunEnd := make(map[boundaryKey]AlignBoundary, len(rep.Boundaries))
 	for _, b := range rep.Boundaries {
 		byRunEnd[boundaryKey{Run: b.Run, AtEnd: b.AtRunEnd}] = b
@@ -389,7 +389,7 @@ func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 		//
 		// The caller's interior-node seaming can have cut this stretch at a
 		// vertex that is bitwise an existing node, so the writer will offer TWO
-		// pieces where the align step described one run. A ride is per COMMITTED PIECE ([legRideKey]), so
+		// pieces where the align step described one run. A ride is per COMMITTED PIECE ([LegRideKey]), so
 		// one ride spanning both would be claimed by neither and the leg would
 		// copy canon on both halves — which is the whole defect that rule exists
 		// to remove, reappearing one layer down. Each stretch between two
@@ -430,7 +430,7 @@ func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 			// a double count. Each row names its own piece's range and nodes, not
 			// the whole ON stretch's `p.Lo, p.Hi`, so it can be attributed to the
 			// piece the writer actually copied. The key a resolved half is filed
-			// under is `legRideKey{a.Idx, b.Idx}` (below); the unresolved halves
+			// under is `LegRideKey{a.Idx, b.Idx}` (below); the unresolved halves
 			// name the same thing.
 			failPiece := func(reason string) { failRange(reason, a.Idx, b.Idx, a.Node, b.Node) }
 			switch {
@@ -462,7 +462,7 @@ func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 					arcs[i], arcs[k] = arcs[k], arcs[i]
 				}
 			}
-			key := legRideKey{Lo: a.Idx, Hi: b.Idx}
+			key := LegRideKey{Lo: a.Idx, Hi: b.Idx}
 			if prev, dup := out.ByPiece[key]; dup {
 				// The ON RANGES are disjoint (the assembler checks this), so this is
 				// always the seams between them having merged or collapsed: one
@@ -630,7 +630,7 @@ func lineageNodes(l AlignLineage) []NodeID {
 	return out
 }
 
-func alignDeclineName(d alignDecline) string {
+func alignDeclineName(d AlignDecline) string {
 	switch d {
 	case AlignCutMade:
 		return "cut"

@@ -4,12 +4,12 @@ import (
 	"fmt"
 )
 
-// alignDecline names why a run boundary produced no cut. Every value except
+// AlignDecline names why a run boundary produced no cut. Every value except
 // AlignCutMade means committed geometry was NOT touched.
-type alignDecline int
+type AlignDecline int
 
 const (
-	AlignCutMade alignDecline = iota
+	AlignCutMade AlignDecline = iota
 
 	// The boundary is at (or within MeasureEps of) the canon arc's own start or
 	// end node. The node the align step wants is already there — the whole point of the pass
@@ -32,7 +32,7 @@ const (
 	AlignDeclineAtExistingNode
 )
 
-func (d alignDecline) String() string {
+func (d AlignDecline) String() string {
 	switch d {
 	case AlignCutMade:
 		return "cut"
@@ -67,7 +67,7 @@ type AlignBoundary struct {
 	AtRunEnd   bool    // false = this is the run's MeasureStart end, true = its MeasureEnd end
 	MeasureM   float64 // measure along Parent
 	TotalM     float64 // Parent's whole measure length
-	Decline    alignDecline
+	Decline    AlignDecline
 
 	// Node is the canon node AT this boundary — the one a cut minted, the one
 	// already there when the boundary declined at an end, or the one it was

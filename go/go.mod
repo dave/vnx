@@ -10,7 +10,9 @@
 // and its three writer packages import the standard library and nothing else —
 // four TestImportsAreStdlibOnly guards read every source and test file to keep
 // it that way. pkg/detmath (math functions that give the same bits on every
-// architecture) is stdlib-only too, under its own guard.
+// architecture) is stdlib-only too, under its own guard. pkg/merge (the
+// network merge's geometry core) imports the standard library and pkg/detmath,
+// and its guard allows nothing else.
 //
 // The require block below is ONE package's, and that package is internal/. A
 // JSON Schema validator is third-party, and internal/vnxschema is the only

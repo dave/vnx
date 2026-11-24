@@ -1,0 +1,37 @@
+package merge
+
+import (
+	"context"
+	"testing"
+)
+
+// emptyCanon is an empty canon.
+func emptyCanon(t *testing.T) *MemCanon {
+	t.Helper()
+	c, err := NewMemCanon(MemCanonSnapshot{NextNodeID: 1, NextArcID: 1})
+	if err != nil {
+		t.Fatalf("NewMemCanon: %v", err)
+	}
+	return c
+}
+
+// addTestLeg merges pts into c as an import does, with AddLeg and no
+// elevation fill, and fails the test on an error.
+func addTestLeg(t *testing.T, ctx context.Context, c *MemCanon, label string, pts []Point) LegResult {
+	t.Helper()
+	res, err := AddLeg(ctx, c, pts, LegOptions{FillElevation: NoFill, Label: label})
+	if err != nil {
+		t.Fatalf("%s: AddLeg: %v", label, err)
+	}
+	return res
+}
+
+// committedArcs is every arc of c with its full vertex list, in id order.
+func committedArcs(t *testing.T, ctx context.Context, c *MemCanon) []CanonArc {
+	t.Helper()
+	arcs, err := c.ArcsInRect(ctx, Bounds{MinLat: -90, MaxLat: 90, MinLon: -180, MaxLon: 180})
+	if err != nil {
+		t.Fatalf("ArcsInRect: %v", err)
+	}
+	return arcs
+}

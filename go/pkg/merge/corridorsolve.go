@@ -280,6 +280,8 @@ func (s CorridorStateID) String() string {
 // (lo,hi) pair would silently under-measure an oscillating run. Callers
 // wanting a non-bridged run's canon-measure coverage must still clip and sum
 // per piece.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type CorridorRun struct {
 	State CorridorStateID
 	// CandIdx is the candidate this run rides, -1 for OFF. Carried on the run
@@ -304,6 +306,8 @@ type CorridorRun struct {
 }
 
 // CorridorSolveResult is [SolveCorridorPath]'s output.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type CorridorSolveResult struct {
 	Runs []CorridorRun // ascending import measure, adjacent runs never share a state (merged)
 	Cost float64
@@ -415,6 +419,8 @@ func clipCorridorPiece(cp CorridorPiece, x0, x1 float64) (out CorridorPiece, ok 
 //
 // sp is a pointer for the reason [TransitionCostT] gives: the forward edge
 // calls this once per pop, and a SolvePiece is 176 B. Nothing here writes it.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func ArcCost(sp *SolvePiece, dir CorridorDir, x0, x1, r float64, k int, backtrackWeight ...float64) (float64, error) {
 	cp, ok := clipCorridorPiece(sp.P, x0, x1)
 	if !ok {
@@ -637,6 +643,8 @@ func carryEndIsExtreme(dir CorridorDir, vi, nVerts int) bool {
 // reprice every solve rather than fail anything, and it does not even
 // reproduce bit-for-bit (measured: 1 ULP apart, the compiler fusing the
 // multiply-add at one site and not the other).
+//
+// Exported for the reference application's tests; not part of the stable API.
 func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cands []*PreppedCandidate, t CorridorTunables) float64 {
 	if from == to {
 		return 0
@@ -763,6 +771,8 @@ type CorridorBridge struct {
 // the gap, per pair, per candidate. So it can sit for a long time with the leg
 // already cancelled unless it asks. Checked once per candidate and once per
 // bridge, which are its two units of work.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func BuildCorridorBridges(ctx context.Context, sa *SourceMeasure, ivs []CorridorInterval, cands []*PreppedCandidate, r float64, k int, pOverride ...float64) ([]CorridorBridge, error) {
 	if len(ivs) == 0 {
 		return nil, nil
@@ -1190,11 +1200,15 @@ const (
 	// corridorPackedREV is the direction bit, bit 0, set for CorridorREV.
 	corridorPackedREV CorridorPackedState = 1
 	// CorridorMaxSolvePieces is the exclusive bound on SpIdx: bits 30..1.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	CorridorMaxSolvePieces = 1 << 30
 )
 
 // PackCorridorOn packs an ON state. The caller has already checked spIdx
 // against [CorridorMaxSolvePieces] (once per solve, on the whole alphabet).
+//
+// Exported for the reference application's tests; not part of the stable API.
 func PackCorridorOn(spIdx int, dir CorridorDir) CorridorPackedState {
 	ps := corridorPackedOn | CorridorPackedState(uint32(spIdx))<<1
 	if dir == CorridorREV {
@@ -1249,6 +1263,8 @@ func candidateOfPacked(ps CorridorPackedState, sps []SolvePiece) int {
 //
 // sp is a pointer, as in [ArcCost]: the bridge loop calls this for every piece
 // of the target interval on every qualifying pop.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func ActiveOverArc(sp *SolvePiece, x0, x1 float64) bool {
 	return sp.P.ImportMeasureAtLo <= x0 && sp.P.ImportMeasureAtHi >= x1
 }
@@ -1265,6 +1281,8 @@ func ActiveOverArc(sp *SolvePiece, x0, x1 float64) bool {
 // scans every sp per bridge, so "once per pop" is not a bound on the work between
 // two checks. Relaxations are: the leg stops after at most this many edges
 // examined.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const CorridorSolveCancelRelaxations = 4096
 
 // SolveCorridorPath is the shortest path over (interval,direction)∪{OFF}
@@ -1294,6 +1312,8 @@ const CorridorSolveCancelRelaxations = 4096
 // ([sourceArcsBetween]) — see [BuildCorridorBridges]. It is never
 // dereferenced when ivs is empty (the two degenerate call sites below pass
 // nil safely).
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, ivs []CorridorInterval, cands []*PreppedCandidate, r float64, k int, tunables ...CorridorTunables) (*CorridorSolveResult, error) {
 	hooks := &stateOf(ctx).hooks
 	if total < 0 || !allFinite(total) {

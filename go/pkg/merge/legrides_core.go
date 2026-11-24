@@ -92,9 +92,13 @@ const (
 	// The boundary was absorbed (the one-node rule, DECLINE 2) onto a node that
 	// is not on the lineage the run rode — a node belonging to a parallel copy
 	// or a crossing arc, up to EndpointWarpRadiusM away.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideForeignAbsorb = "foreign-absorb"
 	// Both ends resolved to ONE node: a stationary or zero-extent run. The ring
 	// rule owns this piece; there is no stretch to reference.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideSameNode = "same-node"
 	// The canon arc closes on itself, so one node id appears twice in the
 	// lineage and "the leaves between these two nodes" has two answers.
@@ -102,16 +106,22 @@ const (
 	// The symmetric snap adopted a node whose projection falls INSIDE the ON
 	// stretch, so the piece the writer will see is half the ride; see
 	// [LegRides.RemapAfterSnapInsertions].
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideSnapSeamInsideRide = "snap-seam-inside-ride"
 	// The ON stretch's own boundary is not a seam of the committed leg: the leg
 	// cut dropped it (a stub decline names no node) or merged it into a
 	// neighbouring claim that named a DIFFERENT node. Either way no committed
 	// piece is this ON stretch, so there is nothing to reference.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideBoundaryNotASeam = "boundary-not-a-seam"
 	// TWO ON stretches map onto ONE committed piece, because the seams between
 	// them were merged or collapsed away. The piece then covers both rides and
 	// the stretch between, and referencing either would silently drop the rest
 	// of the piece's geometry. Neither is offered.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideTwoRidesOnePiece = "two-rides-one-piece"
 	// The ON stretch is committed in more than one piece — the caller's
 	// interior-node seaming cut it at a vertex that is bitwise an existing node — and one of those
@@ -123,6 +133,8 @@ const (
 	// copied — this reason is counted per PIECE and an interior failure
 	// contributes two rows. Only the stretches beyond them, whose own two
 	// divisions both resolve, are still offered.
+	//
+	// Exported for the reference application's tests; not part of the stable API.
 	RideInteriorNodeOffLineage = "interior-node-off-lineage"
 	// The boundary's node IS on the ridden lineage, but at the wrong POSITION —
 	// further along canon than the absorb radius from where the run actually
@@ -644,6 +656,7 @@ func alignDeclineName(d AlignDecline) string {
 	return fmt.Sprintf("decline-%d", int(d))
 }
 
+// Exported for the reference application's tests; not part of the stable API.
 func AbsInt(x int) int {
 	if x < 0 {
 		return -x

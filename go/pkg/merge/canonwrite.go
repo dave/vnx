@@ -34,6 +34,8 @@ type SplitIDs struct {
 // SplitResult is a split as SplitArcAt made it: the new node (its position is
 // the split's), the two halves, and whether the node took the place of one of
 // the parent's interior pips (PolylineSplit.ConsumedParentVertex).
+//
+// Exported for the reference application's tests; not part of the stable API.
 type SplitResult struct {
 	Node                 Node
 	Prior, Next          ArcID
@@ -113,6 +115,8 @@ func InteriorPips(points []Point) []Pip {
 // SplitArcAt splits arc id of c at fraction (in (0, 1), exclusive) of its
 // walk: it reads the arc and its end nodes, computes the split
 // (SplitPolylineAtFraction) and stores it with c.SplitArc.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SplitArcAt(ctx context.Context, c Canon, id ArcID, fraction float64) (SplitResult, error) {
 	if !(fraction > 0 && fraction < 1) {
 		return SplitResult{}, fmt.Errorf("split fraction %v must be in (0, 1) exclusive", fraction)

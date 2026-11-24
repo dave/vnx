@@ -146,6 +146,8 @@ func tjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
 // WarpLegEndpoints derives its taper zone from. Both must see the same number,
 // or the T-junction split and the endpoint warp would disagree about the
 // leg's length.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func LegMeasureLengthM(pts []Point) float64 {
 	total := 0.0
 	for k := 1; k < len(pts); k++ {

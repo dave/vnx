@@ -77,6 +77,8 @@ type CorridorPiece struct {
 // That is self-approach — the source lying within d of two different, distant
 // parts of the candidate at once — and it is exactly the case Pieces exists
 // to represent rather than collapse.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type CorridorInterval struct {
 	CandIdx                          int
 	ImportMeasureLo, ImportMeasureHi float64
@@ -89,6 +91,8 @@ type CorridorInterval struct {
 // An empty or all-nil candidate list is not a special case: the loop below
 // simply contributes nothing, so an all-OFF/no-candidate leg yields no
 // intervals.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CorridorIntervals(ctx context.Context, sa *SourceMeasure, cands []*PreppedCandidate, d float64) ([]CorridorInterval, error) {
 	var out []CorridorInterval
 	for i, pc := range cands {
@@ -517,6 +521,8 @@ func piecesAdjacent(a, b CorridorPiece) bool {
 // which is the direction that keeps the test safe. (pc.cosMin is the same idea
 // over the candidate alone; it is not reused because the source edge may sit
 // outside the candidate's latitude range entirely.)
+//
+// Exported for the reference application's tests; not part of the stable API.
 func RectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, bMaxLon, marginM float64) bool {
 	dLatM := 0.0
 	if aMaxLat < bMinLat {

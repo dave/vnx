@@ -8,6 +8,8 @@ import (
 // are reported rather than folded into Equal: both are decisions ride
 // resolution has to make explicitly, and neither may be settled by this
 // function's return type.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type DupSeqVerdict struct {
 	// Equal is lat/lon sequence equality, exact, in one direction or the
 	// other. This is the whole of ride resolution's rule.
@@ -37,6 +39,8 @@ type DupSeqVerdict struct {
 // Comparison is on lat/lon only. That is what the rule says; elevation is
 // reported alongside so the substitution question stays visible instead of
 // being answered by omission.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func DupVertexSequenceEqual(a, b []Point) DupSeqVerdict {
 	if len(a) != len(b) {
 		return DupSeqVerdict{}

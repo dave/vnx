@@ -107,6 +107,8 @@ type CorridorCostObserver interface {
 // loop, [BuildCorridorBridges] and the Dijkstra loop — and a cancellation comes
 // back as a `%w`-wrapped [context.Canceled], never as a partial or empty result.
 // The caller cancels it, for example on memory pressure or a user's cancel.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b FollowBands) ([]FollowRun, error) {
 	costObs := stateOf(ctx).hooks.CorridorCost
 	// Degenerate-leg contract: an empty leg has no runs, and a one-point leg

@@ -68,6 +68,8 @@ import (
 //     polyline, including all-duplicate ones;
 //   - two CANONICAL positions may be compared with == and used as map keys.
 //     Raw ones may NOT — normalise first, or use compare.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type SourcePos struct {
 	Edge int
 	Frac float64
@@ -77,6 +79,8 @@ type SourcePos struct {
 // and is the only thing that can interpret a SourcePos. Positions are indices
 // into ITS points; mixing positions between two sourceMeasures is a caller bug the
 // type cannot detect, so don't.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type SourceMeasure struct {
 	Pts        []Point
 	CumMeasure []float64
@@ -90,6 +94,8 @@ type SourceMeasure struct {
 // A polyline whose total length is zero (every vertex duplicated) is NOT an
 // error — it is representable, every operation below is well defined on it,
 // and rejecting it would reject pinned duplicate-preservation behaviour.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NewSourceMeasure(pts []Point) (*SourceMeasure, error) {
 	if len(pts) < 2 {
 		return nil, fmt.Errorf("NewSourceMeasure: need at least 2 points, got %d", len(pts))

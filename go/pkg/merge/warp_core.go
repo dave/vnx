@@ -53,6 +53,8 @@ const widenedZoneFactor = 5.0
 // Coordinates, not just a NodeID: the warp moves the terminal onto the
 // node's position; whether the commit reuses that node is decided by the
 // caller from NodeID below.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type WarpTarget struct {
 	Lat float64
 	Lon float64
@@ -119,6 +121,8 @@ type WarpReport struct {
 // is copied by pointer, so output and input alias the same elevation values.
 // Nothing writes through an Ele pointer today, but the claim is not
 // transitive and should not be read as if it were.)
+//
+// Exported for the reference application's tests; not part of the stable API.
 func WarpLegEndpoints(pts []Point, start, end *WarpTarget) ([]Point, WarpReport, error) {
 	var rep WarpReport
 	if len(pts) < 2 {

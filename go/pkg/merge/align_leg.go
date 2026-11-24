@@ -136,6 +136,8 @@ type alignMeasure struct {
 // onto nothing. They let the boundary resolver know when a LATER boundary of
 // this same leg would resolve back onto a node the leg's own terminal already
 // claims. Nothing else in this function reads them.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SplitCanonAtRunBoundaries(
 	ctx context.Context,
 	canon Canon,

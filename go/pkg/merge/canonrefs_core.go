@@ -29,6 +29,8 @@ type Arc struct {
 
 // NearbyCanonArc is a canon arc found near a probe point, with the probe's
 // projection onto it.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type NearbyCanonArc struct {
 	ID        ArcID
 	DistM     float64 // haversine, probe -> projection
@@ -40,6 +42,8 @@ type NearbyCanonArc struct {
 
 // NodeNearPath is a canon node found near a leg's path, with its projection
 // onto the path.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type NodeNearPath struct {
 	ID       NodeID
 	Lat, Lon float64

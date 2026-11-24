@@ -29,6 +29,8 @@ import (
 // WarpBoundaryTarget is one point INTERIOR to a leg (never index 0 or
 // len-1 — those are terminals, the endpoint warp's job) that must
 // land bit-exact on Target.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type WarpBoundaryTarget struct {
 	Idx    int
 	Target WarpTarget
@@ -49,6 +51,8 @@ type WarpBoundaryTarget struct {
 // ordinary case, since most followed runs need no interior boundary at all.
 //
 // The input slice is never mutated.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point, error) {
 	out := make([]Point, len(pts))
 	copy(out, pts)
@@ -289,6 +293,8 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // Returns the warped points and the same seams, Idx UNCHANGED (nothing
 // remaps indices any more) — every other field (Node, Adopted, Absorbed,
 // AbsorbedM, NodeLat/NodeLon) was already untouched.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func ApplyLegBoundaryWarp(pts []Point, seams []LegSeam) ([]Point, []LegSeam, error) {
 	if len(seams) == 0 {
 		out := make([]Point, len(pts))

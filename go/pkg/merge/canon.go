@@ -133,6 +133,8 @@ func nearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclud
 
 // NearestNode returns the nearest node nearbyNodes finds, ties to the
 // earlier row, or false when it finds none.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NearestNode(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) (NearbyNode, bool, error) {
 	all, err := nearbyNodes(ctx, c, lat, lon, radiusM, exclude)
 	if err != nil {
@@ -145,6 +147,8 @@ func NearestNode(ctx context.Context, c Canon, lat, lon, radiusM float64, exclud
 // NodesNearPath returns every node within radiusM of the walk verts that
 // exclude does not name, in walk order (see sortNodesNearPath). A walk
 // with no length fails with an error that wraps ErrWalkHasNoLength.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64, exclude []NodeID) ([]NodeNearPath, error) {
 	if math.IsNaN(radiusM) || math.IsInf(radiusM, 0) || radiusM <= 0 {
 		return nil, fmt.Errorf("search radius %v m must be finite and positive", radiusM)
@@ -194,6 +198,8 @@ func nodesAtWalkVertices(ctx context.Context, c Canon, verts []Point, exclude []
 
 // NearestArc returns the arc whose vertex walk passes nearest (lat, lon),
 // within radiusM, ties to the lower id, or false when none does.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NearestArc(ctx context.Context, c Canon, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
 	if err := checkProbe(lat, lon, radiusM); err != nil {
 		return NearbyCanonArc{}, false, err

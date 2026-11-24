@@ -122,6 +122,8 @@ import (
 // asked". Because the absence is expected, a fallback is correct here; every
 // other error aborts the import. A test fails the import outright if the
 // sentinel is propagated.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func LegSeamsFromNearbyNodes(
 	ctx context.Context,
 	canon Canon,

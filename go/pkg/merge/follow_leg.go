@@ -25,6 +25,8 @@ import (
 
 // DefaultFollowBands returns the default follow bands: Enter 8 m, Stay 15 m,
 // MinRun 25 m.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func DefaultFollowBands() FollowBands {
 	return FollowBands{
 		EnterM:  8,
@@ -94,6 +96,8 @@ func newCanonCache() *canonCache {
 // that jumps kilometres pulls in only nearby canon, never the whole network; a
 // single whole-leg bbox degenerates to a network scan on those legs. 32 trades
 // per-window query count against bbox tightness.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const CanonWindowPts = 32
 
 // followLegAgainstCanon runs the follow for one leg. It looks up the canon
@@ -199,6 +203,8 @@ func followLegAgainstCanon(
 // independently. Sorting by arc id ascending (the rect reader's own order)
 // makes the candidate slice, and every CanonIdx and id tie-break inside the
 // matcher, deterministic regardless of window iteration order.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CanonCandidatesForLeg(
 	ctx context.Context,
 	canon Canon,

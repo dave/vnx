@@ -116,6 +116,8 @@ func (r InteriorNodeSeamReport) Accepted() int {
 // existed before this leg's commit (it came out of the canon), and the leg is
 // ALREADY standing on it — there is no displacement for [ApplyLegBoundaryWarp]
 // to taper, which is exactly what a non-Absorbed seam asks it for.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func LegSeamsAtInteriorNodes(
 	ctx context.Context,
 	canon Canon,

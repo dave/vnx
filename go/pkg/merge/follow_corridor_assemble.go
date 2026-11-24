@@ -64,6 +64,8 @@ func sourceRunVertexRange(lo, hi SourcePos) (first, last int) {
 // [AssembledLeg]: the committed points, the effective runs, and the OnPieces
 // bookkeeping [AssembledLeg.checkOnPieceRanges] verifies. Runs' Start/End are
 // exact analytic SourcePos. See this file's header.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []FollowRun, b FollowBands, lookup NodeLookup) (AssembledLeg, error) {
 	if lookup == nil {
 		return AssembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")

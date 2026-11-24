@@ -62,6 +62,8 @@ type DuplicateArcMatch struct {
 // to that end, and a node that does not exist yet cannot bound an arc that
 // already exists — so "is there a canon arc between the same two nodes" has the
 // answer "no", definitively, without a query.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func FindDuplicateCanonArcs(
 	ctx context.Context,
 	canon Canon,

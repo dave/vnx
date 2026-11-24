@@ -61,6 +61,8 @@ import (
 // newly kept because an edge reaches them, some no longer kept because a
 // corner never really did — and a single corpus's delta is the net of two
 // populations.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const CorridorRadiusM = 10.0
 
 // EmissionK is k, the exponent in the emission and canon-side gap terms:
@@ -87,6 +89,8 @@ const CorridorRadiusM = 10.0
 // ordering test. That fixture is geometrically impossible and the ordering it
 // asks for does not flip at ANY k — see
 // TestCostOrdering_RealizableGeometryDoesNotFlipWithK.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const EmissionK = 2
 
 // StateChangeCostP is P: the flat penalty the solver charges at one
@@ -122,6 +126,8 @@ const EmissionK = 2
 // correctly-refused spur from a wrongly-abandoned trail; only looking at the
 // geometry can. Use an offline sweep to catch BREAKAGE ("adopts nothing above
 // P = 1000"), never to pick between 50 and 75.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const StateChangeCostP = 50.0
 
 // backtrackWeightPerM is the per-metre weight on canon measure travelled against

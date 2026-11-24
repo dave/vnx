@@ -166,6 +166,7 @@ func (r LegArcRef) WalkEnd() NodeID {
 	return r.Arc.EndNodeID
 }
 
+// Exported for the reference application's tests; not part of the stable API.
 func CommitLegPieces(
 	ctx context.Context,
 	canon Canon,
@@ -376,6 +377,8 @@ func CommitLegPieces(
 // tightPair is non-nil only for a genuine mint whose excluded node WAS within
 // EndpointWarpRadiusM: the shape a check of the one-node rule must exempt.
 // Computed from coordinates already in hand (no extra lookup).
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CommitPiece(
 	ctx context.Context,
 	canon Canon,

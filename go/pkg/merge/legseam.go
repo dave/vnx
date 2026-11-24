@@ -9,6 +9,8 @@ package merge
 // naming a node (no align outcome does that today) has no canon node at all, and the leg mints ONE of its own that both
 // pieces share: still a seam, still shared, but private to this leg. Reading a
 // zero NodeID as the first case would thread node 0 into an arc write.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type LegSeam struct {
 	Idx     int // index into AssembledLeg.Points — the shared point
 	Node    NodeID

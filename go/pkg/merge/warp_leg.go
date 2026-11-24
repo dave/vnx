@@ -225,6 +225,8 @@ func warpLegEndpointsToNodes(
 // committed decision this function has no authority to undo. Only a side
 // THIS function newly resolves may be declined, and only when it collides
 // with whichever id the OTHER side already carries (fixed or newly found).
+//
+// Exported for the reference application's tests; not part of the stable API.
 func WarpUnresolvedLegTerminals(
 	ctx context.Context,
 	canon Canon,

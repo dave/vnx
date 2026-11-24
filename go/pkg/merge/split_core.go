@@ -212,6 +212,8 @@ func SplitPolylineAtFraction[P pipReader](start, end Node, polyline []P, fractio
 
 // WalkPoint is a tiny ad-hoc struct used by SplitPolylineAtFraction so
 // the loop indexes start, every interior pip, and end uniformly.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type WalkPoint struct {
 	Lat, Lon, Ele float64
 }
@@ -255,6 +257,8 @@ type WalkPoint struct {
 // unknown, so a node sitting exactly on a vertex with a known elevation used
 // to come back unknown if the OTHER end was unknown. It is the vertex's
 // elevation; discarding it was wrong.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SplitNodeCoord(a, b WalkPoint, t float64) (lat, lon float64, ele *float64) {
 	switch t {
 	case 0:

@@ -14,6 +14,8 @@ import (
 // endpoint. A second lookup to fetch lat/lon would be both wasteful and an
 // invitation to reuse the node, which is the align step's job and not the
 // warp's.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type NearbyNode struct {
 	ID    NodeID
 	Lat   float64
@@ -94,6 +96,8 @@ func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float
 // than the 180° such a disc genuinely spans, so it could exclude a node
 // the refine would have accepted. Handling the two seams explicitly
 // removes both the wrong box and the need for any epsilon.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NodeSearchBox(lat, lon, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
 	latDelta, lonDelta := metresToDegBox(lat, radiusM)
 	minLat, maxLat = lat-latDelta, lat+latDelta
@@ -210,6 +214,8 @@ func cmpFloat(a, b float64) int {
 //
 // This is a distance to VERTICES, a different question from the distance to
 // the walk, and the two have different answers; see [NodeNearPath].
+//
+// Exported for the reference application's tests; not part of the stable API.
 func NearestVertexIndex(verts []Point, lat, lon float64) int {
 	best, bestD := 0, math.MaxFloat64
 	for i, v := range verts {
@@ -246,6 +252,8 @@ func NearestVertexIndex(verts []Point, lat, lon float64) int {
 // WIDENING, not a fallback: the refine still makes every decision, and the
 // only cost is a larger candidate set in geographies trail data rarely
 // visits.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func WalkSearchBox(verts []Point, radiusM float64) (minLat, maxLat, minLon, maxLon float64) {
 	minLat, maxLat = verts[0].Lat, verts[0].Lat
 	minLon, maxLon = verts[0].Lon, verts[0].Lon

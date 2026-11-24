@@ -13,6 +13,8 @@ import (
 // discrimination sweep; do not change one without repeating it. The
 // matcher takes them by value so tests can exercise band edges; there is
 // no production override path.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type FollowBands struct {
 	EnterM  float64 // read only by densifyStep
 	StayM   float64 // read only by tests
@@ -21,10 +23,14 @@ type FollowBands struct {
 
 // RunKind distinguishes verbatim source spans (OFF) from canon-following
 // spans (ON).
+//
+// Exported for the reference application's tests; not part of the stable API.
 type RunKind uint8
 
 const (
+	// Exported for the reference application's tests; not part of the stable API.
 	RunOff RunKind = iota
+	// Exported for the reference application's tests; not part of the stable API.
 	RunOn
 )
 
@@ -33,6 +39,8 @@ const (
 // along the candidate), and the horizontal distance from the source
 // point to that on-line point. Evidence for diagnosis and the input to
 // the rewrite's boundary interpolation.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type RunProj struct {
 	Measure float64
 	Dist    float64
@@ -54,6 +62,8 @@ type RunProj struct {
 // passed through it. Safe to hold this way because nothing compares them with
 // `==`; readers convert them to a measure (SourceMeasure.measureAt) or read
 // the measure fields instead.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type FollowRun struct {
 	Kind  RunKind
 	Start SourcePos
@@ -77,6 +87,8 @@ type FollowRun struct {
 
 // MeasureEps guards measure comparisons against floating-point noise; it is not a
 // tolerance in the band sense.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const MeasureEps = 1e-9
 
 // PreppedCandidate is a candidate with its cumulative measure lengths
@@ -124,6 +136,7 @@ type PreppedCandidate struct {
 // correct, it only trades pruning tightness against bookkeeping.
 const chunkEdges = 32
 
+// Exported for the reference application's tests; not part of the stable API.
 func PrepCandidates(canon []CanonArc) []*PreppedCandidate {
 	out := make([]*PreppedCandidate, len(canon))
 	for i, c := range canon {
@@ -196,6 +209,7 @@ func PrepCandidates(canon []CanonArc) []*PreppedCandidate {
 	return out
 }
 
+// Exported for the reference application's tests; not part of the stable API.
 const MetresPerDeg = math.Pi * 6371000.0 / 180.0
 
 // ClosestPointOnSeg returns the planar distance in metres from
@@ -203,6 +217,8 @@ const MetresPerDeg = math.Pi * 6371000.0 / 180.0
 // the closest point along it. Longitude is scaled by cos(mid latitude) so
 // the result is metric for short segments at any latitude. Degenerate
 // segments (a == b) fall back to point-to-point at t=0.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func ClosestPointOnSeg(aLat, aLon, bLat, bLon, probeLat, probeLon float64) (distM, t float64) {
 	midLat := (aLat + bLat) * 0.5
 	cosLat := detmath.Cos(midLat * math.Pi / 180.0)
@@ -347,6 +363,8 @@ func snapMeasureToCandidateEnd(measure, total float64) float64 {
 // disables a feature when nil invites a fix that production never reaches:
 // every caller must say, in code that compiles, whether it has node access
 // or not.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type NodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id NodeID, found bool, err error)
 
 // snapMeasureAnyNode "rides canon" onto ANY existing node within

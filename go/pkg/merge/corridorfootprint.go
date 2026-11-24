@@ -73,6 +73,8 @@ func corridorMapEntryBytes(keyBytes, valBytes int) int {
 // count is DERIVED, not passed: every layer holds OFF plus two states per piece
 // covering it, so slots = layers + 2 × Σ_i pieceSpan[i] and the pieceSlots
 // entries are exactly (slots − layers) / 2.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CorridorProjectedSlotBytes(layers, slots, pieces int) int {
 	pieceSlotEntries := (slots - layers) / 2
 	return slots*corridorPackedStateBytes + layers*corridorSliceHdrBytes + // statesBy
@@ -230,6 +232,8 @@ func corridorSolveFootprintOf(
 }
 
 // CorridorSolveBudgetUnset is the "no budget agreed" value.
+//
+// Exported for the reference application's tests; not part of the stable API.
 const CorridorSolveBudgetUnset = -1
 
 // HOW THE BUDGET BELOW IS TO BE SET — written down before the number exists, so

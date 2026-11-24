@@ -46,6 +46,8 @@ import (
 // no path that commits the leg after a failed split: a split we could not
 // complete or could not verify means we do not know what shape canon is now
 // in, and continuing would be exactly the guess this step avoids.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SplitCanonAtLegTerminals(
 	ctx context.Context,
 	canon Canon,
@@ -88,6 +90,8 @@ func SplitCanonAtLegTerminals(
 
 // SplitCanonAtTerminal runs the whole rule for ONE terminal: probe, search,
 // decide, split, verify.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func SplitCanonAtTerminal(
 	ctx context.Context,
 	canon Canon,

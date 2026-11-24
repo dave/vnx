@@ -235,6 +235,8 @@ type AlignLineage struct {
 // The round trip is therefore measure → measure/total → fraction*total → measure, exact up
 // to float rounding. It is not exact to the bit, which is why the caller
 // qualifies with MeasureEps rather than testing for equality.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func CanonMeasureLengthM(verts []Point) float64 {
 	total := 0.0
 	for i := 1; i < len(verts); i++ {

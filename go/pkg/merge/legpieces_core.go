@@ -668,6 +668,8 @@ func runEndName(atEnd bool) string {
 // more than once), and the commit step mints the first and reuses it for the
 // rest, so this must count coordinates, not occurrences, or the two disagree
 // and the node-count identity stops reconciling.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func LegMintedSeamNodes(points []Point, seams []LegSeam) int {
 	seen := map[[2]float64]bool{}
 	n := 0

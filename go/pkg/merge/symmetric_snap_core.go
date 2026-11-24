@@ -152,6 +152,8 @@ func (r SymmetricSnapReport) Inserted() []SymmetricSnapInsert {
 }
 
 // DescribeSymmetricSnap renders the report for a failure message.
+//
+// Exported for the reference application's tests; not part of the stable API.
 func DescribeSymmetricSnap(r SymmetricSnapReport) string {
 	if r.Skipped {
 		return "symmetric snap: SKIPPED (leg walk has no length)"

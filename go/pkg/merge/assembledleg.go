@@ -24,6 +24,8 @@ import (
 // and a field only the assembler fills would be left ZERO by every other
 // producer. Zero is a valid point index, so such a run would silently claim its
 // piece begins at Points[0]: a wrong value that looks plausible.
+//
+// Exported for the reference application's tests; not part of the stable API.
 type AssembledLeg struct {
 	Points []Point
 	Runs   []FollowRun

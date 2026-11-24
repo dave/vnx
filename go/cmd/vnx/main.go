@@ -29,6 +29,7 @@ const usage = `vnx — Viatrail Network eXchange tools
   vnx outline [--json] <file>    the document's shape, without geometry
   vnx convert --to gpx|kml|geojson [--out <file>] <file>
                                  write the document as GPX, KML or GeoJSON
+  vnx version                    print the VNX specification version and exit 0
 
 A .vnx file is a plain JSON document; a .vnz file is a zip container.
 
@@ -58,6 +59,9 @@ func main() {
 		err = cmdOutline(os.Args[2:])
 	case "convert":
 		err = cmdConvert(os.Args[2:])
+	case "version", "--version":
+		fmt.Println(vnx.Version)
+		return
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return

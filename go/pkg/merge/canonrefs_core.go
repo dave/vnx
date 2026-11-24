@@ -17,10 +17,14 @@ type Pip struct {
 	Lat, Lon, Ele float64
 }
 
-// Arc is a canon arc's interior geometry, in walk order. The terminal nodes are
-// not included.
+// Arc is one arc as stored: the nodes it joins, its interior geometry in walk
+// order (the terminal nodes are not included), and its length in metres.
 type Arc struct {
-	Polyline []Pip
+	ID          ArcID
+	StartNodeID NodeID
+	EndNodeID   NodeID
+	Polyline    []Pip
+	DistanceM   float64
 }
 
 // NearbyCanonArc is a canon arc found near a probe point, with the probe's

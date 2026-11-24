@@ -2,6 +2,7 @@ package merge
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -76,17 +77,31 @@ func nodeDegree(t *testing.T, ctx context.Context, d *MemCanon, id NodeID) int {
 	return n
 }
 
-// canonCensus is the part of a network census these tests read.
-type canonCensus struct{ Nodes int }
+// canonCensus is the part of a network census these tests read: the node
+// and arc counts, and each arc's geometry as exact bits.
+type canonCensus struct {
+	Nodes, Arcs int
+	ArcHash     map[ArcID]string
+}
 
-// censusNetwork counts the canon's nodes.
+// censusNetwork counts the canon's nodes and arcs and records each arc's
+// vertices bit for bit.
 func censusNetwork(t *testing.T, ctx context.Context, d *MemCanon) canonCensus {
 	t.Helper()
 	nodes, err := d.NodesInBox(ctx, Bounds{MinLat: -90, MaxLat: 90, MinLon: -180, MaxLon: 180})
 	if err != nil {
 		t.Fatalf("censusNetwork: NodesInBox: %v", err)
 	}
-	return canonCensus{Nodes: len(nodes)}
+	arcs := committedArcs(t, ctx, d)
+	c := canonCensus{Nodes: len(nodes), Arcs: len(arcs), ArcHash: map[ArcID]string{}}
+	for _, a := range arcs {
+		var b strings.Builder
+		for _, v := range a.Vertices {
+			fmt.Fprintf(&b, "%x,%x;", math.Float64bits(v.Lat), math.Float64bits(v.Lon))
+		}
+		c.ArcHash[a.ID] = b.String()
+	}
+	return c
 }
 
 // ── THE HEADLINE: A NODE ON THE LEG'S PATH IS ADOPTED ───────────────────────

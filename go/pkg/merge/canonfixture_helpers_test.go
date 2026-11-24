@@ -15,11 +15,13 @@ func emptyCanon(t *testing.T) *MemCanon {
 	return c
 }
 
-// addTestLeg merges pts into c as an import does, with AddLeg and no
-// elevation fill, and fails the test on an error.
+// addTestLeg merges pts into c as an import does: it drops coincident
+// points (DropCoincidentPoints, as the reference import does before every
+// leg), then calls AddLeg with no elevation fill. It fails the test on an
+// error.
 func addTestLeg(t *testing.T, ctx context.Context, c *MemCanon, label string, pts []Point) LegResult {
 	t.Helper()
-	res, err := AddLeg(ctx, c, pts, LegOptions{FillElevation: NoFill, Label: label})
+	res, err := AddLeg(ctx, c, DropCoincidentPoints(pts), LegOptions{FillElevation: NoFill, Label: label})
 	if err != nil {
 		t.Fatalf("%s: AddLeg: %v", label, err)
 	}

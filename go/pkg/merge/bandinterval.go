@@ -255,7 +255,7 @@ func BandInterval(p, q, a, b Point, d float64) (t0, t1 float64, ok bool, err err
 	}
 	t0, t1, ok, err = UnionOneInterval(pieces[:n])
 	if err != nil {
-		return 0, 0, false, fmt.Errorf("bandInterval: %w %s%s",
+		return 0, 0, false, fmt.Errorf("BandInterval: %w %s%s",
 			err, BandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
 	}
 	return t0, t1, ok, nil
@@ -268,10 +268,10 @@ func BandInterval(p, q, a, b Point, d float64) (t0, t1 float64, ok bool, err err
 // the contiguity margin is the evidence that decided how this join is built.
 func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins [2]BandJoin, nj int, err error) {
 	if !AllFinite(p.Lat, p.Lon, q.Lat, q.Lon, a.Lat, a.Lon, b.Lat, b.Lon, d) {
-		return pieces, 0, joins, 0, fmt.Errorf("bandInterval: non-finite input %s", BandGeomStr(p, q, a, b, d))
+		return pieces, 0, joins, 0, fmt.Errorf("BandInterval: non-finite input %s", BandGeomStr(p, q, a, b, d))
 	}
 	if d < 0 {
-		return pieces, 0, joins, 0, fmt.Errorf("bandInterval: band must be non-negative, got %g m", d)
+		return pieces, 0, joins, 0, fmt.Errorf("BandInterval: band must be non-negative, got %g m", d)
 	}
 
 	f := NewSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
@@ -297,7 +297,7 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 		quadC := float64(px*px) + float64(py*py)
 		lo, hi, has, qerr := SolveQuadLE(dsq, quadB, quadC-float64(d*d), 0, 1)
 		if qerr != nil {
-			return pieces, 0, joins, 0, fmt.Errorf("bandInterval: zero-length canon edge: %w %s", qerr, BandGeomStr(p, q, a, b, d))
+			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: zero-length canon edge: %w %s", qerr, BandGeomStr(p, q, a, b, d))
 		}
 		if !has {
 			return pieces, 0, joins, 0, nil
@@ -315,7 +315,7 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 	s1 := (float64(dx*f.Bx) + float64(dy*f.By)) / f.LenSq
 	if !AllFinite(s0, s1) {
 		return pieces, 0, joins, 0, fmt.Errorf(
-			"bandInterval: projection parameter not finite (s0=%v s1=%v) on a canon edge of %g m %s",
+			"BandInterval: projection parameter not finite (s0=%v s1=%v) on a canon edge of %g m %s",
 			s0, s1, math.Sqrt(f.LenSq), BandGeomStr(p, q, a, b, d))
 	}
 
@@ -391,7 +391,7 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 			plo, phi, hasPiece = SolveAbsLE(c0, c1, d*math.Sqrt(f.LenSq), lo, hi)
 		}
 		if err != nil {
-			return pieces, 0, joins, 0, fmt.Errorf("bandInterval: %w %s", err, BandGeomStr(p, q, a, b, d))
+			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: %w %s", err, BandGeomStr(p, q, a, b, d))
 		}
 		if hasPiece {
 			piece.Lo, piece.Hi = plo, phi
@@ -487,7 +487,7 @@ func JoinRegimePieces(ranges [3]BandRegimeRange, nr int, got *[3]BandPiece, has 
 		tb := ranges[i].Lo
 		if tb != ranges[i-1].Hi || tb < 0 || tb > 1 || got[i-1].Hi > tb || got[i].Lo < tb {
 			return joins, 0, fmt.Errorf(
-				"bandInterval: regime boundary %.17g is not the shared, clipped endpoint of [%.17g,%.17g] and [%.17g,%.17g] (ranges end %.17g, start %.17g)",
+				"BandInterval: regime boundary %.17g is not the shared, clipped endpoint of [%.17g,%.17g] and [%.17g,%.17g] (ranges end %.17g, start %.17g)",
 				tb, got[i-1].Lo, got[i-1].Hi, got[i].Lo, got[i].Hi, ranges[i-1].Hi, ranges[i].Lo)
 		}
 		// One boolean, and the SAME boolean is both recorded and acted on —
@@ -563,7 +563,7 @@ func UnionOneInterval(pieces []BandPiece) (lo, hi float64, ok bool, err error) {
 // than special-cased away.
 func SolveQuadLE(a, b, c, lo, hi float64) (float64, float64, bool, error) {
 	if a < 0 {
-		return 0, 0, false, fmt.Errorf("solveQuadLE: leading coefficient %g is negative, but it is a squared length", a)
+		return 0, 0, false, fmt.Errorf("SolveQuadLE: leading coefficient %g is negative, but it is a squared length", a)
 	}
 	if a == 0 {
 		return solveLinearLE(b, c, lo, hi)

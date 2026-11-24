@@ -54,7 +54,7 @@ func SplitCanonAtLegTerminals(
 	var rep TjunctionReport
 	if len(pts) < 2 {
 		return rep, fmt.Errorf(
-			"splitCanonAtLegTerminalsTx: leg has %d points, need at least 2", len(pts))
+			"SplitCanonAtLegTerminals: leg has %d points, need at least 2", len(pts))
 	}
 
 	// FIRST terminal, then LAST, sequentially, each against a FRESH query.
@@ -71,14 +71,12 @@ func SplitCanonAtLegTerminals(
 	// TjunctionDeclineFor's doc). A non-finite leg is still caught, just one
 	// function later: warpLegEndpointsToNodes errors on the same condition
 	// over the same array.
-	currentTerminalSideForTests = "start"
 	start, err := SplitCanonAtTerminal(ctx, canon, pts[0])
 	if err != nil {
 		return rep, err
 	}
 	rep.Start = start
 
-	currentTerminalSideForTests = "end"
 	end, err := SplitCanonAtTerminal(ctx, canon, pts[len(pts)-1])
 	if err != nil {
 		return rep, err
@@ -200,8 +198,5 @@ func SplitCanonAtTerminal(
 	out.PriorHalfID = res.Prior
 	out.NextHalfID = res.Next
 	out.ConsumedParentVertex = res.ConsumedParentVertex
-	if nodeMintObserverForTests != nil {
-		nodeMintObserverForTests(res.Node.ID, res.Node.Lat, res.Node.Lon, "s3-t-junction-"+currentTerminalSideForTests, CurrentLegForTests)
-	}
 	return out, nil
 }

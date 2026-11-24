@@ -84,8 +84,8 @@ func ExpandBounds(b *Bounds, lat, lon float64) {
 //
 // A list of fewer than two pips yields the zero ArcStats: there is no pairwise
 // step to accumulate. That is arithmetic rather than a fallback — no
-// information is being substituted for missing information — and the schema
-// a stored track segment always has at least two pips.
+// information is being substituted for missing information. A stored track
+// segment always has at least two pips, so it never reaches this case.
 //
 // Missing elevation (NaN on a Pip) contributes zero to both totals, so a
 // segment with no elevation data at all reports 0 m of gain. That is the

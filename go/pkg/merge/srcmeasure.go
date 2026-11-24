@@ -92,7 +92,7 @@ type SourceMeasure struct {
 // and rejecting it would reject pinned duplicate-preservation behaviour.
 func NewSourceMeasure(pts []Point) (*SourceMeasure, error) {
 	if len(pts) < 2 {
-		return nil, fmt.Errorf("newSourceMeasure: need at least 2 points, got %d", len(pts))
+		return nil, fmt.Errorf("NewSourceMeasure: need at least 2 points, got %d", len(pts))
 	}
 	cum := make([]float64, len(pts))
 	for i := 1; i < len(pts); i++ {
@@ -141,10 +141,10 @@ func (sa *SourceMeasure) VertexPos(i int) (SourcePos, error) {
 // solve, and hiding it here would be a silent fallback.
 func (sa *SourceMeasure) Validate(p SourcePos) error {
 	if p.Edge < 0 || p.Edge >= sa.Edges() {
-		return fmt.Errorf("sourceMeasure: edge %d out of range [0,%d]", p.Edge, sa.Edges()-1)
+		return fmt.Errorf("SourceMeasure.Validate: edge %d out of range [0,%d]", p.Edge, sa.Edges()-1)
 	}
 	if !(p.Frac >= 0 && p.Frac <= 1) {
-		return fmt.Errorf("sourceMeasure: frac %v out of range [0,1] on edge %d", p.Frac, p.Edge)
+		return fmt.Errorf("SourceMeasure.Validate: frac %v out of range [0,1] on edge %d", p.Frac, p.Edge)
 	}
 	return nil
 }

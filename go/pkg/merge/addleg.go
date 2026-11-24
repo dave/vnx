@@ -72,9 +72,11 @@ type LegResult struct {
 //
 // An error poisons the canon: the caller must discard every write the leg
 // made.
+//
+// AddLeg is not safe for concurrent use: it writes package-level test state.
 func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (LegResult, error) {
 	if opts.FillElevation == nil {
-		return LegResult{}, fmt.Errorf("addLeg: FillElevation is nil; pass noFill for a leg with nothing to fill")
+		return LegResult{}, fmt.Errorf("AddLeg: FillElevation is nil; pass NoFill for a leg with nothing to fill")
 	}
 	CurrentLegForTests = opts.Label
 	var res LegResult

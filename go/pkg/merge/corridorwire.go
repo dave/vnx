@@ -183,7 +183,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 			// of 0 while [AssembleFollowedLegRunsCorridor]'s own atStart
 			// still (correctly) reads this as the leg's own measure-0 start,
 			// since sub-eps error only moved WHICH FollowRun claims measure 0,
-			// not whether anything does. legSeamsFromAlign's own assertion
+			// not whether anything does. LegSeamsFromAlign's own assertion
 			// (legpieces.go: "ON piece 0 is flagged terminal at its start
 			// but begins at point %d, not 0") is what catches the
 			// resulting mismatch — a real invariant, not an overly strict
@@ -194,11 +194,11 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 			}
 			start, err := sa.PosAtMeasure(run.ImportMeasureLo)
 			if err != nil {
-				return nil, fmt.Errorf("corridorFollowRuns: OFF run start: %w", err)
+				return nil, fmt.Errorf("CorridorFollowRuns: OFF run start: %w", err)
 			}
 			end, err := sa.PosAtMeasure(run.ImportMeasureHi)
 			if err != nil {
-				return nil, fmt.Errorf("corridorFollowRuns: OFF run end: %w", err)
+				return nil, fmt.Errorf("CorridorFollowRuns: OFF run end: %w", err)
 			}
 			out = append(out, FollowRun{Kind: RunOff, Start: start, End: end})
 			continue
@@ -216,7 +216,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		// bridging, and its canon measure arrives on the run exactly as a
 		// non-bridged one's now does.
 		if run.CandIdx < 0 || run.CandIdx >= len(prepped) || prepped[run.CandIdx] == nil {
-			return nil, fmt.Errorf("corridorFollowRuns: ON run [%.6g,%.6g] names candidate %d, which is absent or degenerate — internal inconsistency",
+			return nil, fmt.Errorf("CorridorFollowRuns: ON run [%.6g,%.6g] names candidate %d, which is absent or degenerate — internal inconsistency",
 				run.ImportMeasureLo, run.ImportMeasureHi, run.CandIdx)
 		}
 		if run.ImportMeasureHi-run.ImportMeasureLo <= solverEps && !run.ChainHop {
@@ -231,7 +231,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		}
 		fr, err := corridorFollowRunFromMeasure(sa, prepped[run.CandIdx], run.CandIdx, run.ImportMeasureLo, run.ImportMeasureHi, run.CanonMeasureLo, run.CanonMeasureHi)
 		if err != nil {
-			return nil, fmt.Errorf("corridorFollowRuns: run: %w", err)
+			return nil, fmt.Errorf("CorridorFollowRuns: run: %w", err)
 		}
 		fr.ChainHop = run.ChainHop
 		out = append(out, fr)

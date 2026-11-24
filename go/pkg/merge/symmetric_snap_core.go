@@ -339,7 +339,7 @@ func InsertSymmetricSnapSeams(
 	for i, c := range takes {
 		v, onVertex, err := snapProjectionVertex(pts, c)
 		if err != nil {
-			return nil, nil, fmt.Errorf("insertSymmetricSnapSeams: %w", err)
+			return nil, nil, fmt.Errorf("InsertSymmetricSnapSeams: %w", err)
 		}
 		if !onVertex {
 			insertAfter[c.SegIdx] = append(insertAfter[c.SegIdx], i)
@@ -347,7 +347,7 @@ func InsertSymmetricSnapSeams(
 		}
 		if prev, dup := atVertex[v]; dup {
 			return nil, nil, fmt.Errorf(
-				"insertSymmetricSnapSeams: nodes %d and %d both land on leg vertex %d — one point cannot join the network at two nodes",
+				"InsertSymmetricSnapSeams: nodes %d and %d both land on leg vertex %d — one point cannot join the network at two nodes",
 				takes[prev].ID, c.ID, v)
 		}
 		atVertex[v] = i
@@ -390,7 +390,7 @@ func InsertSymmetricSnapSeams(
 	for i, c := range takes {
 		if takeIdx[i] < 0 {
 			return nil, nil, fmt.Errorf(
-				"insertSymmetricSnapSeams: node %d was accepted but placed nowhere in the rebuilt leg — the merge lost it", c.ID)
+				"InsertSymmetricSnapSeams: node %d was accepted but placed nowhere in the rebuilt leg — the merge lost it", c.ID)
 		}
 		out = append(out, LegSeam{
 			Idx:     takeIdx[i],
@@ -431,7 +431,7 @@ func InsertSymmetricSnapSeams(
 	for i := 1; i < len(out); i++ {
 		if out[i].Idx <= out[i-1].Idx {
 			return nil, nil, fmt.Errorf(
-				"insertSymmetricSnapSeams: nodes %d and %d both seam leg point %d after the merge — one point cannot join the network at two nodes, and snapDeclineVertexAlreadySeamed should have excluded this",
+				"InsertSymmetricSnapSeams: nodes %d and %d both seam leg point %d after the merge — one point cannot join the network at two nodes, and snapDeclineVertexAlreadySeamed should have excluded this",
 				out[i-1].Node, out[i].Node, out[i].Idx)
 		}
 	}

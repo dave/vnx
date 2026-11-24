@@ -420,9 +420,8 @@ func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup nodeLookup
 // node — first the candidate's own end ([snapMeasureToCandidateEnd]), then any
 // existing node on the candidate's own line ([snapMeasureAnyNode]) — and
 // reports which mechanism produced the change: "own-end", "any-node", or
-// "none". The mechanism string is for measurement only ([snapCensusRecorder]):
-// it answers whether the corridor gate is accepting real snaps or declining
-// nearly everything, split by sub-case.
+// "none". The mechanism string is for measurement only; the live assembler
+// discards it.
 func snapMeasureToNearbyNodeCensus(pc *PreppedCandidate, measure float64, lookup nodeLookup) (float64, string, error) {
 	if snapped := snapMeasureToCandidateEnd(measure, pc.Total); snapped != measure {
 		return snapped, "own-end", nil

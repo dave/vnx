@@ -175,13 +175,13 @@ func CommitLegPieces(
 	startTerminal, endTerminal *NodeID,
 ) ([]LegArcRef, []LegJoin, int, int, [][2]NodeID, *NodeID, []int, int, int, error) {
 	if len(points) < 2 {
-		return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("commitLegPiecesTx: a leg of %d point(s) cannot be committed", len(points))
+		return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("CommitLegPieces: a leg of %d point(s) cannot be committed", len(points))
 	}
 	last := len(points) - 1
 	for i, s := range seams {
 		if s.Idx <= 0 || s.Idx >= last {
 			return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf(
-				"commitLegPiecesTx: seam %d is at point %d of %d — a seam is interior, and a leg's own ends are lat-lon anchors that mint no node (§4.8)",
+				"CommitLegPieces: seam %d is at point %d of %d — a seam is interior, and a leg's own ends are lat-lon anchors that mint no node",
 				i, s.Idx, last)
 		}
 	}
@@ -258,7 +258,7 @@ func CommitLegPieces(
 			// write walk have drifted out of step.
 			if prevEnd != nil && *prevEnd != n {
 				return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf(
-					"commitLegPiecesTx: seam %d names canon node %d but the previous piece ended on node %d — the two sides of a seam must be one node",
+					"CommitLegPieces: seam %d names canon node %d but the previous piece ended on node %d — the two sides of a seam must be one node",
 					k-1, n, *prevEnd)
 			}
 			startNode = &n
@@ -352,13 +352,6 @@ func CommitLegPieces(
 	return out, joins, ringSplits, ringMergedTerminals, tightPairs, legRingMergedNode, legInteriorWarpedBoundaries, multiplicities, createdDespiteDuplicates, nil
 }
 
-// nodeMintObserverForTests, when non-nil, is called with (nodeID, lat, lon,
-// site) every time this file mints a genuinely FRESH node — never one it
-// reused. nil in production; a test installs it to map each node to the path
-// that created it when checking the one-node rule. The align step and the
-// T-junction split report their own mints through the same hook.
-var nodeMintObserverForTests func(nodeID NodeID, lat, lon float64, site, leg string)
-
 // RingSplitExclusionObserverForTests, when non-nil, is called with
 // (leg, mintedNodeID, excludedNodeID, distM) every time CommitPiece mints a
 // GENUINE tight-ring residual: a ring split whose nearby-node lookup excluded
@@ -374,30 +367,6 @@ var nodeMintObserverForTests func(nodeID NodeID, lat, lon float64, site, leg str
 // consumer genuinely needs these pairs later, promote this then.
 var RingSplitExclusionObserverForTests func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64)
 
-// ringSplitDecline2ObserverForTests, when non-nil, is called by
-// CommitPiece with the RAW RESULT of the ring split's own nearby-node lookup
-// — every time, not only for the tight-ring residual
-// RingSplitExclusionObserverForTests reports. A diagnostic hook.
-var ringSplitDecline2ObserverForTests func(leg string, found bool, nearbyID NodeID, nearbyDistM float64)
-
-// mergedTerminalRingObserverForTests reports the shape of every ring that
-// CommitPiece's mergeOwnEnds creates: the leg name, the chord distance between
-// the piece's own unresolved start and end (always ≤ EndpointWarpRadiusM, by
-// the condition that triggers this path), and the piece's own total measure
-// length. A diagnostic hook, for telling real loops from short stubs folded in
-// half.
-var mergedTerminalRingObserverForTests func(leg string, startEndDistM, measureLengthM float64)
-
-// a1InvariantCheckObserverForTests, when non-nil, is called by the align
-// step's canon cut with the RAW RESULT of its post-mint one-node-rule
-// invariant search — every time, not only when the search finds a violation
-// — so a test can see what the check computed even for a mint whose search
-// came back empty or whose claim exemption applied. A diagnostic hook: it
-// distinguishes a proximity created AFTER the check ran, a claim exemption
-// letting a genuine violation through, and the check not being reached at
-// all. `wouldAbort` is the exact boolean the cut branches on.
-var a1InvariantCheckObserverForTests func(leg string, mintedNodeID NodeID, lat, lon float64, found bool, nearbyID NodeID, nearbyDistM float64, claimActive bool, claimNode NodeID, wouldAbort bool)
-
 // A1Decline2SuppressAdoptForTests, when non-nil, is called by the align
 // step's canon cut right after DECLINE-2's own nearby-node search decides
 // whether to adopt — if it returns true, the adopt is forced to false
@@ -409,21 +378,6 @@ var a1InvariantCheckObserverForTests func(leg string, mintedNodeID NodeID, lat, 
 // test can confirm the injection point was actually reached. Nil in
 // production, zero cost when unset.
 var A1Decline2SuppressAdoptForTests func() bool
-
-// a1Decline2ObserverForTests, when non-nil, is called by the align step's
-// canon cut with the RAW RESULT of DECLINE 1b/2's UPSTREAM search — the one
-// that runs BEFORE any mint, and adopts an existing node instead of cutting
-// when one is found. The search excludes claim.Node before choosing nearest
-// ([NearestNode] with an exclude list), so `found`/`nearbyID`/`nearbyDistM`
-// are the excluding search's own result and nearbyID can never equal
-// claimNode. `adopted` is simply `found`. A diagnostic hook.
-var a1Decline2ObserverForTests func(leg string, lat, lon float64, found bool, nearbyID NodeID, nearbyDistM float64, claimActive bool, claimNode NodeID, adopted bool)
-
-// currentTerminalSideForTests is "start" or "end" — set immediately before
-// each of the T-junction split's two per-terminal calls, so a T-junction
-// mint's own nodeMintObserverForTests call can say WHICH of a leg's two
-// terminals it split for. Same zero-effect contract as [CurrentLegForTests].
-var currentTerminalSideForTests string
 
 // CommitPiece writes ONE piece, splitting it in two when both of its ends
 // resolve to the same node. It returns the arc ids it wrote and the
@@ -474,16 +428,6 @@ func CommitPiece(
 	mergeOwnEnds := startNode == nil && endNode == nil && len(pts) >= 3 &&
 		HaversineMetres(pts[0].Lat, pts[0].Lon, pts[len(pts)-1].Lat, pts[len(pts)-1].Lon) <= EndpointWarpRadiusM &&
 		LegDepartsRadius(pts, 0, len(pts)-1, EndpointWarpRadiusM)
-	if mergeOwnEnds && mergedTerminalRingObserverForTests != nil {
-		// Diagnostic: reports the shape of every ring this decision creates,
-		// unconditionally: the chord (start-to-end distance, always ≤
-		// EndpointWarpRadiusM by construction above) and the piece's own total
-		// measure length, which is the number that tells a real loop from a
-		// short stub folded in half.
-		mergedTerminalRingObserverForTests(CurrentLegForTests,
-			HaversineMetres(pts[0].Lat, pts[0].Lon, pts[len(pts)-1].Lat, pts[len(pts)-1].Lon),
-			CanonMeasureLengthM(pts))
-	}
 
 	if !mergeOwnEnds && (startNode == nil || endNode == nil || *startNode != *endNode) {
 		// The duplicate-arc check: is there already a canon arc between these
@@ -553,18 +497,6 @@ func CommitPiece(
 		if err != nil {
 			return nil, 0, false, false, false, nil, nil, nil, false, false, err
 		}
-		if nodeMintObserverForTests != nil {
-			// startNode/endNode nil means THIS end had no seam/terminal claim
-			// threaded to it — a leg terminal — so the id the write actually
-			// used there is a fresh mint, not a reuse.
-			if startNode == nil {
-				nodeMintObserverForTests(arc.StartNodeID, pts[0].Lat, pts[0].Lon, "leg-terminal-start", CurrentLegForTests)
-			}
-			if endNode == nil {
-				last := len(pts) - 1
-				nodeMintObserverForTests(arc.EndNodeID, pts[last].Lat, pts[last].Lon, "leg-terminal-end", CurrentLegForTests)
-			}
-		}
 		return []LegArcRef{{Arc: arc, Direction: DirForward, Created: true}}, arc.EndNodeID, false, false, false, nil, nil, nil, createdMetSeveralDuplicates, createdDespiteDuplicate, nil
 	}
 
@@ -605,10 +537,7 @@ func CommitPiece(
 	nearby, found, err := NearestNode(
 		ctx, canon, pts[mid].Lat, pts[mid].Lon, EndpointWarpRadiusM, midExclude)
 	if err != nil {
-		return nil, 0, false, false, false, nil, nil, nil, false, false, fmt.Errorf("§12 lookup for a ring-split's own halfway point: %w", err)
-	}
-	if ringSplitDecline2ObserverForTests != nil {
-		ringSplitDecline2ObserverForTests(CurrentLegForTests, found, nearby.ID, nearby.DistM)
+		return nil, 0, false, false, false, nil, nil, nil, false, false, fmt.Errorf("existing-node lookup for a ring-split's own halfway point: %w", err)
 	}
 	if found {
 		n, _, err := canon.Node(ctx, nearby.ID)
@@ -675,18 +604,12 @@ func CommitPiece(
 	if ringNode == nil {
 		id := first.StartNodeID
 		ringNode = &id
-		if nodeMintObserverForTests != nil {
-			nodeMintObserverForTests(*ringNode, pts[0].Lat, pts[0].Lon, "s4a-n12-merged-terminal-ring", CurrentLegForTests)
-		}
 	}
 
 	// Only a GENUINE mint (target == nil) is this call's own doing — an
 	// adoption reuses a node some OTHER site already minted and already
 	// reported, so recording it again here under a "ring-split" label would
 	// overwrite that node's true provenance with a false one.
-	if nodeMintObserverForTests != nil && target == nil {
-		nodeMintObserverForTests(half, warped[mid].Lat, warped[mid].Lon, "s4.9-ring-split", CurrentLegForTests)
-	}
 	// The GENUINE tight-ring shape, computed for free from coordinates already
 	// in hand: a fresh mint (target == nil) whose excluded ring node was
 	// itself within radius of the split point. pts[0], not warped[0] — for a

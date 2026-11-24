@@ -71,13 +71,6 @@ import (
 // satisfy:
 // zone = min(legLen, widenedZoneFactor*displacement).
 
-// warpFoldObserverForTests, when non-nil, is called with (src, out): the
-// exact arguments and return value of the one WarpLegEndpoints call inside
-// warpLegEndpointsToNodes, for every real leg the import warps. nil except
-// when a test installs one; it asserts nothing itself, it only lets a test
-// count folds across a whole import.
-var warpFoldObserverForTests func(src, out []Point)
-
 // warpLegEndpointsToNodes is the endpoint warp's entry point: it resolves
 // each of the leg's terminals to the nearest existing node within
 // EndpointWarpRadiusM and applies the warp. A terminal with no node in range
@@ -98,7 +91,7 @@ func warpLegEndpointsToNodes(
 ) ([]Point, WarpReport, error) {
 	if len(pts) < 2 {
 		return nil, WarpReport{}, fmt.Errorf(
-			"warpLegEndpointsToNodesTx: leg has %d points, need at least 2", len(pts))
+			"AddLeg: terminal warp: leg has %d points, need at least 2", len(pts))
 	}
 
 	// Both terminals are resolved against the canon as it stands BEFORE
@@ -145,9 +138,6 @@ func warpLegEndpointsToNodes(
 	// the node's coordinate and then mint a second node there: two nodes at
 	// one lat/lon and an arc of zero length, which is a worse defect than the
 	// abort. Declining the target leaves the terminal where the file put it.
-	if warpTerminalDecisionObserverForTests != nil {
-		warpTerminalDecisionObserverForTests(CurrentLegForTests, len(pts), start, end)
-	}
 	if start != nil && end != nil && start.NodeID == end.NodeID && len(pts) < 3 {
 		last := len(pts) - 1
 		dStart := HaversineMetres(pts[0].Lat, pts[0].Lon, start.Lat, start.Lon)
@@ -167,9 +157,6 @@ func warpLegEndpointsToNodes(
 	// one. `pts` here is the raw leg, unmodified, so an observer sees
 	// exactly what WarpLegEndpoints itself tapered. Folds are accepted;
 	// the observer counts them, it does not assert zero.
-	if warpFoldObserverForTests != nil {
-		warpFoldObserverForTests(pts, out)
-	}
 	// The node identities travel with the report, so the commit can join what
 	// this step chose. Set INDEPENDENTLY of StartWarped/EndWarped: a terminal
 	// already sitting exactly on the node needs no displacement and is not
@@ -203,25 +190,9 @@ func warpLegEndpointsToNodes(
 // LegTerminalGapObserverForTests, when non-nil, is called with the RAW
 // RESULT of every lookup WarpUnresolvedLegTerminals runs (one call per
 // still-unresolved side, whether or not it found anything) so a test can
-// confirm the lookup ran at all, not only infer it from an adoption. Mirrors
-// resolveWarpTargetObserverForTests' role for the endpoint warp's own
-// lookup. nil in production, zero cost when unset.
-var LegTerminalGapObserverForTests func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)
-
-// legTerminalGapCarveOutObserverForTests, when non-nil, is called whenever
-// the two-point same-node carve-out below declines an otherwise-eligible
-// newly-found adoption: the same shape as the endpoint warp's own same-node
-// guard (warpLegEndpointsToNodes, above), generalised to cover a side already
-// fixed by the endpoint warp's earlier resolution. nil in production, zero
-// cost when unset.
-var legTerminalGapCarveOutObserverForTests func(leg string, side string, declinedNodeID NodeID)
-
-// legTerminalGapWarpObserverForTests, when non-nil, is called with (src,
-// out): pts before and after this step's own WarpLegEndpoints call,
-// exactly once per leg this step actually tapers. Mirrors
-// warpFoldObserverForTests' role for the endpoint warp's own call. nil in
+// confirm the lookup ran at all, not only infer it from an adoption. nil in
 // production, zero cost when unset.
-var legTerminalGapWarpObserverForTests func(src, out []Point)
+var LegTerminalGapObserverForTests func(leg string, side string, found bool, nearbyID NodeID, nearbyDistM float64)
 
 // WarpUnresolvedLegTerminals closes a sequencing gap the endpoint warp
 // (above) cannot see: a node that comes to exist WHILE THIS SAME LEG is being
@@ -269,7 +240,7 @@ func WarpUnresolvedLegTerminals(
 	multiPiece bool,
 ) ([]Point, WarpReport, bool, error) {
 	if len(pts) < 2 {
-		return nil, rep, false, fmt.Errorf("warpUnresolvedLegTerminalsTx: leg has %d point(s), need at least 2", len(pts))
+		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: leg has %d point(s), need at least 2", len(pts))
 	}
 	if rep.StartNode != nil && rep.EndNode != nil {
 		return pts, rep, false, nil // both terminals already resolved — nothing for this step to do
@@ -278,7 +249,7 @@ func WarpUnresolvedLegTerminals(
 	lookup := func(p Point, side string) (*WarpTarget, error) {
 		target, err := resolveWarpTarget(ctx, canon, p)
 		if err != nil {
-			return nil, fmt.Errorf("warpUnresolvedLegTerminalsTx: %s terminal lookup: %w", side, err)
+			return nil, fmt.Errorf("WarpUnresolvedLegTerminals: %s terminal lookup: %w", side, err)
 		}
 		if LegTerminalGapObserverForTests != nil {
 			var id NodeID
@@ -311,9 +282,6 @@ func WarpUnresolvedLegTerminals(
 		effEnd, endIsNew := EffectiveWarpNodeID(rep.EndNode, newEnd)
 		if effStart != nil && effEnd != nil && *effStart == *effEnd {
 			decline := func(side string, id NodeID) {
-				if legTerminalGapCarveOutObserverForTests != nil {
-					legTerminalGapCarveOutObserverForTests(CurrentLegForTests, side, id)
-				}
 			}
 			switch {
 			case startIsNew && endIsNew:
@@ -369,7 +337,7 @@ func WarpUnresolvedLegTerminals(
 		if chord <= EndpointWarpRadiusM && LegDepartsRadius(pts, 0, last, EndpointWarpRadiusM) {
 			mintedID, err := canon.AddNode(ctx, pts[0].Lat, pts[0].Lon, pts[0].Ele)
 			if err != nil {
-				return nil, rep, false, fmt.Errorf("warpUnresolvedLegTerminalsTx: mint the multi-piece leg's own shared terminal node: %w", err)
+				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: mint the multi-piece leg's own shared terminal node: %w", err)
 			}
 			// pts[0] IS ALREADY the minted node's own coordinate (copied
 			// verbatim above): ZERO displacement there, not a jump, so the
@@ -378,10 +346,7 @@ func WarpUnresolvedLegTerminals(
 			shared := &WarpTarget{Lat: pts[0].Lat, Lon: pts[0].Lon, NodeID: mintedID}
 			out, blendRep, err := WarpLegEndpoints(pts, nil, shared)
 			if err != nil {
-				return nil, rep, false, fmt.Errorf("warpUnresolvedLegTerminalsTx: taper the far end onto the shared terminal: %w", err)
-			}
-			if legTerminalGapWarpObserverForTests != nil {
-				legTerminalGapWarpObserverForTests(pts, out)
+				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: taper the far end onto the shared terminal: %w", err)
 			}
 			final := rep
 			final.StartNode = &mintedID
@@ -397,10 +362,7 @@ func WarpUnresolvedLegTerminals(
 
 	out, blendRep, err := WarpLegEndpoints(pts, newStart, newEnd)
 	if err != nil {
-		return nil, rep, false, fmt.Errorf("warpUnresolvedLegTerminalsTx: %w", err)
-	}
-	if legTerminalGapWarpObserverForTests != nil {
-		legTerminalGapWarpObserverForTests(pts, out)
+		return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: %w", err)
 	}
 	// WarpLegEndpoints itself only reports StartWarped/EndWarped. Setting
 	// StartNode/EndNode from the TARGET's own id, unconditionally whenever
@@ -421,19 +383,6 @@ func WarpUnresolvedLegTerminals(
 	return out, final, false, nil
 }
 
-// resolveWarpTarget returns the coordinates of the nearest node within the
-// warp radius, or nil when there is none. nil means "leave this end alone",
-// which is a real answer and not a failure.
-// resolveWarpTargetObserverForTests, when non-nil, is called with EVERY
-// resolveWarpTarget result, so a test can observe this search directly
-// rather than infer its behaviour from the node-search primitive's contract.
-var resolveWarpTargetObserverForTests func(p Point, target *WarpTarget)
-
-// warpTerminalDecisionObserverForTests, when non-nil, is called with the
-// leg name, the point count, and both terminals' resolved targets, right
-// before the same-node/len(pts)<3 guard runs.
-var warpTerminalDecisionObserverForTests func(leg string, numPts int, start, end *WarpTarget)
-
 func resolveWarpTarget(
 	ctx context.Context,
 	canon Canon,
@@ -445,9 +394,6 @@ func resolveWarpTarget(
 		return nil, err
 	}
 	if !ok {
-		if resolveWarpTargetObserverForTests != nil {
-			resolveWarpTargetObserverForTests(p, nil)
-		}
 		return nil, nil
 	}
 	// TWO THINGS ARE DELIVERED HERE AND BOTH ARE PART OF THE CONTRACT: the node's
@@ -459,12 +405,9 @@ func resolveWarpTarget(
 	// the leg would mint a second node at the same place.
 	if n.ID <= 0 {
 		return nil, fmt.Errorf(
-			"resolveWarpTargetTx: node search returned id %d for the target at (%v,%v) — a terminal cannot join a node with no identity",
+			"warp target: node search returned id %d for the target at (%v,%v) — a terminal cannot join a node with no identity",
 			int64(n.ID), n.Lat, n.Lon)
 	}
 	target := &WarpTarget{Lat: n.Lat, Lon: n.Lon, NodeID: n.ID}
-	if resolveWarpTargetObserverForTests != nil {
-		resolveWarpTargetObserverForTests(p, target)
-	}
 	return target, nil
 }

@@ -66,7 +66,7 @@ func sourceRunVertexRange(lo, hi SourcePos) (first, last int) {
 // exact analytic SourcePos. See this file's header.
 func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []FollowRun, b FollowBands, lookup nodeLookup) (AssembledLeg, error) {
 	if lookup == nil {
-		return AssembledLeg{}, errors.New("assembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
+		return AssembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
 	}
 	if len(pts) < 2 {
 		return assembleDegenerateLeg(pts, runs)
@@ -87,17 +87,17 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		run := runs[r]
 		startMeasure, err := sa.MeasureAt(run.Start)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: run %d start: %w", r, err)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start: %w", r, err)
 		}
 		endMeasure, err := sa.MeasureAt(run.End)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: run %d end: %w", r, err)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end: %w", r, err)
 		}
 		// EXACT: this is an error check on a run the solver built with
 		// End at or after Start, not a measurement. Slack here would only
 		// let a genuinely inverted run through.
 		if endMeasure < startMeasure {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: run %d spans [%.6g,%.6g] on the leg — end precedes start", r, startMeasure, endMeasure)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d spans [%.6g,%.6g] on the leg — end precedes start", r, startMeasure, endMeasure)
 		}
 		// The run's own two boundary points. Hoisted above the OFF branch
 		// because atStart/atEnd below are decided on them; the ON path
@@ -105,11 +105,11 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		// them (see the DensifySource block).
 		startPt, err := sa.PointAt(run.Start)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: run %d start point: %w", r, err)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start point: %w", r, err)
 		}
 		endPt, err := sa.PointAt(run.End)
 		if err != nil {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: run %d end point: %w", r, err)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d end point: %w", r, err)
 		}
 
 		// atStart/atEnd feed [assembleOnRun]'s terminal-substitution rule —
@@ -156,7 +156,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		}
 
 		if run.CanonIdx < 0 || run.CanonIdx >= len(prepped) || prepped[run.CanonIdx] == nil {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: ON run %d bound to absent/degenerate candidate idx %d (arc %d)",
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: ON run %d bound to absent/degenerate candidate idx %d (arc %d)",
 				r, run.CanonIdx, run.CanonID)
 		}
 		pc := prepped[run.CanonIdx]
@@ -210,16 +210,15 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		{
 			origStart, origEnd := rr.MeasureStart, rr.MeasureEnd
 			snapStart, snapEnd := origStart, origEnd
-			entryMech, exitMech := "none", "none"
 			var snapErr error
 			if r > 0 && entryCross == nil {
-				snapStart, entryMech, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureStart, lookup)
+				snapStart, _, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureStart, lookup)
 				if snapErr != nil {
 					return AssembledLeg{}, snapErr
 				}
 			}
 			if r+1 < len(runs) && exitCross == nil {
-				snapEnd, exitMech, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureEnd, lookup)
+				snapEnd, _, snapErr = snapMeasureToNearbyNodeCensus(pc, rr.MeasureEnd, lookup)
 				if snapErr != nil {
 					return AssembledLeg{}, snapErr
 				}
@@ -240,9 +239,6 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 				if accepted {
 					rr.MeasureStart, rr.MeasureEnd = trialStart, trialEnd
 				}
-			}
-			if snapCensusRecorder != nil {
-				snapCensusRecorder(attempted, accepted, entryMech, exitMech)
 			}
 		}
 
@@ -280,11 +276,11 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 	}
 
 	if len(out) == 0 {
-		return AssembledLeg{}, errors.New("assembleFollowedLegRunsCorridor: empty output")
+		return AssembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: empty output")
 	}
 	for i, p := range out {
 		if math.IsNaN(p.Lat) || math.IsNaN(p.Lon) || math.IsInf(p.Lat, 0) || math.IsInf(p.Lon, 0) {
-			return AssembledLeg{}, fmt.Errorf("assembleFollowedLegRunsCorridor: non-finite output point %d: %+v", i, p)
+			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: non-finite output point %d: %+v", i, p)
 		}
 	}
 	res := AssembledLeg{Points: out, Runs: eff, OnPieces: onPieces}

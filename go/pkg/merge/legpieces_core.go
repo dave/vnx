@@ -65,7 +65,7 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 		k := boundaryKey{Run: b.Run, AtEnd: b.AtRunEnd}
 		if prev, dup := byRunEnd[k]; dup {
 			return nil, fmt.Errorf(
-				"legSeamsFromAlign: run %d's %s boundary was resolved twice (against arcs %d and %d) — a run has exactly one measure per end",
+				"LegSeamsFromAlign: run %d's %s boundary was resolved twice (against arcs %d and %d) — a run has exactly one measure per end",
 				b.Run, runEndName(b.AtRunEnd), prev.Parent, b.Parent)
 		}
 		byRunEnd[k] = b
@@ -97,8 +97,8 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 		b, ok := byRunEnd[boundaryKey{Run: runIdx, AtEnd: atEnd}]
 		if !ok {
 			return fmt.Errorf(
-				"legSeamsFromAlign: no align boundary for run %d's %s, which the ON piece at point %d needs a node for — "+
-					"A1 reports one boundary per end of every ON run",
+				"LegSeamsFromAlign: no align boundary for run %d's %s, which the ON piece at point %d needs a node for — "+
+					"the align step reports one boundary per end of every ON run",
 				runIdx, runEndName(atEnd), idx)
 		}
 		node, hasNode := b.SeamNode()
@@ -190,7 +190,7 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 				// reports it. A debug line rather than a counter, because this is
 				// a rare diagnostic event, not a term in the node-count identity.
 				DebugLog(fmt.Sprintf(
-					"legSeamsFromAlign: leg %q point %d resolved between canon node %d (%.3fm) and node %d (%.3fm) by distance, not conflict — %.3fm chosen",
+					"LegSeamsFromAlign: leg %q point %d resolved between canon node %d (%.3fm) and node %d (%.3fm) by distance, not conflict — %.3fm chosen",
 					CurrentLegForTests, idx, prev.Node, prevD, node, thisD, math.Min(prevD, thisD)))
 				switch {
 				case thisD < prevD:
@@ -222,7 +222,7 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 						prev.NodeLat, prev.NodeLon = b.NodeLat, b.NodeLon
 					}
 					DebugLog(fmt.Sprintf(
-						"legSeamsFromAlign: leg %q point %d is equidistant (%.3fm) from canon nodes %d and %d — kept the lower id %d, dropped %d",
+						"LegSeamsFromAlign: leg %q point %d is equidistant (%.3fm) from canon nodes %d and %d — kept the lower id %d, dropped %d",
 						CurrentLegForTests, idx, thisD, prevNode, node, kept, lost))
 				}
 				// else prev is already the closer candidate: prev wins, nothing to do.
@@ -238,7 +238,7 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 		}
 		if n := len(seams); n > 0 && seams[n-1].Idx >= idx {
 			return fmt.Errorf(
-				"legSeamsFromAlign: seam at point %d follows a seam at point %d — seams run in leg order",
+				"LegSeamsFromAlign: seam at point %d follows a seam at point %d — seams run in leg order",
 				idx, seams[n-1].Idx)
 		}
 		seams = append(seams, LegSeam{
@@ -257,11 +257,11 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 		// disagree the leg is about to mint a node on its terminal anchor.
 		if p.TerminalStart && p.Lo != 0 {
 			return nil, fmt.Errorf(
-				"legSeamsFromAlign: ON piece %d is flagged terminal at its start but begins at point %d, not 0", i, p.Lo)
+				"LegSeamsFromAlign: ON piece %d is flagged terminal at its start but begins at point %d, not 0", i, p.Lo)
 		}
 		if p.TerminalEnd && p.Hi != last {
 			return nil, fmt.Errorf(
-				"legSeamsFromAlign: ON piece %d is flagged terminal at its end but ends at point %d, not %d", i, p.Hi, last)
+				"LegSeamsFromAlign: ON piece %d is flagged terminal at its end but ends at point %d, not %d", i, p.Hi, last)
 		}
 		if p.Lo > 0 {
 			if err := add(p.Lo, p.Run, false); err != nil {
@@ -692,7 +692,7 @@ func SeamSideName(seams []LegSeam, k int, threaded *NodeID) string {
 		if threaded != nil {
 			return fmt.Sprintf("threaded node %d", *threaded)
 		}
-		return "leg terminal (no node, §4.8)"
+		return "leg terminal (no node)"
 	case seams[k].HasNode:
 		return fmt.Sprintf("canon node %d at point %d", seams[k].Node, seams[k].Idx)
 	case threaded != nil:
@@ -740,7 +740,7 @@ var LegSeamConflictObserverForTests func(leg string, idx int, prevNode, node Nod
 func FurthestVertex(pts []Point) (int, error) {
 	if len(pts) < 3 {
 		return 0, fmt.Errorf(
-			"a piece of %d point(s) begins and ends on the same node and has no interior vertex to split at (§4.9)", len(pts))
+			"a piece of %d point(s) begins and ends on the same node and has no interior vertex to split at", len(pts))
 	}
 	anchor := pts[0]
 	best, bestD := 1, -1.0

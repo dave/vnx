@@ -48,22 +48,10 @@ var CorridorSolveHeapHookForTests func(q *CorridorHeap)
 // parallel with another.
 var CorridorCostObserverForTests corridorCostObserver
 
-// warpBoundaryZoneObserverForTests reports, on every WarpLegAtBoundaries
-// call, how much of the leg the taper actually touched — leg name, total
-// point count, touched-index count, touched-and-NOT-a-seam-index count,
-// boundary count, and the leg's own measure length. A temporary diagnostic,
-// built to measure how much of a leg the taper touches; nil in real builds.
-var warpBoundaryZoneObserverForTests func(leg string, numPts, touched, touchedNonSeam, numBoundaries int, legLenM float64)
-
-// snapCensusRecorder is a MEASUREMENT-ONLY hook — nil in every real build.
-// attempted reports whether the reconciled trial pair differed from the
-// original measures; accepted reports whether CheckCorridor passed it.
-// entryMech/exitMech are "own-end", "any-node", or "none" per
-// [snapMeasureToNearbyNodeCensus].
-var snapCensusRecorder func(attempted, accepted bool, entryMech, exitMech string)
-
-// CurrentLegForTests names the leg currently being merged. The caller sets it
-// before each leg, unconditionally (a string assignment, cheaper than checking
-// whether any hook is installed). Only test observers read it, so it has no
-// effect unless a test has installed one.
+// CurrentLegForTests names the leg currently being merged. [AddLeg] sets it
+// from [LegOptions].Label at the start of each leg, unconditionally (a
+// string assignment, cheaper than checking whether any hook is installed).
+// Only test observers read it, so it has no effect unless a test has
+// installed one. Because it is package-level state, AddLeg is not safe for
+// concurrent use.
 var CurrentLegForTests string

@@ -56,7 +56,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 		return out, nil
 	}
 	if len(pts) < 2 {
-		return nil, fmt.Errorf("warpLegAtBoundaries: leg has %d points, need at least 2", len(pts))
+		return nil, fmt.Errorf("WarpLegAtBoundaries: leg has %d points, need at least 2", len(pts))
 	}
 
 	// Cumulative measure along the ORIGINAL leg, exactly as WarpLegEndpoints
@@ -70,7 +70,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 	legLen := cum[len(cum)-1]
 	if math.IsNaN(legLen) || math.IsInf(legLen, 0) {
 		return nil, fmt.Errorf(
-			"warpLegAtBoundaries: leg measure length is %v — the source geometry is not finite", legLen)
+			"WarpLegAtBoundaries: leg measure length is %v — the source geometry is not finite", legLen)
 	}
 	last := len(pts) - 1
 
@@ -81,16 +81,16 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 	for _, b := range boundaries {
 		if b.Idx <= 0 || b.Idx >= last {
 			return nil, fmt.Errorf(
-				"warpLegAtBoundaries: boundary at index %d is not interior — a leg's own terminals (0 and %d) are warped by the terminal step, not by this function",
+				"WarpLegAtBoundaries: boundary at index %d is not interior — a leg's own terminals (0 and %d) are warped by the terminal step, not by this function",
 				b.Idx, last)
 		}
 		if !finiteLatLon(b.Target.Lat, b.Target.Lon) {
 			return nil, fmt.Errorf(
-				"warpLegAtBoundaries: target (%v,%v) at index %d is not finite", b.Target.Lat, b.Target.Lon, b.Idx)
+				"WarpLegAtBoundaries: target (%v,%v) at index %d is not finite", b.Target.Lat, b.Target.Lon, b.Idx)
 		}
 		if !finiteLatLon(pts[b.Idx].Lat, pts[b.Idx].Lon) {
 			return nil, fmt.Errorf(
-				"warpLegAtBoundaries: source point (%v,%v) at index %d is not finite", pts[b.Idx].Lat, pts[b.Idx].Lon, b.Idx)
+				"WarpLegAtBoundaries: source point (%v,%v) at index %d is not finite", pts[b.Idx].Lat, pts[b.Idx].Lon, b.Idx)
 		}
 
 		vLat := b.Target.Lat - pts[b.Idx].Lat
@@ -208,30 +208,6 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 	out[0] = pts[0]
 	out[last] = pts[last]
 
-	if warpBoundaryZoneObserverForTests != nil {
-		// DIAGNOSTIC: how much of a leg does the taper actually touch?
-		// touched = indices with a genuine nonzero displacement, excluding
-		// both terminals (never move — reset above regardless) and each
-		// boundary's OWN index (exempted from a byte-identity check as a
-		// seam). The residual (touched, non-seam) is exactly the population an
-		// under-sized seam exemption is blind to.
-		touched, touchedNonSeam := 0, 0
-		seamIdx := make(map[int]bool, len(boundaries))
-		for _, b := range boundaries {
-			seamIdx[b.Idx] = true
-		}
-		for i := 1; i < last; i++ {
-			if dispLat[i] == 0 && dispLon[i] == 0 {
-				continue
-			}
-			touched++
-			if !seamIdx[i] {
-				touchedNonSeam++
-			}
-		}
-		warpBoundaryZoneObserverForTests(CurrentLegForTests, len(pts), touched, touchedNonSeam, len(boundaries), legLen)
-	}
-
 	// POST-CONDITION, on top of the construction argument above: every
 	// boundary must land bit-exact on its own target, because node adoption
 	// downstream compares coordinates with `==`, not a tolerance — the same
@@ -274,7 +250,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 			}
 		}
 		return nil, fmt.Errorf(
-			"warpLegAtBoundaries: boundary at index %d (%v,%v) is not bit-exact on its target (%v,%v)%s — the join invariant is violated",
+			"WarpLegAtBoundaries: boundary at index %d (%v,%v) is not bit-exact on its target (%v,%v)%s — the join invariant is violated",
 			b.Idx, out[b.Idx].Lat, out[b.Idx].Lon, b.Target.Lat, b.Target.Lon, culprit)
 	}
 	return out, nil
@@ -287,7 +263,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 
 // ApplyLegBoundaryWarp is the leg-warp half of repointing a boundary,
 // composed for the caller that turns aligned seams into committed leg pieces
-// (it runs between legSeamsFromAlign and the commit). Repointing a seam
+// (it runs between LegSeamsFromAlign and the commit). Repointing a seam
 // RECORD onto a node up to EndpointWarpRadiusM away is only half of the job —
 // the leg's own committed geometry has to actually reach that node, or the
 // caller writes a piece whose own declared boundary sits nowhere the followed
@@ -304,7 +280,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // function's doc) while asking it to move nowhere — that function's own
 // "already exactly coincident" branch is exactly this no-op. Seams with
 // !HasNode (dropped stub declines) are never in the slice
-// legSeamsFromAlign returns, so there is nothing to filter here.
+// LegSeamsFromAlign returns, so there is nothing to filter here.
 //
 // No gap-collapse runs (see the note above): the points are handed to
 // WarpLegAtBoundaries as they are, and a boundary very close to another
@@ -330,7 +306,7 @@ func ApplyLegBoundaryWarp(pts []Point, seams []LegSeam) ([]Point, []LegSeam, err
 
 	warpedPts, err := WarpLegAtBoundaries(pts, targets)
 	if err != nil {
-		return nil, nil, fmt.Errorf("applyLegBoundaryWarp: %w", err)
+		return nil, nil, fmt.Errorf("ApplyLegBoundaryWarp: %w", err)
 	}
 	return warpedPts, seams, nil
 }

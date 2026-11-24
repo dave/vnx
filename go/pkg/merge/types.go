@@ -2,6 +2,15 @@
 // tracks into a shared network of nodes and arcs, so that a path walked twice
 // is stored once.
 //
+// The network is reached only through [Canon]: nine reads and three writes
+// that store what they are given. [AddLeg] merges one leg into a Canon,
+// running every step of the merge in order. An error from AddLeg or from any
+// Canon method poisons the canon: the caller must discard every write that
+// leg made, for example by rolling back its transaction.
+//
+// AddLeg is not safe for concurrent use: it writes package-level test state
+// ([CurrentLegForTests]).
+//
 // The API is not stable yet. Names and signatures will change while the core
 // settles; depend on it only at a pinned version.
 //

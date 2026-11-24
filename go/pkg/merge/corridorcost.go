@@ -40,7 +40,7 @@ import (
 //
 // ⚠ THAT 98% MEASURED GEOMETRIC POSSIBILITY, NOT ARCS ACTUALLY HIDDEN, and
 // the two differ by two orders of magnitude. The tighten is
-// [arcBBoxNearAnyEdge], an edge-vs-box test built on [RectsBeyond]; measured
+// [ArcBBoxNearAnyEdge], an edge-vs-box test built on [RectsBeyond]; measured
 // across six test corpora, the per-point test was dropping 171 arcs the edge
 // test keeps, of which the solver binds 10 — 229 m of canon across 3 legs of
 // 181. The exposure was real and it was small. "How many edges COULD hide an

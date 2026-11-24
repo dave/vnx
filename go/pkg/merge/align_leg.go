@@ -174,7 +174,7 @@ func SplitCanonAtRunBoundaries(
 		// of whatever arc holds it. See point 1 of the header.
 		if math.IsNaN(r.MeasureStart) || math.IsNaN(r.MeasureEnd) || math.IsInf(r.MeasureStart, 0) || math.IsInf(r.MeasureEnd, 0) {
 			return AlignReport{}, fmt.Errorf(
-				"splitCanonAtRunBoundariesTx: run %d on canon arc %d has non-finite measures [%v,%v]",
+				"SplitCanonAtRunBoundaries: run %d on canon arc %d has non-finite measures [%v,%v]",
 				i, r.CanonID, r.MeasureStart, r.MeasureEnd)
 		}
 		byCanon[r.CanonID] = append(byCanon[r.CanonID],
@@ -213,18 +213,18 @@ func SplitCanonAtRunBoundaries(
 		}
 		if !ok {
 			return AlignReport{}, fmt.Errorf(
-				"splitCanonAtRunBoundariesTx: canon arc %d is not in the canon — a run cannot have followed geometry that is not there",
+				"SplitCanonAtRunBoundaries: canon arc %d is not in the canon — a run cannot have followed geometry that is not there",
 				canonID)
 		}
 		origTotal := CanonMeasureLengthM(orig.Vertices)
 		if !(origTotal > 0) || math.IsNaN(origTotal) || math.IsInf(origTotal, 0) {
 			return AlignReport{}, fmt.Errorf(
-				"splitCanonAtRunBoundariesTx: canon arc %d has measure length %v — it cannot carry a boundary", canonID, origTotal)
+				"SplitCanonAtRunBoundaries: canon arc %d has measure length %v — it cannot carry a boundary", canonID, origTotal)
 		}
 		for _, a := range measures {
 			if a.Measure < -MeasureEps || a.Measure > origTotal+MeasureEps {
 				return AlignReport{}, fmt.Errorf(
-					"splitCanonAtRunBoundariesTx: boundary at measure %.9f m is outside canon arc %d, which is %.9f m long",
+					"SplitCanonAtRunBoundaries: boundary at measure %.9f m is outside canon arc %d, which is %.9f m long",
 					a.Measure, canonID, origTotal)
 			}
 		}
@@ -255,15 +255,15 @@ func SplitCanonAtRunBoundaries(
 		origStartNode, origEndNode, err := canon.ArcEnds(ctx, canonID)
 		if err != nil {
 			return AlignReport{}, fmt.Errorf(
-				"splitCanonAtRunBoundariesTx: read endpoint nodes of canon arc %d to record its cut lineage: %w", canonID, err)
+				"SplitCanonAtRunBoundaries: read endpoint nodes of canon arc %d to record its cut lineage: %w", canonID, err)
 		}
 		origStart, _, err := canon.Node(ctx, origStartNode)
 		if err != nil {
-			return AlignReport{}, fmt.Errorf("splitCanonAtRunBoundariesTx: load node %d for canon arc %d's cut lineage: %w", origStartNode, canonID, err)
+			return AlignReport{}, fmt.Errorf("SplitCanonAtRunBoundaries: load node %d for canon arc %d's cut lineage: %w", origStartNode, canonID, err)
 		}
 		origEnd, _, err := canon.Node(ctx, origEndNode)
 		if err != nil {
-			return AlignReport{}, fmt.Errorf("splitCanonAtRunBoundariesTx: load node %d for canon arc %d's cut lineage: %w", origEndNode, canonID, err)
+			return AlignReport{}, fmt.Errorf("SplitCanonAtRunBoundaries: load node %d for canon arc %d's cut lineage: %w", origEndNode, canonID, err)
 		}
 		lineage := AlignLineage{Canon: canonID, TotalM: origTotal, Leaves: []AlignLeaf{{
 			Arc: canonID, LoM: 0, HiM: origTotal, LoNode: origStartNode, HiNode: origEndNode,
@@ -301,7 +301,7 @@ func SplitCanonAtRunBoundaries(
 				// from it afterwards would name the wrong arcs.
 				if lineage.Leaves[0].Arc != b.Parent {
 					return AlignReport{}, fmt.Errorf(
-						"splitCanonAtRunBoundariesTx: cut on canon arc %d was made against row %d, but the lineage's lowest leaf is row %d — the descending cut order has been broken",
+						"SplitCanonAtRunBoundaries: cut on canon arc %d was made against row %d, but the lineage's lowest leaf is row %d — the descending cut order has been broken",
 						canonID, b.Parent, lineage.Leaves[0].Arc)
 				}
 				low := lineage.Leaves[0]
@@ -441,7 +441,7 @@ func cutCanonAtMeasure(
 		// is gone: this pass has lost track of what it split, and there is no
 		// answer to fall back to.
 		return AlignBoundary{}, fmt.Errorf(
-			"splitCanonAtRunBoundariesTx: canon arc %d (from run on arc %d) is not in the canon — "+
+			"SplitCanonAtRunBoundaries: canon arc %d (from run on arc %d) is not in the canon — "+
 				"a boundary cannot be resolved against a row that no longer exists",
 			parent, runCanonID)
 	}
@@ -449,7 +449,7 @@ func cutCanonAtMeasure(
 	total := CanonMeasureLengthM(arc.Vertices)
 	if !(total > 0) || math.IsNaN(total) || math.IsInf(total, 0) {
 		return AlignBoundary{}, fmt.Errorf(
-			"splitCanonAtRunBoundariesTx: canon arc %d has measure length %v — it cannot carry a boundary", parent, total)
+			"SplitCanonAtRunBoundaries: canon arc %d has measure length %v — it cannot carry a boundary", parent, total)
 	}
 
 	out := AlignBoundary{
@@ -536,15 +536,14 @@ func cutCanonAtMeasure(
 	//
 	// `claim` is therefore not subtracted from the candidate set. exclude stays
 	// empty, not nil, so this call keeps [NearestNode]'s excluding shape: if a
-	// future case needs a real exclusion, the site already has it. `claim` itself
-	// is still reported to a1Decline2ObserverForTests for measurement.
+	// future case needs a real exclusion, the site already has it.
 	lat, lon := InterpolateMeasurePointM(arc.Vertices, measure)
 	out.Lat, out.Lon = lat, lon
 	exclude := []NodeID{}
 	nearby, foundNearby, err := NearestNode(ctx, canon, lat, lon, EndpointWarpRadiusM, exclude)
 	if err != nil {
 		return AlignBoundary{}, fmt.Errorf(
-			"splitCanonAtRunBoundariesTx: search for a node within %v m of the boundary's own coordinate (%.9f,%.9f): %w",
+			"SplitCanonAtRunBoundaries: search for a node within %v m of the boundary's own coordinate (%.9f,%.9f): %w",
 			EndpointWarpRadiusM, lat, lon, err)
 	}
 	// ⚠ DECLINE 2 PREFERS A NODE ON THE STRETCH THE RUN ACTUALLY RODE.
@@ -597,12 +596,6 @@ func cutCanonAtMeasure(
 		// invariant's own abort path can be exercised without engineering a
 		// millimetre-scale placement. Nil by default: no behaviour change when unset.
 		adopted = false
-	}
-	if a1Decline2ObserverForTests != nil {
-		// DIAGNOSTIC: reports the search result and the adopt/fall-through
-		// decision, every time. See the var's own doc. The observer's signature
-		// still carries the claim, though the decision no longer reads it.
-		a1Decline2ObserverForTests(CurrentLegForTests, lat, lon, foundNearby, nearby.ID, nearby.DistM, claim.Active, claim.Node, adopted)
 	}
 	if adopted {
 		out.Node = lineageNearby.ID
@@ -688,9 +681,6 @@ func cutCanonAtMeasure(
 	out.Prior = res.Prior
 	out.Next = res.Next
 	out.ConsumedParentVertex = res.ConsumedParentVertex
-	if nodeMintObserverForTests != nil {
-		nodeMintObserverForTests(res.Node.ID, res.Node.Lat, res.Node.Lon, "a1-interior-cut", CurrentLegForTests)
-	}
 
 	// ⚠ THE INVARIANT, ASSERTED WHERE IT CAN ACTUALLY BREAK. The one-node rule,
 	// "no two nodes within EndpointWarpRadiusM of each other", is the whole point
@@ -721,7 +711,7 @@ func cutCanonAtMeasure(
 	nearbyAll, err := NearbyNodes(ctx, canon, res.Node.Lat, res.Node.Lon, EndpointWarpRadiusM, []NodeID{res.Node.ID})
 	if err != nil {
 		return AlignBoundary{}, fmt.Errorf(
-			"splitCanonAtRunBoundariesTx: invariant check after minting node %d: %w", res.Node.ID, err)
+			"SplitCanonAtRunBoundaries: invariant check after minting node %d: %w", res.Node.ID, err)
 	}
 	var found bool
 	nearby = NearbyNode{}
@@ -750,17 +740,9 @@ func cutCanonAtMeasure(
 			out.LineageCutConnectorPairs = append(out.LineageCutConnectorPairs, [2]NodeID{res.Node.ID, n.ID})
 		}
 	}
-	if a1InvariantCheckObserverForTests != nil {
-		// DIAGNOSTIC: reports the RAW search result and the exact decision this
-		// function branches on, every time, not only on an abort. See the var's own
-		// doc. claimActive/claimNode are still passed through for existing
-		// observers, though the decision itself no longer reads them.
-		a1InvariantCheckObserverForTests(CurrentLegForTests, res.Node.ID, res.Node.Lat, res.Node.Lon,
-			found, nearby.ID, nearby.DistM, claim.Active, claim.Node, wouldAbort)
-	}
 	if wouldAbort {
 		return AlignBoundary{}, fmt.Errorf(
-			"splitCanonAtRunBoundariesTx: §12 INVARIANT VIOLATED — just minted node %d at (%.9f,%.9f), and node %d already "+
+			"SplitCanonAtRunBoundaries: INVARIANT VIOLATED — just minted node %d at (%.9f,%.9f), and node %d already "+
 				"sits %.3f m away, inside endpointWarpRadiusM (%v m). The unified search above should have found it and used "+
 				"it instead of cutting; the resolve step itself has a defect, not the geometry",
 			res.Node.ID, res.Node.Lat, res.Node.Lon, nearby.ID, nearby.DistM, EndpointWarpRadiusM)

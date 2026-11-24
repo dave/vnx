@@ -146,7 +146,7 @@ func followLegAgainstCanon(
 		return assembledLeg{}, err
 	}
 	// The partition and the assembler MUST see the SAME candidate slice:
-	// FollowRun.CanonIdx indexes into it.
+	// followRun.CanonIdx indexes into it.
 	//
 	// ⚠ noNodeLookup, NOT a real node lookup, AND THAT IS DELIBERATE. The
 	// any-node snap (snapping a run boundary onto any nearby canon node, not
@@ -157,7 +157,7 @@ func followLegAgainstCanon(
 	// terminals do). Enabling it should come with such a recorded field, set
 	// when the leg is committed, rather than a derivation: node creation times
 	// tie within a batch and node-ID magnitude is not a reliable signal.
-	// [corridorFollowRuns]'s runs carry exact analytic SourcePos, which
+	// [corridorFollowRuns]'s runs carry exact analytic sourcePos, which
 	// [assembleFollowedLegRunsCorridor] assembles directly.
 	asm, err := assembleFollowedLegRunsCorridor(pts, cands, runs, bands, noNodeLookup)
 	if err != nil {

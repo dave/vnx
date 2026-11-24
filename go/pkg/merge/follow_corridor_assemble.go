@@ -48,7 +48,7 @@ import (
 // [lo,hi]. first is the smallest such index, last the largest; first > last
 // means no original vertex falls in the range at all, ordinary for a
 // corridor-solve boundary that is not vertex-aligned (a sub-edge stretch).
-func sourceRunVertexRange(lo, hi SourcePos) (first, last int) {
+func sourceRunVertexRange(lo, hi sourcePos) (first, last int) {
 	first = lo.Edge
 	if lo.Frac > 0 {
 		first++
@@ -63,8 +63,8 @@ func sourceRunVertexRange(lo, hi SourcePos) (first, last int) {
 // assembleFollowedLegRunsCorridor assembles one leg from its partition into
 // [assembledLeg]: the committed points, the effective runs, and the OnPieces
 // bookkeeping [assembledLeg.checkOnPieceRanges] verifies. Runs' Start/End are
-// exact analytic SourcePos. See this file's header.
-func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []FollowRun, b followBands, lookup nodeLookup) (assembledLeg, error) {
+// exact analytic sourcePos. See this file's header.
+func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []followRun, b followBands, lookup nodeLookup) (assembledLeg, error) {
 	if lookup == nil {
 		return assembledLeg{}, errors.New("AssembleFollowedLegRunsCorridor: nodeLookup is nil — pass noNodeLookup if this caller has no node access")
 	}
@@ -80,7 +80,7 @@ func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 
 	var out []Point
 	prevON := false
-	eff := make([]FollowRun, 0, len(runs))
+	eff := make([]followRun, 0, len(runs))
 	var onPieces []OnPieceRange
 
 	for r := range runs {
@@ -142,7 +142,7 @@ func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		atStart := r == 0 && samePoint(startPt, legFirst)
 		atEnd := r == len(runs)-1 && samePoint(endPt, legLast)
 
-		if run.Kind == RunOff {
+		if run.Kind == runOff {
 			// Verbatim — every ORIGINAL source point in the run's range; no
 			// fractional boundary point is manufactured. OFF commits only
 			// vertices the source actually had.
@@ -192,11 +192,11 @@ func assembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		// solve already certifies the position, so there is no accept/reject
 		// step left to make.
 		var entryCross, exitCross *Point
-		if r > 0 && runs[r-1].Kind == RunOff {
+		if r > 0 && runs[r-1].Kind == runOff {
 			cp := startPt
 			entryCross = &cp
 		}
-		if r+1 < len(runs) && runs[r+1].Kind == RunOff {
+		if r+1 < len(runs) && runs[r+1].Kind == runOff {
 			cp := endPt
 			exitCross = &cp
 		}

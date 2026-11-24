@@ -45,9 +45,9 @@ func TestCarryThrough_PaidTeleportLandsOnTheArcEnd(t *testing.T) {
 	}
 
 	prepped := prepCandidates(canon)
-	var onA, onB *FollowRun
+	var onA, onB *followRun
 	for i := range runs {
-		if runs[i].Kind != RunOn {
+		if runs[i].Kind != runOn {
 			continue
 		}
 		switch runs[i].CanonIdx {

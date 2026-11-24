@@ -64,7 +64,7 @@ func TestSrcMeasureMeasureAtMatchesCumulativeHaversine(t *testing.T) {
 		if math.Abs(sa.EdgeLen(e)-want) > 1e-9 {
 			t.Fatalf("edgeLen(%d) = %v, want %v", e, sa.EdgeLen(e), want)
 		}
-		got, err := sa.MeasureAt(SourcePos{Edge: e, Frac: 0})
+		got, err := sa.MeasureAt(sourcePos{Edge: e, Frac: 0})
 		if err != nil {
 			t.Fatalf("measureAt: %v", err)
 		}
@@ -73,7 +73,7 @@ func TestSrcMeasureMeasureAtMatchesCumulativeHaversine(t *testing.T) {
 		}
 		// Half way along an edge is half its measure — measure is linear in frac, the
 		// same convention projectRangeCeil uses on the canon side.
-		mid, err := sa.MeasureAt(SourcePos{Edge: e, Frac: 0.5})
+		mid, err := sa.MeasureAt(sourcePos{Edge: e, Frac: 0.5})
 		if err != nil {
 			t.Fatalf("measureAt: %v", err)
 		}
@@ -92,8 +92,8 @@ func TestSrcMeasureCompareEdgeBoundaryIsOnePoint(t *testing.T) {
 	// The pinned contract: frac 1 on edge k and frac 0 on edge k+1 are the
 	// SAME point and must compare equal — exactly, with no epsilon.
 	for e := range sa.Edges() - 1 {
-		hi := SourcePos{Edge: e, Frac: 1}
-		lo := SourcePos{Edge: e + 1, Frac: 0}
+		hi := sourcePos{Edge: e, Frac: 1}
+		lo := sourcePos{Edge: e + 1, Frac: 0}
 		eq, err := sa.Equal(hi, lo)
 		if err != nil {
 			t.Fatalf("equal: %v", err)
@@ -104,11 +104,11 @@ func TestSrcMeasureCompareEdgeBoundaryIsOnePoint(t *testing.T) {
 	}
 	// And they are a single point in the ordering too: strictly after anything
 	// earlier on edge e, strictly before anything later on edge e+1.
-	before := SourcePos{Edge: 0, Frac: 0.999}
-	at := SourcePos{Edge: 0, Frac: 1}
-	after := SourcePos{Edge: 1, Frac: 0.001}
+	before := sourcePos{Edge: 0, Frac: 0.999}
+	at := sourcePos{Edge: 0, Frac: 1}
+	after := sourcePos{Edge: 1, Frac: 0.001}
 	for _, c := range []struct {
-		a, b SourcePos
+		a, b sourcePos
 		want int
 	}{
 		{before, at, -1},
@@ -130,10 +130,10 @@ func TestSrcMeasureCompareAgreesWithMeasureOrder(t *testing.T) {
 	// A polyline with zero-length edges at the head, in the middle and at the
 	// tail: the three places a duplicate vertex can break an ordering.
 	sa := mustSourceMeasure(t, xLine(0, 0, 10, 10, 40, 100, 100))
-	var ps []SourcePos
+	var ps []sourcePos
 	for e := range sa.Edges() {
 		for _, f := range []float64{0, 0.25, 0.5, 1} {
-			ps = append(ps, SourcePos{Edge: e, Frac: f})
+			ps = append(ps, sourcePos{Edge: e, Frac: f})
 		}
 	}
 	for _, a := range ps {
@@ -172,7 +172,7 @@ func TestSrcMeasureZeroLengthEdgePositions(t *testing.T) {
 	if sa.EdgeLen(1) != 0 {
 		t.Fatalf("edgeLen(1) = %v, want 0", sa.EdgeLen(1))
 	}
-	same := []SourcePos{
+	same := []sourcePos{
 		{Edge: 0, Frac: 1},
 		{Edge: 1, Frac: 0},
 		{Edge: 1, Frac: 0.5},
@@ -194,7 +194,7 @@ func TestSrcMeasureZeroLengthEdgePositions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("normalise: %v", err)
 		}
-		if n != (SourcePos{Edge: 2, Frac: 0}) {
+		if n != (sourcePos{Edge: 2, Frac: 0}) {
 			t.Fatalf("normalise(%+v) = %+v, want {2 0}", p, n)
 		}
 		// And they are all the same place on the ground.
@@ -208,14 +208,14 @@ func TestSrcMeasureZeroLengthEdgePositions(t *testing.T) {
 		}
 	}
 	// The dead edge does not break the ordering around it.
-	got, err := sa.Compare(SourcePos{Edge: 0, Frac: 0.5}, SourcePos{Edge: 1, Frac: 0.5})
+	got, err := sa.Compare(sourcePos{Edge: 0, Frac: 0.5}, sourcePos{Edge: 1, Frac: 0.5})
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
 	if got != -1 {
 		t.Fatalf("mid-edge-0 vs the dead edge: compare = %d, want -1", got)
 	}
-	got, err = sa.Compare(SourcePos{Edge: 1, Frac: 0.5}, SourcePos{Edge: 2, Frac: 0.5})
+	got, err = sa.Compare(sourcePos{Edge: 1, Frac: 0.5}, sourcePos{Edge: 2, Frac: 0.5})
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestSrcMeasureZeroLengthEdgePositions(t *testing.T) {
 }
 
 func TestSrcMeasureCanonicalForm(t *testing.T) {
-	// The canonical form is stated on SourcePos and is FORWARD-MOST: (i,1) →
+	// The canonical form is stated on sourcePos and is FORWARD-MOST: (i,1) →
 	// (i+1,0), a zero-length edge collapses onto the next edge, and the
 	// polyline's own end is where the pushing stops. Pinned directly here
 	// rather than only through compare, so a later change to the rule shows up
@@ -235,20 +235,20 @@ func TestSrcMeasureCanonicalForm(t *testing.T) {
 	sa := mustSourceMeasure(t, xLine(0, 0, 10, 10, 40, 40))
 	last := sa.Edges() - 1
 	for _, c := range []struct {
-		in, want SourcePos
+		in, want sourcePos
 		why      string
 	}{
-		{SourcePos{Edge: 0, Frac: 0}, SourcePos{Edge: 1, Frac: 0}, "a leading dead edge collapses forward"},
-		{SourcePos{Edge: 0, Frac: 0.5}, SourcePos{Edge: 1, Frac: 0}, "any frac on a dead edge is its one point"},
-		{SourcePos{Edge: 0, Frac: 1}, SourcePos{Edge: 1, Frac: 0}, "frac 1 pushes to the next edge"},
-		{SourcePos{Edge: 1, Frac: 0}, SourcePos{Edge: 1, Frac: 0}, "the start of a live edge is already canonical"},
-		{SourcePos{Edge: 1, Frac: 0.5}, SourcePos{Edge: 1, Frac: 0.5}, "an interior position is already canonical"},
-		{SourcePos{Edge: 1, Frac: 1}, SourcePos{Edge: 3, Frac: 0}, "frac 1 pushes THROUGH the dead edge that follows"},
-		{SourcePos{Edge: 2, Frac: 0.25}, SourcePos{Edge: 3, Frac: 0}, "the dead edge itself lands past it"},
-		{SourcePos{Edge: 3, Frac: 0.75}, SourcePos{Edge: 3, Frac: 0.75}, "interior again"},
-		{SourcePos{Edge: 3, Frac: 1}, SourcePos{Edge: last, Frac: 0}, "a TRAILING dead edge takes frac 0, not 1"},
-		{SourcePos{Edge: last, Frac: 0.5}, SourcePos{Edge: last, Frac: 0}, "and swallows every frac on it"},
-		{SourcePos{Edge: last, Frac: 1}, SourcePos{Edge: last, Frac: 0}, "including its own end"},
+		{sourcePos{Edge: 0, Frac: 0}, sourcePos{Edge: 1, Frac: 0}, "a leading dead edge collapses forward"},
+		{sourcePos{Edge: 0, Frac: 0.5}, sourcePos{Edge: 1, Frac: 0}, "any frac on a dead edge is its one point"},
+		{sourcePos{Edge: 0, Frac: 1}, sourcePos{Edge: 1, Frac: 0}, "frac 1 pushes to the next edge"},
+		{sourcePos{Edge: 1, Frac: 0}, sourcePos{Edge: 1, Frac: 0}, "the start of a live edge is already canonical"},
+		{sourcePos{Edge: 1, Frac: 0.5}, sourcePos{Edge: 1, Frac: 0.5}, "an interior position is already canonical"},
+		{sourcePos{Edge: 1, Frac: 1}, sourcePos{Edge: 3, Frac: 0}, "frac 1 pushes THROUGH the dead edge that follows"},
+		{sourcePos{Edge: 2, Frac: 0.25}, sourcePos{Edge: 3, Frac: 0}, "the dead edge itself lands past it"},
+		{sourcePos{Edge: 3, Frac: 0.75}, sourcePos{Edge: 3, Frac: 0.75}, "interior again"},
+		{sourcePos{Edge: 3, Frac: 1}, sourcePos{Edge: last, Frac: 0}, "a TRAILING dead edge takes frac 0, not 1"},
+		{sourcePos{Edge: last, Frac: 0.5}, sourcePos{Edge: last, Frac: 0}, "and swallows every frac on it"},
+		{sourcePos{Edge: last, Frac: 1}, sourcePos{Edge: last, Frac: 0}, "including its own end"},
 	} {
 		got, err := sa.Normalise(c.in)
 		if err != nil {
@@ -271,18 +271,18 @@ func TestSrcMeasureCanonicalForm(t *testing.T) {
 	// On a polyline with a live final edge, the terminal keeps frac 1 — it has
 	// nowhere forward to go.
 	live := mustSourceMeasure(t, xLine(0, 10, 40))
-	got, err := live.Normalise(SourcePos{Edge: 1, Frac: 1})
+	got, err := live.Normalise(sourcePos{Edge: 1, Frac: 1})
 	if err != nil {
 		t.Fatalf("normalise: %v", err)
 	}
-	if got != (SourcePos{Edge: 1, Frac: 1}) {
+	if got != (sourcePos{Edge: 1, Frac: 1}) {
 		t.Fatalf("normalise(terminal) = %+v, want {1 1}", got)
 	}
 
 	// The map-key promise: every representation of one point keys the same
 	// bucket once normalised, and distinct points do not collide.
-	seen := map[SourcePos]int{}
-	for _, p := range []SourcePos{{Edge: 1, Frac: 1}, {Edge: 2, Frac: 0}, {Edge: 2, Frac: 0.9}, {Edge: 3, Frac: 0}} {
+	seen := map[sourcePos]int{}
+	for _, p := range []sourcePos{{Edge: 1, Frac: 1}, {Edge: 2, Frac: 0}, {Edge: 2, Frac: 0.9}, {Edge: 3, Frac: 0}} {
 		n, err := sa.Normalise(p)
 		if err != nil {
 			t.Fatalf("normalise: %v", err)
@@ -292,7 +292,7 @@ func TestSrcMeasureCanonicalForm(t *testing.T) {
 	if len(seen) != 1 {
 		t.Fatalf("one point keyed %d buckets: %v", len(seen), seen)
 	}
-	n0, _ := sa.Normalise(SourcePos{Edge: 1, Frac: 0.5})
+	n0, _ := sa.Normalise(sourcePos{Edge: 1, Frac: 0.5})
 	if _, clash := seen[n0]; clash {
 		t.Fatalf("a distinct point collided with the duplicate cluster's key")
 	}
@@ -301,7 +301,7 @@ func TestSrcMeasureCanonicalForm(t *testing.T) {
 func TestSrcMeasureNormaliseKeepsInteriorAndTerminal(t *testing.T) {
 	sa := mustSourceMeasure(t, xLine(0, 10, 40))
 	// An interior position of a positive-length edge is already canonical.
-	p := SourcePos{Edge: 0, Frac: 0.5}
+	p := sourcePos{Edge: 0, Frac: 0.5}
 	n, err := sa.Normalise(p)
 	if err != nil {
 		t.Fatalf("normalise: %v", err)
@@ -417,7 +417,7 @@ func TestSrcMeasureAdvanceAcrossZeroLengthEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("advance: %v", err)
 	}
-	if eq, _ := sa.Equal(got, SourcePos{Edge: 2, Frac: 0.5}); !eq {
+	if eq, _ := sa.Equal(got, sourcePos{Edge: 2, Frac: 0.5}); !eq {
 		t.Fatalf("advance onto the duplicate cluster = %+v, want the cluster point", got)
 	}
 	// And straight past it in one step.
@@ -436,7 +436,7 @@ func TestSrcMeasureAdvanceAcrossZeroLengthEdges(t *testing.T) {
 		t.Fatalf("advance past the duplicates landed at measure %v, want %v", at, l0+5)
 	}
 	// Starting ON a dead edge and advancing works the same way.
-	got, err = sa.Advance(SourcePos{Edge: 1, Frac: 0.5}, 5)
+	got, err = sa.Advance(sourcePos{Edge: 1, Frac: 0.5}, 5)
 	if err != nil {
 		t.Fatalf("advance from a zero-length edge: %v", err)
 	}
@@ -481,7 +481,7 @@ func TestSrcMeasureAdvanceOffEitherEndIsError(t *testing.T) {
 
 func TestSrcMeasureAdvanceZeroIsIdentity(t *testing.T) {
 	sa := mustSourceMeasure(t, xLine(0, 10, 10, 40))
-	for _, p := range []SourcePos{
+	for _, p := range []sourcePos{
 		sa.Start(), sa.End(),
 		{Edge: 0, Frac: 0.3}, {Edge: 0, Frac: 1},
 		{Edge: 1, Frac: 0.5}, {Edge: 2, Frac: 0.7},
@@ -533,7 +533,7 @@ func TestSrcMeasureMeasureRoundTrip(t *testing.T) {
 		roundTrip(sz, want)
 	}
 	// position → distance → position, forwards and back.
-	ps := []SourcePos{
+	ps := []sourcePos{
 		{Edge: 0, Frac: 0}, {Edge: 0, Frac: 0.4}, {Edge: 1, Frac: 0.5},
 		{Edge: 2, Frac: 0.25}, {Edge: 3, Frac: 0.9}, {Edge: 3, Frac: 1},
 	}
@@ -588,7 +588,7 @@ func TestSrcMeasureValidateRejectsOutOfRange(t *testing.T) {
 	sa := mustSourceMeasure(t, xLine(0, 10, 40))
 	// A frac a hair outside [0,1] is a bug in the caller's solve. It is an
 	// error here, never a clamp — the house rule the whole merge runs on.
-	bad := []SourcePos{
+	bad := []sourcePos{
 		{Edge: -1, Frac: 0},
 		{Edge: 2, Frac: 0},
 		{Edge: 0, Frac: -1e-15},
@@ -618,7 +618,7 @@ func TestSrcMeasureValidateRejectsOutOfRange(t *testing.T) {
 func TestSrcMeasureLatLonAtInterpolates(t *testing.T) {
 	pts := xLine(0, 100)
 	sa := mustSourceMeasure(t, pts)
-	lat, lon, err := sa.LatLonAt(SourcePos{Edge: 0, Frac: 0.25})
+	lat, lon, err := sa.LatLonAt(sourcePos{Edge: 0, Frac: 0.25})
 	if err != nil {
 		t.Fatalf("latLonAt: %v", err)
 	}

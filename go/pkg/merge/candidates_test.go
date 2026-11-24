@@ -157,7 +157,7 @@ func TestCandidateDiscovery_LongSourceEdgeFindsAnArcNoVertexIsNear(t *testing.T)
 	}
 	var onM float64
 	for _, r := range runs {
-		if r.Kind == RunOn && r.CanonID == wantArc {
+		if r.Kind == runOn && r.CanonID == wantArc {
 			m := r.MeasureEnd - r.MeasureStart
 			if m < 0 {
 				m = -m
@@ -251,7 +251,7 @@ func TestCandidateDiscovery_ArcBesideTheWindowSeamIsFound(t *testing.T) {
 	}
 	var onM float64
 	for _, r := range runs {
-		if r.Kind == RunOn && r.CanonID == wantArc {
+		if r.Kind == runOn && r.CanonID == wantArc {
 			m := r.MeasureEnd - r.MeasureStart
 			if m < 0 {
 				m = -m

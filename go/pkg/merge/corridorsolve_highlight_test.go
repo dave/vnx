@@ -119,9 +119,9 @@ func TestMergeCorridorRuns_AHopKeepsItsFlagThroughAMerge(t *testing.T) {
 // fan-out except on an exact tie. Built here from the merge's own input, so
 // the rule holds whether or not a tie ever produces it.
 func TestMergeAdjacentSameCandidateRuns_AReversedHopIsNotAnArtefact(t *testing.T) {
-	fwd := FollowRun{Kind: RunOn, CanonIdx: 0, Start: SourcePos{Edge: 0}, End: SourcePos{Edge: 3, Frac: 1}, MeasureStart: 0, MeasureEnd: 10}
-	hop := FollowRun{Kind: RunOn, CanonIdx: 0, Start: SourcePos{Edge: 3, Frac: 1}, End: SourcePos{Edge: 3, Frac: 1}, MeasureStart: 10, MeasureEnd: 2, Reversed: true, ChainHop: true}
-	got := mergeAdjacentSameCandidateRuns([]FollowRun{fwd, hop})
+	fwd := followRun{Kind: runOn, CanonIdx: 0, Start: sourcePos{Edge: 0}, End: sourcePos{Edge: 3, Frac: 1}, MeasureStart: 0, MeasureEnd: 10}
+	hop := followRun{Kind: runOn, CanonIdx: 0, Start: sourcePos{Edge: 3, Frac: 1}, End: sourcePos{Edge: 3, Frac: 1}, MeasureStart: 10, MeasureEnd: 2, Reversed: true, ChainHop: true}
+	got := mergeAdjacentSameCandidateRuns([]followRun{fwd, hop})
 	if len(got) != 2 {
 		t.Fatalf("got %d runs, want the forward run and the reversed hop kept apart: %+v", len(got), got)
 	}

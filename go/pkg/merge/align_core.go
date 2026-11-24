@@ -219,7 +219,7 @@ type AlignLineage struct {
 	Leaves []AlignLeaf
 }
 
-// CanonMeasureLengthM is the cumulative great-circle length of a canon vertex list.
+// canonMeasureLengthM is the cumulative great-circle length of a canon vertex list.
 //
 // ⚠ IT MUST AGREE WITH TWO OTHER SUMS, and it does so by being the same
 // arithmetic over the same vertices with the same primitive:
@@ -235,9 +235,7 @@ type AlignLineage struct {
 // The round trip is therefore measure → measure/total → fraction*total → measure, exact up
 // to float rounding. It is not exact to the bit, which is why the caller
 // qualifies with measureEps rather than testing for equality.
-//
-// Exported for the reference application's tests; not part of the stable API.
-func CanonMeasureLengthM(verts []Point) float64 {
+func canonMeasureLengthM(verts []Point) float64 {
 	total := 0.0
 	for i := 1; i < len(verts); i++ {
 		total += HaversineMetres(verts[i-1].Lat, verts[i-1].Lon, verts[i].Lat, verts[i].Lon)
@@ -246,7 +244,7 @@ func CanonMeasureLengthM(verts []Point) float64 {
 }
 
 // interpolateMeasurePointM returns the lat/lon at `measure` metres along verts,
-// walked in order — the SAME walk CanonMeasureLengthM sums and the SAME linear
+// walked in order — the SAME walk canonMeasureLengthM sums and the SAME linear
 // lat/lon interpolation the polyline split performs when it
 // actually cuts (a measure-derived parameter t, then start + t*(end-start) on
 // whichever pair of vertices brackets it). It exists to answer the

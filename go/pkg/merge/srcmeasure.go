@@ -35,7 +35,7 @@ import (
 	"sort"
 )
 
-// SourcePos is a point on a source polyline: edge is an index into the
+// sourcePos is a point on a source polyline: edge is an index into the
 // polyline's edges (vertex i → vertex i+1) and frac ∈ [0,1] is the fraction
 // along that edge.
 //
@@ -68,15 +68,13 @@ import (
 //     polyline, including all-duplicate ones;
 //   - two CANONICAL positions may be compared with == and used as map keys.
 //     Raw ones may NOT — normalise first, or use compare.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type SourcePos struct {
+type sourcePos struct {
 	Edge int
 	Frac float64
 }
 
 // sourceMeasure is a source polyline with its cumulative measure lengths precomputed,
-// and is the only thing that can interpret a SourcePos. Positions are indices
+// and is the only thing that can interpret a sourcePos. Positions are indices
 // into ITS points; mixing positions between two sourceMeasures is a caller bug the
 // type cannot detect, so don't.
 type sourceMeasure struct {
@@ -85,7 +83,7 @@ type sourceMeasure struct {
 }
 
 // newSourceMeasure precomputes the cumulative measure of pts. Fewer than two points is
-// an error: a single vertex has no edges, so no SourcePos can exist on it, and
+// an error: a single vertex has no edges, so no sourcePos can exist on it, and
 // a caller that reaches here with one point has skipped the matcher's own
 // len(pts) == 1 case ([corridorFollowRuns]) rather than found a degenerate leg.
 //
@@ -120,28 +118,28 @@ func (sa *sourceMeasure) EdgeLen(e int) float64 { return sa.CumMeasure[e+1] - sa
 // start and end are the polyline's terminal positions. Callers wanting to walk
 // to a terminal must use these rather than advancing by the remaining measure: see
 // advance's note on the exact-overshoot contract.
-func (sa *sourceMeasure) Start() SourcePos { return SourcePos{Edge: 0, Frac: 0} }
-func (sa *sourceMeasure) End() SourcePos   { return SourcePos{Edge: sa.Edges() - 1, Frac: 1} }
+func (sa *sourceMeasure) Start() sourcePos { return sourcePos{Edge: 0, Frac: 0} }
+func (sa *sourceMeasure) End() sourcePos   { return sourcePos{Edge: sa.Edges() - 1, Frac: 1} }
 
 // vertexPos is the position of original vertex i. Original vertices are the
 // positions the whole design leans on (source vertices are always sampled at
 // every grid), so naming them is worth a function rather than
 // leaving each caller to remember that the last one is (edges-1, 1).
-func (sa *sourceMeasure) VertexPos(i int) (SourcePos, error) {
+func (sa *sourceMeasure) VertexPos(i int) (sourcePos, error) {
 	if i < 0 || i >= len(sa.Pts) {
-		return SourcePos{}, fmt.Errorf("sourceMeasure.vertexPos: vertex %d out of range [0,%d]", i, len(sa.Pts)-1)
+		return sourcePos{}, fmt.Errorf("sourceMeasure.vertexPos: vertex %d out of range [0,%d]", i, len(sa.Pts)-1)
 	}
 	if i == sa.Edges() {
-		return SourcePos{Edge: i - 1, Frac: 1}, nil
+		return sourcePos{Edge: i - 1, Frac: 1}, nil
 	}
-	return SourcePos{Edge: i, Frac: 0}, nil
+	return sourcePos{Edge: i, Frac: 0}, nil
 }
 
 // validate reports whether p is a position on this polyline. The frac test is
 // written as a negated range so a NaN frac fails it. Out of range is an error,
 // never a clamp: a caller that computed frac = 1.0000001 has a bug in its
 // solve, and hiding it here would be a silent fallback.
-func (sa *sourceMeasure) Validate(p SourcePos) error {
+func (sa *sourceMeasure) Validate(p sourcePos) error {
 	if p.Edge < 0 || p.Edge >= sa.Edges() {
 		return fmt.Errorf("SourceMeasure.Validate: edge %d out of range [0,%d]", p.Edge, sa.Edges()-1)
 	}
@@ -152,7 +150,7 @@ func (sa *sourceMeasure) Validate(p SourcePos) error {
 }
 
 // normalise returns p's canonical representative — the forward-most way of
-// writing the same point, as defined on SourcePos.
+// writing the same point, as defined on sourcePos.
 //
 // The invariant it establishes, and the one compare leans on: a normalised
 // position that is not on the final edge sits strictly inside an edge of
@@ -161,9 +159,9 @@ func (sa *sourceMeasure) Validate(p SourcePos) error {
 //
 // It is idempotent, and its output is safe to compare with == or use as a map
 // key.
-func (sa *sourceMeasure) Normalise(p SourcePos) (SourcePos, error) {
+func (sa *sourceMeasure) Normalise(p sourcePos) (sourcePos, error) {
 	if err := sa.Validate(p); err != nil {
-		return SourcePos{}, err
+		return sourcePos{}, err
 	}
 	last := sa.Edges() - 1
 	for p.Edge < last && (p.Frac == 1 || sa.EdgeLen(p.Edge) == 0) {
@@ -183,7 +181,7 @@ func (sa *sourceMeasure) Normalise(p SourcePos) (SourcePos, error) {
 // merely near each other are different positions; the tolerance that would say
 // otherwise (a "join epsilon") is an open design decision. Do not add one here.
 //
-// Both sides are normalised to the canonical form defined on SourcePos first,
+// Both sides are normalised to the canonical form defined on sourcePos first,
 // so the ordering agrees exactly with measure order: compare returns 0 precisely
 // when the two positions have the same measure — which includes every pair of
 // representations of a duplicated vertex — and the sign of the difference
@@ -197,9 +195,9 @@ func (sa *sourceMeasure) Normalise(p SourcePos) (SourcePos, error) {
 // reproduces the position bit-for-bit only about 12% of the time (measured
 // over 15,000 random polylines). Exact comparison then calls the
 // two different, which is correct and is the point: derive an interval
-// endpoint once and pass the SourcePos along, rather than recomputing it and
+// endpoint once and pass the sourcePos along, rather than recomputing it and
 // expecting it to match.
-func (sa *sourceMeasure) Compare(a, b SourcePos) (int, error) {
+func (sa *sourceMeasure) Compare(a, b sourcePos) (int, error) {
 	na, err := sa.Normalise(a)
 	if err != nil {
 		return 0, err
@@ -223,7 +221,7 @@ func (sa *sourceMeasure) Compare(a, b SourcePos) (int, error) {
 
 // equal reports whether a and b denote the same point, on compare's exact
 // terms.
-func (sa *sourceMeasure) Equal(a, b SourcePos) (bool, error) {
+func (sa *sourceMeasure) Equal(a, b sourcePos) (bool, error) {
 	c, err := sa.Compare(a, b)
 	return c == 0, err
 }
@@ -237,7 +235,7 @@ func (sa *sourceMeasure) Equal(a, b SourcePos) (bool, error) {
 // identical to cum[k+1] = measureAt({k+1,0}). In practice they always did agree
 // (88,315 of 88,315 random edge boundaries), but the guarantee is
 // compare's, not this one's: ask compare whether two positions are one point.
-func (sa *sourceMeasure) MeasureAt(p SourcePos) (float64, error) {
+func (sa *sourceMeasure) MeasureAt(p sourcePos) (float64, error) {
 	if err := sa.Validate(p); err != nil {
 		return 0, err
 	}
@@ -247,7 +245,7 @@ func (sa *sourceMeasure) MeasureAt(p SourcePos) (float64, error) {
 // measureBetween is the SIGNED measure length from a to b in metres: positive when b
 // is after a, negative when before. Callers wanting a gap magnitude take
 // math.Abs, as the canon side does.
-func (sa *sourceMeasure) MeasureBetween(a, b SourcePos) (float64, error) {
+func (sa *sourceMeasure) MeasureBetween(a, b sourcePos) (float64, error) {
 	aa, err := sa.MeasureAt(a)
 	if err != nil {
 		return 0, err
@@ -268,12 +266,12 @@ func (sa *sourceMeasure) MeasureBetween(a, b SourcePos) (float64, error) {
 // Where several positions share the measure (a run of zero-length edges), the
 // EARLIEST representation is returned; normalise maps it forward if a
 // canonical form is wanted, and compare treats them all as equal either way.
-func (sa *sourceMeasure) PosAtMeasure(at float64) (SourcePos, error) {
+func (sa *sourceMeasure) PosAtMeasure(at float64) (sourcePos, error) {
 	if math.IsNaN(at) {
-		return SourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure is NaN")
+		return sourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure is NaN")
 	}
 	if at < 0 || at > sa.Total() {
-		return SourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure %.6g outside [0,%.6g]", at, sa.Total())
+		return sourcePos{}, fmt.Errorf("sourceMeasure.posAtMeasure: measure %.6g outside [0,%.6g]", at, sa.Total())
 	}
 	// The last edge whose cumulative start is at or below `at`. sort.Search
 	// finds the first cumulative value ≥ `at`; stepping back one lands on the
@@ -284,12 +282,12 @@ func (sa *sourceMeasure) PosAtMeasure(at float64) (SourcePos, error) {
 	e = min(e, sa.Edges()-1)
 	l := sa.EdgeLen(e)
 	if l == 0 {
-		return SourcePos{Edge: e, Frac: 0}, nil
+		return sourcePos{Edge: e, Frac: 0}, nil
 	}
 	// Both numerator and denominator are differences of the same monotone
 	// array and the numerator is the smaller, so the quotient is in [0,1]
 	// without any clamping: float division rounds a value ≤ 1 to a value ≤ 1.
-	return SourcePos{Edge: e, Frac: (at - sa.CumMeasure[e]) / l}, nil
+	return sourcePos{Edge: e, Frac: (at - sa.CumMeasure[e]) / l}, nil
 }
 
 // advance moves p by distM metres along the polyline — forward for a positive
@@ -309,9 +307,9 @@ func (sa *sourceMeasure) PosAtMeasure(at float64) (SourcePos, error) {
 // start()/end() to name a terminal; never arrive at one by arithmetic. Making
 // this case succeed needs a tolerance for "close enough to the end", which is
 // the undecided join epsilon (see compare), so it is not decided here.
-func (sa *sourceMeasure) Advance(p SourcePos, distM float64) (SourcePos, error) {
+func (sa *sourceMeasure) Advance(p sourcePos, distM float64) (sourcePos, error) {
 	if math.IsNaN(distM) || math.IsInf(distM, 0) {
-		return SourcePos{}, fmt.Errorf("sourceMeasure.advance: distance %v is not finite", distM)
+		return sourcePos{}, fmt.Errorf("sourceMeasure.advance: distance %v is not finite", distM)
 	}
 	if distM == 0 {
 		// Exact, not a shortcut for speed: moving nothing cannot change the
@@ -320,17 +318,17 @@ func (sa *sourceMeasure) Advance(p SourcePos, distM float64) (SourcePos, error) 
 		// having, since a sweep that advances by a computed zero must not see
 		// the position twitch.
 		if err := sa.Validate(p); err != nil {
-			return SourcePos{}, err
+			return sourcePos{}, err
 		}
 		return p, nil
 	}
 	at, err := sa.MeasureAt(p)
 	if err != nil {
-		return SourcePos{}, err
+		return sourcePos{}, err
 	}
 	target := at + distM
 	if target < 0 || target > sa.Total() {
-		return SourcePos{}, fmt.Errorf(
+		return sourcePos{}, fmt.Errorf(
 			"sourceMeasure.advance: %.6g m from measure %.6g reaches %.6g, outside [0,%.6g]",
 			distM, at, target, sa.Total())
 	}
@@ -341,7 +339,7 @@ func (sa *sourceMeasure) Advance(p SourcePos, distM float64) (SourcePos, error) 
 // exactly as projectRangeCeil interpolates a canon projection. Linear in the
 // same parameter the measure is linear in, so a position half the measure along an
 // edge is also half way along it geometrically.
-func (sa *sourceMeasure) LatLonAt(p SourcePos) (lat, lon float64, err error) {
+func (sa *sourceMeasure) LatLonAt(p sourcePos) (lat, lon float64, err error) {
 	if err := sa.Validate(p); err != nil {
 		return 0, 0, err
 	}
@@ -358,7 +356,7 @@ func (sa *sourceMeasure) LatLonAt(p SourcePos) (lat, lon float64, err error) {
 // Nil propagates, never fabricates: an edge with either endpoint's elevation
 // unknown carries an unknown elevation at every position on it, not a 0. See
 // [sourceMeasure.pointAt].
-func (sa *sourceMeasure) EleAt(p SourcePos) (*float64, error) {
+func (sa *sourceMeasure) EleAt(p sourcePos) (*float64, error) {
 	if err := sa.Validate(p); err != nil {
 		return nil, err
 	}
@@ -370,7 +368,7 @@ func (sa *sourceMeasure) EleAt(p SourcePos) (*float64, error) {
 // lerps a crossing vertex `cp` is built from. The position is already known
 // exactly — a corridor interval's own boundary
 // (`CorridorPiece.ImportMeasureAtLo/Hi`) — so there is no search.
-func (sa *sourceMeasure) PointAt(p SourcePos) (Point, error) {
+func (sa *sourceMeasure) PointAt(p sourcePos) (Point, error) {
 	lat, lon, err := sa.LatLonAt(p)
 	if err != nil {
 		return Point{}, err

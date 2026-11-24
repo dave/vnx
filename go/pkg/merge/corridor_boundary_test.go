@@ -12,7 +12,7 @@ import (
 func TestSourceMeasureEleAt_LerpsBetweenBracketingVertices(t *testing.T) {
 	pts := []Point{mPt(0, 0, 100), mPt(100, 0, 200)}
 	sa := mustSourceMeasure(t, pts)
-	ele, err := sa.EleAt(SourcePos{Edge: 0, Frac: 0.25})
+	ele, err := sa.EleAt(sourcePos{Edge: 0, Frac: 0.25})
 	if err != nil {
 		t.Fatalf("eleAt: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestSourceMeasureEleAt_NilPropagatesNeverFabricatesZero(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			sa := mustSourceMeasure(t, []Point{c.a, c.b})
 			for _, frac := range []float64{0, 0.5, 1} {
-				ele, err := sa.EleAt(SourcePos{Edge: 0, Frac: frac})
+				ele, err := sa.EleAt(sourcePos{Edge: 0, Frac: frac})
 				if err != nil {
 					t.Fatalf("eleAt(frac %v): %v", frac, err)
 				}
@@ -56,7 +56,7 @@ func TestSourceMeasureEleAt_NilPropagatesNeverFabricatesZero(t *testing.T) {
 func TestSourceMeasurePointAt_CombinesLatLonAndEle(t *testing.T) {
 	pts := []Point{mPt(0, 0, 100), mPt(100, 0, 300)}
 	sa := mustSourceMeasure(t, pts)
-	p := SourcePos{Edge: 0, Frac: 0.5}
+	p := sourcePos{Edge: 0, Frac: 0.5}
 	lat, lon, err := sa.LatLonAt(p)
 	if err != nil {
 		t.Fatalf("latLonAt: %v", err)

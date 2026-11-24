@@ -18,39 +18,33 @@ type followBands struct {
 	StayM  float64 // read only by tests
 }
 
-// RunKind distinguishes verbatim source spans (OFF) from canon-following
+// runKind distinguishes verbatim source spans (OFF) from canon-following
 // spans (ON).
-//
-// Exported for the reference application's tests; not part of the stable API.
-type RunKind uint8
+type runKind uint8
 
 const (
-	// Exported for the reference application's tests; not part of the stable API.
-	RunOff RunKind = iota
-	// Exported for the reference application's tests; not part of the stable API.
-	RunOn
+	runOff runKind = iota
+	runOn
 )
 
-// RunProj is the projection of one source point onto its run's bound
+// runProj is the projection of one source point onto its run's bound
 // candidate: the on-line lat/lon, the measure position (cumulative metres
 // along the candidate), and the horizontal distance from the source
 // point to that on-line point. Evidence for diagnosis and the input to
 // the rewrite's boundary interpolation.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type RunProj struct {
+type runProj struct {
 	Measure float64
 	Dist    float64
 	Lat     float64
 	Lon     float64
 }
 
-// FollowRun is one span of the partitioned leg. [Start, End] are inclusive
+// followRun is one span of the partitioned leg. [Start, End] are inclusive
 // RAW (non-normalised) positions on the leg's source polyline, in
-// [SourcePos] terms. OFF runs carry only the range. ON runs additionally
+// [sourcePos] terms. OFF runs carry only the range. ON runs additionally
 // carry the bound candidate (ID + index into the candidates slice), the
 // traversal direction (Reversed = anti-parallel = canon walked
-// high-measure→low-measure), the measure interval on that candidate, and one RunProj per
+// high-measure→low-measure), the measure interval on that candidate, and one runProj per
 // source point in [Start, End].
 //
 // ⚠ RAW, NOT CANONICAL. [sourceMeasure.normalise] would collapse a position on
@@ -59,12 +53,10 @@ type RunProj struct {
 // passed through it. Safe to hold this way because nothing compares them with
 // `==`; readers convert them to a measure (sourceMeasure.measureAt) or read
 // the measure fields instead.
-//
-// Exported for the reference application's tests; not part of the stable API.
-type FollowRun struct {
-	Kind  RunKind
-	Start SourcePos
-	End   SourcePos
+type followRun struct {
+	Kind  runKind
+	Start sourcePos
+	End   sourcePos
 
 	// ON-only.
 	CanonID      ArcID
@@ -72,7 +64,7 @@ type FollowRun struct {
 	Reversed     bool
 	MeasureStart float64
 	MeasureEnd   float64
-	Proj         []RunProj
+	Proj         []runProj
 
 	// ChainHop marks a run that draws an intermediate candidate of a
 	// same-layer switch chain — see [corridorRun.ChainHop]. Its Start and End
@@ -620,7 +612,7 @@ func checkCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStar
 // atLegStart/atLegEnd say whether this run's Start/End sits at the LEG's own
 // first/last position; the caller ([assembleFollowedLegRunsCorridor]) computes
 // them.
-func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun, b followBands, entryCross, exitCross *Point, atLegStart, atLegEnd bool) ([]Point, error) {
+func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run followRun, b followBands, entryCross, exitCross *Point, atLegStart, atLegEnd bool) ([]Point, error) {
 	lo, hi := run.MeasureStart, run.MeasureEnd
 	if lo > hi {
 		lo, hi = hi, lo

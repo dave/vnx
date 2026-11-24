@@ -139,7 +139,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// AFTER the follow, whose runs are its input, and BEFORE the commit below.
 	//
 	// CANON ONLY: the leg half is the leg cut, below.
-	alignRep, err := SplitCanonAtRunBoundaries(ctx, canon, runs, warpRep.StartNode, warpRep.EndNode)
+	alignRep, err := splitCanonAtRunBoundaries(ctx, canon, runs, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}

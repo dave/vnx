@@ -1,7 +1,7 @@
 package merge
 
 // corridorwire.go — the corridor solve's output, converted into
-// [FollowRun]s the assembler can commit. The caller runs it once per leg.
+// [followRun]s the assembler can commit. The caller runs it once per leg.
 
 import (
 	"context"
@@ -95,7 +95,7 @@ type CorridorCostObserver interface {
 }
 
 // corridorFollowRuns runs the corridor solve (intervals, Dijkstra and
-// bridges) for one leg and converts its result into [FollowRun]s.
+// bridges) for one leg and converts its result into [followRun]s.
 //
 // R and k are [CorridorRadiusM]/[emissionK] (corridorcost.go) — NOT
 // b.StayM/b.EnterM, the older matcher's bands, which are deliberately not
@@ -107,7 +107,7 @@ type CorridorCostObserver interface {
 // loop, [buildCorridorBridges] and the Dijkstra loop — and a cancellation comes
 // back as a `%w`-wrapped [context.Canceled], never as a partial or empty result.
 // The caller cancels it, for example on memory pressure or a user's cancel.
-func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b followBands) ([]FollowRun, error) {
+func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b followBands) ([]followRun, error) {
 	costObs := stateOf(ctx).hooks.CorridorCost
 	// Degenerate-leg contract: an empty leg has no runs, and a one-point leg
 	// is one OFF run that commits that point verbatim.
@@ -115,7 +115,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 		return nil, nil
 	}
 	if len(pts) == 1 {
-		return []FollowRun{{Kind: RunOff}}, nil
+		return []followRun{{Kind: runOff}}, nil
 	}
 
 	sa, err := newSourceMeasure(pts)
@@ -160,10 +160,10 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 		// total <= 0 (every point coincides) — [solveCorridorPath]'s own
 		// expected-absence contract (its total==0 branch). Nothing to
 		// follow; the whole leg commits verbatim, as it always would have.
-		return []FollowRun{{Kind: RunOff, Start: sa.Start(), End: sa.End()}}, nil
+		return []followRun{{Kind: runOff, Start: sa.Start(), End: sa.End()}}, nil
 	}
 
-	out := make([]FollowRun, 0, len(res.Runs))
+	out := make([]followRun, 0, len(res.Runs))
 	for _, run := range res.Runs {
 		if run.State.Off {
 			// A degenerate (sub-solverEps) OFF run is dropped, not committed
@@ -183,7 +183,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 			// pushing the true first ON piece to point index 1 or 2 instead
 			// of 0 while [assembleFollowedLegRunsCorridor]'s own atStart
 			// still (correctly) reads this as the leg's own measure-0 start,
-			// since sub-eps error only moved WHICH FollowRun claims measure 0,
+			// since sub-eps error only moved WHICH followRun claims measure 0,
 			// not whether anything does. legSeamsFromAlign's own assertion
 			// (legpieces.go: "ON piece 0 is flagged terminal at its start
 			// but begins at point %d, not 0") is what catches the
@@ -201,7 +201,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 			if err != nil {
 				return nil, fmt.Errorf("CorridorFollowRuns: OFF run end: %w", err)
 			}
-			out = append(out, FollowRun{Kind: RunOff, Start: start, End: end})
+			out = append(out, followRun{Kind: runOff, Start: start, End: end})
 			continue
 		}
 
@@ -247,7 +247,7 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 // piece — the deleted coalescePieces did it after the fact), extended across
 // solver-RUN boundaries too. Within one run cannot see this: a
 // BRIDGE run is emitted directly via [corridorFollowRunFromMeasure], one
-// FollowRun per bridge, with no look-ahead at whatever solver run continues
+// followRun per bridge, with no look-ahead at whatever solver run continues
 // the SAME (interval, direction) state right after it — and it always does
 // continue when the bridge fires at all, because a bridge only ever lands AT
 // the target interval's own near boundary, which is exactly where that
@@ -257,18 +257,18 @@ func corridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b fo
 // were bridged, and ALL 18 were immediately followed by a non-bridged
 // continuation of the identical (interval, direction) state — each pair
 // committing as two followRuns and so two spurious seams, on top of what
-// coalescePieces already fixed. FollowRun itself carries no Bridged field,
+// coalescePieces already fixed. followRun itself carries no Bridged field,
 // and assembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd on the
 // candidate identically either way, so a bridge's own canon measure touching its
 // continuation's is exactly as mergeable as two pieces coalescePieces
 // already merges within one run — this is that same merge, applied one
 // level up, over corridorFollowRuns' own output rather than one run's own
 // pieces.
-func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
+func mergeAdjacentSameCandidateRuns(runs []followRun) []followRun {
 	if len(runs) == 0 {
 		return runs
 	}
-	out := make([]FollowRun, 0, len(runs))
+	out := make([]followRun, 0, len(runs))
 	out = append(out, runs[0])
 	for _, r := range runs[1:] {
 		last := &out[len(out)-1]
@@ -283,7 +283,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 		// degenerate canon measure (the nearest vertex, never a real edge
 		// interior). Each such run trivially "touches" the next (a constant
 		// equals itself, so MeasureEnd == MeasureStart holds repeatedly), so
-		// a naive merge collapsed five of them into ONE FollowRun spanning the
+		// a naive merge collapsed five of them into ONE followRun spanning the
 		// leg's entire ~300-edge import-measure length at a ZERO-width canon
 		// span — assembleOnRun draws canon vertices strictly BETWEEN
 		// MeasureStart and MeasureEnd, and there are none between a position
@@ -370,7 +370,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 		// clamp its canon away without a word. Its direction is not read off
 		// the source: it is the direction the chain's switches paid for
 		// ([corridorRun.ChainHop]).
-		noDirection := func(fr FollowRun) bool {
+		noDirection := func(fr followRun) bool {
 			if fr.MeasureEnd == fr.MeasureStart {
 				return true
 			}
@@ -418,7 +418,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 		} else {
 			continues = r.MeasureStart >= last.MeasureEnd
 		}
-		if last.Kind == RunOn && r.Kind == RunOn &&
+		if last.Kind == runOn && r.Kind == runOn &&
 			last.CanonIdx == r.CanonIdx && sameDirection && continues {
 			// THE MERGED RUN MUST BE WELL-FORMED IN ITS OWN DECLARED DIRECTION.
 			// Absorbing a directionless run keeps last.MeasureStart, and when that
@@ -486,7 +486,7 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 	return out
 }
 
-// corridorFollowRunFromMeasure builds one ON [FollowRun] for the source stretch
+// corridorFollowRunFromMeasure builds one ON [followRun] for the source stretch
 // [importLo,importHi], bound to candidate candIdx over the ORIENTED canon measure
 // [canonLo,canonHi] (may run high-to-low; not pre-sorted, matching
 // [CorridorPiece]'s and [CorridorBridge]'s own convention).
@@ -495,17 +495,17 @@ func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 // direction: a declared-FWD run CAN move backward within one piece (that is
 // exactly what the backtrack term prices), so only the measure pair's own order
 // tells [assembleOnRun]'s measure-monotone post-condition the truth it needs.
-func corridorFollowRunFromMeasure(sa *sourceMeasure, pc *PreppedCandidate, candIdx int, importLo, importHi, canonLo, canonHi float64) (FollowRun, error) {
+func corridorFollowRunFromMeasure(sa *sourceMeasure, pc *PreppedCandidate, candIdx int, importLo, importHi, canonLo, canonHi float64) (followRun, error) {
 	start, err := sa.PosAtMeasure(importLo)
 	if err != nil {
-		return FollowRun{}, fmt.Errorf("start: %w", err)
+		return followRun{}, fmt.Errorf("start: %w", err)
 	}
 	end, err := sa.PosAtMeasure(importHi)
 	if err != nil {
-		return FollowRun{}, fmt.Errorf("end: %w", err)
+		return followRun{}, fmt.Errorf("end: %w", err)
 	}
-	return FollowRun{
-		Kind:         RunOn,
+	return followRun{
+		Kind:         runOn,
 		Start:        start,
 		End:          end,
 		CanonID:      pc.arcID,

@@ -124,7 +124,7 @@ func TestSolveCorridorPath_BridgesShortShallowGapAndFabricationReadsNonZero(t *t
 			t.Errorf("bridged run has non-positive canon measure span [%.6g,%.6g]", r.CanonMeasureLo, r.CanonMeasureHi)
 			continue
 		}
-		fr := FollowRun{MeasureStart: r.CanonMeasureLo, MeasureEnd: r.CanonMeasureHi, CanonIdx: r.CandIdx}
+		fr := followRun{MeasureStart: r.CanonMeasureLo, MeasureEnd: r.CanonMeasureHi, CanonIdx: r.CandIdx}
 		pc := cands[r.CandIdx]
 		onM, bridgedM := bridgedMetresForRun(pc, fr, srcPoly, R, fabricationSampleStepM)
 		t.Logf("bridged run canon=[%.3f,%.3f]: onM=%.3f bridgedM=%.3f", r.CanonMeasureLo, r.CanonMeasureHi, onM, bridgedM)

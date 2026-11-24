@@ -1045,7 +1045,7 @@ func sourceArcsBetween(sa *sourceMeasure, loMeasure, hiMeasure float64) ([][2]Po
 
 // candidateCanonEdgeAt returns the index of pc's canon edge containing measure
 // position `at` — [sourceMeasure.posAtMeasure]'s own binary search, ported here
-// because [PreppedCandidate] predates [SourcePos] and has no type of its
+// because [PreppedCandidate] predates [sourcePos] and has no type of its
 // own to carry it.
 func candidateCanonEdgeAt(pc *PreppedCandidate, at float64) int {
 	e := sort.Search(len(pc.cumMeasure), func(k int) bool { return pc.cumMeasure[k] >= at }) - 1

@@ -9,11 +9,11 @@ package merge
 // Measured directly against real data (probe, not this fixture): of 48
 // solver runs, 18 were Bridged, and ALL 18 were immediately followed by a
 // non-bridged run of the SAME (interval, direction) state — a bridge run
-// and its own continuation, never merged into one FollowRun because
-// corridorFollowRuns builds a bridged run as its own standalone FollowRun
+// and its own continuation, never merged into one followRun because
+// corridorFollowRuns builds a bridged run as its own standalone followRun
 // (the `if run.Bridged` branch) with no look-ahead at what follows it. Each
 // such pair therefore commits as TWO followRuns and so two seams, even
-// though nothing downstream needs a boundary there: FollowRun itself has no
+// though nothing downstream needs a boundary there: followRun itself has no
 // Bridged field, and assembleFollowedLegRunsCorridor draws MeasureStart->MeasureEnd
 // on the candidate identically either way — a bridge's own canon measure and its
 // following run's canon measure are exactly as continuous as two adjacent pieces
@@ -47,7 +47,7 @@ func bridgeThenContinueFixture(approachX, returnX, loopY float64) ([]Point, []Ca
 // TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun is the
 // red-first case: a bridge run and the run immediately continuing the same
 // candidate in the same direction, with canon measure touching across the
-// bridge boundary, must commit as ONE FollowRun.
+// bridge boundary, must commit as ONE followRun.
 func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) {
 	const R = CorridorRadiusM
 	// ⚠ RE-BASELINED 2026-09-03, FROM (400, 430, 40), and for the SAME reason
@@ -109,7 +109,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 	// changes nothing about whether a seam is needed there.
 	for i := 0; i+1 < len(runs); i++ {
 		a, c := runs[i], runs[i+1]
-		if a.Kind != RunOn || c.Kind != RunOn {
+		if a.Kind != runOn || c.Kind != runOn {
 			continue
 		}
 		if a.CanonIdx != c.CanonIdx || a.Reversed != c.Reversed {
@@ -134,7 +134,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 // ever the same nearest vertex. All five "touch" by the letter of the merge
 // test (an equal constant trivially satisfies |MeasureEnd-MeasureStart|<=measureEps
 // against itself, repeatedly), so mergeAdjacentSameCandidateRuns collapsed
-// them into ONE FollowRun spanning the leg's own full 298-edge import-measure
+// them into ONE followRun spanning the leg's own full 298-edge import-measure
 // length at a ZERO-width canon span — committing a "2 point(s), begins and
 // ends on the same node, no interior vertex to split at" piece,
 // because assembleOnRun draws canon vertices strictly between MeasureStart and
@@ -146,17 +146,17 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 // target one.
 func TestMergeAdjacentSameCandidateRuns_DegenerateChainStaysSeparate(t *testing.T) {
 	const constMeasure = 209.936562184
-	runs := []FollowRun{
-		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
-			Start: SourcePos{Edge: 0, Frac: 0}, End: SourcePos{Edge: 0, Frac: 0.8371901071005368}},
-		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
-			Start: SourcePos{Edge: 0, Frac: 0.8371901071005368}, End: SourcePos{Edge: 292, Frac: 0.5645430622677673}},
-		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
-			Start: SourcePos{Edge: 292, Frac: 0.5645430622677673}, End: SourcePos{Edge: 293, Frac: 0.6250645772644844}},
-		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
-			Start: SourcePos{Edge: 293, Frac: 0.6250645772644844}, End: SourcePos{Edge: 295, Frac: 0.11446677235408986}},
-		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
-			Start: SourcePos{Edge: 295, Frac: 0.11446677235408986}, End: SourcePos{Edge: 298, Frac: 1}},
+	runs := []followRun{
+		{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
+			Start: sourcePos{Edge: 0, Frac: 0}, End: sourcePos{Edge: 0, Frac: 0.8371901071005368}},
+		{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
+			Start: sourcePos{Edge: 0, Frac: 0.8371901071005368}, End: sourcePos{Edge: 292, Frac: 0.5645430622677673}},
+		{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
+			Start: sourcePos{Edge: 292, Frac: 0.5645430622677673}, End: sourcePos{Edge: 293, Frac: 0.6250645772644844}},
+		{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
+			Start: sourcePos{Edge: 293, Frac: 0.6250645772644844}, End: sourcePos{Edge: 295, Frac: 0.11446677235408986}},
+		{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
+			Start: sourcePos{Edge: 295, Frac: 0.11446677235408986}, End: sourcePos{Edge: 298, Frac: 1}},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != len(runs) {
@@ -189,19 +189,19 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateChainStaysSeparate(t *testing.
 // Network-wide on a real test set before the fix: 21 of 61 ON runs
 // were degenerate, and 42 of 67 run boundaries were adjacent to one.
 func TestMergeAdjacentSameCandidateRuns_DegenerateRunDoesNotSplitAReverseFollow(t *testing.T) {
-	rev := func(a, b float64, s, e SourcePos) FollowRun {
-		return FollowRun{Kind: RunOn, CanonIdx: 1, Reversed: true, MeasureStart: a, MeasureEnd: b, Start: s, End: e}
+	rev := func(a, b float64, s, e sourcePos) followRun {
+		return followRun{Kind: runOn, CanonIdx: 1, Reversed: true, MeasureStart: a, MeasureEnd: b, Start: s, End: e}
 	}
-	stall := func(a float64, s, e SourcePos) FollowRun {
-		return FollowRun{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: a, MeasureEnd: a, Start: s, End: e}
+	stall := func(a float64, s, e sourcePos) followRun {
+		return followRun{Kind: runOn, CanonIdx: 1, Reversed: false, MeasureStart: a, MeasureEnd: a, Start: s, End: e}
 	}
-	runs := []FollowRun{
-		rev(12456.49, 12170.03, SourcePos{Edge: 0, Frac: 0.02516}, SourcePos{Edge: 2, Frac: 0.94372}),
-		stall(12170.03, SourcePos{Edge: 2, Frac: 0.94372}, SourcePos{Edge: 2, Frac: 1}),
-		stall(12170.03, SourcePos{Edge: 2, Frac: 1}, SourcePos{Edge: 3, Frac: 0.01119}),
-		rev(12170.03, 11867.79, SourcePos{Edge: 3, Frac: 0.01119}, SourcePos{Edge: 6, Frac: 0.17859}),
-		stall(11867.79, SourcePos{Edge: 6, Frac: 0.17859}, SourcePos{Edge: 6, Frac: 0.18106}),
-		rev(11867.79, 11790.47, SourcePos{Edge: 6, Frac: 0.18106}, SourcePos{Edge: 7, Frac: 0.25469}),
+	runs := []followRun{
+		rev(12456.49, 12170.03, sourcePos{Edge: 0, Frac: 0.02516}, sourcePos{Edge: 2, Frac: 0.94372}),
+		stall(12170.03, sourcePos{Edge: 2, Frac: 0.94372}, sourcePos{Edge: 2, Frac: 1}),
+		stall(12170.03, sourcePos{Edge: 2, Frac: 1}, sourcePos{Edge: 3, Frac: 0.01119}),
+		rev(12170.03, 11867.79, sourcePos{Edge: 3, Frac: 0.01119}, sourcePos{Edge: 6, Frac: 0.17859}),
+		stall(11867.79, sourcePos{Edge: 6, Frac: 0.17859}, sourcePos{Edge: 6, Frac: 0.18106}),
+		rev(11867.79, 11790.47, sourcePos{Edge: 6, Frac: 0.18106}, sourcePos{Edge: 7, Frac: 0.25469}),
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 1 {
@@ -214,7 +214,7 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateRunDoesNotSplitAReverseFollow(
 	if !got[0].Reversed {
 		t.Fatalf("merged run must stay REVERSED — the stalls have no direction of their own")
 	}
-	if got[0].Start != (SourcePos{Edge: 0, Frac: 0.02516}) || got[0].End != (SourcePos{Edge: 7, Frac: 0.25469}) {
+	if got[0].Start != (sourcePos{Edge: 0, Frac: 0.02516}) || got[0].End != (sourcePos{Edge: 7, Frac: 0.25469}) {
 		t.Fatalf("merged run must span the whole source stretch, got %+v -> %+v", got[0].Start, got[0].End)
 	}
 }
@@ -255,16 +255,16 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateRunDoesNotSplitAReverseFollow(
 // 21.48 m of canon drawn twice (19.55 m, 1.93 m, and one at 0.00 m which the
 // zero-width rule already handles).
 func TestMergeAdjacentSameCandidateRuns_ReversalInsideOneSourceEdgeIsNotATraversal(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 3, Reversed: true,
+			Kind: runOn, CanonIdx: 3, Reversed: true,
 			MeasureStart: 8629.46, MeasureEnd: 8609.91,
-			Start: SourcePos{Edge: 184, Frac: 0.10}, End: SourcePos{Edge: 184, Frac: 0.62},
+			Start: sourcePos{Edge: 184, Frac: 0.10}, End: sourcePos{Edge: 184, Frac: 0.62},
 		},
 		{
-			Kind: RunOn, CanonIdx: 3, Reversed: false,
+			Kind: runOn, CanonIdx: 3, Reversed: false,
 			MeasureStart: 8609.91, MeasureEnd: 14569.85,
-			Start: SourcePos{Edge: 184, Frac: 0.62}, End: SourcePos{Edge: 246, Frac: 1},
+			Start: sourcePos{Edge: 184, Frac: 0.62}, End: sourcePos{Edge: 246, Frac: 1},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
@@ -289,16 +289,16 @@ func TestMergeAdjacentSameCandidateRuns_ReversalInsideOneSourceEdgeIsNotATravers
 // with a real turnaround between them, or the committed line would lose the
 // spur entirely.
 func TestMergeAdjacentSameCandidateRuns_GenuineOutAndBackSurvives(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 3, Reversed: false,
+			Kind: runOn, CanonIdx: 3, Reversed: false,
 			MeasureStart: 1000, MeasureEnd: 1400,
-			Start: SourcePos{Edge: 10, Frac: 0}, End: SourcePos{Edge: 24, Frac: 0.5},
+			Start: sourcePos{Edge: 10, Frac: 0}, End: sourcePos{Edge: 24, Frac: 0.5},
 		},
 		{
-			Kind: RunOn, CanonIdx: 3, Reversed: true,
+			Kind: runOn, CanonIdx: 3, Reversed: true,
 			MeasureStart: 1400, MeasureEnd: 1000,
-			Start: SourcePos{Edge: 24, Frac: 0.5}, End: SourcePos{Edge: 39, Frac: 1},
+			Start: sourcePos{Edge: 24, Frac: 0.5}, End: sourcePos{Edge: 39, Frac: 1},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
@@ -326,16 +326,16 @@ func TestMergeAdjacentSameCandidateRuns_GenuineOutAndBackSurvives(t *testing.T) 
 // Here the continuation ends at 42.52, BELOW the rejoin at 52.13, so both runs
 // stay — seam and node included. That is the honest answer, not a workaround.
 func TestMergeAdjacentSameCandidateRuns_ArtefactNotFoldedWhenTheStrideCannotReachIt(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 2, Reversed: true,
+			Kind: runOn, CanonIdx: 2, Reversed: true,
 			MeasureStart: 52.13, MeasureEnd: 40.00,
-			Start: SourcePos{Edge: 71, Frac: 0.08}, End: SourcePos{Edge: 71, Frac: 0.61},
+			Start: sourcePos{Edge: 71, Frac: 0.08}, End: sourcePos{Edge: 71, Frac: 0.61},
 		},
 		{
-			Kind: RunOn, CanonIdx: 2, Reversed: false,
+			Kind: runOn, CanonIdx: 2, Reversed: false,
 			MeasureStart: 40.00, MeasureEnd: 42.52,
-			Start: SourcePos{Edge: 71, Frac: 0.61}, End: SourcePos{Edge: 72, Frac: 0.87},
+			Start: sourcePos{Edge: 71, Frac: 0.61}, End: sourcePos{Edge: 72, Frac: 0.87},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
@@ -372,21 +372,21 @@ func TestMergeAdjacentSameCandidateRuns_ArtefactNotFoldedWhenTheStrideCannotReac
 // The refusal the old rule was written for is about the MERGED span having no
 // canon extent. This one has 149.6 m of it. All three runs must fold into one.
 func TestMergeAdjacentSameCandidateRuns_BridgedContinuationInsideOneSparseEdge(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 0, Reversed: true,
+			Kind: runOn, CanonIdx: 0, Reversed: true,
 			MeasureStart: 12448.075933, MeasureEnd: 12312.448784,
-			Start: SourcePos{Edge: 0, Frac: 0}, End: SourcePos{Edge: 0, Frac: 0.883785},
+			Start: sourcePos{Edge: 0, Frac: 0}, End: sourcePos{Edge: 0, Frac: 0.883785},
 		},
 		{
-			Kind: RunOn, CanonIdx: 0, Reversed: true,
+			Kind: runOn, CanonIdx: 0, Reversed: true,
 			MeasureStart: 12312.448784, MeasureEnd: 12298.453532,
-			Start: SourcePos{Edge: 0, Frac: 0.883785}, End: SourcePos{Edge: 0, Frac: 0.931003},
+			Start: sourcePos{Edge: 0, Frac: 0.883785}, End: sourcePos{Edge: 0, Frac: 0.931003},
 		},
 		{
-			Kind: RunOn, CanonIdx: 0, Reversed: true,
+			Kind: runOn, CanonIdx: 0, Reversed: true,
 			MeasureStart: 12298.453532, MeasureEnd: 11982.114701,
-			Start: SourcePos{Edge: 0, Frac: 0.931003}, End: SourcePos{Edge: 4, Frac: 0.568454},
+			Start: sourcePos{Edge: 0, Frac: 0.931003}, End: sourcePos{Edge: 4, Frac: 0.568454},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
@@ -429,16 +429,16 @@ func TestMergeAdjacentSameCandidateRuns_BridgedContinuationInsideOneSparseEdge(t
 // difference is exercised. It is here so the difference is a decision on the
 // record rather than an accident.
 func TestMergeAdjacentSameCandidateRuns_ZeroWidthRunsAtDifferentMeasuresMerge(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 1, Reversed: false,
+			Kind: runOn, CanonIdx: 1, Reversed: false,
 			MeasureStart: 100, MeasureEnd: 100,
-			Start: SourcePos{Edge: 4, Frac: 0}, End: SourcePos{Edge: 4, Frac: 0.5},
+			Start: sourcePos{Edge: 4, Frac: 0}, End: sourcePos{Edge: 4, Frac: 0.5},
 		},
 		{
-			Kind: RunOn, CanonIdx: 1, Reversed: false,
+			Kind: runOn, CanonIdx: 1, Reversed: false,
 			MeasureStart: 140, MeasureEnd: 140,
-			Start: SourcePos{Edge: 4, Frac: 0.5}, End: SourcePos{Edge: 7, Frac: 0.25},
+			Start: sourcePos{Edge: 4, Frac: 0.5}, End: sourcePos{Edge: 7, Frac: 0.25},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)
@@ -476,16 +476,16 @@ func TestMergeAdjacentSameCandidateRuns_ZeroWidthRunsAtDifferentMeasuresMerge(t 
 // and with it its node, which is the honest outcome for geometry that came back
 // to where it started.
 func TestMergeAdjacentSameCandidateRuns_OneDegenerateSideLandingOnItsOwnStartStaysSeparate(t *testing.T) {
-	runs := []FollowRun{
+	runs := []followRun{
 		{
-			Kind: RunOn, CanonIdx: 2, Reversed: true,
+			Kind: runOn, CanonIdx: 2, Reversed: true,
 			MeasureStart: 50, MeasureEnd: 40,
-			Start: SourcePos{Edge: 71, Frac: 0.08}, End: SourcePos{Edge: 71, Frac: 0.61},
+			Start: sourcePos{Edge: 71, Frac: 0.08}, End: sourcePos{Edge: 71, Frac: 0.61},
 		},
 		{
-			Kind: RunOn, CanonIdx: 2, Reversed: false,
+			Kind: runOn, CanonIdx: 2, Reversed: false,
 			MeasureStart: 40, MeasureEnd: 50,
-			Start: SourcePos{Edge: 71, Frac: 0.61}, End: SourcePos{Edge: 78, Frac: 0.42},
+			Start: sourcePos{Edge: 71, Frac: 0.61}, End: sourcePos{Edge: 78, Frac: 0.42},
 		},
 	}
 	got := mergeAdjacentSameCandidateRuns(runs)

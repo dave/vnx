@@ -32,7 +32,7 @@ const fabricationSampleStepM = 0.5
 //
 // Sampling is midpoint, n = ceil(length/stepM) sub-intervals, so a bridged
 // stretch is resolved to within one stepM at each end.
-func bridgedMetresForRun(pc *PreppedCandidate, run FollowRun, srcPoly *hintPoly, r, stepM float64) (onM, bridgedM float64) {
+func bridgedMetresForRun(pc *PreppedCandidate, run followRun, srcPoly *hintPoly, r, stepM float64) (onM, bridgedM float64) {
 	lo, hi := run.MeasureStart, run.MeasureEnd
 	if lo > hi {
 		lo, hi = hi, lo

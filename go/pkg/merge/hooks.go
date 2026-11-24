@@ -71,7 +71,7 @@ type TestHooks struct {
 	// fires.
 	A1AbsorbIgnoreMeasure func() bool
 
-	// A1Decline2SuppressAdopt, when non-nil, is called by the align step's
+	// a1Decline2SuppressAdopt, when non-nil, is called by the align step's
 	// canon cut right after DECLINE-2's own nearby-node search decides
 	// whether to adopt — if it returns true, the adopt is forced to false
 	// regardless of what the search found. FAULT INJECTION, not a diagnostic:
@@ -81,7 +81,7 @@ type TestHooks struct {
 	// DECLINE-2 failing. Called on EVERY DECLINE-2 decision, not only when it
 	// returns true, so a test can confirm the injection point was actually
 	// reached.
-	A1Decline2SuppressAdopt func() bool
+	a1Decline2SuppressAdopt func() bool
 
 	// A1ForeignAbsorb is called for every boundary DECLINE 2's lineage
 	// preference redirected from an absorb to a cut: the node it refused, how

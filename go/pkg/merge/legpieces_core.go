@@ -634,7 +634,7 @@ func pieceHasExtent(pts []Point, lo, hi int) bool {
 		// split, which fails loudly, rather than vanishing here.
 		return true
 	}
-	return CanonMeasureLengthM(pts[lo:hi+1]) > 0
+	return canonMeasureLengthM(pts[lo:hi+1]) > 0
 }
 
 func runEndName(atEnd bool) string {

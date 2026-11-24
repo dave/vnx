@@ -34,15 +34,15 @@ func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
 	leg := straightLegX(21, 100, 0) // a vertex every 5 m; vertex 10 is the node
 	// Computed, not hand-summed: mPt's metre offsets are a linear lat/lon
 	// approximation, so haversine over (20,47,50) is not bit-exactly 27+3.
-	nodeMeasureOnArcB := CanonMeasureLengthM(arcB.Vertices[:3])
+	nodeMeasureOnArcB := canonMeasureLengthM(arcB.Vertices[:3])
 	const measureStart = 33.0 // (53,0): 3 m past the node, past the 1 m vertex too
-	runs := []FollowRun{
-		{Kind: RunOn, Start: SourcePos{Edge: 0, Frac: 0}, End: SourcePos{Edge: 10, Frac: 0}, CanonID: arcA.ID, CanonIdx: 0,
-			MeasureStart: 0, MeasureEnd: CanonMeasureLengthM(arcA.Vertices)},
+	runs := []followRun{
+		{Kind: runOn, Start: sourcePos{Edge: 0, Frac: 0}, End: sourcePos{Edge: 10, Frac: 0}, CanonID: arcA.ID, CanonIdx: 0,
+			MeasureStart: 0, MeasureEnd: canonMeasureLengthM(arcA.Vertices)},
 		// Start is where run1's own first source position sits, 3 m past the
 		// node on source edge 10 (x=50..55), matching MeasureStart.
-		{Kind: RunOn, Start: SourcePos{Edge: 10, Frac: 0.6}, End: SourcePos{Edge: 19, Frac: 1}, CanonID: arcB.ID, CanonIdx: 1,
-			MeasureStart: measureStart, MeasureEnd: CanonMeasureLengthM(arcB.Vertices)},
+		{Kind: runOn, Start: sourcePos{Edge: 10, Frac: 0.6}, End: sourcePos{Edge: 19, Frac: 1}, CanonID: arcB.ID, CanonIdx: 1,
+			MeasureStart: measureStart, MeasureEnd: canonMeasureLengthM(arcB.Vertices)},
 	}
 
 	fakeLookup := func(lat, lon, radiusM float64) (float64, float64, NodeID, bool, error) {
@@ -51,15 +51,15 @@ func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
 		}
 		return 0, 0, 0, false, nil
 	}
-	findRunB := func(eff []FollowRun) FollowRun {
+	findRunB := func(eff []followRun) followRun {
 		t.Helper()
 		for _, r := range eff {
-			if r.Kind == RunOn && r.CanonID == arcB.ID {
+			if r.Kind == runOn && r.CanonID == arcB.ID {
 				return r
 			}
 		}
 		t.Fatalf("no effective ON run bound to arcB in %+v", eff)
-		return FollowRun{}
+		return followRun{}
 	}
 
 	before, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)

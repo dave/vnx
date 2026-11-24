@@ -13,20 +13,20 @@ import (
 
 // assembleCorridorPoints runs the live assembler with no node access, as
 // production does, and returns only the committed points.
-func assembleCorridorPoints(leg []Point, canon []CanonArc, runs []FollowRun, b followBands) ([]Point, error) {
+func assembleCorridorPoints(leg []Point, canon []CanonArc, runs []followRun, b followBands) ([]Point, error) {
 	asm, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, err
 }
 
 // assembleCorridorRuns is [assembleCorridorPoints] plus the effective runs.
-func assembleCorridorRuns(leg []Point, canon []CanonArc, runs []FollowRun, b followBands) ([]Point, []FollowRun, error) {
+func assembleCorridorRuns(leg []Point, canon []CanonArc, runs []followRun, b followBands) ([]Point, []followRun, error) {
 	asm, err := assembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, asm.Runs, err
 }
 
-// legEndPos is the leg's own last position in [SourcePos] terms.
-func legEndPos(leg []Point) SourcePos {
-	return SourcePos{Edge: len(leg) - 2, Frac: 1}
+// legEndPos is the leg's own last position in [sourcePos] terms.
+func legEndPos(leg []Point) sourcePos {
+	return sourcePos{Edge: len(leg) - 2, Frac: 1}
 }
 
 func TestFollowCorridorAssemble_FullDuplicateInteriorByteIdenticalTerminalsVerbatim(t *testing.T) {
@@ -268,16 +268,16 @@ func TestFollowCorridorAssemble_RepealedCorridorPostConditionCommitsVerbatim(t *
 	canon := []CanonArc{mCanon(1, mPt(0, 0), mPt(100, 0))}
 	leg := straightLegX(11, 100, 40) // 40 m north of canon
 	pc := prepCandidates(canon)[0]
-	corrupt := []FollowRun{{
-		Kind:         RunOn,
-		Start:        SourcePos{},
+	corrupt := []followRun{{
+		Kind:         runOn,
+		Start:        sourcePos{},
 		End:          legEndPos(leg),
 		CanonID:      1,
 		CanonIdx:     0,
 		Reversed:     false,
 		MeasureStart: 0,
 		MeasureEnd:   pc.Total,
-		Proj:         make([]RunProj, len(leg)),
+		Proj:         make([]runProj, len(leg)),
 	}}
 	out, err := assembleCorridorPoints(leg, canon, corrupt, b)
 	if err != nil {
@@ -308,7 +308,7 @@ func TestFollowCorridorAssemble_AllOffIsVerbatim(t *testing.T) {
 	// No canon → the whole leg is one OFF run → output byte-identical to
 	// source (the empty-network degenerate case).
 	leg := straightLegX(7, 60, 0)
-	out, err := assembleCorridorPoints(leg, nil, []FollowRun{{Kind: RunOff, Start: SourcePos{}, End: legEndPos(leg)}}, b)
+	out, err := assembleCorridorPoints(leg, nil, []followRun{{Kind: runOff, Start: sourcePos{}, End: legEndPos(leg)}}, b)
 	if err != nil {
 		t.Fatalf("assembleFollowedLegRunsCorridor: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestFollowCorridorAssemble_OffVerbatimPreservesSourceDuplicates(t *testing.
 	// (GPS resting jitter) must be PRESERVED byte-for-byte — no silent
 	// shortening (faithful import).
 	leg := []Point{mPt(0, 0), mPt(10, 1), mPt(20, 0), mPt(20, 0), mPt(30, 1), mPt(40, 0)}
-	out, err := assembleCorridorPoints(leg, nil, []FollowRun{{Kind: RunOff, Start: SourcePos{}, End: legEndPos(leg)}}, b)
+	out, err := assembleCorridorPoints(leg, nil, []followRun{{Kind: runOff, Start: sourcePos{}, End: legEndPos(leg)}}, b)
 	if err != nil {
 		t.Fatalf("assemble: %v", err)
 	}
@@ -565,10 +565,10 @@ func assembleOrFail(t *testing.T, leg []Point, canon []CanonArc, b followBands) 
 	return out
 }
 
-func onRuns(runs []FollowRun) []FollowRun {
-	var out []FollowRun
+func onRuns(runs []followRun) []followRun {
+	var out []followRun
 	for _, r := range runs {
-		if r.Kind == RunOn {
+		if r.Kind == runOn {
 			out = append(out, r)
 		}
 	}
@@ -615,14 +615,14 @@ func randCandidates(rng *rand.Rand, n int) []CanonArc {
 // ⚠ HAND-BUILT, NOT THE MATCHER'S OWN OUTPUT. Steering the matcher into
 // producing a chosen measure tests the matcher, not the assembler; the runs
 // are stated directly.
-func handoffRunsCorridor(arcA, arcB CanonArc, measureStart float64) []FollowRun {
+func handoffRunsCorridor(arcA, arcB CanonArc, measureStart float64) []followRun {
 	past := 50 + measureStart
 	edge := int(past / 5)
-	return []FollowRun{
-		{Kind: RunOn, Start: SourcePos{Edge: 0, Frac: 0}, End: SourcePos{Edge: 10, Frac: 0}, CanonID: arcA.ID, CanonIdx: 0,
-			MeasureStart: 0, MeasureEnd: CanonMeasureLengthM(arcA.Vertices)},
-		{Kind: RunOn, Start: SourcePos{Edge: edge, Frac: (past - 5*float64(edge)) / 5}, End: SourcePos{Edge: 19, Frac: 1}, CanonID: arcB.ID, CanonIdx: 1,
-			MeasureStart: measureStart, MeasureEnd: CanonMeasureLengthM(arcB.Vertices)},
+	return []followRun{
+		{Kind: runOn, Start: sourcePos{Edge: 0, Frac: 0}, End: sourcePos{Edge: 10, Frac: 0}, CanonID: arcA.ID, CanonIdx: 0,
+			MeasureStart: 0, MeasureEnd: canonMeasureLengthM(arcA.Vertices)},
+		{Kind: runOn, Start: sourcePos{Edge: edge, Frac: (past - 5*float64(edge)) / 5}, End: sourcePos{Edge: 19, Frac: 1}, CanonID: arcB.ID, CanonIdx: 1,
+			MeasureStart: measureStart, MeasureEnd: canonMeasureLengthM(arcB.Vertices)},
 	}
 }
 
@@ -653,7 +653,7 @@ func TestFollowCorridorAssemble_OnOnHandoffSnapsToSharedNode(t *testing.T) {
 	}
 	effIdx := -1
 	for i, r := range eff {
-		if r.Kind == RunOn && r.CanonID == arcB.ID {
+		if r.Kind == runOn && r.CanonID == arcB.ID {
 			effIdx = i
 		}
 	}
@@ -701,7 +701,7 @@ func TestFollowCorridorAssemble_OnOnHandoffBeyondBudgetNotSnapped(t *testing.T) 
 	}
 	effIdx := -1
 	for i, r := range eff {
-		if r.Kind == RunOn && r.CanonID == arcB.ID {
+		if r.Kind == runOn && r.CanonID == arcB.ID {
 			effIdx = i
 		}
 	}
@@ -717,10 +717,10 @@ func TestFollowCorridorAssemble_OnOnHandoffBeyondBudgetNotSnapped(t *testing.T) 
 // least one does. The tests below call the matcher directly on a hand-built
 // fixture, so the shape assertion is a HUMAN-WRITTEN expectation on the
 // matcher's own return value.
-func onRunsBoundTo(runs []FollowRun, canonID ArcID) bool {
+func onRunsBoundTo(runs []followRun, canonID ArcID) bool {
 	found := false
 	for _, r := range runs {
-		if r.Kind != RunOn {
+		if r.Kind != runOn {
 			continue
 		}
 		found = true
@@ -766,9 +766,9 @@ func TestFollowCorridorMatch_CanonAcrossAbuttingArcs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("corridorFollowRuns: %v", err)
 	}
-	var onRuns []FollowRun
+	var onRuns []followRun
 	for _, r := range runs {
-		if r.Kind == RunOn {
+		if r.Kind == runOn {
 			onRuns = append(onRuns, r)
 		}
 	}
@@ -805,7 +805,7 @@ func TestFollowCorridorMatch_HairpinArm(t *testing.T) {
 	}
 	// Both arms are arc 1, so the arc ID cannot tell them apart: the measure
 	// and direction can. The outbound arm is measure [0, outEnd], walked forward.
-	outEnd := CanonMeasureLengthM(hp[:4])
+	outEnd := canonMeasureLengthM(hp[:4])
 	for _, r := range onRuns(runs) {
 		if r.Reversed || r.MeasureStart < -1e-6 || r.MeasureEnd > outEnd+1e-6 {
 			t.Fatalf("hairpin follower bound the return arm: want forward within [0, %.2f], got %+v", outEnd, r)

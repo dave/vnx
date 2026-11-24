@@ -35,7 +35,7 @@ func alignCanon(t *testing.T, ctx context.Context, label string, spans ...[2]flo
 	totals := make([]float64, len(committed))
 	for i, c := range committed {
 		ids[i] = c.ID
-		totals[i] = CanonMeasureLengthM(c.Vertices)
+		totals[i] = canonMeasureLengthM(c.Vertices)
 	}
 	return d, ids, totals
 }
@@ -48,17 +48,17 @@ func alignOneCanon(t *testing.T, ctx context.Context, label string, lenM float64
 }
 
 // runAlign applies the align step to runs and fails the test on an error.
-func runAlign(t *testing.T, ctx context.Context, d *MemCanon, runs []FollowRun) AlignReport {
+func runAlign(t *testing.T, ctx context.Context, d *MemCanon, runs []followRun) AlignReport {
 	t.Helper()
-	rep, err := SplitCanonAtRunBoundaries(ctx, d, runs, nil, nil)
+	rep, err := splitCanonAtRunBoundaries(ctx, d, runs, nil, nil)
 	if err != nil {
-		t.Fatalf("SplitCanonAtRunBoundaries: %v", err)
+		t.Fatalf("splitCanonAtRunBoundaries: %v", err)
 	}
 	return rep
 }
 
-func onRun(arcID ArcID, measureStart, measureEnd float64, reversed bool) FollowRun {
-	return FollowRun{Kind: RunOn, CanonID: arcID, MeasureStart: measureStart, MeasureEnd: measureEnd, Reversed: reversed}
+func onRun(arcID ArcID, measureStart, measureEnd float64, reversed bool) followRun {
+	return followRun{Kind: runOn, CanonID: arcID, MeasureStart: measureStart, MeasureEnd: measureEnd, Reversed: reversed}
 }
 
 // alignCountArcs is how many arcs the canon holds — the number the align
@@ -92,8 +92,8 @@ func alignCrossFixture(t *testing.T, ctx context.Context, label string) (d *MemC
 	// is not bit-exact to them (measured: a "1000 m" span comes back ~998.9 m) —
 	// so pick arcA/arcB by which is longer, not by an exact length match.
 	c0, c1 := committed[0], committed[1]
-	len0 := CanonMeasureLengthM(c0.Vertices)
-	len1 := CanonMeasureLengthM(c1.Vertices)
+	len0 := canonMeasureLengthM(c0.Vertices)
+	len1 := canonMeasureLengthM(c1.Vertices)
 	if len0 < len1 {
 		c0, c1 = c1, c0
 		len0, len1 = len1, len0
@@ -133,7 +133,7 @@ func TestAlign_PartOfOneArcCutsTwice(t *testing.T) {
 	ctx := context.Background()
 	f := alignOneCanon(t, ctx, "align-part-of-one", 600)
 
-	rep := runAlign(t, ctx, f.d, []FollowRun{onRun(f.arcID, 200, 400, false)})
+	rep := runAlign(t, ctx, f.d, []followRun{onRun(f.arcID, 200, 400, false)})
 
 	if rep.Cuts != 2 {
 		t.Fatalf("cuts = %d, want 2 (%s)", rep.Cuts, describeAlign(rep))
@@ -162,7 +162,7 @@ func TestAlign_EndToEndCutsNothing(t *testing.T) {
 	f := alignOneCanon(t, ctx, "align-end-to-end", 600)
 	before := alignCountArcs(t, ctx, f.d)
 
-	rep := runAlign(t, ctx, f.d, []FollowRun{onRun(f.arcID, 0, f.total, false)})
+	rep := runAlign(t, ctx, f.d, []followRun{onRun(f.arcID, 0, f.total, false)})
 
 	if rep.Cuts != 0 {
 		t.Fatalf("cuts = %d, want 0 (%s)", rep.Cuts, describeAlign(rep))
@@ -204,7 +204,7 @@ func TestAlign_MeasureEpsQualifiesTheEnds(t *testing.T) {
 	// measure that no geometry means anything at, which is exactly what the fraction
 	// round trip produces at a boundary that is really an endpoint.
 	const insideMeasureEps = measureEps / 2
-	rep := runAlign(t, ctx, f.d, []FollowRun{
+	rep := runAlign(t, ctx, f.d, []followRun{
 		onRun(f.arcID, insideMeasureEps, f.total-insideMeasureEps, false),
 	})
 
@@ -249,7 +249,7 @@ func TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode(t *testing.T) {
 
 	// 5 m from the start node — well inside the 15 m displacement budget.
 	const near = 5.0
-	rep := runAlign(t, ctx, f.d, []FollowRun{onRun(f.arcID, near, 400, false)})
+	rep := runAlign(t, ctx, f.d, []followRun{onRun(f.arcID, near, 400, false)})
 
 	if rep.Cuts != 1 {
 		t.Fatalf("cuts = %d, want 1 — the far boundary qualifies, the near one absorbs (%s)", rep.Cuts, describeAlign(rep))
@@ -304,7 +304,7 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 
 	const near = 20.0 // > EndpointWarpRadiusM (15), < MinRunM (25) — the StayM band: declines
 	const far = 400.0 // 200 m from the nearer end — well past MinRunM: cuts
-	rep := runAlign(t, ctx, f.d, []FollowRun{onRun(f.arcID, near, far, false)})
+	rep := runAlign(t, ctx, f.d, []followRun{onRun(f.arcID, near, far, false)})
 
 	if rep.Cuts != 2 {
 		t.Fatalf("cuts = %d, want 2 — DECLINE 3 is lifted, so the near boundary cuts alongside the far one (%s)",
@@ -343,7 +343,7 @@ func TestAlign_StayBandBothBoundariesCut(t *testing.T) {
 // TestAlign_ReversedRunCutsTheSamePlaces is AC #1's proof, and the single most
 // likely way A1 silently does the wrong thing.
 //
-// FollowRun's measures are DIRECTIONAL: an anti-parallel run has MeasureStart > MeasureEnd.
+// followRun's measures are DIRECTIONAL: an anti-parallel run has MeasureStart > MeasureEnd.
 // A predicate that does not order the pair first reads the high boundary against
 // 0 and the low one against total. On real data over a third of ON runs are
 // anti-parallel, so this is the common case, not the corner.
@@ -366,8 +366,8 @@ func TestAlign_ReversedRunCutsTheSamePlaces(t *testing.T) {
 		t.Fatalf("the two fixtures measure %v and %v — they must be identical for the comparison to mean anything", fwd.total, rev.total)
 	}
 
-	fwdRep := runAlign(t, ctx, fwd.d, []FollowRun{onRun(fwd.arcID, 200, 400, false)})
-	revRep := runAlign(t, ctx, rev.d, []FollowRun{onRun(rev.arcID, 400, 200, true)})
+	fwdRep := runAlign(t, ctx, fwd.d, []followRun{onRun(fwd.arcID, 200, 400, false)})
+	revRep := runAlign(t, ctx, rev.d, []followRun{onRun(rev.arcID, 400, 200, true)})
 
 	if fwdRep.Cuts != revRep.Cuts {
 		t.Fatalf("forward cut %d time(s), reversed cut %d — an anti-parallel run rides the same stretch and needs the same nodes\n  forward:  %s\n  reversed: %s",
@@ -401,7 +401,7 @@ func TestAlign_TwoRunsOnOneCanonArc(t *testing.T) {
 	f := alignOneCanon(t, ctx, "align-two-runs", 1000)
 	before := alignCountArcs(t, ctx, f.d)
 
-	rep := runAlign(t, ctx, f.d, []FollowRun{
+	rep := runAlign(t, ctx, f.d, []followRun{
 		onRun(f.arcID, 100, 300, false),
 		onRun(f.arcID, 600, 800, false),
 	})
@@ -441,7 +441,7 @@ func TestAlign_AcrossThreeCanonArcs(t *testing.T) {
 
 	// Rides the last 100 m of the first, all of the second, the first 100 m of
 	// the third — the shape a leg crossing a chain produces.
-	rep := runAlign(t, ctx, d, []FollowRun{
+	rep := runAlign(t, ctx, d, []followRun{
 		onRun(ids[0], totals[0]-100, totals[0], false),
 		onRun(ids[1], 0, totals[1], false),
 		onRun(ids[2], 0, 100, false),
@@ -470,9 +470,9 @@ func TestAlign_NoOnRunTouchesNothing(t *testing.T) {
 
 	// Start/End omitted: the align step reads only
 	// Kind/MeasureStart/MeasureEnd/CanonID.
-	rep := runAlign(t, ctx, f.d, []FollowRun{
-		{Kind: RunOff},
-		{Kind: RunOff},
+	rep := runAlign(t, ctx, f.d, []followRun{
+		{Kind: runOff},
+		{Kind: runOff},
 	})
 
 	if rep.Cuts != 0 || len(rep.Boundaries) != 0 {
@@ -490,7 +490,7 @@ func TestAlign_UnknownCanonArcIsAnError(t *testing.T) {
 	ctx := context.Background()
 	f := alignOneCanon(t, ctx, "align-unknown", 600)
 
-	_, err := SplitCanonAtRunBoundaries(ctx, f.d, []FollowRun{onRun(999999, 100, 200, false)}, nil, nil)
+	_, err := splitCanonAtRunBoundaries(ctx, f.d, []followRun{onRun(999999, 100, 200, false)}, nil, nil)
 	if err == nil {
 		t.Fatal("a run naming an arc that does not exist was accepted — the pass would then be cutting geometry it cannot see")
 	}
@@ -531,11 +531,11 @@ func TestAlign_BoundaryPastAPriorHalfIsAtItsNode(t *testing.T) {
 		t.Fatalf("fixture: %d arcs, want 1", len(c))
 	}
 	arcID := c[0].ID
-	total := CanonMeasureLengthM(c[0].Vertices)
+	total := canonMeasureLengthM(c[0].Vertices)
 
 	// Well clear of both ends and of MinRun, so nothing else can decline it.
 	measure := total / 2
-	rep := runAlign(t, ctx, d, []FollowRun{
+	rep := runAlign(t, ctx, d, []followRun{
 		onRun(arcID, measure, measure+80, false),
 		onRun(arcID, measure, measure+80, false),
 	})
@@ -579,7 +579,7 @@ func TestAlign_MeasureOutsideTheArcTheRunNamedStillFailsLoudly(t *testing.T) {
 	f := alignOneCanon(t, ctx, "align-a1b-loud", 600)
 
 	// Twice the arc's length: not an overshoot of a half, a wrong answer.
-	_, err := SplitCanonAtRunBoundaries(ctx, f.d, []FollowRun{
+	_, err := splitCanonAtRunBoundaries(ctx, f.d, []followRun{
 		onRun(f.arcID, 100, f.total*2, false),
 	}, nil, nil)
 	if err == nil {
@@ -603,7 +603,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 	d, arcA, arcB, totalA, totalB := alignCrossFixture(t, ctx, "align-existing-node")
 
 	// Cut arcA at its midpoint — an ordinary cut, no coincidence involved yet.
-	repA := runAlign(t, ctx, d, []FollowRun{onRun(arcA, totalA/2, totalA/2, false)})
+	repA := runAlign(t, ctx, d, []followRun{onRun(arcA, totalA/2, totalA/2, false)})
 	if repA.Cuts != 1 {
 		t.Fatalf("cutting arcA's midpoint: cuts = %d, want 1 (%s)", repA.Cuts, describeAlign(repA))
 	}
@@ -616,7 +616,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 	// coincident coordinate) — two boundaries, deliberately DIFFERENT reasons:
 	// the run's start end is at arcB's OWN end (ordinary DECLINE 1), and its
 	// other end is where this test's claim lives.
-	repB := runAlign(t, ctx, d, []FollowRun{onRun(arcB, 0, totalB/2, false)})
+	repB := runAlign(t, ctx, d, []followRun{onRun(arcB, 0, totalB/2, false)})
 	if repB.Cuts != 0 {
 		t.Fatalf("cutting arcB at the coincident coordinate: cuts = %d, want 0 — this should DECLINE onto the existing node, not mint a second one (%s)",
 			repB.Cuts, describeAlign(repB))
@@ -624,7 +624,7 @@ func TestAlign_DeclinesAtExistingNode(t *testing.T) {
 	if len(repB.Boundaries) != 2 {
 		t.Fatalf("arcB boundary count = %d, want 2 (its own start end, and the coincident end)", len(repB.Boundaries))
 	}
-	// DESCENDING measure order (SplitCanonAtRunBoundaries, point 2 of align.go's
+	// DESCENDING measure order (splitCanonAtRunBoundaries, point 2 of align.go's
 	// header): the higher measure (the coincident midpoint) resolves first.
 	coincident, own := repB.Boundaries[0], repB.Boundaries[1]
 	if own.Decline != AlignDeclineAtNode {
@@ -666,7 +666,7 @@ func TestAlign_StillCutsWhenNotExactlyCoincident(t *testing.T) {
 	ctx := context.Background()
 	d, arcA, arcB, totalA, totalB := alignCrossFixture(t, ctx, "align-near-miss")
 
-	repA := runAlign(t, ctx, d, []FollowRun{onRun(arcA, totalA/2, totalA/2, false)})
+	repA := runAlign(t, ctx, d, []followRun{onRun(arcA, totalA/2, totalA/2, false)})
 	if repA.Cuts != 1 {
 		t.Fatalf("cutting arcA's midpoint: cuts = %d, want 1 (%s)", repA.Cuts, describeAlign(repA))
 	}
@@ -675,7 +675,7 @@ func TestAlign_StillCutsWhenNotExactlyCoincident(t *testing.T) {
 	// (15 m) from arcA's node, and clear of the StayM band too (arcB is ~200 m
 	// long, so measure 120 is 80 m from either end).
 	measure := totalB/2 + 20
-	repB := runAlign(t, ctx, d, []FollowRun{onRun(arcB, measure, measure, false)})
+	repB := runAlign(t, ctx, d, []followRun{onRun(arcB, measure, measure, false)})
 	if repB.Cuts != 1 {
 		t.Fatalf("cutting arcB 20 m from the existing node: cuts = %d, want 1 — a genuine miss must still cut (%s)", repB.Cuts, describeAlign(repB))
 	}
@@ -695,7 +695,7 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 	// to refuse, so it must record NOTHING — a field that filled on every cut
 	// would exempt every pair in the network and the invariant would be
 	// decorative.
-	repA := runAlign(t, ctx, d, []FollowRun{onRun(arcA, totalA/2, totalA/2, false)})
+	repA := runAlign(t, ctx, d, []followRun{onRun(arcA, totalA/2, totalA/2, false)})
 	if repA.Cuts != 1 {
 		t.Fatalf("cutting arcA's midpoint: cuts = %d, want 1 (%s)", repA.Cuts, describeAlign(repA))
 	}
@@ -712,7 +712,7 @@ func TestAlign_LineageCutRecordsTheForeignNodeItRefused(t *testing.T) {
 	// just minted — inside EndpointWarpRadiusM (15 m), so the pre-T2b DECLINE 2
 	// would have absorbed onto it. It is on arc A, so it is not on arc B's own
 	// ridden lineage, and T2b cuts instead.
-	repB := runAlign(t, ctx, d, []FollowRun{onRun(arcB, totalB/2+5, totalB/2+5, false)})
+	repB := runAlign(t, ctx, d, []followRun{onRun(arcB, totalB/2+5, totalB/2+5, false)})
 	if repB.Cuts != 1 {
 		t.Fatalf("cutting arcB 5 m from arcA's node: cuts = %d, want 1 — T2b must CUT, not absorb onto a foreign node (%s)", repB.Cuts, describeAlign(repB))
 	}

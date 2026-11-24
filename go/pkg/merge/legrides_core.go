@@ -45,7 +45,7 @@ type LegRide struct {
 	// reaches, and nothing else.
 	RunM float64
 	// Reversed is derived from where Start and End sit in the lineage, not from
-	// [FollowRun.Reversed]: the run's flag is the matcher's direction against
+	// [followRun.Reversed]: the run's flag is the matcher's direction against
 	// the row it bound, and an absorbed boundary can move an end onto a
 	// different lineage node afterwards. The walk order of Arcs is what the
 	// writer needs, and this is that order's own account of itself.

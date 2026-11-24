@@ -19,14 +19,14 @@ import (
 // would mean a new signature per view and no place for the invariants that tie
 // them together (see checkOnPieceRanges).
 //
-// The ranges are deliberately NOT on [FollowRun]. FollowRun is the matcher's
+// The ranges are deliberately NOT on [followRun]. followRun is the matcher's
 // vocabulary — [corridorFollowRuns] and the tests' hand-built runs produce it —
 // and a field only the assembler fills would be left ZERO by every other
 // producer. Zero is a valid point index, so such a run would silently claim its
 // piece begins at Points[0]: a wrong value that looks plausible.
 type assembledLeg struct {
 	Points []Point
-	Runs   []FollowRun
+	Runs   []followRun
 
 	// OnPieces has one entry per ON run, in run order. A leg with no ON run has
 	// none, which is most legs.
@@ -81,7 +81,7 @@ func (a assembledLeg) checkOnPieceRanges() error {
 			return fmt.Errorf("checkOnPieceRanges: ON piece %d starts at point %d, before piece %d ended at %d — pieces run in leg order and may share only their seam point",
 				i, p.Lo, i-1, prevHi)
 		}
-		if p.Run < 0 || p.Run >= len(a.Runs) || a.Runs[p.Run].Kind != RunOn {
+		if p.Run < 0 || p.Run >= len(a.Runs) || a.Runs[p.Run].Kind != runOn {
 			return fmt.Errorf("checkOnPieceRanges: ON piece %d names run %d, which is not an ON run of this leg", i, p.Run)
 		}
 		prevHi = p.Hi
@@ -96,7 +96,7 @@ func (a assembledLeg) checkOnPieceRanges() error {
 // has no legal run at all. Both are errors rather than silent empties when the
 // runs disagree, because a caller that gets here with anything else has
 // mis-derived its partition.
-func assembleDegenerateLeg(pts []Point, runs []FollowRun) (assembledLeg, error) {
+func assembleDegenerateLeg(pts []Point, runs []followRun) (assembledLeg, error) {
 	if len(pts) == 0 {
 		if len(runs) != 0 {
 			return assembledLeg{}, fmt.Errorf("assembleDegenerateLeg: %d run(s) on an empty leg", len(runs))
@@ -104,7 +104,7 @@ func assembleDegenerateLeg(pts []Point, runs []FollowRun) (assembledLeg, error) 
 		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
 	}
 	for r := range runs {
-		if runs[r].Kind != RunOff || runs[r].Start != (SourcePos{}) || runs[r].End != (SourcePos{}) {
+		if runs[r].Kind != runOff || runs[r].Start != (sourcePos{}) || runs[r].End != (sourcePos{}) {
 			return assembledLeg{}, fmt.Errorf(
 				"assembleDegenerateLeg: single-point leg carries run %d %+v — the only legal partition is one OFF run [0,0]",
 				r, runBrief(runs[r]))
@@ -113,17 +113,17 @@ func assembleDegenerateLeg(pts []Point, runs []FollowRun) (assembledLeg, error) 
 	if len(runs) == 0 {
 		return assembledLeg{}, errors.New("assembleDegenerateLeg: empty output")
 	}
-	return assembledLeg{Points: []Point{pts[0]}, Runs: append([]FollowRun(nil), runs...)}, nil
+	return assembledLeg{Points: []Point{pts[0]}, Runs: append([]followRun(nil), runs...)}, nil
 }
 
-// runBrief is a FollowRun without its per-point projections, for error text.
+// runBrief is a followRun without its per-point projections, for error text.
 //
 // It must live in a non-test file: this file calls it from a production error
 // path. Defined in a _test.go file, the package still compiles under `go test`
 // (which compiles test files) but FAILS under `go build`, which no test-only
 // gate can see.
-func runBrief(r FollowRun) string {
-	if r.Kind == RunOff {
+func runBrief(r followRun) string {
+	if r.Kind == runOff {
 		return fmt.Sprintf("OFF[%+v,%+v]", r.Start, r.End)
 	}
 	return fmt.Sprintf("ON[%+v,%+v] arc=%d rev=%v measure=[%.6f,%.6f]", r.Start, r.End, r.CanonID, r.Reversed, r.MeasureStart, r.MeasureEnd)

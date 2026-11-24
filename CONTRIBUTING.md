@@ -39,7 +39,10 @@ Each command runs that language's unit tests and its corpus harness.
 | Kotlin | `cd kotlin && ./gradlew test` |
 | Swift | `cd swift && swift test` |
 
-Go needs no setup. Python needs 3.11 or later, JavaScript Node 22 or later,
+Go needs no setup. GitHub Actions runs the Go tests under the race detector
+(`go test -race ./...`, [`.github/workflows/go.yml`](.github/workflows/go.yml))
+on every push to `main` and every pull request; run the same before pushing a
+change to `go/`. Python needs 3.11 or later, JavaScript Node 22 or later,
 Rust 1.77 or later, Swift 5.9 or later, and a JDK 17 for Kotlin. Each Gradle
 wrapper fetches Gradle, not a JDK.
 

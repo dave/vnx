@@ -22,10 +22,10 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 	if got := off.Unpack(); got != (CorridorStateID{Off: true}) {
 		t.Fatalf("OFF round-tripped to %v, want OFF", got)
 	}
-	if !off.Off() {
+	if !off.off() {
 		t.Fatal("off() is false for OFF")
 	}
-	if on := PackCorridorOn(0, CorridorFWD); on == CorridorPackedOFF || on.Off() {
+	if on := PackCorridorOn(0, CorridorFWD); on == CorridorPackedOFF || on.off() {
 		t.Fatalf("SpIdx 0 FWD packed to %#x, which reads as OFF — OFF and SpIdx 0 must differ", on)
 	}
 
@@ -44,11 +44,11 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 			if got := ps.Unpack(); got != want {
 				t.Fatalf("pack→unpack: %v became %v (packed %#x)", want, got, ps)
 			}
-			if ps.Off() {
+			if ps.off() {
 				t.Fatalf("%v reads as OFF (packed %#x)", want, ps)
 			}
-			if ps.SpIdx() != i {
-				t.Fatalf("spIdx() of %v is %d, want %d", want, ps.SpIdx(), i)
+			if ps.spIdx() != i {
+				t.Fatalf("spIdx() of %v is %d, want %d", want, ps.spIdx(), i)
 			}
 			if again := packCorridorState(ps.Unpack()); again != ps {
 				t.Fatalf("unpack→pack: %#x became %#x", ps, again)

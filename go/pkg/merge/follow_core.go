@@ -425,7 +425,7 @@ func snapMeasureAnyNode(pc *PreppedCandidate, measure float64, lookup NodeLookup
 	if !found {
 		return measure, nil
 	}
-	nodeMeasure, dist, _, _, ok := pc.ProjectRangeCeil(nlat, nlon, 0, pc.Total, onLineEps)
+	nodeMeasure, dist, _, _, ok := pc.projectRangeCeil(nlat, nlon, 0, pc.Total, onLineEps)
 	if !ok || dist > onLineEps {
 		// The nearby node is not on THIS candidate's own line — a different
 		// junction, coincidentally close. Nothing to ride to here.
@@ -743,7 +743,7 @@ func samePoint(a, b Point) bool {
 // canon line plus the linearly interpolated elevation of the bracketing
 // canon vertices (nil if either bound's ele is nil).
 func boundaryPoint(pc *PreppedCandidate, at float64) Point {
-	lat, lon := pc.InterpOnCanon(at)
+	lat, lon := pc.interpOnCanon(at)
 	return Point{Lat: lat, Lon: lon, Ele: pc.interpEle(at)}
 }
 
@@ -889,7 +889,7 @@ func (pc *PreppedCandidate) hintPoly() *hintPoly {
 // hundreds of km from a long, coarsely-sampled candidate (a committed transit
 // leg) never triggers the early-out and scans every edge — while the
 // whole-candidate AABB is far too coarse to reject it.
-func (pc *PreppedCandidate) ProjectRangeCeil(lat, lon, minMeasure, maxMeasure, ceilM float64) (measure, dist, plat, plon float64, ok bool) {
+func (pc *PreppedCandidate) projectRangeCeil(lat, lon, minMeasure, maxMeasure, ceilM float64) (measure, dist, plat, plon float64, ok bool) {
 	best := math.Inf(1)
 	nedges := len(pc.Verts) - 1
 	// Skip edges that end before the window starts — their whole measure range is
@@ -966,7 +966,7 @@ func (pc *PreppedCandidate) ProjectRangeCeil(lat, lon, minMeasure, maxMeasure, c
 
 // interpOnCanon returns the lat/lon on the candidate at cumulative measure
 // position `at` (clamped to [0, total]).
-func (pc *PreppedCandidate) InterpOnCanon(at float64) (lat, lon float64) {
+func (pc *PreppedCandidate) interpOnCanon(at float64) (lat, lon float64) {
 	if at <= 0 {
 		return pc.Verts[0].Lat, pc.Verts[0].Lon
 	}

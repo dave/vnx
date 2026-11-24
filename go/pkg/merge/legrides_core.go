@@ -28,7 +28,7 @@ type LegRide struct {
 	Arcs  []ArcID
 	// Start/End are the nodes the align step's boundaries resolved this run's two ends to.
 	// A piece claims this ride only when its OWN threaded nodes are these two,
-	// exactly — see [LegRides.ForPiece]. They are a SECOND, independent check on
+	// exactly — see [LegRides.forPiece]. They are a SECOND, independent check on
 	// top of the point range: the range says "this is that ON stretch", the
 	// nodes say "and nothing repointed its ends since".
 	Start, End NodeID
@@ -105,7 +105,7 @@ const (
 	rideAmbiguousRingCanon = "ambiguous-ring-canon"
 	// The symmetric snap adopted a node whose projection falls INSIDE the ON
 	// stretch, so the piece the writer will see is half the ride; see
-	// [LegRides.RemapAfterSnapInsertions].
+	// [LegRides.remapAfterSnapInsertions].
 	//
 	// Exported for the reference application's tests; not part of the stable API.
 	RideSnapSeamInsideRide = "snap-seam-inside-ride"
@@ -165,7 +165,7 @@ type LegRides struct {
 	PointCount int
 }
 
-// ForPiece returns the ride for a piece running from startNode to endNode, if
+// forPiece returns the ride for a piece running from startNode to endNode, if
 // this leg resolved one. Both ends must be threaded (a nil end is a free
 // anchor, which references nothing) and both must be EXACTLY the nodes the
 // align step's boundaries named — a seam merge, a symmetric-snap adoption
@@ -174,7 +174,7 @@ type LegRides struct {
 //
 // [TestHooks].LegRideSuppress is applied by CommitLegPieces, which then does
 // not ask.
-func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) *LegRide {
+func (r *LegRides) forPiece(pointCount, lo, hi int, startNode, endNode *NodeID) *LegRide {
 	// ⚠ NO POINT-COUNT TEST HERE. Returning nil on a mismatch would read as
 	// a guard and behave as a fallback: a stale index space would turn EVERY
 	// ON piece of the leg into a created copy of canon while the import
@@ -192,7 +192,7 @@ func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) 
 	return ride
 }
 
-// RemapAfterSnapInsertions moves every ride's point range into the index space
+// remapAfterSnapInsertions moves every ride's point range into the index space
 // the symmetric snap just created, and DROPS any ride the snap cut in half.
 //
 // ⚠ WITHOUT THIS, ONE ADOPTION ANYWHERE ON A LEG WOULD DISABLE EVERY RIDE ON
@@ -205,7 +205,7 @@ func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) 
 // A vertex inserted STRICTLY INSIDE a ride is a different matter: it carries a
 // seam, so the piece the writer will offer is half the ON stretch and is not
 // this ride. That ride is dropped.
-func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newPointCount int) {
+func (r *LegRides) remapAfterSnapInsertions(inserted []SymmetricSnapInsert, newPointCount int) {
 	r.PointCount = newPointCount
 	if len(inserted) == 0 || len(r.ByPiece) == 0 {
 		return

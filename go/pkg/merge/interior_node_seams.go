@@ -106,7 +106,7 @@ func (r InteriorNodeSeamReport) Accepted() int {
 // so nothing is renumbered, `len(pts)` does not move, and
 // [LegRides.PointCount] stays a sufficient witness. This is the whole reason
 // the rule can run BEFORE [resolveLegRides] instead of needing the
-// remap [LegRides.RemapAfterSnapInsertions] does for the symmetric snap.
+// remap [LegRides.remapAfterSnapInsertions] does for the symmetric snap.
 //
 // ⚠ IT MINTS NOTHING, so the node-count identity is untouched by construction
 // rather than by arithmetic: every seam it adds has HasNode true, and

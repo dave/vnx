@@ -49,7 +49,7 @@ func bridgedMetresForRun(pc *PreppedCandidate, run FollowRun, srcPoly *hintPoly,
 	hint := 0
 	for i := 0; i < n; i++ {
 		mid := lo + (float64(i)+0.5)*sub
-		lat, lon := pc.InterpOnCanon(mid)
+		lat, lon := pc.interpOnCanon(mid)
 		var d float64
 		d, hint = srcPoly.NearestDist(lat, lon, hint)
 		if d > r {

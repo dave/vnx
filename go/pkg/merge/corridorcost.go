@@ -689,7 +689,7 @@ func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 			if mid < p.Lo || mid > p.Hi {
 				continue
 			}
-			if v := p.DistSq(mid); v < bestVal {
+			if v := p.distSq(mid); v < bestVal {
 				bestVal, best = v, pi
 			}
 		}

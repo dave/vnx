@@ -112,7 +112,7 @@ func TestFollowCorridorAssemble_OffOnJunctionLandsOnCanonNoBackwardSpike(t *test
 	// Compared against the EFFECTIVE run's MeasureStart, not the matcher's:
 	// the emitted geometry is built from the assembler's measure.
 	pc := PrepCandidates(canon)[0]
-	entryLat, entryLon := pc.InterpOnCanon(effOn[0].MeasureStart)
+	entryLat, entryLon := pc.interpOnCanon(effOn[0].MeasureStart)
 	// Find the first on-line point in the output (y≈0).
 	var entry Point
 	found := false

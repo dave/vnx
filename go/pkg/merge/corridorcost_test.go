@@ -63,7 +63,7 @@ func TestIntegrateDistSqPow_NearARegime_MatchesDenseReference(t *testing.T) {
 		if err != nil {
 			t.Fatalf("m=%d: %v", m, err)
 		}
-		want := simpsonIntegrate(func(x float64) float64 { return math.Pow(bp.DistSq(x), float64(m)) }, bp.Lo, bp.Hi, 2000)
+		want := simpsonIntegrate(func(x float64) float64 { return math.Pow(bp.distSq(x), float64(m)) }, bp.Lo, bp.Hi, 2000)
 		if math.Abs(got-want) > 1e-6*math.Max(1, math.Abs(want)) {
 			t.Errorf("m=%d: closed form %.12g, dense reference %.12g", m, got, want)
 		}
@@ -77,7 +77,7 @@ func TestIntegrateDistSqPow_SpanRegime_MatchesDenseReference(t *testing.T) {
 		if err != nil {
 			t.Fatalf("m=%d: %v", m, err)
 		}
-		want := simpsonIntegrate(func(x float64) float64 { return math.Pow(bp.DistSq(x), float64(m)) }, bp.Lo, bp.Hi, 2000)
+		want := simpsonIntegrate(func(x float64) float64 { return math.Pow(bp.distSq(x), float64(m)) }, bp.Lo, bp.Hi, 2000)
 		if math.Abs(got-want) > 1e-6*math.Max(1, math.Abs(want)) {
 			t.Errorf("m=%d: closed form %.12g, dense reference %.12g", m, got, want)
 		}
@@ -136,7 +136,7 @@ func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 			}
 			rate := (p.ImportMeasureAtHi - p.ImportMeasureAtLo) / (bp.Hi - bp.Lo)
 			want += simpsonIntegrate(func(x float64) float64 {
-				return math.Pow(bp.DistSq(x)/(R*R), float64(k)/2)
+				return math.Pow(bp.distSq(x)/(R*R), float64(k)/2)
 			}, bp.Lo, bp.Hi, n) * rate
 		}
 		if math.Abs(total-want) > 1e-4*math.Max(1, math.Abs(want)) {
@@ -257,7 +257,7 @@ func TestCanonEdgeDistSqRegimes_MatchesClosestPointOnSeg(t *testing.T) {
 			lat := a.Lat + u*(b.Lat-a.Lat)
 			lon := a.Lon + u*(b.Lon-a.Lon)
 			want, _ := ClosestPointOnSeg(p.Lat, p.Lon, q.Lat, q.Lon, lat, lon)
-			got := math.Sqrt(bp.DistSq(u))
+			got := math.Sqrt(bp.distSq(u))
 			if math.Abs(got-want) > 1e-6 {
 				t.Fatalf("kind=%v u=%.4g: distSq gives %.9g, closestPointOnSeg gives %.9g", bp.Kind, u, got, want)
 			}
@@ -286,7 +286,7 @@ func TestCanonEdgeDistSqRegimes_DegenerateSourceArcIsPointTest(t *testing.T) {
 	// Tolerance above 1e-6: mPt's fixed 111320 m/deg differs slightly from
 	// MetresPerDeg's haversine-radius-derived constant this function
 	// actually uses (corridorinterval_test.go's own header explains this).
-	got := math.Sqrt(regimes[0].DistSq(0.5))
+	got := math.Sqrt(regimes[0].distSq(0.5))
 	if math.Abs(got-5) > corridorTol {
 		t.Errorf("distance to degenerate source point = %.6g, want ~5", got)
 	}

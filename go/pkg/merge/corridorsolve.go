@@ -981,12 +981,12 @@ func candidateArcsBetween(pc *PreppedCandidate, loMeasure, hiMeasure float64) ([
 	}
 	lo := math.Max(0, math.Min(loMeasure, hiMeasure))
 	hi := math.Min(pc.Total, math.Max(loMeasure, hiMeasure))
-	loLat, loLon := pc.InterpOnCanon(lo)
+	loLat, loLon := pc.interpOnCanon(lo)
 	loPt := Point{Lat: loLat, Lon: loLon}
 	if !(hi > lo) {
 		return [][2]Point{{loPt, loPt}}, nil
 	}
-	hiLat, hiLon := pc.InterpOnCanon(hi)
+	hiLat, hiLon := pc.interpOnCanon(hi)
 	hiPt := Point{Lat: hiLat, Lon: hiLon}
 	eLo, eHi := candidateCanonEdgeAt(pc, lo), candidateCanonEdgeAt(pc, hi)
 	if eHi < eLo {
@@ -1218,30 +1218,30 @@ func PackCorridorOn(spIdx int, dir CorridorDir) CorridorPackedState {
 }
 
 // off reports OFF without decoding the rest.
-func (ps CorridorPackedState) Off() bool { return ps&corridorPackedOn == 0 }
+func (ps CorridorPackedState) off() bool { return ps&corridorPackedOn == 0 }
 
 // spIdx is only meaningful when !off.
-func (ps CorridorPackedState) SpIdx() int { return int((ps &^ corridorPackedOn) >> 1) }
+func (ps CorridorPackedState) spIdx() int { return int((ps &^ corridorPackedOn) >> 1) }
 
 // unpack is the exact inverse of packing: CorridorPackedOFF for OFF,
 // PackCorridorOn for an ON state (the tests' packCorridorState packs either).
 func (ps CorridorPackedState) Unpack() CorridorStateID {
-	if ps.Off() {
+	if ps.off() {
 		return CorridorStateID{Off: true}
 	}
 	dir := CorridorFWD
 	if ps&corridorPackedREV != 0 {
 		dir = CorridorREV
 	}
-	return CorridorStateID{SpIdx: ps.SpIdx(), Dir: dir}
+	return CorridorStateID{SpIdx: ps.spIdx(), Dir: dir}
 }
 
 // candidateOfPacked is [candidateOfState] without the decode.
 func candidateOfPacked(ps CorridorPackedState, sps []SolvePiece) int {
-	if ps.Off() {
+	if ps.off() {
 		return -1
 	}
-	return sps[ps.SpIdx()].CandIdx
+	return sps[ps.spIdx()].CandIdx
 }
 
 // ActiveOverArc reports whether interval i fully covers [x0,x1] — the
@@ -1585,10 +1585,10 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		}
 		ix := &layerSwitchIndex{byCand: map[int][]int32{}}
 		for slot, ps := range statesBy[layer] {
-			if ps.Off() {
+			if ps.off() {
 				continue
 			}
-			ix.byCand[sps[ps.SpIdx()].CandIdx] = append(ix.byCand[sps[ps.SpIdx()].CandIdx], int32(slot))
+			ix.byCand[sps[ps.spIdx()].CandIdx] = append(ix.byCand[sps[ps.spIdx()].CandIdx], int32(slot))
 		}
 		switchIdx[layer] = ix
 		return ix

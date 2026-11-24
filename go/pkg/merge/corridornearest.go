@@ -110,7 +110,7 @@ func pruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]Corri
 				if t < p.Regime.Lo || t > p.Regime.Hi {
 					continue
 				}
-				if v := p.Regime.DistSq(t); v < best {
+				if v := p.Regime.distSq(t); v < best {
 					best, bestEdge = v, p.CanonEdge
 				}
 			}

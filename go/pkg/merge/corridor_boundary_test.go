@@ -206,7 +206,7 @@ func TestCorridorBoundaryPoint_DroppingItMovesTheSeam(t *testing.T) {
 	// The first ON-canon point a run beginning at this boundary would
 	// commit — assembleOnRun's own anchor, interpOnCanon at the interval's
 	// own canon-measure answer for this boundary.
-	anchorLat, anchorLon := pc.InterpOnCanon(iv.Pieces[0].CanonMeasureAtLo)
+	anchorLat, anchorLon := pc.interpOnCanon(iv.Pieces[0].CanonMeasureAtLo)
 
 	// The chord that replaces cp→anchor if cp is dropped: off (the OFF run's
 	// last verbatim point) straight to anchor.

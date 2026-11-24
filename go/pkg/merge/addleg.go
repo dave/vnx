@@ -215,13 +215,13 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// because they cannot be recovered later. pointsAfterSnap pins the array
 	// length at this moment so the check below can prove the indices are
 	// still meaningful when they are finally recorded.
-	symmetricSnapInserted := snapRep.Inserted()
+	symmetricSnapInserted := snapRep.inserted()
 	pointsAfterSnap := len(followed)
 	// The rides were resolved against the PRE-snap index space; move them
-	// into this one (see LegRides.RemapAfterSnapInsertions). Abandoning
+	// into this one (see LegRides.remapAfterSnapInsertions). Abandoning
 	// them instead was measured to leave kilometres of byte-identical
 	// parallel strands.
-	rides.RemapAfterSnapInsertions(symmetricSnapInserted, pointsAfterSnap)
+	rides.remapAfterSnapInsertions(symmetricSnapInserted, pointsAfterSnap)
 	// The boundary warp, the leg half of the one-node rule: an Absorbed
 	// seam's node is up to EndpointWarpRadiusM from where the leg actually
 	// is, so the leg must be warped to reach it before it commits (see
@@ -274,7 +274,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// the parallel-strand defect ride resolution exists to remove, and the
 	// merge would still report success.
 	//
-	// RemapAfterSnapInsertions above is the ONE stage allowed to move the
+	// remapAfterSnapInsertions above is the ONE stage allowed to move the
 	// space, and it updates PointCount as it goes. So by here the counts
 	// agree or a stage nobody accounted for has changed the leg. Error,
 	// not fallback.
@@ -344,7 +344,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 // length its rides were resolved against. leg names the leg in the error
 // (LegOptions.Label).
 //
-// A ride is a range of POINT INDICES. RemapAfterSnapInsertions is the one
+// A ride is a range of POINT INDICES. remapAfterSnapInsertions is the one
 // stage allowed to move that space, and it updates [LegRides.PointCount] as it
 // goes, so by commit time the two counts agree, or a stage nobody accounted
 // for has changed the leg and every ride now names different vertices.

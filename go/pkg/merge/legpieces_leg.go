@@ -278,7 +278,7 @@ func CommitLegPieces(
 		// the piece without one and it is written as its own arc.
 		var ride *LegRide
 		if !suppressRides {
-			ride = rides.ForPiece(len(points), lo, hi, startNode, endNode)
+			ride = rides.forPiece(len(points), lo, hi, startNode, endNode)
 		}
 		arcs, endID, ringSplit, ringSplitMinted, ringNodeMinted, tightPair, ringMergedNode, midWarpedIdx, multiple, despiteDup, err := CommitPiece(ctx, canon, points[lo:hi+1], startNode, endNode, ride)
 		if multiple {
@@ -458,7 +458,7 @@ func CommitPiece(
 		// side of a join.
 		//
 		// ⚠ NO NODE IS SAVED HERE, ONLY AN ARC. Both ends had already resolved
-		// to existing nodes before this branch — LegRides.ForPiece requires
+		// to existing nodes before this branch — LegRides.forPiece requires
 		// it — so there was never a mint to suppress. A re-import that still
 		// gains NODES is gaining them from canon CUTS, which this does not
 		// touch.

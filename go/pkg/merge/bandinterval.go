@@ -167,7 +167,7 @@ type BandPiece struct {
 
 // distSq evaluates this piece's exact dist²(t) for t in [lo,hi], using
 // whichever of the two forms above its regime was solved in.
-func (bp BandPiece) DistSq(t float64) float64 {
+func (bp BandPiece) distSq(t float64) float64 {
 	if bp.Kind == RegimeSpan {
 		lin := bp.SpanC0 + float64(bp.SpanC1*t)
 		return lin * lin / bp.SpanLenSq

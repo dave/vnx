@@ -149,8 +149,8 @@ func checkPieceEndpointsOnBand(t *testing.T, iv CorridorInterval, R float64) {
 	t.Helper()
 	n := len(iv.Pieces)
 	for i, p := range iv.Pieces {
-		dLo := math.Sqrt(p.Regime.DistSq(p.Regime.Lo))
-		dHi := math.Sqrt(p.Regime.DistSq(p.Regime.Hi))
+		dLo := math.Sqrt(p.Regime.distSq(p.Regime.Lo))
+		dHi := math.Sqrt(p.Regime.distSq(p.Regime.Hi))
 		// Only the OUTER boundaries of the whole interval are guaranteed to sit
 		// exactly on R — internal joins between pieces can be interior (both
 		// pieces well inside the band, e.g. two regimes of one canon edge
@@ -352,7 +352,7 @@ func TestCorridorPieceDistSq_MatchesClosestPointOnSeg(t *testing.T) {
 			lat := srcP.Lat + tt*(srcQ.Lat-srcP.Lat)
 			lon := srcP.Lon + tt*(srcQ.Lon-srcP.Lon)
 			want, _ := ClosestPointOnSeg(canonA.Lat, canonA.Lon, canonB.Lat, canonB.Lon, lat, lon)
-			got := math.Sqrt(p.Regime.DistSq(tt))
+			got := math.Sqrt(p.Regime.distSq(tt))
 			if math.Abs(got-want) > 1e-6 {
 				t.Fatalf("piece [srcEdge=%d canonEdge=%d kind=%v] t=%.4g: distSq gives %.9g, closestPointOnSeg gives %.9g",
 					p.SrcEdge, p.CanonEdge, p.Regime.Kind, tt, got, want)
@@ -395,7 +395,7 @@ func TestCorridorPieceDistSq_SpanRegimeAgreesUnexpanded(t *testing.T) {
 		}
 		sawSpan = true
 		mid := (p.Regime.Lo + p.Regime.Hi) / 2
-		got := math.Sqrt(p.Regime.DistSq(mid))
+		got := math.Sqrt(p.Regime.distSq(mid))
 		if math.Abs(got-5) > corridorTol {
 			t.Fatalf("span regime at midpoint: dist=%.6g, want ≈5 (the perpendicular offset)", got)
 		}

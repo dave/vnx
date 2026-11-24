@@ -140,7 +140,7 @@ func (r SymmetricSnapReport) Adopted() int {
 // and it is the one a replay needs — handed the post-warp coordinate, the taper
 // it replays computes a zero displacement and every neighbouring point in the
 // zone stays un-tapered, so the replay diverges from the committed walk.
-func (r SymmetricSnapReport) Inserted() []SymmetricSnapInsert {
+func (r SymmetricSnapReport) inserted() []SymmetricSnapInsert {
 	var out []SymmetricSnapInsert
 	for _, c := range r.Candidates {
 		if c.Decline == SnapNoDecline && c.Inserted {

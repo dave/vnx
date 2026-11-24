@@ -84,7 +84,7 @@ func envelopeMinCostFrozenReference(pieces []BandPiece, globalLo, globalHi, r fl
 			if mid < p.Lo || mid > p.Hi {
 				continue
 			}
-			if v := p.DistSq(mid); v < bestVal {
+			if v := p.distSq(mid); v < bestVal {
 				bestVal, best = v, pi
 			}
 		}

@@ -159,7 +159,7 @@ func TestPreppedCandidateProjectRangeCeil_SouthernSuffixBox(t *testing.T) {
 		t.Fatal("prepCandidates dropped the candidate")
 	}
 	probe := offsetPt(baseLat, baseLon, 0, 0)
-	_, got, _, _, ok := pc.ProjectRangeCeil(probe.Lat, probe.Lon, 0, pc.Total, math.Inf(1))
+	_, got, _, _, ok := pc.projectRangeCeil(probe.Lat, probe.Lon, 0, pc.Total, math.Inf(1))
 	want := ptToPolylineDistM(probe.Lat, probe.Lon, verts)
 	if !ok || got != want {
 		t.Fatalf("projectRangeCeil found %.15g (ok=%v), a full scan finds %.15g", got, ok, want)

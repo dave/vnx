@@ -2,8 +2,9 @@
 // tracks into a shared network of nodes and arcs, so that a path walked twice
 // is stored once.
 //
-// The network is reached only through [Canon]: nine reads and three writes
-// that store what they are given. [AddLeg] merges one leg into a Canon,
+// The network is reached only through [Canon]: nine reads and three writes.
+// AddNode and AddArc store what they are given; SplitArc also computes the
+// stats and bounds of its two halves (see [Canon.SplitArc]). [AddLeg] merges one leg into a Canon,
 // running every step of the merge in order. An error from AddLeg or from any
 // Canon method poisons the canon: the caller must discard every write that
 // leg made, for example by rolling back its transaction.

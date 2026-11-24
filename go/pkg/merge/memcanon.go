@@ -2,7 +2,6 @@ package merge
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -29,6 +28,13 @@ import (
 //   - SplitArc computes each half's stats and bounds from the walk of the
 //     stored end nodes, the half's pips and the new node (its elevation as
 //     given, before storing), with [StatsFromPips] and [BoundsFromPips].
+//   - An arc's box is built from its bounds as given, so a -0.0 bound gives
+//     a -0.0f box bound, as arc_rtree keeps it, while the bounds read back
+//     as +0.0. NewMemCanon builds each box from the snapshot's bounds, which
+//     a store has already read back as +0.0; the bits then differ from such a
+//     row, but no query does (-0.0 == +0.0).
+//   - NodesInBox leaves Ele nil, and an Arc with no interior has an empty,
+//     non-nil Polyline, as rows read from SQLite give them.
 //
 // Arc and ArcEnds error on an arc the MemCanon does not hold. A canon that
 // reads its rows by id alone may instead return another owner's arc.
@@ -317,7 +323,10 @@ func (c *MemCanon) putArc(id ArcID, start, end NodeID, pips []Pip, stats ArcStat
 	if err != nil {
 		return fmt.Errorf("arc %d: %w", id, err)
 	}
-	a := &memArc{start: start, end: end, pips: pips, stats: st, bounds: bd, box: NewBox32(bd)}
+	// The box is built from the bounds as given, before the REAL columns
+	// store -0.0 as +0.0: arc_rtree is written from the same values, and
+	// keeps a -0.0 bound as -0.0f (bits 0x80000000).
+	a := &memArc{start: start, end: end, pips: pips, stats: st, bounds: bd, box: NewBox32(bounds)}
 	c.arcs[id] = a
 	c.byNode[start] = append(c.byNode[start], id)
 	c.byNode[end] = append(c.byNode[end], id)
@@ -413,9 +422,17 @@ func (c *MemCanon) arcRow(id ArcID) Arc {
 	a := c.arcs[id]
 	return Arc{
 		ID: id, StartNodeID: a.start, EndNodeID: a.end,
-		Polyline:  append([]Pip(nil), a.pips...),
+		Polyline:  copyPips(a.pips),
 		DistanceM: a.stats.DistanceM,
 	}
+}
+
+// copyPips copies pips into a slice that is never nil, as a decoded row
+// gives (empty, not nil, for an arc with no interior).
+func copyPips(pips []Pip) []Pip {
+	out := make([]Pip, len(pips))
+	copy(out, pips)
+	return out
 }
 
 func sortedArcIDs(set map[ArcID]struct{}) []ArcID {
@@ -427,7 +444,8 @@ func sortedArcIDs(set map[ArcID]struct{}) []ArcID {
 	return out
 }
 
-// NodesInBox implements [Canon].
+// NodesInBox implements [Canon]. Like a canon whose box query selects only
+// id, lat and lon, it leaves Ele nil.
 func (c *MemCanon) NodesInBox(ctx context.Context, b Bounds) ([]Node, error) {
 	if err := c.enter(ctx); err != nil {
 		return nil, err
@@ -445,7 +463,7 @@ func (c *MemCanon) NodesInBox(ctx context.Context, b Bounds) ([]Node, error) {
 	if nLat*nLon > float64(len(c.nodes)) {
 		for id, n := range c.nodes {
 			if in(n) {
-				out = append(out, n.node(id))
+				out = append(out, Node{ID: id, Lat: n.lat, Lon: n.lon})
 			}
 		}
 	} else {
@@ -453,7 +471,7 @@ func (c *MemCanon) NodesInBox(ctx context.Context, b Bounds) ([]Node, error) {
 			for lo := lo0; lo <= lo1; lo++ {
 				for _, id := range c.nodeGrid[cellKey{la, lo}] {
 					if n := c.nodes[id]; in(n) {
-						out = append(out, n.node(id))
+						out = append(out, Node{ID: id, Lat: n.lat, Lon: n.lon})
 					}
 				}
 			}
@@ -487,6 +505,9 @@ func (c *MemCanon) Node(ctx context.Context, id NodeID) (Node, bool, error) {
 func (c *MemCanon) arcIDsInRect(b Bounds) []ArcID {
 	set := map[ArcID]struct{}{}
 	c.arcBoxes.query(boundsBox(b), func(id ArcID) { set[id] = struct{}{} })
+	if len(set) == 0 {
+		return nil // as a row scan into a nil slice gives
+	}
 	return sortedArcIDs(set)
 }
 
@@ -616,9 +637,6 @@ func (c *MemCanon) AddArc(ctx context.Context, a NewArc) (AddedArc, error) {
 	return AddedArc{ID: id, StartNodeID: start, EndNodeID: end}, nil
 }
 
-// errSplitRange is a split whose halves do not fit the parent's pips.
-var errSplitRange = errors.New("split halves out of range")
-
 // SplitArc implements [Canon]: the node, then the prior half, then the next
 // half, then the parent is deleted. Each half's stats and bounds are
 // computed from its walk: the stored end node, its pips, and the new node at
@@ -633,8 +651,8 @@ func (c *MemCanon) SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (Spl
 	}
 	n := len(parent.pips)
 	if s.PriorEnd < 0 || s.PriorEnd > n || s.NextStart < 0 || s.NextStart > n || s.PriorEnd > s.NextStart {
-		return SplitIDs{}, c.fail(fmt.Errorf("split arc %d: halves end at pip %d and start at pip %d of %d: %w",
-			id, s.PriorEnd, s.NextStart, n, errSplitRange))
+		return SplitIDs{}, c.fail(fmt.Errorf("split arc %d: halves end at pip %d and start at pip %d of %d, out of range",
+			id, s.PriorEnd, s.NextStart, n))
 	}
 	nodeID, err := c.mintNode(s.Lat, s.Lon, s.Ele)
 	if err != nil {
@@ -693,7 +711,7 @@ func (c *MemCanon) Snapshot() (MemCanonSnapshot, error) {
 	for id, a := range c.arcs {
 		out.Arcs = append(out.Arcs, MemCanonArc{
 			ID: id, StartNodeID: a.start, EndNodeID: a.end,
-			Polyline: append([]Pip(nil), a.pips...),
+			Polyline: copyPips(a.pips),
 			Stats:    a.stats, Bounds: a.bounds,
 		})
 	}
@@ -702,11 +720,14 @@ func (c *MemCanon) Snapshot() (MemCanonSnapshot, error) {
 }
 
 // ArcBox returns the float32 box the MemCanon stores for arc id, and false
-// when it holds no such arc.
-func (c *MemCanon) ArcBox(id ArcID) (Box32, bool) {
+// when it holds no such arc. A poisoned canon returns its poison.
+func (c *MemCanon) ArcBox(id ArcID) (Box32, bool, error) {
+	if c.err != nil {
+		return Box32{}, false, c.err
+	}
 	a, ok := c.arcs[id]
 	if !ok {
-		return Box32{}, false
+		return Box32{}, false, nil
 	}
-	return a.box, true
+	return a.box, true, nil
 }

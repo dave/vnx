@@ -14,10 +14,11 @@ import (
 // Row order is part of the contract wherever a method states one: the
 // searches built on these reads break ties by the order rows arrive in.
 //
-// The write methods (AddNode, AddArc, SplitArc) store what they are given
-// and compute nothing about the geometry: the merge computes node positions,
-// interior pips, stats, bounds and split points first (PrepareArc,
-// SplitArcAt). Ids are allocated in a fixed order, and the order is part of
+// AddNode and AddArc store what they are given and compute nothing about the
+// geometry: the merge computes node positions, interior pips, stats and
+// bounds first (PrepareArc). SplitArc is told where to split (SplitArcAt
+// computes the split point) but computes the stats and bounds of both halves
+// itself; its doc gives the exact rule. Ids are allocated in a fixed order, and the order is part of
 // the contract: AddArc mints its start node (when asked), then its end node
 // (when asked), then the arc; SplitArc mints the node, then the prior half,
 // then the next half, then deletes the parent.
@@ -93,6 +94,19 @@ type Canon interface {
 	// the halves from its own copy of the parent. Anything the canon keeps
 	// about the parent beyond its geometry is the canon's to carry over to
 	// the halves.
+	//
+	// The canon computes each half's stats and bounds, and must compute
+	// them exactly so, bit for bit. Each half's walk is a []Pip:
+	//
+	//   - prior: the arc's start node, Polyline[:s.PriorEnd], the new node;
+	//   - next: the new node, Polyline[s.NextStart:], the arc's end node.
+	//
+	// An end node's pip is its position and elevation as stored (after the
+	// store's own normalisation, such as -0.0 to +0.0), with NaN for an
+	// unknown elevation ([NodeEle]). The new node's pip is (s.Lat, s.Lon)
+	// and [ElevOrNaN](s.Ele), as given, before the store normalises them.
+	// The half's stats are [StatsFromPips](walk) and its bounds
+	// [BoundsFromPips](walk); an error from BoundsFromPips fails the split.
 	SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (SplitIDs, error)
 }
 

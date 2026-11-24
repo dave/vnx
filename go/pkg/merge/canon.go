@@ -13,6 +13,19 @@ import (
 //
 // Row order is part of the contract wherever a method states one: the
 // searches built on these reads break ties by the order rows arrive in.
+//
+// The write methods (AddNode, AddArc, SplitArc) store what they are given
+// and compute nothing about the geometry: the merge computes node positions,
+// interior pips, stats, bounds and split points first (PrepareArc,
+// SplitArcAt). Ids are allocated in a fixed order, and the order is part of
+// the contract: AddArc mints its start node (when asked), then its end node
+// (when asked), then the arc; SplitArc mints the node, then the prior half,
+// then the next half, then deletes the parent.
+//
+// An error from any method during a merge poisons the canon: what has been
+// written so far is unknown, and the caller must discard every write the merge
+// made. A canon kept in a database transaction does this by rolling the
+// transaction back.
 type Canon interface {
 	// NodesInBox returns every node with MinLat <= lat <= MaxLat and
 	// MinLon <= lon <= MaxLon, ordered by (lat, lon, id). Only ID, Lat and
@@ -54,6 +67,23 @@ type Canon interface {
 	// ArcsBetween returns every arc of this canon joining nodes a and b, in
 	// either direction, ordered by id.
 	ArcsBetween(ctx context.Context, a, b NodeID) ([]Arc, error)
+
+	// AddNode stores a node of this canon at (lat, lon) with elevation ele
+	// (nil when unknown) and returns its id.
+	AddNode(ctx context.Context, lat, lon float64, ele *float64) (NodeID, error)
+
+	// AddArc stores a new arc, minting the ends a.MintStart and a.MintEnd ask
+	// for, and returns the ids it stored.
+	AddArc(ctx context.Context, a NewArc) (AddedArc, error)
+
+	// SplitArc replaces arc id with two halves joined at a new node, as s
+	// gives them (s was computed by SplitPolylineAtFraction from the arc as
+	// Arc and Node read it): the node at (s.Lat, s.Lon, s.Ele), the prior
+	// half from the arc's start node through Polyline[:s.PriorEnd] to the
+	// node, and the next half from the node through Polyline[s.NextStart:]
+	// to the arc's end node. Anything the canon keeps about the parent
+	// beyond its geometry is the canon's to carry over to the halves.
+	SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (SplitIDs, error)
 }
 
 // NearbyNodes returns every node within radiusM (great-circle, `<=`) of

@@ -282,13 +282,12 @@ func ResolveLegRides(asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRi
 			failRange(reason, p.Lo, p.Hi, sNode, eNode)
 		}
 		if !sHas || !eHas {
-			// DECLINE 3 (the StayM-band stub) is the only outcome that names no
-			// node, and it is disabled in the align step, so this is not a data
+			// Every align outcome names a node, so this is not a data
 			// condition — it is the align step and the leg cut disagreeing about
 			// what a boundary is. No fallback: a piece created here is a parallel copy nobody
 			// counted.
 			return nil, fmt.Errorf(
-				"ResolveLegRides: run %d on canon arc %d has a boundary with no node (start %s, end %s) — every align outcome names a node since the absorb, and the only one that did not is lifted",
+				"ResolveLegRides: run %d on canon arc %d has a boundary with no node (start %s, end %s) — every align outcome names a node",
 				p.Run, r.CanonID, alignDeclineName(start.Decline), alignDeclineName(end.Decline))
 		}
 		if sNode == eNode {
@@ -642,8 +641,6 @@ func alignDeclineName(d alignDecline) string {
 		return "at-existing-node"
 	case AlignDeclineAbsorbedToNode:
 		return "absorbed"
-	case AlignDeclineStayBandStub:
-		return "stay-band-stub"
 	}
 	return fmt.Sprintf("decline-%d", int(d))
 }

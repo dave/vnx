@@ -16,7 +16,7 @@ import (
 type FollowBands struct {
 	EnterM  float64 // read only by densifyStep
 	StayM   float64 // read only by tests
-	MinRunM float64 // read only by the caller's snap logic
+	MinRunM float64 // read by no decline rule; tests and diagnostics compare against it
 }
 
 // runKind distinguishes verbatim source spans (OFF) from canon-following

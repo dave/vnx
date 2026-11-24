@@ -31,44 +31,26 @@ package merge
 // incoming leg, which is why it needs no new primitive and no accounting term;
 // see [LegSeamsFromNearbyNodes]'s own notes on the node identity.
 //
-// ── THE RULE INHERITS THE T-JUNCTION SPLIT'S DECLINES, OR IT IS NOT THE SAME RULE
+// ── THE RULE MIRRORS THE T-JUNCTION SPLIT'S DECLINES
 //
-// Without this the snap would silently repeal an existing rule. The T-junction
-// split declines any split leaving a stub under `MinRunM` (25 m), because a
-// sub-MinRun stub is effectively unfollowable (a run shorter than the band
-// reverts to OFF) and compounds on re-import.
-//
-// "Adopt every node in range" performs, from the LEG side, exactly the splits
-// the T-junction split refuses from the CANON side. So [SymmetricSnapDeclineFor]
-// is a deliberate mirror of [TjunctionDeclineFor]: same two rules, same
-// constants, read from the same `DefaultFollowBands()`, applied to the LEG's
-// walk instead of the arc's:
+// "Adopt every node in range" performs, from the LEG side, the splits the
+// T-junction split makes from the CANON side. So [SymmetricSnapDeclineFor]
+// mirrors [TjunctionDeclineFor], applied to the LEG's walk instead of the
+// arc's:
 //
 //	TjDeclineTerminalVertex  → SnapDeclineTerminalVertex  (Fraction 0 or 1)
-//	tjDeclineShortStub       → SnapDeclineShortStub       (a piece under MinRunM)
 //
-// ⚠ THE STUB IS MEASURED AGAINST EVERY BOUNDARY THE LEG ALREADY HAS, not just
-// its two ends, and that is where the mirror has to GENERALISE rather than
-// copy. The T-junction split cuts an arc that is whole, so its two halves are
-// bounded by the arc's own endpoints and `min(PriorLenM, NextLenM)` is the
-// answer. A leg arriving here may already carry align seams, and each of those
-// is a piece boundary too: a new seam 3 m from an existing one leaves a 3 m
-// piece exactly as surely as one 3 m from the leg's end. Accepted candidates
-// join the boundary set as they are accepted, so two new seams cannot land
-// within MinRunM of each other either.
+// Neither side declines a short stub: a short arc is followed byte-exactly on
+// re-import, so the premise of a minimum-length rule does not hold.
+// [SymmetricSnapCandidate.StubM] is still reported, measured against every
+// boundary the leg already has, for diagnostics.
 //
 // ⚠ THE ONE-NODE RULE IS SATISFIED STRUCTURALLY, NOT CHECKED. The rule is "no
 // two nodes within the radius", and it constrains node CREATION. This file
 // creates no node (it adopts one that already exists), so there is nothing for
 // the rule to judge. The leg-side hazard it would otherwise guard (one leg
-// claiming two different nodes at nearly the same point) is subsumed by the
-// stub rule at a far wider margin: 25 m against the rule's 15 m.
-//
-// ⚠ THE CANON-SIDE STUB CLAUSE IS VACUOUS HERE. The rule as stated also bounds
-// a stub on the arc being split. This step splits no arc, so there is no canon
-// stub to measure and the clause has nothing to bind. Any future variant that
-// also cuts canon must bring the clause back. Stated because a reader finding
-// only the leg-side test here should know it is scope, not an omission.
+// claiming two different nodes at nearly the same point) is what
+// [SnapDeclineVertexAlreadySeamed] declines.
 
 import (
 	"context"
@@ -210,8 +192,8 @@ func LegSeamsFromNearbyNodes(
 		boundaries = append(boundaries, LegMeasureToVertex(pts, s.Idx))
 	}
 
-	// Along-leg order, so the stub rule sees the leg as the commit will walk
-	// it and an accepted candidate bounds the next one. The search's own order
+	// Along-leg order, so StubM sees the leg as the commit will walk it and
+	// an accepted candidate bounds the next one. The search's own order
 	// is ascending PointIdx (the nearest VERTEX), which is not the same
 	// question as where the foot of the perpendicular fell; node id makes this
 	// order TOTAL, so two nodes projecting to one point still come out in one
@@ -272,7 +254,6 @@ func LegSeamsFromNearbyNodes(
 		return false
 	}
 
-	minRun := DefaultFollowBands().MinRunM
 	var takes []NodeNearPath
 	var ords []int // takes[i]'s slot in rep.Candidates, so the report can be completed
 
@@ -283,13 +264,13 @@ func LegSeamsFromNearbyNodes(
 			ProjLat: c.ProjLat, ProjLon: c.ProjLon,
 			StubM: NearestBoundaryGapM(boundaries, c.PriorLenM),
 		}
-		out.Decline = SymmetricSnapDeclineFor(c.Fraction, out.StubM, minRun, pointAlreadySeamed(c.ProjLat, c.ProjLon), SegmentIsOnCanon(onRanges, c.SegIdx))
+		out.Decline = SymmetricSnapDeclineFor(c.Fraction, pointAlreadySeamed(c.ProjLat, c.ProjLon), SegmentIsOnCanon(onRanges, c.SegIdx))
 		rep.Candidates = append(rep.Candidates, out)
 		if out.Decline != SnapNoDecline {
 			continue
 		}
-		// An accepted candidate is a boundary for every later one, so two new
-		// seams can never land within MinRunM of each other.
+		// An accepted candidate is a boundary for every later one, so a later
+		// candidate's StubM is measured against it too.
 		boundaries = append(boundaries, c.PriorLenM)
 		claimed = append(claimed, Point{Lat: c.ProjLat, Lon: c.ProjLon})
 		takes = append(takes, c)

@@ -102,14 +102,14 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 				runIdx, runEndName(atEnd), idx)
 		}
 		node, hasNode := b.SeamNode()
-		// ⛔ A SHORT-STUB DECLINE IS NOT A SEAM, and cutting the leg there
-		// produces a visible extra node.
+		// ⛔ A NODELESS BOUNDARY IS NOT A SEAM, and cutting the leg there
+		// produces a visible extra node. No align outcome produces one today
+		// (each names a node); this keeps the leg cut correct if one returns.
 		//
 		// The align step cuts canon at a run boundary so the stretch the leg
 		// rides spans a canon arc end to end, and the leg cut splits the leg at
 		// the same place so both sides share the node. When the align step
-		// DECLINES because the cut would leave a stub under MinRunM, canon is
-		// not cut, so there is no canon arc to span and no node to share.
+		// declines without naming a node, canon is not cut, so there is no canon arc to span and no node to share.
 		// Cutting the leg anyway buys nothing and costs a node: the leg mints its
 		// own, typically 15 m or so from canon's, which reads as one place on the
 		// map but is two nodes in the store.
@@ -122,7 +122,7 @@ func LegSeamsFromAlign(asm AssembledLeg, rep AlignReport, startTerminal, endTerm
 		// only the grouping into arcs changes, and one fewer node is minted.
 		// That is why this is the answer and "resolve the boundary to canon's
 		// nearby node" is not: the leg ADOPTS a seam node's coordinate, so naming
-		// a node up to MinRunM away would jerk the leg up to 25 m sideways.
+		// a node tens of metres away would jerk the leg sideways.
 		//
 		// An ON<->ON boundary where the OTHER run names a real node still gets
 		// it: the merge below runs first and settles exactly that case.

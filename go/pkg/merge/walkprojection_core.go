@@ -350,7 +350,7 @@ func (w *WalkProjector) projectRange(
 	}
 
 	// Computed from the two halves rather than from `total`, so the identity
-	// the caller's minimum-stub rule relies on holds exactly.
+	// the caller's StubM relies on holds exactly.
 	out.Fraction = out.PriorLenM / (out.PriorLenM + out.NextLenM)
 	return out, nil
 }

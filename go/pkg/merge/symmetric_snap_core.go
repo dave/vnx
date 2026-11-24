@@ -20,11 +20,6 @@ const (
 	// a lat-lon anchor, and is never noded. Mirrors TjDeclineTerminalVertex.
 	SnapDeclineTerminalVertex
 
-	// SnapDeclineShortStub — adopting would leave a leg piece under MinRunM.
-	// Mirrors tjDeclineShortStub, generalised to every boundary the leg
-	// already carries. Currently disabled; see [SymmetricSnapDeclineFor].
-	SnapDeclineShortStub
-
 	// SnapDeclineVertexAlreadySeamed — the candidate's projection lands
 	// BITWISE on a leg vertex that a seam already claims for a DIFFERENT node.
 	// One leg point cannot join the network in two places, and both seams are
@@ -38,12 +33,8 @@ const (
 	// exclusion cannot see this case at all, because the two nodes are
 	// genuinely different (seen in randomised tests about 20 m apart).
 	//
-	// ⚠ IT IS A RE-POINTED GUARD, NOT A NEW RULE. While the MinRun stub rule
-	// was active this case was unreachable as a side effect: the stub margin
-	// (25 m) is far wider than the one-node rule's radius. With the stub rule
-	// lifted, a small share of randomised imports aborted outright, each one
-	// an align seam and an adopted candidate on a single vertex. The guard
-	// moved here; it did not vanish.
+	// Without it, a small share of randomised imports aborted outright, each
+	// one an align seam and an adopted candidate on a single vertex.
 	SnapDeclineVertexAlreadySeamed
 
 	// SnapDeclineOnCanon — the projection falls INSIDE a stretch the matcher
@@ -70,8 +61,6 @@ func (d SymmetricSnapDecline) String() string {
 		return "adopted"
 	case SnapDeclineTerminalVertex:
 		return "declined: closest approach is a leg terminal vertex"
-	case SnapDeclineShortStub:
-		return "declined: would leave a leg piece under MinRun"
 	case SnapDeclineVertexAlreadySeamed:
 		return "declined: another node already seams this leg vertex"
 	case SnapDeclineOnCanon:
@@ -99,8 +88,8 @@ type SymmetricSnapCandidate struct {
 	ProjLat, ProjLon float64
 
 	// StubM is the shorter side of the piece adopting would create, measured
-	// against every boundary the leg already carries. Under MinRunM it is the
-	// decline; above it, it is how much room the seam actually has.
+	// against every boundary the leg already carries: how much room the seam
+	// actually has. Reported for diagnostics; no rule reads it.
 	StubM float64
 
 	Decline SymmetricSnapDecline
@@ -178,11 +167,7 @@ func DescribeSymmetricSnap(r SymmetricSnapReport) string {
 // SymmetricSnapDeclineFor applies the symmetric snap's decline rules. Pure, so
 // each can be tested directly — the same shape [TjunctionDeclineFor] has, and
 // for the same reason.
-//
-// `minRunM` is passed in rather than read here so the caller reads it ONCE
-// from the follow bands per leg and this function cannot acquire a constant of
-// its own. There is no number in this file.
-func SymmetricSnapDeclineFor(fraction, stubM, minRunM float64, vertexAlreadySeamed, onCanon bool) SymmetricSnapDecline {
+func SymmetricSnapDeclineFor(fraction float64, vertexAlreadySeamed, onCanon bool) SymmetricSnapDecline {
 	// Mirror of TjunctionDeclineFor rule 3. A fraction of exactly 0 or 1 means
 	// the closest approach is the walk's own terminal vertex — the leg's
 	// endpoint anchor, which is never noded.
@@ -191,34 +176,9 @@ func SymmetricSnapDeclineFor(fraction, stubM, minRunM float64, vertexAlreadySeam
 	}
 	// See [SnapDeclineVertexAlreadySeamed]. Ranked below the terminal rule
 	// because a leg's own end is the stronger statement — it is never noded
-	// at all, whoever else is standing there — and above the stub rule so
-	// the reason reported is the structural one rather than a measurement.
+	// at all, whoever else is standing there.
 	if vertexAlreadySeamed {
 		return SnapDeclineVertexAlreadySeamed
-	}
-	// ⚠ MINRUN DECLINE LIFTED (disabled, experimentally).
-	//
-	// The rule was justified by "a sub-MinRun stub is PERMANENTLY
-	// UNFOLLOWABLE", because an older matcher reverted any run under the band
-	// to OFF. That premise no longer holds: the current follow has no such
-	// pass, and a short (about 22 m) arc was followed byte-exactly on
-	// re-import.
-	//
-	// ⚠ LIFTED, NOT DELETED — AND RESTORING IT IS NOT ONE MOVE. The rule may
-	// still be right for a reason not yet understood: a short unfollowable
-	// stub could be a real hazard in the corridor path for reasons not tested.
-	//
-	// ⚠ BUT RE-ENABLING IT ALONE ABORTS IMPORTS. [ResolveLegRides] errors
-	// outright on any align boundary with Node == 0, and this decline is the
-	// ONLY producer of a nodeless boundary. Restoring the rule therefore needs
-	// a SECOND change: ResolveLegRides must accept a nodeless boundary again.
-	// Restoring the rule on its own turns the first stub it declines into a
-	// failed import.
-	//
-	// The leg-side ShortStub is what is lifted here. Its premise mirrored the
-	// T-junction split's stub rule and fell with it.
-	if false && stubM < minRunM {
-		return SnapDeclineShortStub
 	}
 	// See [SnapDeclineOnCanon]. Ranked last, deliberately: this rule
 	// only converts a candidate that would otherwise have been ADOPTED, so
@@ -248,8 +208,8 @@ func NearestBoundaryGapM(boundaries []float64, at float64) float64 {
 
 // LegMeasureToVertex is the cumulative along-leg measure at vertex `idx`.
 //
-// ⚠ IT IS THE SAME RULER, NOT A SECOND ONE, AND THAT IS LOAD-BEARING. The stub
-// rule compares this against `NodeNearPath.PriorLenM`, which the walk
+// ⚠ IT IS THE SAME RULER, NOT A SECOND ONE, AND THAT IS LOAD-BEARING. StubM
+// compares this against `NodeNearPath.PriorLenM`, which the walk
 // projection produced by summing HaversineMetres over consecutive vertices of
 // THIS SAME ARRAY in ascending order. This is that sum, stopped early: same
 // primitive, same operands, same order, so the values are bit-identical rather
@@ -259,8 +219,8 @@ func NearestBoundaryGapM(boundaries []float64, at float64) float64 {
 //
 // A test pins this against the projection's own result for the vertex itself
 // and requires EXACT equality. If someone reorders the sum or swaps the
-// distance primitive, the stub rule silently starts judging against a
-// different leg.
+// distance primitive, StubM silently starts measuring against a different
+// leg.
 func LegMeasureToVertex(pts []Point, idx int) float64 {
 	total := 0.0
 	for k := 1; k <= idx; k++ {
@@ -420,10 +380,8 @@ func InsertSymmetricSnapSeams(
 	// construction and "out of order" can never be what fired; the message
 	// says only what the check can actually see.
 	//
-	// ⚠ IT IS A BACKSTOP, NOT THE GUARD. With the MinRun stub rule active the
-	// align-seam-and-adopted-candidate collision was unreachable; with it
-	// lifted, this check alone would abort the import.
-	// [SnapDeclineVertexAlreadySeamed] is now the real guard, applied where the
+	// ⚠ IT IS A BACKSTOP, NOT THE GUARD. [SnapDeclineVertexAlreadySeamed] is
+	// the real guard, applied where the
 	// candidate is judged; this stays as an assertion because reaching it means
 	// that rule did not run, and because it still covers the case that rule
 	// cannot see — two ALIGN seams arriving on one vertex, which is not this

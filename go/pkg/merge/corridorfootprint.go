@@ -293,7 +293,7 @@ const CorridorSolveBudgetUnset = -1
 //     ([CorridorProjectedSlotBytes]), so the budget cannot drift from the thing
 //     it guards.
 //   - It carries no multiplier for anything the projection cannot see, and must
-//     never carry one: a factor fitted to our corpus is NearestRunHaloEdges
+//     never carry one: a factor fitted to our corpus is nearestRunHaloEdges
 //     again — it works on the fixtures we happen to own, fails silently when
 //     the data changes, and nobody can re-derive it. What the projection does
 //     not cover (the alphabet, switchIdx, bookkeeping) is F_det, measured.
@@ -316,7 +316,7 @@ const CorridorSolveBudgetUnset = -1
 // If that fails, the honest answer is "we cannot serve our own worst fixture on
 // that device", NOT a smaller H. Lowering H to make the sum fit is how a budget
 // becomes a fitted constant that refuses imports which work today. We already own
-// one constant fitted to our own test data — NearestRunHaloEdges = 8, documented
+// one constant fitted to our own test data — nearestRunHaloEdges = 8, documented
 // as a fudge, which fails silently when lowered — and that is the whole argument
 // against acquiring a second.
 //

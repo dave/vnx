@@ -22,9 +22,6 @@ const (
 	// so there is no interior to split.
 	TjDeclineTerminalVertex
 
-	// The shorter half would be under the follow's MinRun band.
-	tjDeclineShortStub
-
 	// A node is already within EndpointWarpRadiusM of the PROJECTION — the
 	// point the split would actually mint at, which is a different place from
 	// the terminal TjDeclineNodeInRadius asks about. See the check itself.
@@ -41,8 +38,6 @@ func (d TjunctionDecline) String() string {
 		return "no canon arc within the warp radius"
 	case TjDeclineTerminalVertex:
 		return "the closest approach is a walk terminal vertex"
-	case tjDeclineShortStub:
-		return "the shorter half would be under MinRun"
 	case TjDeclineNodeNearProjection:
 		return "a node is already within the warp radius of the projection"
 	}
@@ -133,26 +128,6 @@ func TjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
 	//    A DECLINE, not an error: nothing about the input is wrong.
 	if cand.Fraction == 0 || cand.Fraction == 1 {
 		return TjDeclineTerminalVertex
-	}
-
-	// 4. A half shorter than MinRun — DISABLED. This rule declined a split
-	//    whose shorter half would be under the follow's MinRun band, on the
-	//    premise that such a stub could never be followed. That premise does
-	//    not hold for the follow: a 21.96 m arc has been observed to be
-	//    followed byte-exactly on re-import.
-	//
-	// ⚠ DISABLED, NOT DELETED — AND RE-ENABLING IT IS NOT ONE MOVE. The rule
-	// may still be right for another reason: a short stub could be a hazard
-	// in the corridor path that has not been tested for.
-	//
-	// ⚠ RE-ENABLING IT ALONE ABORTS IMPORTS. ResolveLegRides errors outright
-	// on any align boundary with Node == 0, because every align outcome names
-	// a node, and this rule is the ONLY producer of a nodeless boundary.
-	// Re-enabling it therefore needs a SECOND change: ResolveLegRides must
-	// accept a nodeless boundary again. Restoring the rule on its own turns
-	// the first stub it declines into a failed import.
-	if false {
-		return tjDeclineShortStub
 	}
 
 	// There is no "would the endpoint warp move this terminal at all?" check.

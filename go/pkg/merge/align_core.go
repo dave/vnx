@@ -21,21 +21,6 @@ const (
 	// Node names the node absorbed to; AbsorbedM is how far the boundary moved.
 	AlignDeclineAbsorbedToNode
 
-	// The boundary is EndpointWarpRadiusM..MinRunM (15–25 m) from its parent's
-	// nearest end — too far to absorb (that would displace the join beyond the
-	// 15 m budget), but this band is NOT a length judgement about the
-	// stub the way MinRunM's own name suggests. It exists because
-	// EndpointWarpRadiusM and the follow's StayM are the SAME number (15 m): an
-	// entered run stays classified ON until it has drifted StayM past where the
-	// leg actually left its candidate, so this band is where the matcher
-	// NOTICED the leg leave, not where it left. Cutting there mints a node at
-	// the noticing point; the next import's matcher then locks onto that
-	// stub and mints ANOTHER one at ITS noticing point, which is the align-cut
-	// non-idempotence this decline exists to prevent. No node is named — see
-	// [AlignBoundary.seamNode] — so the leg's own piece simply continues
-	// through the boundary, same as any other declined cut.
-	AlignDeclineStayBandStub
-
 	// The boundary is INTERIOR to its own parent (AlignDeclineAtNode does not
 	// apply — this is not the parent's own start or end) but some OTHER node,
 	// already in the network, sits within EndpointWarpRadiusM (0 m in this
@@ -55,8 +40,6 @@ func (d alignDecline) String() string {
 		return "the boundary is already at a node"
 	case AlignDeclineAbsorbedToNode:
 		return "absorbed onto the adjacent node"
-	case AlignDeclineStayBandStub:
-		return "a piece would be shorter than MinRun (StayM hysteresis band)"
 	case AlignDeclineAtExistingNode:
 		return "an existing node already sits at this exact coordinate"
 	}

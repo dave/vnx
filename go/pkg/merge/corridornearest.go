@@ -17,13 +17,12 @@ package merge
 //
 //	no prune           9m55s
 //	halo 8 (this)         45s
-//	halo 2                13s   — but a randomized test then failed (that
-//	                              evidence no longer reproduces: see THE EXIT).
+//	halo 2                13s
 //
-// NearestRunHaloEdges is EMPIRICAL. It is the smallest value at which every
-// test was green, and there is no derivation behind it. It was accepted
-// because a ten-minute import of a real area is a user's cost, to be
-// revisited later.
+// nearestRunHaloEdges was FITTED, not derived: 8 was chosen by trying values
+// against our own test data. Nothing proves it is enough, and no test fails
+// when it is too small. It was accepted because a ten-minute import of a real
+// area is a user's cost, to be revisited later.
 //
 // ⚠ WHY A SMALLER HALO IS NOT SAFE, AND WHY THE OBVIOUS ARGUMENT FOR ONE IS
 // WRONG. The tempting justification is "a piece too far away to be worth
@@ -45,8 +44,8 @@ package merge
 // THE EXIT. The right fix is not a better halo, it is not creating the
 // redundancy: one state per (candidate, direction) instead of one per
 // (source edge, canon edge, regime). That deletes this file. Until then,
-// changing NearestRunHaloEdges REQUIRES a byte-identity comparison, not the
-// standard suite: no current test sees a halo regression. A halo change is
+// changing nearestRunHaloEdges REQUIRES a byte-identity comparison, not the
+// standard suite: only a byte comparison sees a halo regression. A halo change is
 // judged by comparing the committed output bytes before and after on real
 // corpora. A large-corpus re-import check catches only a hard failure, not a
 // byte change.
@@ -56,12 +55,11 @@ import (
 	"math"
 )
 
-// NearestRunHaloEdges is how many canon edges either side of a winner are
-// kept. See this file's header: EMPIRICAL. It was the knob that mattered:
-// halo 4 with 64x the sampling still failed a test that halo 8 with the
-// ordinary sampling passed, so what this buys is stepping stones, not
-// accuracy. That test evidence no longer reproduces (see THE EXIT).
-const NearestRunHaloEdges = 8
+// nearestRunHaloEdges is how many canon edges either side of a winner are
+// kept. The value was fitted to our test data, not derived; see this file's
+// header. Only a byte comparison of the output on real corpora sees a
+// regression when it changes; no test does.
+const nearestRunHaloEdges = 8
 
 // NearestRunSamples is how many points in the source edge's own [0,1] the
 // envelope is sampled at.
@@ -117,7 +115,7 @@ func PruneToNearestCanonEdges(pieces []CorridorPiece) ([]CorridorPiece, error) {
 				return
 			}
 			winners++
-			for e := bestEdge - NearestRunHaloEdges; e <= bestEdge+NearestRunHaloEdges; e++ {
+			for e := bestEdge - nearestRunHaloEdges; e <= bestEdge+nearestRunHaloEdges; e++ {
 				if e >= loEdge && e <= hiEdge {
 					keep[e] = true
 				}

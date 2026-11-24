@@ -5,8 +5,8 @@ package merge
 //
 // ⚠ HasNode IS NOT "did we find one" — it is which of two DIFFERENT seams this
 // is. An ON/canon boundary carries canon's node id, so the leg joins the network
-// there. An ON/OFF boundary where the align pass declined to cut (a stub under
-// MinRun) has no canon node at all, and the leg mints ONE of its own that both
+// there. An ON/OFF boundary where the align pass declined to cut without
+// naming a node (no align outcome does that today) has no canon node at all, and the leg mints ONE of its own that both
 // pieces share: still a seam, still shared, but private to this leg. Reading a
 // zero NodeID as the first case would thread node 0 into an arc write.
 type LegSeam struct {

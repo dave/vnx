@@ -256,7 +256,7 @@ func LegSeamsAtInteriorNodes(
 		//
 		// The neighbours are the leg's own ends, the align seams, and every
 		// candidate accepted so far — the same "an accepted candidate bounds
-		// the next one" the symmetric snap's stub rule uses, for the same
+		// the next one" the symmetric snap's StubM uses, for the same
 		// reason: two accepted cuts must not make an empty piece between them.
 		//
 		// ⚠ [ZeroArcGap], NOT pieceHasExtent, AND THE DIFFERENCE COST THE

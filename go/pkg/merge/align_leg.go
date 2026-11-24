@@ -70,20 +70,12 @@ package merge
 // half-arc of order 1e-14 m that a self-loop check does NOT catch, because the
 // two node ids are distinct.
 //
-// [FollowBands.MinRunM] was used to decline a cut that would leave a stub
-// shorter than the follow's own minimum run (the T-junction split's rule applied
-// to the same hazard). That decline is currently disabled; see DECLINE 3.
+// MeasureEps also decides the DECLINE the boundary is reported under, and that
+// is not cosmetic: "already at a node" is the state this step exists to reach,
+// and the leg cut consumes this report.
 //
-// Where both apply, MinRunM subsumes MeasureEps on the outcome: any boundary
-// within MeasureEps (1e-9 m) of an end leaves a piece far under MinRunM. What
-// MeasureEps changes is the DECLINE the boundary is reported under, and that is
-// not cosmetic: "already at a node" is the state this step exists to reach,
-// while "stub too short" is a compromise. The leg cut consumes this report, so
-// conflating the two would make it read a satisfied boundary as a failed one.
-//
-// The stub rule also subsumed near-duplicate boundaries, which is why there is
-// no dedupe step and no clustering threshold: two runs wanting a cut at nearly
-// the same measure produce one cut.
+// There is no dedupe step and no clustering threshold: two runs wanting a cut
+// at nearly the same measure meet the one-node rule below, and produce one cut.
 //
 // ── THE ONE-NODE RULE ───────────────────────────────────────────────────────
 //
@@ -359,10 +351,7 @@ func SplitCanonAtRunBoundaries(
 // away, and the leg then ADOPTS that coordinate, so the answer carries a
 // displacement. A node sitting AT the boundary's own coordinate is strictly
 // better evidence about the same point and costs 0 m. The other declines are
-// left alone deliberately: AlignDeclineAtNode is already exact, and
-// AlignDeclineStayBandStub names no node at all, so promoting it would MINT a
-// join where the leg currently passes through uncut: a change to what the
-// network contains, not a correction of a wrong answer.
+// left alone deliberately: AlignDeclineAtNode is already exact.
 //
 // ⚠ NO TERMINAL-CLAIM CHECK HERE, BECAUSE THIS ONLY EVER PROMOTES TO AN EXACT
 // (0 m) MATCH. A node at the boundary's own coordinate is somewhere the leg
@@ -606,54 +595,6 @@ func cutCanonAtMeasure(
 			out.Decline = AlignDeclineAbsorbedToNode
 			out.AbsorbedM = lineageDistM
 		}
-		return out, nil
-	}
-
-	// Nothing within the radius: fall through to DECLINE 3, which declines
-	// (no node, leg continues through uncut) rather than manufacture a
-	// same-node revisit.
-	//
-	// A claimed node found within the radius is ADOPTED above, not refused, so
-	// reaching this line can only mean the search found nothing adoptable.
-
-	// DECLINE 3: THE StayM BAND. EndpointWarpRadiusM..MinRunM from the parent's
-	// nearest end is too far to absorb (DECLINE 2 above) and was declined here
-	// rather than cut, because that band is not evidence of a real branch.
-	//
-	// EndpointWarpRadiusM and the follow's StayM are the same 15 m, which means
-	// this band BEGINS exactly where an entered run is, by construction, still
-	// allowed to be riding a candidate it has already left: a leg that truly
-	// branches at node N keeps being classified ON until it has drifted StayM past
-	// N, so the run's recorded end sits somewhere past the real branch, not at it.
-	// A cut mints a node where the matcher NOTICED the run leave, not where it
-	// left. On re-import of the same file the matcher's tie-break ("nearest, then
-	// lowest arc ID") can lock onto that stub and produce another one near it;
-	// measured over successive re-imports this converges (each stub lands closer to
-	// the true branch until it falls inside EndpointWarpRadiusM and is absorbed),
-	// but it is convergence, not idempotence.
-	//
-	// When enabled, the decline names no node (out.Node stays its zero value),
-	// which the leg cut reads as "no node" and drops cleanly: the leg's own piece
-	// continues through the boundary uncut.
-	//
-	// ⚠ DO NOT WIDEN OR NARROW THIS BAND TO "FIX" A FUTURE CASE. Its edges are
-	// EndpointWarpRadiusM and MinRunM, both fixed parameters; this branch only
-	// decides what happens BETWEEN them.
-	//
-	// ⚠ THE DECLINE IS CURRENTLY DISABLED (EXPERIMENT). Its justification was that
-	// a sub-MinRun stub is permanently unfollowable, because an older matcher
-	// reverted any run under the band to OFF. That premise no longer holds: the
-	// current follow does not do that, and a sub-MinRun arc has been observed
-	// followed byte-exactly on re-import.
-	//
-	// ⚠ DISABLED, NOT DELETED, AND RE-ENABLING IS NOT ONE CHANGE. The rule may
-	// still be right for a reason not yet written down. But [ResolveLegRides]
-	// errors on any align boundary with Node == 0, and this decline is the ONLY
-	// producer of a nodeless boundary, so re-enabling it also needs ResolveLegRides
-	// to accept a nodeless boundary again; otherwise the first stub it declines
-	// becomes a failed import.
-	if false {
-		out.Decline = AlignDeclineStayBandStub
 		return out, nil
 	}
 

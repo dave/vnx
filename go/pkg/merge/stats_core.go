@@ -92,9 +92,9 @@ func ExpandBounds(b *Bounds, lat, lon float64) {
 // intended meaning of 0, not an accident: 0 means "no accountable climb",
 // covering genuinely flat and no-elevation-data alike.
 //
-// It reads any pip type through [pipReader], so a caller holding its own pips
+// It reads any pip type through [PipReader], so a caller holding its own pips
 // computes the stats without copying them into [Pip].
-func StatsFromPips[P pipReader](pips []P) ArcStats {
+func StatsFromPips[P PipReader](pips []P) ArcStats {
 	var stats ArcStats
 	for i := 0; i+1 < len(pips); i++ {
 		aLat, aLon, aEle := pips[i].LatLonEle()
@@ -107,9 +107,9 @@ func StatsFromPips[P pipReader](pips []P) ArcStats {
 	return stats
 }
 
-// pipReader is a pip in any type: its latitude, longitude and elevation (NaN
+// PipReader is a pip in any type: its latitude, longitude and elevation (NaN
 // for unknown). [StatsFromPips] and [BoundsFromPips] read pips through it.
-type pipReader interface {
+type PipReader interface {
 	LatLonEle() (lat, lon, ele float64)
 }
 
@@ -130,8 +130,8 @@ var ErrNoPips = errors.New("no pips: an empty point list has no bounding box, an
 // bounding box for no points, so this returns an error rather than inventing
 // one.
 //
-// Like [StatsFromPips], it reads any pip type through [pipReader].
-func BoundsFromPips[P pipReader](pips []P) (Bounds, error) {
+// Like [StatsFromPips], it reads any pip type through [PipReader].
+func BoundsFromPips[P PipReader](pips []P) (Bounds, error) {
 	if len(pips) == 0 {
 		return Bounds{}, ErrNoPips
 	}

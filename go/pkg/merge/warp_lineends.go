@@ -11,13 +11,13 @@ package merge
 // goes. It exists for callers outside the merge that want to join line ends
 // with the same move the merge makes.
 func WarpLineEnds(pts []Point, start, end *LatLon) ([]Point, error) {
-	out, _, err := WarpLegEndpoints(pts, WarpTargetAt(start), WarpTargetAt(end))
+	out, _, err := WarpLegEndpoints(pts, warpTargetAt(start), warpTargetAt(end))
 	return out, err
 }
 
-// WarpTargetAt is p as a warp target with no node identity: WarpLineEnds
+// warpTargetAt is p as a warp target with no node identity: WarpLineEnds
 // moves geometry only.
-func WarpTargetAt(p *LatLon) *WarpTarget {
+func warpTargetAt(p *LatLon) *WarpTarget {
 	if p == nil {
 		return nil
 	}

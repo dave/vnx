@@ -94,7 +94,7 @@ func dupEleEqual(a, b *float64) bool {
 	return *a == *b
 }
 
-// ArcVertices is the vertex sequence a stored arc ACTUALLY holds: its two
+// arcVertices is the vertex sequence a stored arc ACTUALLY holds: its two
 // endpoint nodes' coordinates with its interior pips between them.
 //
 // ⚠ ENDPOINTS COME FROM THE NODES, NOT THE POLYLINE. An arc's polyline stores
@@ -104,7 +104,7 @@ func dupEleEqual(a, b *float64) bool {
 //
 // Absent elevation arrives as a canonical NaN in a pip and as a null on a
 // node; both are lifted to nil so "no elevation" compares equal to itself.
-func ArcVertices(arc Arc, start, end Node) []Point {
+func arcVertices(arc Arc, start, end Node) []Point {
 	v := make([]Point, 0, len(arc.Polyline)+2)
 	v = append(v, Point{Lat: start.Lat, Lon: start.Lon, Ele: start.Ele})
 	for _, p := range arc.Polyline {
@@ -122,7 +122,7 @@ func pipEleOrNil(e float64) *float64 {
 	return &e
 }
 
-// PieceCommittedVertices is the vertex sequence a piece WOULD commit, given the
+// pieceCommittedVertices is the vertex sequence a piece WOULD commit, given the
 // nodes its two ends resolved to.
 //
 // ⚠ THE NODES' COORDINATES WIN OVER THE PIECE'S OWN END VERTICES, because that
@@ -131,7 +131,7 @@ func pipEleOrNil(e float64) *float64 {
 // last points instead would ask "is the source identical" where the question is
 // "would the committed arc be identical", and after the endpoint warp those are
 // not the same question.
-func PieceCommittedVertices(pts []Point, start, end Node) []Point {
+func pieceCommittedVertices(pts []Point, start, end Node) []Point {
 	// ⚠ THE INTERIOR IS TRIMMED THE WAY THE WRITER TRIMS IT. The write path
 	// drops interior points sitting EXACTLY on the terminal node, because the
 	// endpoint snap assigns the node's own coordinate and so manufactures a

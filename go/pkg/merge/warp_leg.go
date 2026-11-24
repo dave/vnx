@@ -33,7 +33,7 @@ package merge
 // WarpLegEndpoints' own comment for why this makes each terminal land
 // bit-exact on its target REGARDLESS of how much the two zones overlap, by
 // construction, not by assertion, though the assertion stays too: see
-// CheckTerminalsExact). A point inside both zones receives the SUM of both
+// checkTerminalsExact). A point inside both zones receives the SUM of both
 // ends' displacements, the physically correct answer for a point being
 // pulled from two directions at once.
 //
@@ -42,7 +42,7 @@ package merge
 // outcome; given a target, applyWarpAtEnd tapers.
 //
 // A leg shorter than 1.5x its own displacement cannot taper without
-// inverting even using its WHOLE length as the zone (WarpZoneCanAbsorb's own
+// inverting even using its WHOLE length as the zone (warpZoneCanAbsorb's own
 // inequality). Such a leg is not special-cased: it goes through the same
 // taper, and may fold back on itself. That fold is accepted as an observed
 // outcome rather than prevented by pre-processing the leg.
@@ -58,7 +58,7 @@ import (
 // actual move was.
 //
 // A floor is not needed. The absorb condition only needs
-// zone >= 1.5*displacement (WarpZoneCanAbsorb's own inequality), and
+// zone >= 1.5*displacement (warpZoneCanAbsorb's own inequality), and
 // widenedZoneFactor*displacement (5x, chosen for smoothness margin, not
 // correctness) already satisfies that on its own.
 //
@@ -67,7 +67,7 @@ import (
 // percent, and node counts fell further without it, so it was never buying
 // deduplication either; it only inflated the zone.
 //
-// See WarpZoneCanAbsorb's doc for the inequality zoneFor's formula has to
+// See warpZoneCanAbsorb's doc for the inequality zoneFor's formula has to
 // satisfy:
 // zone = min(legLen, widenedZoneFactor*displacement).
 
@@ -83,7 +83,7 @@ import (
 // no fallback to committing the leg unwarped: a failure here means we could
 // not determine where the endpoint belongs, and guessing is exactly what
 // this step avoids. Note that a taper zone too short to absorb its
-// displacement is NOT an error (see WarpZoneCanAbsorb).
+// displacement is NOT an error (see warpZoneCanAbsorb).
 func warpLegEndpointsToNodes(
 	ctx context.Context,
 	canon Canon,
@@ -111,7 +111,7 @@ func warpLegEndpointsToNodes(
 
 	// No pre-processing special-cases a leg below the taper floor: every
 	// leg goes through the same taper, whatever its length. See
-	// WarpZoneCanAbsorb's doc for what "below the floor" means: a leg that
+	// warpZoneCanAbsorb's doc for what "below the floor" means: a leg that
 	// may fold, which is an accepted outcome. (Collapsing such a leg to its
 	// two terminals would manufacture a two-point leg out of a real
 	// multi-point one, trip the same-node guard below, and mint a fresh node
@@ -123,7 +123,7 @@ func warpLegEndpointsToNodes(
 	// Both ends adopting one node is ordinarily fine and means the leg is a closed
 	// loop off a junction. That is stored by cutting the ring at an interior
 	// vertex, which mints one node and changes no geometry. A leg of two points
-	// HAS no interior vertex, so there is nothing to cut at, and [FurthestVertex]
+	// HAS no interior vertex, so there is nothing to cut at, and [furthestVertex]
 	// correctly refuses: it will not invent a coordinate the source never had.
 	// The refusal would then fail the whole import for one degenerate leg
 	// (two points, both within the radius of one node).
@@ -165,7 +165,7 @@ func warpLegEndpointsToNodes(
 	// UNCONDITIONAL. If a side had a target, it joins. A terminal that joined
 	// a node without landing on it would store the node's coordinates as the
 	// arc's start/end while the geometry stays unwarped: an untapered jump.
-	// CheckTerminalsExact asserts on every call that a non-nil target lands
+	// checkTerminalsExact asserts on every call that a non-nil target lands
 	// bit-exact, so the property holds by construction and needs no gate
 	// here.
 	if start != nil {
@@ -181,7 +181,7 @@ func warpLegEndpointsToNodes(
 
 // There is deliberately no step that collapses a leg to its two terminals
 // when its own length cannot absorb a resolved displacement. Folds are
-// accepted (see WarpZoneCanAbsorb's doc), so nothing downstream depends on a
+// accepted (see warpZoneCanAbsorb's doc), so nothing downstream depends on a
 // leg being able to absorb its own displacement. Such a collapse would also
 // manufacture a two-point leg out of a real multi-point one, tripping the
 // two-point same-node guard into declining an adoption it should take and
@@ -272,8 +272,8 @@ func WarpUnresolvedLegTerminals(
 	// The two-point same-node carve-out: see the doc above for why a FIXED
 	// side (already resolved by the endpoint warp) can never be the one declined.
 	if len(pts) < 3 {
-		effStart, startIsNew := EffectiveWarpNodeID(rep.StartNode, newStart)
-		effEnd, endIsNew := EffectiveWarpNodeID(rep.EndNode, newEnd)
+		effStart, startIsNew := effectiveWarpNodeID(rep.StartNode, newStart)
+		effEnd, endIsNew := effectiveWarpNodeID(rep.EndNode, newEnd)
 		if effStart != nil && effEnd != nil && *effStart == *effEnd {
 			decline := func(side string, id NodeID) {
 			}
@@ -323,12 +323,12 @@ func WarpUnresolvedLegTerminals(
 		last := len(pts) - 1
 		chord := HaversineMetres(pts[0].Lat, pts[0].Lon, pts[last].Lat, pts[last].Lon)
 		// THE SAME TWO GATES AS THE SINGLE-PIECE CHECK, REPLICATED EXACTLY,
-		// NOT LOOSENED. LegDepartsRadius asks whether this leg's own source,
+		// NOT LOOSENED. legDepartsRadius asks whether this leg's own source,
 		// anywhere, genuinely got away from where it started; skipping it
 		// would ALSO merge a straight multi-piece spur whose own two ends
 		// merely happen to sit close, which is a separate question this
 		// function does not decide.
-		if chord <= EndpointWarpRadiusM && LegDepartsRadius(pts, 0, last, EndpointWarpRadiusM) {
+		if chord <= EndpointWarpRadiusM && legDepartsRadius(pts, 0, last, EndpointWarpRadiusM) {
 			mintedID, err := canon.AddNode(ctx, pts[0].Lat, pts[0].Lon, pts[0].Ele)
 			if err != nil {
 				return nil, rep, false, fmt.Errorf("WarpUnresolvedLegTerminals: mint the multi-piece leg's own shared terminal node: %w", err)

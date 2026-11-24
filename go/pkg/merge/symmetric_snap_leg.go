@@ -18,7 +18,7 @@ package merge
 //
 // ── WHAT THIS DOES, AND THE ONE THING IT DOES NOT ───────────────────────────
 //
-// This is the SECOND producer of [LegSeam]s, beside [LegSeamsFromAlign]. A leg
+// This is the SECOND producer of [LegSeam]s, beside [legSeamsFromAlign]. A leg
 // about to commit asks which canon nodes its own path passes within
 // [EndpointWarpRadiusM], and adopts each one as an interior seam: a vertex is
 // inserted at the projection, the seam claims the node, and the boundary warp
@@ -34,8 +34,8 @@ package merge
 // ── THE RULE MIRRORS THE T-JUNCTION SPLIT'S DECLINES
 //
 // "Adopt every node in range" performs, from the LEG side, the splits the
-// T-junction split makes from the CANON side. So [SymmetricSnapDeclineFor]
-// mirrors [TjunctionDeclineFor], applied to the LEG's walk instead of the
+// T-junction split makes from the CANON side. So [symmetricSnapDeclineFor]
+// mirrors [tjunctionDeclineFor], applied to the LEG's walk instead of the
 // arc's:
 //
 //	TjDeclineTerminalVertex  → SnapDeclineTerminalVertex  (Fraction 0 or 1)
@@ -64,7 +64,7 @@ import (
 // decline rules admit, and returns the leg's points with a vertex inserted at each adopted
 // projection plus the merged seam list in ascending point order.
 //
-// `pts` is the leg AFTER the follow and AFTER [LegSeamsFromAlign] — the same
+// `pts` is the leg AFTER the follow and AFTER [legSeamsFromAlign] — the same
 // array those seams' Idx values index. `seams` is that align seam list. Both
 // are returned REPLACED rather than mutated, matching the convention
 // [ApplyLegBoundaryWarp] and [WarpUnresolvedLegTerminals] already use at this
@@ -81,7 +81,7 @@ import (
 // does not touch the junction it claims — an arc whose endpoint node is up to
 // 15 m off the end of its own polyline.
 //
-// `Adopted` is unconditionally TRUE, and unlike [LegSeamsFromAlign] this needs
+// `Adopted` is unconditionally TRUE, and unlike [legSeamsFromAlign] this needs
 // no mintedThisLeg correction. That function has to make one because the align step cuts a
 // leg's own boundaries in its own order and a later boundary can resolve onto a
 // node an earlier one of the SAME pass just minted. Nothing here mints
@@ -180,7 +180,7 @@ func LegSeamsFromNearbyNodes(
 	// ── THE BOUNDARY SET THE STUB RULE MEASURES AGAINST ─────────────────────
 	//
 	// The leg's two ends, plus every align seam. All measured on the SAME
-	// ruler the search's own PriorLenM came off — see [LegMeasureToVertex].
+	// ruler the search's own PriorLenM came off — see [legMeasureToVertex].
 	total := LegMeasureLengthM(pts)
 	boundaries := make([]float64, 0, len(seams)+2+len(found))
 	boundaries = append(boundaries, 0, total)
@@ -190,7 +190,7 @@ func LegSeamsFromNearbyNodes(
 				"LegSeamsFromNearbyNodes: align seam at point %d is outside the leg's %d points",
 				s.Idx, len(pts))
 		}
-		boundaries = append(boundaries, LegMeasureToVertex(pts, s.Idx))
+		boundaries = append(boundaries, legMeasureToVertex(pts, s.Idx))
 	}
 
 	// Along-leg order, so StubM sees the leg as the commit will walk it and
@@ -226,7 +226,7 @@ func LegSeamsFromNearbyNodes(
 	//
 	// ⚠ ZERO DISTANCE, NOT AN EQUAL INDEX, AND NOT A TOLERANCE. Two candidates
 	// can project onto the SAME point without either landing on an existing
-	// vertex — [InsertSymmetricSnapSeams] then inserts two coincident vertices,
+	// vertex — [insertSymmetricSnapSeams] then inserts two coincident vertices,
 	// and WarpLegAtBoundaries is asked to move that one place onto two nodes.
 	// Comparing indices misses it (the vertices have different indices);
 	// comparing coordinates bitwise nearly catches it, but the property that
@@ -263,9 +263,9 @@ func LegSeamsFromNearbyNodes(
 			Node: c.ID, Lat: c.Lat, Lon: c.Lon,
 			DistM: c.DistM, PriorLenM: c.PriorLenM, Fraction: c.Fraction, SegIdx: c.SegIdx,
 			ProjLat: c.ProjLat, ProjLon: c.ProjLon,
-			StubM: NearestBoundaryGapM(boundaries, c.PriorLenM),
+			StubM: nearestBoundaryGapM(boundaries, c.PriorLenM),
 		}
-		out.Decline = SymmetricSnapDeclineFor(c.Fraction, pointAlreadySeamed(c.ProjLat, c.ProjLon), SegmentIsOnCanon(onRanges, c.SegIdx))
+		out.Decline = symmetricSnapDeclineFor(c.Fraction, pointAlreadySeamed(c.ProjLat, c.ProjLon), segmentIsOnCanon(onRanges, c.SegIdx))
 		rep.Candidates = append(rep.Candidates, out)
 		if out.Decline != SnapNoDecline {
 			continue
@@ -287,7 +287,7 @@ func LegSeamsFromNearbyNodes(
 		return pts, seams, rep, nil
 	}
 
-	outPts, outSeams, err := InsertSymmetricSnapSeams(pts, seams, takes, &rep, ords)
+	outPts, outSeams, err := insertSymmetricSnapSeams(pts, seams, takes, &rep, ords)
 	if err != nil {
 		return nil, nil, rep, err
 	}

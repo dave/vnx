@@ -61,7 +61,7 @@ import (
 // regression when it changes; no test does.
 const nearestRunHaloEdges = 8
 
-// NearestRunSamples is how many points in the source edge's own [0,1] the
+// nearestRunSamples is how many points in the source edge's own [0,1] the
 // envelope is sampled at.
 //
 // The question "which canon edges are ever nearest" has an exact answer —
@@ -70,9 +70,9 @@ const nearestRunHaloEdges = 8
 // holding the halo at 4 left a failing test red, and lowering it to 64 while
 // raising the halo to 8 turned it green. The exact envelope would therefore
 // not make a smaller halo safe, which is why it was not built.
-const NearestRunSamples = 64
+const nearestRunSamples = 64
 
-// PruneToNearestCanonEdges drops the pieces of one (source edge × candidate)
+// pruneToNearestCanonEdges drops the pieces of one (source edge × candidate)
 // whose canon edge is never the nearest within its own contiguous run.
 //
 // pieces must arrive in ascending canon-edge order, which is
@@ -82,7 +82,7 @@ const NearestRunSamples = 64
 //
 // hooks are the call's test hooks, nil for none; its nearestPrune observer is
 // told each prune's (before, after) piece counts.
-func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]CorridorPiece, error) {
+func pruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]CorridorPiece, error) {
 	if len(pieces) == 0 {
 		return pieces, nil
 	}
@@ -124,8 +124,8 @@ func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]Corri
 				}
 			}
 		}
-		for s := 0; s <= NearestRunSamples; s++ {
-			markNearestAt(float64(s) / float64(NearestRunSamples))
+		for s := 0; s <= nearestRunSamples; s++ {
+			markNearestAt(float64(s) / float64(nearestRunSamples))
 		}
 		// ⚠ EVERY PIECE IS EVALUATED AT ITS OWN MIDPOINT, and this is not an
 		// accuracy refinement — it is what stops the prune DELETING A WHOLE
@@ -136,7 +136,7 @@ func PruneToNearestCanonEdges(pieces []CorridorPiece, hooks *TestHooks) ([]Corri
 		// redundant competitors: it removes the only correspondence a
 		// self-approach has.
 		//
-		// The trigger is a window narrower than 1/NearestRunSamples in t. On
+		// The trigger is a window narrower than 1/nearestRunSamples in t. On
 		// a dense GPS track (~1 m edges) that is a sub-centimetre graze at
 		// the corridor rim; on a sparse PLAN edge of several hundred metres
 		// it is METRES of real correspondence. Found in review after a corpus

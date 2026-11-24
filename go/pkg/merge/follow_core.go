@@ -113,9 +113,9 @@ type PreppedCandidate struct {
 	// a chunk is skipped only when its box lower-bounds farther than the best
 	// distance still of interest, so it can never contain the winner.
 	chMinLat, chMaxLat, chMinLon, chMaxLon []float64
-	// poly is the candidate's [HintPoly], built on first use by [PreppedCandidate.HintPoly]
+	// poly is the candidate's [hintPoly], built on first use by [PreppedCandidate.hintPoly]
 	// and reused for the rest of this candidate's life. Nil until then.
-	poly *HintPoly
+	poly *hintPoly
 }
 
 // chunkEdges is the number of edges per chunk box. Small enough that a chunk's
@@ -243,14 +243,14 @@ func ClosestPointOnSeg(aLat, aLon, bLat, bLon, probeLat, probeLon float64) (dist
 // (sparse == densified) and its halving no-op check.
 func densifyStep(b FollowBands) float64 { return b.EnterM / 8 }
 
-// DensifySource resamples the leg to the given step: every original vertex is
+// densifySource resamples the leg to the given step: every original vertex is
 // kept (orig true) and interior points are inserted along each edge at the
 // step (orig false). Deterministic and pure. [AssembleFollowedLegRunsCorridor]
 // uses it to build the source path its node-snap corridor gate measures
 // against. Elevation is linearly interpolated for inserted points; they are never
 // committed verbatim (OFF emits only original vertices, ON emits canon), so
 // their ele is immaterial and kept only for well-formedness.
-func DensifySource(pts []Point, step float64) (dpts []Point, orig []bool) {
+func densifySource(pts []Point, step float64) (dpts []Point, orig []bool) {
 	if len(pts) == 0 {
 		return nil, nil
 	}
@@ -270,7 +270,7 @@ func DensifySource(pts []Point, step float64) (dpts []Point, orig []bool) {
 				dpts = append(dpts, Point{
 					Lat: a.Lat + float64(f*(c.Lat-a.Lat)), // float64: no FMA, the same on every arch (pkg/detmath)
 					Lon: a.Lon + float64(f*(c.Lon-a.Lon)),
-					Ele: LerpEle(a.Ele, c.Ele, f),
+					Ele: lerpEle(a.Ele, c.Ele, f),
 				})
 				orig = append(orig, false)
 			}
@@ -281,7 +281,7 @@ func DensifySource(pts []Point, step float64) (dpts []Point, orig []bool) {
 	return dpts, orig
 }
 
-func LerpEle(a, c *float64, f float64) *float64 {
+func lerpEle(a, c *float64, f float64) *float64 {
 	if a == nil || c == nil {
 		return nil
 	}
@@ -389,7 +389,7 @@ type NodeLookup func(lat, lon, radiusM float64) (foundLat, foundLon float64, id 
 //
 // ⚠ NOT CORRIDOR-CHECKED HERE. It used to be — this function and
 // [snapMeasureToCandidateEnd] each carried their own per-end proxy, and both
-// proxies were separately measured insufficient (see [CheckCorridor]'s
+// proxies were separately measured insufficient (see [checkCorridor]'s
 // header). The caller now applies the real corridor predicate ONCE, to both
 // ends together, after [reconcileSnappedMeasures] — see that call site. This
 // returns the raw candidate: snapped or not, on-line or declined for being
@@ -468,7 +468,7 @@ func reconcileSnappedMeasures(origStart, origEnd, snapStart, snapEnd float64, re
 	return origStart, origEnd
 }
 
-// CheckCorridor asks the symmetric corridor question: is the corridor held —
+// checkCorridor asks the symmetric corridor question: is the corridor held —
 // source sub-path and canon sub-polyline each within Stay of the other — over
 // the WHOLE stretch, in BOTH directions? The node-snap path asks it of a
 // tentative measure pair before committing to it, instead of a hand-rolled
@@ -502,7 +502,7 @@ func reconcileSnappedMeasures(origStart, origEnd, snapStart, snapEnd float64, re
 // matching assembleOnRun's own canon-direction handling — geometrically inert
 // for a distance check (a polyline's edge set does not depend on which end is
 // listed first) but kept for exact parity with the extracted code.
-func CheckCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStart, measureEnd float64, entryCross, exitCross *Point, reversed bool, stayM float64) error {
+func checkCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStart, measureEnd float64, entryCross, exitCross *Point, reversed bool, stayM float64) error {
 	lo, hi := measureStart, measureEnd
 	if lo > hi {
 		lo, hi = hi, lo
@@ -569,8 +569,8 @@ func CheckCorridor(src []Point, srcOffset int, pc *PreppedCandidate, measureStar
 	}
 
 	stay := stayM + onLineEps
-	canonPoly := NewHintPoly(canonSub)
-	srcPoly := NewHintPoly(srcPath)
+	canonPoly := newHintPoly(canonSub)
+	srcPoly := newHintPoly(srcPath)
 	// Source and canon follow one another, so successive nearest points advance
 	// monotonically along the other polyline — a running hint keeps each O(local).
 	hSrc := 0
@@ -674,7 +674,7 @@ func assembleOnRun(legFirst, legLast Point, pc *PreppedCandidate, run FollowRun,
 	// No whole-run corridor check here. The corridor solve that proposes ON
 	// runs deliberately proposes runs a source-within-Stay abort would refuse
 	// (a hairpin); fabrication is guarded by the solve's own canon-side gap
-	// term, not by a post-hoc reject here. [CheckCorridor] still gates the
+	// term, not by a post-hoc reject here. [checkCorridor] still gates the
 	// node-snap sites in follow_corridor_assemble.go — a snap is a separate
 	// decision (whether to ride a measure onto a nearby node) the solve never
 	// makes, so it keeps its own accept/decline gate.
@@ -729,22 +729,22 @@ func boundaryPoint(pc *PreppedCandidate, at float64) Point {
 	return Point{Lat: lat, Lon: lon, Ele: pc.interpEle(at)}
 }
 
-// HintPoly wraps a polyline with prefix and suffix bounding boxes so nearestDist
+// hintPoly wraps a polyline with prefix and suffix bounding boxes so nearestDist
 // can find the true nearest-absolute distance from a point in O(local) work when
 // successive queries advance monotonically along it — exactly the assembly
 // post-conditions, where source and canon follow one another. The box lower
 // bound uses cosMin (cos of the largest-magnitude latitude) for longitude
 // metres, which never overstates a distance, so the prefix/suffix pruning is
 // result-identical to a full linear point-to-polyline scan.
-type HintPoly struct {
+type hintPoly struct {
 	verts                                      []Point
 	preMinLat, preMaxLat, preMinLon, preMaxLon []float64
 	sufMinLat, sufMaxLat, sufMinLon, sufMaxLon []float64
 	cosMin                                     float64
 }
 
-func NewHintPoly(verts []Point) *HintPoly {
-	hp := &HintPoly{verts: verts}
+func newHintPoly(verts []Point) *hintPoly {
+	hp := &hintPoly{verts: verts}
 	n := len(verts)
 	if n == 0 {
 		return hp
@@ -816,12 +816,12 @@ func reverseFloats(s []float64) {
 	}
 }
 
-// HintPoly returns the candidate's whole-polyline [HintPoly], building it once.
+// hintPoly returns the candidate's whole-polyline [hintPoly], building it once.
 //
 // ── WHY IT IS CACHED, MEASURED ──────────────────────────────────────────────
 //
 // [assembleOnRun] needs this for post-condition 1 and used to call
-// [NewHintPoly] itself, so the eight length-n float64 arrays were rebuilt from
+// [newHintPoly] itself, so the eight length-n float64 arrays were rebuilt from
 // scratch FOR EVERY ON RUN over the FULL candidate — O(ON runs × candidate
 // vertices) allocation for a value that depends only on `verts`, which never
 // changes.
@@ -833,15 +833,15 @@ func reverseFloats(s []float64) {
 // for the partition. Measured with GC disabled, so the figure is total bytes
 // allocated, exact rather than sampled.
 //
-// Caching is byte-identical, not merely close: a [HintPoly] is a pure function
+// Caching is byte-identical, not merely close: a [hintPoly] is a pure function
 // of `verts` (prefix/suffix boxes and cosMin, all derived), nothing mutates
-// `verts` after [PrepCandidates] builds it, and [HintPoly.nearestDist] only
+// `verts` after [PrepCandidates] builds it, and [hintPoly.nearestDist] only
 // reads — it takes its hint as an argument and stores nothing. Each
 // [PrepCandidates] call builds fresh candidates that never outlive their one
 // leg, so there is no sharing across legs and no lock is needed.
-func (pc *PreppedCandidate) hintPoly() *HintPoly {
+func (pc *PreppedCandidate) hintPoly() *hintPoly {
 	if pc.poly == nil {
-		pc.poly = NewHintPoly(pc.Verts)
+		pc.poly = newHintPoly(pc.Verts)
 	}
 	return pc.poly
 }
@@ -1002,7 +1002,7 @@ func (pc *PreppedCandidate) interpEle(at float64) *float64 {
 // prefix/suffix box floors past the best found (a box distance never exceeds a
 // contained edge's distance, so nothing skipped could win). Correct for any
 // hint; O(local) when the hint is near, as monotone queries keep it.
-func (hp *HintPoly) NearestDist(lat, lon float64, hint int) (float64, int) {
+func (hp *hintPoly) NearestDist(lat, lon float64, hint int) (float64, int) {
 	n := len(hp.verts)
 	if n == 0 {
 		return math.Inf(1), 0

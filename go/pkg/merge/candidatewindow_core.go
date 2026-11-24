@@ -4,7 +4,7 @@ import (
 	"math"
 )
 
-// ArcBBoxNearAnyEdge reports whether any source EDGE of pts could lie within
+// arcBBoxNearAnyEdge reports whether any source EDGE of pts could lie within
 // stayM metres of the axis-aligned bounding box of verts.
 //
 // It tests edges, not points, because the corridor solver prices distance as
@@ -20,7 +20,7 @@ import (
 // reuses that function rather than growing a second copy of the arithmetic.
 //
 // NO NEW CONSTANT: stayM is the caller's own radius.
-func ArcBBoxNearAnyEdge(verts, pts []Point, stayM float64) bool {
+func arcBBoxNearAnyEdge(verts, pts []Point, stayM float64) bool {
 	if len(pts) < 2 {
 		// No source edges, so no edge can be near anything. NOT a fallback to
 		// a vertex test: a leg of fewer than two points has no corridor to find
@@ -50,12 +50,12 @@ func ArcBBoxNearAnyEdge(verts, pts []Point, stayM float64) bool {
 	return false
 }
 
-// WindowStayRect is the AABB of a window of leg points expanded by stayM metres
+// windowStayRect is the AABB of a window of leg points expanded by stayM metres
 // in every direction. The longitude pad is scaled by the window's highest-|lat|
 // cosine so the box is at least stayM metres wide on the ground everywhere in the
 // window (never under-covers). MetresPerDeg is the shared great-circle
 // constant. The window always has at least one point.
-func WindowStayRect(pts []Point, stayM float64) Bounds {
+func windowStayRect(pts []Point, stayM float64) Bounds {
 	minLat, maxLat := pts[0].Lat, pts[0].Lat
 	minLon, maxLon := pts[0].Lon, pts[0].Lon
 	for _, p := range pts[1:] {

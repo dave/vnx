@@ -6,7 +6,7 @@ import (
 )
 
 // Direct tests for the shared follow helpers that the live corridor path
-// uses (PrepCandidates, DensifySource, CheckCorridor). The import-level tests
+// uses (PrepCandidates, densifySource, checkCorridor). The import-level tests
 // do not reach these edge branches, so these pin them directly.
 
 func TestPrepCandidates_SkipsDegenerateCanon(t *testing.T) {
@@ -33,7 +33,7 @@ func TestPrepCandidates_SkipsDegenerateCanon(t *testing.T) {
 func TestDensifySource_ExactMultipleAddsNoPointAtTheFarVertex(t *testing.T) {
 	a, c := mPt(0, 0), mPt(40, 0)
 	segLen := HaversineMetres(a.Lat, a.Lon, c.Lat, c.Lon)
-	dpts, orig := DensifySource([]Point{a, c}, segLen/4)
+	dpts, orig := densifySource([]Point{a, c}, segLen/4)
 	// Four equal steps: three interior samples, then the far vertex itself —
 	// never a fourth sample sitting on (or a rounding error short of) it.
 	want := []bool{true, false, false, false, true}
@@ -57,7 +57,7 @@ func TestCheckCorridor_RejectsCanonThatLeavesTheSource(t *testing.T) {
 	pc := PrepCandidates([]CanonArc{
 		mCanon(1, mPt(0, 0), mPt(50, 0), mPt(50, 40), mPt(50.1, 0), mPt(100, 0)),
 	})[0]
-	err := CheckCorridor(src, 0, pc, 0, pc.Total, nil, nil, false, DefaultFollowBands().StayM)
+	err := checkCorridor(src, 0, pc, 0, pc.Total, nil, nil, false, DefaultFollowBands().StayM)
 	if err == nil {
 		t.Fatal("checkCorridor accepted canon with a 40 m spike away from the source")
 	}
@@ -73,10 +73,10 @@ func TestCheckCorridor_ExitCrossingExtendsTheSourcePath(t *testing.T) {
 	src := straightLegX(17, 80, 0)
 	pc := PrepCandidates([]CanonArc{mCanon(1, mPt(0, 0), mPt(100, 0))})[0]
 	exit := mPt(100, 0)
-	if err := CheckCorridor(src, 0, pc, 0, pc.Total, nil, &exit, false, DefaultFollowBands().StayM); err != nil {
+	if err := checkCorridor(src, 0, pc, 0, pc.Total, nil, &exit, false, DefaultFollowBands().StayM); err != nil {
 		t.Fatalf("checkCorridor with the exit crossing: %v", err)
 	}
-	if err := CheckCorridor(src, 0, pc, 0, pc.Total, nil, nil, false, DefaultFollowBands().StayM); err == nil {
+	if err := checkCorridor(src, 0, pc, 0, pc.Total, nil, nil, false, DefaultFollowBands().StayM); err == nil {
 		t.Fatal("checkCorridor without the exit crossing accepted 20 m of canon past the source's end — the fixture does not separate the two cases")
 	}
 }

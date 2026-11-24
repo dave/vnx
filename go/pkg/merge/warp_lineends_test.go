@@ -35,7 +35,7 @@ func TestWarpLineEndsEqualsTheImportWarp(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, _, err := WarpLegEndpoints(leg, WarpTargetAt(c.start), WarpTargetAt(c.end))
+			want, _, err := WarpLegEndpoints(leg, warpTargetAt(c.start), warpTargetAt(c.end))
 			if err != nil {
 				t.Fatal(err)
 			}

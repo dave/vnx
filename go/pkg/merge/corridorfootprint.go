@@ -31,10 +31,10 @@ const (
 	corridorSliceHdrBytes    = int(unsafe.Sizeof([]int32(nil)))
 	corridorSolvePieceBytes  = int(unsafe.Sizeof(SolvePiece{}))
 	// The search heap: one packed key per entry, one position per slot
-	// ([CorridorHeap]). These replaced corridorPQItemBytes (16 B per lazy-queue
+	// ([corridorHeap]). These replaced corridorPQItemBytes (16 B per lazy-queue
 	// item).
 	corridorHeapEntryBytes = int(unsafe.Sizeof(int64(0)))
-	corridorHeapPosBytes   = int(unsafe.Sizeof(CorridorHeapNever))
+	corridorHeapPosBytes   = int(unsafe.Sizeof(corridorHeapNever))
 	corridorIvBoundsBytes  = int(unsafe.Sizeof(CorridorIvBounds{}))
 )
 
@@ -112,7 +112,7 @@ type CorridorSolveFootprint struct {
 	PrevBytes       int
 	PieceSlotsBytes int
 	PieceSlotsCap   int
-	// The search heap ([CorridorHeap]): its entry array at its fixed capacity,
+	// The search heap ([corridorHeap]): its entry array at its fixed capacity,
 	// and its position table (one int32 per slot, plus per-layer headers).
 	HeapBytes    int
 	HeapPosBytes int
@@ -174,7 +174,7 @@ func corridorSolveFootprintOf(
 	pieceSlots [][]int32,
 	ivBounds []CorridorIvBounds,
 	sw corridorSwitchIndexUse,
-	pq *CorridorHeap,
+	pq *corridorHeap,
 	pqPeakLen int,
 ) CorridorSolveFootprint {
 	f := CorridorSolveFootprint{

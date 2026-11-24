@@ -11,7 +11,7 @@ package merge
 // ── WHAT THE ALIGN STEP DOES NOT DO ────────────────────────────────────────
 //
 // It does not change the leg. Cutting the leg at the same boundaries, and
-// sharing those nodes, is the leg cut ([LegSeamsFromAlign]). Keeping the two
+// sharing those nodes, is the leg cut ([legSeamsFromAlign]). Keeping the two
 // apart keeps each step's effect on the network separately measurable.
 //
 // This step reuses the T-junction split's mechanism, its decline vocabulary and
@@ -527,7 +527,7 @@ func cutCanonAtMeasure(
 	// `claim` is therefore not subtracted from the candidate set. exclude stays
 	// empty, not nil, so this call keeps [NearestNode]'s excluding shape: if a
 	// future case needs a real exclusion, the site already has it.
-	lat, lon := InterpolateMeasurePointM(arc.Vertices, measure)
+	lat, lon := interpolateMeasurePointM(arc.Vertices, measure)
 	out.Lat, out.Lon = lat, lon
 	exclude := []NodeID{}
 	nearby, foundNearby, err := NearestNode(ctx, canon, lat, lon, EndpointWarpRadiusM, exclude)
@@ -566,7 +566,7 @@ func cutCanonAtMeasure(
 	// what the one-node rule exists to prevent, and no amount of parallel-copy
 	// removal is worth reintroducing it. The piece whose ride then cannot be
 	// resolved is created instead (rare in practice).
-	lineageNearby, lineageDistM, lineageFound, err := NearestLineageNode(lineage, measure, lat, lon, &st.hooks)
+	lineageNearby, lineageDistM, lineageFound, err := nearestLineageNode(lineage, measure, lat, lon, &st.hooks)
 	if err != nil {
 		return AlignBoundary{}, err
 	}
@@ -647,10 +647,10 @@ func cutCanonAtMeasure(
 	// exempted from is a PAIRWISE check over the finished network: a mint with two
 	// foreign nodes inside the radius makes two violating pairs, so recording only
 	// the nearest would exempt one and leave its twin looking like a genuine
-	// violation. Same search, same box, same exclude ([NearbyNodes] and
+	// violation. Same search, same box, same exclude ([nearbyNodes] and
 	// [NearestNode] share one body), reduced to nearest here for the message
 	// and kept whole for the record.
-	nearbyAll, err := NearbyNodes(ctx, canon, res.Node.Lat, res.Node.Lon, EndpointWarpRadiusM, []NodeID{res.Node.ID})
+	nearbyAll, err := nearbyNodes(ctx, canon, res.Node.Lat, res.Node.Lon, EndpointWarpRadiusM, []NodeID{res.Node.ID})
 	if err != nil {
 		return AlignBoundary{}, fmt.Errorf(
 			"SplitCanonAtRunBoundaries: invariant check after minting node %d: %w", res.Node.ID, err)

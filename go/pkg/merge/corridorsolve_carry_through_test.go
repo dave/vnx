@@ -2,7 +2,7 @@ package merge
 
 // The paid teleport must be DRAWN.
 //
-// [CrossCandidateSwitchCost] charges a cross-candidate switch the canon-graph
+// [crossCandidateSwitchCost] charges a cross-candidate switch the canon-graph
 // distance foot_A -> V -> foot_B through a shared node V. That is a purchase,
 // and the runs either side must contain what it bought: the drawn stretch on A
 // runs up to V, and the stretch on B resumes from V. Without it the cost
@@ -62,7 +62,7 @@ func TestCarryThrough_PaidTeleportLandsOnTheArcEnd(t *testing.T) {
 			"never happened: %+v", onA != nil, onB != nil, runs)
 	}
 	// ⚠ EXACT, NOT WITHIN A TOLERANCE. The whole point is that the boundary is
-	// the arc's own end measure, written by [CrossCandidateSharedPair] as the
+	// the arc's own end measure, written by [crossCandidateSharedPair] as the
 	// same float the candidate's measure table holds — so the align step reads it as
 	// DECLINE 1 (at node) rather than cutting a few centimetres inside.
 	if onA.MeasureEnd != prepped[0].Total {
@@ -77,7 +77,7 @@ func TestCarryThrough_PaidTeleportLandsOnTheArcEnd(t *testing.T) {
 	}
 }
 
-// TestCarryThrough_EndIsExtremeIsStructural pins [CarryEndIsExtreme], which is
+// TestCarryThrough_EndIsExtremeIsStructural pins [carryEndIsExtreme], which is
 // the whole of the direction rule now that the PAIRING is direction-consistent.
 // The declared Dir is the authority on both sides: the run being extended must
 // be paired with the end its own direction walks toward, and a run being
@@ -111,7 +111,7 @@ func TestCarryThrough_EndIsExtremeIsStructural(t *testing.T) {
 		{"an interior vertex is neither end", CorridorFWD, 3, false},
 		{"an interior vertex is neither end, reversed", CorridorREV, 3, false},
 	} {
-		if got := CarryEndIsExtreme(tc.dir, tc.vi, n); got != tc.want {
+		if got := carryEndIsExtreme(tc.dir, tc.vi, n); got != tc.want {
 			t.Errorf("%s: carryEndIsExtreme(%v, %v, %v) = %v, want %v", tc.name, tc.dir, tc.vi, n, got, tc.want)
 		}
 	}
@@ -142,7 +142,7 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 		ImportMeasureAtLo: 0, ImportMeasureAtHi: 200,
 		CanonMeasureAtLo: 0, CanonMeasureAtHi: pcB.Total,
 	}}
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: BacktrackWeightPerM}
+	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	// FWD -> FWD, TEN metres along: A's forward end is its FAR end, B's
 	// away-end is its NEAR end. Those are different coordinates, so no pairing
@@ -155,12 +155,12 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 	// the two rules apart. Near the node it can: at 10 m along each the old
 	// rule sells the turnaround for about 20 against P = 50. Short stubs are
 	// exactly the population that regressed (the 3.30 m zero-pip cluster).
-	if sh := CrossCandidateSharedPair(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10); sh.OK {
+	if sh := crossCandidateSharedPair(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10); sh.OK {
 		t.Errorf("two arcs LEAVING one node resolved a pairing (EA=%v EB=%v dist=%v) — a walker "+
 			"heading away from V has no continuation through it, and pricing one sells a turnaround "+
 			"for less than the P a turnaround costs inside one arc", sh.EA, sh.EB, sh.Dist)
 	}
-	if got := CrossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10, tun); got != StateChangeCostP {
+	if got := crossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, 10, tun); got != StateChangeCostP {
 		t.Errorf("price %v, want exactly P=%v — turning round onto a parallel copy must cost what "+
 			"turning round in place costs, or the solver takes the copy", got, StateChangeCostP)
 	}
@@ -168,7 +168,7 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 	// REV -> FWD is the continuation that DOES exist: the walker comes back
 	// down A toward V and leaves along B. Both ends are V, and at 60 m along
 	// each the graph distance is 60 + 60.
-	sh := CrossCandidateSharedPair(&spA, &spB, CorridorREV, CorridorFWD, cands, 60)
+	sh := crossCandidateSharedPair(&spA, &spB, CorridorREV, CorridorFWD, cands, 60)
 	if !sh.OK {
 		t.Fatalf("REV->FWD must resolve: the walker reaches V along A and leaves along B")
 	}
@@ -180,18 +180,18 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 	if sh.IA != 0 || sh.IB != 0 {
 		t.Errorf("pairing indices (IA=%v, IB=%v), want (0, 0) — the measure-0 end is vertex 0 on each arc", sh.IA, sh.IB)
 	}
-	if !CarryEndIsExtreme(CorridorREV, sh.IA, len(pcA.Verts)) {
+	if !carryEndIsExtreme(CorridorREV, sh.IA, len(pcA.Verts)) {
 		t.Errorf("IA=%v is not the end a REV walker on A heads toward, so the carry-through would "+
 			"refuse the pairing this switch just paid for", sh.IA)
 	}
-	if !CarryEndIsExtreme(!CorridorFWD, sh.IB, len(pcB.Verts)) {
+	if !carryEndIsExtreme(!CorridorFWD, sh.IB, len(pcB.Verts)) {
 		t.Errorf("IB=%v is not the end a FWD walker on B starts from, so the carry-through would "+
 			"refuse the pairing this switch just paid for", sh.IB)
 	}
 	// Recomputed from the pieces, not written as 120: mPt places points by
 	// degrees, so a 200 m fixture's arc measures a little under 200 and the two
 	// arcs differ (B is offset 6 m north at its far end).
-	want := math.Abs(CanonMeasureAtPiece(spA.P, 60)-0) + math.Abs(CanonMeasureAtPiece(spB.P, 60)-0)
+	want := math.Abs(canonMeasureAtPiece(spA.P, 60)-0) + math.Abs(canonMeasureAtPiece(spB.P, 60)-0)
 	if math.Abs(sh.Dist-want) > 1e-9 {
 		t.Errorf("graph distance %v, want %v", sh.Dist, want)
 	}
@@ -204,7 +204,7 @@ func TestCrossCandidateSharedPair_IsDirectionConsistent(t *testing.T) {
 // canon-graph distance exceeds P / BacktrackWeight; that switch bought
 // nothing and owes no geometry.
 //
-// Tested on [CrossCandidateSharedPair] and [CrossCandidateSwitchCost], which
+// Tested on [crossCandidateSharedPair] and [crossCandidateSwitchCost], which
 // are the same two calls the run reconstruction makes — it reads the identical
 // predicate rather than a second copy of it, which is why there is one
 // definition of the shared pair at all.
@@ -214,13 +214,13 @@ func TestCarryThrough_TheGateIsTheCapNotTheSharedNode(t *testing.T) {
 	pcA := prepOne(t, mPt(0, 0), v)
 	pcB := prepOne(t, v, mPt(200, 0))
 	cands := []*PreppedCandidate{pcA, pcB}
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: BacktrackWeightPerM}
+	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	// The source runs [0,200] west to east under both arcs, so A's walk maps
 	// import [0,100] onto A's whole measure and B's maps [100,200] onto B's.
 	// A's shared end is therefore its LAST vertex (measure pcA.total) reached
 	// at x=100, and B's is its FIRST (measure 0) reached at the same x — one
-	// continuous line through V. [CanonMeasureAtPiece] extrapolates outside a
+	// continuous line through V. [canonMeasureAtPiece] extrapolates outside a
 	// piece's own range, which is what lets one x probe both.
 	spA := SolvePiece{CandIdx: 0, P: CorridorPiece{
 		ImportMeasureAtLo: 0, ImportMeasureAtHi: 100,
@@ -242,16 +242,16 @@ func TestCarryThrough_TheGateIsTheCapNotTheSharedNode(t *testing.T) {
 		// distance is about 30 + 30 = 60 m, over P = 50.
 		{"feet far from the node on both sides", 70, false},
 	} {
-		sh := CrossCandidateSharedPair(&spA, &spB, CorridorFWD, CorridorFWD, cands, tc.x)
+		sh := crossCandidateSharedPair(&spA, &spB, CorridorFWD, CorridorFWD, cands, tc.x)
 		if !sh.OK {
 			t.Fatalf("%s: the two candidates share V, so the pair must resolve", tc.name)
 		}
-		gotUnder := BacktrackWeightPerM*sh.Dist < StateChangeCostP
+		gotUnder := backtrackWeightPerM*sh.Dist < StateChangeCostP
 		if gotUnder != tc.wantUnder {
 			t.Errorf("%s: canon-graph distance %.4f m gives priced-below-P = %v, want %v",
 				tc.name, sh.Dist, gotUnder, tc.wantUnder)
 		}
-		price := CrossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, tc.x, tun)
+		price := crossCandidateSwitchCost(&spA, &spB, CorridorFWD, CorridorFWD, cands, tc.x, tun)
 		if tc.wantUnder && !(price < StateChangeCostP) {
 			t.Errorf("%s: price %v is not below P=%v", tc.name, price, StateChangeCostP)
 		}

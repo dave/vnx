@@ -4,7 +4,7 @@ package merge
 //
 // A bridge edge used to be the only edge in the corridor solve that
 // consumed import measure and paid nothing per metre for it: it relaxed with
-// the canon-side gap integral alone ([BridgeCost]), while ON pays emission
+// the canon-side gap integral alone ([bridgeCost]), while ON pays emission
 // (d/R)^k per metre of import and OFF pays its raw metres. A bridge was
 // therefore priced exactly as PERFECT ADOPTION AT d=0 over source that is by
 // construction OUTSIDE the corridor.
@@ -96,7 +96,7 @@ func TestCandidateBridgeCost_ChargesForTheSourceItSkips(t *testing.T) {
 			continue // not the long excursion; a short adjacent gap proves nothing here
 		}
 		sawSkipper = true
-		want := NoBridgeCost(importGap)
+		want := noBridgeCost(importGap)
 		t.Logf("bridge iv%d->iv%d: importGap=%.3fm canonSpan=%.3fm cost=%.4f noBridge=%.4f",
 			br.FromIv, br.ToIv, importGap, canonSpan, br.Cost, want)
 		if br.Cost <= want {
@@ -142,8 +142,8 @@ func TestImportGapCost_ShortNearGapStaysCheap(t *testing.T) {
 	for _, br := range bridges {
 		importGap := ivs[br.ToIv].ImportMeasureLo - ivs[br.FromIv].ImportMeasureHi
 		t.Logf("bridge iv%d->iv%d: importGap=%.3fm cost=%.4f noBridge=%.4f",
-			br.FromIv, br.ToIv, importGap, br.Cost, NoBridgeCost(importGap))
-		if br.Cost < NoBridgeCost(importGap) {
+			br.FromIv, br.ToIv, importGap, br.Cost, noBridgeCost(importGap))
+		if br.Cost < noBridgeCost(importGap) {
 			cheap = true
 		}
 	}

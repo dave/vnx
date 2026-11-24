@@ -14,13 +14,13 @@ import (
 // assembleCorridorPoints runs the live assembler with no node access, as
 // production does, and returns only the committed points.
 func assembleCorridorPoints(leg []Point, canon []CanonArc, runs []FollowRun, b FollowBands) ([]Point, error) {
-	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, NoNodeLookup)
+	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, err
 }
 
 // assembleCorridorRuns is [assembleCorridorPoints] plus the effective runs.
 func assembleCorridorRuns(leg []Point, canon []CanonArc, runs []FollowRun, b FollowBands) ([]Point, []FollowRun, error) {
-	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, NoNodeLookup)
+	asm, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	return asm.Points, asm.Runs, err
 }
 
@@ -255,7 +255,7 @@ func TestFollowCorridorAssemble_RepealedCorridorPostConditionCommitsVerbatim(t *
 	b := DefaultFollowBands()
 	// A hand-built ON run claiming coincidence with a canon the source is
 	// nowhere near (40 m off) used to trip the symmetric-corridor
-	// post-condition (assembleOnRun's CheckCorridor abort).
+	// post-condition (assembleOnRun's checkCorridor abort).
 	//
 	// A ruling (2026-08-19) REPEALS that abort:
 	// it belonged to the pre-cutover matcher, which never proposed a run
@@ -681,7 +681,7 @@ func TestFollowCorridorAssemble_OnOnHandoffSnapsToSharedNode(t *testing.T) {
 //
 // ⚠ TWO DEFENCES HOLD THIS OUTCOME, so it pins the outcome, not the budget.
 // Widening the snap budget to 25 m leaves this green (measured): the trial
-// snap is then refused by the node-snap corridor gate ([CheckCorridor] at
+// snap is then refused by the node-snap corridor gate ([checkCorridor] at
 // CorridorRadiusM), because 20 m of canon before the run's own source start
 // is outside the corridor. Widening the budget AND opening that gate turns it
 // red (measured).

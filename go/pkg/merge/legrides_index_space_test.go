@@ -14,12 +14,12 @@ import (
 // CREATED copy of canon, which is the parallel-strand defect the duplicate-strand
 // rule exists to remove, and the import reports success while doing it.
 //
-// The comparison now lives in CheckRidesIndexSpace, raised once for the leg.
+// The comparison now lives in checkRidesIndexSpace, raised once for the leg.
 // These are its bars.
 func TestCheckRidesIndexSpace(t *testing.T) {
 	t.Run("a mismatched count is an error naming both counts", func(t *testing.T) {
 		rides := &LegRides{PointCount: 41}
-		err := CheckRidesIndexSpace(rides, 40, `plan "Scafell Pike" (item 3)`)
+		err := checkRidesIndexSpace(rides, 40, `plan "Scafell Pike" (item 3)`)
 		if err == nil {
 			t.Fatal("checkRidesIndexSpace = nil for 40 points against rides resolved at 41 — a stale index space must fail the item, not silently disable the rides and let the leg copy canon")
 		}
@@ -34,7 +34,7 @@ func TestCheckRidesIndexSpace(t *testing.T) {
 	})
 
 	t.Run("a matching count passes", func(t *testing.T) {
-		if err := CheckRidesIndexSpace(&LegRides{PointCount: 40}, 40, `track "n" (item 0)`); err != nil {
+		if err := checkRidesIndexSpace(&LegRides{PointCount: 40}, 40, `track "n" (item 0)`); err != nil {
 			t.Errorf("checkRidesIndexSpace = %v for a leg whose count never moved, want nil", err)
 		}
 	})
@@ -43,7 +43,7 @@ func TestCheckRidesIndexSpace(t *testing.T) {
 		// A leg the matcher resolved nothing for offers no ranges, so there is
 		// no index space to invalidate. Erroring here would fail every leg
 		// that simply had no canon to ride.
-		if err := CheckRidesIndexSpace(nil, 40, `track "n" (item 0)`); err != nil {
+		if err := checkRidesIndexSpace(nil, 40, `track "n" (item 0)`); err != nil {
 			t.Errorf("checkRidesIndexSpace = %v for a leg with no rides at all, want nil", err)
 		}
 	})

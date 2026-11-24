@@ -25,7 +25,7 @@
 // ⚠ NO EPSILON, NO CONSTANT, AND NONE MAY BE ADDED. The question is identity,
 // not proximity: the same question the follow's candidate switch cost asks of
 // two candidates' shared endpoint, and the same argument
-// pieceHasExtent and [ZeroArcGap] make for their own exact zeroes. There is
+// pieceHasExtent and [zeroArcGap] make for their own exact zeroes. There is
 // no number in this file. If a case needs "close enough", it belongs to the
 // symmetric snap, which owns proximity and has a fixed radius for it.
 package merge
@@ -66,7 +66,7 @@ const (
 	// them.
 	InteriorNodeDeclineAlreadySeamed InteriorNodeSeamDecline = "already-seamed"
 	// Cutting here would leave a piece with no distance along the leg at all —
-	// [ZeroArcGap]'s exact zero, measured to the neighbouring boundary.
+	// [zeroArcGap]'s exact zero, measured to the neighbouring boundary.
 	interiorNodeDeclineNoExtent InteriorNodeSeamDecline = "no-extent"
 )
 
@@ -105,7 +105,7 @@ func (r InteriorNodeSeamReport) Accepted() int {
 // point is a vertex the leg already had — that is what "bitwise equal" buys —
 // so nothing is renumbered, `len(pts)` does not move, and
 // [LegRides.PointCount] stays a sufficient witness. This is the whole reason
-// the rule can run BEFORE [ResolveLegRides] instead of needing the
+// the rule can run BEFORE [resolveLegRides] instead of needing the
 // remap [LegRides.RemapAfterSnapInsertions] does for the symmetric snap.
 //
 // ⚠ IT MINTS NOTHING, so the node-count identity is untouched by construction
@@ -147,13 +147,13 @@ func LegSeamsAtInteriorNodes(
 		claimed[*endTerminal] = true
 	}
 
-	// EXCLUDE NOTHING, SAID EXPLICITLY. [NodesAtWalkVertices] makes
+	// EXCLUDE NOTHING, SAID EXPLICITLY. [nodesAtWalkVertices] makes
 	// `exclude` a required parameter precisely so a caller cannot forget the
 	// question, and this caller's answer is "no node is excluded": the search is
 	// for vertices the leg is ALREADY standing on, and a node's own membership
 	// of this leg is what `claimed` filters afterwards, not what the identity
 	// search should be blind to.
-	found, err := NodesAtWalkVertices(ctx, canon, pts, []NodeID{})
+	found, err := nodesAtWalkVertices(ctx, canon, pts, []NodeID{})
 	if err != nil {
 		return nil, rep, fmt.Errorf("LegSeamsAtInteriorNodes: %w", err)
 	}
@@ -249,7 +249,7 @@ func LegSeamsAtInteriorNodes(
 		// the next one" the symmetric snap's StubM uses, for the same
 		// reason: two accepted cuts must not make an empty piece between them.
 		//
-		// ⚠ [ZeroArcGap], NOT pieceHasExtent, AND THE DIFFERENCE COST THE
+		// ⚠ [zeroArcGap], NOT pieceHasExtent, AND THE DIFFERENCE COST THE
 		// HEADLINE CASE. pieceHasExtent calls a TWO-POINT piece extentless
 		// unconditionally, because the piece writer overwrites both of its ends with the
 		// seam node's coordinate — true where it is used, which is only ever
@@ -275,7 +275,7 @@ func LegSeamsAtInteriorNodes(
 				next = t.idx
 			}
 		}
-		if ZeroArcGap(pts, prev, c.Idx) || ZeroArcGap(pts, c.Idx, next) {
+		if zeroArcGap(pts, prev, c.Idx) || zeroArcGap(pts, c.Idx, next) {
 			c.Decline = interiorNodeDeclineNoExtent
 			rep.Candidates = append(rep.Candidates, c)
 			continue
@@ -301,8 +301,8 @@ func LegSeamsAtInteriorNodes(
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Idx < out[j].Idx })
-	// The same collapse [LegSeamsFromAlign] ends with, for the same reason and
+	// The same collapse [legSeamsFromAlign] ends with, for the same reason and
 	// idempotent on a list it has nothing to do to: a new seam can sit beside an
 	// existing same-node one and make an empty piece the writer would abort on.
-	return CollapseSameNodeSeams(out, pts, startTerminal, endTerminal), rep, nil
+	return collapseSameNodeSeams(out, pts, startTerminal, endTerminal), rep, nil
 }

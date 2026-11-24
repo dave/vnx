@@ -8,7 +8,7 @@ package merge
 // that cancels and went NEGATIVE on real tracks: 4,932 times on two real
 // imports, down to −1.43e-8, and the negative arc costs let the solve improve
 // states it had already popped.
-// [IntegrateDistSqPow] is now an (m+1)-point Gauss–Legendre rule over a
+// [integrateDistSqPow] is now an (m+1)-point Gauss–Legendre rule over a
 // sum-of-squares integrand. These tests hold it to three things: it is never
 // negative, including on the recorded pieces that broke the old one; it is
 // exact, against an arbitrary-precision reference; and a negative cost, if one
@@ -168,7 +168,7 @@ func TestIntegrateDistSqPow_MatchesBigReference(t *testing.T) {
 			bp   BandPiece
 		}{{"span", span}, {"near A", near}} {
 			want := bigIntegrateDistSqPow(c.bp, m)
-			got, err := IntegrateDistSqPow(c.bp, m)
+			got, err := integrateDistSqPow(c.bp, m)
 			if err != nil {
 				t.Fatalf("%s m=%d: %v", c.name, m, err)
 			}
@@ -188,13 +188,13 @@ func TestIntegrateDistSqPow_MatchesBigReference(t *testing.T) {
 	// error.
 	point := span
 	point.Hi = point.Lo
-	if got, err := IntegrateDistSqPow(point, 2); err != nil || got != 0 {
+	if got, err := integrateDistSqPow(point, 2); err != nil || got != 0 {
 		t.Fatalf("hi == lo: got %v, %v; want 0 and no error", got, err)
 	}
 	// A reversed piece is an error, not a negative integral.
 	reversed := span
 	reversed.Lo, reversed.Hi = span.Hi, span.Lo
-	if _, err := IntegrateDistSqPow(reversed, 2); err == nil || !strings.Contains(err.Error(), "< lo") {
+	if _, err := integrateDistSqPow(reversed, 2); err == nil || !strings.Contains(err.Error(), "< lo") {
 		t.Fatalf("hi < lo: got err %v, want the reversed-piece error", err)
 	}
 }
@@ -203,7 +203,7 @@ func TestIntegrateDistSqPow_MatchesBigReference(t *testing.T) {
 
 // negativeEmissionFixtures are real pieces on which the old integral came out
 // negative: the 8 most negative of each regime among the 1,959 distinct pieces
-// recorded on two real imports, 2026-09-24. Each is the (p, q, a, b, d) that BandPieces was called
+// recorded on two real imports, 2026-09-24. Each is the (p, q, a, b, d) that bandPieces was called
 // with, bit for bit, plus the clipped [lo, hi] of the corridor piece's regime
 // and the emission the old formula gave it. kind is the BandRegime.
 var negativeEmissionFixtures = []struct {
@@ -247,7 +247,7 @@ func fixturePoint(bits [2]uint64) Point {
 func fixturePiece(t *testing.T, i int) BandPiece {
 	t.Helper()
 	f := negativeEmissionFixtures[i]
-	pieces, n, _, _, err := BandPieces(fixturePoint(f.p), fixturePoint(f.q), fixturePoint(f.a), fixturePoint(f.b), math.Float64frombits(f.d))
+	pieces, n, _, _, err := bandPieces(fixturePoint(f.p), fixturePoint(f.q), fixturePoint(f.a), fixturePoint(f.b), math.Float64frombits(f.d))
 	if err != nil {
 		t.Fatalf("fixture %d: bandPieces: %v", i, err)
 	}
@@ -267,10 +267,10 @@ func fixturePiece(t *testing.T, i int) BandPiece {
 // piece's own scale, where the old formula was negative.
 //
 // ⚠ ITS LIVENESS IS ASSERTED: the old formula must still be negative on each
-// fixture. If a change to BandPieces stopped these pieces reproducing, this
+// fixture. If a change to bandPieces stopped these pieces reproducing, this
 // test would otherwise pass on pieces that no longer exercise the defect.
 //
-// Red proof, 2026-09-24 (detached worktree): with IntegrateDistSqPow put back
+// Red proof, 2026-09-24 (detached worktree): with integrateDistSqPow put back
 // to the power-rule form, this fails on fixture 0 with a negative integral.
 func TestIntegrateDistSqPow_RecordedFailingPiecesAreNonNegative(t *testing.T) {
 	if len(negativeEmissionFixtures) != 24 {
@@ -284,7 +284,7 @@ func TestIntegrateDistSqPow_RecordedFailingPiecesAreNonNegative(t *testing.T) {
 		if !(old < 0) {
 			t.Fatalf("fixture %d: the old formula gives %v, not a negative — the fixture no longer witnesses the defect", i, old)
 		}
-		got, err := IntegrateDistSqPow(bp, EmissionK/2)
+		got, err := integrateDistSqPow(bp, EmissionK/2)
 		if err != nil {
 			t.Fatalf("fixture %d: %v", i, err)
 		}
@@ -311,16 +311,16 @@ func TestIntegrateDistSqPow_RecordedFailingPiecesAreNonNegative(t *testing.T) {
 
 // TestEmissionCost_NegativeIsAnError injects a negative emission — a piece whose
 // import measure runs backwards against t, so its rate is negative — and checks
-// that EmissionCost refuses it rather than hand it to the solve. (ArcCost
+// that emissionCost refuses it rather than hand it to the solve. (ArcCost
 // carries the same check on the sum it forms, but a backwards piece never
-// reaches it: ClipCorridorPiece refuses to clip one first.)
+// reaches it: clipCorridorPiece refuses to clip one first.)
 //
-// Red proof, 2026-09-24 (detached worktree): with EmissionCost's check removed,
+// Red proof, 2026-09-24 (detached worktree): with emissionCost's check removed,
 // the cost comes back as a negative number and this fails.
 func TestEmissionCost_NegativeIsAnError(t *testing.T) {
 	bp := nearPieceFromOffset(RegimeNearA, 0.2, 0.6, 3, 1, 2, -1)
 	cp := CorridorPiece{Regime: bp, ImportMeasureAtLo: 10, ImportMeasureAtHi: 6} // backwards
-	_, err := EmissionCost(cp, CorridorRadiusM, EmissionK)
+	_, err := emissionCost(cp, CorridorRadiusM, EmissionK)
 	if err == nil {
 		t.Fatal("emissionCost accepted a piece whose emission is negative")
 	}

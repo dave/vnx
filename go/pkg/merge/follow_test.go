@@ -54,7 +54,7 @@ func straightLegX(n int, lenM, yM float64) []Point {
 	return pts
 }
 
-// TestFollowHintPolyMatchesBruteForce pins the perf primitive: HintPoly's
+// TestFollowHintPolyMatchesBruteForce pins the perf primitive: hintPoly's
 // prefix/suffix-box-pruned nearestDist must return the exact same distance as a
 // full ptToPolylineDistM scan, for ANY seed hint (including out-of-range ones)
 // and across self-approaching shapes where a naive monotone walk would miss the
@@ -81,7 +81,7 @@ func straightLegX(n int, lenM, yM float64) []Point {
 // prefix box that ends at edge j's FIRST vertex, it fails on "53N doubling
 // back, reversed hint=2"; with the n == 0 return removed, it panics (index out
 // of range) on "no vertices", which the old random sweep never drew. With
-// both math.Abs calls removed from NewHintPoly's cosMin, it fails on the 56.8°S
+// both math.Abs calls removed from newHintPoly's cosMin, it fails on the 56.8°S
 // case (the old sweep, at −56.8°: "nearestDist=36.1198793847503 !=
 // ptToPolylineDistM=36.1198007023733").
 func TestFollowHintPolyMatchesBruteForce(t *testing.T) {
@@ -117,7 +117,7 @@ func TestFollowHintPolyMatchesBruteForce(t *testing.T) {
 		{"56.8S doubling back, west edge 5 mm inside the hint, reversed", -56.8, poly(-56.8, 99.995, true), 0, 0},
 	}
 	for _, c := range cases {
-		hp := NewHintPoly(c.poly)
+		hp := newHintPoly(c.poly)
 		probe := offsetPt(c.baseLat, -3, c.probeE, 0)
 		want := ptToPolylineDistM(probe.Lat, probe.Lon, c.poly)
 		nedges := len(c.poly) - 1
@@ -172,7 +172,7 @@ func TestPreppedCandidateProjectRangeCeil_SouthernSuffixBox(t *testing.T) {
 // ptToPolylineDistM is the straightforward full-scan minimum planar distance in
 // metres from (lat, lon) to the polyline `poly` (joined arcs; a single
 // vertex degenerates to point-to-point). Production code no longer calls it —
-// HintPoly.nearestDist replaced it — so it lives here as the brute-force
+// hintPoly.nearestDist replaced it — so it lives here as the brute-force
 // reference TestFollowHintPolyMatchesBruteForce checks the pruned primitive
 // against.
 func ptToPolylineDistM(lat, lon float64, poly []Point) float64 {

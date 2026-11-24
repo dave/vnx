@@ -1,6 +1,6 @@
 package merge
 
-// Prove-It for [PruneToNearestCanonEdges]. The prune shipped with NO direct
+// Prove-It for [pruneToNearestCanonEdges]. The prune shipped with NO direct
 // unit test — it was certified only by whole-import locks — and that is how the
 // whole-run deletion below reached a real import without anything going red.
 //
@@ -26,7 +26,7 @@ func nearestTestPiece(e int, lo, hi, d float64) CorridorPiece {
 
 func nearestKeptEdges(t *testing.T, pieces []CorridorPiece) []int {
 	t.Helper()
-	out, err := PruneToNearestCanonEdges(pieces, nil)
+	out, err := pruneToNearestCanonEdges(pieces, nil)
 	if err != nil {
 		t.Fatalf("pruneToNearestCanonEdges: %v", err)
 	}
@@ -40,15 +40,15 @@ func nearestKeptEdges(t *testing.T, pieces []CorridorPiece) []int {
 // TestPruneToNearestCanonEdges_ANarrowWindowIsNotDeleted is the red-first
 // reproduction of the auditor's finding (2026-08-24).
 //
-// CRIPPLE: delete the per-piece-midpoint loop in PruneToNearestCanonEdges
+// CRIPPLE: delete the per-piece-midpoint loop in pruneToNearestCanonEdges
 // and this goes red — the piece is dropped outright, because its whole
 // regime window falls between two points of the uniform sample grid.
 func TestPruneToNearestCanonEdges_ANarrowWindowIsNotDeleted(t *testing.T) {
 	// [0.001, 0.005] contains no k/64 for integer k, so the uniform grid
 	// never lands inside it.
 	const lo, hi = 0.001, 0.005
-	for s := 0; s <= NearestRunSamples; s++ {
-		if v := float64(s) / float64(NearestRunSamples); v >= lo && v <= hi {
+	for s := 0; s <= nearestRunSamples; s++ {
+		if v := float64(s) / float64(nearestRunSamples); v >= lo && v <= hi {
 			t.Fatalf("fixture is stale: sample %d (t=%v) lands inside [%v,%v], so this no longer "+
 				"exercises a window the grid misses", s, v, lo, hi)
 		}
@@ -143,7 +143,7 @@ func TestPruneToNearestCanonEdges_ReturnsARightSizedSlice(t *testing.T) {
 	pieces = append(make([]CorridorPiece, 0, 4*n), pieces...)
 	inCap := cap(pieces)
 
-	out, err := PruneToNearestCanonEdges(pieces, nil)
+	out, err := pruneToNearestCanonEdges(pieces, nil)
 	if err != nil {
 		t.Fatalf("pruneToNearestCanonEdges: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestPruneToNearestCanonEdges_ObserverFires(t *testing.T) {
 	for e := 0; e < 40; e++ {
 		pieces = append(pieces, nearestTestPiece(e, 0, 1, 1+math.Abs(float64(e-20))))
 	}
-	if _, err := PruneToNearestCanonEdges(pieces, hooks); err != nil {
+	if _, err := pruneToNearestCanonEdges(pieces, hooks); err != nil {
 		t.Fatalf("pruneToNearestCanonEdges: %v", err)
 	}
 	if fired != 1 {

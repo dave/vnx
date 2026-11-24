@@ -2,7 +2,7 @@ package merge
 
 // bandinterval.go — the exact band solve.
 //
-// For a source edge P→Q and a canon edge A→B, [BandInterval] returns the set
+// For a source edge P→Q and a canon edge A→B, [bandInterval] returns the set
 // of positions t ∈ [0,1] along P→Q whose distance to A→B is ≤ d metres. That
 // set is a single CLOSED interval: distance to a convex set is convex, a
 // segment is convex, and t ↦ P + t(Q−P) is affine, so f(t) = dist(X(t), AB) is
@@ -38,7 +38,7 @@ package merge
 // whether the boundary point is in the band, so the boundary's membership is
 // decided ONCE, from the solves themselves: it is in the band when either
 // adjacent regime's own solve reaches it, and both pieces are made to agree
-// with that verdict (see [BandPieces], "the regime joins"). That is an exact
+// with that verdict (see [bandPieces], "the regime joins"). That is an exact
 // float equality and an assignment, not a comparison against a small number. A
 // gap that survives it means BOTH solves put the boundary outside a band they
 // each found on their own side — an arithmetic self-contradiction, reported as
@@ -66,7 +66,7 @@ type segFrame struct {
 	LenSq      float64 // |b − a|², metres²
 }
 
-func NewSegFrame(aLat, aLon, bLat, bLon float64) segFrame {
+func newSegFrame(aLat, aLon, bLat, bLon float64) segFrame {
 	midLat := (aLat + bLat) * 0.5
 	cosLat := detmath.Cos(midLat * math.Pi / 180.0)
 	bx := float64((bLon - aLon) * MetresPerDeg * cosLat)
@@ -133,16 +133,16 @@ const (
 // kind and the coefficients below are exposed for the corridor cost integral
 // (its canon-side and import-side terms), which
 // needs dist²(t) over this piece, not just its band membership. They are
-// captured from the SAME local variables BandPieces already computes for the
+// captured from the SAME local variables bandPieces already computes for the
 // membership solve — nothing here is recomputed on a different call path, so
 // there is no risk of the FMA-fusion drift [segFrame.project]'s header warns
 // about.
 //
 //   - RegimeNearA, RegimeNearB: dist²(t) = quadA·t² + quadB·t + quadC exactly
-//     (SolveQuadLE's own a,b,c, minus the −d² shift that turns it into a
+//     (solveQuadLE's own a,b,c, minus the −d² shift that turns it into a
 //     membership test).
 //   - RegimeSpan: dist²(t) = (spanC0 + spanC1·t)² / spanLenSq, kept in this
-//     linear-then-square form rather than expanded — SolveAbsLE's own header
+//     linear-then-square form rather than expanded — solveAbsLE's own header
 //     explains why: the expanded quadratic cancels catastrophically on a long
 //     canon edge. [distSq] squares only at evaluation time; do not expand it
 //     into (a,b,c) form elsewhere.
@@ -179,10 +179,10 @@ func (bp BandPiece) DistSq(t float64) float64 {
 // squares in every regime, so for finite input it is ≥ 0 BY CONSTRUCTION:
 //
 //   - RegimeSpan: (spanC0 + spanC1·t)² / spanLenSq — a square over a squared
-//     length, which BandPieces only builds when the canon edge has length.
+//     length, which bandPieces only builds when the canon edge has length.
 //   - RegimeNearA/RegimeNearB: (nearX0 + nearX1·t)² + (nearY0 + nearY1·t)².
 //
-// It is what the cost integral evaluates ([IntegrateDistSqPow]). [distSq] stays
+// It is what the cost integral evaluates ([integrateDistSqPow]). [distSq] stays
 // the trinomial for the membership solve and the envelope's choice of piece,
 // which compare and solve rather than accumulate; changing those is a
 // different change.
@@ -206,26 +206,26 @@ func (bp BandPiece) distSqSquares(t float64) (float64, error) {
 	}
 }
 
-// BandRegimeRange is one regime's extent in t, before the band condition is
+// bandRegimeRange is one regime's extent in t, before the band condition is
 // applied. Regimes are built in ascending t order.
-type BandRegimeRange struct {
+type bandRegimeRange struct {
 	Kind   BandRegime
 	Lo, Hi float64
 }
 
-// BandJoin is one internal regime boundary and the single authoritative verdict
+// bandJoin is one internal regime boundary and the single authoritative verdict
 // taken there: is the boundary point in the band? It is recorded rather than
 // merely acted on so tests can pin the construction (that the two adjacent
 // pieces agree with this verdict) instead of only its symptom (that no gap is
 // reported), and so a surviving gap can name which solve said what.
-type BandJoin struct {
+type bandJoin struct {
 	T           float64 // the shared boundary, in source-edge parameter space
 	LowReaches  bool    // the regime below t (in t) solved its piece up to t
 	HighReaches bool    // the regime above t solved its piece down to t
 	InBand      bool    // lowReaches || highReaches
 }
 
-// BandInterval returns the positions t ∈ [0,1] along the source edge p→q whose
+// bandInterval returns the positions t ∈ [0,1] along the source edge p→q whose
 // distance to the canon edge a→b is at most d metres, as a single closed
 // interval. ok is false when no position qualifies.
 //
@@ -248,33 +248,33 @@ type BandJoin struct {
 // An error means the arithmetic contradicted itself (the convexity assertion)
 // or the input was not finite. There is no fallback path: a case that cannot
 // be justified propagates.
-func BandInterval(p, q, a, b Point, d float64) (t0, t1 float64, ok bool, err error) {
-	pieces, n, joins, nj, err := BandPieces(p, q, a, b, d)
+func bandInterval(p, q, a, b Point, d float64) (t0, t1 float64, ok bool, err error) {
+	pieces, n, joins, nj, err := bandPieces(p, q, a, b, d)
 	if err != nil {
 		return 0, 0, false, err
 	}
-	t0, t1, ok, err = UnionOneInterval(pieces[:n])
+	t0, t1, ok, err = unionOneInterval(pieces[:n])
 	if err != nil {
 		return 0, 0, false, fmt.Errorf("BandInterval: %w %s%s",
-			err, BandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
+			err, bandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
 	}
 	return t0, t1, ok, nil
 }
 
-// BandPieces is the regime-by-regime half of the solve: it returns each
+// bandPieces is the regime-by-regime half of the solve: it returns each
 // regime's contribution, in ascending t order, before they are asserted to be
 // one interval, together with the verdict taken at each internal regime join.
-// Split out from [BandInterval] so the join can be measured directly by tests —
+// Split out from [bandInterval] so the join can be measured directly by tests —
 // the contiguity margin is the evidence that decided how this join is built.
-func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins [2]BandJoin, nj int, err error) {
-	if !AllFinite(p.Lat, p.Lon, q.Lat, q.Lon, a.Lat, a.Lon, b.Lat, b.Lon, d) {
-		return pieces, 0, joins, 0, fmt.Errorf("BandInterval: non-finite input %s", BandGeomStr(p, q, a, b, d))
+func bandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins [2]bandJoin, nj int, err error) {
+	if !allFinite(p.Lat, p.Lon, q.Lat, q.Lon, a.Lat, a.Lon, b.Lat, b.Lon, d) {
+		return pieces, 0, joins, 0, fmt.Errorf("BandInterval: non-finite input %s", bandGeomStr(p, q, a, b, d))
 	}
 	if d < 0 {
 		return pieces, 0, joins, 0, fmt.Errorf("BandInterval: band must be non-negative, got %g m", d)
 	}
 
-	f := NewSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
+	f := newSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
 
 	// The source edge in the same frame. X(t) is the lat/lon lerp of p→q, and
 	// the frame map is affine in (lat, lon), so X is affine in t here as well.
@@ -295,9 +295,9 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 		// no join to assert.
 		quadB := 2 * (float64(px*dx) + float64(py*dy))
 		quadC := float64(px*px) + float64(py*py)
-		lo, hi, has, qerr := SolveQuadLE(dsq, quadB, quadC-float64(d*d), 0, 1)
+		lo, hi, has, qerr := solveQuadLE(dsq, quadB, quadC-float64(d*d), 0, 1)
 		if qerr != nil {
-			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: zero-length canon edge: %w %s", qerr, BandGeomStr(p, q, a, b, d))
+			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: zero-length canon edge: %w %s", qerr, bandGeomStr(p, q, a, b, d))
 		}
 		if !has {
 			return pieces, 0, joins, 0, nil
@@ -313,26 +313,26 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 	// s(t) is the (unclamped) projection parameter of X(t) onto a→b, affine in t.
 	s0 := (float64(px*f.Bx) + float64(py*f.By)) / f.LenSq
 	s1 := (float64(dx*f.Bx) + float64(dy*f.By)) / f.LenSq
-	if !AllFinite(s0, s1) {
+	if !allFinite(s0, s1) {
 		return pieces, 0, joins, 0, fmt.Errorf(
 			"BandInterval: projection parameter not finite (s0=%v s1=%v) on a canon edge of %g m %s",
-			s0, s1, math.Sqrt(f.LenSq), BandGeomStr(p, q, a, b, d))
+			s0, s1, math.Sqrt(f.LenSq), bandGeomStr(p, q, a, b, d))
 	}
 
 	// Regime extents in t, ascending. Boundaries are shared floats, so a piece
 	// clipped to one regime's end meets the next regime's start exactly.
-	var ranges [3]BandRegimeRange
+	var ranges [3]bandRegimeRange
 	nr := 0
 	if s1 == 0 {
 		// The source edge is perpendicular to the canon edge (or is a point): s is
 		// constant, so one regime covers all of [0,1].
 		switch {
 		case s0 < 0:
-			ranges[0] = BandRegimeRange{Kind: RegimeNearA, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearA, Lo: 0, Hi: 1}
 		case s0 > 1:
-			ranges[0] = BandRegimeRange{Kind: RegimeNearB, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearB, Lo: 0, Hi: 1}
 		default:
-			ranges[0] = BandRegimeRange{Kind: RegimeSpan, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeSpan, Lo: 0, Hi: 1}
 		}
 		nr = 1
 	} else {
@@ -341,13 +341,13 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 		tZero := -s0 / s1     // s(t) = 0 — foot at A
 		tOne := (1 - s0) / s1 // s(t) = 1 — foot at B
 		if s1 > 0 {
-			ranges[0] = BandRegimeRange{RegimeNearA, math.Inf(-1), tZero}
-			ranges[1] = BandRegimeRange{RegimeSpan, tZero, tOne}
-			ranges[2] = BandRegimeRange{RegimeNearB, tOne, math.Inf(1)}
+			ranges[0] = bandRegimeRange{RegimeNearA, math.Inf(-1), tZero}
+			ranges[1] = bandRegimeRange{RegimeSpan, tZero, tOne}
+			ranges[2] = bandRegimeRange{RegimeNearB, tOne, math.Inf(1)}
 		} else {
-			ranges[0] = BandRegimeRange{RegimeNearB, math.Inf(-1), tOne}
-			ranges[1] = BandRegimeRange{RegimeSpan, tOne, tZero}
-			ranges[2] = BandRegimeRange{RegimeNearA, tZero, math.Inf(1)}
+			ranges[0] = bandRegimeRange{RegimeNearB, math.Inf(-1), tOne}
+			ranges[1] = bandRegimeRange{RegimeSpan, tOne, tZero}
+			ranges[2] = bandRegimeRange{RegimeNearA, tZero, math.Inf(1)}
 		}
 		nr = 3
 	}
@@ -371,13 +371,13 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 			// dist² = |X(t) − a|².
 			piece.QuadA, piece.QuadB, piece.QuadC = dsq, 2*(float64(px*dx)+float64(py*dy)), float64(px*px)+float64(py*py)
 			piece.NearX0, piece.NearY0, piece.NearX1, piece.NearY1, piece.HasNear = px, py, dx, dy, true
-			plo, phi, hasPiece, err = SolveQuadLE(piece.QuadA, piece.QuadB, piece.QuadC-float64(d*d), lo, hi)
+			plo, phi, hasPiece, err = solveQuadLE(piece.QuadA, piece.QuadB, piece.QuadC-float64(d*d), lo, hi)
 		case RegimeNearB:
 			// dist² = |X(t) − b|².
 			ux, uy := px-f.Bx, py-f.By
 			piece.QuadA, piece.QuadB, piece.QuadC = dsq, 2*(float64(ux*dx)+float64(uy*dy)), float64(ux*ux)+float64(uy*uy)
 			piece.NearX0, piece.NearY0, piece.NearX1, piece.NearY1, piece.HasNear = ux, uy, dx, dy, true
-			plo, phi, hasPiece, err = SolveQuadLE(piece.QuadA, piece.QuadB, piece.QuadC-float64(d*d), lo, hi)
+			plo, phi, hasPiece, err = solveQuadLE(piece.QuadA, piece.QuadB, piece.QuadC-float64(d*d), lo, hi)
 		case RegimeSpan:
 			// dist is the perpendicular offset, which is LINEAR in t: with the
 			// unnormalised normal n = (−by, bx), dist·|AB| = |(X(t) − a)·n|. Solving
@@ -388,10 +388,10 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 			c0 := float64(py*f.Bx) - float64(px*f.By)
 			c1 := float64(dy*f.Bx) - float64(dx*f.By)
 			piece.SpanC0, piece.SpanC1, piece.SpanLenSq = c0, c1, f.LenSq
-			plo, phi, hasPiece = SolveAbsLE(c0, c1, d*math.Sqrt(f.LenSq), lo, hi)
+			plo, phi, hasPiece = solveAbsLE(c0, c1, d*math.Sqrt(f.LenSq), lo, hi)
 		}
 		if err != nil {
-			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: %w %s", err, BandGeomStr(p, q, a, b, d))
+			return pieces, 0, joins, 0, fmt.Errorf("BandInterval: %w %s", err, bandGeomStr(p, q, a, b, d))
 		}
 		if hasPiece {
 			piece.Lo, piece.Hi = plo, phi
@@ -444,7 +444,7 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 	// OUT OF BAND: neither solve reaches t_b, yet each found band points on its
 	// own side. There is nothing to assign — a closed interval cannot be made
 	// to exclude its own endpoint. Both pieces keep their own roots, and the gap
-	// between them survives to [UnionOneInterval] as the hard error it is: both
+	// between them survives to [unionOneInterval] as the hard error it is: both
 	// arithmetics contradict convexity at the same point, and [bandJoinsStr]
 	// says so in the message.
 	//
@@ -457,9 +457,9 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 	//
 	// A boundary where only one side found band points takes no verdict: there
 	// is no join to make consistent, and no gap can arise there.
-	joins, nj, err = JoinRegimePieces(ranges, nr, &got, has)
+	joins, nj, err = joinRegimePieces(ranges, nr, &got, has)
 	if err != nil {
-		return pieces, 0, joins, 0, fmt.Errorf("%w %s", err, BandGeomStr(p, q, a, b, d))
+		return pieces, 0, joins, 0, fmt.Errorf("%w %s", err, bandGeomStr(p, q, a, b, d))
 	}
 
 	for i := range nr {
@@ -471,13 +471,13 @@ func BandPieces(p, q, a, b Point, d float64) (pieces [3]BandPiece, n int, joins 
 	return pieces, n, joins, nj, nil
 }
 
-// JoinRegimePieces takes the verdict at each internal regime boundary where
+// joinRegimePieces takes the verdict at each internal regime boundary where
 // both adjacent regimes produced a piece, and makes both pieces agree with it
-// (see "THE REGIME JOINS" in [BandPieces]). got holds each regime's piece
+// (see "THE REGIME JOINS" in [bandPieces]). got holds each regime's piece
 // against its range, has says which regimes produced one; got is updated in
-// place. It is split out of BandPieces so its OUT branch can be tested: no
+// place. It is split out of bandPieces so its OUT branch can be tested: no
 // geometry found reaches it, so only hand-made pieces can.
-func JoinRegimePieces(ranges [3]BandRegimeRange, nr int, got *[3]BandPiece, has [3]bool) (joins [2]BandJoin, nj int, err error) {
+func joinRegimePieces(ranges [3]bandRegimeRange, nr int, got *[3]BandPiece, has [3]bool) (joins [2]bandJoin, nj int, err error) {
 	for i := 1; i < nr; i++ {
 		// has[i] is only set below the clipping test, so it also says the regime
 		// met the source edge — which is what puts the shared boundary in [0,1].
@@ -492,7 +492,7 @@ func JoinRegimePieces(ranges [3]BandRegimeRange, nr int, got *[3]BandPiece, has 
 		}
 		// One boolean, and the SAME boolean is both recorded and acted on —
 		// "decided once" is structural here, not a comment.
-		join := BandJoin{T: tb, LowReaches: got[i-1].Hi == tb, HighReaches: got[i].Lo == tb}
+		join := bandJoin{T: tb, LowReaches: got[i-1].Hi == tb, HighReaches: got[i].Lo == tb}
 		join.InBand = join.LowReaches || join.HighReaches
 		joins[nj] = join
 		nj++
@@ -507,7 +507,7 @@ func JoinRegimePieces(ranges [3]BandRegimeRange, nr int, got *[3]BandPiece, has 
 // bandJoinsStr renders the verdicts taken at the regime joins, so a surviving
 // convexity error says which solves put the boundary outside the band rather
 // than only the gap it left.
-func bandJoinsStr(joins []BandJoin, d float64) string {
+func bandJoinsStr(joins []bandJoin, d float64) string {
 	if len(joins) == 0 {
 		return " [no regime join was reached]"
 	}
@@ -522,7 +522,7 @@ func bandJoinsStr(joins []BandJoin, d float64) string {
 	return s
 }
 
-// UnionOneInterval merges the per-regime pieces, which arrive in ascending t
+// unionOneInterval merges the per-regime pieces, which arrive in ascending t
 // order, and asserts convexity along the way: dist(X(t), AB) is convex, so the
 // regime contributions MUST union to exactly one interval.
 //
@@ -530,13 +530,13 @@ func bandJoinsStr(joins []BandJoin, d float64) string {
 // Contiguous pieces meet EXACTLY: a piece that spills past a regime is clipped
 // by the same float that starts the next regime, and where the two regimes
 // would otherwise disagree in the last bit about the boundary point, the single
-// verdict taken in [BandPieces] has already put both pieces on the boundary.
+// verdict taken in [bandPieces] has already put both pieces on the boundary.
 // Regimes share only their endpoints, so pieces cannot legitimately overlap.
 // Either failure is the arithmetic disagreeing with itself — a gap here now
 // means BOTH adjacent solves put the boundary point outside the band while each
 // found band on its own side of it — so it is reported with its magnitude
 // rather than merged away.
-func UnionOneInterval(pieces []BandPiece) (lo, hi float64, ok bool, err error) {
+func unionOneInterval(pieces []BandPiece) (lo, hi float64, ok bool, err error) {
 	if len(pieces) == 0 {
 		return 0, 0, false, nil
 	}
@@ -557,11 +557,11 @@ func UnionOneInterval(pieces []BandPiece) (lo, hi float64, ok bool, err error) {
 	return lo, hi, true, nil
 }
 
-// SolveQuadLE returns the sub-interval of [lo,hi] on which a·t² + b·t + c ≤ 0.
+// solveQuadLE returns the sub-interval of [lo,hi] on which a·t² + b·t + c ≤ 0.
 // a is a squared length here, so it is never negative; a == 0 is the
 // zero-length source edge, which is solved as the linear equation it is rather
 // than special-cased away.
-func SolveQuadLE(a, b, c, lo, hi float64) (float64, float64, bool, error) {
+func solveQuadLE(a, b, c, lo, hi float64) (float64, float64, bool, error) {
 	if a < 0 {
 		return 0, 0, false, fmt.Errorf("SolveQuadLE: leading coefficient %g is negative, but it is a squared length", a)
 	}
@@ -614,8 +614,8 @@ func solveLinearLE(b, c, lo, hi float64) (float64, float64, bool, error) {
 	return clipTo(root, math.Inf(1), lo, hi)
 }
 
-// SolveAbsLE returns the sub-interval of [lo,hi] on which |c0 + c1·t| ≤ m.
-func SolveAbsLE(c0, c1, m, lo, hi float64) (float64, float64, bool) {
+// solveAbsLE returns the sub-interval of [lo,hi] on which |c0 + c1·t| ≤ m.
+func solveAbsLE(c0, c1, m, lo, hi float64) (float64, float64, bool) {
 	if c1 == 0 {
 		// Parallel edges (or a point source): the offset does not vary with t.
 		if math.Abs(c0) <= m {
@@ -641,7 +641,7 @@ func clipTo(r0, r1, lo, hi float64) (float64, float64, bool, error) {
 	return r0, r1, true, nil
 }
 
-func AllFinite(vs ...float64) bool {
+func allFinite(vs ...float64) bool {
 	for _, v := range vs {
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			return false
@@ -650,9 +650,9 @@ func AllFinite(vs ...float64) bool {
 	return true
 }
 
-// BandGeomStr renders the offending geometry for an error message, so a
+// bandGeomStr renders the offending geometry for an error message, so a
 // failure names the exact edges rather than just the symptom.
-func BandGeomStr(p, q, a, b Point, d float64) string {
+func bandGeomStr(p, q, a, b Point, d float64) string {
 	return fmt.Sprintf("[P=(%.9g,%.9g) Q=(%.9g,%.9g) A=(%.9g,%.9g) B=(%.9g,%.9g) d=%g]",
 		p.Lat, p.Lon, q.Lat, q.Lon, a.Lat, a.Lon, b.Lat, b.Lon, d)
 }

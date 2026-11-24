@@ -62,9 +62,9 @@ func TestCorridorPackedState_RoundTrips(t *testing.T) {
 }
 
 // TestCorridorPackedState_OrderMatchesStateLess pins the ordering property the
-// packing was chosen for: ascending packed value is exactly [StateLess]'s
+// packing was chosen for: ascending packed value is exactly [stateLess]'s
 // order (OFF first, then ascending SpIdx, then FWD before REV). The solve's
-// final-layer tiebreak reads StateLess on the decoded state; this test is what
+// final-layer tiebreak reads stateLess on the decoded state; this test is what
 // lets a later reader compare packed values instead.
 func TestCorridorPackedState_OrderMatchesStateLess(t *testing.T) {
 	var states []CorridorStateID
@@ -79,7 +79,7 @@ func TestCorridorPackedState_OrderMatchesStateLess(t *testing.T) {
 	for _, a := range states {
 		for _, b := range states {
 			pa, pb := packCorridorState(a), packCorridorState(b)
-			if got, want := pa < pb, StateLess(a, b); got != want {
+			if got, want := pa < pb, stateLess(a, b); got != want {
 				t.Fatalf("order disagrees for (%v, %v): packed %#x < %#x is %v, stateLess is %v", a, b, pa, pb, got, want)
 			}
 			if (pa == pb) != (a == b) {

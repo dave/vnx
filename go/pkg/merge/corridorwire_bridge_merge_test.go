@@ -52,7 +52,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 	const R = CorridorRadiusM
 	// ⚠ RE-BASELINED 2026-09-03, FROM (400, 430, 40), and for the SAME reason
 	// corridorsolve_bridge_test.go's own fixture moved: under the import-side
-	// gap integral ([ImportGapCost]) a 40 m-deep excursion is recorded
+	// gap integral ([importGapCost]) a 40 m-deep excursion is recorded
 	// geometry the solve now KEEPS rather than bridges (every source edge
 	// is legitimate geometry), so that shape produces no
 	// bridge and this test's own fixture-sanity check would fire. 12 m deep
@@ -133,7 +133,7 @@ func TestCorridorFollowRuns_BridgeMergesIntoFollowingSameStateRun(t *testing.T) 
 // because the source never actually rides a canon edge's interior, only
 // ever the same nearest vertex. All five "touch" by the letter of the merge
 // test (an equal constant trivially satisfies |MeasureEnd-MeasureStart|<=MeasureEps
-// against itself, repeatedly), so MergeAdjacentSameCandidateRuns collapsed
+// against itself, repeatedly), so mergeAdjacentSameCandidateRuns collapsed
 // them into ONE FollowRun spanning the leg's own full 298-edge import-measure
 // length at a ZERO-width canon span — committing a "2 point(s), begins and
 // ends on the same node, no interior vertex to split at" piece,
@@ -158,7 +158,7 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateChainStaysSeparate(t *testing.
 		{Kind: RunOn, CanonIdx: 1, Reversed: false, MeasureStart: constMeasure, MeasureEnd: constMeasure,
 			Start: SourcePos{Edge: 295, Frac: 0.11446677235408986}, End: SourcePos{Edge: 298, Frac: 1}},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != len(runs) {
 		t.Fatalf("want %d runs (a chain of mutually-degenerate re-approaches to the same vertex must not collapse into one), got %d: %+v",
 			len(runs), len(got), got)
@@ -203,7 +203,7 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateRunDoesNotSplitAReverseFollow(
 		stall(11867.79, SourcePos{Edge: 6, Frac: 0.17859}, SourcePos{Edge: 6, Frac: 0.18106}),
 		rev(11867.79, 11790.47, SourcePos{Edge: 6, Frac: 0.18106}, SourcePos{Edge: 7, Frac: 0.25469}),
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 1 {
 		t.Fatalf("one continuous reverse ride down canon arc 1, stalled three times at canon vertices, "+
 			"must commit as ONE followRun — got %d: %+v", len(got), got)
@@ -238,7 +238,7 @@ func TestMergeAdjacentSameCandidateRuns_DegenerateRunDoesNotSplitAReverseFollow(
 // committed line still draws those 19.55 m twice, and the turnaround mints a
 // node on a stretch where nothing divides.
 //
-// WHY THE COST MODEL DOES NOT CATCH IT: BacktrackCost charges canon measure
+// WHY THE COST MODEL DOES NOT CATCH IT: backtrackCost charges canon measure
 // travelled AGAINST a run's declared direction. A run that declares itself
 // REVERSED and then goes backwards is travelling WITH its direction and is
 // charged nothing; it pays only the flat state-change penalty to turn round.
@@ -267,7 +267,7 @@ func TestMergeAdjacentSameCandidateRuns_ReversalInsideOneSourceEdgeIsNotATravers
 			Start: SourcePos{Edge: 184, Frac: 0.62}, End: SourcePos{Edge: 246, Frac: 1},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 1 {
 		t.Fatalf("a reversal contained in ONE source edge is a projection artefact, not a traversal — "+
 			"it must fold into the run that continues, leaving 1 followRun; got %d: %+v", len(got), got)
@@ -301,7 +301,7 @@ func TestMergeAdjacentSameCandidateRuns_GenuineOutAndBackSurvives(t *testing.T) 
 			Start: SourcePos{Edge: 24, Frac: 0.5}, End: SourcePos{Edge: 39, Frac: 1},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 2 {
 		t.Fatalf("a genuine out-and-back spans many source edges in BOTH directions and must stay two runs — "+
 			"merging it would delete the return leg from the committed line; got %d: %+v", len(got), got)
@@ -338,7 +338,7 @@ func TestMergeAdjacentSameCandidateRuns_ArtefactNotFoldedWhenTheStrideCannotReac
 			Start: SourcePos{Edge: 71, Frac: 0.61}, End: SourcePos{Edge: 72, Frac: 0.87},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 2 {
 		t.Fatalf("the continuation ends BELOW the rejoin, so folding would both mislabel the direction and "+
 			"delete canon the leg rode — both runs must stay; got %d: %+v", len(got), got)
@@ -389,7 +389,7 @@ func TestMergeAdjacentSameCandidateRuns_BridgedContinuationInsideOneSparseEdge(t
 			Start: SourcePos{Edge: 0, Frac: 0.931003}, End: SourcePos{Edge: 4, Frac: 0.568454},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 1 {
 		t.Fatalf("one continuous reverse ride down canon arc 1, whose first 149.6 m happen to be covered by a "+
 			"single sparse source edge, must commit as ONE followRun — got %d: %+v", len(got), got)
@@ -441,7 +441,7 @@ func TestMergeAdjacentSameCandidateRuns_ZeroWidthRunsAtDifferentMeasuresMerge(t 
 			Start: SourcePos{Edge: 4, Frac: 0.5}, End: SourcePos{Edge: 7, Frac: 0.25},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 1 {
 		t.Fatalf("two stalls at DIFFERENT canon vertices merge to a 40 m span with two distinct anchors — "+
 			"that is well-formed for assembleOnRun and must be ONE run; got %d: %+v", len(got), got)
@@ -488,7 +488,7 @@ func TestMergeAdjacentSameCandidateRuns_OneDegenerateSideLandingOnItsOwnStartSta
 			Start: SourcePos{Edge: 71, Frac: 0.61}, End: SourcePos{Edge: 78, Frac: 0.42},
 		},
 	}
-	got := MergeAdjacentSameCandidateRuns(runs)
+	got := mergeAdjacentSameCandidateRuns(runs)
 	if len(got) != 2 {
 		t.Fatalf("the continuation ends exactly where the reversed single-edge run BEGAN, so merging them "+
 			"commits a zero-extent run — both runs must stay; got %d: %+v", len(got), got)

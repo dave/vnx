@@ -4,7 +4,7 @@ package merge
 //
 // A crossing vertex has two halves: the source-line POSITION where distance to
 // canon crosses the corridor radius, and the committed POINT built there
-// (lat/lon by linear interpolation, elevation by [LerpEle] at the same
+// (lat/lon by linear interpolation, elevation by [lerpEle] at the same
 // fraction). corridorinterval.go answers the position analytically: a
 // CorridorInterval's own ImportMeasureLo/ImportMeasureHi ARE that crossing,
 // exact, with no search. [SourceMeasure.pointAt] (srcmeasure.go) builds the
@@ -18,7 +18,7 @@ package merge
 //	   Elevation: lerped from the bracketing ORIGINAL source vertices
 //	   (sa.pts[edge], sa.pts[edge+1]) at the position's own frac — see
 //	   SourceMeasure.eleAt.
-//	   Never dropped, never zeroed: nil propagates exactly as LerpEle already
+//	   Never dropped, never zeroed: nil propagates exactly as lerpEle already
 //	   defines it, so an elevation-less source produces an elevation-less cp,
 //	   not a fabricated sea-level one.
 //

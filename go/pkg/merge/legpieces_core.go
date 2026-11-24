@@ -6,14 +6,14 @@ import (
 	"math"
 )
 
-// LegSeamsFromAlign derives the leg's interior cut points from where its ON
+// legSeamsFromAlign derives the leg's interior cut points from where its ON
 // pieces sit in the assembled points, and resolves each to the canon node the
 // align step left there.
 //
 // The boundaries are looked up by (run, which end), the identity the align step
 // records, and NOT by matching measures, which would be a float equality on a
 // quantity that has been through a split's measure->fraction->measure round trip.
-// ZeroArcGap reports whether leg points i and j are the SAME PHYSICAL POINT:
+// zeroArcGap reports whether leg points i and j are the SAME PHYSICAL POINT:
 // no distance along the leg between them, however many indices apart they are.
 //
 // It exists because a leg can carry a zero-length edge (a stationary GPS
@@ -33,7 +33,7 @@ import (
 // The sum, rather than a straight-line chord between the two ends, because the
 // leg's own measure is what the taper walks: a hairpin returning to its start
 // has a zero chord and a real arc, and those must not merge.
-func ZeroArcGap(pts []Point, i, j int) bool {
+func zeroArcGap(pts []Point, i, j int) bool {
 	if i > j {
 		i, j = j, i
 	}
@@ -56,7 +56,7 @@ type boundaryKey struct {
 	AtEnd bool
 }
 
-func LegSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]LegSeam, error) {
+func legSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, startTerminal, endTerminal *NodeID) ([]LegSeam, error) {
 	st := stateOf(ctx)
 	if len(asm.OnPieces) == 0 {
 		return nil, nil
@@ -139,14 +139,14 @@ func LegSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 		if absorbed {
 			absorbedM = b.AbsorbedM
 		}
-		if n := len(seams); n > 0 && (seams[n-1].Idx == idx || ZeroArcGap(asm.Points, seams[n-1].Idx, idx)) {
+		if n := len(seams); n > 0 && (seams[n-1].Idx == idx || zeroArcGap(asm.Points, seams[n-1].Idx, idx)) {
 			// An ON<->ON seam: the assembler dedups the shared point, so the
 			// previous piece's Hi and this piece's Lo are the same index. Two
 			// claims, and they must not disagree: one naming a node and the other
 			// naming none is a stub decline meeting a real junction, which the
 			// junction settles.
 			//
-			// ⚠ OR THE TWO INDICES ARE ONE PHYSICAL POINT. [ZeroArcGap] widens
+			// ⚠ OR THE TWO INDICES ARE ONE PHYSICAL POINT. [zeroArcGap] widens
 			// this from "the same index" to "no distance between them", which is
 			// the same claim about the same place written two ways. Nothing below
 			// changes: every arm here already reasons about ONE point claimed
@@ -284,15 +284,15 @@ func LegSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 	// its only effect was on those short terminal pieces, while sub-0.5 m
 	// INTERIOR pieces commit either way. Keeping a tolerance whose cause is gone
 	// would leave a constant nobody could later justify.
-	return CollapseSameNodeSeams(seams, asm.Points, startTerminal, endTerminal), nil
+	return collapseSameNodeSeams(seams, asm.Points, startTerminal, endTerminal), nil
 }
 
-// CollapseSameNodeSeams applies every same-node emptiness collapse in the
+// collapseSameNodeSeams applies every same-node emptiness collapse in the
 // order the same-node split rule requires: empty, fold, then terminal. See
 // collapseEmptySameNodeSeams / collapseFoldedSameNodeSeams /
-// CollapseTerminalSameNodeSeams for what each removes and why.
+// collapseTerminalSameNodeSeams for what each removes and why.
 //
-// ⚠ CALLED TWICE, DELIBERATELY. LegSeamsFromAlign calls this once against the
+// ⚠ CALLED TWICE, DELIBERATELY. legSeamsFromAlign calls this once against the
 // leg's FOLLOWED points, before any interior boundary is warped, which is
 // correct for every seam whose geometry the boundary warp leaves untouched.
 // The boundary warp can then shrink a piece that WAS a genuine ring (real
@@ -307,9 +307,9 @@ func LegSeamsFromAlign(ctx context.Context, asm AssembledLeg, rep AlignReport, s
 // Idempotent on a leg the warp did not touch: pieceHasExtent's verdict cannot
 // become MORE true by shrinking a gap, only less, so a second pass over
 // geometry the warp left alone finds nothing new to collapse.
-func CollapseSameNodeSeams(seams []LegSeam, pts []Point, startTerminal, endTerminal *NodeID) []LegSeam {
+func collapseSameNodeSeams(seams []LegSeam, pts []Point, startTerminal, endTerminal *NodeID) []LegSeam {
 	last := len(pts) - 1
-	return CollapseTerminalSameNodeSeams(
+	return collapseTerminalSameNodeSeams(
 		collapseFoldedSameNodeSeams(collapseEmptySameNodeSeams(seams, pts), pts, last, startTerminal, endTerminal),
 		pts, last, startTerminal, endTerminal,
 	)
@@ -382,7 +382,7 @@ func CollapseSameNodeSeams(seams []LegSeam, pts []Point, startTerminal, endTermi
 // undoes a cut); only whether THIS leg's OWN commit joins it there is being
 // decided.
 // `last` and the two terminals extend the same test to a seam that folds back
-// onto a TERMINAL rather than another interior seam. CollapseTerminalSameNodeSeams
+// onto a TERMINAL rather than another interior seam. collapseTerminalSameNodeSeams
 // (below) only ever compares the OUTERMOST seam to its neighbouring terminal,
 // so an interior fold two or more seams away from the terminal would sail past
 // it (e.g. an interior seam folding back onto the LEG'S OWN END TERMINAL with
@@ -419,13 +419,13 @@ func collapseFoldedSameNodeSeams(seams []LegSeam, pts []Point, last int, startTe
 			// unconditionally and lets the fold through uncollapsed. Checking
 			// both terminals explicitly, every time, costs nothing (each is
 			// one comparison) and cannot lose either claim to the other.
-			if startTerminal != nil && s.Node == *startTerminal && !LegDepartsRadius(pts, 0, s.Idx, EndpointWarpRadiusM) {
+			if startTerminal != nil && s.Node == *startTerminal && !legDepartsRadius(pts, 0, s.Idx, EndpointWarpRadiusM) {
 				continue // the terminal's claim always wins over a folding seam
 			}
-			if endTerminal != nil && s.Node == *endTerminal && !LegDepartsRadius(pts, last, s.Idx, EndpointWarpRadiusM) {
+			if endTerminal != nil && s.Node == *endTerminal && !legDepartsRadius(pts, last, s.Idx, EndpointWarpRadiusM) {
 				continue
 			}
-			if pos, ok := lastKept[s.Node]; ok && !LegDepartsRadius(pts, out[pos].Idx, s.Idx, EndpointWarpRadiusM) {
+			if pos, ok := lastKept[s.Node]; ok && !legDepartsRadius(pts, out[pos].Idx, s.Idx, EndpointWarpRadiusM) {
 				continue
 			}
 		}
@@ -437,7 +437,7 @@ func collapseFoldedSameNodeSeams(seams []LegSeam, pts []Point, last int, startTe
 	return out
 }
 
-// LegDepartsRadius reports whether any point of pts[lo..hi] (order-
+// legDepartsRadius reports whether any point of pts[lo..hi] (order-
 // insensitive) lies at least radiusM from pts[lo] — whether the leg's own
 // source, somewhere in that stretch, genuinely got away from where it started
 // rather than merely wobbling near it.
@@ -461,7 +461,7 @@ func collapseFoldedSameNodeSeams(seams []LegSeam, pts []Point, last int, startTe
 // unlikely coincidence for a spur under 15 m. No such case was found across
 // several test areas: every collapse spot-checked against the align step's
 // own decision was a real fold.
-func LegDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
+func legDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
 	if lo > hi {
 		lo, hi = hi, lo
 	}
@@ -481,7 +481,7 @@ func LegDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
 	return false
 }
 
-// CollapseTerminalSameNodeSeams is [collapseEmptySameNodeSeams] one step
+// collapseTerminalSameNodeSeams is [collapseEmptySameNodeSeams] one step
 // further out: the same two-point same-node piece, but formed between a seam and
 // the LEG'S OWN TERMINAL rather than between two seams.
 //
@@ -491,7 +491,7 @@ func LegDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
 // canon at J and then ends within the warp radius of J. The final piece is
 // then two points whose ends are both J, which the store rejects (an arc may
 // not start and end on the same node), and the same-node split rule needs an
-// interior vertex it does not have. [FurthestVertex] errors and takes the
+// interior vertex it does not have. [furthestVertex] errors and takes the
 // user's whole import with it.
 //
 // Measured over a randomised test sweep before this existed: about 5% of seeds
@@ -525,7 +525,7 @@ func LegDepartsRadius(pts []Point, lo, hi int, radiusM float64) bool {
 // The accounting is unchanged by construction: a collapsed seam is one that NAMED
 // a canon node, so it was never counted by [LegMintedSeamNodes], and the leg
 // loses one seam and one piece together, which keeps `Arcs == legs + seams`.
-func CollapseTerminalSameNodeSeams(seams []LegSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []LegSeam {
+func collapseTerminalSameNodeSeams(seams []LegSeam, pts []Point, last int, startTerminal, endTerminal *NodeID) []LegSeam {
 	if len(seams) == 0 {
 		return seams
 	}
@@ -551,7 +551,7 @@ func CollapseTerminalSameNodeSeams(seams []LegSeam, pts []Point, last int, start
 // The piece between two such seams is TWO POINTS whose ends are both J, which
 // the store rejects (an arc may not start and end on the same node) and which
 // the same-node split rule cannot rescue: its remedy is a cut at an interior
-// vertex and there is no interior vertex. [FurthestVertex] therefore errors and
+// vertex and there is no interior vertex. [furthestVertex] therefore errors and
 // takes the user's whole import with it. Measured over a randomised test
 // sweep: about 4% of seeds.
 //
@@ -655,7 +655,7 @@ func runEndName(atEnd bool) string {
 // it, and a cause nothing counts makes that identity unclosable.
 //
 // ⚠ COUNT IT HERE, NOT AT THE DECLINE. A stub decline is what CREATES the
-// possibility, but it does not settle it: LegSeamsFromAlign merges an ON<->ON
+// possibility, but it does not settle it: legSeamsFromAlign merges an ON<->ON
 // seam where one run declined and the other found a junction, and the junction
 // wins (`case hasNode && !prev.HasNode`). Counting declines would therefore
 // over-report exactly where the two topologies do meet. The seam list is the
@@ -685,11 +685,11 @@ func LegMintedSeamNodes(points []Point, seams []LegSeam) int {
 	return n
 }
 
-// SeamSideName says where one end of a piece got its node, for error messages:
+// seamSideName says where one end of a piece got its node, for error messages:
 // canon's own node, a node this leg minted at an earlier seam, or the leg's own
 // terminal anchor (no node at all). A message naming only the node id cannot
 // tell the first two apart, and they have different causes.
-func SeamSideName(seams []LegSeam, k int, threaded *NodeID) string {
+func seamSideName(seams []LegSeam, k int, threaded *NodeID) string {
 	switch {
 	case k < 0 || k >= len(seams):
 		if threaded != nil {
@@ -705,7 +705,7 @@ func SeamSideName(seams []LegSeam, k int, threaded *NodeID) string {
 	}
 }
 
-// FurthestVertex picks the INTERIOR vertex FURTHEST (great-circle distance)
+// furthestVertex picks the INTERIOR vertex FURTHEST (great-circle distance)
 // from the piece's own shared start/end coordinate — pts[0], which equals
 // pts[len(pts)-1] since this is only ever called on a piece that begins and
 // ends on one node.
@@ -732,7 +732,7 @@ func SeamSideName(seams []LegSeam, k int, threaded *NodeID) string {
 // TIE-BREAK: lowest index wins on an EXACT tie. It is deterministic by
 // construction (strict `>`, first-seen wins); near-ties, not exact ones, are
 // the real stability risk named above.
-func FurthestVertex(pts []Point) (int, error) {
+func furthestVertex(pts []Point) (int, error) {
 	if len(pts) < 3 {
 		return 0, fmt.Errorf(
 			"a piece of %d point(s) begins and ends on the same node and has no interior vertex to split at", len(pts))

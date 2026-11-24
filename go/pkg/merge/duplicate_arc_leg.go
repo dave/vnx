@@ -92,7 +92,7 @@ func FindDuplicateCanonArcs(
 	if len(candidates) == 0 {
 		return nil, nil
 	}
-	mine := PieceCommittedVertices(pts, start, end)
+	mine := pieceCommittedVertices(pts, start, end)
 
 	var matches []DuplicateArcMatch
 	for _, arc := range candidates {
@@ -102,7 +102,7 @@ func FindDuplicateCanonArcs(
 		if arc.StartNodeID != *startNode {
 			aStart, aEnd = end, start
 		}
-		v := DupVertexSequenceEqual(mine, ArcVertices(arc, aStart, aEnd))
+		v := DupVertexSequenceEqual(mine, arcVertices(arc, aStart, aEnd))
 		if !v.Equal {
 			continue
 		}

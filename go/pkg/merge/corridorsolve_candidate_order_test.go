@@ -11,7 +11,7 @@ package merge
 // happened to come second, and a
 // shift statistic could not adjudicate the rules because every rule shifts.
 //
-// The continuous price ([CrossCandidateSwitchCost]) has no such record. It is
+// The continuous price ([crossCandidateSwitchCost]) has no such record. It is
 // a pure function of (piece a, piece b, x), so the same candidates in a
 // different order must produce the same solve, exactly. That is a property,
 // not a number, and this is the test of it.

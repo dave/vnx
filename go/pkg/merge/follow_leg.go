@@ -61,14 +61,14 @@ func DefaultFollowBands() FollowBands {
 
 // ---- assembly primitives ---------------------------------------------
 
-// NoNodeLookup is the explicit "this caller has no node access" value.
+// noNodeLookup is the explicit "this caller has no node access" value.
 //
 // ⚠ NOT nil. A nil func value here would be indistinguishable from a
 // caller that forgot to pass one, so [AssembleFollowedLegRunsCorridor]
 // and the any-node snap both ERROR on a literal nil rather than
 // silently skip the any-node branch. A compiler won't catch a nil argument,
 // but the very first call does.
-func NoNodeLookup(lat, lon, radiusM float64) (float64, float64, NodeID, bool, error) {
+func noNodeLookup(lat, lon, radiusM float64) (float64, float64, NodeID, bool, error) {
 	return 0, 0, 0, false, nil
 }
 
@@ -150,7 +150,7 @@ func followLegAgainstCanon(
 	// The partition and the assembler MUST see the SAME candidate slice:
 	// FollowRun.CanonIdx indexes into it.
 	//
-	// ⚠ NoNodeLookup, NOT a real node lookup, AND THAT IS DELIBERATE. The
+	// ⚠ noNodeLookup, NOT a real node lookup, AND THAT IS DELIBERATE. The
 	// any-node snap (snapping a run boundary onto any nearby canon node, not
 	// only the candidate's own) is implemented and tested, but deliberately
 	// left unwired. Wiring it would change which interior seams adopt an
@@ -161,7 +161,7 @@ func followLegAgainstCanon(
 	// tie within a batch and node-ID magnitude is not a reliable signal.
 	// [CorridorFollowRuns]'s runs carry exact analytic SourcePos, which
 	// [AssembleFollowedLegRunsCorridor] assembles directly.
-	asm, err := AssembleFollowedLegRunsCorridor(pts, cands, runs, bands, NoNodeLookup)
+	asm, err := AssembleFollowedLegRunsCorridor(pts, cands, runs, bands, noNodeLookup)
 	if err != nil {
 		return AssembledLeg{}, err
 	}
@@ -183,7 +183,7 @@ func followLegAgainstCanon(
 //     from ~9 s of repeat polyline decodes to tens of milliseconds.
 //   - PHASE 2 (tighten): a window's bbox is coarse (32 winding points can span
 //     much of the area), so keep only candidates whose true geometry bbox comes
-//     within radiusM of some leg EDGE (ArcBBoxNearAnyEdge). The matcher pays
+//     within radiusM of some leg EDGE (arcBBoxNearAnyEdge). The matcher pays
 //     O(points × candidates × vertices); handing it the coarse window union
 //     instead of the tight set roughly doubled the candidate count and
 //     blew up the matcher. Tightening restores the tight set without
@@ -224,7 +224,7 @@ func CanonCandidatesForLeg(
 		// because it can only filter what the prefilter already returned.
 		// Overlapping by one point puts every edge wholly inside at least one
 		// window.
-		rect := Bounds(WindowStayRect(pts[start:min(end+1, len(pts))], radiusM))
+		rect := Bounds(windowStayRect(pts[start:min(end+1, len(pts))], radiusM))
 
 		ids, err := canon.ArcIDsInRect(ctx, rect)
 		if err != nil {
@@ -272,7 +272,7 @@ func CanonCandidatesForLeg(
 		// interior. A per-point test would drop it. Measured on several test
 		// areas, a per-point test dropped 171 arcs the per-edge test keeps,
 		// of which the solver binds 10: real, and small.
-		if ArcBBoxNearAnyEdge(s.Vertices, pts, radiusM) {
+		if arcBBoxNearAnyEdge(s.Vertices, pts, radiusM) {
 			out = append(out, s)
 		}
 	}

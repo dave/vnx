@@ -243,7 +243,7 @@ func CanonMeasureLengthM(verts []Point) float64 {
 	return total
 }
 
-// InterpolateMeasurePointM returns the lat/lon at `measure` metres along verts,
+// interpolateMeasurePointM returns the lat/lon at `measure` metres along verts,
 // walked in order — the SAME walk CanonMeasureLengthM sums and the SAME linear
 // lat/lon interpolation the polyline split performs when it
 // actually cuts (a measure-derived parameter t, then start + t*(end-start) on
@@ -255,7 +255,7 @@ func CanonMeasureLengthM(verts []Point) float64 {
 // Separate from the split itself: that also builds the two interior pip
 // slices a real split needs, which this caller has no use for and no
 // business depending on the shape of.
-func InterpolateMeasurePointM(verts []Point, measure float64) (lat, lon float64) {
+func interpolateMeasurePointM(verts []Point, measure float64) (lat, lon float64) {
 	cum := make([]float64, len(verts))
 	for i := 1; i < len(verts); i++ {
 		cum[i] = cum[i-1] + HaversineMetres(verts[i-1].Lat, verts[i-1].Lon, verts[i].Lat, verts[i].Lon)
@@ -273,7 +273,7 @@ func InterpolateMeasurePointM(verts []Point, measure float64) (lat, lon float64)
 	return a.Lat + t*(b.Lat-a.Lat), a.Lon + t*(b.Lon-a.Lon)
 }
 
-// NearestLineageNode returns the node of `lineage` closest to (lat,lon) within
+// nearestLineageNode returns the node of `lineage` closest to (lat,lon) within
 // EndpointWarpRadiusM, and whether there is one.
 //
 // ⚠ THE CANDIDATES ARE THE TWO NODES ADJACENT TO THE BOUNDARY'S OWN MEASURE,
@@ -306,7 +306,7 @@ func InterpolateMeasurePointM(verts []Point, measure float64) (lat, lon float64)
 //
 // hooks are the call's test hooks, nil for none (see
 // [TestHooks].A1AbsorbIgnoreMeasure).
-func NearestLineageNode(l AlignLineage, measure, lat, lon float64, hooks *TestHooks) (Node, float64, bool, error) {
+func nearestLineageNode(l AlignLineage, measure, lat, lon float64, hooks *TestHooks) (Node, float64, bool, error) {
 	best, bestD, found := Node{}, 0.0, false
 	var bad error
 	consider := func(id NodeID, nlat, nlon float64) {

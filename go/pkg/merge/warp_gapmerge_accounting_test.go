@@ -5,7 +5,7 @@ package merge
 // back resolved means they JOINED nodes that already existed. The two are
 // bit-identical in the WarpReport — same two non-nil ids — and they need
 // opposite accounting, which is why the flag is a required parameter rather
-// than something [AdoptedTerminalCount] could work out for itself.
+// than something [adoptedTerminalCount] could work out for itself.
 //
 // END-TO-END RED PROOF: chaos seed 11. Before this fix it reported
 // "SILENT CORRUPTION … Residual +2" — three legs, one gap merge, corrected by
@@ -40,7 +40,7 @@ func TestAdoptedTerminalCount_AGapMergeAdoptsNothing(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := AdoptedTerminalCount(c.rep, c.ringMergedByGap); got != c.want {
+			if got := adoptedTerminalCount(c.rep, c.ringMergedByGap); got != c.want {
 				t.Errorf("adoptedTerminalCount(%+v, ringMergedByGap=%v) = %d, want %d",
 					c.rep, c.ringMergedByGap, got, c.want)
 			}

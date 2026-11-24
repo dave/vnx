@@ -1,6 +1,6 @@
 package merge
 
-// corridorsolve_bridge_test.go — wiring CanonGapCost/EnvelopeMinCost
+// corridorsolve_bridge_test.go — wiring canonGapCost/envelopeMinCost
 // (corridorcost.go) into the solve as a fourth edge kind, bridge edges
 // (corridorsolve.go's own header, "bridge edges, the fourth cost term"). Two red-proofs, both against REAL solver output, not a mocked
 // cost function:
@@ -63,7 +63,7 @@ func bridgeLoopFixture(t *testing.T, approachX, returnX, loopY float64) (*Source
 // justify it as "well beyond R=15 at its peak" — written in the 15 m era and
 // never revisited when R became 10, so the shape was four radii deep rather
 // than under three. Under the import-side gap integral
-// ([ImportGapCost], added the same day) that fixture's ~100 m of recorded
+// ([importGapCost], added the same day) that fixture's ~100 m of recorded
 // source at up to 4R costs ~900 against a 190 no-bridge price, so it is now
 // KEPT rather than bridged — which is correct, and is asserted in its own
 // right by [TestSolveCorridorPath_RefusesToBridgeA40mExcursion] below.
@@ -117,7 +117,7 @@ func TestSolveCorridorPath_BridgesShortShallowGapAndFabricationReadsNonZero(t *t
 		t.Fatalf("want at least one bridged run over the short/shallow gap, got none: %+v", res.Runs)
 	}
 
-	srcPoly := NewHintPoly(sa.Pts)
+	srcPoly := newHintPoly(sa.Pts)
 	sawFabrication := false
 	for _, r := range bridgedRuns {
 		if r.CanonMeasureHi <= r.CanonMeasureLo {
@@ -159,7 +159,7 @@ func TestSolveCorridorPath_RefusesToBridgeAWideDeepGap(t *testing.T) {
 		t.Fatalf("fixture sanity: want at least one priced (but expensive) bridge candidate, got none")
 	}
 	offMetres := ivs[bridges[0].ToIv].ImportMeasureLo - ivs[bridges[0].FromIv].ImportMeasureHi
-	if want := NoBridgeCost(offMetres); bridges[0].Cost <= want {
+	if want := noBridgeCost(offMetres); bridges[0].Cost <= want {
 		t.Fatalf("fixture sanity: bridge cost %.6g should be far ABOVE noBridgeCost %.6g for this wide/deep excursion, or the negative control proves nothing", bridges[0].Cost, want)
 	}
 
@@ -209,10 +209,10 @@ func TestSolveCorridorPath_RefusesToBridgeA40mExcursion(t *testing.T) {
 	for _, br := range bridges {
 		offMetres := ivs[br.ToIv].ImportMeasureLo - ivs[br.FromIv].ImportMeasureHi
 		t.Logf("bridge iv%d->iv%d: offMetres=%.3f cost=%.4f noBridge=%.4f",
-			br.FromIv, br.ToIv, offMetres, br.Cost, NoBridgeCost(offMetres))
-		if br.Cost <= NoBridgeCost(offMetres) {
+			br.FromIv, br.ToIv, offMetres, br.Cost, noBridgeCost(offMetres))
+		if br.Cost <= noBridgeCost(offMetres) {
 			t.Errorf("a 40 m-deep excursion priced at %.4f, at or under its no-bridge price %.4f — "+
-				"recorded geometry is being crossed for less than it costs to keep", br.Cost, NoBridgeCost(offMetres))
+				"recorded geometry is being crossed for less than it costs to keep", br.Cost, noBridgeCost(offMetres))
 		}
 	}
 

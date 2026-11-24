@@ -28,7 +28,7 @@ import (
 // between them is two points long and both of its ends are J.
 //
 // The same-node split cuts a same-node piece at an interior vertex, and a
-// two-point piece has none — so [FurthestVertex] errors, correctly, and the whole
+// two-point piece has none — so [furthestVertex] errors, correctly, and the whole
 // import fails. Measured on a synthetic-trail sweep before this fix: 6 of 150 seeds,
 // e.g. seed 113 "leg piece 74 of 85 (points 440..441, start canon node 11 at
 // point 440, end canon node 11 at point 441)".
@@ -67,7 +67,7 @@ func TestA2_TwoSeamsOnOneNodeAtAdjacentPointsAreOneSeam(t *testing.T) {
 		{Run: 1, AtRunEnd: false, Node: j, Decline: AlignDeclineAtNode},
 	}}
 
-	seams, err := LegSeamsFromAlign(context.Background(), asm, rep, nil, nil)
+	seams, err := legSeamsFromAlign(context.Background(), asm, rep, nil, nil)
 	if err != nil {
 		t.Fatalf("legSeamsFromAlign: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestA2_TwoSeamsOnOneNodeAtAdjacentPointsAreOneSeam(t *testing.T) {
 		{Run: 0, Lo: 0, Hi: 2, TerminalStart: true},
 		{Run: 1, Lo: 4, Hi: 5, TerminalEnd: true},
 	}
-	ringSeams, err := LegSeamsFromAlign(context.Background(), asmRing, rep, nil, nil)
+	ringSeams, err := legSeamsFromAlign(context.Background(), asmRing, rep, nil, nil)
 	if err != nil {
 		t.Fatalf("legSeamsFromAlign (ring): %v", err)
 	}
@@ -119,7 +119,7 @@ func TestA2_SeamConflictPicksTheCloserCandidate(t *testing.T) {
 	)
 	// Six points on a straight 500 m line, same shape as the adjacency test
 	// above. Runs 0 and 1 meet at point 3 (300, 0) — an ON↔ON seam, so the
-	// assembler dedups it to one idx, and LegSeamsFromAlign sees two
+	// assembler dedups it to one idx, and legSeamsFromAlign sees two
 	// boundary records both claiming it.
 	pts := []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), mPt(300, 0), mPt(400, 0), mPt(500, 0)}
 	asm := AssembledLeg{
@@ -139,7 +139,7 @@ func TestA2_SeamConflictPicksTheCloserCandidate(t *testing.T) {
 			{Run: 1, AtRunEnd: false, Node: run1Node, Decline: AlignDeclineAbsorbedToNode,
 				NodeLat: run1Pt.Lat, NodeLon: run1Pt.Lon, AbsorbedM: 999},
 		}}
-		seams, err := LegSeamsFromAlign(context.Background(), asm, rep, nil, nil)
+		seams, err := legSeamsFromAlign(context.Background(), asm, rep, nil, nil)
 		if err != nil {
 			t.Fatalf("%s: legSeamsFromAlign: %v", label, err)
 		}
@@ -206,7 +206,7 @@ func TestA2_TwoSeamsOnOneNodeWithCoincidentInteriorAreOneSeam(t *testing.T) {
 		{Run: 1, AtRunEnd: false, Node: j, Decline: AlignDeclineAtNode},
 	}}
 
-	seams, err := LegSeamsFromAlign(context.Background(), asm, rep, nil, nil)
+	seams, err := legSeamsFromAlign(context.Background(), asm, rep, nil, nil)
 	if err != nil {
 		t.Fatalf("legSeamsFromAlign: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestA2_TwoSeamsOnOneNodeWithCoincidentInteriorAreOneSeam(t *testing.T) {
 //
 // Reproduced on a real recording: leg piece 21 of 21, points 854..856,
 // start canon node 15 at point 854, end THREADED node 15 — both ends one node,
-// three points, zero extent. [CollapseTerminalSameNodeSeams] requires the last
+// three points, zero extent. [collapseTerminalSameNodeSeams] requires the last
 // seam to sit at `last-1`, so a THREE-point terminal piece (seam at last-2)
 // slips past it, and the same-node split then errors on measure length 0. Its own header states the
 // premise that fails, in the same words the interior one did: "ADJACENCY IS
@@ -251,7 +251,7 @@ func TestA2_TerminalSeamOnOneNodeWithCoincidentInteriorCollapses(t *testing.T) {
 	end := j
 	seams := []LegSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}
 
-	got := CollapseTerminalSameNodeSeams(seams, pts, last, nil, &end)
+	got := collapseTerminalSameNodeSeams(seams, pts, last, nil, &end)
 	if len(got) != 1 {
 		t.Fatalf("a terminal piece of three COINCIDENT points, both ends node %d, produced %d seam(s) (%+v), want 1 — "+
 			"the piece has an interior vertex but no extent, so the same-node split cannot split it and the import aborts", j, len(got), got)
@@ -260,7 +260,7 @@ func TestA2_TerminalSeamOnOneNodeWithCoincidentInteriorCollapses(t *testing.T) {
 	// LIVENESS. A terminal piece with REAL extent is a genuine ring and must keep
 	// both claims — the same-node split splits it because that geometry exists.
 	realPts := []Point{mPt(0, 0), mPt(100, 0), mPt(200, 0), mPt(300, 0), mPt(350, 0), mPt(300, 0)}
-	ring := CollapseTerminalSameNodeSeams([]LegSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}, realPts, last, nil, &end)
+	ring := collapseTerminalSameNodeSeams([]LegSeam{{Idx: 1, Node: NodeID(7), HasNode: true}, {Idx: 3, Node: j, HasNode: true}}, realPts, last, nil, &end)
 	if len(ring) != 2 {
 		t.Fatalf("a terminal piece with real extent produced %d seam(s), want 2 — it is a ring and the same-node split owns it", len(ring))
 	}
@@ -345,7 +345,7 @@ func TestCollapseTerminalSameNodeSeams(t *testing.T) {
 			for i := range pts {
 				pts[i] = mPt(float64(i)*100, 0)
 			}
-			got := CollapseTerminalSameNodeSeams(append([]LegSeam(nil), tc.seams...), pts, tc.last, tc.start, tc.end)
+			got := collapseTerminalSameNodeSeams(append([]LegSeam(nil), tc.seams...), pts, tc.last, tc.start, tc.end)
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d seam(s) %+v, want %d %+v", len(got), got, len(tc.want), tc.want)
 			}

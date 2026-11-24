@@ -86,7 +86,7 @@ func TestWarpLeg_ZeroDisplacement_Identical(t *testing.T) {
 //
 // Red proofs, 2026-10-05 (detached worktree): with applyWarpAtEnd's s == 0
 // branch computing src + v*1 instead of assigning, this fails on "prime
-// meridian: CheckTerminalsExact: start terminal … is not bit-exact"; with that
+// meridian: checkTerminalsExact: start terminal … is not bit-exact"; with that
 // assignment kept for the start only, it fails on the same leg's end
 // terminal. The 120,000-case random sweep this replaced passed both
 // mutations: its 1e-3° jitter moved every base out of the 11 m zero-line
@@ -484,13 +484,13 @@ func TestWarpLeg_ElevationUntouched(t *testing.T) {
 //
 // TestWarpLeg_ZoneGuardUsesSmoothstepMaxSlope also used to stand here: it
 // threaded a real leg fixture through the whole pipeline to demonstrate
-// WarpZoneCanAbsorb's 1.5x-not-1x margin, sized against the OLD flat-only
+// warpZoneCanAbsorb's 1.5x-not-1x margin, sized against the OLD flat-only
 // zone (60 m for a 600 m leg). Under the new formula that same leg's zone is
 // far wider (5*50=250 m, not 60 m) so the fixture no longer sits near the
 // boundary it was built to probe. Replaced below with
 // TestWarpZoneCanAbsorb_1_5xMargin, a direct unit test of the pure function
 // — decoupled from zoneFor's SIZING entirely, which is the right scope for a
-// test about WarpZoneCanAbsorb's own inequality.
+// test about warpZoneCanAbsorb's own inequality.
 
 // TestWarpZoneCanAbsorb_1_5xMargin is THE GUARD'S THRESHOLD IS 1.5x, NOT 1x,
 // AND THIS IS WHY, unit-tested directly against the pure function rather
@@ -508,15 +508,15 @@ func TestWarpLeg_ElevationUntouched(t *testing.T) {
 func TestWarpZoneCanAbsorb_1_5xMargin(t *testing.T) {
 	// zone=60, d=50: a 1x guard (60>=50) would pass; the real 1.5x margin
 	// needs 75, so this must fail.
-	if WarpZoneCanAbsorb(60, 50) {
+	if warpZoneCanAbsorb(60, 50) {
 		t.Fatal("zone 60 absorbed displacement 50 — that is the 1x guard, and it admits inversion")
 	}
 	// Just inside the 1.5x bound: 60/1.5 = 40, so 39 must pass.
-	if !WarpZoneCanAbsorb(60, 39) {
+	if !warpZoneCanAbsorb(60, 39) {
 		t.Fatal("zone 60 should absorb displacement 39 (within the 1.5x margin) but did not")
 	}
 	// Exactly at the boundary (1.5*d == zone) passes — the inequality is <=.
-	if !WarpZoneCanAbsorb(60, 40) {
+	if !warpZoneCanAbsorb(60, 40) {
 		t.Fatal("zone 60, displacement 40 (exactly 1.5*40=60) is the boundary and must still pass (<=, not <)")
 	}
 }
@@ -961,7 +961,7 @@ func TestWarp_TerminalExactRegardlessOfOverlap(t *testing.T) {
 	}
 }
 
-// TestCheckTerminalsExact_CatchesAViolation proves CheckTerminalsExact's
+// TestCheckTerminalsExact_CatchesAViolation proves checkTerminalsExact's
 // failure branch actually fires — a guard that has only ever been observed
 // passing is not proven able to fail (see its doc comment). Hands it a
 // deliberately wrong `out` directly, bypassing WarpLegEndpoints entirely, so
@@ -975,19 +975,19 @@ func TestCheckTerminalsExact_CatchesAViolation(t *testing.T) {
 		{Lat: end.Lat, Lon: end.Lon}, // correct
 	}
 
-	if err := CheckTerminalsExact(out, start, end); err == nil {
+	if err := checkTerminalsExact(out, start, end); err == nil {
 		t.Fatal("expected an error for a start terminal that is not bit-exact on its target, got nil")
 	}
 
 	// Fix the start terminal; must now pass.
 	out[0] = Point{Lat: start.Lat, Lon: start.Lon}
-	if err := CheckTerminalsExact(out, start, end); err != nil {
+	if err := checkTerminalsExact(out, start, end); err != nil {
 		t.Fatalf("expected no error once both terminals are bit-exact: %v", err)
 	}
 
 	// Break the end terminal instead.
 	out[2] = Point{Lat: end.Lat, Lon: end.Lon + 1e-9}
-	if err := CheckTerminalsExact(out, start, end); err == nil {
+	if err := checkTerminalsExact(out, start, end); err == nil {
 		t.Fatal("expected an error for an end terminal that is not bit-exact on its target, got nil")
 	}
 
@@ -996,7 +996,7 @@ func TestCheckTerminalsExact_CatchesAViolation(t *testing.T) {
 	// check now, and that's exercised by every other test that only sets one
 	// of start/end.
 	out[2] = Point{Lat: end.Lat, Lon: end.Lon}
-	if err := CheckTerminalsExact(out, start, nil); err != nil {
+	if err := checkTerminalsExact(out, start, nil); err != nil {
 		t.Fatalf("expected no error when end has no target at all: %v", err)
 	}
 }

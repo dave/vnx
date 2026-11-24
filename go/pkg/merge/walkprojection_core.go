@@ -13,7 +13,7 @@ import (
 //
 // It is a sentinel rather than a plain error because its two readers want
 // opposite things. [ProjectProbeOntoWalk] cannot answer "where on this walk"
-// for it (Fraction would be 0/0) and must say so. [NearestCanonArc]
+// for it (Fraction would be 0/0) and must say so. [nearestCanonArc]
 // must SKIP it, because such arcs are ordinary committed geometry and
 // raising would abort a valid import over an arc it was never going to
 // choose. Without the sentinel the caller would have to match on error text,
@@ -21,10 +21,10 @@ import (
 // how the two genuine contract violations would go silent.
 var ErrWalkHasNoLength = errors.New("canon vertex walk has zero length")
 
-// NearestCanonArc projects the probe (lat, lon) onto each candidate's vertex
+// nearestCanonArc projects the probe (lat, lon) onto each candidate's vertex
 // walk and returns the nearest one within radiusM (`<=`), ties to the earlier
 // candidate (strict `<`). A zero-length candidate is skipped, not raised.
-func NearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
+func nearestCanonArc(candidates []CanonArc, lat, lon, radiusM float64) (NearbyCanonArc, bool, error) {
 	var (
 		best  NearbyCanonArc
 		bestD = math.MaxFloat64
@@ -173,7 +173,7 @@ type CanonWalkProjection struct {
 // error cost a valid import. Fraction really would be 0/0, so this function
 // still cannot answer and still returns [ErrWalkHasNoLength]; but such an
 // arc is ordinary committed geometry (a GPX route of two or more
-// identical points imports today), so [NearestCanonArc] SKIPS it
+// identical points imports today), so [nearestCanonArc] SKIPS it
 // rather than propagating. See the skip's comment for why nothing is lost.
 //
 // A zero-length LEG — two identical consecutive vertices inside a walk that

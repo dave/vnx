@@ -92,7 +92,7 @@ func crossingFixture(t *testing.T) (sa *SourceMeasure, pc *PreppedCandidate, off
 // interval's ImportMeasureLo is solved in closed form; here the crossing is
 // found instead by 40 bisection steps along the source edge on
 // ClosestPointOnSeg's distance to the (single-edge) canon, building the point
-// by lat/lon lerp and the elevation by LerpEle at the same fraction. The two
+// by lat/lon lerp and the elevation by lerpEle at the same fraction. The two
 // methods share nothing but the fixture and the distance definition, so
 // agreement is evidence that the closed form is right, not that it agrees
 // with itself.
@@ -100,7 +100,7 @@ func TestCorridorBoundaryPoint_MatchesBisectedRoot(t *testing.T) {
 	const R = 15.0
 	sa, pc, off, on := crossingFixture(t)
 
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestCorridorBoundaryPoint_MatchesBisectedRoot(t *testing.T) {
 	}
 	f := (flo + fhi) / 2
 	lat, lon := at(f)
-	root := Point{Lat: lat, Lon: lon, Ele: LerpEle(off.Ele, on.Ele, f)}
+	root := Point{Lat: lat, Lon: lon, Ele: lerpEle(off.Ele, on.Ele, f)}
 
 	// Position: within the noise floor this package already sets its
 	// tolerances at (corridorinterval_test.go's corridorTol, above the
@@ -165,7 +165,7 @@ func TestCorridorBoundaryPoint_MatchesBisectedRoot(t *testing.T) {
 func TestCorridorBoundaryPoint_PreservesElevation(t *testing.T) {
 	const R = 15.0
 	sa, pc, off, on := crossingFixture(t)
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil || len(ivs) != 1 {
 		t.Fatalf("candidateCorridorIntervals: ivs=%v err=%v", ivs, err)
 	}
@@ -193,7 +193,7 @@ func TestCorridorBoundaryPoint_PreservesElevation(t *testing.T) {
 func TestCorridorBoundaryPoint_DroppingItMovesTheSeam(t *testing.T) {
 	const R = 15.0
 	sa, pc, off, _ := crossingFixture(t)
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil || len(ivs) != 1 {
 		t.Fatalf("candidateCorridorIntervals: ivs=%v err=%v", ivs, err)
 	}

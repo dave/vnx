@@ -211,7 +211,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 	// POST-CONDITION, on top of the construction argument above: every
 	// boundary must land bit-exact on its own target, because node adoption
 	// downstream compares coordinates with `==`, not a tolerance — the same
-	// invariant CheckTerminalsExact asserts for the endpoint warp's terminals.
+	// invariant checkTerminalsExact asserts for the endpoint warp's terminals.
 	// Proven able to fail, not merely observed passing, by
 	// TestWarpLegAtBoundaries_PostConditionCatchesAViolation.
 	for _, b := range boundaries {
@@ -263,7 +263,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 
 // ApplyLegBoundaryWarp is the leg-warp half of repointing a boundary,
 // composed for the caller that turns aligned seams into committed leg pieces
-// (it runs between LegSeamsFromAlign and the commit). Repointing a seam
+// (it runs between legSeamsFromAlign and the commit). Repointing a seam
 // RECORD onto a node up to EndpointWarpRadiusM away is only half of the job —
 // the leg's own committed geometry has to actually reach that node, or the
 // caller writes a piece whose own declared boundary sits nowhere the followed
@@ -280,7 +280,7 @@ func WarpLegAtBoundaries(pts []Point, boundaries []WarpBoundaryTarget) ([]Point,
 // function's doc) while asking it to move nowhere — that function's own
 // "already exactly coincident" branch is exactly this no-op. Seams with
 // !HasNode (dropped stub declines) are never in the slice
-// LegSeamsFromAlign returns, so there is nothing to filter here.
+// legSeamsFromAlign returns, so there is nothing to filter here.
 //
 // No gap-collapse runs (see the note above): the points are handed to
 // WarpLegAtBoundaries as they are, and a boundary very close to another

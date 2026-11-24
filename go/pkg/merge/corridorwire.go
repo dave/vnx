@@ -10,7 +10,7 @@ import (
 
 // solverEps is the width below which an import-measure run is sub-eps noise
 // rather than real geometry — corridorsolve.go's own layering eps (1e-6),
-// looser than ClipCorridorPiece's exact overlap test, so a run can land, at
+// looser than clipCorridorPiece's exact overlap test, so a run can land, at
 // this scale, fractionally outside the bounds it was solved as active on
 // (measured on a randomised test corpus: a 7.8e-9 m ON run). Shared by both the OFF
 // and ON skips below: the same solver tolerance produces the same class of
@@ -44,7 +44,7 @@ type CorridorCostObserver interface {
 
 	// SourceEdgeMinted reports one (source edge × candidate) mint: how many
 	// corridorPieces [sourceEdgeCorridorPieces] produced, and how many survived
-	// [PruneToNearestCanonEdges].
+	// [pruneToNearestCanonEdges].
 	//
 	// It fires for EVERY source edge, including a zero-length one that mints
 	// nothing — reported as an explicit (0,0) rather than by silence, so a
@@ -184,7 +184,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 			// of 0 while [AssembleFollowedLegRunsCorridor]'s own atStart
 			// still (correctly) reads this as the leg's own measure-0 start,
 			// since sub-eps error only moved WHICH FollowRun claims measure 0,
-			// not whether anything does. LegSeamsFromAlign's own assertion
+			// not whether anything does. legSeamsFromAlign's own assertion
 			// (legpieces.go: "ON piece 0 is flagged terminal at its start
 			// but begins at point %d, not 0") is what catches the
 			// resulting mismatch — a real invariant, not an overly strict
@@ -237,10 +237,10 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 		fr.ChainHop = run.ChainHop
 		out = append(out, fr)
 	}
-	return MergeAdjacentSameCandidateRuns(out), nil
+	return mergeAdjacentSameCandidateRuns(out), nil
 }
 
-// MergeAdjacentSameCandidateRuns merges consecutive ON followRuns that share
+// mergeAdjacentSameCandidateRuns merges consecutive ON followRuns that share
 // a candidate and direction and whose canon measure touches across the boundary
 // — the SAME "one seam per genuine change, not per internal boundary"
 // principle the solver applies within one solver run (its state names the
@@ -264,7 +264,7 @@ func CorridorFollowRuns(ctx context.Context, pts []Point, canon []CanonArc, b Fo
 // already merges within one run — this is that same merge, applied one
 // level up, over CorridorFollowRuns' own output rather than one run's own
 // pieces.
-func MergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
+func mergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 	if len(runs) == 0 {
 		return runs
 	}
@@ -357,7 +357,7 @@ func MergeAdjacentSameCandidateRuns(runs []FollowRun) []FollowRun {
 		// back down is a real reversal, and it spans MANY source edges in both
 		// directions because the walker had to travel out and return. That is
 		// what separates it from the artefact, and it is why the fix is here
-		// rather than in the cost model: BacktrackCost charges measure travelled
+		// rather than in the cost model: backtrackCost charges measure travelled
 		// AGAINST a run's declared direction, so a run that declares itself
 		// reversed and goes backwards is charged nothing — correctly, because a
 		// real spur should be cheap. The defect is not that reversals are

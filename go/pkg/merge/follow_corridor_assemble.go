@@ -27,12 +27,12 @@ package merge
 //
 // ── THE NODE-SNAP GATE ──────────────────────────────────────────────────────
 //
-// [CheckCorridor] plus [snapMeasureToNearbyNodeCensus], kept deliberately.
+// [checkCorridor] plus [snapMeasureToNearbyNodeCensus], kept deliberately.
 // This is NOT inert in production — its first
 // mechanism, snapping onto a candidate's OWN endpoint, is a pure function of
 // the measure alone and fires with no node lookup at all; only its second
 // mechanism (any existing network node) is gated on `lookup` and inert while
-// [followLegAgainstCanon] passes noNodeLookup. [CheckCorridor] needs a source
+// [followLegAgainstCanon] passes noNodeLookup. [checkCorridor] needs a source
 // path, so this file builds a densified source slice per run
 // (densifyStep(b)), never for the whole leg.
 
@@ -102,7 +102,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		// The run's own two boundary points. Hoisted above the OFF branch
 		// because atStart/atEnd below are decided on them; the ON path
 		// downstream reuses these same two values rather than re-deriving
-		// them (see the DensifySource block).
+		// them (see the densifySource block).
 		startPt, err := sa.PointAt(run.Start)
 		if err != nil {
 			return AssembledLeg{}, fmt.Errorf("AssembleFollowedLegRunsCorridor: run %d start point: %w", r, err)
@@ -165,7 +165,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		// The run's own source stretch, boundary to boundary, at densifyStep(b)
 		// resolution — built per run, never for the whole leg. A
 		// duplicate point where a boundary lands exactly on a vertex is
-		// harmless (DensifySource treats it as a zero-length edge and
+		// harmless (densifySource treats it as a zero-length edge and
 		// inserts nothing extra) and not worth guarding against.
 		first, last := sourceRunVertexRange(run.Start, run.End)
 		runVerts := make([]Point, 0, last-first+3)
@@ -174,7 +174,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 			runVerts = append(runVerts, pts[i])
 		}
 		runVerts = append(runVerts, endPt)
-		src, _ := DensifySource(runVerts, densifyStep(b))
+		src, _ := densifySource(runVerts, densifyStep(b))
 
 		// Kind-A crossing vertices — an OFF neighbour on that side, and not
 		// the leg's own terminal (a leg terminal is kind D, never kind A:
@@ -202,7 +202,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 		}
 
 		// The node-snap gate — see
-		// [snapMeasureToNearbyNodeCensus] and [CheckCorridor] (follow_core.go).
+		// [snapMeasureToNearbyNodeCensus] and [checkCorridor] (follow_core.go).
 		// Gated on entryCross/exitCross still being nil: a kind-A boundary
 		// already has its answer above, so the snap only gets a look at what
 		// kind-A left unanswered (an ON<->ON seam, or a run abutting another
@@ -235,7 +235,7 @@ func AssembleFollowedLegRunsCorridor(pts []Point, canon []CanonArc, runs []Follo
 				//
 				// The two values differ: CorridorRadiusM is 10 and StayM is
 				// 15, so this check reads nothing from FollowBands.StayM.
-				accepted = CheckCorridor(src, 0, pc, trialStart, trialEnd, entryCross, exitCross, run.Reversed, CorridorRadiusM) == nil
+				accepted = checkCorridor(src, 0, pc, trialStart, trialEnd, entryCross, exitCross, run.Reversed, CorridorRadiusM) == nil
 				if accepted {
 					rr.MeasureStart, rr.MeasureEnd = trialStart, trialEnd
 				}

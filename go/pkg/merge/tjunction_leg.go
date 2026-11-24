@@ -68,7 +68,7 @@ func SplitCanonAtLegTerminals(
 	// it runs, both splits have landed, so both nodes are there to be found.
 	//
 	// Neither call needs the leg's own measure length (see
-	// TjunctionDeclineFor's doc). A non-finite leg is still caught, just one
+	// tjunctionDeclineFor's doc). A non-finite leg is still caught, just one
 	// function later: warpLegEndpointsToNodes errors on the same condition
 	// over the same array.
 	start, err := SplitCanonAtTerminal(ctx, canon, pts[0])
@@ -125,7 +125,7 @@ func SplitCanonAtTerminal(
 	}
 
 	// 3-4. The two declines.
-	if d := TjunctionDeclineFor(NearbyCanonArc(cand)); d != TjNoDecline {
+	if d := tjunctionDeclineFor(NearbyCanonArc(cand)); d != TjNoDecline {
 		out.Decline = d
 		return out, nil
 	}

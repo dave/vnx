@@ -40,7 +40,7 @@ import (
 //
 // ⚠ THAT 98% MEASURED GEOMETRIC POSSIBILITY, NOT ARCS ACTUALLY HIDDEN, and
 // the two differ by two orders of magnitude. The tighten is
-// [ArcBBoxNearAnyEdge], an edge-vs-box test built on [RectsBeyond]; measured
+// [arcBBoxNearAnyEdge], an edge-vs-box test built on [RectsBeyond]; measured
 // across six test corpora, the per-point test was dropping 171 arcs the edge
 // test keeps, of which the solver binds 10 — 229 m of canon across 3 legs of
 // 181. The exposure was real and it was small. "How many edges COULD hide an
@@ -64,7 +64,7 @@ import (
 const CorridorRadiusM = 10.0
 
 // EmissionK is k, the exponent in the emission and canon-side gap terms:
-// (d/R)^k. MUST be a positive even integer — [ValidateEvenK] explains why.
+// (d/R)^k. MUST be a positive even integer — [validateEvenK] explains why.
 //
 // 2 is a deliberate starting choice, to be raised if needed — not an
 // unmeasured placeholder.
@@ -124,7 +124,7 @@ const EmissionK = 2
 // P = 1000"), never to pick between 50 and 75.
 const StateChangeCostP = 50.0
 
-// BacktrackWeightPerM is the per-metre weight on canon measure travelled against
+// backtrackWeightPerM is the per-metre weight on canon measure travelled against
 // a state's declared direction.
 //
 // 1.0 is a working value alongside P = 50. It was swept and is NOT a weak
@@ -136,13 +136,13 @@ const StateChangeCostP = 50.0
 //
 // So 1 is measured and deliberately held rather than an untested default.
 // Tune it on real data with P, not offline and not independently.
-const BacktrackWeightPerM = 1.0
+const backtrackWeightPerM = 1.0
 
-// ValidateEvenK reports an error unless k is a positive even integer.
+// validateEvenK reports an error unless k is a positive even integer.
 //
 // WHY EVEN ONLY, verified against [BandPiece.distSq]'s own two forms: within
 // one regime, dist²(t) is EXACTLY quadratic in t — either
-// quadA·t²+quadB·t+quadC (RegimeNearA/RegimeNearB, SolveQuadLE's own
+// quadA·t²+quadB·t+quadC (RegimeNearA/RegimeNearB, solveQuadLE's own
 // coefficients) or (spanC0+spanC1·t)²/spanLenSq (RegimeSpan) — both are a
 // squared polynomial. For EVEN k, (dist²(t))^(k/2) is therefore a plain
 // polynomial in t (a whole power of a polynomial), integrable term-by-term
@@ -153,7 +153,7 @@ const BacktrackWeightPerM = 1.0
 // linear-squared case) but is a different, heavier code path than the power
 // rule this file relies on throughout, and this package does not implement
 // it.
-func ValidateEvenK(k int) error {
+func validateEvenK(k int) error {
 	if k <= 0 || k%2 != 0 {
 		return fmt.Errorf("corridorcost: k must be a positive even integer (odd k has no closed-form antiderivative over these quadratic regimes — see validateEvenK), got %d", k)
 	}
@@ -162,20 +162,20 @@ func ValidateEvenK(k int) error {
 
 // ---- shared exact integration --------------------------------------------
 
-// GaussLegendreMaxPoints bounds the rule table below. An n-point rule is exact
+// gaussLegendreMaxPoints bounds the rule table below. An n-point rule is exact
 // for polynomials of degree ≤ 2n−1, and ∫ dist²(t)^m needs degree 2m, so n = m+1
 // points; 16 covers every even k up to 30. A larger k is an error, not a
 // silently inexact rule.
-const GaussLegendreMaxPoints = 16
+const gaussLegendreMaxPoints = 16
 
 // gaussLegendreRules[n] holds the n-point Gauss–Legendre nodes and weights on
 // [−1, 1], computed once at package init by Newton's method on P_n — the
 // textbook construction, deterministic on every platform. Every weight is
 // strictly positive; TestGaussLegendreRules checks them, and checks each rule
 // integrates the monomials up to degree 2n−1 exactly.
-var gaussLegendreRules = func() [GaussLegendreMaxPoints + 1]struct{ X, W []float64 } {
-	var rules [GaussLegendreMaxPoints + 1]struct{ X, W []float64 }
-	for n := 1; n <= GaussLegendreMaxPoints; n++ {
+var gaussLegendreRules = func() [gaussLegendreMaxPoints + 1]struct{ X, W []float64 } {
+	var rules [gaussLegendreMaxPoints + 1]struct{ X, W []float64 }
+	for n := 1; n <= gaussLegendreMaxPoints; n++ {
 		x := make([]float64, n)
 		w := make([]float64, n)
 		for i := 0; i < n; i++ {
@@ -207,7 +207,7 @@ var gaussLegendreRules = func() [GaussLegendreMaxPoints + 1]struct{ X, W []float
 	return rules
 }()
 
-// IntegrateDistSqPow returns ∫ distSq(t)^m dt over [bp.lo, bp.hi], exactly up
+// integrateDistSqPow returns ∫ distSq(t)^m dt over [bp.lo, bp.hi], exactly up
 // to rounding, for m = k/2.
 //
 // ⚠ IT IS NON-NEGATIVE BY CONSTRUCTION, and that is why it is written this way:
@@ -237,7 +237,7 @@ var gaussLegendreRules = func() [GaussLegendreMaxPoints + 1]struct{ X, W []float
 // It evaluates dist² by the sum-of-squares form, not the trinomial, because the
 // trinomial itself can come out below 0 where X(t) passes through the vertex —
 // the same cancellation one level down.
-func IntegrateDistSqPow(bp BandPiece, m int) (float64, error) {
+func integrateDistSqPow(bp BandPiece, m int) (float64, error) {
 	if bp.Hi < bp.Lo {
 		return 0, fmt.Errorf("corridorcost: piece has hi %.17g < lo %.17g", bp.Hi, bp.Lo)
 	}
@@ -245,8 +245,8 @@ func IntegrateDistSqPow(bp BandPiece, m int) (float64, error) {
 		return 0, nil // zero-measure piece (a tangency point): no contribution
 	}
 	n := m + 1
-	if m < 1 || n > GaussLegendreMaxPoints {
-		return 0, fmt.Errorf("corridorcost: power m=%d needs a %d-point Gauss–Legendre rule; this file carries rules of 2..%d points", m, n, GaussLegendreMaxPoints)
+	if m < 1 || n > gaussLegendreMaxPoints {
+		return 0, fmt.Errorf("corridorcost: power m=%d needs a %d-point Gauss–Legendre rule; this file carries rules of 2..%d points", m, n, gaussLegendreMaxPoints)
 	}
 	rule := gaussLegendreRules[n]
 	half := (bp.Hi - bp.Lo) / 2
@@ -273,7 +273,7 @@ func IntegrateDistSqPow(bp BandPiece, m int) (float64, error) {
 
 // ---- emission -----------------------------------------------------------
 
-// EmissionCost is the emission term for one CorridorPiece: (d/R)^k
+// emissionCost is the emission term for one CorridorPiece: (d/R)^k
 // integrated per metre of IMPORT measure across the piece — the soft
 // replacement for a band membership test.
 //
@@ -281,11 +281,11 @@ func IntegrateDistSqPow(bp BandPiece, m int) (float64, error) {
 // source edge ([CorridorPiece]'s own doc comment), so the Jacobian ds/dt is
 // the piece's own constant rate — only a scale factor on the t-integral, no
 // separate measure-length integral needed.
-func EmissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
-	if err := ValidateEvenK(k); err != nil {
+func emissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
+	if err := validateEvenK(k); err != nil {
 		return 0, err
 	}
-	if !(r > 0) || !AllFinite(r) {
+	if !(r > 0) || !allFinite(r) {
 		return 0, fmt.Errorf("corridorcost: emission radius must be finite and positive, got %v", r)
 	}
 	bp := cp.Regime
@@ -293,11 +293,11 @@ func EmissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 		return 0, nil
 	}
 	rate := (cp.ImportMeasureAtHi - cp.ImportMeasureAtLo) / (bp.Hi - bp.Lo)
-	if !AllFinite(rate) {
+	if !allFinite(rate) {
 		return 0, fmt.Errorf("corridorcost: piece import-measure rate not finite (ImportMeasureAtLo=%v ImportMeasureAtHi=%v lo=%v hi=%v)",
 			cp.ImportMeasureAtLo, cp.ImportMeasureAtHi, bp.Lo, bp.Hi)
 	}
-	integral, err := IntegrateDistSqPow(bp, k/2)
+	integral, err := integrateDistSqPow(bp, k/2)
 	if err != nil {
 		return 0, err
 	}
@@ -317,7 +317,7 @@ func EmissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 
 // ---- backtrack ------------------------------------------------------
 
-// BacktrackMeasureM is the RAW (unweighted) canon measure travelled against a
+// backtrackMeasureM is the RAW (unweighted) canon measure travelled against a
 // state's declared direction over one CorridorPiece — the term that
 // replaces a turnaround rule and a wrong-arm measure-span guard.
 // dirIncreasing is the state's own direction: true means the state expects
@@ -330,7 +330,7 @@ func EmissionCost(cp CorridorPiece, r float64, k int) (float64, error) {
 // affine in t (bandinterval.go's own s0+s1·t, "s(t) is ... affine in t"), so
 // canon measure moves in exactly one direction across the whole piece and never
 // reverses partway through it.
-func BacktrackMeasureM(cp CorridorPiece, dirIncreasing bool) float64 {
+func backtrackMeasureM(cp CorridorPiece, dirIncreasing bool) float64 {
 	delta := cp.CanonMeasureAtHi - cp.CanonMeasureAtLo
 	if dirIncreasing {
 		if delta < 0 {
@@ -344,95 +344,95 @@ func BacktrackMeasureM(cp CorridorPiece, dirIncreasing bool) float64 {
 	return 0
 }
 
-// BacktrackCost is [BacktrackMeasureM] weighted by [BacktrackWeightPerM] — the
+// backtrackCost is [backtrackMeasureM] weighted by [backtrackWeightPerM] — the
 // cost the solver actually charges.
 //
 // weightOverride is optional: omitted, this uses the production constant.
 // [ArcCost] passes it from a [CorridorTunables] override, which only tests
 // set, for sweeping the weight.
-func BacktrackCost(cp CorridorPiece, dirIncreasing bool, weightOverride ...float64) float64 {
-	w := BacktrackWeightPerM
+func backtrackCost(cp CorridorPiece, dirIncreasing bool, weightOverride ...float64) float64 {
+	w := backtrackWeightPerM
 	if len(weightOverride) > 0 {
 		w = weightOverride[0]
 	}
-	return w * BacktrackMeasureM(cp, dirIncreasing)
+	return w * backtrackMeasureM(cp, dirIncreasing)
 }
 
 // ---- state change, and the bridge/no-bridge inequality --------------
 
-// StateChangeCost is P: the flat penalty for one non-measure-adjacent state
+// stateChangeCost is P: the flat penalty for one non-measure-adjacent state
 // transition. Deciding WHICH transitions qualify — "P is not charged along
 // one trail" — is the solver's job; this returns only the constant itself.
 //
-// pOverride is optional, same reason and same pattern as [BacktrackCost]'s
+// pOverride is optional, same reason and same pattern as [backtrackCost]'s
 // weightOverride — tests only, every production call site passes nothing.
-func StateChangeCost(pOverride ...float64) float64 {
+func stateChangeCost(pOverride ...float64) float64 {
 	if len(pOverride) > 0 {
 		return pOverride[0]
 	}
 	return StateChangeCostP
 }
 
-// BridgeCost is the cost of BRIDGING a gap between two adopted stretches: the
+// bridgeCost is the cost of BRIDGING a gap between two adopted stretches: the
 // gap integral, and nothing else besides it. Bridging is an inequality with P
-// on the other side ([NoBridgeCost]).
+// on the other side ([noBridgeCost]).
 //
 // ⚠ "THE GAP INTEGRAL" IS TWO TERMS, NOT ONE. Taking it as the canon-side
-// integral alone is the defect [ImportGapCost] fixes: a bridge consumes import
+// integral alone is the defect [importGapCost] fixes: a bridge consumes import
 // measure too, and without that term it was the only edge in the solve that
 // consumed it for free. Callers pass canonGapCostBetween +
 // importGapCostBetween — see corridorsolve.go's [candidateBridgeCost], which
 // is the only production caller and the place the two are summed.
-func BridgeCost(gapIntegral float64) float64 {
+func bridgeCost(gapIntegral float64) float64 {
 	return gapIntegral
 }
 
-// NoBridgeCost is the cost of NOT bridging: two state-change penalties (one
+// noBridgeCost is the cost of NOT bridging: two state-change penalties (one
 // to leave the interval before the gap, one to re-enter after it) plus the
 // import's own OFF metres across the gap.
 //
-// pOverride, same test-only pattern, forwarded to [StateChangeCost].
-func NoBridgeCost(offImportMetres float64, pOverride ...float64) float64 {
-	return 2*StateChangeCost(pOverride...) + offImportMetres
+// pOverride, same test-only pattern, forwarded to [stateChangeCost].
+func noBridgeCost(offImportMetres float64, pOverride ...float64) float64 {
+	return 2*stateChangeCost(pOverride...) + offImportMetres
 }
 
 // ---- canon-side gap integral ------------------------------------------
 
-// CanonEdgeDistSqRegimes returns dist²(u) for u ∈ [0,1] along canon edge
+// canonEdgeDistSqRegimes returns dist²(u) for u ∈ [0,1] along canon edge
 // A→B, against ONE fixed source arc P→Q, as up to three [BandPiece]
 // regime pieces covering the edge's WHOLE extent — the transposed solve,
 // verified to ~1e-9 against brute force: the gap term needs distance BEYOND
-// R, where [BandPieces]' own band-clipped pieces give nothing.
+// R, where [bandPieces]' own band-clipped pieces give nothing.
 //
-// This mirrors BandPieces' own regime construction with A,B in the
+// This mirrors bandPieces' own regime construction with A,B in the
 // "moving" (p,q) role and P,Q in the "frame" (a,b) role — i.e. it computes
-// exactly what BandPieces(A, B, P, Q, d) would, for the part that does not
+// exactly what bandPieces(A, B, P, Q, d) would, for the part that does not
 // depend on d at all (the regime ranges and their dist² coefficients are
-// computed BEFORE BandPieces ever looks at d — see its source). It is not
-// extracted out of BandPieces into a shared helper: that function's every
+// computed BEFORE bandPieces ever looks at d — see its source). It is not
+// extracted out of bandPieces into a shared helper: that function's every
 // line carries FMA-fusion and catastrophic-cancellation warnings earned the
 // hard way (bandinterval.go's header), and a refactor risks disturbing
 // behaviour pinned by dozens of existing tests for a benefit — avoiding
 // ~30 duplicated lines of index/coefficient bookkeeping — that does not
-// justify the risk. What IS shared is [NewSegFrame] and the coefficient
-// FORMULAS themselves, copied verbatim from BandPieces so a diff against it
+// justify the risk. What IS shared is [newSegFrame] and the coefficient
+// FORMULAS themselves, copied verbatim from bandPieces so a diff against it
 // stays legible; nothing here is independently re-derived.
 //
 // No band condition is applied: every regime's whole [0,1]-clipped domain is
 // kept, because the gap term integrates distance BEYOND R, not membership
-// within it. BandPieces' interior REGIME JOIN logic (the verdict that a
+// within it. bandPieces' interior REGIME JOIN logic (the verdict that a
 // boundary is in band when either adjacent solve reaches it,
 // bandinterval.go's "THE REGIME JOINS") exists only
 // to resolve band MEMBERSHIP disagreements at a boundary; it is not needed
 // here because a single boundary point has zero measure and cannot change a
 // definite integral regardless of which regime "claims" it.
-func CanonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err error) {
-	if !AllFinite(a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon, q.Lat, q.Lon) {
+func canonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err error) {
+	if !allFinite(a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon, q.Lat, q.Lon) {
 		return pieces, 0, fmt.Errorf("corridorcost: non-finite canon/source edge [A=(%v,%v) B=(%v,%v) P=(%v,%v) Q=(%v,%v)]",
 			a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon, q.Lat, q.Lon)
 	}
 
-	f := NewSegFrame(p.Lat, p.Lon, q.Lat, q.Lon)
+	f := newSegFrame(p.Lat, p.Lon, q.Lat, q.Lon)
 
 	ax := (a.Lon - f.aLon) * MetresPerDeg * f.CosLat
 	ay := (a.Lat - f.aLat) * MetresPerDeg
@@ -443,7 +443,7 @@ func CanonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err e
 
 	if f.LenSq == 0 {
 		// Degenerate source arc: distance is to the point P throughout —
-		// mirrors BandPieces' own degenerate-canon-edge branch, roles swapped.
+		// mirrors bandPieces' own degenerate-canon-edge branch, roles swapped.
 		quadB := 2 * (ax*dx + ay*dy)
 		quadC := ax*ax + ay*ay
 		pieces[0] = BandPiece{Lo: 0, Hi: 1, Kind: RegimeNearA, QuadA: dsq, QuadB: quadB, QuadC: quadC,
@@ -453,7 +453,7 @@ func CanonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err e
 
 	s0 := (ax*f.Bx + ay*f.By) / f.LenSq
 	s1 := (dx*f.Bx + dy*f.By) / f.LenSq
-	if !AllFinite(s0, s1) {
+	if !allFinite(s0, s1) {
 		return pieces, 0, fmt.Errorf("corridorcost: projection parameter not finite (s0=%v s1=%v)", s0, s1)
 	}
 
@@ -462,29 +462,29 @@ func CanonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err e
 	// arc's ends, not the canon edge's vertices. Nothing may read these
 	// pieces' ends as a statement about canon geometry: they feed the gap
 	// integral only.
-	var ranges [3]BandRegimeRange
+	var ranges [3]bandRegimeRange
 	nr := 0
 	if s1 == 0 {
 		switch {
 		case s0 < 0:
-			ranges[0] = BandRegimeRange{Kind: RegimeNearA, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearA, Lo: 0, Hi: 1}
 		case s0 > 1:
-			ranges[0] = BandRegimeRange{Kind: RegimeNearB, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearB, Lo: 0, Hi: 1}
 		default:
-			ranges[0] = BandRegimeRange{Kind: RegimeSpan, Lo: 0, Hi: 1}
+			ranges[0] = bandRegimeRange{Kind: RegimeSpan, Lo: 0, Hi: 1}
 		}
 		nr = 1
 	} else {
 		tZero := -s0 / s1
 		tOne := (1 - s0) / s1
 		if s1 > 0 {
-			ranges[0] = BandRegimeRange{Kind: RegimeNearA, Lo: math.Inf(-1), Hi: tZero}
-			ranges[1] = BandRegimeRange{Kind: RegimeSpan, Lo: tZero, Hi: tOne}
-			ranges[2] = BandRegimeRange{Kind: RegimeNearB, Lo: tOne, Hi: math.Inf(1)}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearA, Lo: math.Inf(-1), Hi: tZero}
+			ranges[1] = bandRegimeRange{Kind: RegimeSpan, Lo: tZero, Hi: tOne}
+			ranges[2] = bandRegimeRange{Kind: RegimeNearB, Lo: tOne, Hi: math.Inf(1)}
 		} else {
-			ranges[0] = BandRegimeRange{Kind: RegimeNearB, Lo: math.Inf(-1), Hi: tOne}
-			ranges[1] = BandRegimeRange{Kind: RegimeSpan, Lo: tOne, Hi: tZero}
-			ranges[2] = BandRegimeRange{Kind: RegimeNearA, Lo: tZero, Hi: math.Inf(1)}
+			ranges[0] = bandRegimeRange{Kind: RegimeNearB, Lo: math.Inf(-1), Hi: tOne}
+			ranges[1] = bandRegimeRange{Kind: RegimeSpan, Lo: tOne, Hi: tZero}
+			ranges[2] = bandRegimeRange{Kind: RegimeNearA, Lo: tZero, Hi: math.Inf(1)}
 		}
 		nr = 3
 	}
@@ -527,7 +527,7 @@ func CanonEdgeDistSqRegimes(a, b, p, q Point) (pieces [3]BandPiece, n int, err e
 // source runs far along a long canon edge), not to evaluating (c0+c1·t)²
 // directly, which has no subtraction in it at all. This form is used ONLY
 // to locate envelope CROSSINGS between competing candidates
-// ([PieceCrossings]) — a new purpose, never a membership test, and never
+// ([pieceCrossings]) — a new purpose, never a membership test, and never
 // over the long-edge scenario the original warning concerns.
 func quadFormCoeffs(bp BandPiece) (a, b, c float64) {
 	if bp.Kind == RegimeSpan {
@@ -538,11 +538,11 @@ func quadFormCoeffs(bp BandPiece) (a, b, c float64) {
 	return bp.QuadA, bp.QuadB, bp.QuadC
 }
 
-// PieceCrossings returns the t-values strictly inside (lo,hi) where x and
+// pieceCrossings returns the t-values strictly inside (lo,hi) where x and
 // y's dist²(t) are equal, via the closed-form quadratic-formula solve of
 // their difference: a crossing between any two pieces solves a quadratic,
 // cheap and exact.
-func PieceCrossings(x, y BandPiece, lo, hi float64) []float64 {
+func pieceCrossings(x, y BandPiece, lo, hi float64) []float64 {
 	ax, bx, cx := quadFormCoeffs(x)
 	ay, by, cy := quadFormCoeffs(y)
 	a, b, c := ax-ay, bx-by, cx-cy
@@ -568,12 +568,12 @@ func PieceCrossings(x, y BandPiece, lo, hi float64) []float64 {
 	return out
 }
 
-// EnvelopeMinCost integrates (min_i distSq_i(t))^(k/2) / r^k over
+// envelopeMinCost integrates (min_i distSq_i(t))^(k/2) / r^k over
 // [globalLo, globalHi], given competing pieces that may each cover only
 // part of that range (a piece not covering a given t is ignored there).
 //
 // Closed form throughout: breakpoints are the pieces' own domain edges plus
-// every pairwise CROSSING ([PieceCrossings]), each an exact quadratic-
+// every pairwise CROSSING ([pieceCrossings]), each an exact quadratic-
 // formula root — not a sampled step. Between two consecutive breakpoints no
 // piece's relative ordering can change (that is what a crossing IS), so
 // evaluating once at the midpoint correctly identifies the minimum for the
@@ -584,11 +584,11 @@ func PieceCrossings(x, y BandPiece, lo, hi float64) []float64 {
 // hold hundreds of thousands of pieces, and without these checks a cancel
 // waited minutes for a single call. They read ctx and nothing else, so the
 // result is unchanged.
-func EnvelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi, r float64, k int) (float64, error) {
-	if err := ValidateEvenK(k); err != nil {
+func envelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi, r float64, k int) (float64, error) {
+	if err := validateEvenK(k); err != nil {
 		return 0, err
 	}
-	if !(r > 0) || !AllFinite(r) {
+	if !(r > 0) || !allFinite(r) {
 		return 0, fmt.Errorf("corridorcost: gap radius must be finite and positive, got %v", r)
 	}
 	if len(pieces) == 0 || globalHi <= globalLo {
@@ -604,7 +604,7 @@ func EnvelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 	// deliberately re-baselined.
 	//
 	// Profiled on one test import: this function was 29% of the import's
-	// CPU, [PieceCrossings] a further 16%, and runtime.madvise 13% of all
+	// CPU, [pieceCrossings] a further 16%, and runtime.madvise 13% of all
 	// samples — that last being the per-pair slice allocation, not the
 	// arithmetic.
 	//
@@ -692,7 +692,7 @@ func EnvelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 		}
 		win := pieces[best]
 		win.Lo, win.Hi = lo, hi
-		integral, err := IntegrateDistSqPow(win, m)
+		integral, err := integrateDistSqPow(win, m)
 		if err != nil {
 			return 0, err
 		}
@@ -701,16 +701,16 @@ func EnvelopeMinCost(ctx context.Context, pieces []BandPiece, globalLo, globalHi
 	return total / math.Pow(r, float64(k)), nil
 }
 
-// envelopeCancelStride is how many sub-intervals EnvelopeMinCost evaluates
+// envelopeCancelStride is how many sub-intervals envelopeMinCost evaluates
 // between cancel checks; each sub-interval scans every piece, so a stride of
 // 64 is a few milliseconds at most on the largest gaps.
 const envelopeCancelStride = 64
 
-// crossingsInto is [PieceCrossings] with the coefficients already solved and
+// crossingsInto is [pieceCrossings] with the coefficients already solved and
 // the storage owned by the caller: it writes the t-values strictly inside
 // (lo,hi) where the two quadratics are equal into out, and returns how many
 // there are (0, 1 or 2). Same roots, same order, no allocation — the pair loop
-// in [EnvelopeMinCost] runs this O(n²) times and used to allocate two slices
+// in [envelopeMinCost] runs this O(n²) times and used to allocate two slices
 // on every one of them.
 func crossingsInto(x, y [3]float64, lo, hi float64, out *[2]float64) int {
 	a, b, c := x[0]-y[0], x[1]-y[1], x[2]-y[2]
@@ -737,14 +737,14 @@ func crossingsInto(x, y [3]float64, lo, hi float64, out *[2]float64) int {
 	return n
 }
 
-// ImportGapCost is the IMPORT-SIDE gap integral, and it is the exact mirror
-// of [CanonGapCost]: the emission term (d/R)^k integrated over ONE source arc
+// importGapCost is the IMPORT-SIDE gap integral, and it is the exact mirror
+// of [canonGapCost]: the emission term (d/R)^k integrated over ONE source arc
 // P→Q of length arcLenM, against the canon arcs a bridge CLAIMS to have
 // travelled.
 //
 // WHY IT EXISTS. Every other edge in the corridor solve that consumes import
 // measure pays for it — ON pays emission per metre of import, OFF pays its
-// raw metres — but a bridge used to relax with [BridgeCost], the canon-side
+// raw metres — but a bridge used to relax with [bridgeCost], the canon-side
 // integral and nothing else. A bridge was therefore priced exactly as PERFECT
 // ADOPTION AT d = 0 over source that is by construction OUTSIDE the corridor.
 // On one recorded test track, a bridge crossed 5,043 m of track for 4.33
@@ -753,25 +753,25 @@ func crossingsInto(x, y [3]float64, lo, hi float64, out *[2]float64) int {
 // term restores introduces no constant: every metre of import measure a path
 // consumes is paid for exactly once, by the edge that consumes it.
 //
-// The mirror is literal. [CanonEdgeDistSqRegimes] is called with the roles
+// The mirror is literal. [canonEdgeDistSqRegimes] is called with the roles
 // SWAPPED — the source arc in the "moving" role and the canon arc in the
 // "frame" role — and the resulting pieces go through the same
-// [EnvelopeMinCost]. Same machinery, same R, same k, closed form throughout.
+// [envelopeMinCost]. Same machinery, same R, same k, closed form throughout.
 //
-// No uLo/uHi sub-range here, unlike CanonGapCost: canon edges are not
+// No uLo/uHi sub-range here, unlike canonGapCost: canon edges are not
 // densified and must be trimmed, but the source arcs a caller hands this
-// function come from [SourceArcsBetween], which already trims EXACTLY to the
+// function come from [sourceArcsBetween], which already trims EXACTLY to the
 // gap's two import-measure positions. The whole [0,1] of each arc is in the
 // gap by construction.
 //
-// An empty canon set is a caller error for the same reason CanonGapCost says
+// An empty canon set is a caller error for the same reason canonGapCost says
 // so about its source set: "no claimed canon" means the caller never
 // established there was a bridge to price.
-func ImportGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLenM, r float64, k int) (float64, error) {
+func importGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLenM, r float64, k int) (float64, error) {
 	if len(canonArcs) == 0 {
 		return 0, fmt.Errorf("corridorcost: import gap arc has no claimed canon arcs")
 	}
-	if !AllFinite(arcLenM) || arcLenM < 0 {
+	if !allFinite(arcLenM) || arcLenM < 0 {
 		return 0, fmt.Errorf("corridorcost: import gap arc length must be finite and non-negative, got %v", arcLenM)
 	}
 	if arcLenM == 0 {
@@ -779,20 +779,20 @@ func ImportGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLen
 	}
 	var pieces []BandPiece
 	for _, arc := range canonArcs {
-		regimes, n, err := CanonEdgeDistSqRegimes(p, q, arc[0], arc[1])
+		regimes, n, err := canonEdgeDistSqRegimes(p, q, arc[0], arc[1])
 		if err != nil {
 			return 0, err
 		}
 		pieces = append(pieces, regimes[:n]...)
 	}
-	integral, err := EnvelopeMinCost(ctx, pieces, 0, 1, r, k)
+	integral, err := envelopeMinCost(ctx, pieces, 0, 1, r, k)
 	if err != nil {
 		return 0, err
 	}
 	return arcLenM * integral, nil
 }
 
-// CanonGapCost is the canon-side gap integral over the [uLo,uHi] ⊆ [0,1]
+// canonGapCost is the canon-side gap integral over the [uLo,uHi] ⊆ [0,1]
 // sub-range of ONE canon edge A→B of length edgeLenM, against a GIVEN set of
 // competing source arcs. uLo=0, uHi=1 integrates the whole edge.
 //
@@ -813,22 +813,22 @@ func ImportGapCost(ctx context.Context, p, q Point, canonArcs [][2]Point, arcLen
 // arcs already known to compete; an empty set is a caller error, not an
 // expected absence, because "no known candidates" means the caller never
 // established there was a gap to price in the first place.
-func CanonGapCost(ctx context.Context, a, b Point, srcArcs [][2]Point, edgeLenM, uLo, uHi, r float64, k int) (float64, error) {
+func canonGapCost(ctx context.Context, a, b Point, srcArcs [][2]Point, edgeLenM, uLo, uHi, r float64, k int) (float64, error) {
 	if len(srcArcs) == 0 {
 		return 0, fmt.Errorf("corridorcost: canon gap edge has no competing source arcs")
 	}
-	if !AllFinite(uLo, uHi) || uLo < 0 || uHi > 1 || uLo > uHi {
+	if !allFinite(uLo, uHi) || uLo < 0 || uHi > 1 || uLo > uHi {
 		return 0, fmt.Errorf("corridorcost: canon gap sub-range [%v,%v] must be within [0,1] and non-inverted", uLo, uHi)
 	}
 	var pieces []BandPiece
 	for _, arc := range srcArcs {
-		regimes, n, err := CanonEdgeDistSqRegimes(a, b, arc[0], arc[1])
+		regimes, n, err := canonEdgeDistSqRegimes(a, b, arc[0], arc[1])
 		if err != nil {
 			return 0, err
 		}
 		pieces = append(pieces, regimes[:n]...)
 	}
-	integral, err := EnvelopeMinCost(ctx, pieces, uLo, uHi, r, k)
+	integral, err := envelopeMinCost(ctx, pieces, uLo, uHi, r, k)
 	if err != nil {
 		return 0, err
 	}

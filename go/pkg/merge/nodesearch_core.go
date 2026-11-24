@@ -21,9 +21,9 @@ type NearbyNode struct {
 	DistM float64
 }
 
-// NearestNearbyNode reduces a candidate list to its nearest node, or
+// nearestNearbyNode reduces a candidate list to its nearest node, or
 // (zero, false) for an empty list.
-func NearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
+func nearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
 	// NEAREST WINS, TIES TO THE ROW THE QUERY YIELDED FIRST — the strict `<`
 	// is what makes that true, and the caller's search preserves row
 	// order for exactly this reason. This reduction IS the whole difference
@@ -42,12 +42,12 @@ func NearestNearbyNode(all []NearbyNode) (NearbyNode, bool) {
 	return best, true
 }
 
-// MeasureNodeCandidate measures one candidate row of a node box query
+// measureNodeCandidate measures one candidate row of a node box query
 // against the probe (lat, lon): its haversine distance, whether `exclude`
 // names it, and whether it is inside the search (not excluded, and
 // `d <= radiusM`). n carries the row's id and coordinates and the distance
 // whether or not it is inside.
-func MeasureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float64, exclude []NodeID) (n NearbyNode, excluded, inside bool) {
+func measureNodeCandidate(lat, lon, radiusM float64, id NodeID, nLat, nLon float64, exclude []NodeID) (n NearbyNode, excluded, inside bool) {
 	d := HaversineMetres(lat, lon, nLat, nLon)
 	isExcluded := slices.Contains(exclude, id)
 	// Coordinates are carried through EXACTLY as stored — never
@@ -148,10 +148,10 @@ func metresToDegBox(lat, radiusM float64) (latDelta, lonDelta float64) {
 	return latDelta, lonDelta
 }
 
-// MeasureNodeNearPath measures one candidate node (id, nLat, nLon) against the walk:
+// measureNodeNearPath measures one candidate node (id, nLat, nLon) against the walk:
 // excluded or beyond radiusM gives (zero, false, nil). The error is the
 // projection's own, unwrapped.
-func MeasureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id NodeID, nLat, nLon float64) (NodeNearPath, bool, error) {
+func measureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id NodeID, nLat, nLon float64) (NodeNearPath, bool, error) {
 	if slices.Contains(exclude, id) {
 		return NodeNearPath{}, false, nil
 	}
@@ -177,9 +177,9 @@ func MeasureNodeNearPath(verts []Point, radiusM float64, exclude []NodeID, id No
 	}, true, nil
 }
 
-// SortNodesNearPath puts nodes near a path in walk order: nearest vertex,
+// sortNodesNearPath puts nodes near a path in walk order: nearest vertex,
 // then distance along the walk, then node id.
-func SortNodesNearPath(out []NodeNearPath) {
+func sortNodesNearPath(out []NodeNearPath) {
 	slices.SortFunc(out, func(a, b NodeNearPath) int {
 		if a.PointIdx != b.PointIdx {
 			return a.PointIdx - b.PointIdx
@@ -282,9 +282,9 @@ type NodeAtVertex struct {
 	VertexIdx int
 }
 
-// WalkVertexBox is the walk's own bounding box, with no margin: a node at a
+// walkVertexBox is the walk's own bounding box, with no margin: a node at a
 // vertex is inside it by construction.
-func WalkVertexBox(verts []Point) (minLat, maxLat, minLon, maxLon float64) {
+func walkVertexBox(verts []Point) (minLat, maxLat, minLon, maxLon float64) {
 	minLat, maxLat = verts[0].Lat, verts[0].Lat
 	minLon, maxLon = verts[0].Lon, verts[0].Lon
 	for _, v := range verts {
@@ -304,9 +304,9 @@ func WalkVertexBox(verts []Point) (minLat, maxLat, minLon, maxLon float64) {
 	return minLat, maxLat, minLon, maxLon
 }
 
-// WalkVertexIndex maps each exact vertex coordinate of the walk to the
+// walkVertexIndex maps each exact vertex coordinate of the walk to the
 // indices it occurs at, in walk order.
-func WalkVertexIndex(verts []Point) map[[2]float64][]int {
+func walkVertexIndex(verts []Point) map[[2]float64][]int {
 	at := make(map[[2]float64][]int, len(verts))
 	for i, v := range verts {
 		k := [2]float64{v.Lat, v.Lon}
@@ -315,9 +315,9 @@ func WalkVertexIndex(verts []Point) map[[2]float64][]int {
 	return at
 }
 
-// AppendNodeAtVertices appends one NodeAtVertex for each walk vertex the node
+// appendNodeAtVertices appends one NodeAtVertex for each walk vertex the node
 // (id, nLat, nLon) sits on exactly, unless exclude names it.
-func AppendNodeAtVertices(out []NodeAtVertex, at map[[2]float64][]int, exclude []NodeID, id NodeID, nLat, nLon float64) []NodeAtVertex {
+func appendNodeAtVertices(out []NodeAtVertex, at map[[2]float64][]int, exclude []NodeID, id NodeID, nLat, nLon float64) []NodeAtVertex {
 	if slices.Contains(exclude, id) {
 		return out
 	}
@@ -327,9 +327,9 @@ func AppendNodeAtVertices(out []NodeAtVertex, at map[[2]float64][]int, exclude [
 	return out
 }
 
-// SortNodesAtVertices orders nodes at walk vertices by vertex index, then
+// sortNodesAtVertices orders nodes at walk vertices by vertex index, then
 // node id.
-func SortNodesAtVertices(out []NodeAtVertex) {
+func sortNodesAtVertices(out []NodeAtVertex) {
 	slices.SortFunc(out, func(a, b NodeAtVertex) int {
 		if a.VertexIdx != b.VertexIdx {
 			return a.VertexIdx - b.VertexIdx

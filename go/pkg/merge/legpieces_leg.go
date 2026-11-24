@@ -291,7 +291,7 @@ func CommitLegPieces(
 			// resolved: a description that contradicts the error it decorates
 			// costs the next reader more than no description would.
 			return nil, nil, 0, 0, nil, nil, nil, 0, 0, fmt.Errorf("leg piece %d of %d (points %d..%d, start %s, end %s): %w",
-				k+1, len(seams)+1, lo, hi, SeamSideName(seams, k-1, prevEnd), SeamSideName(seams, k, endNode), err)
+				k+1, len(seams)+1, lo, hi, seamSideName(seams, k-1, prevEnd), seamSideName(seams, k, endNode), err)
 		}
 		if ringMergedNode != nil {
 			legRingMergedNode = ringMergedNode
@@ -405,12 +405,12 @@ func CommitPiece(
 	// drew: the writer discards the leg's own final vertex in favour of the
 	// reused node's coordinates, so the written geometry becomes A → mid → A
 	// on a straight 12 m track. So the gate also requires that the leg
-	// actually left the radius ([LegDepartsRadius], the same judgement the
+	// actually left the radius ([legDepartsRadius], the same judgement the
 	// fold-collapse path makes). Real loops measured on test areas (2-26 km)
 	// all pass this gate.
 	mergeOwnEnds := startNode == nil && endNode == nil && len(pts) >= 3 &&
 		HaversineMetres(pts[0].Lat, pts[0].Lon, pts[len(pts)-1].Lat, pts[len(pts)-1].Lon) <= EndpointWarpRadiusM &&
-		LegDepartsRadius(pts, 0, len(pts)-1, EndpointWarpRadiusM)
+		legDepartsRadius(pts, 0, len(pts)-1, EndpointWarpRadiusM)
 
 	if !mergeOwnEnds && (startNode == nil || endNode == nil || *startNode != *endNode) {
 		// The duplicate-arc check: is there already a canon arc between these
@@ -494,8 +494,8 @@ func CommitPiece(
 	// The split lands at the point furthest from the ring's own anchor (the
 	// out-and-back's actual turn), not at measure-halfway, which only
 	// coincides with the turn when the out and back legs are symmetric. See
-	// FurthestVertex's own doc.
-	mid, err := FurthestVertex(pts)
+	// furthestVertex's own doc.
+	mid, err := furthestVertex(pts)
 	if err != nil {
 		return nil, 0, false, false, false, nil, nil, nil, false, false, err
 	}

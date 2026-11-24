@@ -50,7 +50,7 @@ func benchSnapshot() MemCanonSnapshot {
 				pts[k] = Point{Lat: lat, Lon: lon, Ele: f64(1500 + float64(k))}
 			}
 			start, end := addNode(pts[0].Lat, pts[0].Lon), addNode(pts[len(pts)-1].Lat, pts[len(pts)-1].Lon)
-			interior, stats, bounds := ArcFromPoints(pts, start, end)
+			interior, stats, bounds := arcFromPoints(pts, start, end)
 			s.Arcs = append(s.Arcs, MemCanonArc{ID: ArcID(i + 1), StartNodeID: start.ID, EndNodeID: end.ID,
 				Polyline: interior, Stats: stats, Bounds: bounds})
 		}

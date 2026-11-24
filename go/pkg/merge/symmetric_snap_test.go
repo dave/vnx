@@ -48,7 +48,7 @@ func TestSymmetricSnapDeclineFor(t *testing.T) {
 		{"fraction 1 outranks an already-seamed vertex", 1, true, SnapDeclineTerminalVertex},
 	}
 	for _, c := range cases {
-		if got := SymmetricSnapDeclineFor(c.fraction, c.vertexTake, false); got != c.want {
+		if got := symmetricSnapDeclineFor(c.fraction, c.vertexTake, false); got != c.want {
 			t.Errorf("%s: decline = %v, want %v", c.name, got, c.want)
 		}
 	}
@@ -57,7 +57,7 @@ func TestSymmetricSnapDeclineFor(t *testing.T) {
 // ── ONE RULER ───────────────────────────────────────────────────────────────
 
 // TestSymmetricSnap_LegMeasureIsTheSameRulerAsTheProjection. The stub rule
-// compares LegMeasureToVertex against NodeNearPath.PriorLenM, which
+// compares legMeasureToVertex against NodeNearPath.PriorLenM, which
 // ProjectProbeOntoWalk produced by summing HaversineMetres over consecutive
 // vertices of the SAME array in ascending order. Same primitive, same operands,
 // same order — so these are bit-identical, not merely close.
@@ -72,14 +72,14 @@ func TestSymmetricSnap_LegMeasureIsTheSameRulerAsTheProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("project vertex %d: %v", i, err)
 		}
-		got := LegMeasureToVertex(pts, i)
+		got := legMeasureToVertex(pts, i)
 		if math.Float64bits(got) != math.Float64bits(proj.PriorLenM) {
 			t.Errorf("vertex %d: legMeasureToVertex = %v, ProjectProbeOntoWalk's PriorLenM = %v — the stub rule and the search are measuring on DIFFERENT rulers",
 				i, got, proj.PriorLenM)
 		}
 	}
 	// And the whole-leg sum agrees with the one the T-junction split already depends on.
-	if math.Float64bits(LegMeasureToVertex(pts, len(pts)-1)) != math.Float64bits(LegMeasureLengthM(pts)) {
+	if math.Float64bits(legMeasureToVertex(pts, len(pts)-1)) != math.Float64bits(LegMeasureLengthM(pts)) {
 		t.Errorf("legMeasureToVertex to the last vertex disagrees with legMeasureLengthM")
 	}
 }

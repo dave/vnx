@@ -32,7 +32,7 @@ func TestSolveCorridorPath_EmptyCandidatesIsAllOff(t *testing.T) {
 	}
 	// OFF is not free per metre (corridorsolve.go's forward-edge comment):
 	// its cost is the leg's own raw import metres, matching
-	// NoBridgeCost's "+offImportMetres" term. An all-OFF leg's total cost is
+	// noBridgeCost's "+offImportMetres" term. An all-OFF leg's total cost is
 	// therefore its own length, not 0.
 	if res.Cost != 100 {
 		t.Fatalf("all-OFF cost should equal the leg length (100), got %v", res.Cost)
@@ -212,7 +212,7 @@ func TestSolveCorridorPath_ShortDeviationAbsorbed(t *testing.T) {
 	}
 	// Absorbed means no P was ever paid beyond the single entry fee: cost
 	// must be strictly less than a second state change would add.
-	if res.Cost >= 2*StateChangeCost() {
+	if res.Cost >= 2*stateChangeCost() {
 		t.Errorf("cost %.6g suggests more than the one entry P was paid — not absorbed", res.Cost)
 	}
 }
@@ -294,8 +294,8 @@ func TestSolveCorridorPath_OutAndBackTwoStrokes(t *testing.T) {
 	// whole way additionally accrues backtrack over the ~100m return leg;
 	// flipping to REV at the turnaround additionally costs one more P.
 	returnLegM := 99.88764520516769 // canon measure measured (haversine, not nominal)
-	stayCost := StateChangeCost() + BacktrackWeightPerM*returnLegM
-	flipCost := 2 * StateChangeCost()
+	stayCost := stateChangeCost() + backtrackWeightPerM*returnLegM
+	flipCost := 2 * stateChangeCost()
 	want := math.Min(stayCost, flipCost)
 	if math.Abs(res.Cost-want) > 1e-6*math.Max(1, want) {
 		t.Errorf("cost = %.9g, want min(stay=%.9g, flip=%.9g) = %.9g", res.Cost, stayCost, flipCost, want)
@@ -460,7 +460,7 @@ func selfApproachFixture(t *testing.T) (*SourceMeasure, []*PreppedCandidate, []C
 // TestTransitionCost_ArmJumpCostsFullMeasureGapRegardlessOfDirection is the
 // mechanism check ("by mechanism, not hope"): jumping
 // between the near arm and far arm costs the RAW canon-measure gap between them,
-// unconditionally — not [BacktrackCost]'s direction-conditional 0-when-
+// unconditionally — not [backtrackCost]'s direction-conditional 0-when-
 // aligned logic, which corridorsolve.go's header explains is wrong for an
 // instantaneous jump (found the hard way: it silently zeroed a 3km jump
 // whenever the jump direction happened to match the declared FWD/REV).
@@ -472,7 +472,7 @@ func TestTransitionCost_ArmJumpCostsFullMeasureGapRegardlessOfDirection(t *testi
 	// of the near arm and one of the far arm rather than between two
 	// intervals. The mechanism under test is unchanged: an instantaneous
 	// change of correspondence costs the raw canon-measure gap it crosses.
-	sps := BuildSolvePieces(ivs)
+	sps := buildSolvePieces(ivs)
 	pick := func(ivIdx int) int {
 		for i, sp := range sps {
 			if sp.IvIdx == ivIdx && x >= sp.P.ImportMeasureAtLo && x <= sp.P.ImportMeasureAtHi {
@@ -483,15 +483,15 @@ func TestTransitionCost_ArmJumpCostsFullMeasureGapRegardlessOfDirection(t *testi
 		return -1
 	}
 	spA, spB := pick(0), pick(1)
-	measureA := CanonMeasureAtPiece(sps[spA].P, x)
-	measureB := CanonMeasureAtPiece(sps[spB].P, x)
+	measureA := canonMeasureAtPiece(sps[spA].P, x)
+	measureB := canonMeasureAtPiece(sps[spB].P, x)
 	gap := math.Abs(measureB - measureA)
 	if gap < 500 {
 		t.Fatalf("fixture sanity: want a large measure gap (hundreds of metres, the measured 781m worst case), got %.6g", gap)
 	}
-	want := BacktrackWeightPerM * gap
+	want := backtrackWeightPerM * gap
 
-	prod, err := ResolveTunables(nil)
+	prod, err := resolveTunables(nil)
 	if err != nil {
 		t.Fatalf("resolveTunables: %v", err)
 	}
@@ -556,8 +556,8 @@ func TestSolveCorridorPath_SharedNodeNotChargedP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
-	if math.Abs(res.Cost-StateChangeCost()) > 1e-6*StateChangeCost() {
-		t.Errorf("crossing a shared node cost extra: total cost = %.9g, want exactly one entry fee P = %.9g", res.Cost, StateChangeCost())
+	if math.Abs(res.Cost-stateChangeCost()) > 1e-6*stateChangeCost() {
+		t.Errorf("crossing a shared node cost extra: total cost = %.9g, want exactly one entry fee P = %.9g", res.Cost, stateChangeCost())
 	}
 	for _, r := range res.Runs {
 		if r.State.Off {
@@ -589,7 +589,7 @@ func TestSolveCorridorPath_UnconnectedCandidatesChargedTwiceP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("solveCorridorPath: %v", err)
 	}
-	want := 2 * StateChangeCost()
+	want := 2 * stateChangeCost()
 	// A generous tolerance: the crossing sits inside R of both candidates'
 	// endpoints, so a sliver of emission is real cost, not slop — this
 	// checks "two entry fees, not one and not three", not exact equality.
@@ -688,7 +688,7 @@ func TestSolveCorridorPath_DeterministicAtBandEdge(t *testing.T) {
 	}
 }
 
-// ---- SourceArcsBetween -----------------------------------------------
+// ---- sourceArcsBetween -----------------------------------------------
 
 // TestSourceArcsBetween_TrimsExactlyToTheWindow is the soundness
 // argument's other half (corridorsolve.go's BuildCorridorBridges doc
@@ -703,7 +703,7 @@ func TestSourceArcsBetween_TrimsExactlyToTheWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	arcs, err := SourceArcsBetween(sa, 3, 23) // strictly inside edges 0 and 2
+	arcs, err := sourceArcsBetween(sa, 3, 23) // strictly inside edges 0 and 2
 	if err != nil {
 		t.Fatalf("sourceArcsBetween: %v", err)
 	}
@@ -747,7 +747,7 @@ func TestSourceArcsBetween_SameEdgeIsOneTrimmedArc(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	arcs, err := SourceArcsBetween(sa, 40, 60)
+	arcs, err := sourceArcsBetween(sa, 40, 60)
 	if err != nil {
 		t.Fatalf("sourceArcsBetween: %v", err)
 	}
@@ -779,10 +779,10 @@ func TestSourceArcsBetween_InvertedWindowIsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	if _, err := SourceArcsBetween(sa, 60, 40); err == nil {
+	if _, err := sourceArcsBetween(sa, 60, 40); err == nil {
 		t.Fatalf("inverted window [60,40]: want error, got nil")
 	}
-	if _, err := SourceArcsBetween(sa, 40, 40); err == nil {
+	if _, err := sourceArcsBetween(sa, 40, 40); err == nil {
 		t.Fatalf("empty window [40,40]: want error, got nil")
 	}
 }

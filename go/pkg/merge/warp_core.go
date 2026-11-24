@@ -101,7 +101,7 @@ type WarpReport struct {
 	//
 	// The other direction holds too: whenever `start`/`end` passed into
 	// WarpLegEndpoints is non-nil, this is set, unconditionally. See
-	// CheckTerminalsExact for the assertion that makes this true by
+	// checkTerminalsExact for the assertion that makes this true by
 	// construction, not merely by this comment's say-so.
 	StartNode *NodeID
 	EndNode   *NodeID
@@ -254,7 +254,7 @@ func WarpLegEndpoints(pts []Point, start, end *WarpTarget) ([]Point, WarpReport,
 		out[e.idx].Lon = e.lon
 	}
 
-	if err := CheckTerminalsExact(out, start, end); err != nil {
+	if err := checkTerminalsExact(out, start, end); err != nil {
 		return nil, rep, err
 	}
 	return out, rep, nil
@@ -270,7 +270,7 @@ type exactAssignment struct {
 	lat, lon float64
 }
 
-// CheckTerminalsExact is a POST-CONDITION on top of the construction argument
+// checkTerminalsExact is a POST-CONDITION on top of the construction argument
 // in WarpLegEndpoints' own comment: an invariant being provable is not the
 // same as it being preserved by whoever edits this next. Whichever end got a
 // target must have its terminal sitting bit-exact on it, because node
@@ -285,7 +285,7 @@ type exactAssignment struct {
 // TestCheckTerminalsExact_CatchesAViolation, which hands this function a
 // deliberately wrong `out` to prove the failure branch actually fires — a
 // guard that can only be observed passing is not proven to be able to fail.
-func CheckTerminalsExact(out []Point, start, end *WarpTarget) error {
+func checkTerminalsExact(out []Point, start, end *WarpTarget) error {
 	if start != nil {
 		if math.Float64bits(out[0].Lat) != math.Float64bits(start.Lat) ||
 			math.Float64bits(out[0].Lon) != math.Float64bits(start.Lon) {

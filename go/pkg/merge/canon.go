@@ -41,7 +41,7 @@ type Canon interface {
 	// inclusive at both ends, in no stated order. A canon may store the
 	// boxes coarser than float64; SQLite's R*Tree stores each bound as a
 	// float32 moved outward when the nearest float32 would fall inside the
-	// box (see [NewBox32] for the exact rule, which is not always the next
+	// box (see [newBox32] for the exact rule, which is not always the next
 	// float32), and compares that float32 with the float64 query. So the set
 	// can hold arcs that a float64 box test would miss, never fewer. Two
 	// canons give the same set only when they store the same float32 boxes.
@@ -104,15 +104,15 @@ type Canon interface {
 	// An end node's pip is its position and elevation as stored (after the
 	// store's own normalisation, such as -0.0 to +0.0), with NaN for an
 	// unknown elevation ([NodeEle]). The new node's pip is (s.Lat, s.Lon)
-	// and [ElevOrNaN](s.Ele), as given, before the store normalises them.
+	// and [elevOrNaN](s.Ele), as given, before the store normalises them.
 	// The half's stats are [StatsFromPips](walk) and its bounds
 	// [BoundsFromPips](walk); an error from BoundsFromPips fails the split.
 	SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (SplitIDs, error)
 }
 
-// NearbyNodes returns every node within radiusM (great-circle, `<=`) of
+// nearbyNodes returns every node within radiusM (great-circle, `<=`) of
 // (lat, lon) that exclude does not name, in the order NodesInBox yields them.
-func NearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) ([]NearbyNode, error) {
+func nearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) ([]NearbyNode, error) {
 	if err := checkProbe(lat, lon, radiusM); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func NearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclud
 	}
 	var out []NearbyNode
 	for _, r := range rows {
-		n, _, inside := MeasureNodeCandidate(lat, lon, radiusM, r.ID, r.Lat, r.Lon, exclude)
+		n, _, inside := measureNodeCandidate(lat, lon, radiusM, r.ID, r.Lat, r.Lon, exclude)
 		if inside {
 			out = append(out, n)
 		}
@@ -131,19 +131,19 @@ func NearbyNodes(ctx context.Context, c Canon, lat, lon, radiusM float64, exclud
 	return out, nil
 }
 
-// NearestNode returns the nearest node NearbyNodes finds, ties to the
+// NearestNode returns the nearest node nearbyNodes finds, ties to the
 // earlier row, or false when it finds none.
 func NearestNode(ctx context.Context, c Canon, lat, lon, radiusM float64, exclude []NodeID) (NearbyNode, bool, error) {
-	all, err := NearbyNodes(ctx, c, lat, lon, radiusM, exclude)
+	all, err := nearbyNodes(ctx, c, lat, lon, radiusM, exclude)
 	if err != nil {
 		return NearbyNode{}, false, err
 	}
-	best, ok := NearestNearbyNode(all)
+	best, ok := nearestNearbyNode(all)
 	return best, ok, nil
 }
 
 // NodesNearPath returns every node within radiusM of the walk verts that
-// exclude does not name, in walk order (see SortNodesNearPath). A walk
+// exclude does not name, in walk order (see sortNodesNearPath). A walk
 // with no length fails with an error that wraps ErrWalkHasNoLength.
 func NodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64, exclude []NodeID) ([]NodeNearPath, error) {
 	if math.IsNaN(radiusM) || math.IsInf(radiusM, 0) || radiusM <= 0 {
@@ -159,7 +159,7 @@ func NodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64,
 	}
 	var out []NodeNearPath
 	for _, r := range rows {
-		n, inside, err := MeasureNodeNearPath(verts, radiusM, exclude, r.ID, r.Lat, r.Lon)
+		n, inside, err := measureNodeNearPath(verts, radiusM, exclude, r.ID, r.Lat, r.Lon)
 		if err != nil {
 			return nil, fmt.Errorf("project node %d onto walk of %d vertices: %w", r.ID, len(verts), err)
 		}
@@ -167,28 +167,28 @@ func NodesNearPath(ctx context.Context, c Canon, verts []Point, radiusM float64,
 			out = append(out, n)
 		}
 	}
-	SortNodesNearPath(out)
+	sortNodesNearPath(out)
 	return out, nil
 }
 
-// NodesAtWalkVertices returns every node that sits exactly on a vertex of
-// verts and that exclude does not name (see SortNodesAtVertices for
+// nodesAtWalkVertices returns every node that sits exactly on a vertex of
+// verts and that exclude does not name (see sortNodesAtVertices for
 // the order).
-func NodesAtWalkVertices(ctx context.Context, c Canon, verts []Point, exclude []NodeID) ([]NodeAtVertex, error) {
+func nodesAtWalkVertices(ctx context.Context, c Canon, verts []Point, exclude []NodeID) ([]NodeAtVertex, error) {
 	if len(verts) == 0 {
 		return nil, fmt.Errorf("walk has no vertices")
 	}
-	minLat, maxLat, minLon, maxLon := WalkVertexBox(verts)
+	minLat, maxLat, minLon, maxLon := walkVertexBox(verts)
 	rows, err := c.NodesInBox(ctx, Bounds{MinLat: minLat, MaxLat: maxLat, MinLon: minLon, MaxLon: maxLon})
 	if err != nil {
 		return nil, fmt.Errorf("nodes at walk vertices: %w", err)
 	}
-	at := WalkVertexIndex(verts)
+	at := walkVertexIndex(verts)
 	var out []NodeAtVertex
 	for _, r := range rows {
-		out = AppendNodeAtVertices(out, at, exclude, r.ID, r.Lat, r.Lon)
+		out = appendNodeAtVertices(out, at, exclude, r.ID, r.Lat, r.Lon)
 	}
-	SortNodesAtVertices(out)
+	sortNodesAtVertices(out)
 	return out, nil
 }
 
@@ -203,7 +203,7 @@ func NearestArc(ctx context.Context, c Canon, lat, lon, radiusM float64) (Nearby
 	if err != nil {
 		return NearbyCanonArc{}, false, fmt.Errorf("nearby arcs: %w", err)
 	}
-	return NearestCanonArc(candidates, lat, lon, radiusM)
+	return nearestCanonArc(candidates, lat, lon, radiusM)
 }
 
 func checkProbe(lat, lon, radiusM float64) error {

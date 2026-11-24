@@ -9,7 +9,7 @@ import ()
 // profile along the leg is D(s) = v*w(s), so |dD/ds| <= smoothstepMaxSlope *
 // d / zone. Consecutive vertices can therefore swap order — the very
 // inversion the blend exists to prevent — as soon as that bound exceeds 1,
-// i.e. whenever zone < 1.5 * d. WarpZoneCanAbsorb tests exactly that
+// i.e. whenever zone < 1.5 * d. warpZoneCanAbsorb tests exactly that
 // inequality, and it is what a capped zone can fail: see widenedZoneFactor's
 // doc for why 1.5*d is a FLOOR the zone can fall below (on a genuinely
 // too-short leg) rather than a value it is chosen to hit.
@@ -19,7 +19,7 @@ import ()
 // zone=1.5d is EXACTLY zero, which makes the taper visibly abrupt.
 // widenedZoneFactor (5.0) sizes the zone instead, deliberately well clear of
 // that boundary (at zone=5d the factor is 1-1.5/5=0.7, comfortably smooth).
-// This constant's job is purely diagnostic: it is what WarpZoneCanAbsorb
+// This constant's job is purely diagnostic: it is what warpZoneCanAbsorb
 // checks to prove whatever zone zoneFor computed (flat, or widened-and-capped)
 // is actually safe — it does not SET anything.
 //
@@ -29,13 +29,13 @@ import ()
 // 5 m from a node gives zone = 6 and a local stretch factor of 1.25.
 const smoothstepMaxSlope = 1.5
 
-// AdoptedTerminalCount reports how many of a leg's two ends WarpReport
+// adoptedTerminalCount reports how many of a leg's two ends WarpReport
 // resolved as a JOIN rather than a mint. It is the producer of the import's
 // adopted-terminals counter, counted here — the same call site
 // StartNode/EndNode are set at — because this is the one place that decides
 // mint vs adopt for a leg's own terminals; nothing downstream may re-derive
 // it. A track ending on an existing network node SHARES that node.
-func AdoptedTerminalCount(rep WarpReport, ringMergedByGap bool) int {
+func adoptedTerminalCount(rep WarpReport, ringMergedByGap bool) int {
 	// A GAP MERGE ADOPTS NOTHING — it MINTS.
 	//
 	// An adopted terminal means one thing: this terminal slot joined a node
@@ -76,11 +76,11 @@ func AdoptedTerminalCount(rep WarpReport, ringMergedByGap bool) int {
 	return n
 }
 
-// EffectiveWarpNodeID returns whichever node id a side carries — the FIXED
+// effectiveWarpNodeID returns whichever node id a side carries — the FIXED
 // one from an earlier resolution if set, otherwise a newly-found target's
 // id — and whether that id came from THIS call's own new lookup (true) or
 // was already fixed beforehand (false). Neither set returns (nil, false).
-func EffectiveWarpNodeID(fixed *NodeID, newTarget *WarpTarget) (*NodeID, bool) {
+func effectiveWarpNodeID(fixed *NodeID, newTarget *WarpTarget) (*NodeID, bool) {
 	if fixed != nil {
 		return fixed, false
 	}
@@ -91,7 +91,7 @@ func EffectiveWarpNodeID(fixed *NodeID, newTarget *WarpTarget) (*NodeID, bool) {
 	return nil, false
 }
 
-// WarpZoneCanAbsorb reports whether a taper zone of `zone` metres can absorb a
+// warpZoneCanAbsorb reports whether a taper zone of `zone` metres can absorb a
 // `displacement` metre translation without the blend locally stretching the leg
 // by more than it is long — which is what would let consecutive vertices swap
 // order.
@@ -104,6 +104,6 @@ func EffectiveWarpNodeID(fixed *NodeID, newTarget *WarpTarget) (*NodeID, bool) {
 // Written as `>=` on the product rather than `<` on a ratio so that a NaN
 // displacement returns false rather than sneaking through — every comparison
 // against NaN is false, so a guard phrased the other way round would admit it.
-func WarpZoneCanAbsorb(zone, displacement float64) bool {
+func warpZoneCanAbsorb(zone, displacement float64) bool {
 	return smoothstepMaxSlope*displacement <= zone
 }

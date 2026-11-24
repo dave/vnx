@@ -18,7 +18,7 @@ import (
 
 // solveWithHeapHook runs one real solve (a single candidate under a straight
 // source) with hook applied to its heap, and returns what the caller sees.
-func solveWithHeapHook(t *testing.T, hook func(q *CorridorHeap)) (*CorridorSolveResult, error) {
+func solveWithHeapHook(t *testing.T, hook func(q *corridorHeap)) (*CorridorSolveResult, error) {
 	t.Helper()
 	pc := prepOne(t, mPt(-20, 0), mPt(120, 0))
 	sa, err := NewSourceMeasure(straightLegX(3, 100, 0))
@@ -38,11 +38,11 @@ func solveWithHeapHook(t *testing.T, hook func(q *CorridorHeap)) (*CorridorSolve
 // error.
 func TestCorridorSolve_HeapRefusalOnDecreaseIsAnError(t *testing.T) {
 	hooked := false
-	res, err := solveWithHeapHook(t, func(q *CorridorHeap) {
+	res, err := solveWithHeapHook(t, func(q *corridorHeap) {
 		if len(q.Pos) < 2 || len(q.Pos[1]) == 0 {
 			t.Fatalf("fixture has no layer 1 — the forward edge this test poisons does not exist")
 		}
-		q.Pos[1][0] = CorridorHeapPopped
+		q.Pos[1][0] = corridorHeapPopped
 		hooked = true
 	})
 	if !hooked {
@@ -65,7 +65,7 @@ func TestCorridorSolve_HeapRefusalOnDecreaseIsAnError(t *testing.T) {
 // would raise, and it must reach the caller the same way.
 func TestCorridorSolve_HeapRefusalOnInsertIsAnError(t *testing.T) {
 	hooked := false
-	res, err := solveWithHeapHook(t, func(q *CorridorHeap) {
+	res, err := solveWithHeapHook(t, func(q *corridorHeap) {
 		q.H = q.H[:len(q.H):len(q.H)]
 		hooked = true
 	})
@@ -98,7 +98,7 @@ func TestArcCost_NegativeCostIsAnError(t *testing.T) {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 	ivs := buildIvs(t, sa, []*PreppedCandidate{pc}, CorridorRadiusM)
-	sps := BuildSolvePieces(ivs)
+	sps := buildSolvePieces(ivs)
 	if len(sps) == 0 {
 		t.Fatal("fixture minted no pieces")
 	}

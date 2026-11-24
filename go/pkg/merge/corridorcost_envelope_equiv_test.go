@@ -1,10 +1,10 @@
 package merge
 
 // corridorcost_envelope_equiv_test.go — the equivalence guard for the
-// performance rewrite of [EnvelopeMinCost].
+// performance rewrite of [envelopeMinCost].
 //
-// [EnvelopeMinCost] was 29% of a synthetic-trail import's CPU (profiled 2026-08-21,
-// with PieceCrossings a further 16% and runtime.madvise 13% of samples from
+// [envelopeMinCost] was 29% of a synthetic-trail import's CPU (profiled 2026-08-21,
+// with pieceCrossings a further 16% and runtime.madvise 13% of samples from
 // its allocation churn), so it was rewritten for speed alone: quadratic
 // coefficients hoisted out of the O(n^2) pair loop, crossings returned in a
 // fixed array instead of a freshly allocated slice per pair, and the
@@ -18,7 +18,7 @@ package merge
 // tie-break and move committed geometry.
 //
 // ⚠ DO NOT "FIX" OR TIDY THIS COPY. It is a historical record, not live code.
-// If a genuine behaviour change to EnvelopeMinCost is ever wanted, this file
+// If a genuine behaviour change to envelopeMinCost is ever wanted, this file
 // is what has to be deliberately re-baselined, with the reason written down —
 // which is the point of freezing it rather than trusting a memory that the
 // rewrite was safe.
@@ -33,10 +33,10 @@ import (
 )
 
 func envelopeMinCostFrozenReference(pieces []BandPiece, globalLo, globalHi, r float64, k int) (float64, error) {
-	if err := ValidateEvenK(k); err != nil {
+	if err := validateEvenK(k); err != nil {
 		return 0, err
 	}
-	if !(r > 0) || !AllFinite(r) {
+	if !(r > 0) || !allFinite(r) {
 		return 0, fmt.Errorf("corridorcost: gap radius must be finite and positive, got %v", r)
 	}
 	if len(pieces) == 0 || globalHi <= globalLo {
@@ -59,7 +59,7 @@ func envelopeMinCostFrozenReference(pieces []BandPiece, globalLo, globalHi, r fl
 			if lo >= hi {
 				continue
 			}
-			for _, x := range PieceCrossings(pieces[i], pieces[j], lo, hi) {
+			for _, x := range pieceCrossings(pieces[i], pieces[j], lo, hi) {
 				breaks[x] = true
 			}
 		}
@@ -93,7 +93,7 @@ func envelopeMinCostFrozenReference(pieces []BandPiece, globalLo, globalHi, r fl
 		}
 		win := pieces[best]
 		win.Lo, win.Hi = lo, hi
-		integral, err := IntegrateDistSqPow(win, m)
+		integral, err := integrateDistSqPow(win, m)
 		if err != nil {
 			return 0, err
 		}
@@ -122,7 +122,7 @@ func randomBandPiece(rng *rand.Rand, lo, hi float64) BandPiece {
 			SpanLenSq: 0.5 + rng.Float64()*20,
 		}
 	}
-	// A near-regime piece, built from its linear offset as BandPieces builds
+	// A near-regime piece, built from its linear offset as bandPieces builds
 	// one: the integral evaluates the
 	// sum-of-squares form, so a trinomial with no offset behind it is not a
 	// piece the band solve can produce.
@@ -175,13 +175,13 @@ func TestEnvelopeMinCost_MatchesFrozenReferenceBitForBit(t *testing.T) {
 	for _, c := range cases {
 		if c.crossing {
 			p, q := c.pieces[0], c.pieces[1]
-			if len(PieceCrossings(p, q, max(p.Lo, q.Lo), min(p.Hi, q.Hi))) == 0 {
+			if len(pieceCrossings(p, q, max(p.Lo, q.Lo), min(p.Hi, q.Hi))) == 0 {
 				t.Fatalf("%s: the first two pieces do not cross — the case no longer makes crossing breakpoints", c.name)
 			}
 		}
 		for _, k := range []int{2, 4} {
 			want, wErr := envelopeMinCostFrozenReference(c.pieces, globalLo, globalHi, r, k)
-			got, gErr := EnvelopeMinCost(context.Background(), c.pieces, globalLo, globalHi, r, k)
+			got, gErr := envelopeMinCost(context.Background(), c.pieces, globalLo, globalHi, r, k)
 			if (wErr != nil) != c.wantError {
 				t.Fatalf("%s k=%d: reference err=%v, want an error: %v", c.name, k, wErr, c.wantError)
 			}
@@ -233,7 +233,7 @@ func BenchmarkEnvelopeMinCost_RewriteVsFrozen(b *testing.B) {
 	b.Run("rewrite", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			if _, err := EnvelopeMinCost(context.Background(), sets[i%len(sets)], 0, 1, 15, 2); err != nil {
+			if _, err := envelopeMinCost(context.Background(), sets[i%len(sets)], 0, 1, 15, 2); err != nil {
 				b.Fatal(err)
 			}
 		}

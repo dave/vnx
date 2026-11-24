@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// heapOp is one step of a CorridorHeap program: lower a key's dist to val, or
+// heapOp is one step of a corridorHeap program: lower a key's dist to val, or
 // pop.
 type heapOp struct {
 	pop bool
@@ -31,7 +31,7 @@ func skipImprove(op heapOp, dist [][]float64, popped map[int64]bool) bool {
 	if popped[op.key] {
 		return true
 	}
-	l, s := UnpackLayerSlot(op.key)
+	l, s := unpackLayerSlot(op.key)
 	return !(op.val < dist[l][s])
 }
 
@@ -41,7 +41,7 @@ func skipImprove(op heapOp, dist [][]float64, popped map[int64]bool) bool {
 func runCorridorHeap(t *testing.T, ops []heapOp, dist [][]float64, capacity int) (out []int64, ties int) {
 	t.Helper()
 	resetDist(dist)
-	q, err := NewCorridorHeap(dist, capacity)
+	q, err := newCorridorHeap(dist, capacity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,8 @@ func runCorridorHeap(t *testing.T, ops []heapOp, dist [][]float64, capacity int)
 			popped[k] = true
 			out = append(out, k)
 			if q.Len() > 0 {
-				l0, s0 := UnpackLayerSlot(k)
-				l1, s1 := UnpackLayerSlot(q.H[0])
+				l0, s0 := unpackLayerSlot(k)
+				l1, s1 := unpackLayerSlot(q.H[0])
 				if dist[l0][s0] == dist[l1][s1] {
 					ties++
 				}
@@ -66,7 +66,7 @@ func runCorridorHeap(t *testing.T, ops []heapOp, dist [][]float64, capacity int)
 		if skipImprove(op, dist, popped) {
 			continue
 		}
-		l, s := UnpackLayerSlot(op.key)
+		l, s := unpackLayerSlot(op.key)
 		dist[l][s] = op.val
 		if _, err := q.Improve(op.key); err != nil {
 			t.Fatalf("improve: %v", err)
@@ -94,8 +94,8 @@ func runSortedHeapRef(ops []heapOp, dist [][]float64) []int64 {
 				best, have = k, true
 				continue
 			}
-			lk, sk := UnpackLayerSlot(k)
-			lb, sb := UnpackLayerSlot(best)
+			lk, sk := unpackLayerSlot(k)
+			lb, sb := unpackLayerSlot(best)
 			dk, db := dist[lk][sk], dist[lb][sb]
 			if dk < db || (dk == db && k < best) {
 				best = k
@@ -115,7 +115,7 @@ func runSortedHeapRef(ops []heapOp, dist [][]float64) []int64 {
 		if skipImprove(op, dist, popped) {
 			continue
 		}
-		l, s := UnpackLayerSlot(op.key)
+		l, s := unpackLayerSlot(op.key)
 		dist[l][s] = op.val
 		live[op.key] = true
 	}
@@ -137,7 +137,7 @@ func runLazyPQFiltered(ops []heapOp, dist [][]float64) []int64 {
 	popLive := func() bool {
 		for len(pq) > 0 {
 			it := pq.pop()
-			l, s := UnpackLayerSlot(it.key)
+			l, s := unpackLayerSlot(it.key)
 			if it.dist != dist[l][s] || popped[it.key] {
 				continue // stale
 			}
@@ -155,7 +155,7 @@ func runLazyPQFiltered(ops []heapOp, dist [][]float64) []int64 {
 		if skipImprove(op, dist, popped) {
 			continue
 		}
-		l, s := UnpackLayerSlot(op.key)
+		l, s := unpackLayerSlot(op.key)
 		dist[l][s] = op.val
 		pq.push(corridorPQItem{key: op.key, dist: op.val})
 	}
@@ -176,7 +176,7 @@ func runLazyPQFiltered(ops []heapOp, dist [][]float64) []int64 {
 // programs must actually be tie-decided, and that is asserted. A pop on an
 // empty queue has no case: every runner skips it before it reaches the heap.
 //
-// Red proofs: 2026-09-23 (detached worktree), CorridorHeap.less put back to
+// Red proofs: 2026-09-23 (detached worktree), corridorHeap.less put back to
 // cost only — then "run 0 (6×4, 67 ops, 7 values): pop 0 differs: heap (layer
 // 3, slot 1) vs sorted (dist, key) reference (layer 0, slot 3)". 2026-10-05,
 // on this case list: the same mutation fails "tie within a layer"; with
@@ -185,7 +185,7 @@ func runLazyPQFiltered(ops []heapOp, dist [][]float64) []int64 {
 func TestCorridorHeap_PopOrderMatchesReferences(t *testing.T) {
 	pop := heapOp{pop: true}
 	imp := func(layer int, slot int32, v float64) heapOp {
-		return heapOp{key: PackLayerSlot(layer, slot), val: v}
+		return heapOp{key: packLayerSlot(layer, slot), val: v}
 	}
 	cases := []struct {
 		name          string
@@ -223,8 +223,8 @@ func TestCorridorHeap_PopOrderMatchesReferences(t *testing.T) {
 			}
 			for i := range got {
 				if got[i] != want[i] {
-					gl, gs := UnpackLayerSlot(got[i])
-					wl, ws := UnpackLayerSlot(want[i])
+					gl, gs := unpackLayerSlot(got[i])
+					wl, ws := unpackLayerSlot(want[i])
 					t.Fatalf("%s: pop %d differs: heap (layer %d, slot %d) vs %s (layer %d, slot %d)",
 						c.name, i, gl, gs, name, wl, ws)
 				}
@@ -243,11 +243,11 @@ func TestCorridorHeap_PopOrderMatchesReferences(t *testing.T) {
 // three entry points reports first follows map order).
 func TestCorridorHeap_PoppedKeyImprovedAgainIsAnError(t *testing.T) {
 	dist := [][]float64{{math.Inf(1), math.Inf(1)}}
-	q, err := NewCorridorHeap(dist, 2)
+	q, err := newCorridorHeap(dist, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, b := PackLayerSlot(0, 0), PackLayerSlot(0, 1)
+	a, b := packLayerSlot(0, 0), packLayerSlot(0, 1)
 	dist[0][0], dist[0][1] = 1, 2
 	for _, k := range []int64{a, b} {
 		if _, err := q.Improve(k); err != nil {
@@ -281,16 +281,16 @@ func TestCorridorHeap_PoppedKeyImprovedAgainIsAnError(t *testing.T) {
 // capacity projection under-counted the states the search reached.
 func TestCorridorHeap_OverCapacityIsAnError(t *testing.T) {
 	dist := [][]float64{{1, 2, 3}}
-	q, err := NewCorridorHeap(dist, 2)
+	q, err := newCorridorHeap(dist, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for s := int32(0); s < 2; s++ {
-		if err := q.Insert(PackLayerSlot(0, s)); err != nil {
+		if err := q.Insert(packLayerSlot(0, s)); err != nil {
 			t.Fatalf("insert %d: %v", s, err)
 		}
 	}
-	err = q.Insert(PackLayerSlot(0, 2))
+	err = q.Insert(packLayerSlot(0, 2))
 	if err == nil || !strings.Contains(err.Error(), "fixed capacity") {
 		t.Fatalf("insert past capacity: got %v, want a fixed-capacity error", err)
 	}
@@ -304,20 +304,20 @@ func TestCorridorHeap_OverCapacityIsAnError(t *testing.T) {
 // than repaired.
 func TestCorridorHeap_MisusedEntryPointsAreErrors(t *testing.T) {
 	dist := [][]float64{{1, 2}}
-	q, err := NewCorridorHeap(dist, 2)
+	q, err := newCorridorHeap(dist, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := q.Decrease(PackLayerSlot(0, 0)); err == nil {
+	if err := q.Decrease(packLayerSlot(0, 0)); err == nil {
 		t.Fatal("decrease of a never-inserted key returned nil")
 	}
-	if err := q.Insert(PackLayerSlot(0, 0)); err != nil {
+	if err := q.Insert(packLayerSlot(0, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.Insert(PackLayerSlot(0, 0)); err == nil {
+	if err := q.Insert(packLayerSlot(0, 0)); err == nil {
 		t.Fatal("second insert of a key in the heap returned nil")
 	}
-	if _, err := NewCorridorHeap(dist, math.MaxInt32+1); err == nil {
+	if _, err := newCorridorHeap(dist, math.MaxInt32+1); err == nil {
 		t.Fatal("a capacity past int32 returned nil")
 	}
 }
@@ -332,7 +332,7 @@ func TestCorridorHeap_NoAllocations(t *testing.T) {
 	for l := range dist {
 		dist[l] = make([]float64, slots)
 	}
-	q, err := NewCorridorHeap(dist, layers*slots)
+	q, err := newCorridorHeap(dist, layers*slots)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func TestCorridorHeap_NoAllocations(t *testing.T) {
 		for l := 0; l < layers; l++ {
 			for s := int32(0); s < slots; s++ {
 				dist[l][s] = float64((int(s)*7 + l) % 13)
-				if _, err := q.Improve(PackLayerSlot(l, s)); err != nil {
+				if _, err := q.Improve(packLayerSlot(l, s)); err != nil {
 					panic(err)
 				}
 			}
@@ -349,7 +349,7 @@ func TestCorridorHeap_NoAllocations(t *testing.T) {
 		for l := 0; l < layers; l++ {
 			for s := int32(0); s < slots; s += 3 {
 				dist[l][s] -= 0.5
-				if _, err := q.Improve(PackLayerSlot(l, s)); err != nil {
+				if _, err := q.Improve(packLayerSlot(l, s)); err != nil {
 					panic(err)
 				}
 			}
@@ -361,7 +361,7 @@ func TestCorridorHeap_NoAllocations(t *testing.T) {
 		// once.
 		for l := range q.Pos {
 			for s := range q.Pos[l] {
-				q.Pos[l][s] = CorridorHeapNever
+				q.Pos[l][s] = corridorHeapNever
 			}
 		}
 	})

@@ -20,13 +20,13 @@ type LegSeam struct {
 	// own private mint by definition and is never adopted.
 	//
 	// ⚠ NOT A DIRECT READING OF THE BOUNDARY'S OWN [AlignBoundary].Decline — see
-	// [LegSeamsFromAlign]. The align pass cuts one leg's boundaries in ITS OWN
+	// [legSeamsFromAlign]. The align pass cuts one leg's boundaries in ITS OWN
 	// order (descending measure, tied by run/end), which is not leg-walk order,
 	// so a boundary THIS LEG's pass cuts can be read by a LATER boundary of the
 	// SAME pass as "the boundary is already at a node" or "an existing node
 	// sits here" — its own coordinate search finding exactly what this leg just
 	// wrote a moment before. Taking that later boundary's Decline at face value
-	// would call a node this same leg minted "adopted". LegSeamsFromAlign
+	// would call a node this same leg minted "adopted". legSeamsFromAlign
 	// closes the gap by checking every node this leg's align pass minted, not
 	// just the one boundary record being read.
 	Adopted bool

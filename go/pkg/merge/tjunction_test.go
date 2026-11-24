@@ -17,7 +17,7 @@ import (
 // cannot absorb the displacement, so the terminal would not move even if
 // canon were split") no longer exists — the endpoint warp can no longer decline a terminal
 // it has resolved a target for (warp_core.go, "there is one method for moving a
-// node"), so TjunctionDeclineFor's own step 5 that predicted it is deleted
+// node"), so tjunctionDeclineFor's own step 5 that predicted it is deleted
 // too (see its doc). The same fixture, tjLegNS(505, -8, 11), now SPLITS —
 // pinned as "a short leg still splits" in TestTJunctionDeclineFor and
 // TestTJunctionReport_RecordsEachTerminalsOutcome.
@@ -69,11 +69,11 @@ func TestTJunctionDeclineFor(t *testing.T) {
 		// The former "warp zone test" case (step 5, whether the endpoint warp's
 		// taper zone could absorb the displacement) is DELETED — the warp can no
 		// longer decline a terminal it has resolved a target for (2026-08-14), so
-		// TjunctionDeclineFor no longer asks the question and doesn't take a
-		// legLen any more. See TjunctionDeclineFor's own doc.
+		// tjunctionDeclineFor no longer asks the question and doesn't take a
+		// legLen any more. See tjunctionDeclineFor's own doc.
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := TjunctionDeclineFor(tc.cand); got != tc.want {
+			if got := tjunctionDeclineFor(tc.cand); got != tc.want {
 				t.Fatalf("tjunctionDeclineFor = %v, want %v", got, tc.want)
 			}
 		})

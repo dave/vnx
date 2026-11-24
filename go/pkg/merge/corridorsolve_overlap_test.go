@@ -9,7 +9,7 @@ package merge
 // straight stretch of canon split into several short consecutive edges
 // (ordinary after repeated splitting), where a single source position
 // sits within R of its own true edge AND of one or more neighbouring edges'
-// clamped endpoints at the same time. [ArcCost] summed EmissionCost over
+// clamped endpoints at the same time. [ArcCost] summed emissionCost over
 // every piece that clipped the queried range, so a position sitting EXACTLY
 // on canon (true-piece emission 0) was charged for every OTHER, farther-away
 // edge that also happened to be within R — measured on a straight re-import
@@ -36,7 +36,7 @@ import (
 // function under test.
 func firstClippingPiece(iv CorridorInterval, x0, x1 float64) (CorridorPiece, bool) {
 	for _, p := range iv.Pieces {
-		if cp, ok := ClipCorridorPiece(p, x0, x1); ok {
+		if cp, ok := clipCorridorPiece(p, x0, x1); ok {
 			return cp, true
 		}
 	}
@@ -91,11 +91,11 @@ func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) 
 		}
 		nonZero := 0
 		for _, p := range iv.Pieces {
-			cp, ok := ClipCorridorPiece(p, lo, hi)
+			cp, ok := clipCorridorPiece(p, lo, hi)
 			if !ok {
 				continue
 			}
-			if e, err := EmissionCost(cp, R, EmissionK); err == nil && e > 1e-9 {
+			if e, err := emissionCost(cp, R, EmissionK); err == nil && e > 1e-9 {
 				nonZero++
 			}
 		}
@@ -109,7 +109,7 @@ func reimportOverlapFixture(t *testing.T) (iv CorridorInterval, x0, x1 float64) 
 
 // TestArcCost_OverlappingPiecesPricesOneNotSum is the red-first case:
 // ArcCost must price ONE piece, never the sum of every piece that clips
-// the range. Before the original fix it summed EmissionCost over every
+// the range. Before the original fix it summed emissionCost over every
 // clipping piece, over-charging by exactly the extra pieces' own emission —
 // which is what [reimportOverlapFixture] is built to guarantee is possible.
 //
@@ -127,17 +127,17 @@ func TestArcCost_OverlappingPiecesPricesOneNotSum(t *testing.T) {
 	if !ok {
 		t.Fatalf("fixture sanity: no piece clips [%.6g,%.6g]", x0, x1)
 	}
-	wantE, err := EmissionCost(want, R, EmissionK)
+	wantE, err := emissionCost(want, R, EmissionK)
 	if err != nil {
 		t.Fatalf("emissionCost: %v", err)
 	}
-	wantCost := wantE + BacktrackCost(want, bool(CorridorFWD))
+	wantCost := wantE + backtrackCost(want, bool(CorridorFWD))
 
 	// The piece the fixture picked, presented as the state that names it.
 	var sp SolvePiece
 	found := false
 	for _, pc := range iv.Pieces {
-		cp, ok := ClipCorridorPiece(pc, x0, x1)
+		cp, ok := clipCorridorPiece(pc, x0, x1)
 		if !ok {
 			continue
 		}
@@ -180,15 +180,15 @@ func TestArcCost_PricesTheStatesOwnPieceNotAnotherOne(t *testing.T) {
 	seen := map[float64]int{}
 	n := 0
 	for _, pc := range iv.Pieces {
-		cp, ok := ClipCorridorPiece(pc, x0, x1)
+		cp, ok := clipCorridorPiece(pc, x0, x1)
 		if !ok {
 			continue
 		}
-		e, err := EmissionCost(cp, R, EmissionK)
+		e, err := emissionCost(cp, R, EmissionK)
 		if err != nil {
 			t.Fatalf("emissionCost: %v", err)
 		}
-		want := e + BacktrackCost(cp, bool(CorridorFWD))
+		want := e + backtrackCost(cp, bool(CorridorFWD))
 		got, err := ArcCost(&SolvePiece{IvIdx: 0, CandIdx: iv.CandIdx, P: pc}, CorridorFWD, x0, x1, R, EmissionK)
 		if err != nil {
 			t.Fatalf("arcCost: %v", err)

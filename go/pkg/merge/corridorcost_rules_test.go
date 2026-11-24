@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-// TestGaussLegendreRules checks what IntegrateDistSqPow's non-negativity and
+// TestGaussLegendreRules checks what integrateDistSqPow's non-negativity and
 // exactness rest on: every weight is strictly positive, and each n-point rule
 // integrates x^j over [−1, 1] for every j ≤ 2n−1 to within a few ulps of the
 // exact 2/(j+1) (even j) or 0 (odd j).
 func TestGaussLegendreRules(t *testing.T) {
-	for n := 1; n <= GaussLegendreMaxPoints; n++ {
+	for n := 1; n <= gaussLegendreMaxPoints; n++ {
 		r := gaussLegendreRules[n]
 		if len(r.X) != n || len(r.W) != n {
 			t.Fatalf("n=%d: rule has %d nodes and %d weights", n, len(r.X), len(r.W))

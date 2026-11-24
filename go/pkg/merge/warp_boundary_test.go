@@ -172,7 +172,7 @@ func TestWarpLegAtBoundaries_NeverInvertsAArc(t *testing.T) {
 
 // TestWarpLegAtBoundaries_PostConditionCatchesAViolation proves the
 // post-condition assertion can actually fail — not merely observed passing
-// — the same discipline CheckTerminalsExact's own test (warp_test.go)
+// — the same discipline checkTerminalsExact's own test (warp_test.go)
 // established. Forces a violation by asking for TWO boundaries at
 // overlapping zones with targets far enough apart that ordinary blending
 // could not coincidentally satisfy both, then verifies the function still

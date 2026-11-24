@@ -12,7 +12,7 @@ package merge
 //   - ORIENTATION: whether canon measure INCREASES or DECREASES with import
 //     measure over the interval, which a sorted (min,max) pair cannot say.
 //
-// This file is built from certified primitives — [BandPieces]
+// This file is built from certified primitives — [bandPieces]
 // (bandinterval.go) for the per-(source edge, canon edge) regime solve, and
 // [RectsBeyond] for the box/chunk pruning that decides which canon edges are
 // worth solving against a given source edge — with a join that keeps each
@@ -23,7 +23,7 @@ package merge
 // between two boxes lower-bounds the distance between the geometries inside
 // them, and a box pair farther apart than d cannot hold a qualifying pair —
 // skipping it cannot drop an interval. That is a source-EDGE-vs-canon-box RANGE
-// query, not the point-vs-box queries HintPoly/pc.chunkBeyond/
+// query, not the point-vs-box queries hintPoly/pc.chunkBeyond/
 // projectRangeCeil answer elsewhere in this package. A probe-and-pad
 // candidate finder was tried and rejected for this: it is an
 // empirically-tuned resolution constant in disguise.
@@ -36,7 +36,7 @@ package merge
 // that vertex and so agree on its measure) — one interval. Self-approach — the
 // source within d of two UNRELATED canon measures at once — has candidate pieces
 // with non-adjacent canon-edge indices, which the same test refuses to join —
-// two intervals. [CanonEdgeRangesMeet] is that test.
+// two intervals. [canonEdgeRangesMeet] is that test.
 
 import (
 	"context"
@@ -95,7 +95,7 @@ func CorridorIntervals(ctx context.Context, sa *SourceMeasure, cands []*PreppedC
 		if pc == nil {
 			continue // PrepCandidates leaves degenerate candidates nil
 		}
-		ivs, err := CandidateCorridorIntervals(ctx, sa, pc, i, d)
+		ivs, err := candidateCorridorIntervals(ctx, sa, pc, i, d)
 		if err != nil {
 			return nil, err
 		}
@@ -104,15 +104,15 @@ func CorridorIntervals(ctx context.Context, sa *SourceMeasure, cands []*PreppedC
 	return out, nil
 }
 
-// CandidateCorridorIntervals is [CorridorIntervals] against ONE candidate.
-func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *PreppedCandidate, candIdx int, d float64) ([]CorridorInterval, error) {
+// candidateCorridorIntervals is [CorridorIntervals] against ONE candidate.
+func candidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *PreppedCandidate, candIdx int, d float64) ([]CorridorInterval, error) {
 	if sa == nil {
 		return nil, fmt.Errorf("CorridorIntervals: nil source measure")
 	}
 	if pc == nil {
 		return nil, fmt.Errorf("CorridorIntervals: nil candidate — prepCandidates leaves degenerate candidates nil and the caller must skip them")
 	}
-	if !AllFinite(d) || d < 0 {
+	if !allFinite(d) || d < 0 {
 		return nil, fmt.Errorf("CorridorIntervals: band must be finite and non-negative, got %v m", d)
 	}
 
@@ -145,7 +145,7 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 		// argument is the triangle inequality: within a candidate the arm-jump
 		// term makes A->Z->B cost |z-a| + |z-b|, never less than the |b-a| of
 		// going straight there. Since the cross-candidate price became
-		// continuous ([CrossCandidateSwitchCost]) that argument extends across
+		// continuous ([crossCandidateSwitchCost]) that argument extends across
 		// candidates too — both terms are canon distances at one weight — so
 		// the inequality now covers transit generally rather than
 		// same-candidate transit only. It is still not what closes this, for a
@@ -156,7 +156,7 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 		// What actually closes it is SHADOWING: a zero-length source edge is a
 		// repeated coordinate, so the flanking real-length edges carry that same
 		// coordinate as an endpoint, are within d of the same canon edges, and
-		// [BandPieces] writes t exactly 0 or 1 at an edge end. Every
+		// [bandPieces] writes t exactly 0 or 1 at an edge end. Every
 		// correspondence a zero-width piece offers at its single measure position is
 		// therefore reproduced bitwise by a neighbouring piece that DOES have
 		// extent. Nothing is removed from the state space; only duplicates are.
@@ -198,7 +198,7 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 			return nil, err
 		}
 		minted := len(pieces)
-		pieces, err = PruneToNearestCanonEdges(pieces, hooks)
+		pieces, err = pruneToNearestCanonEdges(pieces, hooks)
 		if err != nil {
 			return nil, err
 		}
@@ -221,13 +221,13 @@ func CandidateCorridorIntervals(ctx context.Context, sa *SourceMeasure, pc *Prep
 // this file's header).
 //
 // Regime.lo/hi, .kind and its dist² coefficients come straight from
-// [BandPieces] with nothing recomputed; only the canon-measure correspondence is
+// [bandPieces] with nothing recomputed; only the canon-measure correspondence is
 // computed here, by [orientedFootMeasure].
 func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune bool) ([]CorridorPiece, error) {
 	if pc == nil {
 		return nil, fmt.Errorf("CorridorIntervals: nil candidate — prepCandidates leaves degenerate candidates nil and the caller must skip them")
 	}
-	if !AllFinite(p.Lat, p.Lon, q.Lat, q.Lon, d) {
+	if !allFinite(p.Lat, p.Lon, q.Lat, q.Lon, d) {
 		return nil, fmt.Errorf("CorridorIntervals: non-finite source edge or band [P=(%v,%v) Q=(%v,%v) d=%v]", p.Lat, p.Lon, q.Lat, q.Lon, d)
 	}
 	if d < 0 {
@@ -253,7 +253,7 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 			}
 		}
 		a, b := pc.Verts[e], pc.Verts[e+1]
-		pieces, n, joins, nj, err := BandPieces(p, q, a, b, d)
+		pieces, n, joins, nj, err := bandPieces(p, q, a, b, d)
 		if err != nil {
 			return nil, fmt.Errorf("CorridorIntervals: canon arc %d edge %d: %w", pc.arcID, e, err)
 		}
@@ -262,12 +262,12 @@ func sourceEdgeCorridorPieces(p, q Point, pc *PreppedCandidate, d float64, prune
 		}
 		// This is validation, not a value this function needs: the per-regime
 		// pieces are read from pieces[:n] directly below rather than from the
-		// single (lo,hi) UnionOneInterval returns, but the convexity assertion
+		// single (lo,hi) unionOneInterval returns, but the convexity assertion
 		// it makes — that the regime contributions truly are one contiguous
 		// interval — is exactly what this function's own guarantee (Pieces
 		// arrive gap-free within one canon edge) rests on.
-		if _, _, _, err := UnionOneInterval(pieces[:n]); err != nil {
-			return nil, fmt.Errorf("CorridorIntervals: %w %s%s", err, BandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
+		if _, _, _, err := unionOneInterval(pieces[:n]); err != nil {
+			return nil, fmt.Errorf("CorridorIntervals: %w %s%s", err, bandGeomStr(p, q, a, b, d), bandJoinsStr(joins[:nj], d))
 		}
 		for i := 0; i < n; i++ {
 			bp := pieces[i]
@@ -311,7 +311,7 @@ func orientedFootMeasure(p, q, a, b Point, pc *PreppedCandidate, e int, t0, t1 f
 			lon = p.Lon + t*(q.Lon-p.Lon)
 		}
 		_, s := ClosestPointOnSeg(a.Lat, a.Lon, b.Lat, b.Lon, lat, lon)
-		if !AllFinite(s) {
+		if !allFinite(s) {
 			return 0, fmt.Errorf("CorridorIntervals: canon arc %d edge %d: foot parameter %v at t=%v is not finite", pc.arcID, e, s, t)
 		}
 		return pc.cumMeasure[e] + s*(pc.cumMeasure[e+1]-pc.cumMeasure[e]), nil
@@ -363,7 +363,7 @@ func orientedFootMeasure(p, q, a, b Point, pc *PreppedCandidate, e int, t0, t1 f
 // reason: pieces on non-adjacent canon edges are not adjacent, so the source
 // lying within d of two UNRELATED canon measures at once yields two components. A
 // hairpin's apex hands off between CONSECUTIVE canon edges, so its pieces are
-// adjacent and stay one component. [CanonEdgeRangesMeet] is that test.
+// adjacent and stay one component. [canonEdgeRangesMeet] is that test.
 //
 // Piece order within an interval, and interval order in the output, are both
 // construction order (source edge ascending, canon edge ascending within an
@@ -474,13 +474,13 @@ func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInte
 // two FACTS that decide the question, asked in the frame each was decided in:
 //
 //   - Canon locality is an INTEGER test on edge indices
-//     ([CanonEdgeRangesMeet]).
+//     ([canonEdgeRangesMeet]).
 //   - Source locality is asked in the SOURCE EDGE's own local T frame, never
 //     in metres. Within one source edge, two pieces share that frame exactly,
 //     so `lo <= hi` overlap is exact. Across consecutive source edges the
 //     question is not "are these two measure values equal to within something" —
 //     it is "does the earlier piece reach the shared vertex, and does the
-//     later piece start from it", which [BandPieces] answers structurally by
+//     later piece start from it", which [bandPieces] answers structurally by
 //     writing exactly 1 and exactly 0 into the regime bounds at an edge's own
 //     ends. Comparing ImportMeasureAtHi against ImportMeasureAtLo in metres instead
 //     would be asking a structural question with a float, which is the shape
@@ -490,7 +490,7 @@ func joinCorridorPieces(bySrcEdge [][]CorridorPiece, candIdx int) []CorridorInte
 // Non-consecutive source edges are never adjacent: a corridor that leaves the
 // band for a whole source edge and returns has genuinely left it.
 func piecesAdjacent(a, b CorridorPiece) bool {
-	if !CanonEdgeRangesMeet(a.CanonEdge, a.CanonEdge, b.CanonEdge, b.CanonEdge) {
+	if !canonEdgeRangesMeet(a.CanonEdge, a.CanonEdge, b.CanonEdge, b.CanonEdge) {
 		return false
 	}
 	switch {
@@ -540,11 +540,11 @@ func RectsBeyond(aMinLat, aMaxLat, aMinLon, aMaxLon, bMinLat, bMaxLat, bMinLon, 
 	return dLatM*dLatM+dLonM*dLonM > marginM*marginM
 }
 
-// CanonEdgeRangesMeet reports whether two canon edge ranges overlap or are
+// canonEdgeRangesMeet reports whether two canon edge ranges overlap or are
 // adjacent. Adjacency is tested in BOTH directions deliberately: an anti-parallel
 // follow walks canon edges downward as the source advances, so the continuation
 // of a stretch can sit below it as easily as above.
-func CanonEdgeRangesMeet(aLo, aHi, bLo, bHi int) bool {
+func canonEdgeRangesMeet(aLo, aHi, bLo, bHi int) bool {
 	if aLo <= bHi && bLo <= aHi {
 		return true // overlapping
 	}

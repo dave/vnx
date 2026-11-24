@@ -149,7 +149,7 @@ type LegRides struct {
 	// parallel strands ride resolution exists to remove — while the import
 	// still reported success. The caller compares this against the committing
 	// point count immediately before the commit step and fails the item; see
-	// [CheckRidesIndexSpace].
+	// [checkRidesIndexSpace].
 	PointCount int
 }
 
@@ -168,7 +168,7 @@ func (r *LegRides) ForPiece(pointCount, lo, hi int, startNode, endNode *NodeID) 
 	// ON piece of the leg into a created copy of canon while the import
 	// reported success. The mismatch is an ERROR, raised once for the whole
 	// leg by the caller immediately before the commit step (see
-	// [CheckRidesIndexSpace]). pointCount is still taken so the call site
+	// [checkRidesIndexSpace]). pointCount is still taken so the call site
 	// keeps its subject.
 	if r == nil || startNode == nil || endNode == nil {
 		return nil
@@ -230,7 +230,7 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 	r.ByPiece = moved
 }
 
-// ResolveLegRides turns the align step's per-boundary record into one ride per
+// resolveLegRides turns the align step's per-boundary record into one ride per
 // ON piece.
 //
 // ⚠ NODE IDENTITY, NOT MEASURE. Every position in this function is located by
@@ -240,7 +240,7 @@ func (r *LegRides) RemapAfterSnapInsertions(inserted []SymmetricSnapInsert, newP
 // none. The lineage records the node at every division, so the
 // question "where does this boundary sit on the arc the run rode" is answered
 // by looking its node up in that list.
-func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
+func resolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, seams []LegSeam) (*LegRides, error) {
 	st := stateOf(ctx)
 	ignoreMeasure := st.hooks.A1AbsorbIgnoreMeasure != nil && st.hooks.A1AbsorbIgnoreMeasure()
 	out := &LegRides{ByPiece: map[LegRideKey]*LegRide{}, PointCount: len(asm.Points)}
@@ -357,8 +357,8 @@ func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 		}
 		// THE PIECE'S RANGE IS THE SEAM'S INDEX, NOT THE ON RANGE'S. Two ON runs
 		// can meet at two ADJACENT indices with no distance between them, and
-		// LegSeamsFromAlign merges those two claims into ONE seam at the EARLIER
-		// index (ZeroArcGap). The committed piece then runs from that earlier
+		// legSeamsFromAlign merges those two claims into ONE seam at the EARLIER
+		// index (zeroArcGap). The committed piece then runs from that earlier
 		// index, and a ride keyed on the ON range's own Lo names a piece that
 		// does not exist; on test data this committed byte-identical parallel
 		// arcs several kilometres long.
@@ -517,8 +517,8 @@ func ResolveLegRides(ctx context.Context, asm AssembledLeg, rep AlignReport, sea
 //
 // ⚠ THAT IS NOT ALWAYS THE ON RANGE'S OWN INDEX. Two ON runs can meet at two
 // ADJACENT indices, and the leg cut then holds ONE seam for them —
-// LegSeamsFromAlign merges two claims on one physical point, and
-// CollapseSameNodeSeams removes a same-node seam whose piece has no extent.
+// legSeamsFromAlign merges two claims on one physical point, and
+// collapseSameNodeSeams removes a same-node seam whose piece has no extent.
 // Both keep the EARLIER index. The committed piece runs from there, so a ride
 // keyed on the ON range's own Lo names a piece that does not exist, which on
 // test data committed byte-identical parallel arcs.

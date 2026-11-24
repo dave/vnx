@@ -19,7 +19,7 @@ import (
 //   - Ids come from two counters, one for nodes and one for arcs, that only
 //     go up: an id is never reused, even after its arc is deleted by a split.
 //   - Whole-arc boxes are stored as float32, as SQLite's R*Tree stores them
-//     (see [NewBox32]), and ArcIDsInRect returns exactly the arcs whose
+//     (see [newBox32]), and ArcIDsInRect returns exactly the arcs whose
 //     stored box meets the query, inclusive at both ends.
 //   - NodesInBox filters exactly (inclusive) and orders by (lat, lon, id).
 //   - ArcsNearPoint narrows through boxes of short stretches of each arc,
@@ -89,12 +89,12 @@ type Box32 struct {
 	MinLat, MaxLat, MinLon, MaxLon float32
 }
 
-// NewBox32 is the box SQLite's R*Tree stores for b. Each bound becomes the
+// newBox32 is the box SQLite's R*Tree stores for b. Each bound becomes the
 // nearest float32 when that does not move it inward; otherwise it becomes
 // the nearest float32 to the bound scaled outward by a factor of 1 ± 2^-23
 // (rtree.c's rtreeValueDown and rtreeValueUp). That is usually the next
 // float32 outward, but not always: it can be two steps out.
-func NewBox32(b Bounds) Box32 {
+func newBox32(b Bounds) Box32 {
 	return Box32{
 		MinLat: rtreeDown(b.MinLat), MaxLat: rtreeUp(b.MaxLat),
 		MinLon: rtreeDown(b.MinLon), MaxLon: rtreeUp(b.MaxLon),
@@ -326,7 +326,7 @@ func (c *MemCanon) putArc(id ArcID, start, end NodeID, pips []Pip, stats ArcStat
 	// The box is built from the bounds as given, before the REAL columns
 	// store -0.0 as +0.0: arc_rtree is written from the same values, and
 	// keeps a -0.0 bound as -0.0f (bits 0x80000000).
-	a := &memArc{start: start, end: end, pips: pips, stats: st, bounds: bd, box: NewBox32(bounds)}
+	a := &memArc{start: start, end: end, pips: pips, stats: st, bounds: bd, box: newBox32(bounds)}
 	c.arcs[id] = a
 	c.byNode[start] = append(c.byNode[start], id)
 	c.byNode[end] = append(c.byNode[end], id)
@@ -512,7 +512,7 @@ func (c *MemCanon) arcIDsInRect(b Bounds) []ArcID {
 }
 
 // ArcIDsInRect implements [Canon]: exactly the arcs whose stored float32 box
-// (see [NewBox32]) meets b, inclusive at both ends, ordered by id.
+// (see [newBox32]) meets b, inclusive at both ends, ordered by id.
 func (c *MemCanon) ArcIDsInRect(ctx context.Context, b Bounds) ([]ArcID, error) {
 	if err := c.enter(ctx); err != nil {
 		return nil, err
@@ -658,7 +658,7 @@ func (c *MemCanon) SplitArc(ctx context.Context, id ArcID, s PolylineSplit) (Spl
 	if err != nil {
 		return SplitIDs{}, c.fail(fmt.Errorf("split arc %d: node: %w", id, err))
 	}
-	join := Pip{Lat: s.Lat, Lon: s.Lon, Ele: ElevOrNaN(s.Ele)}
+	join := Pip{Lat: s.Lat, Lon: s.Lon, Ele: elevOrNaN(s.Ele)}
 	half := func(from NodeID, pips []Pip, to NodeID, fromJoin bool) (ArcID, error) {
 		walk := make([]Pip, 0, len(pips)+2)
 		if fromJoin {

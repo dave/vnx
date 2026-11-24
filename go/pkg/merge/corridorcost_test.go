@@ -14,21 +14,21 @@ import (
 
 func TestValidateEvenK_RejectsOddZeroNegative(t *testing.T) {
 	for _, k := range []int{-2, -1, 0, 1, 3, 5} {
-		if err := ValidateEvenK(k); err == nil {
+		if err := validateEvenK(k); err == nil {
 			t.Errorf("validateEvenK(%d): want error, got nil", k)
 		}
 	}
 	for _, k := range []int{2, 4, 6, 8} {
-		if err := ValidateEvenK(k); err != nil {
+		if err := validateEvenK(k); err != nil {
 			t.Errorf("validateEvenK(%d): want nil, got %v", k, err)
 		}
 	}
 }
 
-// ---- IntegrateDistSqPow: closed form vs dense numeric reference ----------
+// ---- integrateDistSqPow: closed form vs dense numeric reference ----------
 
 // simpsonIntegrate is a dense reference integrator, independent of
-// [IntegrateDistSqPow]'s closed-form path, used only to cross-check it —
+// [integrateDistSqPow]'s closed-form path, used only to cross-check it —
 // never a production code path.
 func simpsonIntegrate(f func(float64) float64, lo, hi float64, n int) float64 {
 	if n%2 != 0 {
@@ -47,7 +47,7 @@ func simpsonIntegrate(f func(float64) float64, lo, hi float64, n int) float64 {
 	return sum * h / 3
 }
 
-// nearPieceFromOffset builds a near-regime piece the way BandPieces does: from
+// nearPieceFromOffset builds a near-regime piece the way bandPieces does: from
 // the linear offset X(t) − V = (x0 + x1·t, y0 + y1·t), with the trinomial
 // expanded from it. A near piece carries both forms (see [BandPiece]).
 func nearPieceFromOffset(kind BandRegime, lo, hi, x0, y0, x1, y1 float64) BandPiece {
@@ -59,7 +59,7 @@ func nearPieceFromOffset(kind BandRegime, lo, hi, x0, y0, x1, y1 float64) BandPi
 func TestIntegrateDistSqPow_NearARegime_MatchesDenseReference(t *testing.T) {
 	bp := nearPieceFromOffset(RegimeNearA, 0.1, 0.9, 2, -1.5, -1, 2)
 	for _, m := range []int{1, 2, 3} {
-		got, err := IntegrateDistSqPow(bp, m)
+		got, err := integrateDistSqPow(bp, m)
 		if err != nil {
 			t.Fatalf("m=%d: %v", m, err)
 		}
@@ -73,7 +73,7 @@ func TestIntegrateDistSqPow_NearARegime_MatchesDenseReference(t *testing.T) {
 func TestIntegrateDistSqPow_SpanRegime_MatchesDenseReference(t *testing.T) {
 	bp := BandPiece{Lo: -2, Hi: 3, Kind: RegimeSpan, SpanC0: 4, SpanC1: -1.5, SpanLenSq: 2.3}
 	for _, m := range []int{1, 2, 3} {
-		got, err := IntegrateDistSqPow(bp, m)
+		got, err := integrateDistSqPow(bp, m)
 		if err != nil {
 			t.Fatalf("m=%d: %v", m, err)
 		}
@@ -86,7 +86,7 @@ func TestIntegrateDistSqPow_SpanRegime_MatchesDenseReference(t *testing.T) {
 
 func TestIntegrateDistSqPow_ZeroMeasurePieceIsZero(t *testing.T) {
 	bp := BandPiece{Lo: 0.5, Hi: 0.5, Kind: RegimeSpan, SpanC0: 1, SpanC1: 1, SpanLenSq: 1}
-	got, err := IntegrateDistSqPow(bp, 2)
+	got, err := integrateDistSqPow(bp, 2)
 	if err != nil || got != 0 {
 		t.Fatalf("got %v, %v; want 0, nil", got, err)
 	}
@@ -96,7 +96,7 @@ func TestIntegrateDistSqPow_ZeroMeasurePieceIsZero(t *testing.T) {
 
 // TestEmissionCost_MatchesDenseNumericIntegration builds a real
 // CorridorPiece from the fixtures corridorinterval_test.go already trusts
-// (straight overlap) and checks EmissionCost against a dense midpoint sum
+// (straight overlap) and checks emissionCost against a dense midpoint sum
 // of (d/R)^k per metre of import measure, independent of the closed-form path.
 func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 	const R = 15.0
@@ -105,7 +105,7 @@ func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -114,11 +114,11 @@ func TestEmissionCost_MatchesDenseNumericIntegration(t *testing.T) {
 	}
 
 	for _, k := range []int{2, 4} {
-		// The emission cost of adopting the WHOLE interval: EmissionCost summed
+		// The emission cost of adopting the WHOLE interval: emissionCost summed
 		// over its pieces.
 		total := 0.0
 		for _, p := range ivs[0].Pieces {
-			c, err := EmissionCost(p, R, k)
+			c, err := emissionCost(p, R, k)
 			if err != nil {
 				t.Fatalf("k=%d: emissionCost (srcEdge=%d canonEdge=%d): %v", k, p.SrcEdge, p.CanonEdge, err)
 			}
@@ -151,11 +151,11 @@ func TestEmissionCost_RejectsOddK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, CorridorRadiusM)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, CorridorRadiusM)
 	if err != nil || len(ivs) != 1 {
 		t.Fatalf("fixture setup: ivs=%v err=%v", ivs, err)
 	}
-	if _, err := EmissionCost(ivs[0].Pieces[0], CorridorRadiusM, 3); err == nil {
+	if _, err := emissionCost(ivs[0].Pieces[0], CorridorRadiusM, 3); err == nil {
 		t.Fatalf("k=3: want error, got nil")
 	}
 }
@@ -164,23 +164,23 @@ func TestEmissionCost_RejectsOddK(t *testing.T) {
 
 func TestBacktrackMeasureM_ZeroWhenAligned_PositiveWhenAgainst(t *testing.T) {
 	fwd := CorridorPiece{CanonMeasureAtLo: 10, CanonMeasureAtHi: 25} // canon measure INCREASES
-	if got := BacktrackMeasureM(fwd, true); got != 0 {
+	if got := backtrackMeasureM(fwd, true); got != 0 {
 		t.Errorf("aligned with dirIncreasing=true: got %v, want 0", got)
 	}
-	if got := BacktrackMeasureM(fwd, false); got != 15 {
+	if got := backtrackMeasureM(fwd, false); got != 15 {
 		t.Errorf("against dirIncreasing=false: got %v, want 15", got)
 	}
 
 	rev := CorridorPiece{CanonMeasureAtLo: 30, CanonMeasureAtHi: 12} // canon measure DECREASES
-	if got := BacktrackMeasureM(rev, false); got != 0 {
+	if got := backtrackMeasureM(rev, false); got != 0 {
 		t.Errorf("aligned with dirIncreasing=false: got %v, want 0", got)
 	}
-	if got := BacktrackMeasureM(rev, true); got != 18 {
+	if got := backtrackMeasureM(rev, true); got != 18 {
 		t.Errorf("against dirIncreasing=true: got %v, want 18", got)
 	}
 
 	flat := CorridorPiece{CanonMeasureAtLo: 5, CanonMeasureAtHi: 5} // clamped to one vertex
-	if BacktrackMeasureM(flat, true) != 0 || BacktrackMeasureM(flat, false) != 0 {
+	if backtrackMeasureM(flat, true) != 0 || backtrackMeasureM(flat, false) != 0 {
 		t.Errorf("flat piece must cost 0 either direction")
 	}
 }
@@ -189,11 +189,11 @@ func TestBacktrackCost_WobbleVsArmJump(t *testing.T) {
 	// The design: "0.47 m of GPS wobble costs 0.47" — "an
 	// 800 m arm-jump costs 800" (measured worst case 781 m).
 	wobble := CorridorPiece{CanonMeasureAtLo: 100, CanonMeasureAtHi: 99.53} // 0.47 m backward
-	if got := BacktrackCost(wobble, true); math.Abs(got-0.47) > 1e-9 {
+	if got := backtrackCost(wobble, true); math.Abs(got-0.47) > 1e-9 {
 		t.Errorf("wobble backtrack cost = %.6g, want 0.47", got)
 	}
 	armJump := CorridorPiece{CanonMeasureAtLo: 900, CanonMeasureAtHi: 119} // 781 m backward
-	if got := BacktrackCost(armJump, true); math.Abs(got-781) > 1e-9 {
+	if got := backtrackCost(armJump, true); math.Abs(got-781) > 1e-9 {
 		t.Errorf("arm-jump backtrack cost = %.6g, want 781", got)
 	}
 }
@@ -201,10 +201,10 @@ func TestBacktrackCost_WobbleVsArmJump(t *testing.T) {
 // ---- state change / bridge inequality ----------------------------------
 
 // TestBridgeInequality_Basic grades the bridge/no-bridge inequality: a bridge
-// ([BridgeCost]) wins when it is cheaper than the OFF path it replaces
-// ([NoBridgeCost]).
+// ([bridgeCost]) wins when it is cheaper than the OFF path it replaces
+// ([noBridgeCost]).
 func TestBridgeInequality_Basic(t *testing.T) {
-	bridges := func(gap, off float64) bool { return BridgeCost(gap) < NoBridgeCost(off) }
+	bridges := func(gap, off float64) bool { return bridgeCost(gap) < noBridgeCost(off) }
 	// Cheap bridge: small gap integral, big OFF detour avoided.
 	if !bridges(10, 500) {
 		t.Errorf("small gap integral (10) vs big no-bridge cost (2P+500): want bridge")
@@ -215,10 +215,10 @@ func TestBridgeInequality_Basic(t *testing.T) {
 	}
 	// The inequality's own arithmetic, written down and checked directly.
 	gap, off := 40.0, 5.0
-	want := gap < 2*StateChangeCost()+off
+	want := gap < 2*stateChangeCost()+off
 	if got := bridges(gap, off); got != want {
 		t.Errorf("bridges(%v,%v) = %v, want %v (bridgeCost=%v, noBridgeCost=%v)",
-			gap, off, got, want, BridgeCost(gap), NoBridgeCost(off))
+			gap, off, got, want, bridgeCost(gap), noBridgeCost(off))
 	}
 }
 
@@ -239,7 +239,7 @@ func TestCanonEdgeDistSqRegimes_MatchesClosestPointOnSeg(t *testing.T) {
 	// -> nearB (x>20).
 	p, q := mPt(-20, 0), mPt(20, 0)
 
-	regimes, n, err := CanonEdgeDistSqRegimes(a, b, p, q)
+	regimes, n, err := canonEdgeDistSqRegimes(a, b, p, q)
 	if err != nil {
 		t.Fatalf("canonEdgeDistSqRegimes: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestCanonEdgeDistSqRegimes_MatchesClosestPointOnSeg(t *testing.T) {
 func TestCanonEdgeDistSqRegimes_DegenerateSourceArcIsPointTest(t *testing.T) {
 	a, b := mPt(-50, 5), mPt(50, 5)
 	p := mPt(0, 0)
-	regimes, n, err := CanonEdgeDistSqRegimes(a, b, p, p) // zero-length source
+	regimes, n, err := canonEdgeDistSqRegimes(a, b, p, p) // zero-length source
 	if err != nil {
 		t.Fatalf("canonEdgeDistSqRegimes: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestEnvelopeMinCost_TentMatchesTriangularFormulaAndDenseReference(t *testin
 	for _, c := range cases {
 		pieces := tentPieces(c.L, c.h)
 		for _, k := range []int{2, 4} {
-			got, err := EnvelopeMinCost(context.Background(), pieces, 0, c.L, R, k)
+			got, err := envelopeMinCost(context.Background(), pieces, 0, c.L, R, k)
 			if err != nil {
 				t.Fatalf("L=%v h=%v k=%d: %v", c.L, c.h, k, err)
 			}
@@ -384,11 +384,11 @@ func TestCostOrdering_HairpinVsSpur_RedAtK2GreenAtK4(t *testing.T) {
 	hairpin := tentPieces(40, 60)
 	spur := tentPieces(400, 20)
 
-	hp2, err := EnvelopeMinCost(context.Background(), hairpin, 0, 40, R, 2)
+	hp2, err := envelopeMinCost(context.Background(), hairpin, 0, 40, R, 2)
 	if err != nil {
 		t.Fatalf("hairpin k=2: %v", err)
 	}
-	sp2, err := EnvelopeMinCost(context.Background(), spur, 0, 400, R, 2)
+	sp2, err := envelopeMinCost(context.Background(), spur, 0, 400, R, 2)
 	if err != nil {
 		t.Fatalf("spur k=2: %v", err)
 	}
@@ -403,11 +403,11 @@ func TestCostOrdering_HairpinVsSpur_RedAtK2GreenAtK4(t *testing.T) {
 		t.Errorf("k=2 was expected to be RED (inverted): hairpin %.6g should score BELOW spur %.6g, but did not", hp2, sp2)
 	}
 
-	hp4, err := EnvelopeMinCost(context.Background(), hairpin, 0, 40, R, 4)
+	hp4, err := envelopeMinCost(context.Background(), hairpin, 0, 40, R, 4)
 	if err != nil {
 		t.Fatalf("hairpin k=4: %v", err)
 	}
-	sp4, err := EnvelopeMinCost(context.Background(), spur, 0, 400, R, 4)
+	sp4, err := envelopeMinCost(context.Background(), spur, 0, 400, R, 4)
 	if err != nil {
 		t.Fatalf("spur k=4: %v", err)
 	}
@@ -462,11 +462,11 @@ func TestCostOrdering_RealizableGeometryDoesNotFlipWithK(t *testing.T) {
 	spur := tentPieces(400, 20)
 
 	for _, k := range []int{2, 4, 6, 8, 10} {
-		hp, err := EnvelopeMinCost(context.Background(), hairpin, 0, 40, R, k)
+		hp, err := envelopeMinCost(context.Background(), hairpin, 0, 40, R, k)
 		if err != nil {
 			t.Fatalf("hairpin k=%d: %v", k, err)
 		}
-		sp, err := EnvelopeMinCost(context.Background(), spur, 0, 400, R, k)
+		sp, err := envelopeMinCost(context.Background(), spur, 0, 400, R, k)
 		if err != nil {
 			t.Fatalf("spur k=%d: %v", k, err)
 		}
@@ -484,11 +484,11 @@ func TestCostOrdering_RealizableGeometryDoesNotFlipWithK(t *testing.T) {
 	}
 }
 
-// ---- CanonGapCost: full wrapper over real geometry -----------------------
+// ---- canonGapCost: full wrapper over real geometry -----------------------
 
 func TestCanonGapCost_NoCandidatesIsError(t *testing.T) {
 	a, b := mPt(0, 0), mPt(10, 0)
-	if _, err := CanonGapCost(context.Background(), a, b, nil, 10, 0, 1, CorridorRadiusM, 2); err == nil {
+	if _, err := canonGapCost(context.Background(), a, b, nil, 10, 0, 1, CorridorRadiusM, 2); err == nil {
 		t.Fatalf("empty candidate set: want error, got nil")
 	}
 }
@@ -498,18 +498,18 @@ func TestCanonGapCost_SingleArcMatchesDirectRegimeIntegral(t *testing.T) {
 	p, q := mPt(-20, 0), mPt(20, 0)
 	edgeLenM := HaversineMetres(a.Lat, a.Lon, b.Lat, b.Lon)
 
-	got, err := CanonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, edgeLenM, 0, 1, CorridorRadiusM, 2)
+	got, err := canonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, edgeLenM, 0, 1, CorridorRadiusM, 2)
 	if err != nil {
 		t.Fatalf("canonGapCost: %v", err)
 	}
 
-	regimes, n, err := CanonEdgeDistSqRegimes(a, b, p, q)
+	regimes, n, err := canonEdgeDistSqRegimes(a, b, p, q)
 	if err != nil {
 		t.Fatalf("canonEdgeDistSqRegimes: %v", err)
 	}
 	want := 0.0
 	for _, bp := range regimes[:n] {
-		integral, err := IntegrateDistSqPow(bp, 1) // k=2 -> m=1
+		integral, err := integrateDistSqPow(bp, 1) // k=2 -> m=1
 		if err != nil {
 			t.Fatalf("integrateDistSqPow: %v", err)
 		}
@@ -521,7 +521,7 @@ func TestCanonGapCost_SingleArcMatchesDirectRegimeIntegral(t *testing.T) {
 	}
 }
 
-// ---- CanonGapCost: uLo/uHi sub-range --------------------------------------
+// ---- canonGapCost: uLo/uHi sub-range --------------------------------------
 
 // TestCanonGapCost_SubRangeSumsToWholeEdge checks the property
 // canonGapCostBetween (corridorsolve.go) leans on: integrating [0,mid] plus
@@ -535,16 +535,16 @@ func TestCanonGapCost_SubRangeSumsToWholeEdge(t *testing.T) {
 	edgeLenM := HaversineMetres(a.Lat, a.Lon, b.Lat, b.Lon)
 	srcArcs := [][2]Point{{p, q}}
 
-	whole, err := CanonGapCost(context.Background(), a, b, srcArcs, edgeLenM, 0, 1, CorridorRadiusM, 2)
+	whole, err := canonGapCost(context.Background(), a, b, srcArcs, edgeLenM, 0, 1, CorridorRadiusM, 2)
 	if err != nil {
 		t.Fatalf("canonGapCost whole: %v", err)
 	}
 	for _, mid := range []float64{0.1, 0.37, 0.5, 0.9} {
-		lo, err := CanonGapCost(context.Background(), a, b, srcArcs, edgeLenM, 0, mid, CorridorRadiusM, 2)
+		lo, err := canonGapCost(context.Background(), a, b, srcArcs, edgeLenM, 0, mid, CorridorRadiusM, 2)
 		if err != nil {
 			t.Fatalf("canonGapCost [0,%v]: %v", mid, err)
 		}
-		hi, err := CanonGapCost(context.Background(), a, b, srcArcs, edgeLenM, mid, 1, CorridorRadiusM, 2)
+		hi, err := canonGapCost(context.Background(), a, b, srcArcs, edgeLenM, mid, 1, CorridorRadiusM, 2)
 		if err != nil {
 			t.Fatalf("canonGapCost [%v,1]: %v", mid, err)
 		}
@@ -555,7 +555,7 @@ func TestCanonGapCost_SubRangeSumsToWholeEdge(t *testing.T) {
 }
 
 // TestCanonGapCost_ZeroWidthSubRangeIsZero: a sub-range with uLo==uHi is a
-// zero-measure piece (mirrors IntegrateDistSqPow's own bp.hi==bp.lo
+// zero-measure piece (mirrors integrateDistSqPow's own bp.hi==bp.lo
 // convention) — needed so a bridge whose two ends coincide in canon measure
 // (candidateBridgeCost's own early return) is consistent with what this
 // function would say if asked directly, not merely bypassed by a caller-side
@@ -563,7 +563,7 @@ func TestCanonGapCost_SubRangeSumsToWholeEdge(t *testing.T) {
 func TestCanonGapCost_ZeroWidthSubRangeIsZero(t *testing.T) {
 	a, b := mPt(-100, 5), mPt(100, 5)
 	p, q := mPt(-20, 0), mPt(20, 0)
-	got, err := CanonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, 200, 0.4, 0.4, CorridorRadiusM, 2)
+	got, err := canonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, 200, 0.4, 0.4, CorridorRadiusM, 2)
 	if err != nil {
 		t.Fatalf("canonGapCost: %v", err)
 	}
@@ -579,7 +579,7 @@ func TestCanonGapCost_ZeroWidthSubRangeIsZero(t *testing.T) {
 func TestCanonGapCost_InvertedSubRangeIsError(t *testing.T) {
 	a, b := mPt(-100, 5), mPt(100, 5)
 	p, q := mPt(-20, 0), mPt(20, 0)
-	if _, err := CanonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, 200, 0.6, 0.4, CorridorRadiusM, 2); err == nil {
+	if _, err := canonGapCost(context.Background(), a, b, [][2]Point{{p, q}}, 200, 0.6, 0.4, CorridorRadiusM, 2); err == nil {
 		t.Fatalf("inverted sub-range [0.6,0.4]: want error, got nil")
 	}
 }

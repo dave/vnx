@@ -114,13 +114,13 @@ func (r TjunctionReport) Cuts() int {
 	return n
 }
 
-// TjunctionDeclineFor applies the two decline rules to a candidate that is
+// tjunctionDeclineFor applies the two decline rules to a candidate that is
 // already known to be within the radius. Pure, so every rule can be pinned
 // directly.
 //
 // Order matters only for what gets REPORTED, never for the outcome: a candidate
 // failing both rules is declined either way.
-func TjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
+func tjunctionDeclineFor(cand NearbyCanonArc) TjunctionDecline {
 	// 3. A fraction of exactly 0 or 1 means the closest approach is a walk
 	//    TERMINAL vertex — there is no interior there to split, and
 	//    ValidateSnapFraction rejects both, so attempting it would abort the

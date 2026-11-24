@@ -5,7 +5,7 @@ import (
 	"math"
 )
 
-// DropPipsOnTerminalNodes removes interior pips that sit EXACTLY on the node
+// dropPipsOnTerminalNodes removes interior pips that sit EXACTLY on the node
 // this arc terminates at.
 //
 // ⚠ THIS IS NOT A TOLERANCE AND MUST NOT BECOME ONE. The comparison is float64
@@ -34,7 +34,7 @@ import (
 // Only the runs adjacent to each terminal are removed. An interior pip that
 // happens to equal a terminal coordinate elsewhere along the line is a genuine
 // self-touch and is left alone.
-func DropPipsOnTerminalNodes(interior []Pip, startNode, endNode Node) []Pip {
+func dropPipsOnTerminalNodes(interior []Pip, startNode, endNode Node) []Pip {
 	onNode := func(p Pip, n Node) bool { return p.Lat == n.Lat && p.Lon == n.Lon }
 	lo := 0
 	for lo < len(interior) && onNode(interior[lo], startNode) {
@@ -50,10 +50,10 @@ func DropPipsOnTerminalNodes(interior []Pip, startNode, endNode Node) []Pip {
 	return interior[lo:hi]
 }
 
-// CheckEndpointOwner refuses an endpoint node the canon does not own: an arc
+// checkEndpointOwner refuses an endpoint node the canon does not own: an arc
 // may not terminate on another owner's node. owner and canon name the two
 // owners for the message.
-func CheckEndpointOwner(want NodeID, inCanon bool, owner, canon string) error {
+func checkEndpointOwner(want NodeID, inCanon bool, owner, canon string) error {
 	if !inCanon {
 		return fmt.Errorf(
 			"node %d is owned by %s, not by %s — an arc may not terminate on another owner's node",
@@ -62,9 +62,9 @@ func CheckEndpointOwner(want NodeID, inCanon bool, owner, canon string) error {
 	return nil
 }
 
-// ElevOrNaN dereferences a *float64 to a float64, mapping nil to NaN
+// elevOrNaN dereferences a *float64 to a float64, mapping nil to NaN
 // — the [ElevDelta] convention for missing elevation.
-func ElevOrNaN(p *float64) float64 {
+func elevOrNaN(p *float64) float64 {
 	if p == nil {
 		return math.NaN()
 	}

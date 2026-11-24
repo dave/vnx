@@ -23,8 +23,8 @@ import (
 )
 
 // The carry-through's two checks are unreachable by construction now that a
-// highlight's intermediate states are drawn ([CheckCarrySend],
-// [CheckCarryReceive]). They stay errors; these tests keep both branches of
+// highlight's intermediate states are drawn ([checkCarrySend],
+// [checkCarryReceive]). They stay errors; these tests keep both branches of
 // each from rotting into something that no longer fires.
 func TestCheckCarrySend_RefusesTheWrongRun(t *testing.T) {
 	pc := prepOne(t, mPt(0, 0), mPt(10, 0), mPt(20, 0)) // 3 vertices
@@ -32,16 +32,16 @@ func TestCheckCarrySend_RefusesTheWrongRun(t *testing.T) {
 	run := func(dir CorridorDir) *CorridorRun {
 		return &CorridorRun{State: CorridorStateID{SpIdx: 0, Dir: dir}, CandIdx: 0, CanonMeasureHi: 7}
 	}
-	if err := CheckCarrySend(run(CorridorFWD), 0, CorridorFWD, 2, 5, cands); err != nil {
+	if err := checkCarrySend(run(CorridorFWD), 0, CorridorFWD, 2, 5, cands); err != nil {
 		t.Errorf("a FWD run leaving by its last vertex was refused: %v", err)
 	}
-	if err := CheckCarrySend(run(CorridorREV), 0, CorridorREV, 0, 5, cands); err != nil {
+	if err := checkCarrySend(run(CorridorREV), 0, CorridorREV, 0, 5, cands); err != nil {
 		t.Errorf("a REV run leaving by its first vertex was refused: %v", err)
 	}
-	if err := CheckCarrySend(run(CorridorFWD), 0, CorridorREV, 0, 5, cands); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
+	if err := checkCarrySend(run(CorridorFWD), 0, CorridorREV, 0, 5, cands); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
 		t.Errorf("a FWD run extended for a switch priced REV was accepted: %v", err)
 	}
-	if err := CheckCarrySend(run(CorridorFWD), 0, CorridorFWD, 0, 5, cands); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
+	if err := checkCarrySend(run(CorridorFWD), 0, CorridorFWD, 0, 5, cands); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
 		t.Errorf("a FWD run extended to its FIRST vertex was accepted: %v", err)
 	}
 }
@@ -49,16 +49,16 @@ func TestCheckCarrySend_RefusesTheWrongRun(t *testing.T) {
 func TestCheckCarryReceive_RefusesTheWrongRun(t *testing.T) {
 	pc := prepOne(t, mPt(0, 0), mPt(10, 0), mPt(20, 0))
 	cands := []*PreppedCandidate{pc}
-	if err := CheckCarryReceive(CorridorFWD, 3, 0, cands, CorridorFWD, 0); err != nil {
+	if err := checkCarryReceive(CorridorFWD, 3, 0, cands, CorridorFWD, 0); err != nil {
 		t.Errorf("a FWD run starting at its first vertex was refused: %v", err)
 	}
-	if err := CheckCarryReceive(CorridorREV, 3, 0, cands, CorridorREV, 2); err != nil {
+	if err := checkCarryReceive(CorridorREV, 3, 0, cands, CorridorREV, 2); err != nil {
 		t.Errorf("a REV run starting at its last vertex was refused: %v", err)
 	}
-	if err := CheckCarryReceive(CorridorREV, 3, 0, cands, CorridorFWD, 0); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
+	if err := checkCarryReceive(CorridorREV, 3, 0, cands, CorridorFWD, 0); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
 		t.Errorf("a REV run receiving a carry priced FWD was accepted: %v", err)
 	}
-	if err := CheckCarryReceive(CorridorFWD, 3, 0, cands, CorridorFWD, 2); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
+	if err := checkCarryReceive(CorridorFWD, 3, 0, cands, CorridorFWD, 2); err == nil || !strings.Contains(err.Error(), "internal inconsistency") {
 		t.Errorf("a FWD run starting at its LAST vertex was accepted: %v", err)
 	}
 }
@@ -70,7 +70,7 @@ func TestDropEmptyChainHops(t *testing.T) {
 	on := func(cand int, lo, hi float64, hop bool) CorridorRun {
 		return CorridorRun{State: CorridorStateID{SpIdx: cand}, CandIdx: cand, ImportMeasureLo: 5, ImportMeasureHi: 5, CanonMeasureLo: lo, CanonMeasureHi: hi, ChainHop: hop}
 	}
-	got := DropEmptyChainHops([]CorridorRun{
+	got := dropEmptyChainHops([]CorridorRun{
 		on(0, 3, 3, true), // a hop the chain paid nothing across
 		on(1, 0, 4, true), // a hop with canon extent
 		on(2, 7, 7, false),
@@ -92,7 +92,7 @@ func TestDropEmptyChainHops(t *testing.T) {
 // is a sub-eps sliver away.
 func TestMergeCorridorRuns_AHopKeepsItsFlagThroughAMerge(t *testing.T) {
 	const x = 50.0
-	got := MergeCorridorRuns([]CorridorRun{
+	got := mergeCorridorRuns([]CorridorRun{
 		{State: CorridorStateID{SpIdx: 1}, CandIdx: 0, ImportMeasureLo: x, ImportMeasureHi: x, CanonMeasureLo: 0, CanonMeasureHi: 5, ChainHop: true},
 		{State: CorridorStateID{SpIdx: 2}, CandIdx: 0, ImportMeasureLo: x, ImportMeasureHi: x + 1e-9, CanonMeasureLo: 5, CanonMeasureHi: 5.000001},
 	})
@@ -109,7 +109,7 @@ func TestMergeCorridorRuns_AHopKeepsItsFlagThroughAMerge(t *testing.T) {
 
 // TestMergeAdjacentSameCandidateRuns_AReversedHopIsNotAnArtefact: a REVERSED
 // chain hop lies within one source edge (it has no source extent at all), which
-// is the shape [MergeAdjacentSameCandidateRuns] reads as a projection artefact
+// is the shape [mergeAdjacentSameCandidateRuns] reads as a projection artefact
 // with no direction. After a same-candidate forward run it would then be
 // merged and its canon clamped away. It must stay its own run with its canon
 // intact.
@@ -121,7 +121,7 @@ func TestMergeCorridorRuns_AHopKeepsItsFlagThroughAMerge(t *testing.T) {
 func TestMergeAdjacentSameCandidateRuns_AReversedHopIsNotAnArtefact(t *testing.T) {
 	fwd := FollowRun{Kind: RunOn, CanonIdx: 0, Start: SourcePos{Edge: 0}, End: SourcePos{Edge: 3, Frac: 1}, MeasureStart: 0, MeasureEnd: 10}
 	hop := FollowRun{Kind: RunOn, CanonIdx: 0, Start: SourcePos{Edge: 3, Frac: 1}, End: SourcePos{Edge: 3, Frac: 1}, MeasureStart: 10, MeasureEnd: 2, Reversed: true, ChainHop: true}
-	got := MergeAdjacentSameCandidateRuns([]FollowRun{fwd, hop})
+	got := mergeAdjacentSameCandidateRuns([]FollowRun{fwd, hop})
 	if len(got) != 2 {
 		t.Fatalf("got %d runs, want the forward run and the reversed hop kept apart: %+v", len(got), got)
 	}

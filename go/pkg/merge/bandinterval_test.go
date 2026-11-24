@@ -5,7 +5,7 @@ package merge
 // Three things are under test, in decreasing order of how badly they would
 // hurt if wrong:
 //
-//  1. THE PROJECTION CONTRACT. BandInterval must solve in exactly the plane
+//  1. THE PROJECTION CONTRACT. bandInterval must solve in exactly the plane
 //     ClosestPointOnSeg projects into. A wrong metric drifts by millimetres
 //     over 15 m — below any sampled reference's resolution, so the sampled
 //     comparison below cannot see it. TestBandIntervalProjectionContract pins
@@ -15,8 +15,8 @@ package merge
 //     plane would actually show up.
 //  2. AGREEMENT WITH THE THING BEING DELETED. The densified scan becomes the
 //     brute-force reference (bruteBandScan below is a local copy of
-//     DensifySource's sampling approach, deliberately not a call into it, so
-//     DensifySource stays deletable).
+//     densifySource's sampling approach, deliberately not a call into it, so
+//     densifySource stays deletable).
 //  3. DEGENERACY. Zero-length canon and source edges, parallel edges, tangency
 //     at exactly d, wholly in and wholly out.
 //
@@ -56,7 +56,7 @@ func offsetPt(baseLat, baseLon, eastM, northM float64) Point {
 }
 
 // lerpPt is the moving point X(t) along the source edge: the lat/lon lerp,
-// which is what DensifySource inserts and what BandInterval solves over. The
+// which is what densifySource inserts and what bandInterval solves over. The
 // float64 conversions keep arm64 from fusing it into an FMA, so a fixture
 // measures the same point on every architecture (pkg/detmath).
 func lerpPt(p, q Point, t float64) Point {
@@ -66,11 +66,11 @@ func lerpPt(p, q Point, t float64) Point {
 	}
 }
 
-// bruteBandScan is the reference implementation: DensifySource's sampling
+// bruteBandScan is the reference implementation: densifySource's sampling
 // approach applied to one source edge. It returns the first and last sampled
 // position within d of the canon edge, and the sampling resolution in t.
 //
-// Deliberately a local copy rather than a call into DensifySource — that
+// Deliberately a local copy rather than a call into densifySource — that
 // function is scheduled for deletion, and this reference must outlive it.
 func bruteBandScan(p, q, a, b Point, d float64, samples int) (lo, hi float64, ok bool, dt float64) {
 	dt = 1 / float64(samples)
@@ -92,7 +92,7 @@ func bruteBandScan(p, q, a, b Point, d float64, samples int) (lo, hi float64, ok
 // regime pieces: positive is a gap (convexity violated), negative an overlap,
 // zero the contiguity the design claims.
 func joinMargins(p, q, a, b Point, d float64) ([]float64, error) {
-	pieces, n, _, _, err := BandPieces(p, q, a, b, d)
+	pieces, n, _, _, err := bandPieces(p, q, a, b, d)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ var joinBothReachCase = bandCase{name: "closestPointOnSeg says out, both solves 
 	a: bitsPt(0x404ab0c7e28240b8, 0xbffdf7ced916872b), b: bitsPt(0x404ab0c7e28240b8, 0xbffde63b19a82cad),
 	d: math.Float64frombits(0x401ffffffffbe078)}
 
-// falseConvexityErrorCases are geometries on which BandInterval returned a
+// falseConvexityErrorCases are geometries on which bandInterval returned a
 // hard "convexity violated" error although the band is one interval. The
 // verdict then measured ClosestPointOnSeg at the rounded lat/lon lerp X(t_b),
 // which put t_b outside the band while one solve reached it and the other
@@ -252,7 +252,7 @@ var falseConvexityErrorCases = []struct {
 // where it is flat; 53°N; 85°N) and the one branch the frame has: a
 // zero-length edge.
 //
-// Red proof, 2026-10-05 (detached worktree): with NewSegFrame's cosLat taken
+// Red proof, 2026-10-05 (detached worktree): with newSegFrame's cosLat taken
 // at A's latitude instead of the mid-latitude, this fails on the first edge —
 // "equator: frame cosLat = 1, want the canon edge's mid-latitude cosine
 // 0.99999999987681587".
@@ -268,7 +268,7 @@ func TestBandIntervalProjectionContract(t *testing.T) {
 	}
 	for _, e := range edges {
 		a, b := e.a, e.b
-		f := NewSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
+		f := newSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
 
 		// cosLat at the MID-LATITUDE of the arc being projected onto — not
 		// the probe's, not per-leg.
@@ -315,7 +315,7 @@ func TestBandIntervalProjectionContract(t *testing.T) {
 	// what TestBandIntervalEndpointsSitOnTheBand's residual has to beat.
 	a := Point{Lat: 53.3811, Lon: -1.8730}
 	b := offsetPt(a.Lat, a.Lon, 300, 200)
-	f := NewSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
+	f := newSegFrame(a.Lat, a.Lon, b.Lat, b.Lon)
 	probe := offsetPt(a.Lat, a.Lon, 150, 115)
 	right, _ := f.Project(probe.Lat, probe.Lon)
 
@@ -348,7 +348,7 @@ func TestBandIntervalProjectionContract(t *testing.T) {
 // regimes at the equator, 53°N and 67°N, plus a source that starts inside the
 // band, whose first endpoint is clipped to t = 0 rather than solved.
 //
-// Red proof, 2026-10-05 (detached worktree): with NewSegFrame's cosLat taken
+// Red proof, 2026-10-05 (detached worktree): with newSegFrame's cosLat taken
 // at A's latitude instead of the mid-latitude, this fails on "53N near A" —
 // "endpoint t=0.58759059507326317 sits 0.000166 m off the band".
 func TestBandIntervalEndpointsSitOnTheBand(t *testing.T) {
@@ -393,7 +393,7 @@ func TestBandIntervalEndpointsSitOnTheBand(t *testing.T) {
 		p := offsetPt(c.baseLat, baseLon, pe, pn)
 		q := offsetPt(c.baseLat, baseLon, qe, qn)
 
-		t0, t1, ok, err := BandInterval(p, q, a, b, d)
+		t0, t1, ok, err := bandInterval(p, q, a, b, d)
 		if err != nil {
 			t.Fatalf("%s: bandInterval: %v", c.name, err)
 		}
@@ -440,7 +440,7 @@ func TestBandIntervalEndpointsSitOnTheBand(t *testing.T) {
 // degenerate shapes. The span regime has no tangent case: its distance is
 // linear in t, so its band edge is crossed, never touched.
 //
-// Red proofs, 2026-10-05 (detached worktree): with SolveAbsLE's upper root
+// Red proofs, 2026-10-05 (detached worktree): with solveAbsLE's upper root
 // written (m + c0)/c1, this fails on "span crossing" — "t=0 is inside the
 // analytic interval [0,0.39999999999946101] but 50 m from canon"; with the
 // near-B offset taken from p + b instead of p − b, it fails on "near B
@@ -489,7 +489,7 @@ func TestBandIntervalMatchesDenseSampling(t *testing.T) {
 	for _, c := range cases {
 		p, q := c.p, c.q
 
-		t0, t1, ok, err := BandInterval(p, q, c.a, c.b, d)
+		t0, t1, ok, err := bandInterval(p, q, c.a, c.b, d)
 		if err != nil {
 			t.Fatalf("%s: bandInterval errored: %v", c.name, err)
 		}
@@ -506,10 +506,10 @@ func TestBandIntervalMatchesDenseSampling(t *testing.T) {
 			switch {
 			case inside && dist > d:
 				t.Fatalf("%s: t=%.17g is inside the analytic interval [%.17g,%.17g] but %.6g m from canon (band %g m)\n%s",
-					c.name, tt, t0, t1, dist, d, BandGeomStr(p, q, c.a, c.b, d))
+					c.name, tt, t0, t1, dist, d, bandGeomStr(p, q, c.a, c.b, d))
 			case !inside && dist <= d:
 				t.Fatalf("%s: t=%.17g is %.6g m from canon (band %g m) but outside the analytic interval [%.17g,%.17g] ok=%v\n%s",
-					c.name, tt, dist, d, t0, t1, ok, BandGeomStr(p, q, c.a, c.b, d))
+					c.name, tt, dist, d, t0, t1, ok, bandGeomStr(p, q, c.a, c.b, d))
 			}
 		}
 
@@ -548,7 +548,7 @@ func TestBandIntervalMatchesDenseSampling(t *testing.T) {
 // each boundary. Every join must close with a zero margin and no error.
 //
 // Red proof, 2026-10-05 (detached worktree): with the IN-band assignment in
-// BandPieces removed, this fails on "seed 7 case 1522" — "convexity violated:
+// bandPieces removed, this fails on "seed 7 case 1522" — "convexity violated:
 // … leave a gap of 5.8841820305133297e-15 in t".
 func TestBandIntervalJoinStressAtRegimeBoundary(t *testing.T) {
 	cases := append(append([]bandCase{}, joinFiringCases...), boundaryJoinCases...)
@@ -560,7 +560,7 @@ func TestBandIntervalJoinStressAtRegimeBoundary(t *testing.T) {
 		if len(margins) == 0 {
 			t.Fatalf("%s: no regime join was taken — the case no longer exercises the join", c.name)
 		}
-		if _, _, _, err := BandInterval(c.p, c.q, c.a, c.b, c.d); err != nil {
+		if _, _, _, err := bandInterval(c.p, c.q, c.a, c.b, c.d); err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
 		for _, m := range margins {
@@ -589,7 +589,7 @@ func TestBandIntervalJoinStressAtRegimeBoundary(t *testing.T) {
 //
 // Red proofs, 2026-10-05 (detached worktree). With the IN-band assignment
 // moving only the far piece, this fails on the near-side gap case; moving only
-// the near piece, on "seed 7 case 1522" — both "BandInterval failed: …
+// the near piece, on "seed 7 case 1522" — both "bandInterval failed: …
 // convexity violated". With the verdict taking only the lower solve's reach, it
 // fails on the near-side gap case (then seed 20260728 case 3667); only the upper solve's,
 // on "seed 7 case 1522".
@@ -602,14 +602,14 @@ func TestBandIntervalRegimeJoinVerdict(t *testing.T) {
 	joins, onlyLow, onlyHigh := 0, 0, 0
 	for _, c := range cases {
 		p, q, a, b, d := c.p, c.q, c.a, c.b, c.d
-		pieces, n, js, nj, err := BandPieces(p, q, a, b, d)
+		pieces, n, js, nj, err := bandPieces(p, q, a, b, d)
 		if err != nil {
 			t.Fatalf("%s: bandPieces failed: %v", c.name, err)
 		}
 		if nj == 0 {
 			t.Fatalf("%s: no regime join was taken — the case no longer exercises the verdict", c.name)
 		}
-		t0, t1, ok, err := BandInterval(p, q, a, b, d)
+		t0, t1, ok, err := bandInterval(p, q, a, b, d)
 		if err != nil {
 			t.Fatalf("%s: bandInterval failed: %v", c.name, err)
 		}
@@ -664,7 +664,7 @@ func TestBandIntervalRegimeJoinVerdict(t *testing.T) {
 // test in this file still passes under that mutation.
 func TestBandIntervalJoinVerdictOnHandMadePieces(t *testing.T) {
 	const tb = 0.4
-	ranges := [3]BandRegimeRange{
+	ranges := [3]bandRegimeRange{
 		{Kind: RegimeNearA, Lo: math.Inf(-1), Hi: tb},
 		{Kind: RegimeSpan, Lo: tb, Hi: 0.7},
 		{Kind: RegimeNearB, Lo: 0.7, Hi: math.Inf(1)},
@@ -686,7 +686,7 @@ func TestBandIntervalJoinVerdictOnHandMadePieces(t *testing.T) {
 			{Kind: RegimeSpan, Lo: c.highLo, Hi: 0.6},
 		}
 		has := [3]bool{true, true, false}
-		joins, nj, err := JoinRegimePieces(ranges, 3, &got, has)
+		joins, nj, err := joinRegimePieces(ranges, 3, &got, has)
 		if err != nil {
 			t.Fatalf("%s: joinRegimePieces: %v", c.name, err)
 		}
@@ -702,7 +702,7 @@ func TestBandIntervalJoinVerdictOnHandMadePieces(t *testing.T) {
 		if !c.wantIn && (got[0].Hi != c.lowHi || got[1].Lo != c.highLo) {
 			t.Fatalf("%s: OUT verdict moved the pieces to %.17g and %.17g", c.name, got[0].Hi, got[1].Lo)
 		}
-		lo, hi, ok, err := UnionOneInterval(got[:2])
+		lo, hi, ok, err := unionOneInterval(got[:2])
 		if c.wantErr {
 			if err == nil || !strings.Contains(err.Error(), "convexity violated") {
 				t.Fatalf("%s: union of [%v,%v] and [%v,%v] gave [%v,%v] ok=%v err=%v, want the convexity error",
@@ -717,7 +717,7 @@ func TestBandIntervalJoinVerdictOnHandMadePieces(t *testing.T) {
 }
 
 // TestBandIntervalNoFalseConvexityErrorAtABoundary holds the geometries on
-// which BandInterval reported "convexity violated" for a band that is one
+// which bandInterval reported "convexity violated" for a band that is one
 // interval. Each has its band root within ~1e-10 m of a regime boundary: one
 // solve reaches t_b, the other stops just past it, and ClosestPointOnSeg at
 // the rounded lerp X(t_b) — the old verdict — put t_b outside the band, so the
@@ -735,17 +735,17 @@ func TestBandIntervalJoinVerdictOnHandMadePieces(t *testing.T) {
 func TestBandIntervalNoFalseConvexityErrorAtABoundary(t *testing.T) {
 	for _, c := range falseConvexityErrorCases {
 		p, q, a, b, d := c.p, c.q, c.a, c.b, c.d
-		t0, t1, ok, err := BandInterval(p, q, a, b, d)
+		t0, t1, ok, err := bandInterval(p, q, a, b, d)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		pieces, n, js, nj, err := BandPieces(p, q, a, b, d)
+		pieces, n, js, nj, err := bandPieces(p, q, a, b, d)
 		if err != nil {
 			t.Fatalf("%s: bandPieces: %v", c.name, err)
 		}
 		// The join the old verdict got wrong is the one ClosestPointOnSeg puts
 		// outside the band; there must be exactly one.
-		var j BandJoin
+		var j bandJoin
 		disputed := 0
 		for _, jj := range js[:nj] {
 			x := lerpPt(p, q, jj.T)
@@ -782,7 +782,7 @@ func TestBandIntervalZeroLengthCanonEdge(t *testing.T) {
 	p := offsetPt(baseLat, baseLon, -100, 6)
 	q := offsetPt(baseLat, baseLon, 100, 6)
 
-	t0, t1, ok, err := BandInterval(p, q, a, b, 10)
+	t0, t1, ok, err := bandInterval(p, q, a, b, 10)
 	if err != nil {
 		t.Fatalf("zero-length canon edge must be solved, not refused: %v", err)
 	}
@@ -807,7 +807,7 @@ func TestBandIntervalZeroLengthCanonEdge(t *testing.T) {
 	// Wholly outside the disc.
 	far0 := offsetPt(baseLat, baseLon, -100, 40)
 	far1 := offsetPt(baseLat, baseLon, 100, 40)
-	if _, _, ok, err := BandInterval(far0, far1, a, b, 10); err != nil || ok {
+	if _, _, ok, err := bandInterval(far0, far1, a, b, 10); err != nil || ok {
 		t.Fatalf("expected empty, got ok=%v err=%v", ok, err)
 	}
 }
@@ -820,19 +820,19 @@ func TestBandIntervalZeroLengthSourceEdge(t *testing.T) {
 	b := offsetPt(baseLat, baseLon, 200, 0)
 
 	in := offsetPt(baseLat, baseLon, 100, 5)
-	t0, t1, ok, err := BandInterval(in, in, a, b, 8)
+	t0, t1, ok, err := bandInterval(in, in, a, b, 8)
 	if err != nil || !ok || t0 != 0 || t1 != 1 {
 		t.Fatalf("point inside the band: got [%v,%v] ok=%v err=%v, want the whole edge", t0, t1, ok, err)
 	}
 
 	out := offsetPt(baseLat, baseLon, 100, 25)
-	if _, _, ok, err := BandInterval(out, out, a, b, 8); err != nil || ok {
+	if _, _, ok, err := bandInterval(out, out, a, b, 8); err != nil || ok {
 		t.Fatalf("point outside the band: got ok=%v err=%v, want empty", ok, err)
 	}
 
 	// Beyond the far end, where the projection clamps to B.
 	past := offsetPt(baseLat, baseLon, 204, 3)
-	if _, _, ok, err := BandInterval(past, past, a, b, 8); err != nil || !ok {
+	if _, _, ok, err := bandInterval(past, past, a, b, 8); err != nil || !ok {
 		t.Fatalf("point 5 m past B: got ok=%v err=%v, want inside", ok, err)
 	}
 }
@@ -847,7 +847,7 @@ func TestBandIntervalParallelEdges(t *testing.T) {
 	// Parallel and inside: the whole source edge qualifies.
 	p := offsetPt(baseLat, baseLon, 50, 5)
 	q := offsetPt(baseLat, baseLon, 250, 5)
-	t0, t1, ok, err := BandInterval(p, q, a, b, 8)
+	t0, t1, ok, err := bandInterval(p, q, a, b, 8)
 	if err != nil || !ok || t0 != 0 || t1 != 1 {
 		t.Fatalf("parallel inside: got [%v,%v] ok=%v err=%v, want the whole edge", t0, t1, ok, err)
 	}
@@ -855,13 +855,13 @@ func TestBandIntervalParallelEdges(t *testing.T) {
 	// Parallel and outside.
 	p2 := offsetPt(baseLat, baseLon, 50, 30)
 	q2 := offsetPt(baseLat, baseLon, 250, 30)
-	if _, _, ok, err := BandInterval(p2, q2, a, b, 8); err != nil || ok {
+	if _, _, ok, err := bandInterval(p2, q2, a, b, 8); err != nil || ok {
 		t.Fatalf("parallel outside: got ok=%v err=%v, want empty", ok, err)
 	}
 
 	// Anti-parallel (reversed direction) and inside — direction is not the band
 	// solve's business.
-	t0, t1, ok, err = BandInterval(q, p, a, b, 8)
+	t0, t1, ok, err = bandInterval(q, p, a, b, 8)
 	if err != nil || !ok || t0 != 0 || t1 != 1 {
 		t.Fatalf("anti-parallel inside: got [%v,%v] ok=%v err=%v", t0, t1, ok, err)
 	}
@@ -870,7 +870,7 @@ func TestBandIntervalParallelEdges(t *testing.T) {
 	// contributes nothing and the two end regimes carry the answer.
 	p3 := offsetPt(baseLat, baseLon, -60, 5)
 	q3 := offsetPt(baseLat, baseLon, 360, 5)
-	t0, t1, ok, err = BandInterval(p3, q3, a, b, 8)
+	t0, t1, ok, err = bandInterval(p3, q3, a, b, 8)
 	if err != nil || !ok {
 		t.Fatalf("parallel overhanging both ends: ok=%v err=%v", ok, err)
 	}
@@ -895,15 +895,15 @@ func TestBandIntervalParallelEdges(t *testing.T) {
 // real, and the geometric fixtures pin the behaviour either side of it.
 func TestBandIntervalTangency(t *testing.T) {
 	// Double root: (t−1)² ≤ 0 is the single point t=1, not empty.
-	lo, hi, ok, err := SolveQuadLE(1, -2, 1, 0, 2)
+	lo, hi, ok, err := solveQuadLE(1, -2, 1, 0, 2)
 	if err != nil || !ok || lo != 1 || hi != 1 {
 		t.Fatalf("double root: got [%v,%v] ok=%v err=%v, want the single point 1", lo, hi, ok, err)
 	}
 	// Equality in the span regime's linear form is inside, not outside.
-	if lo, hi, ok = SolveAbsLE(5, 0, 5, 0, 1); !ok || lo != 0 || hi != 1 {
+	if lo, hi, ok = solveAbsLE(5, 0, 5, 0, 1); !ok || lo != 0 || hi != 1 {
 		t.Fatalf("|c0| == m: got [%v,%v] ok=%v, want the whole range — the band comparison is ≤", lo, hi, ok)
 	}
-	if _, _, ok = SolveAbsLE(5, 0, math.Nextafter(5, 0), 0, 1); ok {
+	if _, _, ok = solveAbsLE(5, 0, math.Nextafter(5, 0), 0, 1); ok {
 		t.Fatal("|c0| one ulp above m must be outside")
 	}
 
@@ -919,14 +919,14 @@ func TestBandIntervalTangency(t *testing.T) {
 	q := offsetPt(baseLat, baseLon, 100, 108)
 	graze, _ := ClosestPointOnSeg(a.Lat, a.Lon, b.Lat, b.Lon, p.Lat, p.Lon)
 
-	t0, t1, ok, err := BandInterval(p, q, a, b, graze*(1+1e-12))
+	t0, t1, ok, err := bandInterval(p, q, a, b, graze*(1+1e-12))
 	if err != nil || !ok {
 		t.Fatalf("grazing just inside the band: ok=%v err=%v, want a sliver", ok, err)
 	}
 	if t0 != 0 || t1 > 1e-9 {
 		t.Fatalf("got [%.17g,%.17g], want a sliver at the southern end", t0, t1)
 	}
-	if _, _, ok, err := BandInterval(p, q, a, b, graze*(1-1e-12)); err != nil || ok {
+	if _, _, ok, err := bandInterval(p, q, a, b, graze*(1-1e-12)); err != nil || ok {
 		t.Fatalf("grazing just outside the band: ok=%v err=%v, want empty", ok, err)
 	}
 	// At exactly the distance ClosestPointOnSeg measures, the answer is a point
@@ -936,7 +936,7 @@ func TestBandIntervalTangency(t *testing.T) {
 	// bitwise, so a grazing position can land either side. That is a property of
 	// any solver that is not literally ClosestPointOnSeg, and the ≤ semantics
 	// are pinned above where the equality is exact.
-	t0, t1, ok, err = BandInterval(p, q, a, b, graze)
+	t0, t1, ok, err = bandInterval(p, q, a, b, graze)
 	if err != nil {
 		t.Fatalf("tangency must solve, not error: %v", err)
 	}
@@ -952,7 +952,7 @@ func TestBandIntervalTangency(t *testing.T) {
 	// third of a millimetre — which is the point of testing it.
 	p2 := offsetPt(baseLat, baseLon, -100, 8)
 	q2 := offsetPt(baseLat, baseLon, 100, 8)
-	t0, t1, ok, err = BandInterval(p2, q2, a, b, 8*(1+1e-9))
+	t0, t1, ok, err = bandInterval(p2, q2, a, b, 8*(1+1e-9))
 	if err != nil {
 		t.Fatalf("regime-boundary tangency must solve: %v", err)
 	}
@@ -975,7 +975,7 @@ func TestBandIntervalWhollyInsideOrOutside(t *testing.T) {
 	// Wholly inside.
 	p := offsetPt(baseLat, baseLon, 20, 3)
 	q := offsetPt(baseLat, baseLon, 80, -3)
-	t0, t1, ok, err := BandInterval(p, q, a, b, 8)
+	t0, t1, ok, err := bandInterval(p, q, a, b, 8)
 	if err != nil || !ok || t0 != 0 || t1 != 1 {
 		t.Fatalf("wholly inside: got [%v,%v] ok=%v err=%v", t0, t1, ok, err)
 	}
@@ -983,7 +983,7 @@ func TestBandIntervalWhollyInsideOrOutside(t *testing.T) {
 	// Wholly outside.
 	p2 := offsetPt(baseLat, baseLon, 20, 300)
 	q2 := offsetPt(baseLat, baseLon, 80, 400)
-	if _, _, ok, err := BandInterval(p2, q2, a, b, 8); err != nil || ok {
+	if _, _, ok, err := bandInterval(p2, q2, a, b, 8); err != nil || ok {
 		t.Fatalf("wholly outside: got ok=%v err=%v", ok, err)
 	}
 
@@ -991,7 +991,7 @@ func TestBandIntervalWhollyInsideOrOutside(t *testing.T) {
 	// starting well before A and ending well past B. Every join must be exact.
 	p3 := offsetPt(baseLat, baseLon, -200, 5)
 	q3 := offsetPt(baseLat, baseLon, 300, 5)
-	pieces, n, joins, nj, err := BandPieces(p3, q3, a, b, 8)
+	pieces, n, joins, nj, err := bandPieces(p3, q3, a, b, 8)
 	if err != nil {
 		t.Fatalf("bandPieces: %v", err)
 	}
@@ -1015,7 +1015,7 @@ func TestBandIntervalWhollyInsideOrOutside(t *testing.T) {
 				i-1, i, pieces[i-1].Hi, pieces[i].Lo, pieces[i].Lo-pieces[i-1].Hi)
 		}
 	}
-	t0, t1, ok, err = BandInterval(p3, q3, a, b, 8)
+	t0, t1, ok, err = bandInterval(p3, q3, a, b, 8)
 	if err != nil || !ok {
 		t.Fatalf("three-regime span: ok=%v err=%v", ok, err)
 	}
@@ -1037,7 +1037,7 @@ func TestBandIntervalPerpendicularSource(t *testing.T) {
 	// Due north through the middle of the canon edge: pure span regime.
 	p := offsetPt(baseLat, baseLon, 100, -50)
 	q := offsetPt(baseLat, baseLon, 100, 50)
-	t0, t1, ok, err := BandInterval(p, q, a, b, 8)
+	t0, t1, ok, err := bandInterval(p, q, a, b, 8)
 	if err != nil || !ok {
 		t.Fatalf("perpendicular crossing: ok=%v err=%v", ok, err)
 	}
@@ -1048,7 +1048,7 @@ func TestBandIntervalPerpendicularSource(t *testing.T) {
 	// Due north beyond B: pure near-B regime, and the band is the disc around B.
 	p2 := offsetPt(baseLat, baseLon, 204, -50)
 	q2 := offsetPt(baseLat, baseLon, 204, 50)
-	t0, t1, ok, err = BandInterval(p2, q2, a, b, 8)
+	t0, t1, ok, err = bandInterval(p2, q2, a, b, 8)
 	if err != nil || !ok {
 		t.Fatalf("perpendicular past B: ok=%v err=%v", ok, err)
 	}
@@ -1065,7 +1065,7 @@ func TestBandIntervalPerpendicularSource(t *testing.T) {
 // never quietly bridge the gap.
 func TestBandIntervalConvexityCheckFires(t *testing.T) {
 	// A gap — the band is not one interval.
-	if _, _, _, err := UnionOneInterval([]BandPiece{{Lo: 0, Hi: 0.25}, {Lo: 0.3, Hi: 0.6}}); err == nil {
+	if _, _, _, err := unionOneInterval([]BandPiece{{Lo: 0, Hi: 0.25}, {Lo: 0.3, Hi: 0.6}}); err == nil {
 		t.Fatal("a gap between regime pieces must be an error, not a silent merge")
 	} else {
 		t.Logf("gap error: %v", err)
@@ -1073,25 +1073,25 @@ func TestBandIntervalConvexityCheckFires(t *testing.T) {
 
 	// The smallest possible gap still fires: there is no epsilon here by design.
 	hi := 0.25
-	if _, _, _, err := UnionOneInterval([]BandPiece{{Lo: 0, Hi: hi}, {Lo: math.Nextafter(hi, 1), Hi: 0.6}}); err == nil {
+	if _, _, _, err := unionOneInterval([]BandPiece{{Lo: 0, Hi: hi}, {Lo: math.Nextafter(hi, 1), Hi: 0.6}}); err == nil {
 		t.Fatal("a one-ulp gap must still fire — no join epsilon is licensed")
 	}
 
 	// An overlap — regimes share only their endpoints.
-	if _, _, _, err := UnionOneInterval([]BandPiece{{Lo: 0, Hi: 0.5}, {Lo: 0.4, Hi: 0.6}}); err == nil {
+	if _, _, _, err := unionOneInterval([]BandPiece{{Lo: 0, Hi: 0.5}, {Lo: 0.4, Hi: 0.6}}); err == nil {
 		t.Fatal("overlapping regime pieces must be an error")
 	} else {
 		t.Logf("overlap error: %v", err)
 	}
 
 	// Contiguous pieces union cleanly.
-	lo, hiOut, ok, err := UnionOneInterval([]BandPiece{{Lo: 0, Hi: 0.25}, {Lo: 0.25, Hi: 0.6}, {Lo: 0.6, Hi: 1}})
+	lo, hiOut, ok, err := unionOneInterval([]BandPiece{{Lo: 0, Hi: 0.25}, {Lo: 0.25, Hi: 0.6}, {Lo: 0.6, Hi: 1}})
 	if err != nil || !ok || lo != 0 || hiOut != 1 {
 		t.Fatalf("contiguous pieces: got [%v,%v] ok=%v err=%v", lo, hiOut, ok, err)
 	}
 
 	// No pieces is empty, not an error.
-	if _, _, ok, err := UnionOneInterval(nil); err != nil || ok {
+	if _, _, ok, err := unionOneInterval(nil); err != nil || ok {
 		t.Fatalf("no pieces: ok=%v err=%v, want empty and no error", ok, err)
 	}
 }
@@ -1105,25 +1105,25 @@ func TestBandIntervalRejectsUnsolvableInput(t *testing.T) {
 	p := offsetPt(baseLat, baseLon, 50, 5)
 	q := offsetPt(baseLat, baseLon, 150, 5)
 
-	if _, _, _, err := BandInterval(p, q, a, b, -1); err == nil {
+	if _, _, _, err := bandInterval(p, q, a, b, -1); err == nil {
 		t.Fatal("a negative band must be an error")
 	}
 	nan := Point{Lat: math.NaN(), Lon: baseLon}
-	if _, _, _, err := BandInterval(nan, q, a, b, 8); err == nil {
+	if _, _, _, err := bandInterval(nan, q, a, b, 8); err == nil {
 		t.Fatal("a NaN coordinate must be an error")
 	}
 	inf := Point{Lat: baseLat, Lon: math.Inf(1)}
-	if _, _, _, err := BandInterval(p, q, inf, b, 8); err == nil {
+	if _, _, _, err := bandInterval(p, q, inf, b, 8); err == nil {
 		t.Fatal("an infinite coordinate must be an error")
 	}
-	if _, _, _, err := BandInterval(p, q, a, b, math.NaN()); err == nil {
+	if _, _, _, err := bandInterval(p, q, a, b, math.NaN()); err == nil {
 		t.Fatal("a NaN band must be an error")
 	}
 
 	// d == 0 is legal: the band is the zero-distance set.
 	onLine0 := offsetPt(baseLat, baseLon, 50, 0)
 	onLine1 := offsetPt(baseLat, baseLon, 150, 0)
-	if _, _, ok, err := BandInterval(onLine0, onLine1, a, b, 0); err != nil {
+	if _, _, ok, err := bandInterval(onLine0, onLine1, a, b, 0); err != nil {
 		t.Fatalf("d=0 must solve: %v", err)
 	} else if !ok {
 		t.Fatal("a source lying on the canon edge is within a zero band")

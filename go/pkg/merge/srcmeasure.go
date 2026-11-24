@@ -348,9 +348,9 @@ func (sa *SourceMeasure) LatLonAt(p SourcePos) (lat, lon float64, err error) {
 }
 
 // eleAt is p's elevation, linearly interpolated along its edge from the
-// bracketing ORIGINAL source vertices' own recorded elevation, by [LerpEle],
+// bracketing ORIGINAL source vertices' own recorded elevation, by [lerpEle],
 // at the same parameter latLonAt interpolates lat/lon at. Reusing
-// LerpEle rather than restating it means its callers cannot define
+// lerpEle rather than restating it means its callers cannot define
 // "interpolated" differently.
 //
 // Nil propagates, never fabricates: an edge with either endpoint's elevation
@@ -361,7 +361,7 @@ func (sa *SourceMeasure) EleAt(p SourcePos) (*float64, error) {
 		return nil, err
 	}
 	a, b := sa.Pts[p.Edge], sa.Pts[p.Edge+1]
-	return LerpEle(a.Ele, b.Ele, p.Frac), nil
+	return lerpEle(a.Ele, b.Ele, p.Frac), nil
 }
 
 // pointAt is p's full ground position — lat/lon plus elevation — by the two

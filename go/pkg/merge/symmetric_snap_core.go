@@ -164,11 +164,11 @@ func DescribeSymmetricSnap(r SymmetricSnapReport) string {
 	return s
 }
 
-// SymmetricSnapDeclineFor applies the symmetric snap's decline rules. Pure, so
-// each can be tested directly — the same shape [TjunctionDeclineFor] has, and
+// symmetricSnapDeclineFor applies the symmetric snap's decline rules. Pure, so
+// each can be tested directly — the same shape [tjunctionDeclineFor] has, and
 // for the same reason.
-func SymmetricSnapDeclineFor(fraction float64, vertexAlreadySeamed, onCanon bool) SymmetricSnapDecline {
-	// Mirror of TjunctionDeclineFor rule 3. A fraction of exactly 0 or 1 means
+func symmetricSnapDeclineFor(fraction float64, vertexAlreadySeamed, onCanon bool) SymmetricSnapDecline {
+	// Mirror of tjunctionDeclineFor rule 3. A fraction of exactly 0 or 1 means
 	// the closest approach is the walk's own terminal vertex — the leg's
 	// endpoint anchor, which is never noded.
 	if fraction == 0 || fraction == 1 {
@@ -189,14 +189,14 @@ func SymmetricSnapDeclineFor(fraction float64, vertexAlreadySeamed, onCanon bool
 	return SnapNoDecline
 }
 
-// NearestBoundaryGapM is the distance from `at` to the closest boundary already
+// nearestBoundaryGapM is the distance from `at` to the closest boundary already
 // on the leg — the shorter side of the piece a seam at `at` would create.
 //
 // The whole set is scanned rather than the two neighbours found by search:
 // boundaries is a handful of entries per leg, and a scan cannot go wrong when
 // the slice is appended to mid-loop the way the caller appends accepted
 // candidates.
-func NearestBoundaryGapM(boundaries []float64, at float64) float64 {
+func nearestBoundaryGapM(boundaries []float64, at float64) float64 {
 	gap := math.Inf(1)
 	for _, b := range boundaries {
 		if d := math.Abs(at - b); d < gap {
@@ -206,7 +206,7 @@ func NearestBoundaryGapM(boundaries []float64, at float64) float64 {
 	return gap
 }
 
-// LegMeasureToVertex is the cumulative along-leg measure at vertex `idx`.
+// legMeasureToVertex is the cumulative along-leg measure at vertex `idx`.
 //
 // ⚠ IT IS THE SAME RULER, NOT A SECOND ONE, AND THAT IS LOAD-BEARING. StubM
 // compares this against `NodeNearPath.PriorLenM`, which the walk
@@ -221,7 +221,7 @@ func NearestBoundaryGapM(boundaries []float64, at float64) float64 {
 // and requires EXACT equality. If someone reorders the sum or swaps the
 // distance primitive, StubM silently starts measuring against a different
 // leg.
-func LegMeasureToVertex(pts []Point, idx int) float64 {
+func legMeasureToVertex(pts []Point, idx int) float64 {
 	total := 0.0
 	for k := 1; k <= idx; k++ {
 		total += HaversineMetres(
@@ -237,7 +237,7 @@ func LegMeasureToVertex(pts []Point, idx int) float64 {
 // exact equality is the right comparison and a tolerance would be wrong.
 //
 // ⚠ ONE DEFINITION, TWO CALLERS, DELIBERATELY. The caller's candidate loop
-// asks it to decide [SnapDeclineVertexAlreadySeamed]; [InsertSymmetricSnapSeams]
+// asks it to decide [SnapDeclineVertexAlreadySeamed]; [insertSymmetricSnapSeams]
 // asks it to decide whether to insert a vertex or claim an existing one. If
 // those two ever answered differently, the decline would guard a vertex the
 // merge does not use and the merge would collide on a vertex the decline did
@@ -259,7 +259,7 @@ func snapProjectionVertex(pts []Point, c NodeNearPath) (int, bool, error) {
 	return 0, false, nil
 }
 
-// InsertSymmetricSnapSeams rebuilds the leg's points with a vertex at each
+// insertSymmetricSnapSeams rebuilds the leg's points with a vertex at each
 // adopted projection, and merges the new seams into the align list with every
 // index remapped.
 //
@@ -282,7 +282,7 @@ func snapProjectionVertex(pts []Point, c NodeNearPath) (int, bool, error) {
 // coordinates verbatim rather than a lerp that merely rounds to them. No vertex
 // is inserted in that case: the seam claims the existing index. Inserting a
 // duplicate point would put a zero-length edge into the committed geometry.
-func InsertSymmetricSnapSeams(
+func insertSymmetricSnapSeams(
 	pts []Point,
 	seams []LegSeam,
 	takes []NodeNearPath,
@@ -426,13 +426,13 @@ func interpolatedLegEle(a, b Point, lat, lon float64) *float64 {
 	return &v
 }
 
-// SegmentIsOnCanon reports whether leg segment `seg` (the edge from point seg to
+// segmentIsOnCanon reports whether leg segment `seg` (the edge from point seg to
 // point seg+1) lies inside a stretch the matcher called ON.
 //
 // The ranges are the assembler's own [OnPieceRange]s, INCLUSIVE at both ends,
 // so segment seg is inside when Lo <= seg < Hi: the segment leaving Hi has left
 // the ON stretch, and the segment arriving at Lo has not entered it.
-func SegmentIsOnCanon(onRanges []OnPieceRange, seg int) bool {
+func segmentIsOnCanon(onRanges []OnPieceRange, seg int) bool {
 	for _, r := range onRanges {
 		if seg >= r.Lo && seg < r.Hi {
 			return true

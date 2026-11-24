@@ -52,7 +52,7 @@ type TestHooks struct {
 	// TestCorridorSolve_HeapRefusalOnDecreaseIsAnError). A real refusal needs a
 	// capacity projection that under-counts or a negative edge cost, and
 	// neither can be built from geometry.
-	corridorSolveHeap func(q *CorridorHeap)
+	corridorSolveHeap func(q *corridorHeap)
 
 	// CorridorCost is the cost census; see [CorridorCostObserver].
 	CorridorCost CorridorCostObserver
@@ -66,7 +66,7 @@ type TestHooks struct {
 	SolveSlotTableBudgetBytes int
 
 	// A1AbsorbIgnoreMeasure, when non-nil and true, drops the along-canon
-	// half of the absorb search's candidate rule (see [NearestLineageNode]
+	// half of the absorb search's candidate rule (see [nearestLineageNode]
 	// and nodeIsAtMeasure), so a test can prove the ride-resolution guard
 	// fires.
 	A1AbsorbIgnoreMeasure func() bool
@@ -123,7 +123,7 @@ type TestHooks struct {
 	// then.
 	RingSplitExclusion func(leg string, mintedNodeID, excludedNodeID NodeID, distM float64)
 
-	// LegSeamConflict reports EVERY tie-break LegSeamsFromAlign resolves
+	// LegSeamConflict reports EVERY tie-break legSeamsFromAlign resolves
 	// between two different candidate nodes at one leg point: leg name, point
 	// index, the two candidate node IDs, and each one's TRUE chord distance
 	// from the leg's own raw point. It lets tests check that the tie-break
@@ -143,7 +143,7 @@ type TestHooks struct {
 	LegRideSuppress func() bool
 
 	// LegRideFault may corrupt a resolved ride before the writer sees it.
-	// See ResolveLegRides' call site.
+	// See resolveLegRides' call site.
 	LegRideFault func(*LegRide)
 
 	// SymmetricSnap reports EVERY leg's whole symmetric-snap candidate set,

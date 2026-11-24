@@ -62,7 +62,7 @@ func PrepareArc(ctx context.Context, c Canon, points []Point, startID, endID *No
 	if err != nil {
 		return NewArc{}, fmt.Errorf("end node: %w", err)
 	}
-	interior, stats, bounds := ArcFromPoints(points, start, end)
+	interior, stats, bounds := arcFromPoints(points, start, end)
 	return NewArc{
 		Start: start, End: end,
 		MintStart: mintStart, MintEnd: mintEnd,
@@ -82,19 +82,19 @@ func resolveArcEnd(ctx context.Context, c Canon, pt Point, want *NodeID) (Node, 
 	if err != nil {
 		return Node{}, false, fmt.Errorf("read node %d: %w", *want, err)
 	}
-	if err := CheckEndpointOwner(*want, inCanon, "another owner", "this canon"); err != nil {
+	if err := checkEndpointOwner(*want, inCanon, "another owner", "this canon"); err != nil {
 		return Node{}, false, err
 	}
 	return n, false, nil
 }
 
-// ArcFromPoints computes an arc from its points and its two resolved end
+// arcFromPoints computes an arc from its points and its two resolved end
 // nodes: the interior pips (points[1:len-1], see InteriorPips, with any run
-// sitting exactly on a terminal node removed, see DropPipsOnTerminalNodes),
+// sitting exactly on a terminal node removed, see dropPipsOnTerminalNodes),
 // and the stats and bounds of the walk from start through the interior to
 // end.
-func ArcFromPoints(points []Point, start, end Node) (interior []Pip, stats ArcStats, bounds Bounds) {
-	interior = DropPipsOnTerminalNodes(InteriorPips(points), start, end)
+func arcFromPoints(points []Point, start, end Node) (interior []Pip, stats ArcStats, bounds Bounds) {
+	interior = dropPipsOnTerminalNodes(InteriorPips(points), start, end)
 	stats, bounds = ArcWalkStatsAndBounds(start, end, interior)
 	return interior, stats, bounds
 }
@@ -105,7 +105,7 @@ func ArcFromPoints(points []Point, start, end Node) (interior []Pip, stats ArcSt
 func InteriorPips(points []Point) []Pip {
 	interior := make([]Pip, 0, max(0, len(points)-2))
 	for _, p := range points[1 : len(points)-1] {
-		interior = append(interior, Pip{Lat: p.Lat, Lon: p.Lon, Ele: ElevOrNaN(p.Ele)})
+		interior = append(interior, Pip{Lat: p.Lat, Lon: p.Lon, Ele: elevOrNaN(p.Ele)})
 	}
 	return interior
 }

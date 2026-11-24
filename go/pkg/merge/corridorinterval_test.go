@@ -81,7 +81,7 @@ func TestCorridorIntervals_StraightOverlapOneIntervalExactCrossings(t *testing.T
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestCorridorIntervals_HairpinApexOneInterval(t *testing.T) {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestCorridorIntervals_SelfApproachTwoIntervals(t *testing.T) {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
 
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestCorridorIntervals_SelfApproachTwoIntervals(t *testing.T) {
 	// the whole reason they did not join.
 	e0 := ivs[0].Pieces[0].CanonEdge
 	e1 := ivs[1].Pieces[0].CanonEdge
-	if CanonEdgeRangesMeet(e0, e0, e1, e1) {
+	if canonEdgeRangesMeet(e0, e0, e1, e1) {
 		t.Fatalf("the two intervals' canon edges (%d, %d) are adjacent — this is not testing self-approach", e0, e1)
 	}
 	// And they must actually overlap in import measure, which is the defining
@@ -334,7 +334,7 @@ func TestCorridorPieceDistSq_MatchesClosestPointOnSeg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestCorridorPieceDistSq_SpanRegimeAgreesUnexpanded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSourceMeasure: %v", err)
 	}
-	ivs, err := CandidateCorridorIntervals(t.Context(), sa, pc, 0, R)
+	ivs, err := candidateCorridorIntervals(t.Context(), sa, pc, 0, R)
 	if err != nil {
 		t.Fatalf("candidateCorridorIntervals: %v", err)
 	}

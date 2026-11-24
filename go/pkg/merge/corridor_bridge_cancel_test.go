@@ -9,7 +9,7 @@ import (
 
 // A cancel stops one bridge's gap integral within a bound. Pricing a bridge
 // integrates over every canon edge and source arc in its gap, and
-// EnvelopeMinCost is O(n^2) in the pieces those make; on a 270k-point leg one
+// envelopeMinCost is O(n^2) in the pieces those make; on a 270k-point leg one
 // bridge ran for 1h29m after a cancel (2026-10-26) because nothing inside it
 // read ctx.
 
@@ -30,7 +30,7 @@ func TestCanonGapCost_CancelStopsWithinASecond(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(100*time.Millisecond, cancel)
 	start := time.Now()
-	_, err := CanonGapCost(ctx, a, b, src, l, 0, 1, CorridorRadiusM, 2)
+	_, err := canonGapCost(ctx, a, b, src, l, 0, 1, CorridorRadiusM, 2)
 	took := time.Since(start)
 	if err == nil {
 		t.Fatalf("the integral ran to the end (%v) through a cancel at 100ms", took)
@@ -49,7 +49,7 @@ func TestImportGapCost_CancelStopsWithinASecond(t *testing.T) {
 	time.AfterFunc(100*time.Millisecond, cancel)
 	start := time.Now()
 	lenM := HaversineMetres(a.Lat, a.Lon, b.Lat, b.Lon)
-	_, err := ImportGapCost(ctx, a, b, canon, lenM, CorridorRadiusM, 2)
+	_, err := importGapCost(ctx, a, b, canon, lenM, CorridorRadiusM, 2)
 	took := time.Since(start)
 	if err == nil {
 		t.Fatalf("the integral ran to the end (%v) through a cancel at 100ms", took)

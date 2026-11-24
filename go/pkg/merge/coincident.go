@@ -18,7 +18,7 @@ package merge
 // coordinate exactly, keeping the first of every run.
 //
 // EXACT equality, no tolerance, matching the zero-length source-edge test in
-// CandidateCorridorIntervals: the claim is "these are the same coordinate",
+// candidateCorridorIntervals: the claim is "these are the same coordinate",
 // which is a fact about the bytes a GPS wrote, not a measurement. A
 // short-but-real step carries real geometry and is none of this function's
 // business.

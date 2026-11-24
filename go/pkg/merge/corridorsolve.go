@@ -58,15 +58,15 @@ package merge
 //     out-and-back recovery rule as arithmetic).
 //  2. Different interval, SAME candidate (self-approach) — the raw canon-measure
 //     gap between the two arms at the switch point, backtrack-weighted:
-//     |measure(to) - measure(from)| * BacktrackWeightPerM, UNCONDITIONALLY. This is
-//     NOT [BacktrackCost] itself: that function's direction-conditional
+//     |measure(to) - measure(from)| * backtrackWeightPerM, UNCONDITIONALLY. This is
+//     NOT [backtrackCost] itself: that function's direction-conditional
 //     logic (free when measure moves WITH the declared direction) is correct
 //     for a piece representing real, continuous, walked canon, but wrong
 //     for an instantaneous jump between two disjoint stretches — a jump
 //     that happens to land at a LARGER measure than where it started is not
 //     "aligned progress" just because the sign matches; it is still a
 //     teleport across un-walked canon and must cost its full magnitude
-//     either way. (Found the hard way: routing this through BacktrackCost
+//     either way. (Found the hard way: routing this through backtrackCost
 //     gave a 3km arm-jump a cost of 0 whenever the jump direction happened
 //     to match the declared FWD/REV, which is exactly the failure the
 //     acceptance case "no stretch jumps arms" exists to catch.) No separate
@@ -82,7 +82,7 @@ package merge
 //     A's foot to B's foot VIA V, a canon-graph distance of dA + dB where
 //     dA = |measure(A at x) − eA| and eA is the measure of A's own endpoint
 //     that IS V (0 or A.total), and likewise dB. The price is
-//     min(P, BacktrackWeightPerM * (dA + dB)).
+//     min(P, backtrackWeightPerM * (dA + dB)).
 //
 //     ⚠ THE PAIRING IS NAMED BY THE TWO DECLARED DIRECTIONS, NOT MINIMISED
 //     OVER. eA is the end of A the walker is heading TOWARD (A.total for FWD,
@@ -116,7 +116,7 @@ package merge
 //
 //     It is a pure function of (piece a, piece b, x): no map, no first writer,
 //     no tolerance, and no constant that is not already P or
-//     BacktrackWeightPerM. Candidate order cannot change it, which is the
+//     backtrackWeightPerM. Candidate order cannot change it, which is the
 //     property the three failed attempts could not get
 //     (TestCorridorSolve_CandidateOrderIndependent).
 //
@@ -130,15 +130,15 @@ package merge
 // (ivA,dir) at ivA's far import-measure boundary directly to (ivB,dir) at ivB's
 // near boundary, for the NEXT CorridorInterval of the SAME candidate along
 // import measure, SKIPPING every layer in between. It wires
-// [CanonGapCost]/[EnvelopeMinCost] (corridorcost.go) into the solve. Its cost is the canon-side gap integral over the candidate's
+// [canonGapCost]/[envelopeMinCost] (corridorcost.go) into the solve. Its cost is the canon-side gap integral over the candidate's
 // own canon measure between ivA and ivB: the ONLY term that prices claiming
 // canon the import never actually walked, i.e. fabrication.
 //
 // Without this edge, the ONLY way from ivA to a later interval of the same
 // candidate is via OFF: pay P to leave, cross the import-measure gap at its own
-// raw metres, pay P to re-enter — [NoBridgeCost], already exactly what the
+// raw metres, pay P to re-enter — [noBridgeCost], already exactly what the
 // existing forward+switch edges produce with no special-casing. The bridge
-// edge is the OTHER side of the inequality, [BridgeCost] — Dijkstra picks
+// edge is the OTHER side of the inequality, [bridgeCost] — Dijkstra picks
 // whichever is cheaper, same as every other choice in this graph.
 //
 // CANDIDATE-SET SOUNDNESS — the reason this is safe without a certified
@@ -218,7 +218,7 @@ type SolvePiece struct {
 	P       CorridorPiece
 }
 
-// BuildSolvePieces flattens ivs into the solver's state alphabet, preserving
+// buildSolvePieces flattens ivs into the solver's state alphabet, preserving
 // interval order and, within an interval, Pieces order — so the deterministic
 // tiebreak stays the ascending-candidate-id order it always was.
 // The alphabet's final length is the sum of the intervals' piece counts, known
@@ -226,7 +226,7 @@ type SolvePiece struct {
 // This is the one copy of the kept alphabet that outlives the mint —
 // `ivs[].Pieces` is unreachable right after the bridges — so an
 // append-grown doubling here holds an extra half-alphabet through the solve.
-func BuildSolvePieces(ivs []CorridorInterval) []SolvePiece {
+func buildSolvePieces(ivs []CorridorInterval) []SolvePiece {
 	n := 0
 	for _, iv := range ivs {
 		n += len(iv.Pieces)
@@ -240,11 +240,11 @@ func BuildSolvePieces(ivs []CorridorInterval) []SolvePiece {
 	return out
 }
 
-// CanonMeasureAtPiece is ONE piece's own oriented canon measure at import position x.
+// canonMeasureAtPiece is ONE piece's own oriented canon measure at import position x.
 // Unlike the interval-level lookup it replaces there is nothing to resolve: a
 // piece is a function by construction, so this cannot be asked a question with
 // two answers.
-func CanonMeasureAtPiece(pc CorridorPiece, x float64) float64 {
+func canonMeasureAtPiece(pc CorridorPiece, x float64) float64 {
 	if pc.ImportMeasureAtHi <= pc.ImportMeasureAtLo {
 		return pc.CanonMeasureAtLo
 	}
@@ -315,21 +315,21 @@ type CorridorSolveResult struct {
 // (P from one sweep point, weight from another) would silently measure a
 // configuration nobody asked for. Only tests pass one; every production
 // SolveCorridorPath call site omits it and gets the
-// production constants. It exists to make P and BacktrackWeightPerM
+// production constants. It exists to make P and backtrackWeightPerM
 // sweepable offline; both values were tuned with it.
 type CorridorTunables struct {
 	P               float64
 	BacktrackWeight float64
 }
 
-// ResolveTunables returns the single override in overrides, or the
+// resolveTunables returns the single override in overrides, or the
 // production defaults when none was given. A caller passing more than one
 // is a caller bug (the variadic slot exists for optionality, not for a
 // list), so it errors rather than silently taking the first.
-func ResolveTunables(overrides []CorridorTunables) (CorridorTunables, error) {
+func resolveTunables(overrides []CorridorTunables) (CorridorTunables, error) {
 	switch len(overrides) {
 	case 0:
-		return CorridorTunables{P: StateChangeCostP, BacktrackWeight: BacktrackWeightPerM}, nil
+		return CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}, nil
 	case 1:
 		return overrides[0], nil
 	default:
@@ -351,14 +351,14 @@ func ResolveTunables(overrides []CorridorTunables) (CorridorTunables, error) {
 // 259.256084 km, hash d1578bb2) with the full test suite green at 0.0,
 // while 15.0 changes the hash. They were inert.
 
-// ClipCorridorPiece restricts cp to the import-measure range [x0,x1] ∩
+// clipCorridorPiece restricts cp to the import-measure range [x0,x1] ∩
 // [cp.ImportMeasureAtLo, cp.ImportMeasureAtHi], interpolating Regime.lo/hi and the
 // oriented canon measure linearly in import measure — exact for RegimeSpan (whose
 // foot parameter, and so canon measure, is affine in t by construction) and
 // trivially exact for RegimeNearA/NearB (whose canon measure is constant, so
 // interpolation returns that same constant). ok is false when the ranges
 // don't overlap.
-func ClipCorridorPiece(cp CorridorPiece, x0, x1 float64) (out CorridorPiece, ok bool) {
+func clipCorridorPiece(cp CorridorPiece, x0, x1 float64) (out CorridorPiece, ok bool) {
 	lo := math.Max(cp.ImportMeasureAtLo, x0)
 	hi := math.Min(cp.ImportMeasureAtHi, x1)
 	if hi <= lo || cp.ImportMeasureAtHi <= cp.ImportMeasureAtLo {
@@ -404,27 +404,27 @@ func ClipCorridorPiece(cp CorridorPiece, x0, x1 float64) (out CorridorPiece, ok 
 // No piece clipping [x0,x1] at all is NOT special-cased into an error here:
 // the forward edge that calls this only exists when iv.ImportMeasureLo/Hi cover
 // the whole arc ([ActiveOverArc]), which is looser (its own eps)
-// than [ClipCorridorPiece]'s exact overlap test, so an arc can — at
+// than [clipCorridorPiece]'s exact overlap test, so an arc can — at
 // sub-eps scale — sit fractionally outside every piece's true bounds
 // (measured: corridorwire.go's comment on sub-eps runs, a
 // 7.8e-9 m run). Returning 0 there matches that comment's own reliance on
 // this function's silence, rather than erroring on floating-point noise the
 // solver's own tolerance already produced.
 // backtrackWeight is optional, for tuning sweeps only (see [CorridorTunables]):
-// omitted, [BacktrackCost] uses the production constant.
+// omitted, [backtrackCost] uses the production constant.
 //
 // sp is a pointer for the reason [TransitionCostT] gives: the forward edge
 // calls this once per pop, and a SolvePiece is 176 B. Nothing here writes it.
 func ArcCost(sp *SolvePiece, dir CorridorDir, x0, x1, r float64, k int, backtrackWeight ...float64) (float64, error) {
-	cp, ok := ClipCorridorPiece(sp.P, x0, x1)
+	cp, ok := clipCorridorPiece(sp.P, x0, x1)
 	if !ok {
 		return 0, nil
 	}
-	e, err := EmissionCost(cp, r, k)
+	e, err := emissionCost(cp, r, k)
 	if err != nil {
 		return 0, err
 	}
-	c := e + BacktrackCost(cp, bool(dir), backtrackWeight...)
+	c := e + backtrackCost(cp, bool(dir), backtrackWeight...)
 	// ⚠ A NEGATIVE ARC COST IS AN ERROR. Every term is ≥ 0 by construction —
 	// the emission integral included — and the
 	// solve is a Dijkstra, which is wrong on a negative edge: it can improve a
@@ -437,7 +437,7 @@ func ArcCost(sp *SolvePiece, dir CorridorDir, x0, x1, r float64, k int, backtrac
 
 // canonMeasureAtImportMeasure evaluates iv's oriented canon measure at one import-measure
 // position x, linearly interpolating within whichever piece covers it — the
-// same interpolation [ClipCorridorPiece] uses, exact for the same reason.
+// same interpolation [clipCorridorPiece] uses, exact for the same reason.
 func canonMeasureAtImportMeasure(iv CorridorInterval, x float64) (float64, bool) {
 	const eps = 1e-6
 	for _, p := range iv.Pieces {
@@ -455,7 +455,7 @@ func canonMeasureAtImportMeasure(iv CorridorInterval, x float64) (float64, bool)
 		// came back as -2.26e-07 m, which the caller's canon split correctly
 		// refused as outside a 1598.6 m arc. A piece's correspondence is
 		// defined ON its own range; asked at the boundary it answers with the
-		// boundary, exactly as [ClipCorridorPiece] already does for a range.
+		// boundary, exactly as [clipCorridorPiece] already does for a range.
 		f := (x - p.ImportMeasureAtLo) / (p.ImportMeasureAtHi - p.ImportMeasureAtLo)
 		if f < 0 {
 			f = 0
@@ -478,7 +478,7 @@ func crossCandidateEndMeasure(pc *PreppedCandidate, vi int) float64 {
 	return pc.Total
 }
 
-// CrossCandidateSwitchCost prices a switch between two DIFFERENT candidates at
+// crossCandidateSwitchCost prices a switch between two DIFFERENT candidates at
 // import-measure position x — this file's header, case 3.
 //
 // Two candidates that share a network node V are ONE continuous line through V
@@ -509,12 +509,12 @@ func crossCandidateEndMeasure(pc *PreppedCandidate, vi int) float64 {
 // Dirs pick one end each and there is no choice left to make.
 //
 // A pair sharing no endpoint returns P, exactly as before.
-func CrossCandidateSwitchCost(a, b *SolvePiece, aDir, bDir CorridorDir, cands []*PreppedCandidate, x float64, t CorridorTunables) float64 {
-	sh := CrossCandidateSharedPair(a, b, aDir, bDir, cands, x)
+func crossCandidateSwitchCost(a, b *SolvePiece, aDir, bDir CorridorDir, cands []*PreppedCandidate, x float64, t CorridorTunables) float64 {
+	sh := crossCandidateSharedPair(a, b, aDir, bDir, cands, x)
 	if !sh.OK {
-		return StateChangeCost(t.P)
+		return stateChangeCost(t.P)
 	}
-	return math.Min(StateChangeCost(t.P), t.BacktrackWeight*sh.Dist)
+	return math.Min(stateChangeCost(t.P), t.BacktrackWeight*sh.Dist)
 }
 
 // crossCandidateShare is the cheapest way through a shared node from piece a
@@ -546,9 +546,9 @@ type crossCandidateShare struct {
 	OK     bool
 }
 
-// CrossCandidateSharedPair is the ONE definition of which shared endpoint a
+// crossCandidateSharedPair is the ONE definition of which shared endpoint a
 // cross-candidate switch goes through, and how far it is. Both the price
-// ([CrossCandidateSwitchCost]) and the carry-through in the run
+// ([crossCandidateSwitchCost]) and the carry-through in the run
 // reconstruction read it, so they cannot disagree about which node was paid
 // for.
 //
@@ -557,7 +557,7 @@ type crossCandidateShare struct {
 // order below — first vertex before last on each side, strict `<` on the
 // distance — so an exact tie takes the lowest-index pairing deterministically
 // rather than whichever the walk reached last.
-func CrossCandidateSharedPair(a, b *SolvePiece, aDir, bDir CorridorDir, cands []*PreppedCandidate, x float64) crossCandidateShare {
+func crossCandidateSharedPair(a, b *SolvePiece, aDir, bDir CorridorDir, cands []*PreppedCandidate, x float64) crossCandidateShare {
 	pA, pB := cands[a.CandIdx], cands[b.CandIdx]
 	if len(pA.Verts) == 0 || len(pB.Verts) == 0 {
 		return crossCandidateShare{}
@@ -579,12 +579,12 @@ func CrossCandidateSharedPair(a, b *SolvePiece, aDir, bDir CorridorDir, cands []
 	}
 	eA := crossCandidateEndMeasure(pA, ia)
 	eB := crossCandidateEndMeasure(pB, ib)
-	mA := CanonMeasureAtPiece(a.P, x)
-	mB := CanonMeasureAtPiece(b.P, x)
+	mA := canonMeasureAtPiece(a.P, x)
+	mB := canonMeasureAtPiece(b.P, x)
 	return crossCandidateShare{EA: eA, EB: eB, IA: ia, IB: ib, Dist: math.Abs(mA-eA) + math.Abs(mB-eB), OK: true}
 }
 
-// CarryEndIsExtreme reports whether vertex index vi, on a candidate of nVerts
+// carryEndIsExtreme reports whether vertex index vi, on a candidate of nVerts
 // vertices, is the arc end a walker in direction dir is heading TOWARD: the
 // last vertex when the canon measure increases, the first when it decreases.
 //
@@ -611,7 +611,7 @@ func CrossCandidateSharedPair(a, b *SolvePiece, aDir, bDir CorridorDir, cands []
 // The receiving side of a carry asks this with dir INVERTED: a run that STARTS
 // where a teleport landed begins at the end it is walking AWAY from, which is
 // the extreme of the opposite direction.
-func CarryEndIsExtreme(dir CorridorDir, vi, nVerts int) bool {
+func carryEndIsExtreme(dir CorridorDir, vi, nVerts int) bool {
 	if dir == CorridorFWD {
 		return vi == nVerts-1
 	}
@@ -623,8 +623,8 @@ func CarryEndIsExtreme(dir CorridorDir, vi, nVerts int) bool {
 // (staying is not a switch) but is never actually invoked that way by the
 // solver, which only builds edges between distinct states.
 //
-// The tunables come in already resolved ([ResolveTunables]): a variadic slot
-// costs a slice per call and ResolveTunables was 1.7% of a dense solve on its
+// The tunables come in already resolved ([resolveTunables]): a variadic slot
+// costs a slice per call and resolveTunables was 1.7% of a dense solve on its
 // own, which is absurd for a two-field struct the caller already holds.
 //
 // It also takes its two pieces BY POINTER. SolvePiece embeds a CorridorPiece,
@@ -642,7 +642,7 @@ func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cand
 		return 0
 	}
 	if from.Off || to.Off {
-		return StateChangeCost(t.P)
+		return stateChangeCost(t.P)
 	}
 	a, b := &sps[from.SpIdx], &sps[to.SpIdx]
 	if a.CandIdx == b.CandIdx {
@@ -650,7 +650,7 @@ func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cand
 		// A turnaround is a turnaround whether or not the correspondence also
 		// changes: P, exactly as case 1 always charged it.
 		if from.Dir != to.Dir {
-			c += StateChangeCost(t.P)
+			c += stateChangeCost(t.P)
 		}
 		// Changing WHICH correspondence the line is on costs the canon measure it
 		// discontinuously skips or repeats. This is case 2's arm-jump term,
@@ -663,7 +663,7 @@ func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cand
 		// interpolating to them. A piece boundary is free; only a real
 		// teleport is charged.
 		if from.SpIdx != to.SpIdx {
-			gap := math.Abs(CanonMeasureAtPiece(b.P, x) - CanonMeasureAtPiece(a.P, x))
+			gap := math.Abs(canonMeasureAtPiece(b.P, x) - canonMeasureAtPiece(a.P, x))
 			// The gap is the canon measure the correspondence skips or repeats at
 			// this instant, and it is charged at the backtrack weight — case
 			// 2's arm-jump term, now applied to every correspondence change.
@@ -674,7 +674,7 @@ func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cand
 			// runs OFFSET from canon its nearest foot genuinely jumps at every
 			// bend bisector, because the source cuts the corner; those are
 			// CONTINUATIONS, not seams, and
-			// [MergeAdjacentSameCandidateRuns] carries the skipped canon
+			// [mergeAdjacentSameCandidateRuns] carries the skipped canon
 			// through. Adding P there made the solve avoid necessary
 			// hand-offs: on a test corpus, 87 committed arcs without it, 153
 			// with.
@@ -682,7 +682,7 @@ func TransitionCostT(from, to CorridorStateID, x float64, sps []SolvePiece, cand
 		}
 		return c
 	}
-	return CrossCandidateSwitchCost(a, b, from.Dir, to.Dir, cands, x, t) // case 3: cross-candidate
+	return crossCandidateSwitchCost(a, b, from.Dir, to.Dir, cands, x, t) // case 3: cross-candidate
 }
 
 // ---- Bridge edges -----------------------------------------------------
@@ -716,11 +716,11 @@ type CorridorBridge struct {
 // and for that question there is an EXACT, SEARCH-FREE answer:
 // [candidateBridgeCost] takes the competing source arcs to be exactly
 // the source polyline trimmed to [ivA.ImportMeasureHi, ivB.ImportMeasureLo]
-// ([SourceArcsBetween]) — the stretch of track the import itself ran
+// ([sourceArcsBetween]) — the stretch of track the import itself ran
 // between leaving ivA and rejoining ivB, read directly off `sa`, not
 // discovered by probing.
 //
-// WHY THIS IS SOUND, not merely convenient: [EnvelopeMinCost] takes a MIN
+// WHY THIS IS SOUND, not merely convenient: [envelopeMinCost] takes a MIN
 // over its srcArcs, so restricting the set to fewer-than-all competitors
 // can only RAISE the computed integral, never lower it (removing a
 // candidate from a min-search cannot make the min smaller). A conservative
@@ -844,7 +844,7 @@ func BuildCorridorBridges(ctx context.Context, sa *SourceMeasure, ivs []Corridor
 	return out, nil
 }
 
-// candidateBridgeCost is [BridgeCost] for one candidate gap between ivA and
+// candidateBridgeCost is [bridgeCost] for one candidate gap between ivA and
 // ivB: BOTH gap integrals summed — pc's canon-side one
 // ([canonGapCostBetween], the canon it claims against the source actually run
 // through the gap) and the import-side one ([importGapCostBetween], that same
@@ -856,7 +856,7 @@ func BuildCorridorBridges(ctx context.Context, sa *SourceMeasure, ivs []Corridor
 // integral prices "canon claimed ground the import never walked". Nothing
 // priced "the import walked ground the committed line never draws", so a
 // bridge was the one edge in the solve consuming import measure for free
-// ([ImportGapCost]'s own header carries the measurement). The two gaps are
+// ([importGapCost]'s own header carries the measurement). The two gaps are
 // only the same gap when the source leaves and returns at DIFFERENT canon
 // positions; when it leaves and comes back to nearly the same one — a
 // GPS excursion, a detour, a dropout — the canon gap is ~0 and the import gap
@@ -866,7 +866,7 @@ func BuildCorridorBridges(ctx context.Context, sa *SourceMeasure, ivs []Corridor
 // with "ends coincide in canon measure: nothing to bridge", which is the
 // worst case of exactly the defect above: the free teleport. The claimed
 // canon is then a single point ([candidateArcsBetween] returns it as one
-// degenerate arc, which CanonEdgeDistSqRegimes handles in its own
+// degenerate arc, which canonEdgeDistSqRegimes handles in its own
 // degenerate-frame branch), and the import side is charged against it.
 func candidateBridgeCost(ctx context.Context, sa *SourceMeasure, pc *PreppedCandidate, ivA, ivB CorridorInterval, r float64, k int, pOverride ...float64) (cost, canonLo, canonHi float64, err error) {
 	measureA, ok := canonMeasureAtImportMeasure(ivA, ivA.ImportMeasureHi)
@@ -881,7 +881,7 @@ func candidateBridgeCost(ctx context.Context, sa *SourceMeasure, pc *PreppedCand
 
 	// The caller ([BuildCorridorBridges]) has already refused any pair whose
 	// import measures touch or overlap, so this window is non-empty.
-	srcArcs, err := SourceArcsBetween(sa, ivA.ImportMeasureHi, ivB.ImportMeasureLo)
+	srcArcs, err := sourceArcsBetween(sa, ivA.ImportMeasureHi, ivB.ImportMeasureLo)
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -898,23 +898,23 @@ func candidateBridgeCost(ctx context.Context, sa *SourceMeasure, pc *PreppedCand
 		}
 	}
 	importSide, err := importGapCostBetween(ctx, srcArcs, canonArcs, r, k,
-		NoBridgeCost(ivB.ImportMeasureLo-ivA.ImportMeasureHi, pOverride...)-canonSide)
+		noBridgeCost(ivB.ImportMeasureLo-ivA.ImportMeasureHi, pOverride...)-canonSide)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	return BridgeCost(canonSide + importSide), measureA, measureB, nil
+	return bridgeCost(canonSide + importSide), measureA, measureB, nil
 }
 
-// importGapCostBetween sums [ImportGapCost] over every source arc a bridge
+// importGapCostBetween sums [importGapCost] over every source arc a bridge
 // skips, against the canon arcs it claims, and STOPS as soon as the running
 // sum passes `ceiling`.
 //
 // THE SHORT CIRCUIT IS CORRECTNESS-NEUTRAL AND IT IS WHAT MAKES THE TERM
-// AFFORDABLE. The term is O(srcArcs x canonEdges²) per bridge — EnvelopeMinCost
+// AFFORDABLE. The term is O(srcArcs x canonEdges²) per bridge — envelopeMinCost
 // is quadratic in its piece count and each canon arc contributes up to three
 // pieces — and the gaps that matter are the long ones, thousands of source
 // arcs each. Callers pass the no-bridge alternative (2P + the gap's own OFF
-// metres, [NoBridgeCost]) less whatever the canon side already cost.
+// metres, [noBridgeCost]) less whatever the canon side already cost.
 //
 // ⚠ "A HANDFUL OF ARCS" WAS TOO OPTIMISTIC AND IS CORRECTED HERE. It holds for
 // a gap whose source is far off the claimed canon — each arc contributes a
@@ -938,7 +938,7 @@ func importGapCostBetween(ctx context.Context, srcArcs, canonArcs [][2]Point, r 
 		if lenM == 0 {
 			continue // a stationary sample consumes no import measure and so owes nothing
 		}
-		c, err := ImportGapCost(ctx, arc[0], arc[1], canonArcs, lenM, r, k)
+		c, err := importGapCost(ctx, arc[0], arc[1], canonArcs, lenM, r, k)
 		if err != nil {
 			return 0, err
 		}
@@ -950,7 +950,7 @@ func importGapCostBetween(ctx context.Context, srcArcs, canonArcs [][2]Point, r 
 	return total, nil
 }
 
-// candidateArcsBetween is [SourceArcsBetween] on the OTHER side: pc's own
+// candidateArcsBetween is [sourceArcsBetween] on the OTHER side: pc's own
 // vertices spanning canon measure [loMeasure, hiMeasure], trimmed EXACTLY to
 // those two positions rather than padded to an edge boundary.
 //
@@ -966,7 +966,7 @@ func candidateArcsBetween(pc *PreppedCandidate, loMeasure, hiMeasure float64) ([
 	if pc == nil {
 		return nil, fmt.Errorf("corridorsolve: nil candidate")
 	}
-	if !AllFinite(loMeasure, hiMeasure) {
+	if !allFinite(loMeasure, hiMeasure) {
 		return nil, fmt.Errorf("corridorsolve: canon window [%v,%v] is not finite", loMeasure, hiMeasure)
 	}
 	lo := math.Max(0, math.Min(loMeasure, hiMeasure))
@@ -995,13 +995,13 @@ func candidateArcsBetween(pc *PreppedCandidate, loMeasure, hiMeasure float64) ([
 	return arcs, nil
 }
 
-// SourceArcsBetween returns the source polyline's own arcs spanning
+// sourceArcsBetween returns the source polyline's own arcs spanning
 // import measure [loMeasure, hiMeasure], trimmed EXACTLY to those two positions — never
 // padded to an edge boundary. See [BuildCorridorBridges]'s soundness
 // argument: padding outward would ADD competing arcs, which is the
 // UNSAFE direction here (more competitors can only lower the computed gap
 // cost, making a bridge look cheaper than the truth).
-func SourceArcsBetween(sa *SourceMeasure, loMeasure, hiMeasure float64) ([][2]Point, error) {
+func sourceArcsBetween(sa *SourceMeasure, loMeasure, hiMeasure float64) ([][2]Point, error) {
 	if sa == nil {
 		return nil, fmt.Errorf("corridorsolve: nil source measure")
 	}
@@ -1050,9 +1050,9 @@ func candidateCanonEdgeAt(pc *PreppedCandidate, at float64) int {
 	return e
 }
 
-// canonGapCostBetween sums [CanonGapCost] over every canon edge of pc that
+// canonGapCostBetween sums [canonGapCost] over every canon edge of pc that
 // overlaps [canonLo, canonHi], trimming the FIRST and LAST edge to their
-// exact overlapping sub-range ([CanonGapCost]'s uLo/uHi) so a near-zero
+// exact overlapping sub-range ([canonGapCost]'s uLo/uHi) so a near-zero
 // canon gap costs near zero rather than a whole edge's worth — canon edges
 // are not densified (one measured edge is 1,956.8 m), so this trim is the
 // common case, not a rare one.
@@ -1081,7 +1081,7 @@ func canonGapCostBetween(ctx context.Context, pc *PreppedCandidate, canonLo, can
 		if e == eHi {
 			uHi = (hi - pc.cumMeasure[e]) / elen
 		}
-		c, err := CanonGapCost(ctx, pc.Verts[e], pc.Verts[e+1], srcArcs, elen, uLo, uHi, r, k)
+		c, err := canonGapCost(ctx, pc.Verts[e], pc.Verts[e+1], srcArcs, elen, uLo, uHi, r, k)
 		if err != nil {
 			return 0, fmt.Errorf("corridorsolve: canon edge %d: %w", e, err)
 		}
@@ -1097,7 +1097,7 @@ type corridorNode struct {
 	state CorridorStateID
 }
 
-// PackLayerSlot collapses a (layer, slot-within-layer) pair into one int64 —
+// packLayerSlot collapses a (layer, slot-within-layer) pair into one int64 —
 // the address the Dijkstra search uses throughout.
 //
 // ⚠ WHY A SLOT AND NOT A STATE, MEASURED TWICE. dist and prev began as
@@ -1113,12 +1113,12 @@ type corridorNode struct {
 // its statesBy entries in order, so the state at (layer, slot) is simply
 // statesBy[layer][slot]. Slots fit in 32 bits with room to spare — the worst
 // corpus leg has ~6e4 states at a layer — and layers likewise.
-func PackLayerSlot(layer int, slot int32) int64 {
+func packLayerSlot(layer int, slot int32) int64 {
 	return int64(layer)<<32 | int64(uint32(slot))
 }
 
-// UnpackLayerSlot is PackLayerSlot's exact inverse.
-func UnpackLayerSlot(key int64) (layer int, slot int32) {
+// unpackLayerSlot is packLayerSlot's exact inverse.
+func unpackLayerSlot(key int64) (layer int, slot int32) {
 	return int(key >> 32), int32(uint32(key))
 }
 
@@ -1145,13 +1145,13 @@ func UnpackLayerSlot(key int64) (layer int, slot int32) {
 //
 // The three invariants:
 //   - OFF is the value 0, which is LESS than every ON state (all of which have
-//     bit 31 set), so ascending packed value puts OFF first — [StateLess]'s
+//     bit 31 set), so ascending packed value puts OFF first — [stateLess]'s
 //     first clause, for free.
 //   - Ascending packed value then orders by SpIdx (bits 30..1), then FWD before
-//     REV (bit 0) — [StateLess]'s remaining two clauses, also for free. So the
+//     REV (bit 0) — [stateLess]'s remaining two clauses, also for free. So the
 //     final-layer tiebreak can read either the packed value or the decoded
 //     state and get the same answer; it still reads the decoded state through
-//     [StateLess], and TestCorridorPackedState_OrderMatchesStateLess pins the
+//     [stateLess], and TestCorridorPackedState_OrderMatchesStateLess pins the
 //     agreement so a future reader may rely on it.
 //   - The ON flag is a flag and not "SpIdx == -1", so OFF and SpIdx 0 are
 //     different values, exactly as CorridorStateID{Off:true} and
@@ -1235,10 +1235,10 @@ func candidateOfPacked(ps CorridorPackedState, sps []SolvePiece) int {
 // exist at all.
 //
 // EXACT comparison. Before, this function tested at ±1e-6 while
-// [ClipCorridorPiece] (ArcCost's own piece lookup) tested at exact
+// [clipCorridorPiece] (ArcCost's own piece lookup) tested at exact
 // float64 equality: two predicates over the same "is x0..x1 inside iv"
 // question, disagreeing by up to 1e-6 m. That let this function offer a
-// forward edge for an arc ClipCorridorPiece could not find a single piece
+// forward edge for an arc clipCorridorPiece could not find a single piece
 // covering, producing a run with no geometry to commit — corridorwire.go's
 // own solverEps skips exist ONLY because this mismatch could manufacture
 // such a run. x0/x1 are always SolveCorridorPath's own breakpoints, built by
@@ -1281,7 +1281,7 @@ const CorridorSolveCancelRelaxations = 4096
 // through this function.
 // tunables is optional, for tuning sweeps only (see [CorridorTunables]):
 // omitted, it resolves to the production constants (StateChangeCostP,
-// BacktrackWeightPerM) via [ResolveTunables].
+// backtrackWeightPerM) via [resolveTunables].
 //
 // ⚠ IT TAKES OWNERSHIP OF ivs: each interval's Pieces are released (set to nil)
 // as soon as [BuildCorridorBridges], their last reader, has returned, so that
@@ -1291,24 +1291,24 @@ const CorridorSolveCancelRelaxations = 4096
 //
 // sa is the source polyline, needed ONLY to find the
 // competing arcs for a bridge's canon-side gap integral
-// ([SourceArcsBetween]) — see [BuildCorridorBridges]. It is never
+// ([sourceArcsBetween]) — see [BuildCorridorBridges]. It is never
 // dereferenced when ivs is empty (the two degenerate call sites below pass
 // nil safely).
 func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, ivs []CorridorInterval, cands []*PreppedCandidate, r float64, k int, tunables ...CorridorTunables) (*CorridorSolveResult, error) {
 	hooks := &stateOf(ctx).hooks
-	if total < 0 || !AllFinite(total) {
+	if total < 0 || !allFinite(total) {
 		return nil, fmt.Errorf("corridorsolve: total import measure must be finite and non-negative, got %v", total)
 	}
 	if total == 0 {
 		return nil, nil
 	}
-	if err := ValidateEvenK(k); err != nil {
+	if err := validateEvenK(k); err != nil {
 		return nil, err
 	}
-	if !(r > 0) || !AllFinite(r) {
+	if !(r > 0) || !allFinite(r) {
 		return nil, fmt.Errorf("corridorsolve: radius must be finite and positive, got %v", r)
 	}
-	t, err := ResolveTunables(tunables)
+	t, err := resolveTunables(tunables)
 	if err != nil {
 		return nil, err
 	}
@@ -1320,7 +1320,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 
 	// Shared-endpoint neighbours, built ONCE per solve: which other candidates
 	// does candidate c share at least one endpoint coordinate with. Those are
-	// exactly the pairs [CrossCandidateSwitchCost] can price below P, so they
+	// exactly the pairs [crossCandidateSwitchCost] can price below P, so they
 	// are exactly the pairs the switch-edge block below must relax explicitly;
 	// every other cross-candidate pair is served by the flat-P generic fan-out.
 	// The price is NOT restated here — this list only says whom to ask about.
@@ -1396,7 +1396,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	}
 	// The state alphabet. Built once, here, so every consumer below indexes
 	// the same list.
-	sps := BuildSolvePieces(ivs)
+	sps := buildSolvePieces(ivs)
 	// ⚠ The alphabet must fit the packed state's SpIdx field, or two states
 	// would alias onto one slot and the winning path would be silently wrong.
 	// See [CorridorPackedState]'s headroom note: 958x on the full bundle's worst
@@ -1600,7 +1600,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// [BuildCorridorBridges] above is the last reader of iv.Pieces
 	// (via [canonMeasureAtImportMeasure]). Everything below needs only each
 	// interval's two import-measure bounds — the breakpoint set is already
-	// built, [BuildSolvePieces] has already taken its own copy of every piece
+	// built, [buildSolvePieces] has already taken its own copy of every piece
 	// into sps, and the three later interval reads (the bridge-departure test,
 	// the bridge target's layer, [ActiveOverArc]'s bounds) are Lo/Hi only. So
 	// the bounds are copied out and the Pieces slices dropped BEFORE dist,
@@ -1626,7 +1626,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// Dijkstra over (layer,state) nodes: forward edges cross one arc at
 	// ArcCost; switch edges move within a layer at TransitionCostT; bridge
 	// edges skip straight to a later interval of the same candidate at
-	// BridgeCost. All three are non-negative, so plain Dijkstra applies.
+	// bridgeCost. All three are non-negative, so plain Dijkstra applies.
 	dist := make([][]float64, len(bps))
 	prev := make([][]int64, len(bps))
 	for l := range bps {
@@ -1639,7 +1639,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		dist[l], prev[l] = d, p
 	}
 	dist[0][0] = 0 // (layer 0, OFF)
-	// The search queue: an INDEXED heap ([CorridorHeap]) holding each state at
+	// The search queue: an INDEXED heap ([corridorHeap]) holding each state at
 	// most once, ordered by (dist, packed key). It replaced a lazy queue that
 	// pushed a duplicate item on every improvement and discarded the stale one
 	// when it popped — 4,359,193 items (80.84 MiB held) for 2,242,965 states on
@@ -1653,11 +1653,11 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// for that reason: every byte it will hold is known before the first relax.
 	// An insert past that capacity is the heap's own error, and it would mean
 	// the count pass under-counted — it is returned, never absorbed.
-	pq, err := NewCorridorHeap(dist, projectedSlots)
+	pq, err := newCorridorHeap(dist, projectedSlots)
 	if err != nil {
 		return nil, err
 	}
-	if err := pq.Insert(PackLayerSlot(0, 0)); err != nil {
+	if err := pq.Insert(packLayerSlot(0, 0)); err != nil {
 		return nil, err
 	}
 	if hooks.corridorSolveHeap != nil {
@@ -1712,7 +1712,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 			prev[layer][slot] = uKey
 			pqPushes++
 			// dist is written FIRST: the heap orders by reading it.
-			inserted, err := pq.Improve(PackLayerSlot(layer, slot))
+			inserted, err := pq.Improve(packLayerSlot(layer, slot))
 			if err != nil {
 				stopErr = fmt.Errorf("corridorsolve: %w (after %d relaxations over %d layers)", err, relaxations, len(bps))
 				return
@@ -1732,7 +1732,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		}
 		topKey := pq.Pop()
 		pqPops++
-		uLayer, uSlot := UnpackLayerSlot(topKey)
+		uLayer, uSlot := unpackLayerSlot(topKey)
 		// uPacked is the popped state as it is stored; the loops below compare
 		// against it packed rather than decoding twice. Packed equality is the
 		// same relation as CorridorStateID equality — see [CorridorPackedState].
@@ -1777,10 +1777,10 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		// EXCLUDED from the generic fan-out rather than merely also priced
 		// explicitly: their true cost can exceed P, so serving one with a
 		// generic edge would UNDERCHARGE it. Shared-endpoint cross-candidate
-		// pairs need no such exclusion — [CrossCandidateSwitchCost] is capped
+		// pairs need no such exclusion — [crossCandidateSwitchCost] is capped
 		// at P, so the explicit edge can only ever beat the generic one the
 		// fan-out may have laid down first, never undercut a truer price.
-		genericP := StateChangeCost(t.P)
+		genericP := stateChangeCost(t.P)
 		uCand := candidateOfState(u.state, sps)
 		if !genericDone[u.layer] {
 			genericDone[u.layer] = true
@@ -1813,7 +1813,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 			}
 			// Cross-candidate switches to a SHARED-ENDPOINT neighbour. Only
 			// these can be priced below the flat P the generic fan-out
-			// already laid down ([CrossCandidateSwitchCost]), and the price
+			// already laid down ([crossCandidateSwitchCost]), and the price
 			// depends on u's own foot position, so unlike the generic edge it
 			// cannot be done once per layer from the cheapest state. Every
 			// other cross-candidate pair is left to the fan-out.
@@ -1864,13 +1864,13 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		// the same state, if that state is available for the WHOLE arc.
 		//
 		// OFF is NOT free per metre: the bridge/no-bridge inequality prices it explicitly
-		// (NoBridgeCost = 2P + offImportMetres, corridorcost.go), and
+		// (noBridgeCost = 2P + offImportMetres, corridorcost.go), and
 		// without that charge the shortest path always prefers never
 		// adopting anything — OFF's flat 0 would beat paying P for ANY
 		// candidate, however perfectly it overlays the source, since
 		// emission can only add cost, never remove the entry fee. Charging
 		// OFF its own raw import metres (unweighted, matching
-		// NoBridgeCost's own literal term) is what makes "adopt a candidate
+		// noBridgeCost's own literal term) is what makes "adopt a candidate
 		// sitting right on top of the source" and "flip direction on an
 		// out-and-back rather than abandon the return leg" actually win.
 		if u.layer+1 < len(bps) {
@@ -1945,11 +1945,11 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	}
 
 	// Pick the cheapest state at the final layer. Deterministic tiebreak on
-	// an exact cost tie ([CorridorFinalPick]): prefer OFF, then lowest IvIdx, then FWD before REV — id-sorted
+	// an exact cost tie ([corridorFinalPick]): prefer OFF, then lowest IvIdx, then FWD before REV — id-sorted
 	// candidates (canonCandidatesForLeg) make IvIdx ascending the same
 	// tiebreak as arc id ascending.
 	last := len(bps) - 1
-	bestState, bestCost, found := CorridorFinalPick(statesBy[last], dist[last])
+	bestState, bestCost, found := corridorFinalPick(statesBy[last], dist[last])
 	if !found {
 		return nil, fmt.Errorf("corridorsolve: no path reached the final layer — this should be unreachable, OFF is always available")
 	}
@@ -1965,9 +1965,9 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	if bestSlot < 0 {
 		return nil, fmt.Errorf("corridorsolve: winning state %v has no slot at the final layer %d", bestState, last)
 	}
-	curKey := PackLayerSlot(last, bestSlot)
+	curKey := packLayerSlot(last, bestSlot)
 	for {
-		cl, cs := UnpackLayerSlot(curKey)
+		cl, cs := unpackLayerSlot(curKey)
 		path = append(path, step{cl, statesBy[cl][cs].Unpack()})
 		p := prev[cl][cs]
 		if p < 0 {
@@ -1982,7 +1982,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// ── THE PAID TELEPORT MUST BE DRAWN ────────────────────────────────────
 	//
 	// A cross-candidate switch whose price came from a shared node
-	// ([CrossCandidateSharedPair]) bought the canon foot_A -> V -> foot_B, at
+	// ([crossCandidateSharedPair]) bought the canon foot_A -> V -> foot_B, at
 	// BacktrackWeight per metre. The runs either side must CONTAIN it, or the
 	// cost function priced geometry the assembler never draws — the same class
 	// of defect [ArcCost]'s header records for the emission term.
@@ -2027,7 +2027,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// ([chainHopRun]), so B's run takes B's measure and C's switch sets C's.
 	// pendingCarryDir and pendingCarryIB travel with it: the direction the
 	// switch was priced for and the vertex index EB came from, which is what the
-	// receiving end's structural test reads (see [CarryEndIsExtreme]).
+	// receiving end's structural test reads (see [carryEndIsExtreme]).
 	pendingCarryLo, pendingCarryCand := 0.0, -1
 	pendingCarryDir, pendingCarryIB := CorridorFWD, -1
 	var runs []CorridorRun
@@ -2065,11 +2065,11 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 				}
 				continue
 			}
-			sh := CrossCandidateSharedPair(&sps[from.SpIdx], &sps[to.SpIdx], from.Dir, to.Dir, cands, x)
+			sh := crossCandidateSharedPair(&sps[from.SpIdx], &sps[to.SpIdx], from.Dir, to.Dir, cands, x)
 			// STRICTLY below P. At or above it the switch was priced as the
 			// flat cross-candidate P — it bought no teleport, so it owes no
 			// geometry.
-			if !sh.OK || !(t.BacktrackWeight*sh.Dist < StateChangeCost(t.P)) {
+			if !sh.OK || !(t.BacktrackWeight*sh.Dist < stateChangeCost(t.P)) {
 				if intermediate {
 					r, err := chainHopRun(to, x, sps, cands, &pendingCarryLo, &pendingCarryCand, pendingCarryDir, pendingCarryIB)
 					if err != nil {
@@ -2084,7 +2084,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 				if !last.State.Off && !last.Bridged &&
 					last.CandIdx == sps[from.SpIdx].CandIdx &&
 					last.ImportMeasureHi == x {
-					if err := CheckCarrySend(last, n-1, from.Dir, sh.IA, x, cands); err != nil {
+					if err := checkCarrySend(last, n-1, from.Dir, sh.IA, x, cands); err != nil {
 						return nil, err
 					}
 					last.CanonMeasureHi = sh.EA
@@ -2121,7 +2121,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 			// canon measure at each end is exact and needs no resolution. This is
 			// what lets corridorwire.go drop coalescePieces entirely.
 			//
-			// Via [ClipCorridorPiece], NOT by interpolating directly: clipping
+			// Via [clipCorridorPiece], NOT by interpolating directly: clipping
 			// CLAMPS to the piece's own domain, and interpolation extrapolates
 			// past it. A run can sit sub-eps outside the piece it was solved
 			// on — [ActiveOverArc] and the solver's layering disagree at
@@ -2131,10 +2131,10 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 			// -2.26e-7 m on a 1598.6 m arc, which the caller's canon split
 			// correctly refused. Clipping is also what [ArcCost] prices, so
 			// this commits exactly the geometry the solve paid for.
-			if cp, ok := ClipCorridorPiece(sp.P, lo, hi); ok {
+			if cp, ok := clipCorridorPiece(sp.P, lo, hi); ok {
 				canonLo, canonHi = cp.CanonMeasureAtLo, cp.CanonMeasureAtHi
 			} else {
-				canonLo, canonHi = CanonMeasureAtPiece(sp.P, lo), CanonMeasureAtPiece(sp.P, hi)
+				canonLo, canonHi = canonMeasureAtPiece(sp.P, lo), canonMeasureAtPiece(sp.P, hi)
 			}
 		}
 		if !from.Off && !st.Off && sps[from.SpIdx].IvIdx != sps[st.SpIdx].IvIdx {
@@ -2170,14 +2170,14 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 		//
 		// The test is the mirror of the far-end one: this run walks AWAY from
 		// the node in its own declared direction, so the node is the extreme of
-		// the OPPOSITE direction — which is [CarryEndIsExtreme] asked with the
+		// the OPPOSITE direction — which is [carryEndIsExtreme] asked with the
 		// Dir inverted, exactly as the deleted float test was asked in the
 		// opposite sense. Structural for the same reason, and an error for the
 		// same reason: a Dir that does not match the one the switch was priced
 		// for, or an index that is not that direction's end, means this is not
 		// the run the teleport bought.
 		if pendingCarryCand >= 0 && candIdx == pendingCarryCand && !bridged {
-			if err := CheckCarryReceive(st.Dir, canonLo, candIdx, cands, pendingCarryDir, pendingCarryIB); err != nil {
+			if err := checkCarryReceive(st.Dir, canonLo, candIdx, cands, pendingCarryDir, pendingCarryIB); err != nil {
 				return nil, err
 			}
 			canonLo = pendingCarryLo
@@ -2192,7 +2192,7 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// riding one interval produced one run. With the piece in the state, an
 	// ordinary uninterrupted follow hands off from piece to piece and emits
 	// one run each, so the stretch has to be reassembled here on nearly the
-	// same terms [MergeAdjacentSameCandidateRuns] uses downstream: same
+	// same terms [mergeAdjacentSameCandidateRuns] uses downstream: same
 	// candidate, same direction, and canon measure that CONTINUES rather than
 	// doubling back.
 	//
@@ -2213,8 +2213,8 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 	// runs offset from canon and cuts a corner the foot jumps forward at the
 	// bend bisector, and that is a continuation carrying the skipped canon,
 	// not a seam.
-	runs = DropEmptyChainHops(runs)
-	runs = MergeCorridorRuns(runs)
+	runs = dropEmptyChainHops(runs)
+	runs = mergeCorridorRuns(runs)
 
 	if len(runs) == 0 {
 		// A single-layer path (total==0 already excluded above, so this is
@@ -2249,10 +2249,10 @@ func SolveCorridorPath(ctx context.Context, total float64, sa *SourceMeasure, iv
 // consumes it.
 func chainHopRun(st CorridorStateID, x float64, sps []SolvePiece, cands []*PreppedCandidate, pendingLo *float64, pendingCand *int, pendingDir CorridorDir, pendingIB int) (CorridorRun, error) {
 	sp := &sps[st.SpIdx]
-	foot := CanonMeasureAtPiece(sp.P, x)
+	foot := canonMeasureAtPiece(sp.P, x)
 	lo := foot
 	if *pendingCand >= 0 && sp.CandIdx == *pendingCand {
-		if err := CheckCarryReceive(st.Dir, lo, sp.CandIdx, cands, pendingDir, pendingIB); err != nil {
+		if err := checkCarryReceive(st.Dir, lo, sp.CandIdx, cands, pendingDir, pendingIB); err != nil {
 			return CorridorRun{}, err
 		}
 		lo = *pendingLo
@@ -2261,7 +2261,7 @@ func chainHopRun(st CorridorStateID, x float64, sps []SolvePiece, cands []*Prepp
 	return CorridorRun{State: st, CandIdx: sp.CandIdx, ImportMeasureLo: x, ImportMeasureHi: x, CanonMeasureLo: lo, CanonMeasureHi: foot, ChainHop: true}, nil
 }
 
-// DropEmptyChainHops drops a chain-hop run the chain paid nothing across.
+// dropEmptyChainHops drops a chain-hop run the chain paid nothing across.
 // Such a run was reached and left by switches that bought no teleport, so its
 // canon starts and ends at its own foot: no import extent and no canon extent.
 // There is nothing to draw, and it is dropped here rather than handed
@@ -2276,7 +2276,7 @@ func chainHopRun(st CorridorStateID, x float64, sps []SolvePiece, cands []*Prepp
 // chain census found no such chain. It is kept because that shape is not
 // ruled out by construction, and a point-sized run reaching the commit would
 // mint a zero-length row. [TestDropEmptyChainHops] pins what it does.
-func DropEmptyChainHops(runs []CorridorRun) []CorridorRun {
+func dropEmptyChainHops(runs []CorridorRun) []CorridorRun {
 	kept := runs[:0]
 	for _, r := range runs {
 		if r.ChainHop && r.CanonMeasureLo == r.CanonMeasureHi {
@@ -2287,10 +2287,10 @@ func DropEmptyChainHops(runs []CorridorRun) []CorridorRun {
 	return kept
 }
 
-// MergeCorridorRuns merges adjacent runs that are ONE stretch of the same
+// mergeCorridorRuns merges adjacent runs that are ONE stretch of the same
 // trail — see the rule's full statement at its call site in
 // [SolveCorridorPath].
-func MergeCorridorRuns(runs []CorridorRun) []CorridorRun {
+func mergeCorridorRuns(runs []CorridorRun) []CorridorRun {
 	merged := runs[:0:0]
 	for _, r := range runs {
 		if n := len(merged); n > 0 {
@@ -2300,7 +2300,7 @@ func MergeCorridorRuns(runs []CorridorRun) []CorridorRun {
 			lastRev := last.CanonMeasureHi < last.CanonMeasureLo
 			rRev := r.CanonMeasureHi < r.CanonMeasureLo
 			// A DEGENERATE RUN HAS NO DIRECTION — see the same rule, and the
-			// measurement behind it, at [MergeAdjacentSameCandidateRuns].
+			// measurement behind it, at [mergeAdjacentSameCandidateRuns].
 			// Direction here is DERIVED from the measure pair rather than stored,
 			// so a merged stride keeps its own CanonMeasureLo and needs no flag
 			// repair; only the comparison has to stop reading a zero-width
@@ -2338,7 +2338,7 @@ func MergeCorridorRuns(runs []CorridorRun) []CorridorRun {
 	return merged
 }
 
-// CheckCarrySend is the sending half of the carry-through: the run being
+// checkCarrySend is the sending half of the carry-through: the run being
 // extended to the node a paid teleport went through must be the run of the
 // state the switch left from, in the direction the switch was priced for, and
 // the node must be the end that direction walks toward.
@@ -2351,8 +2351,8 @@ func MergeCorridorRuns(runs []CorridorRun) []CorridorRun {
 // pushed sub-nanometre outside the arc, and it aborted the whole write for it.
 //
 // ⚠ AND ONE THAT CONSTRUCTION MAKES UNREACHABLE, since chain hops are
-// drawn. The CarryEndIsExtreme clause cannot be false:
-// [CrossCandidateSharedPair] derives ia from the same Dir passed here. The Dir
+// drawn. The carryEndIsExtreme clause cannot be false:
+// [crossCandidateSharedPair] derives ia from the same Dir passed here. The Dir
 // clause COULD be false before: `last` was the run whose state reached this
 // layer, and a chain of same-layer switches could leave the leg on this
 // candidate in the other direction — the lollipop (a stub ridden FWD, a loop
@@ -2363,42 +2363,42 @@ func MergeCorridorRuns(runs []CorridorRun) []CorridorRun {
 // failure would mean the run being extended is not the one the teleport
 // bought, and silently skipping would leave the leg drawing less canon than it
 // was charged for.
-func CheckCarrySend(last *CorridorRun, runIdx int, fromDir CorridorDir, ia int, x float64, cands []*PreppedCandidate) error {
-	if last.State.Dir != fromDir || !CarryEndIsExtreme(fromDir, ia, len(cands[last.CandIdx].Verts)) {
+func checkCarrySend(last *CorridorRun, runIdx int, fromDir CorridorDir, ia int, x float64, cands []*PreppedCandidate) error {
+	if last.State.Dir != fromDir || !carryEndIsExtreme(fromDir, ia, len(cands[last.CandIdx].Verts)) {
 		return fmt.Errorf("corridorsolve: carry-through at import measure %v pairs run %d (declared direction %v, canon end %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
 			x, runIdx, last.State.Dir, last.CanonMeasureHi, ia, len(cands[last.CandIdx].Verts), last.CandIdx, fromDir)
 	}
 	return nil
 }
 
-// CheckCarryReceive is the receiving half of the carry-through: a run that
+// checkCarryReceive is the receiving half of the carry-through: a run that
 // STARTS where a paid teleport landed begins at the node, so its declared Dir
 // must be the one the switch was priced for, and the node must be the extreme
-// of the OPPOSITE direction ([CarryEndIsExtreme] asked with the Dir inverted).
+// of the OPPOSITE direction ([carryEndIsExtreme] asked with the Dir inverted).
 //
 // ⚠ AN ERROR THAT CONSTRUCTION MAKES UNREACHABLE. The pending carry is set by
 // the switch INTO the state that receives it, from that state's own Dir and
-// [CrossCandidateSharedPair]'s own IB for it, and it is consumed by the very
+// [crossCandidateSharedPair]'s own IB for it, and it is consumed by the very
 // next run appended, which is that state's (a chain's intermediate states are
 // drawn — [chainHopRun] — so no other run can come between). It stays an error
 // because a failure would mean the run is not the one the teleport bought, and
 // drawing it anyway would put canon where the solve did not pay for it.
-func CheckCarryReceive(stDir CorridorDir, canonLo float64, candIdx int, cands []*PreppedCandidate, pendingDir CorridorDir, pendingIB int) error {
-	if stDir != pendingDir || !CarryEndIsExtreme(!pendingDir, pendingIB, len(cands[candIdx].Verts)) {
+func checkCarryReceive(stDir CorridorDir, canonLo float64, candIdx int, cands []*PreppedCandidate, pendingDir CorridorDir, pendingIB int) error {
+	if stDir != pendingDir || !carryEndIsExtreme(!pendingDir, pendingIB, len(cands[candIdx].Verts)) {
 		return fmt.Errorf("corridorsolve: carry-through pairs a run (declared direction %v, canon start %v) with vertex %d of %d on candidate %d, priced for direction %v — internal inconsistency",
 			stDir, canonLo, pendingIB, len(cands[candIdx].Verts), candIdx, pendingDir)
 	}
 	return nil
 }
 
-// CorridorFinalPick is the cheapest reached state at the final layer: states
+// corridorFinalPick is the cheapest reached state at the final layer: states
 // and dist are that layer's list and distances. Unreached states (dist +Inf)
 // are skipped, and found is false when none was reached.
 //
-// ⚠ AN EXACT TOTAL ORDER: cost, then [StateLess] only on an exact tie. It used to treat costs within 1e-9 as tied, which let the
+// ⚠ AN EXACT TOTAL ORDER: cost, then [stateLess] only on an exact tie. It used to treat costs within 1e-9 as tied, which let the
 // tiebreak hand the leg to a dearer state; two costs that differ by any amount
 // are two different answers, and the cheaper one wins.
-func CorridorFinalPick(states []CorridorPackedState, dist []float64) (best CorridorStateID, cost float64, found bool) {
+func corridorFinalPick(states []CorridorPackedState, dist []float64) (best CorridorStateID, cost float64, found bool) {
 	cost = math.Inf(1)
 	for slot, ps := range states {
 		d := dist[slot]
@@ -2406,18 +2406,18 @@ func CorridorFinalPick(states []CorridorPackedState, dist []float64) (best Corri
 			continue
 		}
 		s := ps.Unpack()
-		if !found || d < cost || (d == cost && StateLess(s, best)) {
+		if !found || d < cost || (d == cost && stateLess(s, best)) {
 			best, cost, found = s, d, true
 		}
 	}
 	return best, cost, found
 }
 
-// StateLess is the deterministic tiebreak order: OFF first, then ascending
+// stateLess is the deterministic tiebreak order: OFF first, then ascending
 // IvIdx (== ascending candidate id, since ivs is built from an id-sorted
 // candidate list, so byte-identical duplicate candidates are broken by
 // id), then FWD before REV.
-func StateLess(a, b CorridorStateID) bool {
+func stateLess(a, b CorridorStateID) bool {
 	if a.Off != b.Off {
 		return a.Off
 	}

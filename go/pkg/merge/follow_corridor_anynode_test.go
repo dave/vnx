@@ -10,15 +10,15 @@ import (
 // past an existing node that is INTERIOR to its own candidate, nowhere near
 // either of that candidate's own ends, so [snapMeasureToCandidateEnd] cannot
 // reach it (own-end near = 30 m here, far outside the 15 m budget) and only a
-// real node lookup can. With [NoNodeLookup] the assembler draws a chord from
+// real node lookup can. With [noNodeLookup] the assembler draws a chord from
 // the shared node to the interior point, skipping canon's own vertex 1 m
 // further in; with a lookup that reports the node, the boundary rides canon
 // through it instead.
 //
-// Production passes [NoNodeLookup] today, so the
+// Production passes [noNodeLookup] today, so the
 // any-node arm is inert in a real import. This test is what keeps that arm
 // exercised until it is wired. The cripple IS the test: the SAME unmodified
-// code is called once with [NoNodeLookup] (asserting the chord) and once with
+// code is called once with [noNodeLookup] (asserting the chord) and once with
 // a fake lookup that reports the node (asserting the fix). Anything that made
 // the any-node branch a no-op would make BOTH calls produce the chord.
 func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
@@ -62,7 +62,7 @@ func TestFollowCorridorAssemble_AnyNodeSnapsInteriorBoundary(t *testing.T) {
 		return FollowRun{}
 	}
 
-	before, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, NoNodeLookup)
+	before, err := AssembleFollowedLegRunsCorridor(leg, canon, runs, b, noNodeLookup)
 	if err != nil {
 		t.Fatalf("assembleFollowedLegRunsCorridor (noNodeLookup): %v", err)
 	}

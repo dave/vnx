@@ -7,7 +7,7 @@ package merge
 // which case 0 — and that cliff is the defect three separate structural
 // repairs were built against and could not close.
 //
-// [CrossCandidateSwitchCost] prices it continuously instead: the canon-GRAPH
+// [crossCandidateSwitchCost] prices it continuously instead: the canon-GRAPH
 // distance from A's foot to B's foot through the shared node, charged at
 // BacktrackWeight and capped at P. These tests pin the two properties the
 // cliff could not have — the price is the graph distance, and it is a pure
@@ -45,7 +45,7 @@ func newCrossCandidatePriceFixture(t *testing.T, yV float64) crossCandidatePrice
 	}
 	cands := []*PreppedCandidate{a, b}
 	ivs := buildIvs(t, sa, cands, CorridorRadiusM)
-	return crossCandidatePriceFixture{cands: cands, sa: sa, ivs: ivs, sps: BuildSolvePieces(ivs), idxA: 0, idxB: 1}
+	return crossCandidatePriceFixture{cands: cands, sa: sa, ivs: ivs, sps: buildSolvePieces(ivs), idxA: 0, idxB: 1}
 }
 
 // graphDistance is the price's own quantity, recomputed here from the pieces'
@@ -56,8 +56,8 @@ func (f crossCandidatePriceFixture) graphDistance(spA, spB SolvePiece, x float64
 	pA, pB := f.cands[spA.CandIdx], f.cands[spB.CandIdx]
 	// A's shared end is its LAST vertex (measure pA.total); B's is its FIRST
 	// (measure 0). That is the fixture's own construction, asserted above.
-	dA := math.Abs(CanonMeasureAtPiece(spA.P, x) - pA.Total)
-	dB := math.Abs(CanonMeasureAtPiece(spB.P, x) - 0)
+	dA := math.Abs(canonMeasureAtPiece(spA.P, x) - pA.Total)
+	dB := math.Abs(canonMeasureAtPiece(spB.P, x) - 0)
 	_ = pB
 	return dA + dB
 }
@@ -68,7 +68,7 @@ func (f crossCandidatePriceFixture) graphDistance(spA, spB SolvePiece, x float64
 // agree at the minimum and diverge elsewhere would still fail.
 func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 	f := newCrossCandidatePriceFixture(t, 3)
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: BacktrackWeightPerM}
+	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	best := math.Inf(1)
 	samples := 0
@@ -91,7 +91,7 @@ func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 					CorridorStateID{SpIdx: i, Dir: CorridorFWD},
 					CorridorStateID{SpIdx: j, Dir: CorridorFWD},
 					x, f.sps, f.cands, tun)
-				want := math.Min(StateChangeCostP, BacktrackWeightPerM*f.graphDistance(spA, spB, x))
+				want := math.Min(StateChangeCostP, backtrackWeightPerM*f.graphDistance(spA, spB, x))
 				if got != want {
 					t.Fatalf("price at x=%v between sp%d (cand A) and sp%d (cand B) = %v, want %v — "+
 						"the cross-candidate price must be the canon-graph distance through the shared "+
@@ -130,7 +130,7 @@ func TestCrossCandidateSwitchCost_IsTheCanonGraphDistance(t *testing.T) {
 // is zero, so the price must be zero to float noise rather than P.
 func TestCrossCandidateSwitchCost_ThroughTheNodeIsFree(t *testing.T) {
 	f := newCrossCandidatePriceFixture(t, 0)
-	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: BacktrackWeightPerM}
+	tun := CorridorTunables{P: StateChangeCostP, BacktrackWeight: backtrackWeightPerM}
 
 	best := math.Inf(1)
 	samples := 0

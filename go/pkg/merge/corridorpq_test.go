@@ -3,7 +3,7 @@ package merge
 // ---- the lazy queue, kept as a TEST REFERENCE --------------------------
 //
 // corridorPQ was the corridor solve's search queue until
-// the indexed [CorridorHeap] replaced it.
+// the indexed [corridorHeap] replaced it.
 // It lives on here, verbatim from production less its unused init, for one
 // reason: it is the "lazy queue filtered to live pops" arm of
 // TestCorridorHeap_PopOrderMatchesReferences, the three-way agreement the heap's

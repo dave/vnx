@@ -149,7 +149,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// terminates on the node the align step found or minted there, so
 	// following canon and being JOINED to it are one fact. A leg with no
 	// followed run has no seam, and commits one arc with two fresh nodes.
-	seams, err := LegSeamsFromAlign(ctx, asm, alignRep, warpRep.StartNode, warpRep.EndNode)
+	seams, err := legSeamsFromAlign(ctx, asm, alignRep, warpRep.StartNode, warpRep.EndNode)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -158,7 +158,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// of this leg that is BITWISE an existing node's coordinate becomes a
 	// seam, so the piece is cut there instead of drawing over the junction.
 	//
-	// ⚠ AFTER LegSeamsFromAlign AND BEFORE ResolveLegRides, and both halves
+	// ⚠ AFTER legSeamsFromAlign AND BEFORE resolveLegRides, and both halves
 	// are load-bearing. After the leg cut, because the align seams are its exclusion
 	// set. Before the rides, because a ride is keyed on the COMMITTED
 	// PIECE's point range — resolved first, a ride would span a piece the
@@ -182,7 +182,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// is an error raised just before CommitLegPieces, not a quiet refusal of
 	// the ride.
 	var rides *LegRides
-	rides, err = ResolveLegRides(ctx, asm, alignRep, seams)
+	rides, err = resolveLegRides(ctx, asm, alignRep, seams)
 	if err != nil {
 		return LegResult{}, err
 	}
@@ -195,7 +195,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// EndpointWarpRadiusM of this leg's path becomes an interior seam,
 	// subject to the same declines the align seams apply.
 	//
-	// ⚠ AFTER LegSeamsFromAlign AND BEFORE ApplyLegBoundaryWarp, and both
+	// ⚠ AFTER legSeamsFromAlign AND BEFORE ApplyLegBoundaryWarp, and both
 	// halves of that placement are load-bearing. After the leg cut, because
 	// the align seams are its exclusion set and its stub-rule boundaries;
 	// asked first, it would adopt a node the align step is about to claim and
@@ -234,9 +234,9 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	}
 	// Record every index the warp above actually pinned (returned as
 	// LegResult.WarpedBoundaries). Captured HERE, before
-	// CollapseSameNodeSeams can drop or renumber anything below: every
+	// collapseSameNodeSeams can drop or renumber anything below: every
 	// element of seams at this point had a WarpBoundaryTarget built for
-	// it by ApplyLegBoundaryWarp (LegSeamsFromAlign never returns a
+	// it by ApplyLegBoundaryWarp (legSeamsFromAlign never returns a
 	// !HasNode seam, and that function filters nothing further), so the
 	// full set is simply every Idx still in seams.
 	warpedBoundaries := make([]int, len(seams))
@@ -260,12 +260,12 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 		res.RingMergedTerminals++
 	}
 	// The warp/collapse above can shrink a same-node piece that had real
-	// extent a moment ago down to an empty one; see CollapseSameNodeSeams
+	// extent a moment ago down to an empty one; see collapseSameNodeSeams
 	// for why this MUST run again, against the now-warped points, not just
-	// once inside LegSeamsFromAlign.
-	seams = CollapseSameNodeSeams(seams, followed, warpRep.StartNode, warpRep.EndNode)
+	// once inside legSeamsFromAlign.
+	seams = collapseSameNodeSeams(seams, followed, warpRep.StartNode, warpRep.EndNode)
 	res.LegMintedSeamNodes = LegMintedSeamNodes(followed, seams)
-	res.AdoptedTerminals = AdoptedTerminalCount(warpRep, ringMergedByGap)
+	res.AdoptedTerminals = adoptedTerminalCount(warpRep, ringMergedByGap)
 	// ⚠ THE RIDES' INDEX SPACE MUST STILL BE THIS LEG'S. LegRides keys are
 	// POINT INDICES, so a ride is only meaningful while the point count it
 	// was resolved against still holds. Returning no ride on a mismatch
@@ -283,7 +283,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	// symmetric-snap-indices guard below: that one only fires when the
 	// snap inserted something, and the population this catches is every
 	// OTHER way the count could move.
-	if err := CheckRidesIndexSpace(rides, len(followed), opts.Label); err != nil {
+	if err := checkRidesIndexSpace(rides, len(followed), opts.Label); err != nil {
 		return LegResult{}, err
 	}
 	pieces, seamJoins, ringSplits, ringMergedTerminals, tightPairs, ringMergedNode, interiorWarpedBoundaries, dupMultiplicities, createdDespiteDup, err := CommitLegPieces(ctx, canon, followed, seams, rides, warpRep.StartNode, warpRep.EndNode)
@@ -340,7 +340,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 	return res, nil
 }
 
-// CheckRidesIndexSpace fails when the leg about to commit is no longer the
+// checkRidesIndexSpace fails when the leg about to commit is no longer the
 // length its rides were resolved against. leg names the leg in the error
 // (LegOptions.Label).
 //
@@ -355,7 +355,7 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 //
 // nil rides is not a mismatch: a leg the matcher resolved nothing for offers
 // no ranges and has no index space to invalidate.
-func CheckRidesIndexSpace(rides *LegRides, pointCount int, leg string) error {
+func checkRidesIndexSpace(rides *LegRides, pointCount int, leg string) error {
 	if rides == nil || pointCount == rides.PointCount {
 		return nil
 	}

@@ -40,7 +40,9 @@ func TestImportsAreStdlibOnly(t *testing.T) {
 			if i := strings.Index(path, "/"); i >= 0 {
 				first = path[:i]
 			}
-			if (path == "C" || strings.Contains(first, ".")) && path != allowedImport {
+			// An external test package (an Example) imports the package itself.
+			self := f.Name.Name == "merge_test" && path == "github.com/dave/vnx/go/pkg/merge"
+			if (path == "C" || strings.Contains(first, ".")) && path != allowedImport && !self {
 				t.Errorf("%s imports %q — pkg/merge may import the standard library and %s only", name, path, allowedImport)
 			}
 		}

@@ -71,9 +71,8 @@ type AlignBoundary struct {
 
 	// Node is the canon node AT this boundary — the one a cut minted, the one
 	// already there when the boundary declined at an end, or the one it was
-	// ABSORBED onto. EVERY outcome names a node now; read it through
-	// [AlignBoundary.seamNode], which still returns the bool so a future
-	// nodeless outcome cannot be threaded silently.
+	// ABSORBED onto. Every outcome names a node, and the align step refuses a
+	// node id of 0 from the canon, so Node is never 0 in a returned report.
 	Node NodeID
 
 	// AbsorbedM is how far the boundary moved to reach Node — a straight-line
@@ -126,22 +125,17 @@ type AlignBoundary struct {
 	LineageCutConnectorPairs [][2]NodeID
 }
 
-// seamNode reports the canon node this boundary sits on, and whether there is
-// one.
+// checkCanonNodeID refuses a boundary node id of 0. Node ids start at 1, and
+// every align outcome names a node, so a 0 can only come from a Canon that
+// broke its contract. The error fails the leg, which poisons the canon.
 //
-// ⚠ SINCE THE ABSORB, EVERY OUTCOME NAMES A NODE — cut, at-a-node, at an
-// existing node, or absorbed onto an adjacent one — so the false arm is
-// currently unreachable. It stays because the bool is what makes a nodeless
-// outcome IMPOSSIBLE TO THREAD rather than merely unlikely: NodeID's zero value
-// is a plausible-looking id, and a caller reading .Node directly would write
-// node 0 into an arc. A future decline that cannot name a node gets the
-// false arm for free, and the leg cut drops that seam instead of minting a
-// node nobody shares.
-func (b AlignBoundary) SeamNode() (NodeID, bool) {
-	if b.Node == 0 {
-		return 0, false
+// Checked once, where each boundary is recorded, so the steps after the align
+// step can read [AlignBoundary.Node] directly.
+func checkCanonNodeID(id NodeID, d AlignDecline) error {
+	if id == 0 {
+		return fmt.Errorf("canon returned node id 0 for an align boundary (%s): node ids start at 1", alignDeclineName(d))
 	}
-	return b.Node, true
+	return nil
 }
 
 // AlignReport is what the align step did for ONE leg.

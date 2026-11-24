@@ -268,9 +268,6 @@ func TestAlign_NearBoundaryAbsorbsOntoTheAdjacentNode(t *testing.T) {
 	if b.Node != startNode {
 		t.Errorf("absorbed onto node %d, want the parent's start node %d", b.Node, startNode)
 	}
-	if node, ok := b.SeamNode(); !ok || node == 0 {
-		t.Errorf("seamNode() = (%d,%v), want the absorbed node and true — the leg cut cannot join a seam with no node", node, ok)
-	}
 	if b.AbsorbedM <= 0 || b.AbsorbedM > EndpointWarpRadiusM {
 		t.Errorf("AbsorbedM = %.3f, want the displacement in (0,%.0f]", b.AbsorbedM, EndpointWarpRadiusM)
 	}

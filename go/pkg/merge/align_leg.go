@@ -249,6 +249,11 @@ func splitCanonAtRunBoundaries(
 			return AlignReport{}, fmt.Errorf(
 				"align step: read endpoint nodes of canon arc %d to record its cut lineage: %w", canonID, err)
 		}
+		if origStartNode == 0 || origEndNode == 0 {
+			return AlignReport{}, fmt.Errorf(
+				"canon returned node id 0 for an end of canon arc %d (nodes %d..%d): node ids start at 1",
+				canonID, origStartNode, origEndNode)
+		}
 		origStart, _, err := canon.Node(ctx, origStartNode)
 		if err != nil {
 			return AlignReport{}, fmt.Errorf("align step: load node %d for canon arc %d's cut lineage: %w", origStartNode, canonID, err)
@@ -276,6 +281,9 @@ func splitCanonAtRunBoundaries(
 			}
 			b, err := cutCanonAtMeasure(ctx, canon, canonID, cur, a, claim, lineage)
 			if err != nil {
+				return AlignReport{}, err
+			}
+			if err := checkCanonNodeID(b.Node, b.Decline); err != nil {
 				return AlignReport{}, err
 			}
 			rep.Boundaries = append(rep.Boundaries, b)
@@ -379,6 +387,9 @@ func reresolveAbsorbsAgainstThisPass(ctx context.Context, canon Canon, rep *Alig
 		}
 		if !found || existing.DistM != 0 || existing.ID == b.Node {
 			continue
+		}
+		if err := checkCanonNodeID(existing.ID, AlignDeclineAtExistingNode); err != nil {
+			return err
 		}
 		b.Decline = AlignDeclineAtExistingNode
 		b.Node = existing.ID
@@ -488,6 +499,9 @@ func cutCanonAtMeasure(
 			out.Node = startNode
 		} else {
 			out.Node = endNode
+		}
+		if err := checkCanonNodeID(out.Node, AlignDeclineAtNode); err != nil {
+			return AlignBoundary{}, err
 		}
 		n, _, err := canon.Node(ctx, out.Node)
 		if err != nil {
@@ -609,6 +623,9 @@ func cutCanonAtMeasure(
 			parent, fraction, measure, total, err)
 	}
 
+	if err := checkCanonNodeID(res.Node.ID, AlignCutMade); err != nil {
+		return AlignBoundary{}, err
+	}
 	out.Decline = AlignCutMade
 	out.Node = res.Node.ID
 	if preferredOverForeign && st.hooks.A1ForeignAbsorb != nil {

@@ -44,6 +44,17 @@ import (
 // a cancelled ctx included, poisons the canon: that method and every later
 // one return it.
 //
+// A MemCanon has no rollback. When [AddLeg] fails, the leg may have written
+// part of its changes, and the canon must not be used again. To keep the
+// canon as it was before a leg, take a [MemCanon.Snapshot] first and, on an
+// error, build a new canon from it with [NewMemCanon]:
+//
+//	before, err := canon.Snapshot()
+//	if err != nil { ... }
+//	if _, err := merge.AddLeg(ctx, canon, pts, opts); err != nil {
+//		canon, _ = merge.NewMemCanon(before) // the leg is undone
+//	}
+//
 // A MemCanon is not safe for concurrent use.
 type MemCanon struct {
 	nodes    map[NodeID]*memNode
@@ -158,6 +169,9 @@ const memStretchVerts = 32
 // SQLite stores them (see [MemCanon]); a NaN where SQLite refuses one, a
 // repeated id, an id at or above its counter, an id below 1, an arc end that
 // names no node, or an arc whose ends are one node, is an error.
+//
+// A zero NextNodeID or NextArcID means 1, so NewMemCanon(MemCanonSnapshot{})
+// is an empty canon whose first node and first arc get id 1.
 func NewMemCanon(s MemCanonSnapshot) (*MemCanon, error) {
 	c, err := newMemCanon(s)
 	if err != nil {
@@ -168,6 +182,12 @@ func NewMemCanon(s MemCanonSnapshot) (*MemCanon, error) {
 
 // newMemCanon is [NewMemCanon] without the error prefix the API adds; the merge calls it.
 func newMemCanon(s MemCanonSnapshot) (*MemCanon, error) {
+	if s.NextNodeID == 0 {
+		s.NextNodeID = 1
+	}
+	if s.NextArcID == 0 {
+		s.NextArcID = 1
+	}
 	if s.NextNodeID < 1 || s.NextArcID < 1 {
 		return nil, fmt.Errorf("next node id %d and next arc id %d must be at least 1", s.NextNodeID, s.NextArcID)
 	}

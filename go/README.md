@@ -232,7 +232,7 @@ so it does not see a change to `corpus/`.
 | `pkg/vnx` | The document model, the reader, the writer and the VNZ container. |
 | `pkg/vnx/gpx`, `pkg/vnx/kml`, `pkg/vnx/geojson` | One conversion writer each. |
 | `pkg/detmath` | Sin, Cos, Atan, Atan2 and Hypot with the same bits on every architecture (from Go's `math`, BSD licence in its `LICENSE`). |
-| `pkg/merge` | The network merge's geometry core: joins GPS tracks into a shared network of nodes and arcs. Imports only the standard library and `pkg/detmath`. API not stable yet. |
+| `pkg/merge` | The network merge: `AddLeg` joins one GPS leg into a shared network of nodes and arcs (a `Canon`), so legs that ride the same path share one line. `MemCanon` is an in-memory canon; `NewMemCanon(MemCanonSnapshot{})` is an empty one. Imports only the standard library and `pkg/detmath`. No release tag yet; see `ExampleAddLeg`. |
 | `cmd/vnx` | The command-line tool. |
 
 ## Notes for porters

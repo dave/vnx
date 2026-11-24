@@ -72,10 +72,18 @@ type LegResult struct {
 // warp, the unresolved terminals, and then the pieces, each checked for a
 // duplicate arc.
 //
-// opts.FillElevation is required (pass NoFill for none; nil is an error).
+// Preconditions, each checked first with a clear error:
+//   - canon is not nil;
+//   - pts has at least 2 points, each with a finite latitude in [-90, 90]
+//     and a finite longitude in [-180, 180];
+//   - opts.FillElevation is not nil (pass NoFill for none).
 //
-// An error poisons the canon: the caller must discard every write the leg
-// made.
+// The canon must keep the [Canon] contract. In particular node ids start at
+// 1: a node id of 0 from the canon is an error.
+//
+// An error poisons the canon: the leg may have written part of its changes,
+// and the caller must discard every write the leg made. [MemCanon] has no
+// rollback; its doc shows how to keep a Snapshot to go back to.
 //
 // AddLeg is safe for concurrent use on separate canons: it keeps no package
 // state, and everything a call needs travels in its opts and ctx.
@@ -89,6 +97,17 @@ func AddLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (Leg
 
 // addLeg is [AddLeg] without the error prefix the API adds; the merge calls it.
 func addLeg(ctx context.Context, canon Canon, pts []Point, opts LegOptions) (LegResult, error) {
+	if canon == nil {
+		return LegResult{}, fmt.Errorf("canon is nil")
+	}
+	if len(pts) < 2 {
+		return LegResult{}, fmt.Errorf("leg has %d point(s), need at least 2", len(pts))
+	}
+	for i, p := range pts {
+		if !(p.Lat >= -90 && p.Lat <= 90) || !(p.Lon >= -180 && p.Lon <= 180) {
+			return LegResult{}, fmt.Errorf("point %d (%v, %v) is not a coordinate: latitude must be in [-90, 90] and longitude in [-180, 180]", i, p.Lat, p.Lon)
+		}
+	}
 	if opts.FillElevation == nil {
 		return LegResult{}, fmt.Errorf("FillElevation is nil; pass NoFill for a leg with nothing to fill")
 	}

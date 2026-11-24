@@ -78,7 +78,23 @@ type UnresolvedRide struct {
 	// Lo/Hi are the ON stretch's own point range, so a created piece can be
 	// ATTRIBUTED to the reason its ride failed rather than lumped in with the
 	// OFF pieces the writer is supposed to create.
-	Lo, Hi    int
+	Lo, Hi int
+	// Reason is why the ride failed, one of:
+	//   - "foreign-absorb": a boundary was absorbed onto a node that is not on
+	//     the arc the run rode (a parallel copy or a crossing arc).
+	//   - "same-node": both ends resolved to one node, so there is no stretch.
+	//   - "ambiguous-ring-canon": the canon arc closes on itself, so the
+	//     stretch between the two nodes has two answers.
+	//   - "snap-seam-inside-ride": the symmetric snap adopted a node inside
+	//     the stretch, so the committed piece is only part of the ride.
+	//   - "boundary-not-a-seam": the leg cut merged the boundary into a
+	//     neighbouring seam with a different node.
+	//   - "two-rides-one-piece": two ON stretches became one committed piece.
+	//   - "interior-node-off-lineage": a seam inside the stretch is not a
+	//     single point on the arc the run rode (counted once per piece it
+	//     borders).
+	//   - "boundary-off-position": a boundary's node is on the ridden arc but
+	//     further along it than the absorb radius from where the run ended.
 	Reason    string
 	StartKind string
 	EndKind   string
@@ -104,9 +120,8 @@ const (
 	// [LegRides.remapAfterSnapInsertions].
 	rideSnapSeamInsideRide = "snap-seam-inside-ride"
 	// The ON stretch's own boundary is not a seam of the committed leg: the leg
-	// cut dropped it (a stub decline names no node) or merged it into a
-	// neighbouring claim that named a DIFFERENT node. Either way no committed
-	// piece is this ON stretch, so there is nothing to reference.
+	// cut merged it into a neighbouring claim that named a DIFFERENT node. No
+	// committed piece is this ON stretch, so there is nothing to reference.
 	rideBoundaryNotASeam = "boundary-not-a-seam"
 	// TWO ON stretches map onto ONE committed piece, because the seams between
 	// them were merged or collapsed away. The piece then covers both rides and
@@ -268,8 +283,7 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 				"resolve rides: the align step reports no boundary for run %d's %s — one boundary per end of every ON run",
 				p.Run, runEndName(!sOK))
 		}
-		sNode, sHas := start.SeamNode()
-		eNode, eHas := end.SeamNode()
+		sNode, eNode := start.Node, end.Node
 		failRange := func(reason string, lo, hi int, startNode, endNode NodeID) {
 			out.Unresolved = append(out.Unresolved, UnresolvedRide{
 				Run: p.Run, Canon: r.CanonID, Reason: reason, Lo: lo, Hi: hi,
@@ -279,15 +293,6 @@ func resolveLegRides(ctx context.Context, asm assembledLeg, rep AlignReport, sea
 		}
 		fail := func(reason string) {
 			failRange(reason, p.Lo, p.Hi, sNode, eNode)
-		}
-		if !sHas || !eHas {
-			// Every align outcome names a node, so this is not a data
-			// condition — it is the align step and the leg cut disagreeing about
-			// what a boundary is. No fallback: a piece created here is a parallel copy nobody
-			// counted.
-			return nil, fmt.Errorf(
-				"resolve rides: run %d on canon arc %d has a boundary with no node (start %s, end %s) — every align outcome names a node",
-				p.Run, r.CanonID, alignDeclineName(start.Decline), alignDeclineName(end.Decline))
 		}
 		if sNode == eNode {
 			fail(rideSameNode)

@@ -102,34 +102,7 @@ func legSeamsFromAlign(ctx context.Context, asm assembledLeg, rep AlignReport, s
 				"seams from the align step: no align boundary for run %d's %s, which the ON piece at point %d needs a node for",
 				runIdx, runEndName(atEnd), idx)
 		}
-		node, hasNode := b.SeamNode()
-		// ⛔ A NODELESS BOUNDARY IS NOT A SEAM, and cutting the leg there
-		// produces a visible extra node. No align outcome produces one today
-		// (each names a node); this keeps the leg cut correct if one returns.
-		//
-		// The align step cuts canon at a run boundary so the stretch the leg
-		// rides spans a canon arc end to end, and the leg cut splits the leg at
-		// the same place so both sides share the node. When the align step
-		// declines without naming a node, canon is not cut, so there is no canon arc to span and no node to share.
-		// Cutting the leg anyway buys nothing and costs a node: the leg mints its
-		// own, typically 15 m or so from canon's, which reads as one place on the
-		// map but is two nodes in the store.
-		//
-		// So the seam is DROPPED. The leg's piece simply continues through the
-		// boundary, which is the honest answer, because at a declined boundary
-		// the leg cut's premise ("this piece spans a canon arc") is false.
-		//
-		// ⚠ IT MOVES NO GEOMETRY. The points are unchanged and in the same order;
-		// only the grouping into arcs changes, and one fewer node is minted.
-		// That is why this is the answer and "resolve the boundary to canon's
-		// nearby node" is not: the leg ADOPTS a seam node's coordinate, so naming
-		// a node tens of metres away would jerk the leg sideways.
-		//
-		// An ON<->ON boundary where the OTHER run names a real node still gets
-		// it: the merge below runs first and settles exactly that case.
-		if !hasNode {
-			return nil
-		}
+		node := b.Node
 		// A node THIS LEG'S OWN align pass minted is never adopted, whichever
 		// boundary record says so; see [legSeam.Adopted] and mintedThisLeg above.
 		adopted := b.Decline != AlignCutMade && !mintedThisLeg[node]
@@ -159,7 +132,7 @@ func legSeamsFromAlign(ctx context.Context, asm assembledLeg, rep AlignReport, s
 			// same batch.
 			prev := &seams[n-1]
 			switch {
-			case prev.HasNode && hasNode && prev.Node != node:
+			case prev.HasNode && prev.Node != node:
 				// Two boundaries at ONE leg point (the assembler already dedups
 				// them to one idx) each independently settled on a DIFFERENT
 				// nearby node. The align step re-asks an absorbed boundary's
@@ -228,7 +201,7 @@ func legSeamsFromAlign(ctx context.Context, asm assembledLeg, rep AlignReport, s
 						st.leg, idx, thisD, prevNode, node, kept, lost)
 				}
 				// else prev is already the closer candidate: prev wins, nothing to do.
-			case hasNode && !prev.HasNode:
+			case !prev.HasNode:
 				// The flag travels with the node that wins, not the previous seam's
 				// value — the previous claim contributed nothing, and this one is the
 				// only one that says anything about adoption or absorption.
@@ -244,7 +217,7 @@ func legSeamsFromAlign(ctx context.Context, asm assembledLeg, rep AlignReport, s
 				idx, seams[n-1].Idx)
 		}
 		seams = append(seams, legSeam{
-			Idx: idx, Node: node, HasNode: hasNode, Adopted: adopted,
+			Idx: idx, Node: node, HasNode: true, Adopted: adopted,
 			Absorbed: absorbed, AbsorbedM: absorbedM,
 			NodeLat: b.NodeLat, NodeLon: b.NodeLon,
 		})
@@ -656,7 +629,7 @@ func runEndName(atEnd bool) string {
 // ⚠ COUNT IT HERE, NOT AT THE DECLINE. A stub decline is what CREATES the
 // possibility, but it does not settle it: legSeamsFromAlign merges an ON<->ON
 // seam where one run declined and the other found a junction, and the junction
-// wins (`case hasNode && !prev.HasNode`). Counting declines would therefore
+// wins (`case !prev.HasNode`). Counting declines would therefore
 // over-report exactly where the two topologies do meet. The seam list is the
 // record of what the leg is about to commit, which is the event the node count
 // is about.
